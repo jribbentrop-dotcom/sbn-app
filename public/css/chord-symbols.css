@@ -1,0 +1,74 @@
+/**
+ * SBN Chord Symbol Typography
+ *
+ * Styling for chord names formatted by App\Helpers\ChordName.
+ * Used across all modules: leadsheets, chord diagrams, progressions.
+ *
+ * Loaded globally via admin layout (not module-specific).
+ * Uses Crimson Text (already loaded via Google Fonts CDN in admin layout).
+ */
+
+/* -- Inline chord symbol wrapper ------------------------- */
+
+.sbn-chord-symbol {
+    display: inline-block;
+    font-family: var(--font-chord);
+    font-size: 1.05em;
+    color: var(--clr-accent-dim);
+    font-weight: 600;
+    white-space: nowrap;
+    vertical-align: baseline;
+}
+
+/* -- Root note (A–G) ------------------------------------- */
+
+.sbn-chord-root {
+    font-weight: 700;
+    font-size: 1.1em;
+}
+
+/* -- Quality (m, dim, aug, sus, maj) --------------------- */
+
+.sbn-chord-quality {
+    font-style: normal !important;
+    font-weight: 400;
+}
+
+/* -- Accidental (♯, ♭) ----------------------------------- */
+
+.sbn-chord-accidental {
+    font-size: 0.95em;
+    position: relative;
+    top: -0.05em;
+}
+
+/* -- Extensions (7, 9, ♭5, ♯11, add9…) — superscript ---- */
+
+.sbn-chord-ext {
+    font-size: 0.75em;
+    font-weight: 600;
+    line-height: 0;
+    vertical-align: super;
+}
+
+/* -- Bass note (/E, /B♭) --------------------------------- */
+
+.sbn-chord-bass {
+    font-size: 0.9em;
+    font-weight: 400;
+    color: inherit;
+    margin-left: 1px;
+    vertical-align: baseline;
+}
+
+.sbn-chord-bass .sbn-bass-accidental {
+    font-size: 0.85em;
+}
+
+/* -- Print: force black ---------------------------------- */
+
+@media print {
+    .sbn-chord-symbol {
+        color: #000 !important;
+    }
+}

@@ -1,0 +1,1067 @@
+/* ===========================================================
+   SBN Chord Diagrams — Module Stylesheet
+   Uses --clr-* variables from admin2.css
+   =========================================================== */
+
+
+/* -- STATS ROW ------------------------------------------- */
+
+.sbn-chord-stats {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.sbn-chord-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 14px 24px;
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    min-width: 110px;
+}
+
+.sbn-chord-stat-num {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--clr-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.sbn-chord-stat-label {
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    font-weight: 500;
+}
+
+
+/* -- FILTERS --------------------------------------------- */
+
+.sbn-chord-filters {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.sbn-chord-count {
+    font-size: 12px;
+    color: var(--clr-text-muted);
+    margin-bottom: 16px;
+}
+
+
+/* -- VOICING SECTIONS (grouped layout) ------------------- */
+
+.sbn-voicing-section {
+    margin-bottom: 8px;
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    padding: 14px 20px;
+}
+
+.sbn-voicing-header {
+    margin: 0;
+    padding: 0;
+    border-bottom: none;
+    color: var(--clr-text);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    user-select: none;
+}
+
+.sbn-voicing-header:hover {
+    color: var(--clr-accent);
+}
+
+/* Only show bottom border + margin when expanded */
+.sbn-voicing-section:has(div[x-show]:not([style*="display: none"])) .sbn-voicing-header {
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--clr-accent);
+}
+
+.sbn-voicing-count {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--clr-text-muted);
+    margin-left: auto;
+}
+
+.sbn-collapse-icon {
+    width: 16px;
+    height: 16px;
+    color: var(--clr-text-muted);
+    transition: transform 0.2s var(--ease);
+    flex-shrink: 0;
+}
+
+.sbn-collapse-icon.sbn-collapsed {
+    transform: rotate(-90deg);
+}
+
+.sbn-root-string-group {
+    margin-bottom: 20px;
+}
+
+.sbn-root-string-group:last-child {
+    margin-bottom: 0;
+}
+
+.sbn-root-string-header {
+    margin: 0 0 10px;
+    padding: 6px 12px;
+    background: var(--clr-surface-2);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    color: var(--clr-text-dim);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.sbn-shapes-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+
+/* -- DIAGRAM CARD (library extensions) ------------------- */
+/* Base shell (.sbn-diagram-card) is in sbn-design-system.css §2.
+   The following are library-page-only additions.             */
+
+.sbn-diagram-card-header {
+    margin-bottom: 2px;
+    height: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.sbn-shape-title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0;
+    line-height: 1.2;
+}
+
+.sbn-shape-quality {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--clr-text);
+}
+
+.sbn-shape-ext {
+    color: var(--clr-accent);
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 2px;
+}
+
+.sbn-shape-inv {
+    font-size: 9px;
+    color: var(--clr-text-muted);
+    font-weight: 500;
+    line-height: 1;
+}
+
+.sbn-shape-bass {
+    color: #7c3aed;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 1px;
+}
+
+.sbn-diagram-preview {
+    margin: 4px 0;
+    padding: 0;
+    flex: 1;
+}
+
+.sbn-diagram-actions {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+}
+
+.sbn-btn-sm {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: var(--font-body);
+    border: 1px solid var(--clr-border);
+    border-radius: 4px;
+    background: var(--clr-white);
+    color: var(--clr-text-dim);
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.12s;
+}
+
+.sbn-btn-sm:hover {
+    background: var(--clr-surface-3);
+    border-color: var(--clr-text-muted);
+    color: var(--clr-text);
+}
+
+.sbn-btn-sm-danger {
+    color: var(--clr-error);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.sbn-btn-sm-danger:hover {
+    background: rgba(239, 68, 68, 0.06);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: var(--clr-error);
+}
+
+
+/* -- MINI FRETBOARD -------------------------------------- */
+/* Fretboard styles (.sbn-fretboard, .sbn-fret-row, .sbn-string-space,
+   .sbn-finger-position, .sbn-barre etc.) are in sbn-design-system.css §2b.
+   Legacy .sbn-fb-* aliases below kept for any remaining blade references
+   until a full sweep confirms all templates use the new class names.     */
+
+.sbn-chord-fretboard {
+    display:        flex;
+    flex-direction: column;
+    align-items:    center;
+}
+
+/* Legacy aliases — map old sbn-fb-* to new sbn-fretboard-* equivalents */
+.sbn-fb-mini        { position: relative; width: 100%; padding-left: 16px; }
+.sbn-fb-fret-num    { position: absolute; left: 0; top: 16px; font-size: 9px; color: var(--clr-text-muted); font-weight: 500; font-family: var(--font-mono); }
+.sbn-fb-indicators  { display: flex; justify-content: space-around; margin-bottom: 2px; height: 13px; }
+.sbn-fb-ind         { width: 16px; height: 13px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: transparent; }
+.sbn-fb-ind-muted   { color: var(--clr-text-muted); }
+.sbn-fb-ind-open    { color: var(--clr-text-dim); }
+.sbn-fb-nut         { height: 3px; background: var(--clr-text); border-radius: 1px; }
+.sbn-fb-frets       { display: flex; flex-direction: column; }
+.sbn-fb-row         { display: flex; height: 20px; border-bottom: 1px solid var(--clr-border); position: relative; }
+.sbn-fb-cell        { flex: 1; position: relative; }
+.sbn-fb-cell::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--clr-text-muted); transform: translateX(-50%); opacity: 0.5; }
+.sbn-fb-dot         { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--clr-red); color: #fff; font-size: 8px; font-weight: 700; display: flex; align-items: center; justify-content: center; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 10; }
+.sbn-fb-barre       { position: absolute; height: 10px; background: var(--clr-red); border-radius: 5px; transform: translateY(-50%); z-index: 5; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 8px; font-weight: 700; }
+.sbn-fb-intervals   { display: flex; justify-content: space-around; margin-top: 4px; }
+.sbn-fb-int         { font-size: 8px; color: var(--clr-text-muted); font-weight: 600; width: 18px; text-align: center; font-family: var(--font-mono); }
+
+
+/* -- RESPONSIVE (index) ---------------------------------- */
+
+@media (max-width: 1024px) {
+    .sbn-chord-stats {
+        flex-wrap: wrap;
+    }
+
+    .sbn-chord-stat {
+        min-width: 80px;
+        padding: 10px 16px;
+    }
+}
+
+@media (max-width: 640px) {
+    .sbn-shapes-row {
+        gap: 8px;
+    }
+
+    .sbn-diagram-card {
+        padding: 8px 6px; /* tighter padding on small screens, no width override */
+    }
+
+    .sbn-voicing-section {
+        padding: 14px;
+    }
+}
+
+
+/* ===========================================================
+   EDIT / CREATE PAGE (Phase 4b)
+   =========================================================== */
+
+
+/* -- EDIT LAYOUT ----------------------------------------- */
+
+.sbn-chord-edit-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    max-width: 900px;
+}
+
+.sbn-edit-section {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+}
+
+.sbn-edit-section-header {
+    margin-bottom: 20px;
+}
+
+.sbn-edit-section-header h2 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--clr-text);
+    margin: 0 0 4px;
+}
+
+.sbn-edit-section-header p {
+    font-size: 12px;
+    color: var(--clr-text-muted);
+    margin: 0;
+    line-height: 1.5;
+}
+
+
+/* -- FORM GRID ------------------------------------------- */
+
+.sbn-edit-grid {
+    display: grid;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.sbn-edit-grid-2 { grid-template-columns: 1fr 1fr; }
+.sbn-edit-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+.sbn-edit-grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+.sbn-edit-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.sbn-edit-field label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--clr-text);
+}
+
+.sbn-edit-field input[type="text"],
+.sbn-edit-field input[type="number"],
+.sbn-edit-field select,
+.sbn-edit-field textarea {
+    padding: 8px 12px;
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-family: var(--font-body);
+    color: var(--clr-text);
+    background: var(--clr-white);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.sbn-edit-field input:focus,
+.sbn-edit-field select:focus,
+.sbn-edit-field textarea:focus {
+    border-color: var(--clr-accent);
+    box-shadow: 0 0 0 3px var(--clr-accent-bg);
+}
+
+.sbn-edit-hint {
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    line-height: 1.3;
+}
+
+.sbn-edit-hint-inline {
+    font-weight: 400;
+    color: var(--clr-text-muted);
+    font-size: 11px;
+}
+
+.sbn-readonly-field {
+    background: var(--clr-surface-2) !important;
+    color: var(--clr-text-dim) !important;
+    cursor: default;
+}
+
+.sbn-edit-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--clr-text-dim);
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.sbn-edit-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--clr-accent);
+}
+
+
+/* -- SLUG / NAME DISPLAY --------------------------------- */
+
+.sbn-edit-slug-row {
+    display: flex;
+    gap: 24px;
+    padding: 12px 16px;
+    background: var(--clr-surface-2);
+    border-radius: var(--radius-sm);
+    margin-top: 4px;
+}
+
+.sbn-slug-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--clr-text-dim);
+}
+
+.sbn-slug-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--clr-text-muted);
+    flex-shrink: 0;
+}
+
+.sbn-slug-display code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--clr-accent-dim);
+    background: var(--clr-white);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--clr-border);
+}
+
+
+/* -- FRETBOARD CONTROLS ---------------------------------- */
+
+.sbn-edit-fretboard-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.sbn-finger-legend-inline {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+    flex-wrap: wrap;
+}
+
+.sbn-finger-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--fc);
+    background: color-mix(in srgb, var(--fc) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--fc) 20%, transparent);
+}
+
+
+/* -- FRETBOARD EDITOR (diagram-style) -------------------- */
+
+.sbn-editor-diagram-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 24px 0;
+}
+
+.sbn-editor-diagram {
+    position: relative;
+    width: 280px;
+    padding-left: 28px;
+}
+
+/* Fret number label */
+.sbn-ed-fret-num {
+    position: absolute;
+    left: 0;
+    top: 36px;
+    font-size: 13px;
+    color: var(--clr-text-muted);
+    font-weight: 500;
+    font-family: var(--font-mono);
+}
+
+/* String indicators (clickable) */
+.sbn-ed-indicators {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 4px;
+    height: 24px;
+}
+
+.sbn-ed-ind {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all 0.12s;
+    user-select: none;
+}
+
+.sbn-ed-ind-muted {
+    color: var(--clr-text-muted);
+}
+
+.sbn-ed-ind-open {
+    color: var(--clr-text);
+    font-size: 18px;
+}
+
+.sbn-ed-ind-normal {
+    color: transparent;
+}
+
+.sbn-ed-ind:hover {
+    background: var(--clr-accent-bg);
+}
+
+/* Nut */
+.sbn-ed-nut {
+    height: 5px;
+    background: var(--clr-text);
+    border-radius: 2px;
+}
+
+/* Fret rows */
+.sbn-ed-frets {
+    display: flex;
+    flex-direction: column;
+    background: var(--clr-white);
+}
+
+.sbn-ed-row {
+    display: flex;
+    height: 44px;
+    border-bottom: 2px solid #999;
+    position: relative;
+}
+
+.sbn-ed-row:last-child {
+    border-bottom: 2px solid #999;
+}
+
+/* String cells */
+.sbn-ed-cell {
+    flex: 1;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.sbn-ed-cell:hover {
+    background: var(--clr-accent-bg);
+}
+
+/* Vertical string lines — varying thickness like a real guitar */
+.sbn-ed-cell::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    transform: translateX(-50%);
+    z-index: 1;
+}
+
+.sbn-ed-cell[data-string="1"]::before {
+    width: 3px;
+    background: linear-gradient(to right, #999, #777, #999);
+}
+.sbn-ed-cell[data-string="2"]::before {
+    width: 2.5px;
+    background: linear-gradient(to right, #aaa, #888, #aaa);
+}
+.sbn-ed-cell[data-string="3"]::before {
+    width: 2px;
+    background: linear-gradient(to right, #aaa, #888, #aaa);
+}
+.sbn-ed-cell[data-string="4"]::before {
+    width: 1.5px;
+    background: #999;
+}
+.sbn-ed-cell[data-string="5"]::before {
+    width: 1px;
+    background: #aaa;
+}
+.sbn-ed-cell[data-string="6"]::before {
+    width: 1px;
+    background: #bbb;
+}
+
+/* Finger dots (editor — larger, colored by finger) */
+.sbn-ed-dot {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 20;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    transition: transform 0.1s;
+}
+
+.sbn-ed-dot:hover {
+    transform: translate(-50%, -50%) scale(1.1);
+}
+
+/* Barres (editor — larger) */
+.sbn-ed-barre {
+    position: absolute;
+    height: 24px;
+    border-radius: 12px;
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    transform: translateY(-50%);
+}
+
+
+/* -- CONTEXT MENU ---------------------------------------- */
+
+.sbn-ctx-menu {
+    position: fixed;
+    display: none;
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    box-shadow: var(--clr-shadow-lg);
+    padding: 10px;
+    z-index: 10000;
+    min-width: 200px;
+}
+
+.sbn-ctx-title {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--clr-text-muted);
+    padding: 0 4px 6px;
+}
+
+.sbn-ctx-fingers {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.sbn-ctx-f {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-body);
+}
+
+.sbn-ctx-f:hover {
+    transform: scale(1.15);
+}
+
+.sbn-ctx-remove {
+    display: block;
+    width: 100%;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-family: var(--font-body);
+    color: var(--clr-error);
+    background: rgba(239, 68, 68, 0.04);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.12s;
+    text-align: center;
+}
+
+.sbn-ctx-remove:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+
+/* -- SAVE ACTIONS ---------------------------------------- */
+
+.sbn-edit-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.sbn-btn-lg {
+    padding: 12px 28px;
+    font-size: 14px;
+}
+
+
+/* -- 5-COLUMN GRID (alias form) -------------------------- */
+
+.sbn-edit-grid-5 { grid-template-columns: 1fr 1fr 1fr 0.7fr auto; }
+
+
+/* -- ALIASES --------------------------------------------- */
+
+.sbn-alias-table-wrap {
+    margin-bottom: 16px;
+}
+
+.sbn-alias-table-wrap .sbn-table {
+    font-size: 13px;
+}
+
+.sbn-alias-table-wrap .sbn-table td {
+    padding: 8px 16px;
+}
+
+.sbn-alias-empty {
+    font-size: 13px;
+    color: var(--clr-text-muted);
+    padding: 8px 0 16px;
+}
+
+.sbn-alias-form {
+    padding-top: 16px;
+    border-top: 1px solid var(--clr-border-dim);
+}
+
+
+/* -- RESPONSIVE (edit page) ------------------------------ */
+
+@media (max-width: 768px) {
+    .sbn-edit-grid-4 {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .sbn-edit-grid-5 {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .sbn-edit-grid-3 {
+        grid-template-columns: 1fr;
+    }
+
+    .sbn-edit-section {
+        padding: 18px 16px;
+    }
+
+    .sbn-editor-diagram {
+        width: 240px;
+    }
+
+    .sbn-ed-row {
+        height: 38px;
+    }
+
+    .sbn-ed-dot {
+        width: 24px;
+        height: 24px;
+        font-size: 11px;
+    }
+
+    .sbn-finger-legend-inline {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .sbn-edit-slug-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .sbn-edit-grid-4,
+    .sbn-edit-grid-2,
+    .sbn-edit-grid-5 {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+/* ===========================================================
+   TABS (Library / Unmatched Voicings)
+   =========================================================== */
+
+.sbn-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--clr-border);
+    margin-bottom: 20px;
+}
+
+.sbn-tab {
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font-body);
+    color: var(--clr-text-muted);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sbn-tab:hover {
+    color: var(--clr-text);
+}
+
+.sbn-tab-active {
+    color: var(--clr-accent);
+    border-bottom-color: var(--clr-accent);
+}
+
+.sbn-tab-count {
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--clr-surface-3);
+    color: var(--clr-text-muted);
+    padding: 1px 7px;
+    border-radius: 10px;
+}
+
+.sbn-tab-count-warn {
+    background: var(--clr-accent);
+    color: #fff;
+}
+
+[x-cloak] { display: none !important; }
+
+
+/* ===========================================================
+   POPULAR VOICINGS (collapsible, inside Library tab)
+   =========================================================== */
+
+.sbn-popular-section {
+    margin-top: 24px;
+}
+
+.sbn-section-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px 0;
+    width: 100%;
+    text-align: left;
+}
+
+.sbn-section-toggle:hover .sbn-section-toggle-label {
+    color: var(--clr-accent);
+}
+
+.sbn-section-toggle-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--clr-text-dim);
+    transition: color 0.15s;
+}
+
+.sbn-chevron {
+    width: 14px;
+    height: 14px;
+    color: var(--clr-text-muted);
+    transition: transform 0.2s var(--ease);
+    flex-shrink: 0;
+}
+
+.sbn-chevron-open {
+    transform: rotate(90deg);
+}
+
+
+/* ===========================================================
+   UNMATCHED VOICINGS TAB
+   =========================================================== */
+
+.sbn-drafts-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.sbn-drafts-header-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.sbn-drafts-intro-text {
+    font-size: 13px;
+    color: var(--clr-text-dim);
+    line-height: 1.5;
+    padding: 10px 14px;
+    background: var(--clr-surface-2);
+    border-left: 3px solid var(--clr-accent);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    margin: 0;
+    flex: 1;
+}
+
+
+/* -- Draft groups ---------------------------------------- */
+
+.sbn-draft-group {
+    margin-bottom: 24px;
+}
+
+.sbn-draft-group-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--clr-text);
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--clr-border);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.sbn-draft-count {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--clr-text-muted);
+}
+
+
+/* -- Draft cards (compact) ------------------------------- */
+
+.sbn-draft-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+}
+
+.sbn-draft-card {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.sbn-draft-card:hover {
+    border-color: var(--clr-accent-border);
+    box-shadow: var(--clr-shadow-sm);
+}
+
+.sbn-draft-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+    gap: 4px;
+}
+
+.sbn-draft-chord-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--clr-text);
+    font-family: var(--font-chord);
+}
+
+.sbn-draft-frets {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--clr-text-muted);
+    background: var(--clr-surface-2);
+    padding: 1px 4px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.sbn-draft-diagram {
+    display: flex;
+    justify-content: center;
+    margin: 4px 0;
+    min-height: 60px;
+}
+
+.sbn-draft-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.sbn-draft-actions .sbn-btn {
+    flex: 1;
+    text-align: center;
+}
+
+
+/* -- Extra-small button variant -------------------------- */
+
+.sbn-btn-xs {
+    padding: 4px 10px;
+    font-size: 11px;
+}
+
+
+/* -- Nav badge — see admin2.css for .sbn-nav-badge styles -- */
+
+
+/* -- Responsive ------------------------------------------ */
+
+@media (max-width: 768px) {
+    .sbn-draft-cards {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    }
+
+    .sbn-drafts-header {
+        flex-direction: column;
+    }
+}

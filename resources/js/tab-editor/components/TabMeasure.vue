@@ -1,0 +1,428 @@
+<template>
+    <div class="sbn-tab-measure"
+         :class="{
+             'sbn-tab-measure--overfill':  isOverfilled,
+         }"
+         :style="measureStyle"
+         :data-measure="measure.index"
+         style="position:relative"
+         @contextmenu.prevent.stop="onMeasureContextMenu"
+    >
+
+        <!-- Chord names — always rendered to keep vertical alignment consistent.
+             Shows a clickable "?" placeholder when the bar has no chords. -->
+        <div class="sbn-tab-chord-bar">
+            <template v-if="chordNames.length">
+                <span
+                    v-for="(name, ci) in chordNames"
+                    :key="ci"
+                    class="sbn-tab-chord-name-wrap"
+                >
+                    <span
+                        class="sbn-tab-chord-name sbn-chord-symbol sbn-tab-chord-name--clickable"
+                        :title="'Click to change voicing for ' + name"
+                        v-html="formatChord(name)"
+                        @click.stop="onChordNameClick(name, ci)"
+                        @contextmenu.prevent.stop="onChordNameContextMenu($event, name, ci)"
+                    ></span>
+                </span>
+            </template>
+            <template v-else>
+                <!-- Empty bar placeholder — click opens the chord name picker.
+                     The chord bar has a fixed height so this never causes offset. -->
+                <span class="sbn-tab-chord-name-wrap sbn-tab-chord-empty-wrap"
+                      title="Click to assign a chord"
+                      @click.stop="onEmptyChordClick($event, 0)">
+                    <span class="sbn-tab-chord-name sbn-tab-chord-placeholder">?</span>
+                </span>
+            </template>
+        </div>
+
+        <svg
+            class="sbn-tab-svg"
+            :viewBox="`0 0 ${effectiveWidth} ${LAYOUT.tabHeight}`"
+            preserveAspectRatio="xMinYMid meet"
+            style="overflow:visible"
+        >
+            <!-- Overfill background tint -->
+            <rect v-if="isOverfilled"
+                  x="0" y="0"
+                  :width="effectiveWidth" :height="LAYOUT.tabHeight"
+                  class="sbn-tab-overfill-bg"/>
+
+            <!-- Static SVG content: notes, stems, beams, ties, rests -->
+            <g v-html="svgContent"></g>
+
+            <!-- Cursor overlay: navigation ring + click hit targets + pending digit -->
+            <TabCursor
+                v-if="cursor"
+                :measure="measure"
+                :cursor="cursor"
+                :is-first-of-section="isFirstOfSection"
+                :effective-width="effectiveWidth"
+                :pending-digit="pendingDigit"
+                :selected-events="selectedEvents"
+                @mousedown-event="onCursorMousedownEvent"
+                @mouseenter-event="onCursorMouseenterEvent"
+                @mousedown-rest="onCursorMousedownRest"
+                @mouseenter-rest="onCursorMouseenterRest"
+            />
+        </svg>
+    </div>
+</template>
+
+<script setup>
+import { computed } from 'vue';
+import { LAYOUT } from '../utils/constants.js';
+import {
+    renderFlag, renderRest, renderBeams, renderTies,
+    renderRepeatStart, renderRepeatEnd,
+} from '../utils/svgHelpers.js';
+import { stringY, isDotted } from '../utils/constants.js';
+import TabCursor from './TabCursor.vue';
+
+const props = defineProps({
+    measure: {
+        type: Object,
+        required: true,
+    },
+    isFirstOfSection: {
+        type: Boolean,
+        default: false,
+    },
+    ticksPerMeasure: {
+        type: Number,
+        default: 1920,
+    },
+    /**
+     * Phase 7d: the next measure in sequence (for cross-measure tie rendering).
+     * Null if this is the last measure.
+     */
+    nextMeasure: {
+        type: Object,
+        default: null,
+    },
+    /**
+     * Whether the next measure is the first in its section (affects X padding).
+     */
+    isNextFirstOfSection: {
+        type: Boolean,
+        default: false,
+    },
+    /**
+     * Chord names for this measure (array of strings, e.g. ['Dm7', 'G7']).
+     */
+    chordNames: {
+        type: Array,
+        default: () => [],
+    },
+    cursor: {
+        type: Object,
+        default: null,
+    },
+    /**
+     * Pending fret digit from useNoteInput — forwarded to TabCursor.
+     */
+    pendingDigit: {
+        type: String,
+        default: null,
+    },
+    /** Phase 7g: Set<eventId> of Shift+Arrow selected events, passed to TabCursor. */
+    selectedEvents: {
+        type: Object,
+        default: () => new Set(),
+    },
+    /**
+     * Number of bars in this row, used to calculate dynamic width.
+     */
+    barsPerRow: {
+        type: Number,
+        default: 4,
+    },
+});
+
+const emit = defineEmits([
+    'cursor-mousedown-event', 'cursor-mouseenter-event',
+    'cursor-mousedown-rest', 'cursor-mouseenter-rest',
+    'chord-click', 'chord-identify',
+    'chord-context-menu',    // Phase 2b — right-click on chord name
+    'chord-name-needed',     // Phase 2b — click on ? placeholder in empty bar
+    'measure-context-menu',  // Phase 2b — right-click on measure background
+]);
+
+// Use the global sbnFormatChord if available (loaded via public/js/sbn-chord-name.js),
+// otherwise fall back to a minimal inline formatter.
+function formatChord(name) {
+    if (!name) return '';
+    if (typeof window !== 'undefined' && typeof window.sbnFormatChord === 'function') {
+        return window.sbnFormatChord(name);
+    }
+    // Minimal fallback: root + superscript quality
+    const m = name.match(/^([A-G][#b]?)(.*)$/);
+    if (!m) return name;
+    const root = m[1].replace('#', '♯').replace('b', '♭');
+    let qual = m[2], bass = '';
+    const si = qual.indexOf('/');
+    if (si >= 0) { bass = '/' + qual.slice(si + 1).replace('#', '♯').replace('b', '♭'); qual = qual.slice(0, si); }
+    return root + (qual ? `<sup>${qual}</sup>` : '') + bass;
+}
+
+// Phase 7d: overfill detection — use tick-span, not raw sum.
+// Tuplets compress musical time: 3 triplet eighths = 1 beat, but raw ticks sum
+// to 480 which equals one beat exactly. Raw sum works for normal notes but
+// fails for tuplets whose ticks don't sum to standard durations.
+// Tick-span (last event's end position) is always correct for imported scores.
+const isOverfilled = computed(() => {
+    const v1 = (props.measure.events || [])
+        .filter(e => (e.voice || 1) === 1)
+        .sort((a, b) => a.tick - b.tick);
+    if (!v1.length) return false;
+    // Use measure.actualTicks if set (after an edit via repositionMeasure)
+    if (props.measure.actualTicks != null) {
+        return props.measure.actualTicks > props.ticksPerMeasure + 2;
+    }
+    // Compute tick-span using inter-event gaps where possible.
+    // last.ticks may be the nominal duration (e.g. 240 for an eighth) rather than
+    // the actual triplet duration (160), causing false overflow on triplet measures.
+    // For each event except the last, use the gap to the next event as the real duration.
+    // For the last event, fall back to last.ticks but clamp at ticksPerMeasure - tickInMeasure.
+    let span = 0;
+    for (let i = 0; i < v1.length; i++) {
+        const ev = v1[i];
+        const next = v1[i + 1];
+        let evEnd;
+        if (next) {
+            evEnd = next.tickInMeasure;
+        } else {
+            evEnd = Math.min(ev.tickInMeasure + ev.ticks, props.ticksPerMeasure);
+        }
+        if (evEnd > span) span = evEnd;
+    }
+    return span > props.ticksPerMeasure + 2;
+});
+
+// Dynamic layout widths
+const baseWidth = computed(() => {
+    // Calculate the total available row width using the default layout constants
+    const standardBars = LAYOUT.measuresPerRow || 4;
+    const standardTotalWidth = LAYOUT.measureWidth * standardBars;
+    
+    // Distribute that total width perfectly across the intended number of bars in this row
+    return standardTotalWidth / Math.max(1, props.barsPerRow);
+});
+
+const widthRatio = computed(() => {
+    const actual = props.measure.actualTicks || 0;
+    if (actual <= props.ticksPerMeasure) return 1;
+    return actual / props.ticksPerMeasure;
+});
+
+const effectiveWidth = computed(() => baseWidth.value * widthRatio.value);
+
+const measureStyle = computed(() => {
+    const pct = 100 / Math.max(1, props.barsPerRow);
+    if (widthRatio.value <= 1) return { flex: `0 0 ${pct}%` };
+    return { flex: `0 0 ${pct * widthRatio.value}%` };
+});
+
+function getXm(xPos) {
+    // xPos is already relative to effectiveTicks (0..1 range),
+    // so we map it to the effective pixel width.
+    const w = effectiveWidth.value;
+    const xL = props.isFirstOfSection ? LAYOUT.xPaddingFirst : LAYOUT.xPadding;
+    const xRng = w - xL - LAYOUT.xPadding;
+    return xL + xPos * xRng;
+}
+
+// For cross-measure ties: compute X in the NEXT measure's coordinate space
+function getNextXm(xPos) {
+    const nm = props.nextMeasure;
+    if (!nm) {
+        const xL = props.isNextFirstOfSection ? LAYOUT.xPaddingFirst : LAYOUT.xPadding;
+        const xRng = baseWidth.value - xL - LAYOUT.xPadding;
+        return xL + xPos * xRng;
+    }
+    const nextActual = nm.actualTicks || 0;
+    const nextRatio = nextActual > props.ticksPerMeasure ? nextActual / props.ticksPerMeasure : 1;
+    const nextW = baseWidth.value * nextRatio;
+    const xL = props.isNextFirstOfSection ? LAYOUT.xPaddingFirst : LAYOUT.xPadding;
+    const xRng = nextW - xL - LAYOUT.xPadding;
+    return xL + xPos * xRng;
+}
+
+const nextEffectiveWidth = computed(() => {
+    if (!props.nextMeasure) return baseWidth.value;
+    const nextActual = props.nextMeasure.actualTicks || 0;
+    const nextRatio = nextActual > props.ticksPerMeasure ? nextActual / props.ticksPerMeasure : 1;
+    return baseWidth.value * nextRatio;
+});
+
+const svgContent = computed(() => {
+    const m = props.measure;
+    const events = m.events || [];
+    const sT = LAYOUT.stringAreaTop;
+    const sB = LAYOUT.bottomStringY;
+    const sH = sB - sT;
+    const w = effectiveWidth.value;
+
+    let html = '';
+
+    // Volta bracket (rendered inside the measure SVG, above the strings)
+    if (m.volta) {
+        const vy = sT - 35;   // Pushed up high to clear chord symbols (SVG is overflow:visible)
+        const vx1 = -2;
+        const vx2 = m.voltaEnd ? w - 2 : w;
+        // Left vertical drop (only at volta start)
+        if (m.voltaStart) {
+            html += `<line x1="${vx1}" y1="${vy}" x2="${vx1}" y2="${sT - 20}" stroke="#000" stroke-width="0.8" stroke-linecap="square" />`;
+        }
+        // Horizontal line
+        html += `<line x1="${vx1}" y1="${vy}" x2="${vx2 - 3}" y2="${vy}" stroke="#000" stroke-width="0.8" stroke-linecap="square" />`;
+        // Right vertical drop (only at volta end)
+        if (m.voltaEnd) {
+            html += `<line x1="${vx2 - 3}" y1="${vy}" x2="${vx2 - 3}" y2="${sT - 20}" stroke="#000" stroke-width="0.8" stroke-linecap="square"  />`;
+        }
+        // Label (only at start)
+        if (m.voltaStart) {
+            html += `<text x="${vx1 + 3}" y="${vy + 11}" font-family="sans" font-weight="900" font-size="12" fill="#000000">${m.volta.text || m.volta.number + '.'}</text>`;
+        }
+    }
+
+    // String lines (full effective width)
+    for (let s = 0; s < LAYOUT.stringCount; s++) {
+        const y = LAYOUT.stringAreaTop + s * LAYOUT.stringSpacing;
+        html += `<line x1="0" y1="${y}" x2="${w}" y2="${y}" class="sbn-tab-string-line"/>`;
+    }
+
+    if (m.repeatStart) html += renderRepeatStart(sT, sB, sH);
+    html += renderBeams(events, getXm);
+    html += renderTies(events, m.index, getXm, w, props.nextMeasure ? getNextXm : null, nextEffectiveWidth.value);
+
+    events.forEach(ev => {
+        if (!ev.isRest) return;
+        html += renderRest(getXm(ev.xPos), ev.ticks, ev.voice, ev.id);
+    });
+
+    events.forEach(ev => {
+        if (ev.isRest || !ev.notes.length) return;
+
+        const vc = ev.voice === 2 ? ' voice-2' : '';
+
+        ev.notes.forEach(note => {
+            if (note.string === null || note.string === undefined || note.fret === null) return;
+            const x = getXm(ev.xPos);
+            const y = stringY(note.string);
+            html += `<text x="${x}" y="${y}" dominant-baseline="central" text-anchor="middle" font-size="${LAYOUT.noteFontSize}" class="sbn-tab-note-text" data-measure="${m.index}" data-event-id="${ev.id}" data-string="${note.string}">${note.fret}</text>`;
+        });
+
+        if (ev.stemDir) {
+            const x = getXm(ev.xPos);
+            let sY1, sY2;
+            if (ev.stemDir === 'up') {
+                sY1 = LAYOUT.topStringY - LAYOUT.stemBaseOffset;
+                sY2 = sY1 - LAYOUT.stemLength;
+            } else {
+                sY1 = LAYOUT.bottomStringY + LAYOUT.stemBaseOffset;
+                sY2 = sY1 + LAYOUT.stemLength;
+            }
+            // noBeamBar events (quarter triplets): beamWith set but beamStart/Continue/End
+            // all false. renderBeams already drew their stems — skip here to avoid doubles.
+            // Also skip any event in a beam group (beamWith set) — beams handle stems/flags.
+            const handledByBeams = ev.beamWith || ev.beamStart || ev.beamContinue || ev.beamEnd || ev.noBeamBar;
+            if (!handledByBeams) {
+                html += `<line x1="${x}" y1="${sY1}" x2="${x}" y2="${sY2}" class="sbn-tab-stem${vc}"/>`;
+                if (ev.flagCount > 0) {
+                    html += renderFlag(x, sY2, ev.stemDir, ev.flagCount, ev.voice);
+                }
+            }
+            if (isDotted(ev.ticks)) {
+                // Dot sits beside the stem tip, shifted slightly toward the note
+                const dY = ev.stemDir === 'up' ? sY2 + 4 : sY2 - 4;
+                html += `<circle cx="${x + 4}" cy="${dY}" r="1.2" class="sbn-tab-dot${vc}"/>`;
+            }
+        }
+    });
+
+    if (m.repeatEnd) {
+        html += renderRepeatEnd(w, sT, sB, sH);
+    } else {
+        html += `<line x1="${w - 0.5}" y1="${sT}" x2="${w - 0.5}" y2="${sB}" class="sbn-tab-bar-line"/>`;
+    }
+
+    return html;
+});
+
+function onChordNameClick(chordName, chordIndex) {
+    emit('chord-click', {
+        measureIndex: props.measure.index,
+        chordIndex,
+        chordName,
+    });
+}
+
+/** Click on the "?" placeholder — bar has no chord yet, open name picker. */
+function onEmptyChordClick(event, chordIndex) {
+    emit('chord-name-needed', {
+        measureIndex: props.measure.index,
+        chordIndex,
+        clientX: event.clientX,
+        clientY: event.clientY,
+    });
+}
+
+function onChordIdentifyClick(chordName, chordIndex) {
+    emit('chord-identify', {
+        measureIndex: props.measure.index,
+        chordIndex,
+        chordName,
+    });
+}
+
+function onChordNameContextMenu(event, chordName, chordIndex) {
+    emit('chord-context-menu', {
+        measureIndex: props.measure.index,
+        chordIndex,
+        chordName,
+        event,
+    });
+}
+
+function onCursorMousedownEvent({ eventId, stringIndex, event }) {
+    emit('cursor-mousedown-event', {
+        measureIndex: props.measure.index,
+        eventId,
+        stringIndex,
+        event,
+    });
+}
+
+function onCursorMouseenterEvent({ eventId, event }) {
+    emit('cursor-mouseenter-event', {
+        measureIndex: props.measure.index,
+        eventId,
+        event,
+    });
+}
+
+function onCursorMousedownRest({ eventId, event }) {
+    emit('cursor-mousedown-rest', {
+        measureIndex: props.measure.index,
+        eventId,
+        event,
+    });
+}
+
+function onCursorMouseenterRest({ eventId, event }) {
+    emit('cursor-mouseenter-rest', {
+        measureIndex: props.measure.index,
+        eventId,
+        event,
+    });
+}
+
+// ── Measure-level selection / context menu (Phase 2b) ─────────
+
+function onMeasureContextMenu(event) {
+    emit('measure-context-menu', { measureIndex: props.measure.index, event });
+}
+</script>

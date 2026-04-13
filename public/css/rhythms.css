@@ -1,0 +1,404 @@
+/*
+ * Soul Bossa Nova -- Rhythm Patterns Module
+ * Uses --clr-* variables from admin.css
+ *
+ * @version 2.0.0 (Laravel)
+ */
+
+/* -- Category Headers -- */
+.rhythm-category-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--clr-text-muted);
+    margin: 28px 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--clr-border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.rhythm-category-label .cat-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.cat-dot--brazilian { background: var(--clr-red); }
+.cat-dot--jazz { background: var(--clr-mod-leadsheet); }
+.cat-dot--latin { background: var(--clr-accent); }
+.cat-dot--general { background: var(--clr-text-muted); }
+
+/* -- Pattern Cards Grid -- */
+.patterns-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+}
+
+/* -- Pattern Card -- */
+.pattern-card {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    padding: 20px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.pattern-card:hover {
+    border-color: var(--clr-accent-border);
+    box-shadow: var(--clr-shadow-sm);
+}
+
+.pattern-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.pattern-card-head h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--clr-text);
+}
+
+.pattern-slug {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--clr-surface-3);
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--clr-text-muted);
+}
+
+.pattern-meta {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.pattern-desc {
+    font-size: 13px;
+    color: var(--clr-text-dim);
+    margin: 0 0 14px;
+    line-height: 1.5;
+}
+
+/* -- Mini Grid (card preview) -- */
+.mini-grid {
+    background: var(--clr-surface-2);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    margin-bottom: 14px;
+}
+
+.mini-grid-row {
+    display: flex;
+    gap: 3px;
+    margin-bottom: 3px;
+}
+
+.mini-grid-row:last-child { margin-bottom: 0; }
+
+.mini-grid-label {
+    width: 48px;
+    font-size: 10px;
+    color: var(--clr-text-muted);
+    text-align: right;
+    padding-right: 8px;
+    line-height: 20px;
+    flex-shrink: 0;
+}
+
+.mini-grid-cell {
+    width: 20px;
+    height: 20px;
+    border: 1px solid var(--clr-border);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    background: var(--clr-white);
+    color: transparent;
+}
+
+.mini-grid-cell.is-beat {
+    font-size: 9px;
+    color: var(--clr-text-muted);
+    border: none;
+    background: transparent;
+}
+
+.mini-grid-cell.is-hit {
+    background: #fef3f2;
+    border-color: var(--clr-red);
+    color: var(--clr-red);
+}
+
+.mini-grid-cell.is-accent {
+    background: var(--clr-red);
+    border-color: #c0392b;
+    color: #fff;
+    font-weight: 700;
+}
+
+.mini-grid-cell.is-thumb.is-hit {
+    background: var(--clr-surface-3);
+    border-color: var(--clr-text-muted);
+    color: var(--clr-text);
+}
+
+/* -- Card Actions -- */
+.pattern-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.pattern-shortcode {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--clr-text);
+    padding: 6px 12px;
+    border-radius: 4px;
+    margin-top: 12px;
+}
+
+.pattern-shortcode code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #93c5fd;
+    background: none;
+}
+
+.copy-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+    padding: 2px;
+    color: #93c5fd;
+}
+
+.copy-btn:hover { opacity: 1; }
+
+/* -- Editor Layout -- */
+.editor-layout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 24px;
+}
+
+.editor-main,
+.editor-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+@media (max-width: 1200px) {
+    .editor-layout { grid-template-columns: 1fr; }
+}
+
+/* -- Editor Cards -- */
+.sbn-editor-card {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.sbn-editor-card-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--clr-border);
+}
+
+.sbn-editor-card-header h2,
+.sbn-editor-card-header h3 {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--clr-text-muted);
+}
+
+.sbn-editor-card-body {
+    padding: 20px;
+}
+
+/* -- Form Helpers -- */
+.sbn-form-row {
+    display: grid;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.sbn-form-row-2 { grid-template-columns: 1fr 1fr; }
+.sbn-form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+@media (max-width: 768px) {
+    .sbn-form-row-2,
+    .sbn-form-row-3 { grid-template-columns: 1fr; }
+}
+
+.sbn-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sbn-form-group label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--clr-text-muted);
+}
+
+.sbn-form-hint {
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    margin: 0;
+}
+
+/* -- Grid Editor (interactive) -- */
+.grid-editor {
+    background: var(--clr-surface-2);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm);
+    padding: 20px;
+    margin-top: 8px;
+}
+
+.grid-editor-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.grid-editor-row:last-child { margin-bottom: 0; }
+
+.grid-editor-label {
+    width: 64px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--clr-text-muted);
+    text-align: right;
+    padding-right: 12px;
+    flex-shrink: 0;
+}
+
+.grid-editor-cell {
+    width: 34px;
+    height: 34px;
+    border: 2px solid var(--clr-border);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--clr-border);
+    background: var(--clr-white);
+    transition: all 0.12s ease;
+    user-select: none;
+}
+
+.grid-editor-cell:hover { border-color: var(--clr-text-muted); }
+
+.grid-editor-cell.is-beat {
+    background: transparent;
+    border: none;
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    font-weight: 500;
+    cursor: default;
+}
+
+.grid-editor-cell.is-hit {
+    background: #fef3f2;
+    border-color: var(--clr-red);
+    color: var(--clr-red);
+}
+
+.grid-editor-cell.is-accent {
+    background: var(--clr-red);
+    border-color: #c0392b;
+    color: #fff;
+}
+
+.grid-editor-cell.is-thumb { border-style: dashed; }
+
+.grid-editor-cell.is-thumb.is-hit {
+    background: var(--clr-surface-3);
+    border-color: var(--clr-text-muted);
+    border-style: solid;
+    color: var(--clr-text);
+}
+
+.grid-editor-cell.is-current {
+    box-shadow: 0 0 0 2px var(--clr-accent);
+}
+
+/* -- Live Preview (sidebar) -- */
+.live-preview {
+    background: var(--clr-surface-2);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+}
+
+.live-preview-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+/* -- Usage Code Block -- */
+.usage-code {
+    display: block;
+    background: var(--clr-text);
+    color: #93c5fd;
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    word-break: break-all;
+    margin-bottom: 10px;
+}
+
+/* -- Play Button -- */
+.play-btn {
+    width: 100%;
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--clr-border);
+    background: var(--clr-white);
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--clr-text);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.play-btn:hover { background: var(--clr-surface-3); }
+
+.play-btn.is-playing {
+    background: var(--clr-gradient);
+    border-color: transparent;
+    color: #fff;
+}

@@ -1,0 +1,84 @@
+/* ── §9 Context Menu ────────────────────────────────────────────────────────
+   Styles for the sbn-context-menu singleton managed by sbn-context-menu.js.
+   The menu element is appended to <body> with position:fixed so it floats
+   above all other UI including the voicing picker and tab editor overlay.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.sbn-context-menu {
+    position: fixed;
+    z-index: 9999;
+    min-width: 200px;
+    max-width: 280px;
+    background: var(--clr-bg-card, #fff);
+    border: 1px solid var(--clr-border, #e0e0e0);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .15), 0 2px 6px rgba(0, 0, 0, .08);
+    padding: 4px 0;
+    font-family: var(--ff-sans);
+    font-size: 13px;
+    /* position is set inline by sbn-context-menu.js */
+}
+
+.sbn-context-menu hr {
+    border: none;
+    border-top: 1px solid var(--clr-border, #e0e0e0);
+    margin: 4px 0;
+}
+
+.sbn-context-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 7px 12px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--clr-text, #1a1a1a);
+    font: inherit;
+    text-align: left;
+    gap: 12px;
+    border-radius: 0;
+    transition: background 0.1s;
+    white-space: nowrap;
+}
+
+.sbn-context-menu-item:hover:not(.disabled) {
+    background: var(--clr-bg-hover, #f0f0f0);
+}
+
+.sbn-context-menu-item.disabled {
+    opacity: 0.4;
+    cursor: default;
+    pointer-events: none;
+}
+
+.sbn-context-menu-item.danger {
+    color: var(--clr-danger, #d32f2f);
+}
+
+.sbn-context-menu-item.danger:hover {
+    background: rgba(211, 47, 47, 0.08);
+}
+
+.sbn-context-menu-label {
+    flex: 1;
+}
+
+.sbn-context-menu-kbd {
+    font-size: 11px;
+    color: var(--clr-text-muted, #888);
+}
+
+/* ── §2d Chord card selection frame ────────────────────────────────────────
+   Applied per-chord by isChordSelected(si, mi, ci). When all chords in a
+   measure are selected the frames share borders and visually merge into one
+   continuous highlight across the measure.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.sbn-ve-chord.sbn-ve-selected {
+    outline: 2px solid var(--clr-accent, #1976d2);
+    outline-offset: -2px;
+    border-radius: 4px;
+    background: rgba(25, 118, 210, 0.06);
+}

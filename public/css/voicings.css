@@ -1,0 +1,330 @@
+/**
+ * Voicing Crossref Module Styles
+ * Uses --clr-* variables from admin2.css
+ */
+
+/* =============================================
+   STATS GRID (extends base .sbn-stats-grid)
+   ============================================= */
+
+.sbn-voicing-stats {
+    margin-bottom: 28px;
+}
+
+.sbn-voicing-stats .sbn-stat-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px;
+}
+
+.sbn-voicing-stats .sbn-stat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--accent, var(--clr-accent)) 10%, transparent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.sbn-voicing-stats .sbn-stat-icon svg {
+    width: 20px;
+    height: 20px;
+    color: var(--accent, var(--clr-accent));
+}
+
+.sbn-voicing-stats .sbn-stat-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.sbn-voicing-stats .sbn-stat-number {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--clr-text);
+    line-height: 1.2;
+}
+
+.sbn-voicing-stats .sbn-stat-of {
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--clr-text-muted);
+}
+
+.sbn-voicing-stats .sbn-stat-label {
+    font-size: 12px;
+    color: var(--clr-text-muted);
+    margin-top: 2px;
+}
+
+.sbn-voicing-stats .sbn-stat-highlight {
+    border-color: var(--clr-accent-border);
+    background: var(--clr-accent-bg);
+}
+
+.sbn-voicing-stats .sbn-stat-highlight .sbn-stat-number {
+    color: var(--clr-accent-dim);
+}
+
+
+/* =============================================
+   POPULAR VOICINGS (collapsible)
+   ============================================= */
+
+.sbn-voicing-popular {
+    margin-bottom: 28px;
+}
+
+.sbn-section-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px 0;
+    width: 100%;
+    text-align: left;
+}
+
+.sbn-section-toggle:hover .sbn-section-title {
+    color: var(--clr-accent);
+}
+
+.sbn-section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--clr-text-dim);
+    transition: color 0.2s var(--ease);
+}
+
+.sbn-chevron {
+    width: 16px;
+    height: 16px;
+    color: var(--clr-text-muted);
+    transition: transform 0.2s var(--ease);
+    flex-shrink: 0;
+}
+
+.sbn-chevron-open {
+    transform: rotate(90deg);
+}
+
+.sbn-count-badge {
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--clr-surface-3);
+    color: var(--clr-text-muted);
+    padding: 1px 8px;
+    border-radius: 10px;
+}
+
+.sbn-count-badge-warning {
+    background: var(--clr-accent);
+    color: #fff;
+}
+
+.sbn-popular-table-wrap {
+    margin-top: 8px;
+}
+
+.sbn-popular-table-wrap .sbn-table {
+    font-size: 13px;
+}
+
+.sbn-link-name {
+    font-weight: 600;
+    color: var(--clr-text);
+}
+
+.sbn-link-name:hover {
+    color: var(--clr-accent);
+}
+
+
+/* =============================================
+   DRAFTS SECTION
+   ============================================= */
+
+.sbn-voicing-drafts {
+    margin-top: 4px;
+}
+
+.sbn-drafts-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.sbn-drafts-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--clr-text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sbn-drafts-intro-text {
+    font-size: 13px;
+    color: var(--clr-text-dim);
+    margin-bottom: 20px;
+    padding: 10px 14px;
+    background: var(--clr-surface-2);
+    border-left: 3px solid var(--clr-accent);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+
+/* =============================================
+   DRAFT GROUPS (per leadsheet)
+   ============================================= */
+
+.sbn-draft-group {
+    margin-bottom: 28px;
+}
+
+.sbn-draft-group-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--clr-text);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--clr-border);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.sbn-draft-count {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--clr-text-muted);
+}
+
+
+/* =============================================
+   DRAFT CARDS
+   ============================================= */
+
+.sbn-draft-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+}
+
+.sbn-draft-card {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    padding: 14px;
+    transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+
+.sbn-draft-card:hover {
+    border-color: var(--clr-accent-border);
+    box-shadow: var(--clr-shadow-sm);
+}
+
+.sbn-draft-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+    gap: 6px;
+}
+
+.sbn-draft-chord-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--clr-text);
+    font-family: var(--font-chord);
+}
+
+.sbn-draft-frets {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    background: var(--clr-surface-2);
+    padding: 2px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.sbn-draft-diagram {
+    display: flex;
+    justify-content: center;
+    margin: 8px 0;
+    min-height: 80px;
+}
+
+.sbn-draft-meta {
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    margin-bottom: 10px;
+}
+
+.sbn-draft-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.sbn-draft-actions .sbn-btn {
+    flex: 1;
+    text-align: center;
+    font-size: 12px;
+    padding: 5px 8px;
+}
+
+
+/* =============================================
+   EMPTY STATE
+   ============================================= */
+
+.sbn-voicing-drafts .sbn-empty {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--clr-text-muted);
+}
+
+.sbn-voicing-drafts .sbn-empty-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+}
+
+.sbn-voicing-drafts .sbn-empty h3 {
+    color: var(--clr-text);
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.sbn-voicing-drafts .sbn-empty p {
+    font-size: 13px;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+
+/* =============================================
+   RESPONSIVE
+   ============================================= */
+
+@media (max-width: 768px) {
+    .sbn-voicing-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .sbn-draft-cards {
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    }
+
+    .sbn-drafts-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+}

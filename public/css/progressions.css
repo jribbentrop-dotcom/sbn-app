@@ -1,0 +1,668 @@
+/* ===========================================================
+   Progressions Module CSS
+   Uses --clr-* variables from admin2.css — never defines its own colors.
+   =========================================================== */
+
+/* ── Stats Grid (override for compact 4-col) ─────────────── */
+
+.sbn-prog-stats {
+    grid-template-columns: repeat(4, 1fr);
+    margin-bottom: 20px;
+}
+.sbn-prog-stats .sbn-stat-card {
+    padding: 16px 20px;
+}
+.sbn-prog-stats .sbn-stat-number {
+    font-size: 20px;
+}
+.sbn-prog-stats .sbn-stat-name {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+    display: block;
+}
+.sbn-stat-dim {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--clr-text-muted);
+}
+
+/* ── Tab Toggle ──────────────────────────────────────────── */
+
+.sbn-prog-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 16px;
+    border-bottom: 2px solid var(--clr-border);
+}
+
+.sbn-prog-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 20px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--clr-text-muted);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.sbn-prog-tab:hover {
+    color: var(--clr-text);
+}
+
+.sbn-prog-tab.is-active {
+    color: var(--clr-accent);
+    border-bottom-color: var(--clr-accent);
+}
+
+.sbn-prog-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--clr-surface-3);
+    color: var(--clr-text-muted);
+}
+
+.sbn-prog-tab.is-active .sbn-prog-tab-count {
+    background: var(--clr-accent-bg);
+    color: var(--clr-accent);
+}
+
+/* ── Category Pills ──────────────────────────────────────── */
+
+.sbn-prog-cat-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.sbn-prog-cat-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 14px;
+    border-radius: 100px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--clr-text-muted);
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    text-decoration: none;
+    transition: all 0.15s;
+}
+
+.sbn-prog-cat-pill:hover {
+    color: var(--clr-text);
+    border-color: var(--clr-text-muted);
+}
+
+.sbn-prog-cat-pill.is-active {
+    background: var(--pill-clr, var(--clr-accent));
+    border-color: var(--pill-clr, var(--clr-accent));
+    color: #fff;
+}
+
+/* ── Library Table ───────────────────────────────────────── */
+
+.sbn-prog-table .sbn-prog-desc {
+    font-size: 12px;
+    color: var(--clr-text-muted);
+    margin-top: 2px;
+    line-height: 1.4;
+}
+
+.sbn-prog-cat-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    background: color-mix(in srgb, var(--cat-clr, #6b7280) 10%, transparent);
+    color: var(--cat-clr, #6b7280);
+    border: 1px solid color-mix(in srgb, var(--cat-clr, #6b7280) 20%, transparent);
+}
+
+.sbn-prog-tonality {
+    display: inline-flex;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    background: var(--clr-surface-3);
+    color: var(--clr-text-muted);
+    margin-left: 4px;
+}
+
+.sbn-prog-numerals {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--clr-text);
+    letter-spacing: -0.01em;
+}
+
+.sbn-prog-song-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 24px;
+    padding: 0 6px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 700;
+    background: var(--clr-accent-bg);
+    color: var(--clr-accent);
+    font-variant-numeric: tabular-nums;
+}
+
+.sbn-prog-song-none {
+    color: var(--clr-text-muted);
+    font-size: 13px;
+}
+
+.sbn-prog-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.sbn-btn-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--clr-border);
+    background: var(--clr-white);
+    color: var(--clr-text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+}
+
+.sbn-btn-sm:hover {
+    background: var(--clr-surface-3);
+    color: var(--clr-text);
+    border-color: var(--clr-text-muted);
+}
+
+.sbn-btn-sm-danger:hover {
+    background: rgba(239, 68, 68, 0.06);
+    color: var(--clr-error);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* ── Sortable Column Headers ─────────────────────────────── */
+
+.sbn-th-sort {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    transition: color 0.15s;
+}
+.sbn-th-sort:hover {
+    color: var(--clr-text);
+}
+
+.sbn-th-sort-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sbn-sort-arrow {
+    display: inline-flex;
+    opacity: 0;
+    transition: opacity 0.15s, transform 0.15s;
+    font-size: 14px;
+    line-height: 1;
+}
+.sbn-th-sort:hover .sbn-sort-arrow {
+    opacity: 0.3;
+}
+.sbn-sort-arrow.is-active {
+    opacity: 1;
+    color: var(--clr-accent);
+}
+.sbn-sort-arrow.is-asc {
+    transform: rotate(180deg);
+}
+
+/* ── Occurrences — Collapsible Song Groups ───────────────── */
+
+.sbn-occ-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sbn-occ-song {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.sbn-occ-song-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 12px 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--clr-text);
+    transition: background 0.15s;
+}
+
+.sbn-occ-song-header:hover {
+    background: var(--clr-surface-2);
+}
+
+.sbn-occ-song-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sbn-occ-song-info strong {
+    font-weight: 600;
+}
+
+.sbn-occ-chevron {
+    color: var(--clr-text-muted);
+    transition: transform 0.2s var(--ease);
+    flex-shrink: 0;
+}
+
+.sbn-occ-chevron.is-open {
+    transform: rotate(90deg);
+}
+
+.sbn-occ-key {
+    display: inline-flex;
+    padding: 1px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    background: var(--clr-surface-3);
+    color: var(--clr-text-muted);
+}
+
+.sbn-occ-song-count {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--clr-text-muted);
+    flex-shrink: 0;
+}
+
+.sbn-occ-song-body {
+    border-top: 1px solid var(--clr-border-dim);
+}
+
+.sbn-occ-table {
+    margin: 0;
+}
+.sbn-occ-table th {
+    font-size: 10px;
+    padding: 8px 12px;
+}
+.sbn-occ-table td {
+    font-size: 12px;
+    padding: 8px 12px;
+}
+
+.sbn-occ-confidence {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.sbn-occ-confidence-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--clr-surface-3);
+    border-radius: 3px;
+    overflow: hidden;
+    min-width: 50px;
+}
+
+.sbn-occ-confidence-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--clr-accent);
+    transition: width 0.3s var(--ease);
+}
+
+/* ── Edit Form ───────────────────────────────────────────── */
+
+.sbn-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--clr-text-muted);
+    margin-bottom: 16px;
+}
+.sbn-back-link:hover {
+    color: var(--clr-text);
+}
+
+.sbn-form-card {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-lg);
+    padding: 28px 32px;
+    max-width: 780px;
+}
+
+.sbn-form-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--clr-text);
+    margin-bottom: 24px;
+    letter-spacing: -0.02em;
+}
+
+.sbn-field {
+    margin-bottom: 20px;
+}
+
+.sbn-field-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+.sbn-field-row .sbn-field {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.sbn-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--clr-text-dim);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.sbn-input,
+.sbn-textarea {
+    width: 100%;
+    padding: 9px 14px;
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm);
+    color: var(--clr-text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    transition: border-color 0.15s;
+    outline: none;
+}
+.sbn-textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+.sbn-input:focus,
+.sbn-textarea:focus {
+    border-color: var(--clr-accent);
+    box-shadow: 0 0 0 3px var(--clr-accent-bg);
+}
+
+.sbn-input-mono {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+
+.sbn-select-full {
+    width: 100%;
+}
+
+.sbn-field-hint {
+    font-size: 12px;
+    color: var(--clr-text-muted);
+    margin-top: 4px;
+    line-height: 1.5;
+}
+.sbn-field-hint code {
+    font-size: 11px;
+    background: var(--clr-surface-3);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+.sbn-field-error {
+    display: block;
+    font-size: 12px;
+    color: var(--clr-error);
+    margin-top: 4px;
+    font-weight: 500;
+}
+
+/* ── Numeral Preview ─────────────────────────────────────── */
+
+.sbn-numeral-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+    min-height: 20px;
+}
+
+.sbn-numeral-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-chord);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--clr-text);
+    background: var(--clr-surface-2);
+    border: 1px solid var(--clr-border);
+}
+
+.sbn-numeral-warning {
+    width: 100%;
+    font-size: 12px;
+    color: var(--clr-warning);
+    margin-top: 4px;
+}
+.sbn-numeral-warning code {
+    font-size: 11px;
+    background: rgba(243, 156, 18, 0.1);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+/* ── Tags ────────────────────────────────────────────────── */
+
+.sbn-tags-active {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 28px;
+    margin-bottom: 8px;
+}
+
+.sbn-tags-none {
+    font-size: 12px;
+    color: var(--clr-text-muted);
+    font-style: italic;
+    padding: 4px 0;
+}
+
+.sbn-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--clr-accent-bg);
+    color: var(--clr-accent);
+    border: 1px solid var(--clr-accent-border);
+}
+
+.sbn-tag-remove {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+}
+.sbn-tag-remove:hover {
+    opacity: 1;
+}
+
+.sbn-tags-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+
+.sbn-tag-preset {
+    display: inline-flex;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-body);
+    background: var(--clr-surface-2);
+    color: var(--clr-text-muted);
+    border: 1px solid var(--clr-border);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.sbn-tag-preset:hover {
+    color: var(--clr-text);
+    border-color: var(--clr-text-muted);
+}
+.sbn-tag-preset.is-active {
+    background: var(--clr-accent-bg);
+    color: var(--clr-accent);
+    border-color: var(--clr-accent-border);
+}
+
+.sbn-tags-custom {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+/* ── Checkbox ────────────────────────────────────────────── */
+
+.sbn-checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--clr-text-dim);
+    cursor: pointer;
+}
+.sbn-checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--clr-accent);
+}
+
+/* ── Form Actions ────────────────────────────────────────── */
+
+.sbn-form-actions {
+    display: flex;
+    gap: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--clr-border-dim);
+    margin-top: 8px;
+}
+
+.sbn-form-errors {
+    margin-top: 16px;
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    background: rgba(239, 68, 68, 0.06);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+}
+.sbn-form-errors p {
+    font-size: 12px;
+    color: var(--clr-error);
+    margin-bottom: 2px;
+}
+
+/* ── Spinner for reprocess button ────────────────────────── */
+
+.sbn-spin {
+    animation: sbn-spin 0.8s linear infinite;
+}
+@keyframes sbn-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+    .sbn-prog-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .sbn-field-row {
+        flex-direction: column;
+        gap: 0;
+    }
+    .sbn-field-row .sbn-field {
+        margin-bottom: 20px;
+    }
+    .sbn-form-card {
+        padding: 20px;
+    }
+}
+
+@media (max-width: 640px) {
+    .sbn-prog-stats {
+        grid-template-columns: 1fr 1fr;
+    }
+    .sbn-prog-cat-pills {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        padding-bottom: 4px;
+    }
+}
