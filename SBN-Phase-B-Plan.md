@@ -261,7 +261,7 @@ Commit.
 
 ---
 
-### Step 6 — Feature flag flip + Alpine undo stack deletion *(~2 hours)*
+### Step 6 — Feature flag flip + Alpine undo stack deletion *(~2 hours)* ✅ **[COMPLETED]**
 
 **Flip the flag:**
 ```js
@@ -284,7 +284,7 @@ Vue's existing keyboard handler now owns all undo for both views.
 
 ---
 
-### Step 7 — `parsed.sections` demotion + `window.__sbnTabModel` facade *(~3 hours)*
+### Step 7 — `parsed.sections` demotion + `window.__sbnTabModel` facade ✅ [COMPLETED]
 
 **Create `utils/tabModelFacade.js`** — a small singleton that exposes Vue model data to Alpine:
 

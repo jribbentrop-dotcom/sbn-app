@@ -215,6 +215,7 @@ import { useUndo } from './composables/useUndo.js';
 import { useSelection } from './composables/useSelection.js';
 import { sidebarStore } from './composables/useSidebarStore.js';
 import { modelToMusicXml } from './utils/musicXmlWriter.js';
+import { initTabModelFacade } from './utils/tabModelFacade.js';
 import { extractFretsAtChord, applyVoicingToChord } from './composables/useChordSync.js';
 import TabMeasure from './components/TabMeasure.vue';
 import { useChordGridOps }        from './composables/useChordGridOps.js';
@@ -261,6 +262,25 @@ const {
     insertMeasureAfter, insertMeasureBefore, deleteMeasure, deleteMeasuresByGlobalIndices,
     exportAlpineSections, cloneChordVoicings, applyChordVoicingOps,
 } = tabModel;
+
+// ── __sbnTabModel facade (Phase B Step 7) ─────────────────────────────────
+// Exposes live Vue model data to Alpine via window.__sbnTabModel.
+// Getter functions read directly from the reactive model — no snapshot needed.
+// Alpine consumes this in sbn-tab-sections-sync (Step 7), save() (Step 8),
+// and loadAnalysis() (Step 9).
+initTabModelFacade({
+    getSections:      () => exportAlpineSections(),
+    getChordVoicings: () => cloneChordVoicings(model.value?.chordVoicings ?? {}),
+    getRepeatMarkers: () => model.value?.repeatMarkers ?? null,
+    getVoltaEndings:  () => model.value?.voltaEndings  ?? null,
+    getMeta: () => model.value ? {
+        title:         model.value.title,
+        composer:      model.value.composer,
+        key:           model.value.key,
+        tempo:         model.value.tempo,
+        timeSignature: model.value.timeSignature,
+    } : {},
+});
 
 // ── Update Bridge with Model ───────────────────────────────
 // Now that we have tabModel, update the bridge to use it for structural operations

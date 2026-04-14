@@ -1429,6 +1429,22 @@ function leadsheetEditor() {
                     this.openChordPicker(coord.si, coord.mi, chordIndex ?? 0, null);
                 }
             });
+            // Phase B Step 7: Vue is now the authority on sections/voicings.
+            // When Vue makes a structural change it dispatches sbn-tab-sections-sync
+            // on document (syncTabSectionsToAlpine) and window (useChordGridOps).
+            // Pull fresh data from the facade so save() still works correctly.
+            const _syncFromFacade = () => {
+                if (!window.__sbnTabModel?._ready) return;
+                this.parsed.sections      = window.__sbnTabModel.getSections();
+                this.parsed.chordVoicings = window.__sbnTabModel.getChordVoicings();
+                const rm = window.__sbnTabModel.getRepeatMarkers();
+                const ve = window.__sbnTabModel.getVoltaEndings();
+                if (rm !== null) this.parsed.repeatMarkers = rm;
+                if (ve !== null) this.parsed.voltaEndings  = ve;
+            };
+            document.addEventListener('sbn-tab-sections-sync', _syncFromFacade);
+            window.addEventListener('sbn-tab-sections-sync', _syncFromFacade);
+
             // Alpine owns parsed.sections, so insert/delete must happen here.
             // After each mutation, _emitChordsChanged() fires sbn-chords-changed,
             // which Vue picks up via patchStructure().
@@ -3546,15 +3562,9 @@ function sbnConfirmToast(htmlMessage, confirmLabel, onConfirm) {
     );
     console.log('[SBN snap] chordVoicings:', JSON.parse(JSON.stringify(cv)));
     console.log('[SBN snap] undo history is disabled');
-      // We read it via a setTimeout(0) so the synchronous handler has run
-      setTimeout(function(){
-        const got = e.detail && e.detail.tabSnapshot;
-        add('snap', 'request-snapshot result: ' + (got ? 'GOT snapshot ('+
-          (got.sections ? got.sections.length+' secs/'+got.sections.reduce(function(n,s){return n+s.measures.length;},0)+' bars' : 'no sections')
-          +')' : 'NULL — handler missing or model not built'));
-      }, 10);
-      return 'request-snapshot (checking...)';
-    }],
+  };
+
+  const EVTS = [
     ['sbn-tab-chord-update',      'chord',   function(e){ return 'chord-update gi='+e.detail?.globalMeasureIndex+' ci='+e.detail?.chordIndex+' -> '+e.detail?.chordName; }],
     ['sbn-tab-voicing-applied',   'voicing', function(e){ return 'voicing-applied gi='+e.detail?.globalMeasureIndex+' frets='+e.detail?.frets; }],
   ];
