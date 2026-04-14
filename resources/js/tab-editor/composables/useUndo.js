@@ -39,28 +39,22 @@ export function useUndo(model) {
         return {
             index:       measure.index,
             actualTicks: measure.actualTicks,
-            events:      measure.events.map(ev => {
-                // Destructure to strip circular reference properties
-                const { tieStartEvent, tieEndEvent, beamWith, ...rest } = ev;
-                return {
-                    ...rest,
-                    notes: ev.notes.map(n => {
-                        const { tieStartEvent, tieEndEvent, tieStartNote, tieEndNote, ...nRest } = n;
-                        return {
-                            ...nRest,
-                            tieStartEvent: null,
-                            tieEndEvent: null,
-                            tieStartNote: null,
-                            tieEndNote: null,
-                        };
-                    }),
-                    // These are object references that create circular references
-                    // They will be re-linked after restore
-                    tieStartEvent: null,
-                    tieEndEvent: null,
-                    beamWith: null,
-                };
-            }),
+            // Include chordNames so Pattern A (chord name ops) are covered by undo.
+            chordNames:  measure.chordNames ? [...measure.chordNames] : [],
+            events:      measure.events.map(ev => ({
+                ...ev,
+                notes:    ev.notes.map(n => {
+                    const clonedNote = { ...n };
+                    delete clonedNote.tieStartEvent;
+                    delete clonedNote.tieEndEvent;
+                    delete clonedNote.tieStartNote;
+                    delete clonedNote.tieEndNote;
+                    return clonedNote;
+                }),
+                // beamWith is an array of refs to sibling events in the same measure.
+                // After restore we re-link beamWith by id, so don't clone it here.
+                beamWith: null,
+            })),
         };
     }
 
@@ -70,6 +64,10 @@ export function useUndo(model) {
      */
     function restoreSnapshot(measure, snap) {
         measure.actualTicks = snap.actualTicks;
+        // Restore chord names in-place.
+        if (snap.chordNames) {
+            measure.chordNames.splice(0, measure.chordNames.length, ...snap.chordNames);
+        }
         // Replace events array contents in-place (keeps the same array reference
         // so TabMeasure's v-for doesn't fully remount)
         measure.events.splice(0, measure.events.length, ...snap.events.map(ev => ({ ...ev, notes: ev.notes.map(n => ({ ...n })) })));
@@ -82,14 +80,18 @@ export function useUndo(model) {
      * newly-restored event objects (the old object references are stale).
      */
     function relinkBeamWith(events) {
+        const byId = new Map(events.map(e => [e.id, e]));
         events.forEach(ev => {
+            // beamWith was nulled during snapshot; re-derive from beamStart/End/Continue flags.
+            // The simplest approach: rebuild by scanning for matching ids stored in a
+            // separate field. But we didn't store them. Instead we use the flags directly.
             ev.beamWith = null;
         });
-
-        // 1. Standard Beams (XML & Heuristic)
+        // Re-run the beam linking pass (same logic as computeBeams but lighter:
+        // we only need to restore beamWith, not recompute ticks/xPos).
         const groups = {};
         events.forEach(ev => {
-            if (ev.isRest || (!ev.beamStart && !ev.beamContinue && !ev.beamEnd)) return;
+            if (ev.isRest || !ev.beam1) return;
             const key = `${ev.measureIdx}-${ev.voice}`;
             if (!groups[key]) groups[key] = [];
             groups[key].push(ev);
@@ -98,44 +100,17 @@ export function useUndo(model) {
             group.sort((a, b) => a.tick - b.tick);
             let beamGroup = [];
             group.forEach(ev => {
-                if (ev.beamStart)    { beamGroup = [ev]; }
-                else if (ev.beamContinue && beamGroup.length) { beamGroup.push(ev); }
-                else if (ev.beamEnd  && beamGroup.length) {
+                if (ev.beam1 === 'begin')    { beamGroup = [ev]; }
+                else if (ev.beam1 === 'continue' && beamGroup.length) { beamGroup.push(ev); }
+                else if (ev.beam1 === 'end'  && beamGroup.length) {
                     beamGroup.push(ev);
                     beamGroup.forEach(m => { m.beamWith = beamGroup; });
                     beamGroup = [];
                 }
             });
         }
-
-        // 2. Unbeamed Tuplets (quarter-triplets, etc.)
-        const tupGroups = {};
-        events.forEach(e => {
-            if (e.beamWith) return; 
-            const key = `${e.measureIdx}-${e.voice}`;
-            if (!tupGroups[key]) tupGroups[key] = [];
-            tupGroups[key].push(e);
-        });
-        for (const group of Object.values(tupGroups)) {
-            group.sort((a, b) => a.tick - b.tick);
-            let tupGroup = [];
-            const closeGroup = () => {
-                if (tupGroup.length >= 2) {
-                    tupGroup.forEach(m => { m.beamWith = tupGroup; });
-                }
-                tupGroup = [];
-            };
-            group.forEach(e => {
-                if (e.tupletType === 'start') {
-                    if (tupGroup.length) closeGroup();
-                    tupGroup = [e];
-                } else if (tupGroup.length) {
-                    tupGroup.push(e);
-                    if (e.tupletType === 'stop') closeGroup();
-                }
-            });
-            closeGroup();
-        }
+        // Heuristic beamWith for events without beam1 tags (noBeamBar tuplets etc.)
+        // These will be re-derived on next render; set beamWith to null is safe.
     }
 
     // ── Find a measure by index in the live model ──────────
@@ -219,10 +194,11 @@ export function useUndo(model) {
         // After snapshots
         const after = measures.map(snapshotMeasure);
 
-        // Check if anything actually changed
+        // Check if anything actually changed (events, ticks, or chord names)
         const changed = measures.some((m, i) => {
             return JSON.stringify(before[i].events) !== JSON.stringify(after[i].events) ||
-                   before[i].actualTicks !== after[i].actualTicks;
+                   before[i].actualTicks !== after[i].actualTicks ||
+                   JSON.stringify(before[i].chordNames) !== JSON.stringify(after[i].chordNames);
         });
         if (!changed) return;
 
@@ -241,12 +217,54 @@ export function useUndo(model) {
         if (!canUndo.value) return;
         stack.value[pointer.value].undo();
         pointer.value--;
+        relinkTiesGlobally(model.value);
     }
 
     function redo() {
         if (!canRedo.value) return;
         pointer.value++;
         stack.value[pointer.value].redo();
+        relinkTiesGlobally(model.value);
+    }
+
+    function relinkTiesGlobally(modelData) {
+        if (!modelData) return;
+        const allEvents = [];
+        modelData.sections.forEach(s => s.measures.forEach(m => allEvents.push(...m.events)));
+        const byVoice = {};
+        allEvents.forEach(e => {
+            if (e.isRest) return;
+            const v = e.voice || 1;
+            if (!byVoice[v]) byVoice[v] = [];
+            byVoice[v].push(e);
+        });
+        Object.values(byVoice).forEach(events => {
+            events.sort((a, b) => {
+                if (a.measureIdx !== b.measureIdx) return a.measureIdx - b.measureIdx;
+                return a.tick - b.tick;
+            });
+            events.forEach(e => {
+                e.notes.forEach(n => { n.tieStartEvent = null; n.tieEndEvent = null; n.tieStartNote = null; n.tieEndNote = null; });
+            });
+            for (let i = 0; i < events.length - 1; i++) {
+                const ev1 = events[i];
+                ev1.notes.forEach(n1 => {
+                    if (n1.tieStart) {
+                        for (let j = i + 1; j < events.length; j++) {
+                            const ev2 = events[j];
+                            const n2 = ev2.notes.find(n => n.string === n1.string);
+                            if (n2 && n2.tieStop) {
+                                n1.tieEndEvent = ev2;
+                                n1.tieEndNote = n2;
+                                n2.tieStartEvent = ev1;
+                                n2.tieStartNote = n1;
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
+        });
     }
 
     /** Clear stack — call after a full model rebuild (e.g. new leadsheet loaded). */

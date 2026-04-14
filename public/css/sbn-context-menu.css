@@ -82,3 +82,65 @@
     border-radius: 4px;
     background: rgba(25, 118, 210, 0.06);
 }
+
+/* Vue chord grid — .is-selected (v-bind alias for sbn-ve-selected) */
+.sbn-ve-chord.is-selected {
+    outline: 2px solid var(--clr-accent, #1976d2);
+    outline-offset: -2px;
+    border-radius: 4px;
+    background: rgba(25, 118, 210, 0.06);
+}
+
+/* Chord picker popup (Vue ChordPicker.vue - Step 4) */
+.sbn-ve-chord-picker {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--clr-bg-card, #fff);
+    border: 1px solid var(--clr-border, #e0e0e0);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.15), 0 2px 6px rgba(0,0,0,.08);
+    padding: 6px 8px;
+}
+.sbn-ve-chord-picker-input {
+    font: inherit;
+    font-size: 13px;
+    border: 1px solid var(--clr-border, #e0e0e0);
+    border-radius: 4px;
+    padding: 4px 8px;
+    outline: none;
+    width: 120px;
+    background: var(--clr-bg, #fff);
+    color: var(--clr-text, #1a1a1a);
+}
+.sbn-ve-chord-picker-input:focus {
+    border-color: var(--clr-accent, #1976d2);
+    box-shadow: 0 0 0 2px rgba(25,118,210,0.15);
+}
+.sbn-ve-chord-picker-ok {
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border: none;
+    border-radius: 4px;
+    background: var(--clr-accent, #1976d2);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+.sbn-ve-chord-picker-ok:hover { background: var(--clr-accent-dark, #1565c0); }
+
+/* Vue chord context menu icon column */
+.sbn-chord-context-menu .sbn-cm-icon {
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+    font-size: 14px;
+}
+.sbn-chord-context-menu .sbn-context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}

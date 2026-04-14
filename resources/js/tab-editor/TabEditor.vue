@@ -8,8 +8,26 @@
         ref="editorRoot"
     >
 
+        <!-- New Vue-owned Tabs -->
+        <div class="sbn-ve-tabs">
+            <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'chords' }"
+                    @click="setViewMode('chords')">Chords</button>
+            <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'analysis' }"
+                    @click="setViewMode('analysis')">Analysis</button>
+            <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'tab' }"
+                    @click="setViewMode('tab')">Tab</button>
+        </div>
+
+        <!-- Chords Grid (Phase B) -->
+        <div v-show="viewMode === 'chords'" class="sbn-ve-chords-root">
+            <ChordGridView v-if="sbnPhaseBChordView && model" :sections="model.sections || []" />
+            <div v-else class="sbn-ve-grid-placeholder" style="padding: 20px; text-align: center; color: var(--clr-text-muted);">
+                [Alpine Chord Grid hidden. Set window.__sbnPhaseBChordView = true to view Vue grid.]
+            </div>
+        </div>
+
         <!-- No data state -->
-        <div v-if="!hasData" class="sbn-tab-no-data">
+        <div v-if="!hasData" v-show="viewMode === 'tab'" class="sbn-tab-no-data">
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"/>
@@ -35,9 +53,9 @@
 
         <!-- Tab content -->
         <template v-else-if="model">
-            <div class="sbn-tab-editor-notation" @mousedown.left="onNotationMousedown" ref="notationRoot" style="position:relative;">
+            <div class="sbn-tab-editor-notation" @mousedown.left="onNotationMousedown" ref="notationRoot" style="position:relative;" v-show="viewMode === 'tab'">
                 
-                <div v-if="marqueeState" :style="marqueeStyle"></div>
+                <div v-if="marqueeState" :style="marqueeStyle" class="sbn-tab-marquee"></div>
                 
                     <div v-for="(section, si) in model.sections" :key="section.id || si" class="sbn-ve-section">
 
@@ -181,7 +199,8 @@
  * Phase 7d: Duration changes, reflow, tie toggle, dotted toggle.
  */
 
-import { computed, defineExpose, ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { computed, defineExpose, ref, onMounted, onUnmounted, watch, nextTick, provide } from 'vue';
+import ChordGridView from './components/ChordGridView.vue';
 import { LAYOUT, generateId } from './utils/constants.js';
 import { useAlpineBridge } from './composables/useAlpineBridge.js';
 import { useTabModel } from './composables/useTabModel.js';
@@ -194,6 +213,26 @@ import { sidebarStore } from './composables/useSidebarStore.js';
 import { modelToMusicXml } from './utils/musicXmlWriter.js';
 import { extractFretsAtChord, applyVoicingToChord } from './composables/useChordSync.js';
 import TabMeasure from './components/TabMeasure.vue';
+import { useChordGridOps }      from './composables/useChordGridOps.js';
+import { useGridSelection }     from './composables/useGridSelection.js';
+import { useChordClipboard }    from './composables/useChordClipboard.js';
+import { useChordPickerStore }  from './composables/useChordPickerStore.js';
+
+const props = defineProps({
+    initialView: {
+        type: String,
+        default: 'chords'
+    }
+});
+
+const viewMode = ref(props.initialView);
+
+function setViewMode(mode) {
+    viewMode.value = mode;
+    document.dispatchEvent(new CustomEvent('tabulator-sync', {
+        detail: { type: 'view_mode_changed', mode }
+    }));
+}
 
 // ── Alpine Bridge ──────────────────────────────────────────
 
@@ -221,6 +260,18 @@ const {
 // Now that we have tabModel, update the bridge to use it for structural operations
 bridge.setTabModel(tabModel);
 
+// ── Chord Grid Operations (Phase B) ──────────────────────────
+const sbnPhaseBChordView = ref(typeof window !== 'undefined' && window.__sbnPhaseBChordView === true);
+if (typeof window !== 'undefined') {
+    Object.defineProperty(window, '__sbnPhaseBChordView', {
+        get: () => sbnPhaseBChordView.value,
+        set: (val) => { sbnPhaseBChordView.value = val === true; }
+    });
+}
+
+provide('model', model);
+provide('globalIndexOf', globalMeasureIndex);
+
 // ── Cursor ─────────────────────────────────────────────────
 
 const {
@@ -246,6 +297,21 @@ const { canUndo, canRedo, wrapCommand, undo, redo, reset: resetUndo } = useUndo(
 watch(model, (newVal, oldVal) => {
     if (newVal && !oldVal) resetUndo();
 });
+
+// ── Chord Grid composables (Phase B Step 4) ────────────────
+
+const chordGridOps   = useChordGridOps(model, { wrapCommand }, tabModel);
+const gridSelection  = useGridSelection(model);
+const chordClipboard = useChordClipboard(model, { wrapCommand });
+const chordPickerStore = useChordPickerStore();
+
+// Provide to the entire ChordGridView subtree
+provide('chordGridOps',   chordGridOps);
+provide('gridSelection',  gridSelection);
+provide('chordClipboard', chordClipboard);
+provide('chordPicker',    chordPickerStore);
+// voicingPicker stub — Step 5 will replace this with useVoicingPickerStore
+provide('voicingPicker', null);
 
 // ── Step 4: Structural sync — clamp cursor after grid changes ──
 // When Alpine adds/removes measures, buildModel() re-slices from the

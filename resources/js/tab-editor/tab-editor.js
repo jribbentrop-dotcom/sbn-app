@@ -25,12 +25,12 @@ import TabSidebarApp from './TabSidebarApp.vue';
 // ── Mount 1: notation area ────────────────────────────────
 
 // Create the app exactly once — outside the retry loop.
-const editorApp = createApp(TabEditor);
+const editorApp = createApp(TabEditor, { initialView: 'chords' });
 let editorMounted = false;
 
 function mountEditor() {
     if (editorMounted) return true; // already mounted — ignore spurious retries
-    const el = document.getElementById('sbn-tab-editor');
+    const el = document.getElementById('sbn-editor-content');
     if (!el) return false;
     editorMounted = true;
     editorApp.mount(el);

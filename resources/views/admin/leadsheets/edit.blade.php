@@ -53,141 +53,12 @@
         <template x-if="parsed">
         <div>
 
-            {{-- ── Tab bar ──────────────────────────────── --}}
-            <div class="sbn-ve-tabs">
-                <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'chords' }"
-                        @click="viewMode = 'chords'">Chords</button>
-                <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'analysis' }"
-                        @click="viewMode = 'analysis'; loadAnalysis()">Analysis</button>
-                <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'tab' }"
-                        @click="viewMode = 'tab'">Tab</button>
-            </div>
+            {{-- ── Vue Mount Point (replaces Tab bar, Chords view, Tab view) ── --}}
+            <div id="sbn-editor-content"></div>
 
-            {{-- ══ CHORDS VIEW ══════════════════════════════ --}}
-            <div class="sbn-ve-grid" x-show="viewMode === 'chords'" @click="handleGridClick($event)" @mouseup="handleGridMouseUp($event)">
-                <template x-for="(section, si) in parsed.sections" :key="si">
-                    <div class="sbn-ve-section">
-                        {{-- Section header --}}
-                        <div class="sbn-ve-section-header" :class="{ 'is-collapsed': collapsedSections[si] }">
-                            <button class="sbn-ve-section-collapse" :class="{ 'is-collapsed': collapsedSections[si] }"
-                                    @click="collapsedSections[si] = !collapsedSections[si]">▼</button>
-                            <input type="text" class="sbn-ve-section-id" maxlength="1"
-                                   :value="section.id" @input="section.id = $event.target.value.toUpperCase(); markDirty()">
-                            <input type="text" class="sbn-ve-section-name" placeholder="Section name"
-                                   :value="section.name" @input="section.name = $event.target.value; markDirty()">
-                            <select class="sbn-ve-section-rhythm"
-                                    :value="section.rhythmSlug || ''"
-                                    @change="section.rhythmSlug = $event.target.value || null; markDirty()">
-                                <option value="">Inherit rhythm</option>
-                                @foreach($rhythms as $r)
-                                    <option value="{{ $r->slug }}">{{ $r->name }}</option>
-                                @endforeach
-                            </select>
-                            <input type="text" class="sbn-ve-section-tonality" placeholder="Key"
-                                   title="Tonality override (e.g. Cm, G, Bbm)"
-                                   :value="section.tonality || ''"
-                                   @input="section.tonality = $event.target.value; markDirty()">
-                            <span class="sbn-ve-section-bar-count" x-text="(section.measures||[]).length + ' bars'"></span>
-                        </div>
-
-                        {{-- Collapsed preview --}}
-                        <div class="sbn-ve-section-collapsed" x-show="collapsedSections[si]"
-                             x-text="getCollapsedPreview(section)"></div>
-
-                        {{-- Section body --}}
-                        <div class="sbn-ve-section-body" x-show="!collapsedSections[si]">
-                            <template x-for="(row, ri) in getRowLayout(si)" :key="ri">
-                                <div class="sbn-ve-row">
-                                    <template x-for="li in row.indices" :key="li">
-                                        <div class="sbn-ve-measure"
-                                             :class="measureClasses(si, li, getGlobalIdx(si, li))"
-                                             :data-si="si" :data-mi="li"
-                                             draggable="true"
-                                             @dragstart="handleDragStart($event, si, li)"
-                                             @dragover.prevent="handleDragOver($event, si, li)"
-                                             @dragleave="handleDragLeave($event, si, li)"
-                                             @drop.prevent="handleDrop($event, si, li)"
-                                             @dragend="handleDragEnd()"
-                                             @mousedown="handleMeasureMouseDown($event, si, li)"
-                                             @mouseenter="handleMeasureMouseEnter($event, si, li)">
-
-                                            <template x-if="getVolta(getGlobalIdx(si, li))">
-                                                <div class="sbn-ve-volta" x-text="getVolta(getGlobalIdx(si, li)).number + '.'"></div>
-                                            </template>
-
-                                            <div class="sbn-ve-measure-num" x-text="getGlobalIdx(si, li) + 1"></div>
-
-                                            <template x-if="section.measures[li] && section.measures[li]._fromTab">
-                                                <div class="sbn-ve-tab-badge">TAB</div>
-                                            </template>
-
-                                            <template x-if="hasRepeat(getGlobalIdx(si, li), 'start')">
-                                                <div class="sbn-ve-rep-sign rep-start">𝄆</div>
-                                            </template>
-                                            <template x-if="hasRepeat(getGlobalIdx(si, li), 'end')">
-                                                <div class="sbn-ve-rep-sign rep-end">𝄇</div>
-                                            </template>
-
-                                            <div class="sbn-ve-measure-content">
-                                                <template x-for="(chord, ci) in (section.measures[li]||{}).chords || []" :key="ci">
-                                                    <div class="sbn-ve-chord"
-                                                         :class="{
-                                                             'double': (section.measures[li]?.chords?.length ?? 0) === 2,
-                                                             'multi':  (section.measures[li]?.chords?.length ?? 0) >= 3 && (section.measures[li]?.chords?.length ?? 0) <= 4,
-                                                             'dense':  (section.measures[li]?.chords?.length ?? 0) >= 5,
-                                                             'sbn-ve-selected': isChordSelected(si, li, ci),
-                                                         }"
-                                                         @click.stop="handleChordCardClick($event, si, li, ci)"
-                                                         @contextmenu.prevent.stop="showChordMenu($event, si, li, ci)">
-                                                        <div class="sbn-ve-chord-name"
-                                                             @click.stop="openChordPicker(si, li, ci, $event.target)"
-                                                             x-html="formatChordHtml(chord.name)"></div>
-                                                        <div class="sbn-ve-chord-diagram"
-                                                             :class="{ 'empty': !getVoicing(chord.name, getGlobalIdx(si, li), ci) }"
-                                                             @click.stop="chord.name ? openVoicingPicker(chord.name, chord.name + '@' + getGlobalIdx(si,li) + '.' + ci) : openChordPicker(si, li, ci, $el)">
-                                                            <template x-if="getVoicing(chord.name, getGlobalIdx(si, li), ci)">
-                                                                <div class="sbn-diagram-card" x-html="renderMiniDiagram(getVoicing(chord.name, getGlobalIdx(si, li), ci))"></div>
-                                                            </template>
-                                                            <template x-if="!getVoicing(chord.name, getGlobalIdx(si, li), ci)">
-                                                                <span>🎸</span>
-                                                            </template>
-                                                        </div>
-                                                        <template x-if="section.measures[li].chords.length < 5">
-                                                            <div class="sbn-ve-beats">
-                                                                <template x-for="b in Math.round(chord.beats)" :key="b">
-                                                                    <div class="sbn-ve-beat-dot"></div>
-                                                                </template>
-                                                            </div>
-                                                        </template>
-                                                    </div>
-                                                </template>
-                                            </div>
-
-                                            {{-- Hover actions removed — all operations via right-click context menu --}}
-                                        </div>
-                                    </template>
-
-                                    {{-- Row resize --}}
-                                    <div class="sbn-ve-row-resize">
-                                        <button class="sbn-ve-row-btn" @click.stop="rowShrink(si, ri)" title="Move last bar to next row">−</button>
-                                        <button class="sbn-ve-row-btn" @click.stop="rowGrow(si, ri)" title="Pull next bar into this row">+</button>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                </template>
-            </div>
-
-            {{-- Add section button removed — structural edits are now in Tab view only --}}
-
-            {{-- Grid footer / keyboard hint (chords view only) --}}
-            <div class="sbn-ve-grid-footer" x-show="viewMode === 'chords'">
-                <span class="sbn-ve-grid-footer-hint">Click to select · Shift+click range · Ctrl+C / X / V clipboard · Ctrl+Z undo</span>
-            </div>
 
             {{-- ══ ANALYSIS VIEW ════════════════════════════ --}}
-            <div class="sbn-analysis-panel" x-show="viewMode === 'analysis'" x-cloak>
+            <div class="sbn-analysis-panel" x-show="alpineViewMode === 'analysis'" x-cloak>
                 <div class="sbn-analysis-loading" x-show="analysisLoading">
                     🔍 Analysing harmonic structure…
                 </div>
@@ -233,10 +104,7 @@
                 </template>
             </div>
 
-            {{-- ══ TAB VIEW ══════════════════════════════════ --}}
-            <div class="sbn-analysis-panel" x-show="viewMode === 'tab'" x-cloak>
-                <div id="sbn-tab-editor"></div>
-            </div>
+
 
             {{-- ── Bottom panels ─────────────────────────── --}}
             <div class="sbn-ve-bottom">
@@ -265,103 +133,7 @@
         </div>
         </template>
 
-        {{-- ── Chord picker popup ────────────────────────── --}}
-        <div class="sbn-ve-chord-picker" x-show="picker.open" x-cloak
-             @click.away="picker.open = false"
-             :style="'top:' + picker.top + 'px; left:' + picker.left + 'px'">
-            <input type="text" class="sbn-ve-chord-input" x-model="picker.value"
-                   @keydown.enter="applyChordPicker()"
-                   @keydown.escape="picker.open = false"
-                   x-ref="pickerInput">
-            <div class="sbn-ve-picker-section">
-                <div class="sbn-ve-picker-label">Root</div>
-                <div class="sbn-ve-picker-buttons">
-                    <template x-for="r in ROOTS" :key="r">
-                        <button class="sbn-ve-picker-btn"
-                                :class="{ 'is-active': pickerRoot === r }"
-                                @click="setPickerRoot(r)" x-text="r"></button>
-                    </template>
-                </div>
-            </div>
-            <div class="sbn-ve-picker-section">
-                <div class="sbn-ve-picker-label">Quality</div>
-                <div class="sbn-ve-picker-buttons">
-                    <template x-for="q in QUALITIES" :key="q.val">
-                        <button class="sbn-ve-picker-btn"
-                                :class="{ 'is-active': pickerQuality === q.val }"
-                                @click="setPickerQuality(q.val)" x-text="q.label"></button>
-                    </template>
-                </div>
-            </div>
-            <div class="sbn-ve-picker-actions">
-                <button class="sbn-btn sbn-btn-xs" @click="picker.open = false">Cancel</button>
-                <button class="sbn-btn sbn-btn-primary sbn-btn-xs" @click="applyChordPicker()">Apply</button>
-            </div>
-        </div>
 
-        {{-- ── Voicing modal (mobile fallback < 1024px only) --}}
-        <div class="sbn-ve-modal-overlay sbn-vp-modal-only"
-             x-show="voicingPicker.open" x-cloak
-             @click.self="voicingPicker.open = false; voicingPicker._tabSource = null" x-transition.opacity>
-            <div class="sbn-ve-modal" @click.stop>
-                <div class="sbn-ve-modal-header">
-                    <div>
-                        <div class="sbn-ve-modal-subtitle">Select Voicing</div>
-                        <div class="sbn-ve-modal-chord-name" x-html="formatChordHtml(voicingPicker.chordName)"></div>
-                    </div>
-                    <button class="sbn-ve-modal-close" @click="voicingPicker.open = false; voicingPicker._tabSource = null">×</button>
-                </div>
-                <div class="sbn-ve-modal-body">
-                    <div class="sbn-vp-filters-compact" x-show="!voicingPicker.loading">
-                        <template x-for="cat in voicingPicker.filters.voicing_categories" :key="cat">
-                            <button class="sbn-vp-pill"
-                                    :class="{ 'active': isPickerFilterActive('voicing_category', cat) }"
-                                    @click="togglePickerFilter('voicing_category', cat)"
-                                    x-text="cat"></button>
-                        </template>
-                        <template x-for="rs in voicingPicker.filters.root_strings" :key="rs">
-                            <button class="sbn-vp-pill"
-                                    :class="{ 'active': isPickerFilterActive('root_string', rs) }"
-                                    @click="togglePickerFilter('root_string', rs)"
-                                    x-text="rs"></button>
-                        </template>
-                    </div>
-                    <div x-show="voicingPicker.loading" class="sbn-ve-modal-loading">Searching voicing database…</div>
-                    <div x-show="!voicingPicker.loading && !voicingPicker.results.length" class="sbn-ve-modal-empty">
-                        <div style="font-size:24px;margin-bottom:8px">📭</div>
-                        No voicings found for <span x-text="voicingPicker.chordName"></span>.
-                        <div class="sbn-ve-modal-empty-hint">Try adjusting the filters or add voicings in the Chord Diagrams page.</div>
-                    </div>
-                    <div class="sbn-ve-voicing-grid" x-show="!voicingPicker.loading && voicingPicker.results.length">
-                        <!-- "Current (from tab)" card — shown only when opened from tab AND no library match -->
-                        <div x-show="voicingPicker._tabSource && voicingPicker._tabMatchIndex === -1 && voicingPicker._tabSource.currentFrets"
-                             class="sbn-ve-voicing-card sbn-vp-card--from-tab">
-                            <div class="sbn-vp-card-name" x-html="formatChordHtml(voicingPicker._tabSource ? voicingPicker._tabSource.chordName : '')"></div>
-                            <span x-html="voicingPicker._tabSource ? renderMiniDiagram({ frets: voicingPicker._tabSource.currentFrets, position: voicingPicker._tabSource.currentPosition || 1 }) : ''"></span>
-                            <span class="sbn-vp-from-tab-label">Current (from tab)</span>
-                        </div>
-                        <template x-for="(v, vi) in voicingPicker.results" :key="vi">
-                            <div class="sbn-ve-voicing-card"
-                                 :class="{ 'is-selected': isVoicingSelected(v), 'sbn-vp-card--current': voicingPicker._tabSource && vi === voicingPicker._tabMatchIndex }"
-                                 @click="selectVoicing(v)">
-                                <template x-if="isVoicingSelected(v)">
-                                    <div class="check-mark">✓</div>
-                                </template>
-                                <div class="sbn-vp-card-name" x-html="formatChordHtml(pickerDisplayName())"></div>
-                                <span x-html="renderMiniDiagram({frets: v.frets, position: v.position})"></span>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-                <div class="sbn-ve-modal-footer">
-                    <button class="sbn-btn sbn-btn-xs sbn-btn-danger"
-                            x-show="voicingPicker.hasExisting"
-                            @click="removeVoicing()">Remove voicing</button>
-                    <span class="sbn-ve-modal-count"
-                          x-text="voicingPicker.results.length + ' voicing' + (voicingPicker.results.length !== 1 ? 's' : '')"></span>
-                </div>
-            </div>
-        </div>
 
     </div> {{-- end .sbn-vp-editor-main --}}
 
@@ -442,7 +214,8 @@
         </div>
 
         {{-- ── Voicing picker / overview — CHORDS view, or tab view when picker is open ─── --}}
-        <div class="sbn-vp-context" x-show="viewMode === 'chords' || (viewMode === 'tab' && voicingPicker.open)" x-cloak>
+        <div id="sbn-vp-slot"></div>
+        <div class="sbn-vp-context" x-show="alpineViewMode === 'chords' || (alpineViewMode === 'tab' && voicingPicker.open)" x-cloak>
 
             {{-- Active picker state --}}
             <div class="sbn-vp-picker-wrap" x-show="voicingPicker.open" x-cloak>
@@ -538,7 +311,7 @@
             </div>
 
             {{-- Overview (resting) state --}}
-            <div class="sbn-vp-overview" x-show="viewMode === 'chords' && !voicingPicker.open && parsed" x-cloak>
+            <div class="sbn-vp-overview" x-show="alpineViewMode === 'chords' && !voicingPicker.open && parsed" x-cloak>
                 <div class="sbn-vp-overview-header">
                     <div class="sbn-vp-subtitle">Song Voicings</div>
                     <span class="sbn-vp-overview-count" x-text="sortedUniqueChords.length + ' chords'"></span>
@@ -563,7 +336,7 @@
             </div>
 
             {{-- Placeholder (no data loaded) --}}
-            <div x-show="viewMode === 'chords' && !voicingPicker.open && !parsed"
+            <div x-show="alpineViewMode === 'chords' && !voicingPicker.open && !parsed"
                  style="display:flex;align-items:center;justify-content:center;flex:1;color:var(--clr-text-muted);font-size:13px;padding:16px">
                 <div style="text-align:center">
                     <div style="font-size:28px;margin-bottom:8px;opacity:0.3">🎸</div>
@@ -574,7 +347,7 @@
         </div>{{-- end .sbn-vp-context (chords) --}}
 
         {{-- ── Analysis sidebar — ANALYSIS view only ──────── --}}
-        <template x-if="viewMode === 'analysis'">
+        <template x-if="alpineViewMode === 'analysis'">
         <div style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
 
             {{-- Progression matches per section --}}
@@ -646,7 +419,7 @@
         </template>
 {{-- ── Tab sidebar — TAB view only ─────────────────── --}}
 <div id="sbn-tab-sidebar"
-     x-show="viewMode === 'tab' && !voicingPicker.open"
+     x-show="alpineViewMode === 'tab' && !voicingPicker.open"
      x-cloak
      style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
 </div>
@@ -1246,7 +1019,7 @@ function leadsheetEditor() {
         includeMelody: true,
 
         // View mode (Phase 5d)
-        viewMode: 'chords',
+        alpineViewMode: 'chords',
         analysisData: null,
         analysisLoading: false,
         highlightMatch: null,
@@ -1410,8 +1183,17 @@ function leadsheetEditor() {
             // Dispatch when switching to tab view FOR THE FIRST TIME
             // (Vue stays mounted via x-show, so subsequent switches must
             //  not overwrite the live model with stale parsed.melody)
-            this.$watch('viewMode', (val) => {
-                if (val === 'tab' && this.parsed && !this._tabInitDone) this._dispatchTabInit();
+            this.$watch('alpineViewMode', (val) => {
+                if (val === 'analysis' && (!this.analysisData || this._analysisStale)) {
+                    this.loadAnalysis();
+                }
+                if (val === 'tab' && this.parsed && !this._tabInitDone) {
+                    this._dispatchTabInit();
+                }
+            });
+
+            document.addEventListener('sbn-tab-view-changed', (e) => {
+                this.alpineViewMode = e.detail.viewMode;
             });
 
             // Listen for tab edits from Vue
@@ -1553,7 +1335,7 @@ function leadsheetEditor() {
                 this.$nextTick(() => {
                     this._dispatchTabInit();
                     this.markDirty();
-                    if (this.viewMode !== 'tab') this.viewMode = 'tab';
+                    if (this.alpineViewMode !== 'tab') this.alpineViewMode = 'tab';
                 });
             });
 
@@ -2744,10 +2526,10 @@ function leadsheetEditor() {
             if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
             const isCtrl = e.ctrlKey || e.metaKey;
             // Undo / redo — only when tab editor is not focused
-            if (isCtrl && e.key === 'z' && !e.shiftKey && this.viewMode !== 'tab') {
+            if (isCtrl && e.key === 'z' && !e.shiftKey && this.alpineViewMode !== 'tab') {
                 e.preventDefault(); this.gridUndo(); return;
             }
-            if (isCtrl && e.key === 'z' && e.shiftKey && this.viewMode !== 'tab') {
+            if (isCtrl && e.key === 'z' && e.shiftKey && this.alpineViewMode !== 'tab') {
                 e.preventDefault(); this.gridRedo(); return;
             }
             if (isCtrl && e.key === 'c' && this.selection.length) { e.preventDefault(); this.doCopy(); }
