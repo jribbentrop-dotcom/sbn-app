@@ -236,8 +236,8 @@ provide('viewMode', viewMode);
 
 function setViewMode(mode) {
     viewMode.value = mode;
-    document.dispatchEvent(new CustomEvent('tabulator-sync', {
-        detail: { type: 'view_mode_changed', mode }
+    document.dispatchEvent(new CustomEvent('sbn-tab-view-changed', {
+        detail: { viewMode: mode }
     }));
 }
 
