@@ -13,6 +13,7 @@
     <div class="sbn-ve-rep-sign rep-end"   v-if="hasRepEnd">𝄇</div>
 
     <div class="sbn-ve-measure-content">
+      <!-- Real chord cards -->
       <ChordCard
         v-for="(name, chordIndex) in chordNamesArray"
         :key="chordIndex"
@@ -21,6 +22,16 @@
         :measure-index="globalIdx"
         :chord-index="chordIndex"
         :total-chords="chordNamesArray.length"
+        @contextmenu="onCardContextMenu"
+      />
+      <!-- Ghost slot — shown when bar is empty so it stays clickable/right-clickable -->
+      <ChordCard
+        v-if="chordNamesArray.length === 0"
+        :chord="{ name: '', beats: 1 }"
+        :section-index="sectionIndex"
+        :measure-index="globalIdx"
+        :chord-index="0"
+        :total-chords="0"
         @contextmenu="onCardContextMenu"
       />
     </div>

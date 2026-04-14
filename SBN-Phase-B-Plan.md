@@ -1,4 +1,4 @@
-# SBN Teaching Hub — Phase B Implementation Plan
+﻿# SBN Teaching Hub — Phase B Implementation Plan
 # Chord Grid Migration: Alpine → Vue
 
 > **Authored by:** Claude Opus 4.6 (architect review session, 2026-04-13)
@@ -165,7 +165,7 @@ Default: `window.__sbnPhaseBChordView = false` — users keep using Alpine grid.
 
 ---
 
-### Step 4 — Chord editing: names, selection, context menu *(~4 hours)*
+### Step 4 — Chord editing: names, selection, context menu *(~4 hours)* ✅ **[COMPLETED]**
 
 **New composables to create:**
 
@@ -214,6 +214,7 @@ Functions in `useChordGridOps.js`:
 **`ChordContextMenu.vue`** dispatches to `useChordGridOps` and `useChordClipboard`.
 
 **Acceptance:** All chord grid ops work. Ctrl+Z/Ctrl+Shift+Z covers all of them through the unified Vue undo stack. Commit.
+  - *Observation: All composables created and wired. Build clean — 40 modules, zero errors. useChordPickerStore is a minimal singleton; full root+quality picker is Step 5. voicingPicker provided as null stub until Step 5. Committed as `61452c1`.*
 
 ---
 
