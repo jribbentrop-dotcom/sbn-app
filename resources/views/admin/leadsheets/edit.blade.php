@@ -1052,10 +1052,7 @@ function leadsheetEditor() {
         _mouseSelectAnchor: null,  // { si, mi } where mousedown started
         _mouseSelectMoved: false,  // true if drag crossed into a different measure
 
-        // Undo / redo (grid-interact Phase 2a)
-        _undoStack: [],
-        _undoPointer: -1,
-        _MAX_UNDO: 50,
+        // Undo / redo removed in Phase B — Alpine no longer manages its own chord grid history.
 
         // Chord picker
         picker: { open: false, top: 0, left: 0, value: '', si: 0, mi: 0, ci: 0 },
@@ -1437,9 +1434,6 @@ function leadsheetEditor() {
             // which Vue picks up via patchStructure().
 
             // Undo/redo delegation from tab editor (when Vue's own stack is empty)
-            document.addEventListener('sbn-tab-delegate-undo', () => { if (this.parsed) this.gridUndo(); });
-            document.addEventListener('sbn-tab-delegate-redo', () => { if (this.parsed) this.gridRedo(); });
-
             document.addEventListener('sbn-tab-structure-request', (e) => {
                 if (e.detail._fromAlpine) return;  // Don't re-handle chord-grid-initiated events
                 const { action, measureIndex } = e.detail;
@@ -1586,34 +1580,10 @@ function leadsheetEditor() {
 
         markDirty() { this.dirty = true; },
 
-        // ── Undo / Redo (grid-interact Phase 2a) ─────────────────────────
-
-        // Snapshot both sections and chordVoicings so chord renames and
-        // voicing assignments are fully reversible.
-        _snapshotState() {
-            return {
-                sections:      JSON.parse(JSON.stringify(this.parsed.sections)),
-                chordVoicings: JSON.parse(JSON.stringify(this.parsed.chordVoicings || {})),
-            };
-        },
-
-        /**
-         * Restore chordVoicings in-place so Alpine's reactivity system sees
-         * individual key changes rather than a full reference replacement.
-         * Replacing the object reference (parsed.chordVoicings = newObj) doesn't
-         * reliably trigger re-renders on deeply nested x-if/x-html bindings.
-         */
-        _restoreChordVoicings(snapshot) {
-            const cv = this.parsed.chordVoicings;
-            // Remove keys not in snapshot
-            for (const k of Object.keys(cv)) {
-                if (!(k in snapshot)) delete cv[k];
-            }
-            // Add/update keys from snapshot
-            for (const [k, v] of Object.entries(snapshot)) {
-                cv[k] = v;
-            }
-        },
+        // ── Undo / Redo removed in Phase B — Alpine no longer manages its own chord grid history.
+        // Legacy wrapper methods are preserved as no-ops for compatibility with existing action callers.
+        _wrapUndo(label, fn) { fn(); },
+        _wrapStructuralUndo(label, fn, hint = null) { fn(); },
 
         /**
          * Single point of dispatch for sbn-tab-init.
@@ -1650,117 +1620,6 @@ function leadsheetEditor() {
             // Once Vue can return a snapshot, it has a live model — mark as initialized
             if (snap) this._tabVueInitialized = true;
             return snap;
-        },
-
-        // Wrap any mutating fn: snapshot before & after, push to stack.
-        _wrapUndo(label, fn) {
-            const before = this._snapshotState();
-            fn();
-            const after = this._snapshotState();
-            // Skip if nothing actually changed
-            if (JSON.stringify(before) === JSON.stringify(after)) return;
-
-            // Discard any redo history above the current pointer
-            this._undoStack.splice(this._undoPointer + 1);
-            this._undoStack.push({ label, before, after });
-            if (this._undoStack.length > this._MAX_UNDO) {
-                this._undoStack.shift();
-            } else {
-                this._undoPointer++;
-            }
-        },
-
-        /**
-         * Wrap a structural mutation (insert/delete/move bar, section ops) in an
-         * undo entry that captures the Vue tab model snapshot before the change.
-         *
-         * On undo: both Alpine state and tab model are restored atomically via
-         *   sbn-tab-restore-snapshot, bypassing patchStructure().
-         * On redo: the structural hint is re-dispatched so patchStructure() can
-         *   do a surgical splice, then _emitChordsChanged() triggers the forward
-         *   path as if the operation were performed fresh.
-         *
-         * @param {string}   label - human-readable label
-         * @param {Function} fn    - the mutation (should call _emitChordsChanged)
-         * @param {object|null} hint - structural hint that was dispatched before
-         *   this call (e.g. { action:'deleteBar', measureIndex:3 }). Stored so
-         *   redo can re-dispatch it for surgical tab model updates.
-         */
-        _wrapStructuralUndo(label, fn, hint = null) {
-            const tabBefore    = this._requestTabSnapshot();
-            const alpineBefore = this._snapshotState();
-
-            fn();
-
-            const alpineAfter = this._snapshotState();
-
-            // Skip if nothing actually changed
-            if (JSON.stringify(alpineBefore) === JSON.stringify(alpineAfter)) return;
-
-            this._undoStack.splice(this._undoPointer + 1);
-            this._undoStack.push({
-                label,
-                structural: true,
-                structuralHint: hint,
-                before: { ...alpineBefore, tabSnapshot: tabBefore },
-                after:  alpineAfter,
-            });
-            if (this._undoStack.length > this._MAX_UNDO) {
-                this._undoStack.shift();
-            } else {
-                this._undoPointer++;
-            }
-        },
-
-        gridUndo() {
-            if (this._undoPointer < 0) { sbnToast('Nothing to undo', 'info'); return; }
-            const cmd = this._undoStack[this._undoPointer];
-            this.parsed.sections      = JSON.parse(JSON.stringify(cmd.before.sections));
-            this._restoreChordVoicings(JSON.parse(JSON.stringify(cmd.before.chordVoicings)));
-            // Force Alpine reactivity: in-place key mutations (delete + add) in
-            // _restoreChordVoicings don't reliably trigger x-if/x-html re-evaluation.
-            // Reassigning the reference ensures all getVoicing() calls re-evaluate.
-            this.parsed.chordVoicings = { ...this.parsed.chordVoicings };
-            this._undoPointer--;
-            this.selection = [];
-            this.markDirty();
-
-            if (cmd.structural && cmd.before.tabSnapshot) {
-                // Atomic restore — deserializeModel() assigns model directly and
-                // sets _restoringSnapshot=true. The _emitChordsChanged() below
-                // triggers the sections watcher, but patchStructure() will consume
-                // the flag and return early without clobbering the restored model.
-                // This also keeps Vue's sections ref in sync (Bug 1 fix).
-                document.dispatchEvent(new CustomEvent('sbn-tab-restore-snapshot', {
-                    detail: { snapshot: cmd.before.tabSnapshot }
-                }));
-            }
-            // Always fire — structural path needs Vue's sections ref updated too.
-            this._emitChordsChanged();
-            sbnToast('Undo: ' + cmd.label, 'info');
-        },
-
-        gridRedo() {
-            if (this._undoPointer >= this._undoStack.length - 1) { sbnToast('Nothing to redo', 'info'); return; }
-            this._undoPointer++;
-            const cmd = this._undoStack[this._undoPointer];
-            this.parsed.sections      = JSON.parse(JSON.stringify(cmd.after.sections));
-            this._restoreChordVoicings(JSON.parse(JSON.stringify(cmd.after.chordVoicings)));
-            this.parsed.chordVoicings = { ...this.parsed.chordVoicings };
-            this.selection = [];
-            this.markDirty();
-
-            if (cmd.structural && cmd.structuralHint) {
-                // Re-dispatch the surgical hint so patchStructure() can do
-                // a correct splice instead of a positional rebuild.
-                document.dispatchEvent(new CustomEvent('sbn-tab-structure-request', {
-                    detail: { ...cmd.structuralHint, _fromAlpine: true }
-                }));
-            }
-            // Always fire chords-changed for redo — whether structural or not,
-            // Vue needs to see the updated sections.
-            this._emitChordsChanged();
-            sbnToast('Redo: ' + cmd.label, 'info');
         },
 
         // ── File handling ─────────────────────────────────────
@@ -2525,13 +2384,6 @@ function leadsheetEditor() {
             if (!this.parsed) return;
             if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
             const isCtrl = e.ctrlKey || e.metaKey;
-            // Undo / redo — only when tab editor is not focused
-            if (isCtrl && e.key === 'z' && !e.shiftKey && this.alpineViewMode !== 'tab') {
-                e.preventDefault(); this.gridUndo(); return;
-            }
-            if (isCtrl && e.key === 'z' && e.shiftKey && this.alpineViewMode !== 'tab') {
-                e.preventDefault(); this.gridRedo(); return;
-            }
             if (isCtrl && e.key === 'c' && this.selection.length) { e.preventDefault(); this.doCopy(); }
             else if (isCtrl && e.key === 'x' && this.selection.length) { e.preventDefault(); this.doCut(); }
             else if (isCtrl && e.key === 'v' && this.clipboard) { e.preventDefault(); this.doPaste(); }
@@ -3690,20 +3542,10 @@ function sbnConfirmToast(htmlMessage, confirmLabel, onConfirm) {
     const glob = Object.keys(cv).filter(k=>!/@\d+\.\d+$/.test(k));
     add('snap',
       secs.length+' secs / '+bars+' bars / '+Object.keys(cv).length+' voicings',
-      'global: '+(glob.join(', ')||'none')+'\ninstance: '+(inst.join(', ')||'none')+'\nundoPtr: '+al._undoPointer+'/'+(( al._undoStack?.length||1)-1)
+      'global: '+(glob.join(', ')||'none')+'\ninstance: '+(inst.join(', ')||'none')+'\nundo history: disabled'
     );
     console.log('[SBN snap] chordVoicings:', JSON.parse(JSON.stringify(cv)));
-    console.log('[SBN snap] undoStack length:', al._undoStack?.length, 'ptr:', al._undoPointer);
-    console.log('[SBN snap] sections:', JSON.parse(JSON.stringify(secs)));
-  };
-
-  const EVTS = [
-    ['sbn-chords-changed',        'chord',   function(e){ const s=e.detail?.sections||[]; return 'chords-changed: '+s.length+' secs, '+s.reduce((n,x)=>n+(x.measures||[]).length,0)+' bars'; }],
-    ['sbn-tab-init',              'tab',     function(){ return 'tab-init'; }],
-    ['sbn-tab-structure-request', 'struct',  function(e){ return 'struct-req: '+e.detail?.action+' @ mi='+e.detail?.measureIndex; }],
-    ['sbn-tab-restore-snapshot',  'snap',    function(e){ const sn=e.detail?.snapshot; return 'restore-snap: '+sn?.sections?.length+' secs / '+sn?.sections?.reduce((n,s)=>n+s.measures.length,0)+' bars'; }],
-    ['sbn-tab-request-snapshot',  'snap',    function(e){
-      // After the event fires synchronously, the handler should have written e.detail.tabSnapshot
+    console.log('[SBN snap] undo history is disabled');
       // We read it via a setTimeout(0) so the synchronous handler has run
       setTimeout(function(){
         const got = e.detail && e.detail.tabSnapshot;
@@ -3715,8 +3557,6 @@ function sbnConfirmToast(htmlMessage, confirmLabel, onConfirm) {
     }],
     ['sbn-tab-chord-update',      'chord',   function(e){ return 'chord-update gi='+e.detail?.globalMeasureIndex+' ci='+e.detail?.chordIndex+' -> '+e.detail?.chordName; }],
     ['sbn-tab-voicing-applied',   'voicing', function(e){ return 'voicing-applied gi='+e.detail?.globalMeasureIndex+' frets='+e.detail?.frets; }],
-    ['sbn-tab-delegate-undo',     'undo',    function(){ return 'delegate-undo (tab->alpine)'; }],
-    ['sbn-tab-delegate-redo',     'undo',    function(){ return 'delegate-redo (tab->alpine)'; }],
   ];
 
   EVTS.forEach(function(ev_def){
@@ -3727,21 +3567,7 @@ function sbnConfirmToast(htmlMessage, confirmLabel, onConfirm) {
     }, true);
   });
 
-  let _ptr = -99;
-  setInterval(function(){
-    const al = getAl();
-    if(!al) return;
-    const ptr = al._undoPointer;
-    if(ptr === undefined || ptr === null) return;
-    if(ptr !== _ptr){
-      _ptr = ptr;
-      const cmd = al._undoStack?.[ptr];
-      add('undo',
-        'ptr '+ptr+'/'+(( al._undoStack?.length||1)-1)+': "'+(cmd?.label||'?')+'" structural='+!!cmd?.structural+' tabSnap='+!!cmd?.before?.tabSnapshot,
-        cmd ? JSON.stringify({label:cmd.label,structural:cmd.structural,hasTabSnap:!!cmd.before?.tabSnapshot,beforeVoicings:Object.keys(cmd.before?.chordVoicings||{}).length,afterVoicings:Object.keys(cmd.after?.chordVoicings||{}).length}) : ''
-      );
-    }
-  }, 150);
+  // Undo history disabled in Phase B; no Alpine undo stack to monitor.
 
   add('snap', 'debug panel ready');
 

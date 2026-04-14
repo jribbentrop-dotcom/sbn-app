@@ -218,7 +218,7 @@ Functions in `useChordGridOps.js`:
 
 ---
 
-### Step 5 — Voicing picker migration to Vue *(~4 hours)*
+### Step 5 — Voicing picker migration to Vue *(~4 hours)* ✅ **[COMPLETED]**
 
 **`composables/useVoicingPicker.js`** — port Alpine's `voicingPicker` state and methods **verbatim** (no refactoring):
 
@@ -243,17 +243,19 @@ Desktop right panel and mobile modal (<1024px) are controlled by `variant` prop.
 **Alpine cleanup:** Delete `voicingPicker` Alpine state object and all its methods (`_applyVoicing`, `openVoicingPicker`, `selectVoicing`, `removeVoicing`, `togglePickerFilter`, `stepExtension`, `stepInversion`, `isPickerFilterActive`, `getInversionLabel`, `hasActiveFilters`, `resetPickerFilters`).
 
 **Acceptance (manual QA script — run fully):**
-- [ ] Open picker from grid — existing voicing (shows current match)
-- [ ] Open picker from grid — no voicing (empty state)
-- [ ] Open picker from tab view fret click
-- [ ] Apply voicing → updates diagram in grid + tab notation
-- [ ] Remove voicing
-- [ ] Filter by category pill
-- [ ] Filter by root string
-- [ ] Step extension up/down
-- [ ] Step inversion up/down
-- [ ] Reset filters
-- [ ] Mobile modal variant (<1024px)
+- [x] Open picker from grid — existing voicing (shows current match)
+- [x] Open picker from grid — no voicing (empty state)
+- [x] Open picker from tab view fret click
+- [x] Apply voicing → updates diagram in grid + tab notation
+- [x] Remove voicing
+- [x] Filter by category pill
+- [x] Filter by root string
+- [x] Step extension up/down
+- [x] Step inversion up/down
+- [x] Reset filters
+- [ ] ~~Mobile modal variant (<1024px)~~ — **DEFERRED.** The editor is desktop-only. Mobile layout is a Phase 8 concern.
+
+> *Implementation notes:* `useVoicingPickerStore.js` is a module-level singleton (mirrors `useChordPickerStore` pattern). Teleport target `#sbn-vp-slot` is a plain div (no Alpine directives) — Vue owns it via `v-if="chordViewEnabled"` on the Teleport, gated by the `sbnPhaseBChordView` ref provided from `TabEditor.vue`. `sbn-tab-open-picker` and `sbn-tab-open-chord-picker` dispatches replaced with direct store/composable calls. Alpine's `.sbn-vp-context` remains until Step 6 cleanup.
 
 Commit.
 

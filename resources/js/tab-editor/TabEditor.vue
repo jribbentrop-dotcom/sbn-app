@@ -135,6 +135,9 @@
                     <button class="sbn-ve-add-section" @click="onAddSection()">+ Add Section</button>
             </div>
         </template>
+        <!-- Voicing picker panel — Teleports itself into #sbn-vp-slot -->
+        <VoicingPicker v-if="voicingPickerStore" />
+
         <!-- Keyboard shortcut overlay (? key) -->
         <transition name="sbn-tab-overlay-fade">
             <div v-if="showShortcuts" class="sbn-tab-shortcut-overlay" @click.self="showShortcuts = false">
@@ -201,6 +204,7 @@
 
 import { computed, defineExpose, ref, onMounted, onUnmounted, watch, nextTick, provide } from 'vue';
 import ChordGridView from './components/ChordGridView.vue';
+import VoicingPicker from './components/VoicingPicker.vue';
 import { LAYOUT, generateId } from './utils/constants.js';
 import { useAlpineBridge } from './composables/useAlpineBridge.js';
 import { useTabModel } from './composables/useTabModel.js';
@@ -213,10 +217,11 @@ import { sidebarStore } from './composables/useSidebarStore.js';
 import { modelToMusicXml } from './utils/musicXmlWriter.js';
 import { extractFretsAtChord, applyVoicingToChord } from './composables/useChordSync.js';
 import TabMeasure from './components/TabMeasure.vue';
-import { useChordGridOps }      from './composables/useChordGridOps.js';
-import { useGridSelection }     from './composables/useGridSelection.js';
-import { useChordClipboard }    from './composables/useChordClipboard.js';
-import { useChordPickerStore }  from './composables/useChordPickerStore.js';
+import { useChordGridOps }        from './composables/useChordGridOps.js';
+import { useGridSelection }       from './composables/useGridSelection.js';
+import { useChordClipboard }      from './composables/useChordClipboard.js';
+import { useChordPickerStore }    from './composables/useChordPickerStore.js';
+import { useVoicingPickerStore }  from './composables/useVoicingPickerStore.js';
 
 const props = defineProps({
     initialView: {
@@ -226,6 +231,7 @@ const props = defineProps({
 });
 
 const viewMode = ref(props.initialView);
+provide('viewMode', viewMode);
 
 function setViewMode(mode) {
     viewMode.value = mode;
@@ -261,7 +267,7 @@ const {
 bridge.setTabModel(tabModel);
 
 // ── Chord Grid Operations (Phase B) ──────────────────────────
-const sbnPhaseBChordView = ref(typeof window !== 'undefined' && window.__sbnPhaseBChordView === true);
+const sbnPhaseBChordView = ref(true);
 if (typeof window !== 'undefined') {
     Object.defineProperty(window, '__sbnPhaseBChordView', {
         get: () => sbnPhaseBChordView.value,
@@ -300,18 +306,20 @@ watch(model, (newVal, oldVal) => {
 
 // ── Chord Grid composables (Phase B Step 4) ────────────────
 
-const chordGridOps   = useChordGridOps(model, { wrapCommand }, tabModel);
-const gridSelection  = useGridSelection(model);
-const chordClipboard = useChordClipboard(model, { wrapCommand });
-const chordPickerStore = useChordPickerStore();
+const chordGridOps      = useChordGridOps(model, { wrapCommand }, tabModel);
+const gridSelection     = useGridSelection(model);
+const chordClipboard    = useChordClipboard(model, { wrapCommand });
+const chordPickerStore  = useChordPickerStore();
+// onVoicingApplied is a function declaration (hoisted) — safe to reference here
+const voicingPickerStore = useVoicingPickerStore(model, { wrapCommand }, { applyTabFrets: onVoicingApplied });
 
-// Provide to the entire ChordGridView subtree
-provide('chordGridOps',   chordGridOps);
-provide('gridSelection',  gridSelection);
-provide('chordClipboard', chordClipboard);
-provide('chordPicker',    chordPickerStore);
-// voicingPicker stub — Step 5 will replace this with useVoicingPickerStore
-provide('voicingPicker', null);
+// Provide to the entire ChordGridView / VoicingPicker subtree
+provide('chordGridOps',      chordGridOps);
+provide('gridSelection',     gridSelection);
+provide('chordClipboard',    chordClipboard);
+provide('chordPicker',       chordPickerStore);
+provide('voicingPicker',     voicingPickerStore);
+provide('chordViewEnabled',  sbnPhaseBChordView);
 
 // ── Step 4: Structural sync — clamp cursor after grid changes ──
 // When Alpine adds/removes measures, buildModel() re-slices from the
@@ -948,19 +956,17 @@ function onChordClick({ measureIndex, chordIndex, chordName }) {
     const tpm     = model.value.ticksPerMeasure;
     const tabData = extractFretsAtChord(measure, chordIndex, tpm);
 
-    // Build voicingKey matching Alpine's format: "ChordName@globalIdx.chordIdx"
+    // Build voicingKey matching the format: "ChordName@globalIdx.chordIdx"
     const voicingKey = chordName + '@' + measureIndex + '.' + chordIndex;
 
-    document.dispatchEvent(new CustomEvent('sbn-tab-open-picker', {
-        detail: {
-            chordName,
-            voicingKey,
-            currentFrets:    tabData ? tabData.frets    : null,
-            currentPosition: tabData ? tabData.position : 1,
-            globalMeasureIndex: measureIndex,
-            chordIndex,
-        },
-    }));
+    voicingPickerStore.openForTab({
+        chordName,
+        voicingKey,
+        currentFrets:       tabData ? tabData.frets    : null,
+        currentPosition:    tabData ? tabData.position : 1,
+        globalMeasureIndex: measureIndex,
+        chordIndex,
+    });
 }
 
 /**
@@ -1502,9 +1508,8 @@ function handleTabContextAction(actionId, measureIndex) {
  * Tells Alpine to open the chord name text-input picker for that measure.
  */
 function onChordNameNeeded({ measureIndex, chordIndex, clientX, clientY }) {
-    document.dispatchEvent(new CustomEvent('sbn-tab-open-chord-picker', {
-        detail: { globalMeasureIndex: measureIndex, chordIndex, clientX, clientY },
-    }));
+    // Use a fake DOMRect so openAt can compute top/left from the click coords
+    chordPickerStore.openAt({ bottom: clientY, left: clientX }, measureIndex, chordIndex, '');
 }
 function onChordContextMenu({ measureIndex, chordIndex, chordName, event }) {
     const items = [
