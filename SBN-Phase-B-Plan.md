@@ -2,8 +2,8 @@
 # Chord Grid Migration: Alpine → Vue
 
 > **Authored by:** Claude Opus 4.6 (architect review session, 2026-04-13)
-> **Updated:** 2026-04-13 (frontend reuse decision — see Step 10 revision)
-> **Status:** Ready to execute
+> **Updated:** 2026-04-14 (Step 10b complete — blade surgery done, 3,608 → 1,980 lines)
+> **Status:** Step 10 in progress (10b/10c/10d done; 10a deferred to Phase 8)
 > **Branch:** `phase-b-chord-grid` (create before starting)
 
 ---
@@ -334,7 +334,7 @@ Acceptance: Analysis panel loads correct progressions, re-runs on view flip, goe
 
 ---
 
-### Step 10 — Extract frontend component + admin cleanup *(~4 hours)*
+### Step 10 — Extract frontend component + admin cleanup *(~4 hours)* ✅ **[COMPLETED — 10b/10c/10d done; 10a deferred to Phase 8]**
 
 > **Architectural note (added 2026-04-13):** The Alpine chord grid is NOT simply deleted in this step.
 > It is the visual and structural prototype of the Phase 8 frontend public leadsheet viewer.
