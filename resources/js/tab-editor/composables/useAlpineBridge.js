@@ -6,12 +6,10 @@
  *
  * Events received (Alpine -> Vue):
  *   'sbn-tab-init'              - initial data on mount (parsed, tabXml, etc.)
- *   'sbn-chords-changed'        - chord grid state changed in Alpine
+ *   'sbn-tab-init'              - initial data on mount (parsed, tabXml, etc.)
  *   'sbn-tab-save-request'      - Alpine is about to save; Vue must respond with XML
- *   'sbn-tab-voicing-applied'   - user selected a voicing in Alpine picker
- *   'sbn-tab-request-snapshot'  - Alpine requests serialized tab model snapshot (sync)
- *   'sbn-tab-restore-snapshot'  - Alpine restores a tab snapshot (structural undo/redo)
- *   (structural hints are carried in sbn-chords-changed.detail.structureHint)
+ *   'sbn-tab-structure-request' - structural operations initiated by tab editor
+ *
  *
  * Events dispatched by this composable (Vue -> Alpine):
  *   'sbn-tab-init-ack'          - confirms Vue received init payload
@@ -71,15 +69,6 @@ export function useAlpineBridge() {
         document.dispatchEvent(new CustomEvent('sbn-tab-init-ack'));
     }
 
-    function handleChordsChanged(e) {
-        const d = e.detail;
-        // Phase A: The bridge no longer accepts 'sections' or 'lineBreaks' updates from Alpine.
-        // Vue is now the owner of the model and layout. We only accept specific 
-        // structural 'commands' (hints) carried in the event.
-        if (d?.structureHint?.action && _tabModel?.pendingStructureHint) {
-            _tabModel.pendingStructureHint.value = d.structureHint;
-        }
-    }
 
     // ── Save state ─────────────────────────────────────────
     // onSaveRequest is set by TabEditor so the bridge can call back into
@@ -90,19 +79,6 @@ export function useAlpineBridge() {
         _onSaveRequest = fn;
     }
 
-    // ── Voicing-applied state ───────────────────────────────
-    // Set by TabEditor; called when Alpine confirms a voicing selection.
-    let _onVoicingApplied = null;
-
-    function setVoicingAppliedHandler(fn) {
-        _onVoicingApplied = fn;
-    }
-
-    function handleVoicingApplied(e) {
-        if (_onVoicingApplied) {
-            _onVoicingApplied(e.detail);
-        }
-    }
 
     function handleSaveRequest() {
         if (!_onSaveRequest) {
@@ -123,35 +99,6 @@ export function useAlpineBridge() {
     }
 
 
-    // ── Snapshot capture (synchronous) ─────────────────────
-    // Alpine dispatches sbn-tab-request-snapshot before structural mutations.
-    // The handler writes the serialized model directly onto e.detail so
-    // Alpine can read it synchronously after dispatch returns.
-    let _onSnapshotRequest = null;
-
-    function setSnapshotHandler(fn) { _onSnapshotRequest = fn; }
-
-    function handleSnapshotRequest(e) {
-        if (_onSnapshotRequest) {
-            e.detail.tabSnapshot = _onSnapshotRequest();
-        }
-    }
-
-    // ── Snapshot restore (structural undo/redo) ─────────────
-    // Alpine dispatches sbn-tab-restore-snapshot with the serialized model.
-    // Vue directly assigns it, bypassing the sections watcher / patchStructure.
-    let _onSnapshotRestore = null;
-
-    function setRestoreHandler(fn) {
-        _onSnapshotRestore = fn;
-    }
-
-    function handleSnapshotRestore(e) {
-        const snapshot = e.detail?.snapshot;
-        if (snapshot && _onSnapshotRestore) {
-            _onSnapshotRestore(snapshot);
-        }
-    }
 
     // Structure request handler for tab-initiated structural operations
     let _onStructureRequest = null;
@@ -180,11 +127,7 @@ export function useAlpineBridge() {
         _bridgeOwned = true;
 
         document.addEventListener('sbn-tab-init', handleTabInit);
-        document.addEventListener('sbn-chords-changed', handleChordsChanged);
         document.addEventListener('sbn-tab-save-request', handleSaveRequest);
-        document.addEventListener('sbn-tab-voicing-applied', handleVoicingApplied);
-        document.addEventListener('sbn-tab-request-snapshot', handleSnapshotRequest);
-        document.addEventListener('sbn-tab-restore-snapshot', handleSnapshotRestore);
         document.addEventListener('sbn-tab-structure-request', handleStructureRequest);
 
         // Request initial data from Alpine.
@@ -219,11 +162,7 @@ export function useAlpineBridge() {
         _globalInitialized.value = false; // allow re-init if app fully remounts
 
         document.removeEventListener('sbn-tab-init', handleTabInit);
-        document.removeEventListener('sbn-chords-changed', handleChordsChanged);
         document.removeEventListener('sbn-tab-save-request', handleSaveRequest);
-        document.removeEventListener('sbn-tab-voicing-applied', handleVoicingApplied);
-        document.removeEventListener('sbn-tab-request-snapshot', handleSnapshotRequest);
-        document.removeEventListener('sbn-tab-restore-snapshot', handleSnapshotRestore);
         document.removeEventListener('sbn-tab-structure-request', handleStructureRequest);
     });
 
@@ -244,9 +183,6 @@ export function useAlpineBridge() {
 
         // Actions
         setSaveHandler,
-        setVoicingAppliedHandler,
-        setSnapshotHandler,
-        setRestoreHandler,
         setStructureHandler,
 
         // Set tab model reference for structural operations

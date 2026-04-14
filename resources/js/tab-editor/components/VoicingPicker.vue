@@ -5,7 +5,7 @@
     owns its content completely. Alpine's .sbn-vp-context is a sibling and
     remains untouched until Step 6 cleanup.
   -->
-  <Teleport v-if="chordViewEnabled" to="#sbn-vp-slot">
+  <Teleport to="#sbn-vp-slot">
     <!--
       Outer .sbn-vp-context mirrors Alpine's visibility rule:
         - always visible in chords view
@@ -162,5 +162,4 @@ import VoicingOverview from './VoicingOverview.vue';
 
 const picker           = inject('voicingPicker');
 const viewMode         = inject('viewMode');
-const chordViewEnabled = inject('chordViewEnabled');
 </script>

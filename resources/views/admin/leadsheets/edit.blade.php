@@ -1033,6 +1033,7 @@ function leadsheetEditor() {
         _tabInitDone: false,       // ensures sbn-tab-init only fires once on first tab view switch
         _tabVueInitialized: false,  // set to true once Vue confirms receipt of sbn-tab-init
         _tabInitTimer: null,       // debounce handle for _dispatchTabInit
+        _analysisStale: false,     // set to true on markDirty or sections-sync; reset on successful loadAnalysis
 
         // Selection (grid-interact Phase 1 — two-tier model)
         // items: [{ si, mi, ci }] — per chord-card granularity
@@ -1118,8 +1119,24 @@ function leadsheetEditor() {
 
         get shortcodeOutput() {
             if (!this.parsed) return '';
-            return generateShortcode(this.parsed, {
-                tempo: this.parsed.tempo,
+
+            // Build a temporary parsed-like object from the facade to ensure
+            // the shortcode is generated from the absolute latest Vue state.
+            const sections = window.__sbnTabModel.getSections();
+            const chordVoicings = window.__sbnTabModel.getChordVoicings();
+            const repeatMarkers = window.__sbnTabModel.getRepeatMarkers();
+            const voltaEndings = window.__sbnTabModel.getVoltaEndings();
+
+            const snapshot = {
+                ...this.parsed,
+                sections,
+                chordVoicings,
+                repeatMarkers,
+                voltaEndings
+            };
+
+            return generateShortcode(snapshot, {
+                tempo: snapshot.tempo,
                 rhythm: this.rhythmSlug,
                 includeMelody: this.includeMelody,
                 description: this.description
@@ -1441,6 +1458,7 @@ function leadsheetEditor() {
                 const ve = window.__sbnTabModel.getVoltaEndings();
                 if (rm !== null) this.parsed.repeatMarkers = rm;
                 if (ve !== null) this.parsed.voltaEndings  = ve;
+                this._analysisStale = true;
             };
             document.addEventListener('sbn-tab-sections-sync', _syncFromFacade);
             window.addEventListener('sbn-tab-sections-sync', _syncFromFacade);
@@ -1594,7 +1612,10 @@ function leadsheetEditor() {
             return parsed;
         },
 
-        markDirty() { this.dirty = true; },
+        markDirty() { 
+            this.dirty = true; 
+            this._analysisStale = true;
+        },
 
         // ── Undo / Redo removed in Phase B — Alpine no longer manages its own chord grid history.
         // Legacy wrapper methods are preserved as no-ops for compatibility with existing action callers.
@@ -3184,52 +3205,6 @@ function leadsheetEditor() {
             sbnToast('Voicing removed', 'success');
         },
 
-        // ── Prune orphan voicings ─────────────────────────────
-        // Removes any chordVoicings entries whose chord no longer exists in the grid.
-        // Called on every save to clean up zombies from renaming, deletion, etc.
-        pruneOrphanVoicings() {
-            if (!this.parsed || !this.parsed.chordVoicings) return;
-
-            // Build lookup structures from the current grid state
-            const globalNames = new Set();   // all chord names present anywhere
-            const instanceMap = new Map();   // "gi.ci" → chord name
-
-            let gi = 0;
-            for (const section of (this.parsed.sections || [])) {
-                for (const measure of (section.measures || [])) {
-                    for (let ci = 0; ci < measure.chords.length; ci++) {
-                        const name = measure.chords[ci].name;
-                        globalNames.add(name);
-                        instanceMap.set(gi + '.' + ci, name);
-                    }
-                    gi++;
-                }
-            }
-
-            const toDelete = [];
-            for (const key of Object.keys(this.parsed.chordVoicings)) {
-                const instanceMatch = key.match(/^(.+)@(\d+\.\d+)$/);
-                if (instanceMatch) {
-                    // Instance key: "ChordName@gi.ci" — valid only if that exact
-                    // chord still sits at that position
-                    const expectedName = instanceMatch[1];
-                    const pos = instanceMatch[2];
-                    if (instanceMap.get(pos) !== expectedName) {
-                        toDelete.push(key);
-                    }
-                } else {
-                    // Global key: valid if any chord in the grid has this name
-                    if (!globalNames.has(key)) {
-                        toDelete.push(key);
-                    }
-                }
-            }
-
-            if (toDelete.length > 0) {
-                toDelete.forEach(k => delete this.parsed.chordVoicings[k]);
-                console.log('SBN: pruned ' + toDelete.length + ' orphan voicing(s):', toDelete);
-            }
-        },
 
         // ── Save ──────────────────────────────────────────────
         // ── Phase 7f: Tab-aware save ───────────────────────────
@@ -3249,8 +3224,6 @@ function leadsheetEditor() {
                     // Re-parse the XML to get an updated melody for json_data persistence.
                     // IMPORTANT: we store the result in a local variable and inject it
                     // directly into the POST body — we never assign to this.parsed.melody.
-                    // Assigning to this.parsed triggers Alpine's $watch('parsed') which
-                    // dispatches sbn-tab-init and overwrites Vue's live model.
                     try {
                         const parser = new MusicXMLParser(xml);
                         const reparsed = parser.parse();
@@ -3266,13 +3239,25 @@ function leadsheetEditor() {
             // ── Suppress sbn-tab-init during save mutations ──
             this._suppressTabInit = true;
 
-            // Remove voicings that no longer have a matching chord in the grid
-            this.pruneOrphanVoicings();
+            // Pull fresh structural data from the facade (Phase B Step 8)
+            const sections = window.__sbnTabModel.getSections();
+            const chordVoicings = window.__sbnTabModel.getChordVoicings();
+            const repeatMarkers = window.__sbnTabModel.getRepeatMarkers();
+            const voltaEndings = window.__sbnTabModel.getVoltaEndings();
 
-            // Flatten measures for measure_count
-            const allMeasures = [];
-            this.parsed.sections.forEach(s => (s.measures||[]).forEach(m => allMeasures.push(m)));
-            this.parsed.measures = allMeasures;
+            // Rebuild flattened measures array for server-side measure_count
+            const allMeasures = sections.flatMap(s => s.measures || []);
+
+            // Construct final json_data by merging Alpine meta fields with facade structural data
+            const finalJsonData = {
+                ...this.parsed,
+                sections,
+                measures: allMeasures,
+                chordVoicings,
+                repeatMarkers,
+                voltaEndings,
+                melody: this._savedMelody || this.parsed.melody
+            };
 
             const shortcode = this.shortcodeOutput;
             const url = this.leadsheetId
@@ -3297,11 +3282,7 @@ function leadsheetEditor() {
                         rhythm: this.rhythmSlug,
                         course_id: null,
                         shortcode_content: shortcode,
-                        json_data: JSON.stringify(
-                            this._savedMelody
-                                ? { ...this.parsed, melody: this._savedMelody }
-                                : this.parsed
-                        ),
+                        json_data: JSON.stringify(finalJsonData),
                         tab_xml: this.tabXml,
                         description: this.description,
                         harmony_notes: '',
@@ -3361,15 +3342,22 @@ function leadsheetEditor() {
         // ── Analysis (Phase 5d) ────────────────────────────────
         async loadAnalysis() {
             if (!this.leadsheetId) return;
-            if (this.analysisData && !this.dirty) return;
+            // Only re-fetch if we have no data or the data is stale (dirty/synced)
+            if (this.analysisData && !this._analysisStale) return;
 
             this.analysisLoading = true;
             this.detectionResult = '';
+
+            // Read fresh sections from the facade (Phase B Step 9)
+            // Ensures the latest Vue state is considered before we fetch.
+            const sections = window.__sbnTabModel.getSections();
+
             try {
                 const resp = await fetch('/api/admin/leadsheets/' + this.leadsheetId + '/analyse-progressions');
                 const data = await resp.json();
                 if (data.success) {
                     this.analysisData = data.data;
+                    this._analysisStale = false;
                 }
             } catch (e) {
                 console.error('Analysis failed:', e);

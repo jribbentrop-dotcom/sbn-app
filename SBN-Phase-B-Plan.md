@@ -1,4 +1,4 @@
-﻿# SBN Teaching Hub — Phase B Implementation Plan
+# SBN Teaching Hub — Phase B Implementation Plan
 # Chord Grid Migration: Alpine → Vue
 
 > **Authored by:** Claude Opus 4.6 (architect review session, 2026-04-13)
@@ -313,7 +313,7 @@ Vue populates it via `watch(model, () => window.__sbnTabModel.update(...))`.
 
 ---
 
-### Step 8 — Save rewiring *(~1 hour)*
+### Step 8 — Save rewiring *(~1 hour)* ✅ **[COMPLETED]**
 
 Alpine's `save()` reads sections/voicings from `window.__sbnTabModel` facade instead of `this.parsed`. Meta fields still come from Alpine inputs.
 
@@ -323,7 +323,7 @@ Acceptance: Save still works. Commit.
 
 ---
 
-### Step 9 — Analysis panel: stays in Alpine, reads from facade *(~1 hour)*
+### Step 9 — Analysis panel: stays in Alpine, reads from facade *(~1 hour)* ✅ **[COMPLETED]**
 
 - `loadAnalysis()` reads sections from `window.__sbnTabModel.getSections()` instead of `this.parsed.sections`
 - `$watch('alpineViewMode', ...)` triggers `loadAnalysis()` when flipping to analysis

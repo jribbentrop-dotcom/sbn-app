@@ -20,10 +20,7 @@
 
         <!-- Chords Grid (Phase B) -->
         <div v-show="viewMode === 'chords'" class="sbn-ve-chords-root">
-            <ChordGridView v-if="sbnPhaseBChordView && model" :sections="model.sections || []" />
-            <div v-else class="sbn-ve-grid-placeholder" style="padding: 20px; text-align: center; color: var(--clr-text-muted);">
-                [Alpine Chord Grid hidden. Set window.__sbnPhaseBChordView = true to view Vue grid.]
-            </div>
+            <ChordGridView v-if="model" :sections="model.sections || []" />
         </div>
 
         <!-- No data state -->
@@ -248,8 +245,8 @@ const {
     melody, sections, chordVoicings, timeSignature, songKey,
     title, composer,
     tabXml, repeatMarkers, voltaEndings,
-    initialized, setSaveHandler, setVoicingAppliedHandler,
-    setSnapshotHandler, setRestoreHandler, setStructureHandler,
+    initialized, setSaveHandler,
+    setStructureHandler,
 } = bridge;
 
 // ── Working Model ──────────────────────────────────────────
@@ -287,13 +284,6 @@ initTabModelFacade({
 bridge.setTabModel(tabModel);
 
 // ── Chord Grid Operations (Phase B) ──────────────────────────
-const sbnPhaseBChordView = ref(true);
-if (typeof window !== 'undefined') {
-    Object.defineProperty(window, '__sbnPhaseBChordView', {
-        get: () => sbnPhaseBChordView.value,
-        set: (val) => { sbnPhaseBChordView.value = val === true; }
-    });
-}
 
 provide('model', model);
 provide('globalIndexOf', globalMeasureIndex);
@@ -339,7 +329,6 @@ provide('gridSelection',     gridSelection);
 provide('chordClipboard',    chordClipboard);
 provide('chordPicker',       chordPickerStore);
 provide('voicingPicker',     voicingPickerStore);
-provide('chordViewEnabled',  sbnPhaseBChordView);
 
 // ── Step 4: Structural sync — clamp cursor after grid changes ──
 // When Alpine adds/removes measures, buildModel() re-slices from the
@@ -715,13 +704,7 @@ onMounted(() => {
     });
 
     // Register voicing-applied handler so bridge can call back into Vue
-    setVoicingAppliedHandler(onVoicingApplied);
-
-    // Register snapshot handlers for cross-domain structural undo.
-    // sbn-tab-request-snapshot: Alpine requests a serialized tab model (synchronous).
-    // sbn-tab-restore-snapshot: Alpine restores a serialized tab model (undo/redo).
-    setSnapshotHandler(() => serializeModel());
-    setRestoreHandler((snapshot) => deserializeModel(snapshot));
+    // (deprecated in Step 10 — direct onVoicingApplied calls preferred)
 
     // Register structure handler for tab-initiated structural operations
     setStructureHandler((detail) => {
