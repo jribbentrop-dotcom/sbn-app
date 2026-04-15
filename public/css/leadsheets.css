@@ -341,7 +341,7 @@
     border-radius: 0 0 var(--radius) var(--radius);
     background: var(--clr-surface);
 }
-.sbn-tab-editor-notation { width: 100%; overflow-x: auto; padding: 12px 16px; }
+.sbn-tab-editor-notation { width: 100%; overflow-x: auto; padding: 16px 20px; }
 
 /* Bravura SMuFL font for flags and rests */
 @font-face {
