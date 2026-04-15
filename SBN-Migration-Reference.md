@@ -7,7 +7,7 @@
 
 ## CURRENT STATUS
 
-**Last updated:** 2026-04-09 (grid-interact Phase 2a — undo/redo for chord grid)
+**Last updated:** 2026-04-15 (Phase B complete)
 
 | Phase | What | Status |
 |-------|------|--------|
@@ -39,8 +39,8 @@
 | diagram-polish | Chord diagram rendering fixes + grid border/density polish | **DONE** |
 | grid-interact | Context menu + batch selection + drag-to-reorder + undo/redo (chord grid) | **DONE** |
 | 7-phase-a | Decouple from Alpine; Vue acts as sole structural and selection master | **DONE** |
-| 7-phase-b | Vue-Native Chord Grid & Voicing Picker | |
-| 7-phase-c | Full Feature Parity (Drag-drop, Line Breaks, Voltas) | |
+| 7-phase-b | Vue-Native Chord Grid & Voicing Picker | **DONE** |
+| 7-phase-c | Full Feature Parity (Drag-drop across sections, repeat/volta editing) | |
 | 7-phase-d | Audio Playback Engine (Tone.js) | |
 | 7-phase-e | Video Sync (Timeline Mapping) | |
 | 8 | Public frontend (all student-facing pages) | |
@@ -48,44 +48,53 @@
 
 ---
 
-## PATH FORWARD (updated 2026-04-12)
+## PATH FORWARD
 
-### Source-of-truth architecture (Phase A Complete)
+### Source-of-truth architecture (Phase B Complete)
 
-**Key principle (v2 — Current Implementation):** **One model, one reactive system, one undo stack.** 
-The Vue tab editor (`TabModel`) is now the undisputed sole source of truth for both structural editing (measures, sections) and notation. Alpine has been demoted to a page shell responsible for initialization, layout, and save-button networking.
+**Key principle:** **One model, one reactive system, one undo stack.**
+Vue (`TabEditor.vue` / `model.value`) is the sole source of truth for structure, harmony, notation, chord grid, and voicing picker. Alpine is a thin page shell: metadata inputs, save button, analysis panel, file import.
 
-The sync model is strictly unidirectional upon initialization and save:
+```
+VUE (TabEditor.vue — sole source of truth)
+  ├── model.value             ← sections, measures, chordNames, chordVoicings, tab events
+  ├── viewMode                ← 'chords' | 'tab' | 'analysis'
+  ├── ChordGridView.vue       ← chord grid renderer
+  ├── VoicingPicker.vue       ← desktop panel + mobile modal (Teleport into #sbn-vp-slot)
+  ├── ChordPicker.vue         ← chord name inline picker
+  ├── [tab editor components] ← unchanged from Phase 7
+  └── Unified undo stack      ← covers all ops in both views
 
-```text
-VUE TAB MODEL (model.value) ← SOLE MASTER for structure, harmony, and notation
-  │
-  ├─→ ALPINE (json_data)    ← READ-ONLY consumer of structural data. 
-  │                           Rendered chord grid is a dumb visual reflection.
-  │
-  ├─→ ANALYSIS (ProgressionDetector) ← READ-ONLY consumer of chord data
-  │
-  └─→ VOICING LIBRARY (chordVoicings) ← Stored inside Vue `model.value`.
+ALPINE (edit.blade.php — thin shell)
+  ├── Song metadata           ← title, composer, key, tempo, time signature
+  ├── Analysis panel          ← reads from window.__sbnTabModel facade
+  ├── HTTP save               ← reads from window.__sbnTabModel facade
+  ├── alpineViewMode          ← one-way mirror of Vue's viewMode
+  └── File import             ← drops/parses MusicXML → dispatches sbn-tab-init
 ```
 
-#### Historical Graveyard: The Bidirectional "Mess" (Do Not Repeat)
-Prior to Phase A, we attempted a bidirectional sync where Alpine owned structure (via `parsed.sections`) and Vue owned notation. The `useAlpineBridge.js` synchronized them through 12+ CustomEvents.
-*Why it failed:* Two independent reactive proxies (Alpine and Vue) cannot safely share dependency tracking. Every structural change required capturing snapshots in both domains, mutating Alpine, signaling Vue, and guarding against infinite loops. It resulted in stale renders, stuck flags, and double inits. **DO NOT ATTEMPT to mix Vue and Alpine reactivity.** Ensure all complex interactions stay centralized in Vue.
+### Historical Graveyard: The Bidirectional Mess (Do Not Repeat)
+Prior to Phase A, Alpine owned structure (`parsed.sections`) and Vue owned notation. `useAlpineBridge.js` synchronized them through 12+ CustomEvents. *Why it failed:* Two independent reactive proxies cannot safely share dependency tracking. Every structural change required capturing snapshots in both domains, mutating Alpine, signaling Vue, and guarding against infinite loops. It resulted in stale renders, stuck flags, and double inits. **DO NOT mix Vue and Alpine reactivity. All complex interactions must stay centralized in Vue.**
 
-### Upcoming Phases (Tab Editor Finalization)
-
-**Phase B: Chord display in Vue**
-Vue renders chord diagrams natively. No more Alpine chord grid needed. Requires `ChordGridView.vue` and a Vue-native modal for the Voicing picker (re-using the `sbnRenderDiagramSVG` function).
+### Upcoming Phases
 
 **Phase C: Full feature parity**
-Drag-and-drop, row resize (lineBreaks distribution), repeat marker and volta editing — all handled natively inside Vue's reactive `model.value`. At this point, Alpine's remaining read-only chord grid display will be deleted permanently.
+Drag-and-drop across sections, repeat marker editing, volta editing — all handled natively inside Vue's reactive `model.value`. Deferred items from grid-interact:
+- Cross-section drag-to-reorder (needs `moveMeasure` across sections in `useTabModel`)
+- Tab sync for drag (`moveMeasure` currently only syncs chord names, not measure order in tab)
+- Chord-level drag (reorder chords within / across measures — needs beat redistribution design)
+- Repeat/volta editing UI (currently read-only rendered, no edit handles)
 
 **Phase D: Audio playback**
-Tone.js playback engine natively hooks into the finished Vue model. The playback cursor is a Vue reactive ref updated on a `requestAnimationFrame` loop synced to Tone.js transport. 
+Tone.js playback engine hooks into `model.value`. Playback cursor is a Vue reactive ref on a `requestAnimationFrame` loop synced to Tone.js transport.
 
 **Phase E: Video sync**
-An array of `{ time, measureIndex }` mappings stored alongside the model. A `VideoPlayer.vue` component with bidirectional sync (play video → highlight measure, click measure → seek video).
+`{ time, measureIndex }` mappings stored alongside the model. `VideoPlayer.vue` with bidirectional sync (play video → highlight measure, click measure → seek video).
 
+**Phase 8: Public frontend**
+`leadsheet-viewer.blade.php` (created in Phase B Step 10a — deferred, still TODO) is the seed: read-only chord grid + sidebar from `$leadsheet->json_data`, no Vue, no editing. When Phase 8 starts, this component gets a play button (Phase D), sidebar edu panel, and public card system.
+
+---
 
 ## BUGS FIXED (cumulative)
 
@@ -100,8 +109,9 @@ An array of `{ time, measureIndex }` mappings stored alongside the model. A `Vid
 | 2026-04-06 | Selection delete only removes one note | `handleDeleteSelected` removes all IDs in `selectedEvents`, wrapped in `wrapCommand` |
 | 2026-04-06 | Empty bar after selection delete | Whole rest inserted when no v1 events remain after delete |
 | 2026-04-06 | Dotted note overfill false negative | `isOverfilled` fallback uses `last.ticks > remaining` instead of clamped span |
-| 2026-04-09 | Double-digit fret numbers not rendered | `chords.js` fret string parser used `parseInt(c)` — changed to `parseInt(c, 16)` for hex fret encoding (a=10, b=11, c=12…) |
-| 2026-04-09 | Inline `<style>` block re-appeared in `edit.blade.php` | Deleted lines 28–1053 (`@push('styles')` + `<style>` block); restored `<link>` to `leadsheets.css` separately |
+| 2026-04-09 | Double-digit fret numbers not rendered | `chords.js` fret parser used `parseInt(c)` → changed to `parseInt(c, 16)` for hex encoding |
+| 2026-04-09 | Inline `<style>` block re-appeared in `edit.blade.php` | Deleted lines 28–1053; restored `<link>` to `leadsheets.css` |
+| 2026-04-15 | Analysis panel not showing on tab switch | `setViewMode()` dispatched wrong event name/shape; fixed to `sbn-tab-view-changed` + `{viewMode}` |
 
 ---
 
@@ -112,266 +122,136 @@ An array of `{ time, measureIndex }` mappings stored alongside the model. A `Vid
 3. **Dismissed drafts lost on reprocess** — `VoicingCrossref::clearLeadsheetReferences()` deletes all drafts including dismissed ones. Fix: preserve `status='dismissed'` rows. Low priority.
 4. **Dotted note overfill after editing** — overfill indicator misbehaves when editing dotted notes in bars that have already been through `repositionMeasure`. Partially investigated; deferred.
 5. **Bug #12: Triplet group integrity** — groups get torn apart when editing adjacent notes. Needs dedicated Opus session using `useTabModel.js`, `useNoteInput.js`, `useReflow.js` + test XML.
-6. **Library index SVG renderer** — `chords/index.blade.php` has its own inline SVG renderer (~150 lines) separate from `chords.js`. Low priority — library looks correct. Unify in future cleanup. **Sonnet.**
-7. **chordVoicings Alpine reactivity after undo** — after undoing a rename+voicing operation, the chord diagram may not re-render in the grid. Root cause: Alpine does not reliably track `delete` mutations on nested objects. `gridUndo`/`gridRedo` replace `parsed.chordVoicings` by reference (full object swap from JSON snapshot), which *should* trigger reactivity — but diagram cards rendered via `x-if`/`x-html` in a `x-for` loop may not update. Fix: after restoring state in `gridUndo`/`gridRedo`, force reactivity with `this.parsed = { ...this.parsed }` gated behind `_suppressTabInit = true/false` to prevent `$watch('parsed')` from re-firing `sbn-tab-init`. **Sonnet.**
-
----
-
-## DONE: grid-interact Phase 1 (chord grid context menu + selection + drag)
-
-**Session:** April 2026. **Files modified:** `edit.blade.php`, `sbn-design-system.css`.
-**New files:** `public/js/sbn-context-menu.js`, `public/js/sbn-grid-ops.js`.
-
-### What was built
-
-**1. Context menu** (`sbn-context-menu.js` + `sbn-grid-ops.js`)
-- Vanilla singleton `showContextMenu(event, items, onAction)` — framework-agnostic, callable from Alpine and eventually Vue
-- `OPS` constants + `buildMenuItems(context, state)` — config-driven menu for `'leadsheet'` and `'builder'` contexts
-- Right-click on any `.sbn-ve-chord` → context-sensitive menu (chord-level, single measure, multi-measure batch)
-- All operations wired: rename, change voicing, add/remove chord, insert bar before/after, delete bar, toggle repeat, copy, cut, paste, clear chords, delete selection, insert N bars before
-- Hover action buttons (`.sbn-ve-measure-actions`) removed entirely
-- Toolbar copy/cut/paste buttons removed — context menu is the only path
-
-**2. Two-tier selection model**
-- Replaced `selectedMeasures: [{si,mi}]` + `pasteTarget` + `lastClickedMeasure` with:
-  - `selection: [{si, mi, ci}]` — per chord-card granularity
-  - `selectionAnchor: {si, mi}` — for Shift range extension
-- Helpers: `isChordSelected()`, `isMeasureFullySelected()`, `getSelectionLevel()`, `getSelectedMeasureCoords()`
-- Click handlers: `handleChordCardClick()` replaces `handleMeasureClick()` + `handleChordClick()`
-- Shift+Click: no anchor → select whole measure; anchor exists → range extend
-- Ctrl+Click: toggle chord (multi-chord measure) or toggle whole measure (1-chord)
-- `.sbn-ve-selected` CSS class on chord cards — frames merge visually when all chords in a measure selected
-- Ctrl+A selects all chord cards; Escape clears; Delete/Backspace deletes selection
-
-**3. Measure drag-to-reorder** (within section only — cross-section deferred)
-- `draggable="true"` on `.sbn-ve-measure`; drag guards against chord-name/diagram targets
-- Custom drag ghost via `setDragImage()` — clone at actual cursor position with rotate + shadow + accent border
-- Gap indicator: `drop-gap-before` / `drop-gap-after` use `padding` (not margin) so dragover still fires
-- `moveMeasure()` splices measure, rebuilds lineBreaks, shifts selection to follow moved measure, fires `_emitChordsChanged()`
-- **Tab sync gap:** `_emitChordsChanged()` → `patchChordNames()` only in Vue — measure order not reflected in tab editor. Deferred to tab editor UX session.
-
-**4. Shift+drag mouse batch selection**
-- Shift+mousedown on measure → starts drag-select; mouseenter extends range via `selectMeasureRange()`
-- `_mouseSelectMoved` flag suppresses the click event that always follows mouseup
-
-### Bug fixes in this session
-- `openChordPicker(null)` crash — guard added, falls back to measure element position
-- Picker stays open across selections — `handleChordCardClick` + `handleGridClick` now close picker on click outside
-- `toggleRepeat` not reactive — now replaces `parsed.repeatMarkers` reference (`Object.assign`) instead of mutating in place
-
-### CSS location
-All grid-interact CSS lives in `sbn-design-system.css`:
-- `§9` — context menu (`.sbn-context-menu`, `.sbn-context-menu-item`, etc.)
-- `§2d` — chord card selection frame (`.sbn-ve-chord.sbn-ve-selected`)
-- `§10` — drag-to-reorder (`.is-dragging`, `.is-drag-target`, `.drop-gap-before/after`, cursor rules)
-
-### Design system section numbers updated
-Old §9 = utility classes → renumbered. New additions:
-- `§9` = Context menu
-- `§2d` = Chord card selection frame
-- `§10` = Drag-to-reorder
-
----
-
-## DONE: grid-interact Phase 2a (undo/redo for chord grid)
-
-**Session:** April 2026. **Files modified:** `edit.blade.php` only.
-
-### What was built
-
-Undo/redo stack for all chord grid mutations, independent of the tab editor's `useUndo.js`.
-
-**State added to Alpine data:**
-- `_undoStack: []`, `_undoPointer: -1`, `_MAX_UNDO: 50`
-
-**Methods added:**
-- `_snapshotState()` — deep-clones both `parsed.sections` and `parsed.chordVoicings` (both needed: rename + voicing ops mutate both)
-- `_wrapUndo(label, fn)` — snapshots before/after, skips push if state unchanged, discards redo history above pointer
-- `gridUndo()` / `gridRedo()` — restores both sections + chordVoicings, clears selection, fires `_emitChordsChanged()`, shows labeled toast
-
-**All 13 mutating methods wrapped:** `addChord`, `removeChord`, `addMeasureToSection`, `insertMeasureAfter`, `insertMeasureBefore`, `deleteMeasure`, `moveMeasure`, `doCut`, `doPaste`, `doClearChords`, `doDeleteSelection`, `doInsertNBefore`, `toggleRepeat`, `applyChordPicker`, `selectVoicing`
-
-**Keyboard:** Ctrl+Z / Ctrl+Shift+Z in `handleKeydown` with `viewMode !== 'tab'` guard — the tab editor has its own undo stack and must not be interfered with.
-
-**selectVoicing note:** The `_suppressTabInit` sandwich and `sbn-tab-voicing-applied` dispatch are side-effects on Vue, not data mutations — they remain outside the `_wrapUndo` lambda. Only the `sections`/`chordVoicings` mutation block is wrapped.
-
-**Grid footer:** Keyboard hint updated to include `Ctrl+Z undo`.
-
-### Known issue logged
-Diagram re-render after undo of rename+voicing combos may not always update. See bug #7 in PENDING BUGS.
-
----
-
-## DEFERRED: grid-interact Phase 2 (tab editor UX session)
-
-The following items are explicitly deferred to the **tab editor UX session**. Bundle together since they all touch the Alpine↔Vue bridge:
-
-### A. Measure drag cross-section
-Cross-section drag requires `sbn-tab-structure-request` event to tell Vue to reorder its measures. Not built — `moveMeasure()` guards against cross-section drops.
-
-### B. Measure drag tab sync
-`moveMeasure()` fires `_emitChordsChanged()` → Vue `patchChordNames()` only. Tab measure order is NOT updated. Fix: dispatch `sbn-tab-structure-request: { action: 'moveMeasure', si, fromMi, toMi }` from `moveMeasure()`, handle in `useAlpineBridge.js`.
-
-### C. Chord-level drag and drop
-- **Option A:** Reorder chords within a measure (same HTML5 drag, `m.chords.splice`)
-- **Option B:** Move chord between measures (beat redistribution, tab sync)
-- Both deferred — needs dedicated design for beat redistribution and tab sync
-
-### D. Tab editor context menu (grid-interact Step 5)
-`buildMenuItems('tab', state)` stub exists in `sbn-grid-ops.js`. Needs:
-- `useMeasureSelection.js` composable in Vue
-- `sbn-tab-structure-request` event for structural ops (insert/delete bar)
-- Tab-only ops (copy/paste tab notes at measure level) stay in Vue
-
-### E. Drag-to-reorder volta handling
-`moveMeasure()` resets lineBreaks to uniform `barsPerRow`. Volta endings (`parsed.voltaEndings`) are keyed by global measure index — moving measures invalidates these. Deferred until volta session.
-
-### F. Shift+drag visual refinement + volta session
-Shift+drag batch select works but has no visual during drag (cursor doesn't show rubber-band). Acceptable for now.
-
-
-
-## DESIGN SYSTEM
-
-Four files establish the global design language. **Always upload `SBN-Design-Reference.md` alongside this file** — it contains the full component inventory, CSS examples, and usage rules.
-
-```
-public/css/sbn-design-system.css   ← tokens + base components, loaded FIRST
-public/css/chord-symbols.css       ← chord name typography, loaded second
-public/css/admin2.css              ← admin shell layout, loaded third (admin only)
-public/js/chords.js                ← chord diagram renderers + toast, loaded on all pages that show diagrams
-```
-
-**Rule:** Module CSS files never define colors or base component shapes. They reference `--clr-*` variables only.
-
-### Card system hierarchy (established 2026-04-08)
-
-All chord diagram cards across the entire app follow one visual hierarchy:
-
-```
-.sbn-diagram-card / .sbn-vp-card   ← DS §2: base shell (white bg, border, radius, flex column)
-  │                                   NO fixed width — size controlled by parent grid
-  │
-  ├─ chord library (.sbn-shapes-row grid)
-  │    └─ HTML fretboard (.sbn-fretboard-*) inside card
-  │
-  ├─ voicing picker (.sbn-vp-grid)
-  │    └─ SVG diagram (sbnRenderDiagramSVG) inside card
-  │
-  ├─ chord grid (.sbn-ve-chord-diagram)
-  │    └─ SVG diagram inside .sbn-diagram-card, max-width scoped in leadsheets.css
-  │
-  └─ progression builder slots
-       └─ SVG diagram inside card
-```
-
-**SVG diagrams** use a fixed `viewBox="0 0 80 95"` with `width="100%"` — CSS controls all sizing.
-**CSS** controls card width via grid column definitions (`minmax`, `repeat`, `fr`) — never via hardcoded card width.
-**.sbn-chord-card** is the full public-facing card shell (DS §2c) with play button, popularity pill, difficulty stars — for Phase 8.
-
-### Phase 8 frontend portability (plan ahead)
-
-Visual components that appear on public pages (chord diagram cards, fretboards, tab notation, chord name styling) must be available outside the admin layout. Current state:
-
-- **Already portable:** `sbn-design-system.css` (includes full card system, fretboard CSS, chord card shell) + `chord-symbols.css` + `chords.js` — no admin dependency, load in any layout.
-- **Needs extraction for Phase 8:** tab SVG classes (`.sbn-tab-note-text`, `.sbn-tab-string-line`, etc.) currently in `leadsheets.css`. Extract to `sbn-design-system.css` or a shared `sbn-components.css` when Phase 8 starts.
-- **Tab viewer for public:** Build a read-only `TabViewer.vue` reusing `TabMeasure.vue` and `svgHelpers.js` but stripped of editing composables.
-- **Chord card:** `.sbn-chord-card` (DS §2c) is Phase 8-ready: play button hook (`opts.onPlay`), display mode toggle (fingering/notes/functions), popularity/difficulty footer. Just needs audio integration.
+6. **Library index SVG renderer** — `chords/index.blade.php` has its own inline SVG renderer (~150 lines) separate from `chords.js`. Unify in future cleanup. **Sonnet.**
+7. **Mobile voicing picker modal** — `VoicingPicker.vue` has a `variant="modal"` path for <1024px but untested. Deferred to Phase 8 (editor is desktop-only).
 
 ---
 
 ## LEADSHEET EDITOR ARCHITECTURE
 
-`resources/views/admin/leadsheets/edit.blade.php` (~4,060 lines) — the central component of the app. Alpine.js manages the chord grid, analysis, metadata, voicing picker, and save pipeline. Vue 3 manages the tab editor (mounted in a DOM island).
+`resources/views/admin/leadsheets/edit.blade.php` (~1,980 lines) — the central component.
+Vue 3 (`TabEditor.vue`) mounts in `#sbn-editor-content` and owns the entire content area. Alpine manages the outer shell.
 
 ### View modes
-Three tabs: `Chords` | `Analysis` | `Tab`. Alpine `viewMode` values: `'chords'` | `'analysis'` | `'tab'`.
+Three tabs owned by Vue: `Chords` | `Tab` | `Analysis`. Vue's `viewMode` ref dispatches `sbn-tab-view-changed` → Alpine's `alpineViewMode` mirrors it one-way.
 
-### Main content area
-Tab bar → content. Right panel: song meta → toolbar → context area (view-mode-aware).
+### Content area (Vue)
+`TabEditor.vue` renders all three views:
+- **Chords:** `ChordGridView.vue` — sections/measures/chord cards, row resize, context menu, voicing picker
+- **Tab:** `TabMeasure.vue` notation SVG — existing tab editor, unchanged
+- **Analysis:** triggers Alpine's `loadAnalysis()` via `sbn-tab-load-analysis` event
 
-### Context sidebar (view-mode aware)
-- **Chords:** Voicing picker panel (`.sbn-vp-context`)
-- **Analysis:** Detected progression pills per section + "Detect & Store" button
-- **Tab:** Vue `TabSidebarApp` mounts in `#sbn-tab-sidebar`. **Must use `x-show`, NOT `x-if`** — `x-if` destroys the DOM node, unmounting the Vue app.
+### Right panel (Alpine, view-mode-aware)
+- **Chords/Tab:** `#sbn-vp-slot` — Vue Teleports `VoicingPicker.vue` / `VoicingOverview.vue` here
+- **Analysis:** Alpine analysis panel (progression pills, detect button)
+- **Tab:** `#sbn-tab-sidebar` — `TabSidebarApp.vue` (Note Inspector). **Must use `x-show`, NOT `x-if`** — `x-if` destroys the DOM node, unmounting Vue.
 
-### Data flow
-```text
-JSON from server (json_data + tab_xml)
-  ↕ save/load
-Alpine state (initial json_data, melody)
-  ↓ injects once
-Vue tab editor (Active Model, Reactive State, Undo Stack)
-  ↓ syncs up
-Alpine (reads updated chord names and section structure for grid rendering)
+### Alpine ↔ Vue event protocol (7 surviving events)
+
+| Event | Direction | Purpose |
+|-------|-----------|---------|
+| `sbn-tab-init` | Alpine → Vue | Initial data load on page load / file import |
+| `sbn-tab-init-ack` | Vue → Alpine | Confirm Vue received init |
+| `sbn-tab-save-request` | Alpine → Vue | Save button: ask Vue for serialized XML |
+| `sbn-tab-save-response` | Vue → Alpine | Reply with MusicXML string |
+| `sbn-tab-view-changed` | Vue → Alpine | Alpine mirrors viewMode; triggers analysis load |
+| `sbn-tab-sections-sync` | Vue → Alpine | Structural change: invalidate analysis, update parsed.sections |
+| `sbn-tab-identify-result` | Vue → Alpine | Tab chord identified — update chord name in parsed.sections |
+
+**Deleted (Phase B):** `sbn-chords-changed`, `sbn-tab-voicing-applied`, `sbn-tab-open-picker`, `sbn-tab-open-chord-picker`, `sbn-tab-request-snapshot`, `sbn-tab-restore-snapshot`, `sbn-tab-structure-request`
+
+### `window.__sbnTabModel` facade
+Singleton in `utils/tabModelFacade.js`. Exposes live Vue model data to Alpine (and DevTools) without snapshot staleness:
+```js
+window.__sbnTabModel.getSections()       // exportAlpineSections() shape
+window.__sbnTabModel.getChordVoicings()  // plain-object clone
+window.__sbnTabModel.getRepeatMarkers()
+window.__sbnTabModel.getVoltaEndings()
+window.__sbnTabModel.getMeta()           // { title, composer, key, tempo, timeSignature }
 ```
+Initialized once by `TabEditor.vue` via `initTabModelFacade({...})` after `useTabModel` setup. Getter-function pattern — always reads live reactive model, never a snapshot.
 
-### Alpine ↔ Vue protocol
+### Save pipeline
+1. User clicks Save → Alpine `save()` 
+2. If `viewMode === 'tab'`: dispatches `sbn-tab-save-request` → Vue serializes → `sbn-tab-save-response` with XML (3-second timeout guard)
+3. Alpine reads structural data from `window.__sbnTabModel` facade (sections, chordVoicings, repeatMarkers, voltaEndings)
+4. Constructs `finalJsonData = { ...this.parsed, sections, chordVoicings, repeatMarkers, voltaEndings, melody }`
+5. POSTs to `LeadsheetController` with `json_data` + `tab_xml`
 
-The bridge protocol has been heavily stripped down after the Phase A integration. Vue owns its own commands completely securely.
-```text
-Alpine → Vue:  sbn-tab-init              initial data on mount (parsed.melody + sections)
-Alpine → Vue:  sbn-tab-save-request      collect XML and JSON before save
-Alpine → Vue:  sbn-tab-voicing-applied   voicing picker selection (Temporary until Phase D)
-Vue → Alpine:  sbn-tab-sections-sync     sends updated sections/chords so Alpine can update its read-only grid
-Vue → Alpine:  sbn-tab-save-response     MusicXML string + full serialized model JSON
-Vue → Alpine:  sbn-tab-open-picker       chord name clicked → open voicing picker (Temporary)
-```
+### What stays in Alpine / What moved to Vue
 
-**Critical implementation notes:**
-- The bidirectional `sbn-tab-structure-request` has been completely deleted.
-- Tab Editor mutations are handled entirely via `useTabModel` and `useSelection` inside Vue. 
-- After Vue applies a structural hit, it calls `syncTabSectionsToAlpine()` to forcefully push the shallow copy back up to Alpine's view.
-- `#sbn-tab-editor` lives inside `<template x-if="parsed">`, so the DOM element doesn't exist until Alpine's fetch completes. `tab-editor.js` retries `getElementById` every 200ms. Any new Vue mount points inside `x-if` blocks need the same pattern.
-
-### Save pipeline (Phase 7f)
-1. User clicks Save → Alpine checks if `viewMode === 'tab'`
-2. If yes: dispatches `sbn-tab-save-request` → Vue serializes model → responds with XML
-3. Alpine sets `tabXml`, re-parses XML into `parsed.melody` (keeps `json_data` in sync)
-4. Alpine POSTs `json_data` + `tab_xml` to `LeadsheetController`
-5. 3-second timeout guards against Vue not responding
+| Concern | Owner |
+|---------|-------|
+| Chord grid render | **Vue** (ChordGridView.vue) |
+| Chord name picker | **Vue** (ChordPicker.vue) |
+| Voicing picker (panel + modal) | **Vue** (VoicingPicker.vue) |
+| Voicing overview | **Vue** (VoicingOverview.vue) |
+| Voicing search API calls | **Vue** (utils/voicingApi.js) |
+| Grid selection / clipboard / context menu | **Vue** (useGridSelection, useChordClipboard) |
+| Row resize (−/+/§ per row) | **Vue** (rowShrink/rowGrow/splitSection in TabEditor) |
+| Section collapse state | **Vue** (local ref per ChordSection; collapsedSections{} in TabEditor) |
+| Section add/delete/rename | **Vue** (useTabModel: addSection, deleteSection, renameSection) |
+| `viewMode` | **Vue** (Alpine mirrors one-way via sbn-tab-view-changed) |
+| Undo / redo | **Vue** (one stack — useUndo.js) |
+| Analysis view | Alpine (reads from window.__sbnTabModel facade) |
+| Song meta (title/composer/key/tempo/time) | Alpine |
+| Description, shortcode output | Alpine |
+| HTTP save | Alpine |
+| File import (drop/parse → sbn-tab-init) | Alpine |
+| `identifyTabVoicings` (runs once on import) | Alpine |
 
 ---
 
-## TAB EDITOR — VUE.JS (Phase 7, complete)
+## TAB EDITOR — VUE.JS (Phases 7 + B)
 
 ### File structure
 ```
-resources/js/tab-editor.js                               ← Vite entry, mounts TWO Vue apps
+resources/js/tab-editor.js                               ← Vite entry, mounts TabEditor.vue
 resources/js/tab-editor/
-  TabEditor.vue                                          ← notation area root, keyboard handler
+  TabEditor.vue                                          ← root: view tabs, chord grid, tab notation, keyboard
   TabSidebarApp.vue                                      ← sidebar root (mounts in #sbn-tab-sidebar)
   components/
     TabMeasure.vue                                       ← single measure SVG renderer
-    TabCursor.vue                                        ← cursor overlay (SVG circle + hit targets)
-    TabSidebar.vue                                       ← selection info panel
+    TabCursor.vue                                        ← cursor overlay
+    TabSidebar.vue                                       ← Note Inspector panel
+    ChordGridView.vue                                    ← chord grid container (Phase B)
+    ChordSection.vue                                     ← section header + row layout (Phase B)
+    ChordMeasure.vue                                     ← measure: volta, bar#, chord cards (Phase B)
+    ChordCard.vue                                        ← chord name + voicing diagram (Phase B)
+    ChordPicker.vue                                      ← inline chord name picker (Phase B)
+    VoicingPicker.vue                                    ← desktop panel + mobile modal, Teleport (Phase B)
+    VoicingOverview.vue                                  ← resting state: all song voicings (Phase B)
+    ChordContextMenu.vue                                 ← right-click menu (Phase B)
   composables/
-    useAlpineBridge.js                                   ← CustomEvent Alpine↔Vue bridge
-    useTabModel.js                                       ← parsed.melody → TabModel (deep ref)
+    useAlpineBridge.js                                   ← CustomEvent Alpine↔Vue bridge (stripped to 2 handlers)
+    useTabModel.js                                       ← melody+sections → reactive TabModel
     useCursor.js                                         ← cursor state machine + navigation
     useNoteInput.js                                      ← fret entry, delete, rest↔note
     useReflow.js                                         ← duration changes, repositionMeasure
-    useChordSync.js                                      ← extractFretsAtChord + applyVoicingToChord (Phase 7-int)
+    useChordSync.js                                      ← extractFretsAtChord + applyVoicingToChord
     useSelection.js                                      ← copy/paste, Shift+arrow range selection
-    useUndo.js                                           ← command stack with measure snapshots
-    useSidebarStore.js                                   ← shared reactive store between the two apps
+    useUndo.js                                           ← command stack with measure snapshots (covers all views)
+    useSidebarStore.js                                   ← shared reactive store between TabEditor + TabSidebarApp
+    useChordGridOps.js                                   ← all chord grid mutations (Pattern A + B) (Phase B)
+    useGridSelection.js                                  ← chord grid selection: click/ctrl/shift/range (Phase B)
+    useChordClipboard.js                                 ← chord grid copy/cut/paste (Phase B)
+    useVoicingPicker.js                                  ← module-level singleton store for VoicingPicker (Phase B)
+    useChordPicker.js                                    ← module-level singleton store for ChordPicker (Phase B)
   utils/
     constants.js                                         ← SMUFL glyphs, layout dims, tick math
     svgHelpers.js                                        ← beam/tie/flag/rest SVG generation
     musicXmlWriter.js                                    ← TabModel → MusicXML string
+    chordFormat.js                                       ← wrappers for sbnFormatChordHtml / sbnRenderDiagramSVG (Phase B)
+    voicingApi.js                                        ← AJAX wrappers for voicing search endpoints (Phase B)
+    tabModelFacade.js                                    ← window.__sbnTabModel singleton (Phase B)
 ```
 
-### Dual Vue app mount
-`tab-editor.js` mounts two separate Vue apps:
-1. `#sbn-tab-editor` — `TabEditor.vue` (notation, keyboard, cursor)
-2. `#sbn-tab-sidebar` — `TabSidebarApp.vue` (note inspector)
-
-Shared state via `useSidebarStore.js` — a module-level `reactive({})` singleton.
+**Note:** `tab-editor.js` mounts only `TabEditor.vue` (into `#sbn-editor-content`). `TabSidebarApp.vue` is mounted separately into `#sbn-tab-sidebar` via the same entry file.
 
 ### Working model shape
 ```
-TabModel { timeSignature, ticksPerMeasure, sections: SectionModel[] }
-SectionModel { id, name, measures: MeasureModel[] }
+TabModel { timeSignature, ticksPerMeasure, sections: SectionModel[], chordVoicings{} }
+SectionModel { id, name, lineBreaks[], measures: MeasureModel[] }
 MeasureModel { index, events: TabEvent[], actualTicks, repeatStart/End, volta, chordNames[] }
 TabEvent { id, tick, tickInMeasure, duration, ticks, voice, isRest, notes: TabNote[],
            tieStart/Stop, stemDir, flagCount, beam1/2, beamWith, tuplet*, xPos }
@@ -380,11 +260,38 @@ TabNote { string, fret, pitch, octave, tieStart, tieStop, tieEndEvent?, tieEndNo
 
 ### Key conventions
 - Model uses **`ref()`** (deep reactive), NOT `shallowRef`
-- Mutations to nested objects/arrays are tracked automatically
 - Tick constants: whole=1920, half=960, quarter=480, eighth=240, sixteenth=120, thirty-second=60
-- Soundslice-local model: edits stay within a single measure, no cross-bar cascade reflow
+- Chord grid provide/inject: `TabEditor.vue` provides `model`, `globalIndexOf`, `chordGridOps`, `gridSelection`, `chordClipboard`, `chordPicker`, `voicingPicker`, `renameSection`, `addMeasureToSection`, `deleteSection`, `sectionCount`, `rowShrink`, `rowGrow`, `rowSplit`
+- `useVoicingPickerStore` and `useChordPickerStore` are **module-level singletons** — both Vue apps share the same instance without provide/inject
+- `VoicingPicker.vue` Teleports unconditionally into `#sbn-vp-slot` (no feature flag)
 
-### Keyboard shortcuts
+### Undo patterns
+All chord-grid ops go through `useChordGridOps.js` via `useUndo.wrapCommand`:
+
+**Pattern A — chord name / voicing mutation (fast, per-measure snapshot):**
+Use when only `chordNames` or `chordVoicings` change in a known measure.
+```js
+undo.wrapCommand('Rename chord', [gi], () => { /* mutate */ });
+```
+
+**Pattern B — structural op (slow, full-model serialize/deserialize):**
+Use for insert/delete bar, move bar, split section.
+```js
+undo.wrapCommand('Insert bar', [], () => { tabModel.insertMeasureAfter(si, mi); }, {
+  serializeModel: tabModel.serializeModel,
+  deserializeModel: tabModel.deserializeModel,
+  afterApply: () => dispatchEvent(new CustomEvent('sbn-tab-sections-sync')),
+});
+```
+
+### `chordVoicings` key management
+Vue handles all key reindexing inline — no Alpine involvement needed:
+- `insertMeasureAfter` / `deleteMeasure` / `moveMeasure` call `_reindexChordVoicingKeys` inline before returning
+- `deleteChords` calls `_compactChordIndicesInMeasure` after removing a chord slot
+- `setChordName` calls `_renameVoicingKey` (new key = `newName@gi.ci`)
+- `pruneOrphanVoicings` is deleted — keys are always clean because every mutation reindexes inline
+
+### Keyboard shortcuts (tab editor)
 | Key | Action |
 |-----|--------|
 | ← → | Navigate events |
@@ -397,17 +304,52 @@ TabNote { string, fret, pitch, octave, tieStart, tieStop, tieEndEvent?, tieEndNo
 | + / = / - | Shorter / longer duration |
 | . | Toggle dotted |
 | T | Toggle tie |
-| A | Insert rest after cursor event (same duration, measure may overfill) |
+| A | Insert rest after cursor event |
 | Shift+←/→ | Extend note selection |
 | Ctrl+C/X/V | Copy/cut/paste |
-| Ctrl+Z / Ctrl+Shift+Z | Undo/redo |
+| Ctrl+Z / Ctrl+Shift+Z | Undo/redo (unified — covers chord grid + tab + voicings) |
 | ? | Keyboard shortcut reference overlay |
 | Escape | Clear selection / return to navigate |
 
 ### Vite / build workflow
-- `npm run dev` for HMR during development (both Herd and dev server must run)
+- `npm run dev` for HMR during development
 - `npm run build` at end of each session for production bundle
 - Page reload without dev server = blank tab view
+
+---
+
+## DESIGN SYSTEM
+
+Four files establish the global design language. **Always upload `SBN-Design-Reference.md` alongside this file.**
+
+```
+public/css/sbn-design-system.css   ← tokens + base components, loaded FIRST
+public/css/chord-symbols.css       ← chord name typography, loaded second
+public/css/admin2.css              ← admin shell layout, loaded third (admin only)
+public/js/chords.js                ← chord diagram renderers + toast
+```
+
+**Rule:** Module CSS files never define colors or base component shapes. They reference `--clr-*` variables only.
+
+### Card system hierarchy
+```
+.sbn-diagram-card / .sbn-vp-card   ← DS §2: base shell (white bg, border, radius, flex column)
+  ├─ chord library (.sbn-shapes-row grid)
+  ├─ voicing picker (.sbn-vp-grid)
+  ├─ chord grid (.sbn-ve-chord-diagram) — max-width: 100px; padding: 4px 6px in leadsheets.css
+  └─ progression builder — max-width: 80px; padding: 2px 4px override
+```
+SVG diagrams: fixed `viewBox="0 0 80 95"` with `width="100%"`. Never pass pixel size to `sbnRenderDiagramSVG()`.
+
+### Interaction frame pattern
+`.sbn-ve-chord` hover: `::before` pseudo-element (`inset:0; z-index:2; box-shadow:inset 0 0 0 1px var(--clr-accent)`). Selection/active: `::after` at `z-index:4`. Hover = orange (`--clr-accent`), selection = blue (`--clr-style-jazz`).
+
+### Phase 8 frontend portability
+- **Already portable:** `sbn-design-system.css`, `chord-symbols.css`, `chords.js`
+- **Needs extraction:** tab SVG classes (`.sbn-tab-note-text`, etc.) currently in `leadsheets.css` → move to `sbn-design-system.css` when Phase 8 starts
+- **Public chord grid:** `leadsheet-viewer.blade.php` (Phase B Step 10a — TODO): read-only Alpine x-for loop over `$leadsheet->json_data`, same CSS, no Vue, no editing
+- **Public tab viewer:** `TabViewer.vue` reusing `TabMeasure.vue` stripped of editing composables
+- **Builder picker** is the clean prototype for the public voicing picker — consider extracting to `Alpine.store('voicingPicker')` before Phase 8
 
 ---
 
@@ -415,63 +357,43 @@ TabNote { string, fret, pitch, octave, tieStart, tieStop, tieEndEvent?, tieEndNo
 
 ### Chord name pipeline
 ```
-public/css/chord-symbols.css        -- .sbn-chord-symbol and sub-classes, loaded globally
-public/js/sbn-chord-name.js         -- sbnFormatChord() / sbnStyledChord() client-side
-                                       NOTE: sbnFormatChordHtml() also available in chords.js
+public/css/chord-symbols.css        -- .sbn-chord-symbol and sub-classes
+public/js/sbn-chord-name.js         -- sbnFormatChord() / sbnStyledChord()
 app/Helpers/ChordName.php           -- format() and styled()
 app/helpers.php                     -- global chord() helper
 ```
 
 ### Chord diagram pipeline
 ```
-public/js/chords.js                 -- CONSOLIDATED (2026-04-08):
-                                       sbnRenderDiagramSVG(voicing, opts) — fluid SVG, transparent bg
-                                       sbnRenderMiniDiagramSVG(voicing)   — alias for above
-                                       sbnRenderFretboard(data)           — HTML fretboard string
-                                       sbnHydrateFretboard(container, data) — place dots/barres
-                                       sbnHydrateAll(container)           — batch hydrate
-                                       sbnFormatChordHtml(name)           — chord name HTML
-                                       sbnToast(message, type)            — toast notification
-                                       sbnParseFretString(str, pos)       — smart multi-digit parser
-                                    Hydration guard: data-sbn-rendered="1"
-                                    Load on: all pages that show chord diagrams
+public/js/chords.js                 -- CONSOLIDATED:
+                                       sbnRenderDiagramSVG(voicing, opts)
+                                       sbnRenderFretboard(data)
+                                       sbnHydrateAll(container)
+                                       sbnFormatChordHtml(name)
+                                       sbnToast(message, type)
+                                       sbnParseFretString(str, pos)
 ```
 
 ### Design system
 ```
-public/css/sbn-design-system.css    -- tokens + base components (load first, globally)
-                                       §1   CSS custom properties (:root)
-                                       §2   .sbn-diagram-card, .sbn-vp-card (unified, no fixed width)
-                                       §2b  .sbn-fretboard-* HTML fretboard (canonical, replaces sbn-fb-*)
-                                       §2c  .sbn-chord-card (full card with controls, Phase 8)
-                                       §2d  .sbn-ve-chord.sbn-ve-selected (chord card selection frame)
-                                       §3   .sbn-btn and variants
-                                       §4   .sbn-badge and variants
-                                       §5   .sbn-card, .sbn-card-lg panels
-                                       §6   Form elements
-                                       §7   .sbn-vp-* voicing picker panel (shared)
-                                       §8   .sbn-ve-* chord grid cells (shared read-only base)
-                                       §9   Context menu (.sbn-context-menu, .sbn-context-menu-item)
-                                       §10  Drag-to-reorder (.is-dragging, .drop-gap-before/after)
+public/css/sbn-design-system.css    -- §1 tokens, §2 cards, §2b fretboard, §2c chord-card (Phase 8)
+                                       §2d selection frame, §3 buttons, §4 badges, §5 panels
+                                       §6 forms, §7 voicing picker, §8 chord grid cells
+                                       §9 context menu, §10 drag-to-reorder
 ```
 
-### Admin shell (Phase 1)
+### Admin shell
 ```
 resources/views/layouts/admin.blade.php
-resources/views/components/admin/nav-item.blade.php
 resources/views/admin/dashboard/index.blade.php
-resources/views/auth/login.blade.php
 public/css/admin2.css
-app/Http/Controllers/Admin/DashboardController.php
-app/Http/Controllers/Auth/LoginController.php
 ```
 
 ### Rhythm patterns (Phase 2)
 ```
 app/Models/RhythmPattern.php
 app/Http/Controllers/Admin/RhythmPatternController.php
-resources/views/admin/rhythms/index.blade.php
-resources/views/admin/rhythms/edit.blade.php
+resources/views/admin/rhythms/
 public/css/rhythms.css
 ```
 
@@ -479,84 +401,49 @@ public/css/rhythms.css
 ```
 app/Models/ChordProgression.php
 app/Http/Controllers/Admin/ProgressionController.php
-resources/views/admin/progressions/index.blade.php
-resources/views/admin/progressions/edit.blade.php
+resources/views/admin/progressions/
 public/css/progressions.css
 ```
 
 ### Chord diagrams + voicing crossref (Phase 4)
 ```
-app/Models/ChordDiagram.php
-app/Models/ChordDiagramAlias.php
-app/Models/VoicingUsage.php
-app/Models/VoicingDraft.php
-app/Http/Controllers/Admin/ChordController.php
-app/Http/Controllers/Admin/VoicingController.php
-resources/views/admin/chords/index.blade.php  -- has own inline SVG renderer (not yet unified)
+app/Models/ChordDiagram.php  /  ChordDiagramAlias.php  /  VoicingUsage.php  /  VoicingDraft.php
+app/Http/Controllers/Admin/ChordController.php  /  VoicingController.php
+resources/views/admin/chords/index.blade.php   -- has own inline SVG renderer (not yet unified)
 resources/views/admin/chords/edit.blade.php
-public/css/chords.css                         -- library-only extensions; sbn-fb-* legacy aliases
-public/css/voicings.css
+public/css/chords.css  /  voicings.css
 ```
 
 ### Leadsheets + voicing engine (Phases 5–6e)
 ```
 app/Models/Leadsheet.php
-app/Services/LeadsheetParser.php
-app/Services/ChordShapeCalculator.php
-app/Services/VoicingCrossref.php
+app/Services/LeadsheetParser.php  /  ChordShapeCalculator.php  /  VoicingCrossref.php
 app/Http/Controllers/Admin/LeadsheetController.php
 app/Http/Controllers/Admin/ProgressionDetectionController.php
 resources/views/admin/leadsheets/index.blade.php
-resources/views/admin/leadsheets/edit.blade.php   -- ~4,060 lines (inline <style> fully extracted)
-public/css/leadsheets.css                         -- all editor styles + chord grid overrides
+resources/views/admin/leadsheets/edit.blade.php   -- ~1,980 lines (Phase B complete)
+public/css/leadsheets.css                         -- all editor + chord grid styles
 ```
 
-### Tab editor — Vue.js (Phase 7)
+### Tab editor + chord grid — Vue.js (Phases 7 + B)
 ```
-package.json                                           -- Vue 3, Vite, laravel-vite-plugin
-vite.config.js                                         -- entry: resources/js/tab-editor.js
-resources/js/tab-editor.js                             -- dual Vue app mount
-resources/js/tab-editor/TabEditor.vue
-resources/js/tab-editor/TabSidebarApp.vue
-resources/js/tab-editor/components/TabMeasure.vue
-resources/js/tab-editor/components/TabCursor.vue
-resources/js/tab-editor/components/TabSidebar.vue
-resources/js/tab-editor/composables/useAlpineBridge.js
-resources/js/tab-editor/composables/useTabModel.js
-resources/js/tab-editor/composables/useCursor.js
-resources/js/tab-editor/composables/useNoteInput.js
-resources/js/tab-editor/composables/useReflow.js
-resources/js/tab-editor/composables/useSelection.js
-resources/js/tab-editor/composables/useUndo.js
-resources/js/tab-editor/composables/useSidebarStore.js
-resources/js/tab-editor/utils/constants.js
-resources/js/tab-editor/utils/svgHelpers.js
-resources/js/tab-editor/utils/musicXmlWriter.js
+package.json  /  vite.config.js
+resources/js/tab-editor.js
+resources/js/tab-editor/
+  TabEditor.vue  /  TabSidebarApp.vue
+  components/  (see file structure above)
+  composables/  (see file structure above)
+  utils/  (see file structure above)
+public/build/  (compiled by npm run build)
 ```
 
 ### Progression builder (Phase 6d)
 ```
-app/Services/HarmonicContext.php
-app/Services/ProgressionBuilder.php
+app/Services/HarmonicContext.php  /  ProgressionBuilder.php
 app/Http/Controllers/Admin/ProgressionBuilderController.php
 resources/views/admin/progressions/builder.blade.php
 public/css/progression-builder.css
 ```
-
-### Voicing picker — architecture notes
-The `.sbn-vp-*` picker panel is a shared UI component used in:
-- `edit.blade.php` — context panel + modal fallback, tied to complex Alpine/Vue state
-- `builder.blade.php` — context panel, pre-loaded voicing data, local Alpine filtering
-
-**Rendering:** All picker cards and chord grid diagrams use `sbnRenderDiagramSVG()` from `chords.js`. No size argument — CSS controls all sizing via the card shell and parent grid.
-
-**Interaction frame pattern:** `.sbn-ve-chord` hover uses a `::before` pseudo-element (`position:absolute; inset:0; z-index:2; box-shadow:inset 0 0 0 1px var(--clr-accent)`). `.sbn-ve-measure` selection/active uses `::after` at `z-index:4` (paints above chord `::before`). Frame color: orange (`--clr-accent`) for hover, blue (`--clr-style-jazz`) for selection/active. No background tints on selection. The hover frame fills the full chord cell — no padding gap.
-
-**Card sizing in grid context:** `.sbn-ve-chord-diagram` contains a `div.sbn-diagram-card` wrapping the SVG. `leadsheets.css` caps it at `max-width: 100px; padding: 4px 6px`. `progression-builder.css` overrides to `max-width: 80px; padding: 2px 4px` for the narrower builder grid. Never pass a pixel size to `sbnRenderDiagramSVG()` — CSS-only sizing.
-
-**Phase 8 plan:** The builder picker is the clean prototype for the public frontend.
-Consider extracting to an Alpine store (`Alpine.store('voicingPicker')`) before Phase 8
-to avoid duplicating the filter logic a third time.
 
 ---
 
@@ -566,7 +453,7 @@ to avoid duplicating the filter logic a third time.
 - **SQLite** at `C:\Users\info\sbn-app\database\sbn.db`
 - Auth: `lucas@soulbossanova.com` / `changeme123`
 - Alpine.js via CDN + `@alpinejs/collapse` plugin
-- **Vue 3 + Vite** for tab editor only
+- **Vue 3 + Vite** for tab editor + chord grid
 - Fonts: DM Sans + JetBrains Mono + Crimson Text (Google Fonts) + Bravura SMuFL
 
 ---
@@ -574,14 +461,15 @@ to avoid duplicating the filter logic a third time.
 ## SONNET vs OPUS GUIDE
 
 **Sonnet** (translation, porting, well-defined tasks):
-- Phase 7-polish (UI polish, edge cases)
+- All Phase C/D/E/8/9 feature implementation
 - Bug fixes with clear root cause
-- All Phase 8/9 ports
 - UI/CSS work, Blade views, admin CRUD
+- Vue component additions following established patterns
 
 **Opus** (design, ambiguous architecture, novel algorithms):
 - Bug #12 (triplet group integrity — needs guard/repair strategy design)
 - scoreVL weight rebalancing (bug #3)
+- Phase C architecture decisions (cross-section drag, repeat/volta edit model)
 - Any task where the right approach is genuinely unclear
 
 ---
@@ -589,11 +477,10 @@ to avoid duplicating the filter logic a third time.
 ## SESSION PROTOCOL
 
 1. **Upload two files** at session start: this file + `SBN-Design-Reference.md`.
-2. **For tab editor work:** also upload `edit.blade.php` + zip of `resources/js/tab-editor/`.
-3. **For tab editor UX session (next):** upload `edit.blade.php` + `useAlpineBridge.js` + `useTabModel.js` + `TabEditor.vue` + `TabMeasure.vue` + `TabSidebar.vue` + `sbn-grid-ops.js`. Opus architecture pass recommended first (sbn-tab-structure-request bridge design).
-4. **For builder work:** also upload `builder.blade.php` + `ProgressionBuilderController.php`.
-5. **For CSS/JS work:** upload `edit.blade.php` + `sbn-design-system.css` + `leadsheets.css` + full `css/` folder zipped + `chords.js`.
-6. **Claude must read files before modifying them.** File map ≠ file content.
-7. **Before writing any CSS:** check `SBN-Design-Reference.md`.
-8. **Vue tab editor:** All code in `resources/js/tab-editor/`. Composables pattern. No shared state with Alpine — CustomEvents only (except `useSidebarStore`).
-9. **End of session:** update status table, pending bugs, file map, architecture notes.
+2. **For tab editor / chord grid work:** also upload `edit.blade.php` + zip of `resources/js/tab-editor/`.
+3. **For builder work:** also upload `builder.blade.php` + `ProgressionBuilderController.php`.
+4. **For CSS/JS work:** upload `leadsheets.css` + `sbn-design-system.css` + `chords.js`.
+5. **Claude must read files before modifying them.** File map ≠ file content.
+6. **Before writing any CSS:** check `SBN-Design-Reference.md`.
+7. **Vue tab editor:** All code in `resources/js/tab-editor/`. Composables pattern. No shared state with Alpine — CustomEvents only (except `useSidebarStore`).
+8. **End of session:** update status table, pending bugs, file map, architecture notes.
