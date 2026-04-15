@@ -12,10 +12,10 @@
         <div class="sbn-ve-tabs">
             <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'chords' }"
                     @click="setViewMode('chords')">Chords</button>
-            <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'analysis' }"
-                    @click="setViewMode('analysis')">Analysis</button>
             <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'tab' }"
                     @click="setViewMode('tab')">Tab</button>
+            <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'analysis' }"
+                    @click="setViewMode('analysis')">Analysis</button>
         </div>
 
         <!-- Chords Grid (Phase B) -->
@@ -58,17 +58,13 @@
 
                         <!-- Section header -->
                         <div class="sbn-ve-section-header">
-                            <div v-if="section.id" class="sbn-ve-section-id" style="pointer-events:none">
-                                {{ section.id }}
-                            </div>
-                            <span v-if="section.name && section.name !== section.id"
-                                  style="font-size:13px;font-weight:600;color:var(--clr-text);flex:1">
-                                {{ section.name }}
-                            </span>
-                            <span v-else style="flex:1"></span>
-                            <span class="sbn-ve-section-bar-count">
-                                {{ section.measures.length }} bars
-                            </span>
+                            <div v-if="section.id" class="sbn-ve-section-id">{{ section.id }}</div>
+                            <input class="sbn-ve-section-name"
+                                   :value="section.name"
+                                   placeholder="Section name…"
+                                   @blur="tabModel.renameSection(si, $event.target.value)"
+                                   @keydown.enter="$event.target.blur()" />
+                            <span class="sbn-ve-section-bar-count">{{ section.measures.length }} bars</span>
                             <button class="sbn-ve-section-btn" @click="onAddMeasure(si)" title="Add bar">+</button>
                             <button v-if="model.sections.length > 1" class="sbn-ve-section-delete" @click="onDeleteSection(si)" title="Remove section">×</button>
                         </div>
@@ -329,6 +325,7 @@ provide('gridSelection',     gridSelection);
 provide('chordClipboard',    chordClipboard);
 provide('chordPicker',       chordPickerStore);
 provide('voicingPicker',     voicingPickerStore);
+provide('renameSection',     (si, name) => tabModel.renameSection(si, name));
 
 // ── Step 4: Structural sync — clamp cursor after grid changes ──
 // When Alpine adds/removes measures, buildModel() re-slices from the

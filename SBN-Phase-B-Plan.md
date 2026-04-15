@@ -1,4 +1,4 @@
-# SBN Teaching Hub — Phase B Implementation Plan
+﻿# SBN Teaching Hub — Phase B Implementation Plan
 # Chord Grid Migration: Alpine → Vue
 
 > **Authored by:** Claude Opus 4.6 (architect review session, 2026-04-13)
@@ -399,18 +399,18 @@ Re-run full QA baseline checklist. Commit.
 ### Step 11 — Final regression pass *(~2 hours)*
 
 Load each baseline leadsheet. Verify:
-- [ ] Chord names match
-- [ ] Voicings match (correct diagrams)
-- [ ] Bar numbers correct
-- [ ] Volta/repeat markers render
+- [x] Chord names match
+- [x] Voicings match (correct diagrams)
+- [x] Bar numbers correct
+- [x] Volta/repeat markers render
 - [ ] Section headers editable
 - [ ] Drag-to-reorder measures works
-- [ ] Context menu works (insert/delete/copy/paste)
-- [ ] Ctrl+Z walks back through: chord rename → bar insert → voicing apply → tab note edit (all on one stack)
-- [ ] Save produces identical JSON to pre-Phase-B baseline
-- [ ] Analysis panel runs correctly
+- [x] Context menu works (insert/delete/copy/paste)
+- [x] Ctrl+Z walks back through: chord rename → bar insert → voicing apply → tab note edit (all on one stack)
+- [?] Save produces identical JSON to pre-Phase-B baseline
+- [x] Analysis panel runs correctly
 - [ ] Mobile voicing picker modal (<1024px)
-- [ ] Leadsheet with `Tab###` voicing names (identifyTabVoicings path) renames correctly on load
+- [?] Leadsheet with `Tab###` voicing names (identifyTabVoicings path) renames correctly on load
 
 ---
 

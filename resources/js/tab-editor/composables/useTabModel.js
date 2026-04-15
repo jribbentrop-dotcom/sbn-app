@@ -1150,6 +1150,11 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
         }
     }
 
+    function renameSection(si, newName) {
+        if (!model.value?.sections?.[si]) return;
+        model.value.sections[si].name = newName;
+    }
+
     function splitSection(si, ri) {
         if (!model.value) return;
         const sec = model.value.sections[si];
@@ -1330,6 +1335,7 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
         addMeasureToSection,
         addSection,
         deleteSection,
+        renameSection,
         splitSection,
         setBarsPerRow,
         exportAlpineSections,

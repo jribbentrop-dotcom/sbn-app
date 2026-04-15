@@ -1,8 +1,12 @@
 <template>
   <div class="sbn-ve-section">
     <div class="sbn-ve-section-header">
-      <span class="sbn-ve-section-id"       v-if="section.id">{{ section.id }}</span>
-      <span class="sbn-ve-section-name"      v-if="section.name && section.name !== section.id">{{ section.name }}</span>
+      <div v-if="section.id" class="sbn-ve-section-id">{{ section.id }}</div>
+      <input class="sbn-ve-section-name"
+             :value="section.name"
+             placeholder="Section name…"
+             @blur="renameSection(sectionIndex, $event.target.value)"
+             @keydown.enter="$event.target.blur()" />
       <span class="sbn-ve-section-bar-count">{{ section.measures ? section.measures.length : 0 }} bars</span>
     </div>
 
@@ -24,7 +28,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, inject } from 'vue';
 import ChordMeasure from './ChordMeasure.vue';
 
 const props = defineProps({
@@ -39,6 +43,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['contextmenu']);
+
+const renameSection = inject('renameSection');
 
 // ── Row layout (respects lineBreaks from model) ───────────────────────────────
 
