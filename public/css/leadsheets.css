@@ -326,7 +326,17 @@
     -webkit-user-select: none;
 }
 
-.sbn-tab-editor-notation { width: 100%; overflow-x: auto; }
+/* Shared panel shell — matches .sbn-analysis-panel border treatment */
+.sbn-ve-content-panel {
+    border-left:   1px solid var(--clr-border);
+    border-right:  1px solid var(--clr-border);
+    border-bottom: 1px solid var(--clr-border);
+    border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    background: var(--clr-surface);
+}
+.sbn-ve-chords-root { padding: 16px 20px; }
+.sbn-tab-editor-notation { width: 100%; overflow-x: auto; padding: 12px 16px; }
 
 /* Bravura SMuFL font for flags and rests */
 @font-face {
@@ -733,17 +743,28 @@
     background: #fffbf0; color: #b8860b; border-color: #e8d5a0;
 }
 .sbn-ve-section-bar-count { font-size: 11px; color: var(--clr-text-muted); white-space: nowrap; }
+.sbn-ve-section-actions {
+    display: flex; align-items: center; gap: 4px;
+    opacity: 0; transition: opacity 0.15s;
+}
+.sbn-ve-section-header:hover .sbn-ve-section-actions { opacity: 1; }
 .sbn-ve-section-btn {
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
     background: none; border: 1px solid var(--clr-border); border-radius: 5px;
-    color: var(--clr-accent); cursor: pointer; padding: 2px 8px;
-    font-size: 13px; font-weight: 700; line-height: 1;
-    font-family: var(--font-body);
+    color: var(--clr-accent); cursor: pointer; padding: 0;
+    font-size: 14px; font-weight: 700; line-height: 1;
+    font-family: var(--font-body); transition: border-color 0.15s, background 0.15s;
 }
-.sbn-ve-section-btn:hover { border-color: var(--clr-accent); }
+.sbn-ve-section-btn:hover { border-color: var(--clr-accent); background: var(--clr-accent-bg); }
 .sbn-ve-section-delete {
-    background: none; border: none; color: var(--clr-error);
-    cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px;
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: 1px solid transparent; border-radius: 5px;
+    color: var(--clr-error); cursor: pointer; padding: 0;
+    font-size: 15px; line-height: 1; transition: border-color 0.15s, background 0.15s;
 }
+.sbn-ve-section-delete:hover { border-color: var(--clr-error); background: color-mix(in srgb, var(--clr-error) 8%, transparent); }
 
 /* Section body & collapsed state */
 .sbn-ve-section-body {

@@ -8,6 +8,10 @@
              @blur="renameSection(sectionIndex, $event.target.value)"
              @keydown.enter="$event.target.blur()" />
       <span class="sbn-ve-section-bar-count">{{ section.measures ? section.measures.length : 0 }} bars</span>
+      <div class="sbn-ve-section-actions">
+        <button class="sbn-ve-section-btn" @click="addMeasureToSection(sectionIndex)" title="Add bar">+</button>
+        <button v-if="sectionCount > 1" class="sbn-ve-section-delete" @click="deleteSection(sectionIndex)" title="Remove section">×</button>
+      </div>
     </div>
 
     <div class="sbn-ve-section-body">
@@ -44,7 +48,10 @@ const props = defineProps({
 
 const emit = defineEmits(['contextmenu']);
 
-const renameSection = inject('renameSection');
+const renameSection       = inject('renameSection');
+const addMeasureToSection = inject('addMeasureToSection');
+const deleteSection       = inject('deleteSection');
+const sectionCount        = inject('sectionCount');
 
 // ── Row layout (respects lineBreaks from model) ───────────────────────────────
 

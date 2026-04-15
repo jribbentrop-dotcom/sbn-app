@@ -19,7 +19,7 @@
         </div>
 
         <!-- Chords Grid (Phase B) -->
-        <div v-show="viewMode === 'chords'" class="sbn-ve-chords-root">
+        <div v-show="viewMode === 'chords'" class="sbn-ve-chords-root sbn-ve-content-panel">
             <ChordGridView v-if="model" :sections="model.sections || []" />
         </div>
 
@@ -50,7 +50,7 @@
 
         <!-- Tab content -->
         <template v-else-if="model">
-            <div class="sbn-tab-editor-notation" @mousedown.left="onNotationMousedown" ref="notationRoot" style="position:relative;" v-show="viewMode === 'tab'">
+            <div class="sbn-tab-editor-notation sbn-ve-content-panel" @mousedown.left="onNotationMousedown" ref="notationRoot" style="position:relative;" v-show="viewMode === 'tab'">
                 
                 <div v-if="marqueeState" :style="marqueeStyle" class="sbn-tab-marquee"></div>
                 
@@ -65,8 +65,10 @@
                                    @blur="tabModel.renameSection(si, $event.target.value)"
                                    @keydown.enter="$event.target.blur()" />
                             <span class="sbn-ve-section-bar-count">{{ section.measures.length }} bars</span>
-                            <button class="sbn-ve-section-btn" @click="onAddMeasure(si)" title="Add bar">+</button>
-                            <button v-if="model.sections.length > 1" class="sbn-ve-section-delete" @click="onDeleteSection(si)" title="Remove section">×</button>
+                            <div class="sbn-ve-section-actions">
+                                <button class="sbn-ve-section-btn" @click="onAddMeasure(si)" title="Add bar">+</button>
+                                <button v-if="model.sections.length > 1" class="sbn-ve-section-delete" @click="onDeleteSection(si)" title="Remove section">×</button>
+                            </div>
                         </div>
 
                         <!-- Section body -->
@@ -325,7 +327,10 @@ provide('gridSelection',     gridSelection);
 provide('chordClipboard',    chordClipboard);
 provide('chordPicker',       chordPickerStore);
 provide('voicingPicker',     voicingPickerStore);
-provide('renameSection',     (si, name) => tabModel.renameSection(si, name));
+provide('renameSection',        (si, name) => tabModel.renameSection(si, name));
+provide('addMeasureToSection',  (si)       => tabModel.addMeasureToSection(si));
+provide('deleteSection',        (si)       => tabModel.deleteSection(si));
+provide('sectionCount',         computed(() => model.value?.sections?.length ?? 0));
 
 // ── Step 4: Structural sync — clamp cursor after grid changes ──
 // When Alpine adds/removes measures, buildModel() re-slices from the
