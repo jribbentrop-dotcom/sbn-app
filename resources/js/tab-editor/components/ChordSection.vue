@@ -1,6 +1,10 @@
 <template>
   <div class="sbn-ve-section">
-    <div class="sbn-ve-section-header">
+    <div class="sbn-ve-section-header" :class="{ 'is-collapsed': collapsed }">
+      <button class="sbn-ve-section-collapse"
+              :class="{ 'is-collapsed': collapsed }"
+              @click.stop="collapsed = !collapsed"
+              title="Collapse section">▼</button>
       <div v-if="section.id" class="sbn-ve-section-id">{{ section.id }}</div>
       <input class="sbn-ve-section-name"
              :value="section.name"
@@ -14,7 +18,7 @@
       </div>
     </div>
 
-    <div class="sbn-ve-section-body">
+    <div class="sbn-ve-section-body" v-show="!collapsed">
       <div v-for="(row, ri) in rows" :key="ri" class="sbn-ve-row">
         <ChordMeasure
           v-for="measure in row"
@@ -24,15 +28,26 @@
           :measure-index="localIndexOf(measure)"
           @contextmenu="emit('contextmenu', $event)"
         />
-        <!-- Row resize controls — wired in a later step -->
-        <div class="sbn-ve-row-resize"></div>
+        <div class="sbn-ve-row-resize">
+          <button class="sbn-ve-row-btn"
+                  :disabled="row.length <= 1"
+                  title="Move last bar to next row"
+                  @click.stop="rowShrink(sectionIndex, ri)">−</button>
+          <button class="sbn-ve-row-btn"
+                  :disabled="ri >= rows.length - 1"
+                  title="Pull next bar into this row"
+                  @click.stop="rowGrow(sectionIndex, ri)">+</button>
+          <button class="sbn-ve-row-btn sbn-ve-row-btn-section"
+                  title="New section after this row"
+                  @click.stop="rowSplit(sectionIndex, ri)">§</button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, inject } from 'vue';
+import { computed, inject, ref } from 'vue';
 import ChordMeasure from './ChordMeasure.vue';
 
 const props = defineProps({
@@ -48,10 +63,14 @@ const props = defineProps({
 
 const emit = defineEmits(['contextmenu']);
 
-const renameSection       = inject('renameSection');
-const addMeasureToSection = inject('addMeasureToSection');
-const deleteSection       = inject('deleteSection');
-const sectionCount        = inject('sectionCount');
+const collapsed            = ref(false);
+const renameSection        = inject('renameSection');
+const addMeasureToSection  = inject('addMeasureToSection');
+const deleteSection        = inject('deleteSection');
+const sectionCount         = inject('sectionCount');
+const rowShrink            = inject('rowShrink');
+const rowGrow              = inject('rowGrow');
+const rowSplit             = inject('rowSplit');
 
 // ── Row layout (respects lineBreaks from model) ───────────────────────────────
 
@@ -83,10 +102,6 @@ const rows = computed(() => {
   return out;
 });
 
-/**
- * Return the LOCAL (within-section) index of a measure object.
- * ChordMeasure needs it for data attrs and legacy Alpine compat.
- */
 function localIndexOf(measure) {
   return props.section.measures.indexOf(measure);
 }

@@ -326,7 +326,13 @@
     -webkit-user-select: none;
 }
 
-/* Shared panel shell — matches .sbn-analysis-panel border treatment */
+/* Chord root: .sbn-ve-grid already owns left/right borders + padding.
+   Only add the bottom border to close the panel frame. */
+.sbn-ve-chords-root {
+    border-bottom: 1px solid var(--clr-border);
+    border-radius: 0 0 var(--radius) var(--radius);
+}
+/* Tab notation panel: full border treatment (no inner grid to handle it) */
 .sbn-ve-content-panel {
     border-left:   1px solid var(--clr-border);
     border-right:  1px solid var(--clr-border);
@@ -335,7 +341,6 @@
     border-radius: 0 0 var(--radius) var(--radius);
     background: var(--clr-surface);
 }
-.sbn-ve-chords-root { padding: 16px 20px; }
 .sbn-tab-editor-notation { width: 100%; overflow-x: auto; padding: 12px 16px; }
 
 /* Bravura SMuFL font for flags and rests */
@@ -791,21 +796,21 @@
 /* Row resize */
 .sbn-ve-row-resize {
     display: flex; flex-direction: column; justify-content: center;
-    gap: 2px; padding: 4px 3px; flex-shrink: 0;
-    opacity: 0; transition: opacity 0.15s;
-    background: var(--clr-surface-2); border-left: 1px solid var(--clr-border-dim);
+    gap: 6px; padding-left: 8px; opacity: 0; transition: opacity 0.2s ease;
 }
 .sbn-ve-row:hover .sbn-ve-row-resize { opacity: 1; }
 .sbn-ve-row-btn {
-    width: 20px; height: 20px;
-    display: flex; align-items: center; justify-content: center;
-    border: 1px solid var(--clr-border); border-radius: 4px;
-    background: var(--clr-surface); color: var(--clr-text-muted);
-    font-size: 14px; font-weight: 700; line-height: 1;
-    cursor: pointer; padding: 0; transition: all 0.1s;
+    width: 20px; height: 20px; display: flex; align-items: center;
+    justify-content: center; border: 1px solid var(--clr-border);
+    border-radius: 4px; background: var(--clr-surface);
+    color: var(--clr-text-muted); font-size: 13px; font-weight: 600;
+    cursor: pointer; padding: 0; transition: all 0.15s ease;
 }
-.sbn-ve-row-btn:hover { border-color: var(--clr-accent); color: var(--clr-accent); }
-.sbn-ve-row-btn-section { font-size: 12px; margin-top: 2px; border-style: dashed; color: var(--clr-text-muted); }
+.sbn-ve-row-btn:hover:not(:disabled) {
+    border-color: var(--clr-accent); color: var(--clr-accent); background: var(--clr-accent-bg);
+}
+.sbn-ve-row-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.sbn-ve-row-btn-section { border-style: dashed; color: var(--clr-text-muted); }
 .sbn-ve-row-btn-section:hover { border-color: var(--clr-accent); color: var(--clr-accent); border-style: solid; }
 
 /* Measure number + hover frame

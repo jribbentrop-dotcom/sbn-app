@@ -19,7 +19,7 @@
         </div>
 
         <!-- Chords Grid (Phase B) -->
-        <div v-show="viewMode === 'chords'" class="sbn-ve-chords-root sbn-ve-content-panel">
+        <div v-show="viewMode === 'chords'" class="sbn-ve-chords-root">
             <ChordGridView v-if="model" :sections="model.sections || []" />
         </div>
 
@@ -57,7 +57,11 @@
                     <div v-for="(section, si) in model.sections" :key="section.id || si" class="sbn-ve-section">
 
                         <!-- Section header -->
-                        <div class="sbn-ve-section-header">
+                        <div class="sbn-ve-section-header" :class="{ 'is-collapsed': collapsedSections[si] }">
+                            <button class="sbn-ve-section-collapse"
+                                    :class="{ 'is-collapsed': collapsedSections[si] }"
+                                    @click.stop="collapsedSections[si] = !collapsedSections[si]"
+                                    title="Collapse section">▼</button>
                             <div v-if="section.id" class="sbn-ve-section-id">{{ section.id }}</div>
                             <input class="sbn-ve-section-name"
                                    :value="section.name"
@@ -72,7 +76,7 @@
                         </div>
 
                         <!-- Section body -->
-                        <div class="sbn-ve-section-body" style="padding:8px 4px 4px;">
+                        <div class="sbn-ve-section-body" v-show="!collapsedSections[si]" style="padding:8px 4px 4px;">
                             <div v-for="(row, ri) in measureRows(section)" :key="ri" class="sbn-tab-row" :class="{ 'sbn-tab-row--has-volta': row.some(m => m.volta) }">
 
                                 <div class="sbn-tab-measures">
@@ -227,6 +231,7 @@ const props = defineProps({
 });
 
 const viewMode = ref(props.initialView);
+const collapsedSections = ref({});   // keyed by si, true = collapsed
 provide('viewMode', viewMode);
 
 function setViewMode(mode) {
@@ -331,6 +336,9 @@ provide('renameSection',        (si, name) => tabModel.renameSection(si, name));
 provide('addMeasureToSection',  (si)       => tabModel.addMeasureToSection(si));
 provide('deleteSection',        (si)       => tabModel.deleteSection(si));
 provide('sectionCount',         computed(() => model.value?.sections?.length ?? 0));
+provide('rowShrink',            (si, ri)   => rowShrink(si, ri));
+provide('rowGrow',              (si, ri)   => rowGrow(si, ri));
+provide('rowSplit',             (si, ri)   => onSplitSection(si, ri));
 
 // ── Step 4: Structural sync — clamp cursor after grid changes ──
 // When Alpine adds/removes measures, buildModel() re-slices from the
