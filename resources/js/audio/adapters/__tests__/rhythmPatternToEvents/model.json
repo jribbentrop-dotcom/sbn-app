@@ -1,0 +1,12 @@
+{
+  "_comment": "RhythmPattern.toPlayerData() output for a bossa nova pattern. percTop='shaker' means each finger hit emits voice=percussion sample=shaker. percBass='kick' means each thumb hit emits voice=percussion sample=kick. Pattern strings: x = soft hit, X = accent (variant=accent), . = rest.",
+  "name": "Bossa Nova",
+  "beats": 16,
+  "gridType": "sixteenth",
+  "thumb":    "x...x...x...x...",
+  "fingers":  "..x...x...x...x.",
+  "bpm": 130,
+  "timeSignature": "4/4",
+  "percTop":  "shaker",
+  "percBass": "kick"
+}

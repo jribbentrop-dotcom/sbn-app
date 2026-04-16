@@ -1,0 +1,9 @@
+{
+  "_comment": "Assembled by the Vue composable/Blade layer — NOT the raw ChordProgression model. key, qualityPerChord, and beatsPerChord come from the leadsheet context and are required. The adapter must NOT infer these from the progression model alone.",
+  "id": 7,
+  "name": "ii–V–I",
+  "numerals": "ii,V,I",
+  "key": "C",
+  "qualityPerChord": ["m7", "dom7", "maj7"],
+  "beatsPerChord": [4, 4, 8]
+}

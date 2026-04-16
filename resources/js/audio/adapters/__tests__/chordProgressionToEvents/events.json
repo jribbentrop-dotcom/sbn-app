@@ -1,0 +1,41 @@
+[
+  {
+    "_comment": "Chord 0: Dm7 (ii in C). Root D3=50, m3 F3=53, P5 A3=57, m7 C4=60. All 4 notes share sourceId so UI highlights the whole chord block.",
+    "time": 0, "voice": "pitched", "pitch": 50, "duration": 4, "velocity": 0.8, "sourceId": "chord-0"
+  },
+  {
+    "time": 0, "voice": "pitched", "pitch": 53, "duration": 4, "velocity": 0.8, "sourceId": "chord-0"
+  },
+  {
+    "time": 0, "voice": "pitched", "pitch": 57, "duration": 4, "velocity": 0.8, "sourceId": "chord-0"
+  },
+  {
+    "time": 0, "voice": "pitched", "pitch": 60, "duration": 4, "velocity": 0.8, "sourceId": "chord-0"
+  },
+  {
+    "_comment": "Chord 1: G7 (V in C). Root G3=55, M3 B3=59, P5 D4=62, m7 F4=65. Starts at beat 4.",
+    "time": 4, "voice": "pitched", "pitch": 55, "duration": 4, "velocity": 0.8, "sourceId": "chord-1"
+  },
+  {
+    "time": 4, "voice": "pitched", "pitch": 59, "duration": 4, "velocity": 0.8, "sourceId": "chord-1"
+  },
+  {
+    "time": 4, "voice": "pitched", "pitch": 62, "duration": 4, "velocity": 0.8, "sourceId": "chord-1"
+  },
+  {
+    "time": 4, "voice": "pitched", "pitch": 65, "duration": 4, "velocity": 0.8, "sourceId": "chord-1"
+  },
+  {
+    "_comment": "Chord 2: Cmaj7 (I in C). Root C3=48, M3 E3=52, P5 G3=55, M7 B3=59. Starts at beat 8, lasts 8 beats.",
+    "time": 8, "voice": "pitched", "pitch": 48, "duration": 8, "velocity": 0.8, "sourceId": "chord-2"
+  },
+  {
+    "time": 8, "voice": "pitched", "pitch": 52, "duration": 8, "velocity": 0.8, "sourceId": "chord-2"
+  },
+  {
+    "time": 8, "voice": "pitched", "pitch": 55, "duration": 8, "velocity": 0.8, "sourceId": "chord-2"
+  },
+  {
+    "time": 8, "voice": "pitched", "pitch": 59, "duration": 8, "velocity": 0.8, "sourceId": "chord-2"
+  }
+]

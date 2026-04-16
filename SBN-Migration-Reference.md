@@ -40,9 +40,9 @@
 | grid-interact | Context menu + batch selection + drag-to-reorder + undo/redo (chord grid) | **DONE** |
 | 7-phase-a | Decouple from Alpine; Vue acts as sole structural and selection master | **DONE** |
 | 7-phase-b | Vue-Native Chord Grid & Voicing Picker | **DONE** |
-| 7-phase-c | Full Feature Parity (Drag-drop across sections, repeat/volta editing) | |
-| 7-phase-d | Audio Playback Engine (Tone.js) | |
-| 7-phase-e | Video Sync (Timeline Mapping) | |
+| 7-phase-c | Audio Playback Engine (Tone.js) | |
+| 7-phase-d | Video Sync (Timeline Mapping) | |
+| 7-phase-e | Full Feature Parity (Drag-drop across sections, repeat/volta editing) | |
 | 8 | Public frontend (all student-facing pages) | |
 | 9 | Courses, auth, payments, video integration | |
 

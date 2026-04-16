@@ -1,0 +1,18 @@
+{
+  "_comment": "ChordDiagram for open E major. IMPORTANT: the 'notes' column (pitch-class only, no octave) must NOT be used to compute MIDI. Derive MIDI from diagram_data.positions + standard tuning: string1(LowE)=40, string2(A)=45, string3(D)=50, string4(G)=55, string5(B)=59, string6(HiE)=64. Open strings use fret 0.",
+  "id": 1,
+  "slug": "e-maj-roote",
+  "root_note": "E",
+  "quality": "maj",
+  "notes": "E,B,E,G#,B,E",
+  "diagram_data": {
+    "positions": [
+      { "string": 2, "fret": 2 },
+      { "string": 3, "fret": 2 },
+      { "string": 4, "fret": 1 }
+    ],
+    "barres": [],
+    "muted": [],
+    "open": [1, 5, 6]
+  }
+}

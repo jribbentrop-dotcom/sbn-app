@@ -1,0 +1,6 @@
+{
+  "_comment": "duration=2 is the default chord hold in beats (one strum, ring for 2 beats). startBeat=0.",
+  "tempoBpm": 120,
+  "startBeat": 0,
+  "durationBeats": 2
+}

@@ -1,0 +1,600 @@
+/**
+ * Chord Progressions Admin Styles
+ * Matches the SBN admin design language (see voicing-crossref-admin.css)
+ */
+
+/* =============================================
+   STATS GRID  (shared with voicing crossref)
+   ============================================= */
+
+.sbn-progressions-admin .sbn-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+}
+
+.sbn-progressions-admin .sbn-stat-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+}
+
+.sbn-progressions-admin .sbn-stat-card.sbn-stat-highlight {
+    border-color: #3b82f6;
+    background: #eff6ff;
+}
+
+.sbn-progressions-admin .sbn-stat-number {
+    font-size: 32px;
+    font-weight: 700;
+    color: #1a202c;
+    line-height: 1.2;
+}
+
+.sbn-progressions-admin .sbn-stat-highlight .sbn-stat-number {
+    color: #2563eb;
+}
+
+.sbn-progressions-admin .sbn-stat-label {
+    font-size: 13px;
+    color: #718096;
+    margin-top: 4px;
+}
+
+/* =============================================
+   BADGE / TABS
+   ============================================= */
+
+.sbn-progressions-admin .sbn-badge {
+    display: inline-block;
+    background: #3b82f6;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 10px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.sbn-progressions-admin .nav-tab-wrapper {
+    margin-bottom: 20px;
+}
+
+/* =============================================
+   LIBRARY HEADER & FILTER BAR
+   ============================================= */
+
+.sbn-library-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 16px 0 12px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.sbn-filter-bar {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.sbn-filter-bar a {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    background: #f1f5f9;
+    color: #475569;
+    text-decoration: none;
+    border: 1px solid transparent;
+    transition: background 0.15s;
+}
+
+.sbn-filter-bar a:hover {
+    background: #e2e8f0;
+}
+
+.sbn-filter-bar a.active {
+    background: #2563eb;
+    color: #fff;
+    border-color: #2563eb;
+}
+
+.sbn-prog-count {
+    font-size: 13px;
+    color: #94a3b8;
+}
+
+/* =============================================
+   PROGRESSIONS TABLE
+   ============================================= */
+
+.sbn-prog-table .col-name    { width: 30%; }
+.sbn-prog-table .col-cat     { width: 100px; }
+.sbn-prog-table .col-numerals { width: auto; }
+.sbn-prog-table .col-occ     { width: 70px; text-align: center; }
+.sbn-prog-table .col-actions { width: 130px; }
+
+.sbn-prog-table td {
+    vertical-align: top;
+    padding: 10px 12px;
+}
+
+.sbn-prog-desc {
+    font-size: 12px;
+    color: #718096;
+    margin: 4px 0 0;
+    line-height: 1.5;
+}
+
+/* ── Category badges ─── */
+
+.sbn-cat-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.sbn-cat-jazz      { background: #fef3c7; color: #92400e; }
+.sbn-cat-blues     { background: #ede9fe; color: #5b21b6; }
+.sbn-cat-pop       { background: #d1fae5; color: #065f46; }
+.sbn-cat-modal     { background: #e0f2fe; color: #0c4a6e; }
+.sbn-cat-classical { background: #fce7f3; color: #9d174d; }
+.sbn-cat-latin     { background: #ffedd5; color: #9a3412; }
+.sbn-cat-other     { background: #f1f5f9; color: #475569; }
+
+/* ── Numeral code display ─── */
+
+.sbn-numerals {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+    background: #f8fafc;
+    padding: 3px 7px;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+    white-space: nowrap;
+    display: inline-block;
+}
+
+/* ── Occurrence count ─── */
+
+.sbn-occ-count {
+    display: inline-block;
+    background: #3b82f6;
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    width: 28px;
+    height: 28px;
+    line-height: 28px;
+    text-align: center;
+    border-radius: 50%;
+}
+
+.sbn-occ-none {
+    color: #cbd5e0;
+}
+
+/* =============================================
+   EDIT FORM
+   ============================================= */
+
+.sbn-edit-form {
+    max-width: 760px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 24px 28px;
+    margin-top: 16px;
+}
+
+.sbn-edit-form h2 {
+    margin-top: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 20px;
+}
+
+.sbn-edit-form .form-table th {
+    padding: 12px 10px 12px 0;
+    font-weight: 600;
+}
+
+.sbn-numerals-input {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    letter-spacing: 0.03em;
+}
+
+/* Live numeral preview */
+.sbn-numeral-preview {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-height: 36px;
+}
+
+.sbn-numeral-chip {
+    display: inline-flex;
+    align-items: center;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+    color: #1a202c;
+    position: relative;
+}
+
+.sbn-numeral-chip::after {
+    content: '→';
+    color: #94a3b8;
+    margin-left: 8px;
+    font-family: sans-serif;
+    font-size: 12px;
+}
+
+.sbn-numeral-chip:last-child::after {
+    display: none;
+}
+
+.sbn-numeral-warning {
+    margin-top: 6px;
+    padding: 6px 10px;
+    background: #fffbeb;
+    border: 1px solid #f59e0b;
+    border-radius: 4px;
+    color: #92400e;
+    font-size: 12px;
+}
+.sbn-numeral-warning code {
+    background: #fef3c7;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+/* =============================================
+   OCCURRENCES TAB
+   ============================================= */
+
+.sbn-occ-filters {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+}
+
+.sbn-occ-filters label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #374151;
+}
+
+.sbn-occ-filters select {
+    margin-left: 6px;
+}
+
+/* Confidence bar */
+
+.sbn-confidence-bar {
+    width: 60px;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    overflow: hidden;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+.sbn-confidence-fill {
+    height: 100%;
+    background: #3b82f6;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.sbn-confidence-pct {
+    font-size: 12px;
+    color: #718096;
+    vertical-align: middle;
+}
+
+/* =============================================
+   REPROCESS / ACTIONS
+   ============================================= */
+
+.sbn-crossref-actions {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.sbn-crossref-actions h3 {
+    margin-top: 0;
+}
+
+.sbn-crossref-popular {
+    margin: 20px 0;
+}
+
+.sbn-crossref-popular h3 {
+    margin-bottom: 10px;
+}
+
+.sbn-status-message {
+    margin-left: 12px;
+    font-style: italic;
+    color: #718096;
+}
+
+.sbn-status-message.sbn-status-success { color: #16a34a; font-style: normal; }
+.sbn-status-message.sbn-status-error   { color: #dc2626; font-style: normal; }
+
+/* =============================================
+   EMPTY STATE
+   ============================================= */
+
+.sbn-progressions-admin .sbn-empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #718096;
+}
+
+.sbn-progressions-admin .sbn-empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.sbn-progressions-admin .sbn-empty-state h2 {
+    color: #1a202c;
+    margin-bottom: 8px;
+}
+
+/* =============================================
+   SECTION BADGES (leadsheet editor integration)
+   ============================================= */
+
+.sbn-progression-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px 0 4px;
+}
+
+.sbn-prog-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 14px;
+    padding: 3px 10px 3px 8px;
+    font-size: 12px;
+    color: #1d4ed8;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+}
+
+.sbn-prog-badge:hover {
+    background: #dbeafe;
+    border-color: #93c5fd;
+}
+
+.sbn-prog-badge .badge-name {
+    font-weight: 600;
+}
+
+.sbn-prog-badge .badge-count {
+    font-size: 11px;
+    background: #2563eb;
+    color: #fff;
+    border-radius: 10px;
+    padding: 1px 6px;
+    font-weight: 700;
+}
+
+/* Tooltip panel */
+.sbn-prog-tooltip {
+    position: absolute;
+    z-index: 999;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    padding: 16px 18px;
+    min-width: 280px;
+    max-width: 380px;
+    font-size: 13px;
+    color: #374151;
+    line-height: 1.6;
+}
+
+.sbn-prog-tooltip h4 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    color: #1a202c;
+}
+
+.sbn-prog-tooltip .tooltip-numerals {
+    font-family: monospace;
+    background: #f8fafc;
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-size: 12px;
+    margin-bottom: 8px;
+    display: inline-block;
+    border: 1px solid #e2e8f0;
+}
+
+.sbn-prog-tooltip .tooltip-songs {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 12px;
+}
+
+.sbn-prog-tooltip .tooltip-songs strong {
+    display: block;
+    margin-bottom: 4px;
+    color: #6b7280;
+}
+
+.sbn-prog-tooltip .tooltip-songs a {
+    display: block;
+    color: #2563eb;
+    text-decoration: none;
+    padding: 1px 0;
+}
+
+.sbn-prog-tooltip .tooltip-songs a:hover {
+    text-decoration: underline;
+}
+
+.sbn-prog-tooltip-close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: #94a3b8;
+    cursor: pointer;
+    line-height: 1;
+    padding: 2px;
+}
+
+.sbn-prog-tooltip-close:hover {
+    color: #374151;
+}
+
+/* ============================================================
+   TAG BADGE UI — edit form
+   ============================================================ */
+
+/* Active tags row */
+.sbn-tags-active {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 34px;
+    align-items: center;
+    padding: 8px 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    max-width: 560px;
+}
+
+.sbn-tags-none {
+    font-size: 12px;
+    color: #94a3b8;
+    font-style: italic;
+}
+
+/* Active chip (selected tag) */
+.sbn-tag-active-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #1a202c;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 3px 8px 3px 10px;
+    border-radius: 20px;
+}
+
+.sbn-tag-remove {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.7);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    transition: color 0.12s;
+}
+
+.sbn-tag-remove:hover {
+    color: #fff;
+}
+
+/* Preset tag palette */
+.sbn-tags-palette-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 8px;
+}
+
+.sbn-tags-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 560px;
+    margin-bottom: 10px;
+}
+
+.sbn-tag-preset {
+    padding: 4px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 20px;
+    background: #fff;
+    color: #374151;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition: all 0.12s;
+}
+
+.sbn-tag-preset:hover {
+    border-color: #6b7280;
+    background: #f9fafb;
+    color: #111827;
+}
+
+.sbn-tag-preset--active {
+    background: #1a202c;
+    border-color: #1a202c;
+    color: #fff;
+}
+
+.sbn-tag-preset--active:hover {
+    background: #374151;
+    border-color: #374151;
+}
+
+/* Custom tag input row */
+.sbn-tags-custom-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}

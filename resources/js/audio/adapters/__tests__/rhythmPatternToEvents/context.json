@@ -1,0 +1,6 @@
+{
+  "_comment": "AdapterContext used to produce events.json. startBeat=0, repeat=1 (one pass through the pattern).",
+  "tempoBpm": 130,
+  "startBeat": 0,
+  "repeat": 1
+}

@@ -1,0 +1,56 @@
+[
+  {
+    "_comment": "String 1 (Low E), open → MIDI 40 + 0 = 40 (E2)",
+    "time": 0,
+    "voice": "pitched",
+    "pitch": 40,
+    "duration": 2,
+    "velocity": 0.8,
+    "sourceId": "diagram-1"
+  },
+  {
+    "_comment": "String 2 (A), fret 2 → MIDI 45 + 2 = 47 (B2)",
+    "time": 0,
+    "voice": "pitched",
+    "pitch": 47,
+    "duration": 2,
+    "velocity": 0.8,
+    "sourceId": "diagram-1"
+  },
+  {
+    "_comment": "String 3 (D), fret 2 → MIDI 50 + 2 = 52 (E3)",
+    "time": 0,
+    "voice": "pitched",
+    "pitch": 52,
+    "duration": 2,
+    "velocity": 0.8,
+    "sourceId": "diagram-1"
+  },
+  {
+    "_comment": "String 4 (G), fret 1 → MIDI 55 + 1 = 56 (G#3)",
+    "time": 0,
+    "voice": "pitched",
+    "pitch": 56,
+    "duration": 2,
+    "velocity": 0.8,
+    "sourceId": "diagram-1"
+  },
+  {
+    "_comment": "String 5 (B), open → MIDI 59 + 0 = 59 (B3)",
+    "time": 0,
+    "voice": "pitched",
+    "pitch": 59,
+    "duration": 2,
+    "velocity": 0.8,
+    "sourceId": "diagram-1"
+  },
+  {
+    "_comment": "String 6 (Hi E), open → MIDI 64 + 0 = 64 (E4)",
+    "time": 0,
+    "voice": "pitched",
+    "pitch": 64,
+    "duration": 2,
+    "velocity": 0.8,
+    "sourceId": "diagram-1"
+  }
+]

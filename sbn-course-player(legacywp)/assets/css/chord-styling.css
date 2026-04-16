@@ -1,0 +1,250 @@
+/**
+ * SBN Course Player - Chord Typography & Symbols
+ * Version: 7.0.0
+ * 
+ * All chord TEXT/SYMBOL styling for:
+ * - Chord symbols (inline text like Dm7, C♯maj7)
+ * - Chord charts (lead sheets in <pre> blocks)
+ * - Chord progressions (formatted chord sequences)
+ * 
+ * NOTE: Chord DIAGRAM styles (SVG grids) are in course-player.css
+ */
+
+/* ==============================================
+   1. CHORD SYMBOLS (inline in text)
+   ============================================== */
+
+/* Wrapper for inline chord symbols */
+.sbn-chord-symbol {
+    display: inline-block;
+    font-family: 'Crimson Text', serif;
+    font-size: 1.05em;
+    color: #e85d3b;
+    font-weight: 600;
+    white-space: nowrap;
+    vertical-align: baseline;
+}
+
+/* Root note (A, B, C, etc.) */
+.sbn-chord-root {
+    font-weight: 700;
+    font-size: 1.1em;
+}
+
+/* Minor quality indicator - NO ITALIC */
+.sbn-chord-quality {
+    font-style: normal !important;
+    font-weight: 400;
+}
+
+/* Accidentals (♯, ♭) */
+.sbn-chord-accidental {
+    font-size: 0.95em;
+    position: relative;
+    top: -0.05em;
+}
+
+/* Extensions (7, 9, 13, etc.) in superscript */
+.sbn-chord-ext {
+    font-size: 0.75em;
+    font-weight: 600;
+    line-height: 0;
+    vertical-align: super;
+}
+
+/* Bass note — all slash chords: normal weight, inherits color (black) */
+.sbn-chord-bass {
+    font-size: 0.9em;
+    font-weight: 400;
+    color: inherit;
+    margin-left: 1px;
+    vertical-align: baseline;
+}
+
+/* Bass note accidental */
+.sbn-chord-bass .sbn-bass-accidental {
+    font-size: 0.85em;
+}
+
+/* ==============================================
+   2. CHORD CHARTS (Lead Sheets)
+   ============================================== */
+
+/* Main chord chart container */
+.sbn-chord-chart {
+    /* Layout */
+    max-width: fit-content !important;
+    width: auto;
+    display: inline-block !important;
+    white-space: pre !important;
+    
+    /* Typography */
+    font-family: 'Crimson Text', serif;
+    font-size: 17px !important;              /* ← CUSTOMIZE THIS */
+    line-height: 1.6 !important;
+    
+    /* Alignment features */
+    font-variant-numeric: tabular-nums;
+    -moz-font-feature-settings: "tnum";
+    -webkit-font-feature-settings: "tnum";
+    font-feature-settings: "tnum";
+    letter-spacing: 0.05em;
+    
+    /* Visual styling - USE !important TO OVERRIDE course-player.css */
+    background: #f6f6f6 !important;          /* ← CUSTOMIZE THIS - Use !important */
+    border: 1px solid #e0e0e0 !important;    /* ← CUSTOMIZE THIS - Use !important */
+    border-radius: 4px !important;
+    padding: 16px 25px !important;           /* ← CUSTOMIZE THIS - Use !important */
+    margin: 16px 0 !important;
+    
+    /* Scrolling for narrow screens */
+    overflow-x: auto;
+}
+
+/* Chord symbols within charts - NORMAL TEXT COLOR */
+.sbn-chart-chord {
+    color: #000000 !important;    /* Not orange - inherits text color */
+    font-weight: 600;
+}
+
+/* Ensure no inline color overrides */
+.sbn-chord-chart .sbn-chart-chord {
+    color: currentColor !important;
+}
+
+/* Section labels (INTRO, VERSE, CHORUS, BRIDGE, etc.) */
+.sbn-chart-section {
+    display: block;                     /* On separate line */
+    color: #666;
+    font-weight: 600;
+    font-size: 11px;                    /* Smaller than chord text */
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-top: 8px !important;         /* ← Space above - CUSTOMIZE THIS */
+    margin-bottom: 2px !important;      /* ← Space below - CUSTOMIZE THIS */
+}
+
+/* First section has no top margin */
+.sbn-chord-chart .sbn-chart-section:first-child {
+    margin-top: 0 !important;
+}
+
+/* ==============================================
+   3. CHORD PROGRESSIONS (inline chord rows)
+   ============================================== */
+
+.sbn-chord-progression {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-start;
+    margin: 20px 0;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+/* ==============================================
+   4. RESPONSIVE DESIGN
+   ============================================== */
+
+@media (max-width: 768px) {
+    /* Smaller text on mobile */
+    .sbn-chord-chart {
+        font-size: 15px;
+        padding: 12px 16px;
+    }
+    
+    /* Smaller section labels on mobile */
+    .sbn-chart-section {
+        font-size: 10px;
+    }
+    
+    /* Smaller inline chord symbols */
+    .sbn-chord-symbol {
+        font-size: 1em;
+    }
+}
+
+/* ==============================================
+   5. PRINT STYLES
+   ============================================== */
+
+@media print {
+    /* Clean background for printing */
+    .sbn-chord-chart {
+        background: white;
+        border: 1px solid #000;
+        page-break-inside: avoid;
+    }
+    
+    /* Black text for printing */
+    .sbn-chart-chord,
+    .sbn-chart-section,
+    .sbn-chord-symbol {
+        color: #000 !important;
+    }
+}
+
+/* ==============================================
+   6. UTILITY CLASSES
+   ============================================== */
+
+/* Hide elements in print mode */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+}
+
+/* Clearfix for chord diagram groups */
+.sbn-chord-group::after {
+    content: "";
+    display: table;
+    clear: both;
+}
+
+/* ==============================================
+   CUSTOMIZATION NOTES
+   ============================================== */
+
+/*
+ * ARCHITECTURE:
+ * - This file (chord-styling.css): Chord SYMBOLS and TYPOGRAPHY
+ * - course-player.css: Chord DIAGRAMS (SVG grids) only
+ * 
+ * IMPORTANT: Background color fix
+ * 
+ * The course-player.css file loads AFTER chord-styling.css and 
+ * was overriding the background with #fafafa (gray).
+ * 
+ * Solution: All main .sbn-chord-chart properties now use !important
+ * to ensure your customizations work.
+ * 
+ * To customize the chord chart appearance:
+ * 
+ * Background color:
+ *   .sbn-chord-chart { background: #f5f5f5 !important; }
+ * 
+ * Remove border:
+ *   .sbn-chord-chart { border: none !important; }
+ * 
+ * Larger text:
+ *   .sbn-chord-chart { font-size: 18px !important; }
+ * 
+ * Closer section labels:
+ *   .sbn-chart-section { margin-top: 6px !important; margin-bottom: 1px !important; }
+ * 
+ * More padding:
+ *   .sbn-chord-chart { padding: 20px 30px !important; }
+ * 
+ * Cream background:
+ *   .sbn-chord-chart { background: #fffef8 !important; }
+ * 
+ * Chord symbol color:
+ *   .sbn-chord-symbol { color: #e85d3b; }
+ *   
+ * DIAGRAM CUSTOMIZATION:
+ * To change chord diagram appearance (size, spacing, name font), 
+ * edit the "CHORD DIAGRAM STYLES" section in course-player.css
+ */

@@ -1,0 +1,1021 @@
+/**
+ * Chord Library Redesign - Phase 1: Unified State
+ * VERSION 8.0.0 - UPDATED FEB 2026
+ * 
+ * CHANGES IN THIS VERSION:
+ * - Added filter pills styling
+ * - Pills show active filters with removable X buttons
+ * - Color-coded by type (chord search, text query, dropdown filter)
+ * 
+ * Includes: Page layout + Clean interactive cards + Filter pills
+ */
+
+/* ==============================================
+   CONTAINER & LAYOUT
+   ============================================== */
+
+.sbn-chord-library-main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 20px;
+}
+
+.sbn-chord-library-redesign {
+    position: relative;
+}
+
+/* ==============================================
+   HEADER SECTION
+   ============================================== */
+
+.sbn-library-header {
+    text-align: center;
+    margin-bottom: 50px;
+}
+
+.sbn-library-title {
+    font-size: 42px;
+    font-weight: 700;
+    color: #1a202c;
+    margin: 0 0 10px 0;
+    letter-spacing: -0.02em;
+}
+
+.sbn-library-subtitle {
+    font-size: 18px;
+    color: #718096;
+    margin: 0 0 40px 0;
+    font-weight: 400;
+}
+
+/* ==============================================
+   UNIFIED SEARCH BOX
+   ============================================== */
+
+.sbn-search-container {
+    max-width: 700px;
+    margin: 0 auto 30px;
+}
+
+.sbn-search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 6px 6px 6px 20px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.sbn-search-box:hover {
+    border-color: #cbd5e0;
+    box-shadow: 0 8px 12px -2px rgba(0, 0, 0, 0.08);
+}
+
+.sbn-search-box:focus-within {
+    border-color: #e85d3b;
+    box-shadow: 0 0 0 4px rgba(232, 93, 59, 0.1), 
+                0 8px 16px -2px rgba(0, 0, 0, 0.1);
+}
+
+.sbn-search-icon {
+    color: #a0aec0;
+    flex-shrink: 0;
+    margin-right: 12px;
+    transition: color 0.2s;
+}
+
+.sbn-search-box:focus-within .sbn-search-icon {
+    color: #e85d3b;
+}
+
+.sbn-search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 18px;
+    color: #2d3748;
+    background: transparent;
+    padding: 14px 0;
+    font-weight: 500;
+}
+
+.sbn-search-input::placeholder {
+    color: #a0aec0;
+    font-weight: 400;
+}
+
+.sbn-clear-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: none;
+    background: #f7fafc;
+    color: #718096;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.sbn-clear-btn:hover {
+    background: #e85d3b;
+    color: white;
+}
+
+/* Search Examples */
+.sbn-search-examples {
+    margin-top: 16px;
+    font-size: 14px;
+    color: #718096;
+    text-align: center;
+}
+
+.sbn-search-examples strong {
+    color: #4a5568;
+    margin-right: 8px;
+}
+
+.sbn-example-btn {
+    display: inline-block;
+    padding: 6px 14px;
+    margin: 4px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    color: #4a5568;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.sbn-example-btn:hover {
+    border-color: #e85d3b;
+    color: #e85d3b;
+    background: #fff5f2;
+}
+
+/* ==============================================
+   FILTER SIDEBAR (Permanent, Right Side)
+   ============================================== */
+
+/* Content wrapper: sidebar + grid */
+.sbn-content-wrapper {
+    display: flex;
+    gap: 24px;
+    position: relative;
+}
+
+/* Sidebar — always visible */
+.sbn-filter-sidebar {
+    position: sticky;
+    top: 20px;
+    align-self: flex-start;
+    width: 240px;
+    min-width: 240px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    order: 1; /* Sidebar on right */
+}
+
+/* Results container takes remaining space */
+.sbn-content-wrapper .sbn-results-container {
+    flex: 1;
+    min-width: 0;
+    order: 0; /* Grid on left */
+}
+
+/* Sidebar header */
+.sbn-sidebar-header {
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.sbn-sidebar-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a202c;
+}
+
+/* Sidebar sections */
+.sbn-sidebar-section {
+    margin-bottom: 20px;
+}
+
+.sbn-sidebar-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #718096;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 8px 0;
+}
+
+/* Option buttons (replace dropdowns) */
+.sbn-sidebar-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.sbn-sidebar-option {
+    padding: 5px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: white;
+    color: #4a5568;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    line-height: 1.2;
+}
+
+.sbn-sidebar-option:hover {
+    border-color: #e85d3b;
+    color: #e85d3b;
+    background: #fff5f2;
+}
+
+.sbn-sidebar-option.sbn-option-active {
+    background: #e85d3b;
+    border-color: #e85d3b;
+    color: white;
+}
+
+.sbn-sidebar-option.sbn-option-active:hover {
+    background: #d1502f;
+    border-color: #d1502f;
+    color: white;
+}
+
+/* Clear filters button */
+.sbn-clear-filters-btn {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    color: #718096;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 8px;
+}
+
+.sbn-clear-filters-btn:hover {
+    border-color: #e85d3b;
+    color: #e85d3b;
+    background: #fff5f2;
+}
+
+/* Scrollbar styling for sidebar */
+.sbn-filter-sidebar::-webkit-scrollbar {
+    width: 4px;
+}
+
+.sbn-filter-sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sbn-filter-sidebar::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 2px;
+}
+
+.sbn-filter-sidebar::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
+}
+
+/* ==============================================
+   SEARCH STATUS
+   ============================================== */
+
+/* ==============================================
+   VOICING COUNT BAR
+   ============================================== */
+
+.sbn-search-status {
+    margin-bottom: 24px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 8px 4px;
+    transition: opacity 0.2s ease;
+}
+
+.sbn-count-bar {
+    display: flex;
+    justify-content: center;
+    gap: 15px;  
+    align-items: center;
+    padding: 6px 0;
+}
+
+.sbn-count-text {
+    font-size: 14px;
+    color: #718096;
+}
+
+.sbn-count-text strong {
+    color: #1a202c;
+}
+
+.sbn-count-clear {
+    border: 1px solid #e2e8f0;
+    background: none;
+    color: #718096;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all 0.15s;
+}
+
+.sbn-count-clear:hover {
+    color: #e85d3b;
+    background: #fff5f2;
+}
+
+.sbn-status-loading {
+    text-align: center;
+    padding: 8px;
+    color: #718096;
+    font-size: 15px;
+}
+
+.sbn-status-loading::before {
+    content: "";
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #cbd5e0;
+    border-top-color: #e85d3b;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 12px;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.sbn-edu-panel {
+    margin-bottom: 24px;
+ /*   min-height: 160px; /* Fixed minimum — prevents grid from jumping */ */
+}
+
+.sbn-edu-content {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 28px 32px;
+    transition: opacity 0.2s ease;
+}
+
+.sbn-edu-content.sbn-edu-fading {
+    opacity: 0;
+}
+
+/* Welcome state (default) */
+.sbn-edu-welcome h3 {
+    margin: 0 0 20px 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a202c;
+}
+
+.sbn-edu-welcome-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+}
+
+.sbn-edu-welcome-section h4 {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: #e85d3b;
+}
+
+.sbn-edu-welcome-section p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.65;
+    color: #4a5568;
+}
+
+/* Contextual sections grid */
+.sbn-edu-grid {
+    display: grid;
+    gap: 24px;
+}
+
+.sbn-edu-grid.sbn-edu-cols-1 {
+    grid-template-columns: 1fr;
+}
+
+.sbn-edu-grid.sbn-edu-cols-2 {
+    grid-template-columns: 1fr 1fr;
+}
+
+.sbn-edu-grid.sbn-edu-cols-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+.sbn-edu-grid.sbn-edu-cols-4 {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+}
+
+/* Individual section */
+.sbn-edu-section {
+    padding: 0;
+}
+
+.sbn-edu-section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.sbn-edu-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1;
+}
+
+/* Badge colors by type */
+.sbn-edu-quality .sbn-edu-badge {
+    background: #fff5f2;
+    color: #e85d3b;
+}
+
+.sbn-edu-voicing .sbn-edu-badge {
+    background: #ebf8ff;
+    color: #3182ce;
+}
+
+.sbn-edu-inversion .sbn-edu-badge {
+    background: #f0fff4;
+    color: #38a169;
+}
+
+.sbn-edu-extension .sbn-edu-badge {
+    background: #faf5ff;
+    color: #805ad5;
+}
+
+.sbn-edu-section h4 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a202c;
+}
+
+.sbn-edu-intervals {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px;
+    color: #718096;
+    background: #f7fafc;
+    padding: 3px 10px;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+}
+
+.sbn-edu-section p {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    line-height: 1.65;
+    color: #4a5568;
+}
+
+.sbn-edu-section p:last-child {
+    margin-bottom: 0;
+}
+
+.sbn-edu-usage,
+.sbn-edu-tip,
+.sbn-edu-context {
+    font-size: 12px !important;
+    color: #718096 !important;
+    padding-top: 4px;
+    border-top: 1px solid #f1f5f9;
+}
+
+/* Multi-section separator */
+.sbn-edu-grid.sbn-edu-cols-2 .sbn-edu-section:not(:first-child),
+.sbn-edu-grid.sbn-edu-cols-3 .sbn-edu-section:not(:first-child),
+.sbn-edu-grid.sbn-edu-cols-4 .sbn-edu-section:not(:first-child) {
+    border-left: 1px solid #e2e8f0;
+    padding-left: 24px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .sbn-edu-welcome-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .sbn-edu-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .sbn-edu-grid .sbn-edu-section:not(:first-child) {
+        border-left: none !important;
+        padding-left: 0 !important;
+        border-top: 1px solid #e2e8f0;
+        padding-top: 16px;
+    }
+    
+    .sbn-edu-content {
+        padding: 20px;
+    }
+}
+
+/* ==============================================
+   CHORD CARDS GRID
+   ============================================== */
+
+.sbn-results-container {
+    flex: 1;
+    min-width: 0;
+}
+
+.sbn-library-grid-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a202c;
+    margin: 0 0 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.sbn-chords-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 24px;
+    animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Filtered card visibility */
+.sbn-chord-card.sbn-filtered-out {
+    display: none;
+}
+
+/* No results message */
+#sbn-no-results {
+    text-align: center;
+    padding: 60px 20px;
+    color: #a0aec0;
+}
+
+#sbn-no-results h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+}
+
+/* ==============================================
+   CARD STYLES: See sbn-chord-card.css
+   (Single source of truth for all chord cards)
+   ============================================== */
+
+/* Library-specific: clickable metadata filter triggers */
+.sbn-clickable-metadata {
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.sbn-clickable-metadata:hover {
+    color: #e85d3b;
+    text-decoration: none;
+}
+
+/* ==============================================
+   RESPONSIVE DESIGN
+   ============================================== */
+
+@media (max-width: 1024px) {
+    .sbn-chords-grid {
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 20px;
+    }
+    
+    /* Stack sidebar below grid on smaller screens */
+    .sbn-content-wrapper {
+        flex-direction: column;
+    }
+    
+    .sbn-filter-sidebar {
+        position: static;
+        width: 100%;
+        min-width: 100%;
+        max-height: none;
+        order: -1; /* Sidebar on top when stacked */
+        border-radius: 12px;
+    }
+    
+    .sbn-sidebar-options {
+        flex-wrap: wrap;
+    }
+}
+
+
+@media (max-width: 768px) {
+    .sbn-chord-library-main {
+        padding: 30px 15px;
+    }
+    
+    .sbn-library-title {
+        font-size: 32px;
+    }
+    
+    .sbn-chords-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .sbn-chords-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+    }
+}
+
+/* ============================================================
+   POPULARITY INDICATOR
+   Shown in modal tag, related voicings mini card
+   ============================================================ */
+
+.sbn-pop-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.sbn-pop-dots {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+}
+
+.sbn-pop-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    display: inline-block;
+    transition: background 0.2s;
+}
+
+/* Tier colors for filled dots */
+.sbn-pop-occasional .sbn-pop-dot.filled { background: #a0aec0; }
+.sbn-pop-common     .sbn-pop-dot.filled { background: #3182ce; }
+.sbn-pop-essential  .sbn-pop-dot.filled { background: #e85d3b; }
+.sbn-pop-iconic     .sbn-pop-dot.filled { background: #d69e2e; }
+
+.sbn-pop-label {
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+
+.sbn-pop-count {
+    font-weight: 400;
+    color: #718096;
+}
+
+/* Tier label colors */
+.sbn-pop-occasional .sbn-pop-label { color: #718096; }
+.sbn-pop-common     .sbn-pop-label { color: #3182ce; }
+.sbn-pop-essential  .sbn-pop-label { color: #e85d3b; }
+.sbn-pop-iconic     .sbn-pop-label { color: #d69e2e; }
+
+/* Modal tag inherits the indicator layout */
+.sbn-modal-tag-popularity {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 12px;
+    border-radius: 20px;
+    background: #fffff0;
+    border: 1px solid #faf089;
+}
+
+/* Related voicings pop — dots only (compact) */
+.sbn-modal-related-pop {
+    display: flex;
+    justify-content: center;
+    margin-top: 4px;
+}
+
+.sbn-modal-related-pop .sbn-pop-dots {
+    gap: 2px;
+}
+
+.sbn-modal-related-pop .sbn-pop-dot {
+    width: 5px;
+    height: 5px;
+}
+
+/* ==============================================
+   ARCHETYPE PANEL
+   ============================================== */
+
+.sbn-archetype-panel {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px 28px 20px;
+    margin-bottom: 24px;
+}
+
+.sbn-archetype-panel-header {
+    margin-bottom: 16px;
+}
+
+.sbn-archetype-panel-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a202c;
+    margin: 0 0 2px 0;
+}
+
+.sbn-archetype-panel-subtitle {
+    font-size: 13px;
+    color: #718096;
+    margin: 0;
+}
+
+/* ── Top row: the 8 tiles ── */
+.sbn-archetype-tiles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.sbn-archetype-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #fff;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 12px 8px;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    min-width: 100px;
+    flex: 0 1 auto;
+    outline: none;
+}
+
+.sbn-archetype-tile:hover {
+    border-color: #a0b4cf;
+    box-shadow: 0 2px 8px rgba(74, 111, 165, 0.12);
+}
+
+.sbn-archetype-tile.active {
+    border-color: #4a6fa5;
+    background: #f0f5ff;
+    box-shadow: 0 3px 12px rgba(74, 111, 165, 0.18);
+}
+
+.sbn-archetype-tile-name {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1a202c;
+    margin-bottom: 4px;
+    letter-spacing: -0.01em;
+}
+
+.sbn-archetype-tile-diagram {
+    width: 90px;
+}
+
+.sbn-archetype-tile-diagram .sbn-fretboard-mini {
+    max-width: 90px;
+}
+
+.sbn-tile-expand-hint {
+    font-size: 10px;
+    color: #a0aec0;
+    margin-top: 4px;
+    transition: color 0.2s;
+}
+
+.sbn-archetype-tile.active .sbn-tile-expand-hint {
+    color: #4a6fa5;
+}
+
+/* ── Drawer: full-width below tiles, one per family ── */
+.sbn-archetype-drawer {
+    display: none;
+    margin-top: 14px;
+    padding: 16px 20px;
+    background: #fff;
+    border: 1px solid #d2dce8;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    position: relative;
+    /* animation applied via class */
+}
+
+.sbn-archetype-drawer.active {
+    display: block;
+    animation: sbnDrawerOpen 0.25s ease-out;
+}
+
+@keyframes sbnDrawerOpen {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 500px;
+    }
+}
+
+/* Small arrow pointing up from drawer to active tile */
+.sbn-drawer-arrow {
+    display: none; /* positioned dynamically by JS */
+    position: absolute;
+    top: -7px;
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border-top: 1px solid #d2dce8;
+    border-left: 1px solid #d2dce8;
+    transform: rotate(45deg);
+    z-index: 1;
+}
+
+.sbn-archetype-drawer.active .sbn-drawer-arrow {
+    display: block;
+}
+
+/* When swapping between drawers, just fade the content */
+.sbn-archetype-drawer.sbn-drawer-swap {
+    animation: sbnDrawerSwap 0.2s ease-out;
+}
+
+@keyframes sbnDrawerSwap {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.sbn-drawer-label {
+    margin-bottom: 12px;
+}
+
+.sbn-drawer-label-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #2d3748;
+}
+
+.sbn-drawer-label-hint {
+    font-size: 12px;
+    color: #a0aec0;
+    margin-left: 8px;
+    font-style: italic;
+}
+
+/* ── Cards row inside the drawer ── */
+.sbn-drawer-cards {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.sbn-drawer-card {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 12px 8px;
+    min-width: 96px;
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+    cursor: pointer;
+}
+
+.sbn-drawer-card:hover {
+    border-color: #a0b4cf;
+    box-shadow: 0 2px 8px rgba(74, 111, 165, 0.12);
+    transform: translateY(-1px);
+}
+
+/* Parent card in the drawer gets a subtle highlight */
+.sbn-drawer-card-parent {
+    background: #f7faff;
+    border-color: #b8cde0;
+}
+
+.sbn-drawer-card-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 3px;
+    white-space: nowrap;
+}
+
+.sbn-drawer-card-diagram {
+    width: 82px;
+}
+
+.sbn-drawer-card-diagram .sbn-fretboard-mini {
+    max-width: 82px;
+}
+
+.sbn-drawer-card-badge {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #4a6fa5;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+}
+
+/* Arrow/dot connectors between drawer cards */
+.sbn-drawer-connector {
+    flex: 0 0 auto;
+    font-size: 16px;
+    color: #cbd5e0;
+    padding: 0 2px;
+    user-select: none;
+}
+
+/* Hide panel when in search mode */
+.sbn-chord-library-redesign.sbn-search-active .sbn-archetype-panel {
+    display: none;
+}
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+    .sbn-archetype-tiles {
+        gap: 8px;
+    }
+    .sbn-archetype-tile {
+        min-width: 85px;
+        padding: 8px 8px 6px;
+    }
+    .sbn-archetype-tile-name {
+        font-size: 15px;
+    }
+    .sbn-archetype-tile-diagram {
+        width: 78px;
+    }
+    .sbn-archetype-panel {
+        padding: 16px 14px 12px;
+    }
+    .sbn-drawer-cards {
+        gap: 4px;
+    }
+    .sbn-drawer-card {
+        min-width: 78px;
+    }
+    .sbn-drawer-card-diagram {
+        width: 72px;
+    }
+}

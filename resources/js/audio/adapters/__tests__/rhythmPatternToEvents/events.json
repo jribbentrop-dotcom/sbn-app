@@ -1,0 +1,82 @@
+[
+  {
+    "_comment": "gridType=sixteenth → stepBeats = 0.25. thumb step 0 → beat 0.0",
+    "time": 0,
+    "voice": "percussion",
+    "sample": "kick",
+    "variant": "soft",
+    "velocity": 0.85,
+    "duration": 0.25,
+    "sourceId": "step-0"
+  },
+  {
+    "_comment": "fingers step 2 → beat 0.5",
+    "time": 0.5,
+    "voice": "percussion",
+    "sample": "shaker",
+    "variant": "soft",
+    "velocity": 0.78,
+    "duration": 0.25,
+    "sourceId": "step-2"
+  },
+  {
+    "_comment": "thumb step 4 → beat 1.0",
+    "time": 1,
+    "voice": "percussion",
+    "sample": "kick",
+    "variant": "soft",
+    "velocity": 0.85,
+    "duration": 0.25,
+    "sourceId": "step-4"
+  },
+  {
+    "_comment": "fingers step 6 → beat 1.5",
+    "time": 1.5,
+    "voice": "percussion",
+    "sample": "shaker",
+    "variant": "soft",
+    "velocity": 0.78,
+    "duration": 0.25,
+    "sourceId": "step-6"
+  },
+  {
+    "_comment": "thumb step 8 → beat 2.0",
+    "time": 2,
+    "voice": "percussion",
+    "sample": "kick",
+    "variant": "soft",
+    "velocity": 0.85,
+    "duration": 0.25,
+    "sourceId": "step-8"
+  },
+  {
+    "_comment": "fingers step 10 → beat 2.5",
+    "time": 2.5,
+    "voice": "percussion",
+    "sample": "shaker",
+    "variant": "soft",
+    "velocity": 0.78,
+    "duration": 0.25,
+    "sourceId": "step-10"
+  },
+  {
+    "_comment": "thumb step 12 → beat 3.0",
+    "time": 3,
+    "voice": "percussion",
+    "sample": "kick",
+    "variant": "soft",
+    "velocity": 0.85,
+    "duration": 0.25,
+    "sourceId": "step-12"
+  },
+  {
+    "_comment": "fingers step 14 → beat 3.5",
+    "time": 3.5,
+    "voice": "percussion",
+    "sample": "shaker",
+    "variant": "soft",
+    "velocity": 0.78,
+    "duration": 0.25,
+    "sourceId": "step-14"
+  }
+]

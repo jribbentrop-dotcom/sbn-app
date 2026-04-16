@@ -1,0 +1,175 @@
+/**
+ * Song Page CSS
+ * Standalone leadsheet page replacing the old modal.
+ *
+ * @package SBN_Course_Player
+ * @since 7.6.0
+ */
+
+/* ============================================================
+   PAGE WRAPPER
+   ============================================================ */
+
+.sbn-song-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 16px 60px;
+}
+
+/* ============================================================
+   NAVIGATION BAR
+   ============================================================ */
+
+.sbn-song-page-nav {
+    display: flex;
+    align-items: center;
+    padding: 16px 0 12px;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 24px;
+}
+
+.sbn-song-page-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #4b5563;
+    text-decoration: none;
+    padding: 5px 10px 5px 6px;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.sbn-song-page-back:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+    color: #111827;
+    text-decoration: none;
+}
+
+.sbn-song-page-back svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+/* ============================================================
+   SONG HEADER
+   ============================================================ */
+
+.sbn-song-page-header {
+    margin-bottom: 24px;
+}
+
+.sbn-song-page-header-main {
+    margin-bottom: 10px;
+}
+
+.sbn-song-page-title {
+    font-size: clamp(22px, 4vw, 32px);
+    font-weight: 800;
+    color: #111827;
+    margin: 0 0 4px;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+}
+
+.sbn-song-page-composer {
+    font-size: 15px;
+    color: #6b7280;
+    margin: 0;
+    font-style: italic;
+}
+
+/* Meta pills row */
+.sbn-song-page-meta-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.sbn-song-page-pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+}
+
+.sbn-song-page-pill--key {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.sbn-song-page-pill--genre {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.sbn-song-page-pill--difficulty {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #e5e7eb;
+}
+
+.sbn-song-page-description {
+    font-size: 14px;
+    color: #4b5563;
+    line-height: 1.6;
+    margin: 0;
+    max-width: 680px;
+}
+
+/* ============================================================
+   PLAYER AREA
+   ============================================================ */
+
+.sbn-song-page-player {
+    /* Let the leadsheet component use its natural width */
+}
+
+/* Give the leadsheet a bit of breathing room on the page */
+.sbn-song-page-player .sbn-leadsheet-container {
+    background: transparent;
+}
+
+/* ============================================================
+   ERROR STATE
+   ============================================================ */
+
+.sbn-song-page-error {
+    padding: 40px 20px;
+    text-align: center;
+    color: #6b7280;
+    font-size: 15px;
+}
+
+.sbn-song-page-error a {
+    color: #2563eb;
+    text-decoration: underline;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 600px) {
+    .sbn-song-page {
+        padding: 0 12px 40px;
+    }
+
+    .sbn-song-page-nav {
+        padding: 12px 0 10px;
+        margin-bottom: 16px;
+    }
+
+    .sbn-song-page-title {
+        font-size: 22px;
+    }
+}

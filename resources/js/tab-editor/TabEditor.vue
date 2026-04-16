@@ -16,6 +16,13 @@
                     @click="setViewMode('tab')">Tab</button>
             <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'analysis' }"
                     @click="setViewMode('analysis')">Analysis</button>
+            <button
+                v-if="hasData && viewMode === 'tab'"
+                class="sbn-ve-tab sbn-ve-play-btn"
+                :class="{ 'is-playing': isPlaying }"
+                @click="togglePlayback"
+                :title="isPlaying ? 'Stop playback (Esc)' : 'Play tab (Space)'"
+            >{{ isPlaying ? 'Stop' : 'Play' }}</button>
         </div>
 
         <!-- Chords Grid (Phase B) -->
@@ -222,6 +229,7 @@ import { useGridSelection }       from './composables/useGridSelection.js';
 import { useChordClipboard }      from './composables/useChordClipboard.js';
 import { useChordPickerStore }    from './composables/useChordPickerStore.js';
 import { useVoicingPickerStore }  from './composables/useVoicingPickerStore.js';
+import { useAudioEngine }         from './composables/useAudioEngine.js';
 
 const props = defineProps({
     initialView: {
@@ -307,6 +315,10 @@ const {
 } = useCursor(model);
 
 const cursorState = computed(() => cursor.value);
+
+// ── Audio Engine (Phase 7C) ───────────────────────────────
+
+const { isPlaying, currentBeat, activeSourceId, toggle: togglePlayback, stop: stopPlayback } = useAudioEngine(model);
 
 // ── Undo / Redo (Phase 7e) ─────────────────────────────────
 
@@ -851,6 +863,18 @@ function onGenerateFromChords() {
 // ── Keyboard handling ──────────────────────────────────────
 
 function onKeydown(e) {
+    // Audio playback (Phase 7C)
+    if (e.key === ' ' && !e.ctrlKey && !e.metaKey && !e.altKey && viewMode.value === 'tab' && hasData.value) {
+        e.preventDefault();
+        togglePlayback();
+        return;
+    }
+    if (e.key === 'Escape' && isPlaying.value) {
+        e.preventDefault();
+        stopPlayback();
+        return;
+    }
+
     // Undo / Redo (Phase 7e)
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
         e.preventDefault();

@@ -1,0 +1,3374 @@
+/**
+ * SBN Interactive Leadsheet - Frontend Styles
+ * 
+ * @package SBN_Course_Player
+ * @since 6.5.0
+ */
+
+/* SMuFL Music Font - Bravura */
+@font-face {
+    font-family: 'Bravura';
+    src: url('../js/font/Bravura.woff2') format('woff2'),
+         url('../js/font/Bravura.woff') format('woff'),
+         url('../js/font/Bravura.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* CSS Variables */
+.sbn-leadsheet-container {
+    --sbn-primary: #e85d3b;
+    --sbn-primary-light: #fef3f0;
+    --sbn-primary-dark: #d04a2a;
+    --sbn-text: #2d2d2d;
+    --sbn-text-secondary: #666;
+    --sbn-text-muted: #999;
+    --sbn-bg: #ffffff;
+    --sbn-bg-subtle: #fafafa;
+    --sbn-bg-warm: #fffcfa;
+    --sbn-border: #e5e5e5;
+    --sbn-border-light: #f0f0f0;
+    --sbn-radius-sm: 4px;
+    --sbn-radius-md: 8px;
+    --sbn-radius-lg: 12px;
+    --sbn-transition: 0.15s ease;
+    --chord-font: 'Crimson Text', Georgia, serif;
+    --ui-font: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --music-font: 'Bravura', serif;
+}
+
+/* Loading State */
+.sbn-leadsheet-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    background: var(--sbn-bg);
+    border: 1px solid var(--sbn-border);
+    border-radius: var(--sbn-radius-md);
+}
+
+.sbn-leadsheet-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--sbn-border);
+    border-top-color: var(--sbn-primary);
+    border-radius: 50%;
+    animation: sbn-spin 0.8s linear infinite;
+    margin-bottom: 16px;
+}
+
+@keyframes sbn-spin {
+    to { transform: rotate(360deg); }
+}
+
+.sbn-leadsheet-loading p {
+    margin: 0;
+    color: var(--sbn-text-secondary);
+    font-size: 14px;
+}
+
+/* Main Container */
+.sbn-leadsheet {
+    font-family: var(--ui-font);
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--sbn-text);
+    background: var(--sbn-bg);
+    border-radius: var(--sbn-radius-md);
+    border: 1px solid var(--sbn-border);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.sbn-leadsheet * {
+    box-sizing: border-box;
+}
+
+/* Fullscreen Mode */
+.sbn-leadsheet.is-fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-width: none;
+    border-radius: 0;
+    z-index: 99999;
+    border: none;
+}
+
+.sbn-leadsheet.is-fullscreen .sbn-leadsheet-body {
+    max-height: none;
+    flex: 1;
+}
+
+/* Header */
+.sbn-leadsheet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    background: var(--sbn-bg-warm);
+    border-bottom: 1px solid var(--sbn-border-light);
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.sbn-leadsheet-info {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.sbn-leadsheet-title {
+    font-family: var(--chord-font);
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--sbn-text);
+    letter-spacing: -0.02em;
+    margin: 0;
+}
+
+.sbn-leadsheet-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--sbn-text-secondary);
+}
+
+.sbn-leadsheet-meta span {
+    display: flex;
+    align-items: center;
+}
+
+.sbn-leadsheet-composer {
+    font-style: italic;
+}
+
+.sbn-leadsheet-key,
+.sbn-leadsheet-time {
+    background: var(--sbn-bg);
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-weight: 500;
+    border: 1px solid var(--sbn-border);
+}
+
+/* Options */
+.sbn-leadsheet-options {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+}
+
+/* Toggle Switch */
+.sbn-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--sbn-text-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.sbn-toggle-switch {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    background: var(--sbn-border);
+    border-radius: 11px;
+    transition: background 0.2s ease;
+}
+
+.sbn-toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.sbn-toggle.is-active .sbn-toggle-switch {
+    background: var(--sbn-primary);
+}
+
+.sbn-toggle.is-active .sbn-toggle-switch::after {
+    transform: translateX(18px);
+}
+
+/* Fullscreen Button */
+.sbn-fullscreen-btn {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--sbn-border);
+    border-radius: var(--sbn-radius-sm);
+    background: var(--sbn-bg);
+    color: var(--sbn-text-muted);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--sbn-transition);
+}
+
+.sbn-fullscreen-btn:hover {
+    border-color: var(--sbn-primary);
+    color: var(--sbn-primary);
+}
+
+/* Rhythm Section */
+.sbn-leadsheet-rhythm {
+    border-bottom: 1px solid var(--sbn-border);
+    background: #f7f5f3;
+}
+
+.sbn-leadsheet-rhythm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 24px;
+    cursor: pointer;
+    user-select: none;
+    background: #f0eeec;
+    border-bottom: 1px solid var(--sbn-border-light);
+}
+
+.sbn-leadsheet-rhythm-header:hover {
+    background: #eae8e6;
+}
+
+.sbn-leadsheet-rhythm-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--sbn-text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sbn-leadsheet-rhythm-toggle {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+.sbn-leadsheet-rhythm.is-collapsed .sbn-leadsheet-rhythm-toggle {
+    transform: rotate(-90deg);
+}
+
+.sbn-leadsheet-rhythm.is-collapsed .sbn-leadsheet-rhythm-content {
+    display: none;
+}
+
+.sbn-leadsheet-rhythm-content {
+    padding: 14px 24px 16px;
+}
+
+.sbn-leadsheet-rhythm-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sbn-leadsheet-rhythm-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sbn-leadsheet-rhythm-label {
+    width: 55px;
+    font-size: 11px;
+    color: var(--sbn-text-secondary);
+    text-align: right;
+    padding-right: 10px;
+    font-weight: 500;
+}
+
+.sbn-leadsheet-rhythm-cell {
+    width: 36px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    border: 1px solid var(--sbn-border);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--sbn-text-muted);
+    transition: var(--sbn-transition);
+}
+
+/* Bar separator removed */
+.sbn-leadsheet-rhythm-cell.is-measure-start {
+    margin-left: 0;
+    position: static;
+}
+
+.sbn-leadsheet-rhythm-cell.is-measure-start::before {
+    display: none;
+}
+
+.sbn-rhythm-measures {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--sbn-text-muted);
+    margin-left: 4px;
+}
+
+.sbn-leadsheet-rhythm-cell.is-hit {
+    background: #fff;
+    color: var(--sbn-primary);
+    font-weight: 600;
+    border-color: var(--sbn-primary);
+    border-width: 1.5px;
+}
+
+.sbn-leadsheet-rhythm-cell.is-thumb.is-hit {
+    color: var(--sbn-text);
+    border-color: var(--sbn-text-secondary);
+}
+
+.sbn-leadsheet-rhythm-cell.is-current {
+    background: var(--sbn-primary);
+    border-color: var(--sbn-primary);
+    color: white !important;
+    transform: scale(1.1);
+}
+
+.sbn-leadsheet-rhythm-cell.is-beat-num {
+    background: transparent;
+    border: none;
+    font-weight: 600;
+    height: 20px;
+    color: var(--sbn-text-secondary);
+}
+
+.sbn-leadsheet-rhythm-cell.is-beat-num.is-measure-start::before {
+    display: none;
+}
+
+/* Leadsheet Body */
+.sbn-leadsheet-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+    padding-bottom: 75px;
+}
+
+.sbn-leadsheet-section {
+    margin-bottom: 20px;
+}
+
+.sbn-leadsheet-section:last-child {
+    margin-bottom: 0;
+}
+
+/* Section Headers */
+.sbn-leadsheet-section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    background: var(--sbn-bg-secondary, #f5f5f5);
+    border-radius: var(--sbn-radius-sm, 4px);
+    border-left: 3px solid var(--sbn-primary, #e85d3b);
+}
+
+.sbn-leadsheet-section-id {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--sbn-primary, #e85d3b);
+    min-width: 20px;
+}
+
+.sbn-leadsheet-section-name {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--sbn-text-secondary, #666);
+}
+
+.sbn-leadsheet-section-rhythm {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--sbn-text-muted, #999);
+    background: var(--sbn-bg, #fff);
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--sbn-border-light, #e0e0e0);
+}
+
+.sbn-leadsheet-section-loop {
+    margin-left: auto;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    opacity: 0.4;
+    transition: all 0.15s ease;
+    padding: 0;
+}
+
+.sbn-leadsheet-section-loop:hover {
+    opacity: 0.8;
+    border-color: var(--sbn-border, #ccc);
+}
+
+.sbn-leadsheet-section-loop.is-active {
+    opacity: 1;
+    color: var(--sbn-primary, #e85d3b);
+    border-color: var(--sbn-primary, #e85d3b);
+    background: rgba(232, 93, 59, 0.08);
+}
+
+/* Section loop highlight */
+.sbn-leadsheet-section.is-looping {
+    outline: 2px solid var(--sbn-primary, #e85d3b);
+    outline-offset: 2px;
+    border-radius: var(--sbn-radius-sm, 4px);
+}
+
+/* Legacy section label (backward compat) */
+.sbn-leadsheet-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--sbn-text-muted);
+    margin-bottom: 10px;
+    padding-left: 2px;
+}
+
+.sbn-leadsheet-row {
+    display: flex;
+    gap: 3px;
+    margin-bottom: 3px;
+}
+
+/* Measure */
+.sbn-leadsheet-measure {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--sbn-bg);
+    border: 1px solid var(--sbn-border-light);
+    border-radius: var(--sbn-radius-sm);
+    overflow: hidden;
+    position: relative;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    min-height: 65px;
+    cursor: pointer;
+}
+
+/* Repeat barlines in chord grid */
+.sbn-leadsheet-measure.has-repeat-start {
+    border-left: 4px solid #333;
+}
+
+.sbn-leadsheet-measure.has-repeat-start::before {
+    content: '⁞';
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 18px;
+    font-weight: 700;
+    color: #333;
+    line-height: 1;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.sbn-leadsheet-measure.has-repeat-end {
+    border-right: 4px solid #333;
+}
+
+.sbn-leadsheet-measure.has-repeat-end::after {
+    content: '⁞';
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 18px;
+    font-weight: 700;
+    color: #333;
+    line-height: 1;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Combined repeat start + end (e.g., between two repeated sections) */
+.sbn-leadsheet-measure.has-repeat-start.has-repeat-end {
+    border-left: 4px solid #333;
+    border-right: 4px solid #333;
+}
+
+/* Volta brackets in chord grid */
+.sbn-leadsheet-row-with-volta {
+    position: relative;
+    margin-top: 22px; /* Space for the bracket above */
+}
+
+.sbn-volta-bracket-row {
+    position: absolute;
+    top: -20px;
+    left: 0;
+    right: 0;
+    height: 18px;
+    pointer-events: none;
+    /* Account for the row gap so brackets align with measure edges */
+}
+
+.sbn-volta-bracket {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    border-top: 2px solid #333;
+}
+
+.sbn-volta-bracket.has-left-edge {
+    border-left: 2px solid #333;
+}
+
+.sbn-volta-bracket.has-right-edge {
+    border-right: 2px solid #333;
+}
+
+.sbn-volta-text {
+    position: absolute;
+    top: 2px;
+    left: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #333;
+    line-height: 1;
+    font-style: italic;
+}
+
+.sbn-leadsheet-measure:hover {
+    border-color: var(--sbn-border);
+}
+
+.sbn-leadsheet-measure.has-repeat-start:hover {
+    border-left-color: #333;
+}
+
+.sbn-leadsheet-measure.has-repeat-end:hover {
+    border-right-color: #333;
+}
+
+.sbn-leadsheet-measure.is-current {
+    border-color: var(--sbn-primary);
+    background: var(--sbn-primary-light);
+}
+
+.sbn-leadsheet-measure.is-current.has-repeat-start {
+    border-left-color: #333;
+}
+
+.sbn-leadsheet-measure.is-current.has-repeat-end {
+    border-right-color: #333;
+}
+
+/* Empty measure placeholder - maintains row width */
+.sbn-leadsheet-measure.is-empty {
+    border: none;
+    background: transparent;
+    cursor: default;
+    pointer-events: none;
+}
+
+.sbn-leadsheet-measure-num {
+    position: absolute;
+    top: 4px;
+    left: 6px;
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--sbn-text-muted);
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.sbn-leadsheet-measure-content {
+    flex: 1;
+    display: flex;
+}
+
+/* Chord Cell */
+.sbn-leadsheet-chord {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 12px 8px 8px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    position: relative;
+    background: var(--sbn-bg);
+    border-right: 1px dashed var(--sbn-border-light);
+}
+
+.sbn-leadsheet-chord:last-child {
+    border-right: none;
+}
+
+.sbn-leadsheet-chord:hover {
+    background: var(--sbn-primary-light);
+}
+
+.sbn-leadsheet-chord.is-active {
+    background: var(--sbn-primary-light);
+}
+
+.sbn-leadsheet-chord.is-active .sbn-chord-symbol {
+    color: var(--sbn-primary);
+}
+
+/* Chord Typography */
+.sbn-chord-symbol {
+    font-family: var(--chord-font);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--sbn-text);
+    white-space: nowrap;
+    transition: color 0.15s ease;
+    line-height: 1.2;
+}
+
+.sbn-chord-root {
+    font-weight: 700;
+    font-size: 1.1em;
+}
+
+.sbn-chord-accidental {
+    font-size: 0.7em;
+    vertical-align: super;
+    margin-left: -0.05em;
+    margin-right: 0.02em;
+    line-height: 0;
+}
+
+.sbn-chord-quality {
+    font-style: normal !important;
+    font-weight: 500;
+}
+
+.sbn-chord-ext {
+    font-size: 0.65em;
+    font-weight: 400;
+    vertical-align: baseline;
+}
+
+.sbn-chord-bass {
+    font-size: 0.85em;
+    font-weight: 500;
+}
+
+/* Beat Dots */
+.sbn-leadsheet-beats {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.sbn-leadsheet-beat {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--sbn-border);
+    transition: var(--sbn-transition);
+}
+
+.sbn-leadsheet-beat.is-current {
+    background: var(--sbn-primary);
+    transform: scale(1.4);
+}
+
+/* Inline Diagrams */
+.sbn-leadsheet-diagram-inline {
+    margin-top: 6px;
+    opacity: 0.9;
+    transition: opacity 0.15s ease;
+}
+
+.sbn-leadsheet-chord:hover .sbn-leadsheet-diagram-inline,
+.sbn-leadsheet-chord.is-active .sbn-leadsheet-diagram-inline {
+    opacity: 1;
+}
+
+.sbn-chord-svg {
+    display: block;
+}
+
+.sbn-leadsheet.has-inline-diagrams .sbn-leadsheet-chord {
+    padding: 10px 6px 6px;
+}
+
+.sbn-leadsheet.has-inline-diagrams .sbn-chord-symbol {
+    font-size: 18px;
+}
+
+.sbn-leadsheet.has-inline-diagrams .sbn-leadsheet-beats {
+    margin-top: 5px;
+}
+
+.sbn-leadsheet.has-inline-diagrams .sbn-leadsheet-beat {
+    width: 5px;
+    height: 5px;
+}
+
+/* Detail Panel */
+.sbn-leadsheet-detail {
+    position: absolute;
+    right: 10px;
+    top: 100px;
+    width: 200px;
+    max-height: calc(100% - 120px);
+    overflow-y: auto;
+    background: white;
+    border-radius: var(--sbn-radius-lg);
+    border: 1px solid var(--sbn-border);
+    padding: 14px;
+    z-index: 100;
+    animation: sbn-slide-in 0.2s ease;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.sbn-leadsheet.is-fullscreen .sbn-leadsheet-detail {
+    right: 20px;
+    top: 120px;
+    max-height: calc(100% - 140px);
+}
+
+@keyframes sbn-slide-in {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.sbn-leadsheet-detail-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: none;
+    font-size: 20px;
+    color: var(--sbn-text-muted);
+    cursor: pointer;
+    border-radius: 50%;
+    transition: var(--sbn-transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sbn-leadsheet-detail-close:hover {
+    background: var(--sbn-bg-subtle);
+    color: var(--sbn-text);
+}
+
+.sbn-leadsheet-detail-name {
+    font-family: var(--chord-font);
+    font-size: 28px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.sbn-leadsheet-detail-diagram {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 4px;
+}
+
+/* Library voicings section — removed, replaced by links */
+
+/* Links to chord library */
+.sbn-leadsheet-detail-links {
+    border-top: 1px solid var(--sbn-border-light);
+    padding-top: 10px;
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sbn-leadsheet-detail-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: var(--sbn-radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--sbn-text);
+    text-decoration: none;
+    transition: background 0.15s ease;
+}
+
+.sbn-leadsheet-detail-link:hover {
+    background: var(--sbn-bg-subtle);
+    color: var(--sbn-primary);
+    text-decoration: none;
+}
+
+.sbn-detail-link-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    background: var(--sbn-bg-subtle);
+    color: var(--sbn-text-muted);
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+}
+
+.sbn-leadsheet-detail-link:hover .sbn-detail-link-icon {
+    background: var(--sbn-primary);
+    color: white;
+}
+
+/* Subtle variant for less important links */
+.sbn-leadsheet-detail-link-subtle {
+    color: var(--sbn-text-muted);
+    font-size: 11px;
+}
+
+/* Clickable chord name in measures */
+.sbn-chord-link {
+    cursor: pointer;
+    border-bottom: 1px dashed var(--sbn-border);
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.sbn-chord-link:hover {
+    border-bottom-color: var(--sbn-primary);
+    color: var(--sbn-primary);
+}
+
+/* Playback Controls */
+.sbn-leadsheet-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 24px;
+    background: var(--sbn-bg);
+    border-top: 1px solid var(--sbn-border);
+    z-index: 50;
+}
+
+.sbn-leadsheet-play {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: var(--sbn-primary);
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease, background 0.15s ease;
+    flex-shrink: 0;
+}
+
+.sbn-leadsheet-play:hover {
+    transform: scale(1.05);
+}
+
+.sbn-leadsheet-play:active {
+    transform: scale(0.98);
+}
+
+.sbn-leadsheet-play.is-playing {
+    background: var(--sbn-text);
+}
+
+.sbn-leadsheet-progress {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 120px;
+}
+
+.sbn-leadsheet-bar-display {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--sbn-text-secondary);
+    white-space: nowrap;
+    min-width: 75px;
+}
+
+.sbn-leadsheet-slider {
+    flex: 1;
+    height: 6px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--sbn-border);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.sbn-leadsheet-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--sbn-primary);
+    cursor: pointer;
+}
+
+.sbn-leadsheet-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--sbn-primary);
+    cursor: pointer;
+    border: none;
+}
+
+.sbn-leadsheet-tempo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--sbn-bg-subtle);
+    border-radius: var(--sbn-radius-md);
+    border: 1px solid var(--sbn-border);
+}
+
+.sbn-leadsheet-tempo-icon {
+    font-size: 15px;
+    color: var(--sbn-text-muted);
+}
+
+.sbn-leadsheet-tempo-slider {
+    width: 70px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--sbn-border);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.sbn-leadsheet-tempo-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--sbn-text-secondary);
+    cursor: pointer;
+}
+
+.sbn-leadsheet-tempo-value {
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 30px;
+    color: var(--sbn-text);
+}
+
+/* Ghost / percussion density slider */
+/* ── Layer controls (perc + guitar toggle/volume + ghost density) ── */
+.sbn-leadsheet-layers {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 10px;
+    background: var(--sbn-bg-subtle);
+    border-radius: var(--sbn-radius-md);
+    border: 1px solid var(--sbn-border);
+    flex-wrap: wrap;
+}
+
+.sbn-layer-ctrl {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sbn-layer-toggle {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--sbn-border);
+    background: var(--sbn-bg);
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.4;
+    transition: opacity 0.15s, background 0.15s;
+    padding: 0;
+}
+
+.sbn-layer-toggle.is-on {
+    opacity: 1;
+    background: var(--sbn-accent, #2d6a4f);
+    border-color: transparent;
+    color: #fff;
+}
+
+.sbn-layer-vol {
+    width: 60px;
+    height: 3px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--sbn-border);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.sbn-layer-vol::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--sbn-text-secondary);
+    cursor: pointer;
+}
+
+.sbn-layer-ghost {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    border-left: 1px solid var(--sbn-border);
+    padding-left: 10px;
+    margin-left: 2px;
+}
+
+.sbn-ghost-min,
+.sbn-ghost-max {
+    font-size: 10px;
+    color: var(--sbn-text-muted);
+    white-space: nowrap;
+}
+
+.sbn-ghost-slider {
+    width: 70px;
+    height: 3px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--sbn-border);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.sbn-ghost-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--sbn-text-secondary);
+    cursor: pointer;
+}
+
+.sbn-leadsheet-loop {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid var(--sbn-border);
+    background: var(--sbn-bg);
+    color: var(--sbn-text-muted);
+    font-size: 17px;
+    cursor: pointer;
+    transition: var(--sbn-transition);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sbn-leadsheet-loop:hover {
+    border-color: var(--sbn-primary);
+    color: var(--sbn-primary);
+}
+
+.sbn-leadsheet-loop.is-active {
+    background: var(--sbn-primary-light);
+    border-color: var(--sbn-primary);
+    color: var(--sbn-primary);
+}
+
+.sbn-audio-status {
+    font-size: 11px;
+    color: var(--sbn-text-muted);
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--sbn-bg-subtle);
+}
+
+.sbn-audio-status.is-ready {
+    color: #22c55e;
+}
+
+/* Preview (No-JS Fallback) */
+.sbn-leadsheet-preview {
+    padding: 24px;
+    background: var(--sbn-bg);
+    border: 1px solid var(--sbn-border);
+    border-radius: var(--sbn-radius-md);
+}
+
+.sbn-leadsheet-preview h3 {
+    font-family: var(--chord-font);
+    font-size: 24px;
+    margin: 0 0 8px 0;
+}
+
+.sbn-leadsheet-preview-meta {
+    color: var(--sbn-text-secondary);
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+.sbn-leadsheet-preview-meta span {
+    margin-right: 16px;
+}
+
+.sbn-leadsheet-preview-progression {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.sbn-leadsheet-preview-measure {
+    padding: 8px 12px;
+    background: var(--sbn-bg-subtle);
+    border: 1px solid var(--sbn-border);
+    border-radius: var(--sbn-radius-sm);
+    font-family: var(--chord-font);
+    font-size: 16px;
+}
+
+.sbn-leadsheet-preview-count {
+    margin-top: 16px;
+    color: var(--sbn-text-muted);
+    font-size: 13px;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .sbn-leadsheet-header {
+        padding: 14px 18px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .sbn-leadsheet-title {
+        font-size: 20px;
+    }
+    
+    .sbn-leadsheet-options {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+    
+    .sbn-leadsheet-body {
+        padding: 14px 16px;
+        padding-bottom: 70px;
+    }
+    
+    .sbn-leadsheet-row {
+        flex-wrap: wrap;
+    }
+    
+    .sbn-leadsheet-measure {
+        flex: 0 0 calc(50% - 2px);
+        min-height: 55px;
+    }
+    
+    .sbn-chord-symbol {
+        font-size: 18px;
+    }
+    
+    .sbn-leadsheet-rhythm-content {
+        padding: 12px 16px 14px;
+        overflow-x: auto;
+    }
+    
+    .sbn-leadsheet-rhythm-cell {
+        width: 30px;
+        height: 24px;
+        font-size: 10px;
+    }
+    
+    .sbn-leadsheet-rhythm-label {
+        width: 45px;
+        font-size: 10px;
+    }
+    
+    .sbn-leadsheet-controls {
+        padding: 10px 16px;
+        gap: 10px;
+    }
+    
+    .sbn-leadsheet-play {
+        width: 40px;
+        height: 40px;
+        font-size: 14px;
+    }
+    
+    .sbn-leadsheet-tempo {
+        display: none;
+    }
+    
+    .sbn-leadsheet-detail {
+        right: 10px;
+        left: 10px;
+        top: auto;
+        bottom: 75px;
+        transform: none;
+        width: auto;
+    }
+}
+
+/* Print */
+@media print {
+    .sbn-leadsheet-controls,
+    .sbn-leadsheet-rhythm,
+    .sbn-leadsheet-viz,
+    .sbn-leadsheet-options,
+    .sbn-leadsheet-detail,
+    .sbn-leadsheet-beats,
+    .sbn-fullscreen-btn,
+    .sbn-audio-status {
+        display: none !important;
+    }
+    
+    .sbn-leadsheet {
+        border: 1px solid #000;
+    }
+    
+    .sbn-leadsheet-body {
+        padding-bottom: 20px;
+    }
+}
+
+/* ==========================================================================
+   VISUALIZATION AREA (View Selector + Fretboard/Rhythm)
+   ========================================================================== */
+
+.sbn-leadsheet-viz {
+    border-bottom: 1px solid var(--sbn-border);
+    background: #f7f5f3;
+}
+
+/* View Selector Tabs */
+.sbn-leadsheet-viz-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--sbn-border-light);
+    background: #f0eeec;
+}
+
+.sbn-leadsheet-viz-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    color: var(--sbn-text-secondary);
+    font-family: var(--ui-font);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--sbn-transition);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+
+.sbn-leadsheet-viz-tab:hover {
+    background: rgba(0,0,0,0.03);
+    color: var(--sbn-text);
+}
+
+.sbn-leadsheet-viz-tab.is-active {
+    background: #f7f5f3;
+    color: var(--sbn-primary);
+    border-bottom-color: var(--sbn-primary);
+}
+
+.sbn-viz-tab-icon {
+    font-size: 14px;
+}
+
+.sbn-viz-tab-label {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Header text when in tabs row */
+.sbn-leadsheet-viz-header-text {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--sbn-text-secondary);
+    padding: 0 12px;
+}
+
+/* Theme toggle button */
+.sbn-fretboard-theme-toggle {
+    margin-left: 4px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: var(--sbn-radius-sm);
+    font-size: 16px;
+    cursor: pointer;
+    transition: var(--sbn-transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sbn-fretboard-theme-toggle:hover {
+    background: rgba(0,0,0,0.05);
+}
+
+/* Simple header when only one view */
+.sbn-leadsheet-viz-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 24px;
+    background: #f0eeec;
+    border-bottom: 1px solid var(--sbn-border-light);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--sbn-text-secondary);
+}
+
+.sbn-leadsheet-viz-content {
+    padding: 16px 24px;
+}
+
+/* Rhythm Grid (inside viz area) */
+.sbn-leadsheet-rhythm-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sbn-leadsheet-rhythm-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--sbn-text);
+}
+
+/* ==========================================================================
+   FRETBOARD VISUALIZATION - Ebony Dark Mode
+   ========================================================================== */
+
+.sbn-fretboard {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Fretboard grid container */
+.sbn-fretboard-grid {
+    display: flex;
+    align-items: stretch;
+    background: linear-gradient(to bottom, #1a1a1a, #0d0d0d);
+    border-radius: var(--sbn-radius-sm);
+    overflow: hidden;
+    border: 1px solid #333;
+    min-height: 130px;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+}
+
+/* String labels column */
+.sbn-fretboard-string-labels {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    padding: 6px 8px;
+    background: #1a1a1a;
+    border-right: 1px solid #333;
+    min-width: 22px;
+}
+
+.sbn-fretboard-string-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #888;
+    text-align: center;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease;
+}
+
+.sbn-fretboard-string-label.is-highlighted {
+    color: var(--sbn-primary);
+}
+
+/* Open strings column (fret 0) */
+.sbn-fretboard-open-fret {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    padding: 6px 8px;
+    background: #151515;
+    min-width: 28px;
+}
+
+.sbn-fretboard-open-string {
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+/* String line in open column */
+.sbn-fretboard-open-string::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 1px;
+    background: #555;
+    transform: translateY(-50%);
+    transition: background 0.1s ease;
+}
+
+.sbn-fretboard-open-string[data-string="3"]::before { height: 1.5px; }
+.sbn-fretboard-open-string[data-string="4"]::before { height: 2px; }
+.sbn-fretboard-open-string[data-string="5"]::before { height: 2.5px; background: #4a4a4a; }
+
+.sbn-fretboard-open-string.is-highlighted::before {
+    background: var(--sbn-primary);
+    box-shadow: 0 0 4px rgba(232, 93, 59, 0.4);
+}
+
+/* Open string dot */
+.sbn-fretboard-open-dot {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #888;
+    border-radius: 50%;
+    background: transparent;
+    position: relative;
+    z-index: 2;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sbn-fretboard-open-dot.is-highlighted {
+    border-color: var(--sbn-primary);
+    box-shadow: 0 0 6px rgba(232, 93, 59, 0.5);
+}
+
+/* Guide tone colors on open dots */
+.sbn-fretboard-open-dot.gt-seventh {
+    border-color: #fbbf24;
+    background: rgba(251, 191, 36, 0.3);
+    color: #fbbf24;
+    display: flex; align-items: center; justify-content: center;
+}
+.sbn-fretboard-open-dot.gt-third {
+    border-color: #60a5fa;
+    background: rgba(96, 165, 250, 0.3);
+    color: #60a5fa;
+    display: flex; align-items: center; justify-content: center;
+}
+.sbn-fretboard-open-dot.gt-root {
+    border-color: #e8e8e0;
+    background: rgba(232, 232, 224, 0.3);
+    color: #e8e8e0;
+    display: flex; align-items: center; justify-content: center;
+}
+.sbn-fretboard-open-dot.gt-ninth {
+    border-color: #a78bfa;
+    background: rgba(167, 139, 250, 0.3);
+    color: #a78bfa;
+    display: flex; align-items: center; justify-content: center;
+}
+.sbn-fretboard-open-dot.gt-fifth {
+    border-color: #9ca3af;
+    background: rgba(156, 163, 175, 0.3);
+    color: #9ca3af;
+    display: flex; align-items: center; justify-content: center;
+}
+
+/* Nut */
+.sbn-fretboard-nut {
+    width: 6px;
+    background: linear-gradient(to right, #f5f5f0, #d8d8d0, #f5f5f0);
+    border-right: 1px solid #333;
+    flex-shrink: 0;
+    box-shadow: 1px 0 3px rgba(0,0,0,0.3);
+}
+
+/* Frets container */
+.sbn-fretboard-frets {
+    display: flex;
+    flex: 1;
+    overflow-x: auto;
+}
+
+/* Hide scrollbar but allow scroll */
+.sbn-fretboard-frets::-webkit-scrollbar {
+    height: 4px;
+}
+.sbn-fretboard-frets::-webkit-scrollbar-track {
+    background: #1a1a1a;
+}
+.sbn-fretboard-frets::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 2px;
+}
+
+/* Individual fret */
+.sbn-fretboard-fret {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    min-width: 48px;
+    flex: 1;
+    border-right: 2px solid #c0a060;
+    padding: 6px 3px;
+    position: relative;
+    background: linear-gradient(to right, rgba(255,255,255,0.02), transparent 20%, transparent 80%, rgba(255,255,255,0.01));
+}
+
+.sbn-fretboard-fret:last-child {
+    border-right-color: #a08040;
+}
+
+/* Fret markers - subtle mother of pearl style */
+.sbn-fretboard-fret.has-marker::before {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: radial-gradient(ellipse at 30% 30%, #e8e8e0, #c8c8c0, #a8a8a0);
+    border-radius: 50%;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0.7;
+    box-shadow: inset 0 1px 2px rgba(255,255,255,0.3);
+}
+
+.sbn-fretboard-fret.double-marker::before {
+    top: 30%;
+}
+
+.sbn-fretboard-fret.double-marker::after {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: radial-gradient(ellipse at 30% 30%, #e8e8e0, #c8c8c0, #a8a8a0);
+    border-radius: 50%;
+    left: 50%;
+    top: 70%;
+    transform: translate(-50%, -50%);
+    opacity: 0.7;
+    box-shadow: inset 0 1px 2px rgba(255,255,255,0.3);
+}
+
+/* Fret number */
+.sbn-fretboard-fret-num {
+    position: absolute;
+    bottom: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    color: #666;
+    font-weight: 500;
+}
+
+/* String within a fret */
+.sbn-fretboard-string {
+    height: 18px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* String line - metallic look */
+.sbn-fretboard-string::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 1px;
+    background: linear-gradient(to bottom, #888, #666);
+    transform: translateY(-50%);
+    transition: background 0.1s ease, box-shadow 0.1s ease;
+}
+
+/* Thicker bass strings with wound texture */
+.sbn-fretboard-string[data-string="3"]::before {
+    height: 1.5px;
+    background: linear-gradient(to bottom, #777, #555);
+}
+.sbn-fretboard-string[data-string="4"]::before {
+    height: 2px;
+    background: linear-gradient(to bottom, #666, #444);
+}
+.sbn-fretboard-string[data-string="5"]::before {
+    height: 2.5px;
+    background: linear-gradient(to bottom, #5a5a5a, #3a3a3a);
+}
+
+/* String highlight during playback - subtle glow */
+.sbn-fretboard-string.is-highlighted::before {
+    background: linear-gradient(to bottom, var(--sbn-primary), #c04a2a);
+    box-shadow: 0 0 4px rgba(232, 93, 59, 0.4);
+}
+
+/* Finger dot */
+.sbn-fretboard-dot {
+    width: 20px;
+    height: 20px;
+    background: linear-gradient(145deg, #e8e8e0, #c8c8c0);
+    border-radius: 50%;
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #333;
+    font-size: 10px;
+    font-weight: 700;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.5);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+/* Subtle pulse on highlighted dots */
+.sbn-fretboard-dot.is-highlighted {
+    transform: scale(1.08);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.5), 0 0 8px rgba(232, 93, 59, 0.3);
+}
+
+/* Dots with finger numbers - slightly different color */
+.sbn-fretboard-dot.has-finger {
+    background: linear-gradient(145deg, #f0e8d8, #d8d0c0);
+}
+
+/* Fullscreen adjustments */
+.sbn-leadsheet.is-fullscreen .sbn-fretboard-fret {
+    min-width: 60px;
+}
+
+.sbn-leadsheet.is-fullscreen .sbn-fretboard-dot {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+}
+
+.sbn-leadsheet.is-fullscreen .sbn-fretboard-grid {
+    min-height: 160px;
+}
+
+.sbn-leadsheet.is-fullscreen .sbn-fretboard-string {
+    height: 22px;
+}
+
+.sbn-leadsheet.is-fullscreen .sbn-fretboard-open-string {
+    height: 22px;
+}
+
+.sbn-leadsheet.is-fullscreen .sbn-fretboard-open-dot {
+    width: 18px;
+    height: 18px;
+}
+
+/* Responsive fretboard */
+@media (max-width: 768px) {
+    .sbn-leadsheet-viz-content {
+        padding: 12px 16px;
+    }
+    
+    .sbn-fretboard-fret {
+        min-width: 38px;
+    }
+    
+    .sbn-fretboard-dot {
+        width: 16px;
+        height: 16px;
+        font-size: 9px;
+    }
+    
+    .sbn-fretboard-grid {
+        min-height: 110px;
+    }
+    
+    .sbn-fretboard-string-labels {
+        min-width: 18px;
+        padding: 6px 4px;
+    }
+    
+    .sbn-fretboard-string-label {
+        font-size: 9px;
+    }
+    
+    .sbn-fretboard-open-fret {
+        min-width: 24px;
+        padding: 6px 4px;
+    }
+    
+    .sbn-fretboard-open-dot {
+        width: 12px;
+        height: 12px;
+        border-width: 1.5px;
+    }
+    
+    .sbn-fretboard-rh-fingers {
+        min-width: 20px;
+        padding: 6px 4px;
+    }
+    
+    .sbn-fretboard-rh-finger {
+        font-size: 9px;
+    }
+}
+
+/* ==========================================================================
+   RIGHT-HAND FINGERING COLUMN (p i m a)
+   ========================================================================== */
+
+.sbn-fretboard-rh-fingers {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    padding: 6px 10px;
+    background: rgba(0,0,0,0.2);
+    border-left: 1px solid #333;
+    min-width: 28px;
+}
+
+.sbn-fretboard-rh-finger {
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: #d0d0d0;
+    font-style: italic;
+    transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.sbn-fretboard-rh-finger.is-muted {
+    opacity: 0.3;
+}
+
+.sbn-fretboard-rh-finger.is-highlighted {
+    color: var(--sbn-primary);
+    transform: scale(1.15);
+}
+
+/* Fullscreen right-hand */
+.sbn-leadsheet.is-fullscreen .sbn-fretboard-rh-fingers {
+    min-width: 32px;
+    padding: 6px 12px;
+}
+
+.sbn-leadsheet.is-fullscreen .sbn-fretboard-rh-finger {
+    height: 22px;
+    font-size: 13px;
+}
+
+/* ==========================================================================
+   LIGHT THEME (Maple/Rosewood style matching chord grids)
+   ========================================================================== */
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-grid {
+    background: linear-gradient(to bottom, #f5e6d3, #e8d4bc);
+    border-color: #d4c4a8;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-string-labels {
+    background: #e8dcc8;
+    border-right-color: #d4c4a8;
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-string-label {
+    color: #666;
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-string-label.is-highlighted {
+    color: var(--sbn-primary);
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-open-fret {
+    background: #efe4d4;
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-open-string::before {
+    background: #a89070;
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-open-string[data-string="5"]::before {
+    background: #8a7a60;
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-open-string.is-highlighted::before {
+    background: var(--sbn-primary);
+    box-shadow: 0 0 4px rgba(232, 93, 59, 0.4);
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-open-dot {
+    border-color: #666;
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-open-dot.is-highlighted {
+    border-color: var(--sbn-primary);
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-nut {
+    background: linear-gradient(to right, #f5f5f0, #e8e8e0, #f5f5f0);
+    border-right: 2px solid #333;
+    box-shadow: 1px 0 2px rgba(0,0,0,0.1);
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-fret {
+    border-right-color: #a89070;
+    background: linear-gradient(to right, rgba(0,0,0,0.02), transparent 20%, transparent 80%, rgba(0,0,0,0.03));
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-fret:last-child {
+    border-right-color: #8a7a60;
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-fret.has-marker::before {
+    background: #d4c4a8;
+    opacity: 0.8;
+    box-shadow: none;
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-fret.double-marker::after {
+    background: #d4c4a8;
+    opacity: 0.8;
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-fret-num {
+    color: #999;
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-string::before {
+    background: linear-gradient(to bottom, #b8a080, #8a7a60);
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-string[data-string="3"]::before {
+    background: linear-gradient(to bottom, #a89070, #7a6a50);
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-string[data-string="4"]::before {
+    background: linear-gradient(to bottom, #988060, #6a5a40);
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-string[data-string="5"]::before {
+    background: linear-gradient(to bottom, #887050, #5a4a30);
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-string.is-highlighted::before {
+    background: linear-gradient(to bottom, var(--sbn-primary), #c04a2a);
+    box-shadow: 0 0 4px rgba(232, 93, 59, 0.4);
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-dot {
+    background: linear-gradient(135deg, #444, #222);
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-dot.has-finger {
+    background: linear-gradient(135deg, var(--sbn-primary), var(--sbn-primary-dark));
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-dot.is-highlighted {
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2), 0 0 8px rgba(232, 93, 59, 0.3);
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-rh-fingers {
+    background: rgba(0,0,0,0.05);
+    border-left-color: #d4c4a8;
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-rh-finger {
+    color: #555;
+}
+
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-rh-finger.is-highlighted {
+    color: var(--sbn-primary);
+}
+
+/* ==========================================================================
+   GUIDE TONE VISUALIZATION
+   ========================================================================== */
+
+/* Guide tone toggle button */
+.sbn-fretboard-guide-toggle {
+    background: none;
+    border: 1.5px solid rgba(255,255,255,0.3);
+    border-radius: 4px;
+    color: rgba(255,255,255,0.5);
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 6px;
+    margin-left: auto;
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+}
+.sbn-fretboard-guide-toggle:hover {
+    border-color: rgba(255,255,255,0.6);
+    color: rgba(255,255,255,0.8);
+}
+.sbn-fretboard-guide-toggle.is-active {
+    background: rgba(232, 93, 59, 0.2);
+    border-color: #e85d3b;
+    color: #e85d3b;
+}
+
+/* Light theme guide toggle */
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-guide-toggle {
+    border-color: rgba(0,0,0,0.2);
+    color: rgba(0,0,0,0.4);
+}
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-guide-toggle:hover {
+    border-color: rgba(0,0,0,0.4);
+    color: rgba(0,0,0,0.6);
+}
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-guide-toggle.is-active {
+    background: rgba(232, 93, 59, 0.15);
+    border-color: #e85d3b;
+    color: #e85d3b;
+}
+
+/* Guide tone dot colors — dark theme */
+.sbn-fretboard-dot.gt-seventh {
+    background: linear-gradient(145deg, #fbbf24, #d97706) !important;
+    color: #1a1a1a !important;
+    font-size: 8px;
+    font-weight: 800;
+}
+.sbn-fretboard-dot.gt-third {
+    background: linear-gradient(145deg, #60a5fa, #2563eb) !important;
+    color: #fff !important;
+    font-size: 8px;
+    font-weight: 800;
+}
+.sbn-fretboard-dot.gt-root {
+    background: linear-gradient(145deg, #e8e8e0, #c8c8c0) !important;
+    color: #333 !important;
+    font-size: 8px;
+    font-weight: 800;
+}
+.sbn-fretboard-dot.gt-ninth {
+    background: linear-gradient(145deg, #a78bfa, #7c3aed) !important;
+    color: #fff !important;
+    font-size: 8px;
+    font-weight: 800;
+}
+.sbn-fretboard-dot.gt-fifth {
+    background: linear-gradient(145deg, #9ca3af, #6b7280) !important;
+    color: #fff !important;
+    font-size: 8px;
+    font-weight: 800;
+}
+
+/* Light theme guide tone dots */
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-dot.gt-seventh {
+    background: linear-gradient(145deg, #fbbf24, #d97706) !important;
+    color: #1a1a1a !important;
+}
+.sbn-leadsheet-viz.theme-light .sbn-fretboard-dot.gt-third {
+    background: linear-gradient(145deg, #3b82f6, #1d4ed8) !important;
+    color: #fff !important;
+}
+
+/* Ghost dots — next chord resolution targets */
+.sbn-fretboard-ghost-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 7px;
+    font-weight: 800;
+    opacity: 0.5;
+    animation: gt-ghost-pulse 2s ease-in-out infinite;
+}
+
+.sbn-fretboard-ghost-dot.seventh-to-third {
+    border: 2px dashed #fbbf24;
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.1);
+}
+.sbn-fretboard-ghost-dot.third-to-root {
+    border: 2px dashed #60a5fa;
+    color: #60a5fa;
+    background: rgba(96, 165, 250, 0.1);
+}
+
+@keyframes gt-ghost-pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.05); }
+}
+
+/* SVG arrow overlay */
+.sbn-gt-arrows {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* ==========================================================================
+   TABLATURE VIEW - MuseScore-style clean notation
+   ========================================================================== */
+
+/* Tab body container - white background for print-like appearance */
+.sbn-tab-body {
+    padding: 20px 16px;
+    padding-top: 40px; /* Extra padding at top for volta brackets */
+    background: #fff;
+    overflow-x: auto;
+    overflow-y: visible; /* Allow volta brackets to show above */
+}
+
+/* Tab row (group of measures on one line) */
+.sbn-tab-row {
+    position: relative; /* Required for volta overlay positioning */
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    overflow: visible; /* Allow volta brackets to extend above */
+}
+
+/* Tab measures container - no string labels, cleaner look */
+.sbn-tab-measures {
+    display: flex;
+    flex: 1;
+    overflow: visible; /* Allow volta brackets to extend above */
+}
+
+/* Individual measure - clickable */
+.sbn-tab-measure {
+    position: relative;
+    flex: 1;
+    min-width: 140px;
+    max-width: 200px;
+    cursor: pointer;
+    padding-top: 16px; /* Space for measure number */
+}
+
+.sbn-tab-measure:hover {
+    background: rgba(0,0,0,0.02);
+}
+
+/* Current measure indicator */
+.sbn-tab-measure.is-current {
+    background: rgba(232, 93, 59, 0.08);
+}
+
+/* Measure number above the staff */
+.sbn-tab-measure-num {
+    position: absolute;
+    top: 0;
+    left: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #999;
+}
+
+.sbn-tab-measure.is-current .sbn-tab-measure-num {
+    color: var(--sbn-primary);
+}
+
+/* Tab SVG - fills measure width */
+.sbn-tab-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    overflow: visible; /* Allow ties to extend beyond measure boundaries */
+}
+
+/* String lines - thin, light gray like MuseScore */
+.sbn-tab-string-line {
+    stroke: #bbb;
+    stroke-width: 0.75;
+}
+
+/* Bar line - slightly darker and thicker */
+.sbn-tab-bar-line {
+    stroke: #666;
+    stroke-width: 1.5;
+}
+
+/* Fret number text - clean, no background */
+.sbn-tab-note-text {
+    font-family: 'Arial', 'Helvetica', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    fill: #000;
+    text-anchor: middle;
+    /* NOTE: vertical centering is handled by dy attribute in SVG, not dominant-baseline */
+    /* Small white "halo" to make numbers readable over lines */
+    paint-order: stroke fill;
+    stroke: #fff;
+    stroke-width: 2.5px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Playing state - highlight in orange */
+.sbn-tab-note-text.is-playing {
+    fill: var(--sbn-primary);
+    stroke: #fff;
+    stroke-width: 3px;
+}
+
+/* ============================================================
+   INTEGRATED TAB VIEW (below chord rows)
+   ============================================================ */
+
+/* Container styling when tab is shown */
+.sbn-leadsheet.has-inline-tab .sbn-leadsheet-row {
+    margin-bottom: 0;
+    border-bottom: none;
+}
+
+/* When tab is active, simplify the chord display */
+.sbn-leadsheet.has-inline-tab .sbn-leadsheet-measure {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-bottom: none;
+    min-height: auto; /* CRITICAL: Remove min-height to allow compact layout */
+}
+
+.sbn-leadsheet.has-inline-tab .sbn-leadsheet-measure.is-current {
+    background: rgba(232, 93, 59, 0.05);
+}
+
+/* Hide beat dots when tab is shown (tab shows the rhythm) */
+.sbn-leadsheet.has-inline-tab .sbn-leadsheet-beats {
+    display: none;
+}
+
+/* Remove border between chord cells when tab is active */
+.sbn-leadsheet.has-inline-tab .sbn-leadsheet-chord {
+    border-right: none;
+}
+
+/* Integrated tab row - directly below chords, no gap */
+.sbn-tab-row-integrated {
+    display: flex;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+}
+
+/* Individual tab measure in integrated view - no borders between them */
+.sbn-tab-measure-inline {
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+    padding: 0;
+    border: none;
+    background: transparent;
+}
+
+/* Empty measure slots (when row has <4 measures) */
+.sbn-tab-measure-inline.is-empty {
+    cursor: default;
+    pointer-events: none;
+}
+
+.sbn-tab-measure-inline:hover:not(.is-empty) {
+    background: rgba(0,0,0,0.02);
+}
+
+.sbn-tab-measure-inline.is-current {
+    background: rgba(232, 93, 59, 0.08);
+}
+
+/* Aspect ratio wrapper - maintains uniform SVG scaling */
+.sbn-tab-aspect-wrapper {
+    position: relative;
+    width: 100%;
+    /* padding-bottom is set inline based on viewBox aspect ratio */
+}
+
+/* Volta bracket overlay - positioned above the tab staff */
+.sbn-tab-volta-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    pointer-events: none; /* Allow clicks to pass through to measures */
+    z-index: 10; /* Appear above the tab staff */
+}
+
+.sbn-tab-volta-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    overflow: visible;
+}
+
+/* Inline SVG - fills the aspect-ratio container */
+.sbn-tab-svg-inline {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    overflow: visible; /* Allow ties to extend beyond measure boundaries */
+}
+
+/* Inline tab note text - elegant serif font, properly centered */
+.sbn-tab-row-integrated .sbn-tab-note-text {
+    font-family: 'Times New Roman', 'Georgia', 'Palatino', serif;
+    font-size: 8px; /* Slightly smaller to fit tighter string spacing */
+    font-weight: 400; /* Normal weight, not bold */
+    fill: #222;
+    paint-order: stroke fill;
+    stroke: #fff;
+    stroke-width: 2px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.sbn-tab-row-integrated .sbn-tab-note-text.is-playing {
+    fill: var(--sbn-primary);
+    stroke: #fff;
+    stroke-width: 2.5px;
+    font-weight: 500;
+}
+
+/* ============================================================
+   PROGRESSIVE SCALING SYSTEM - UNIFIED TAB SIZE
+   Tab should be the SAME SIZE regardless of diagram state
+   ============================================================ */
+
+/* BASE: Chords only (solo mode) - LARGEST */
+.sbn-chord-symbol {
+    font-family: var(--chord-font);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--sbn-text);
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    line-height: 1.2;
+}
+
+/* LEVEL 1: With Diagrams - slightly smaller chords */
+.sbn-leadsheet.has-inline-diagrams .sbn-chord-symbol {
+    font-size: 18px;
+}
+
+.sbn-leadsheet.has-inline-diagrams .sbn-leadsheet-chord {
+    padding: 8px 6px 6px;
+}
+
+/* LEVEL 2: With Tab (no diagrams) - chord closer to tab */
+.sbn-leadsheet.has-inline-tab:not(.has-inline-diagrams) .sbn-chord-symbol {
+    font-size: 16px;
+}
+
+.sbn-leadsheet.has-inline-tab:not(.has-inline-diagrams) .sbn-leadsheet-chord {
+    padding: 4px 4px 2px; /* Tight padding - chord sits close to tab */
+}
+
+/* LEVEL 3: With BOTH Diagrams AND Tab - compact chord, diagram below chord, tab below that */
+.sbn-leadsheet.has-inline-diagrams.has-inline-tab .sbn-chord-symbol {
+    font-size: 14px;
+}
+
+.sbn-leadsheet.has-inline-diagrams.has-inline-tab .sbn-leadsheet-chord {
+    padding: 4px 2px 0; /* No bottom padding - diagram/tab goes right below */
+}
+
+.sbn-leadsheet.has-inline-diagrams.has-inline-tab .sbn-leadsheet-diagram-inline {
+    margin: 2px auto 0;
+}
+
+.sbn-leadsheet.has-inline-diagrams.has-inline-tab .sbn-leadsheet-diagram-inline svg {
+    max-width: 44px;
+    height: auto;
+}
+
+/* ============================================================
+   TAB ROW - CONSISTENT SIZE REGARDLESS OF DIAGRAM STATE
+   The tab staff should always be the same visual size
+   ============================================================ */
+
+/* Tab row base styles - same for all modes */
+.sbn-leadsheet.has-inline-tab .sbn-tab-row-integrated {
+    margin-top: 0;
+    margin-bottom: 12px;
+}
+
+/* Tab note text - same size in all modes */
+.sbn-leadsheet.has-inline-tab .sbn-tab-row-integrated .sbn-tab-note-text {
+    font-size: 8px;
+}
+
+/* Space between rows (chord+tab pairs) */
+.sbn-leadsheet.has-inline-tab .sbn-leadsheet-section .sbn-tab-row-integrated {
+    margin-bottom: 10px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .sbn-tab-measure {
+        min-width: 100px;
+    }
+    
+    .sbn-tab-row {
+        margin-bottom: 14px;
+    }
+    
+    .sbn-tab-note-text {
+        font-size: 9px;
+    }
+    
+    .sbn-tab-row-integrated {
+        margin-bottom: 10px;
+    }
+    
+    .sbn-tab-row-integrated .sbn-tab-note-text {
+        font-size: 8px;
+    }
+}
+
+/* ==========================================================================
+   TAB-ONLY MODE (no chord symbols, pure tablature)
+   ========================================================================== */
+
+.sbn-leadsheet.is-tab-only .sbn-leadsheet-body {
+    padding: 16px;
+}
+
+/* Measure numbers row for tab-only mode */
+.sbn-tab-measure-numbers {
+    display: flex;
+    margin-bottom: 2px;
+}
+
+.sbn-tab-measure-num-standalone {
+    flex: 1;
+    font-size: 11px;
+    font-weight: 600;
+    color: #666;
+    padding-left: 4px;
+}
+
+.sbn-tab-measure-num-standalone.is-empty {
+    visibility: hidden;
+}
+
+/* Tab-only mode uses slightly larger tab */
+.sbn-leadsheet.is-tab-only .sbn-tab-row-integrated {
+    margin-bottom: 16px;
+}
+
+.sbn-leadsheet.is-tab-only .sbn-tab-row-integrated .sbn-tab-note-text {
+    font-size: 9px;
+}
+
+/* Empty state */
+.sbn-tab-empty {
+    padding: 40px;
+    text-align: center;
+    color: var(--sbn-text-muted);
+    font-style: italic;
+}
+
+/* Stem rendering - MuseScore style */
+.sbn-tab-stem {
+    stroke: #000;
+    stroke-width: 0.5; /* Very thin like MuseScore (3.25 in their scale) */
+}
+
+/* Optional: Differentiate voice 2 (bass) stems with lighter color */
+.sbn-tab-stem.voice-2 {
+    stroke: #666;
+}
+
+/* Dot for dotted notes */
+.sbn-tab-dot {
+    fill: #000;
+}
+
+.sbn-tab-dot.voice-2 {
+    fill: #666;
+}
+
+.sbn-tab-beam {
+    fill: #000;
+}
+
+.sbn-tab-beam.voice-2 {
+    fill: #666;
+}
+
+.sbn-tab-beam.secondary {
+    fill: #000;
+}
+
+.sbn-tab-beam.secondary.voice-2 {
+    fill: #666;
+}
+
+.sbn-tab-flag {
+    stroke: #000;
+    stroke-linecap: round;
+}
+
+.sbn-tab-flag.voice-2 {
+    stroke: #666;
+}
+
+/* Tie curves */
+.sbn-tab-tie {
+    stroke: #333;
+    fill: none;
+}
+
+.sbn-tab-tie.inner {
+    stroke: #333;
+}
+
+.sbn-tab-tie.voice-2 {
+    stroke: #666;
+}
+
+.sbn-tab-tie.inner.voice-2 {
+    stroke: #666;
+}
+
+/* Standalone view (larger tab) - thicker strokes */
+.sbn-tab-body .sbn-tab-stem {
+    stroke-width: 0.8;
+}
+
+.sbn-tab-body .sbn-tab-beam {
+    /* Uses fill, not stroke */
+}
+
+.sbn-tab-body .sbn-tab-flag {
+    stroke-width: 1;
+}
+
+.sbn-tab-body .sbn-tab-tie {
+    stroke-width: 0.8;
+}
+
+.sbn-tab-body .sbn-tab-tie.inner {
+    stroke-width: 0.4;
+}
+
+/* Inline view (smaller tab integrated with chords) */
+.sbn-tab-row-integrated .sbn-tab-stem {
+    stroke-width: 0.5;
+}
+
+.sbn-tab-row-integrated .sbn-tab-flag {
+    stroke-width: 0.6;
+}
+
+.sbn-tab-row-integrated .sbn-tab-tie {
+    stroke-width: 0.5;
+}
+
+.sbn-tab-row-integrated .sbn-tab-tie.inner {
+    stroke-width: 0.3;
+}
+
+/* =========================================================================
+   EDUCATIONAL CONTENT FEATURES
+   Added: All Voicings tab, Song Info tab, Collapsible Sections, Section Info
+   ========================================================================= */
+
+/* ── Collapsed Section ───────────────────────────────────────────────── */
+.sbn-leadsheet-section-collapse-btn {
+    background: none;
+    border: none;
+    padding: 0 2px;
+    cursor: pointer;
+    font-size: 10px;
+    color: var(--sbn-text-muted);
+    opacity: 0.6;
+    line-height: 1;
+    transition: opacity 0.15s, transform 0.15s;
+    flex-shrink: 0;
+}
+
+.sbn-leadsheet-section-collapse-btn:hover {
+    opacity: 1;
+}
+
+.sbn-leadsheet-section-collapse-btn.is-collapsed {
+    color: var(--sbn-primary);
+    opacity: 0.8;
+}
+
+.sbn-leadsheet-section.is-collapsed .sbn-leadsheet-section-body {
+    display: none;
+}
+
+.sbn-leadsheet-section-collapsed-preview {
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--sbn-text-muted);
+    font-family: var(--chord-font);
+    letter-spacing: 0.02em;
+    background: var(--sbn-bg-subtle);
+    border-radius: var(--sbn-radius-sm);
+    margin-top: 4px;
+    cursor: pointer;
+}
+
+.sbn-leadsheet-section-collapsed-preview:hover {
+    color: var(--sbn-text);
+    background: var(--sbn-bg-warm);
+}
+
+.sbn-section-bar-count {
+    font-family: var(--ui-font);
+    font-size: 10px;
+    color: var(--sbn-text-muted);
+    margin-left: 6px;
+    padding: 1px 6px;
+    background: var(--sbn-border-light);
+    border-radius: 8px;
+}
+
+/* ── Section Info Button in Header ───────────────────────────────────── */
+.sbn-leadsheet-section-info-btn {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: all 0.15s ease;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.sbn-leadsheet-section-info-btn:hover {
+    opacity: 1;
+    border-color: var(--sbn-border);
+    background: var(--sbn-bg);
+}
+
+/* ── Section Info Overlay ─────────────────────────────────────────────── */
+.sbn-section-info-overlay {
+    display: none;
+    background: linear-gradient(135deg, #fffcf9 0%, #fff8f5 100%);
+    border: 1px solid rgba(232, 93, 59, 0.2);
+    border-radius: var(--sbn-radius-md);
+    padding: 14px 16px;
+    margin: 4px 0 8px;
+    animation: sbn-fade-in 0.2s ease;
+}
+
+.sbn-section-info-overlay.is-visible {
+    display: block;
+}
+
+@keyframes sbn-fade-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.sbn-section-info-overlay-inner {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.sbn-section-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sbn-section-info-item-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--sbn-primary);
+}
+
+.sbn-section-info-item-text {
+    font-size: 13px;
+    color: var(--sbn-text);
+    line-height: 1.55;
+}
+
+/* ── All Voicings Grid ────────────────────────────────────────────────── */
+/* ── Chord Types (educational voicings view) ──────────────────────── */
+.sbn-chord-types {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 14px 16px 16px;
+    overflow-y: auto;
+    max-height: 340px;
+}
+
+.sbn-chord-types-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sbn-ct-quality-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.sbn-ct-quality-pill {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--sbn-primary);
+    background: rgba(232, 93, 59, 0.08);
+    border: 1px solid rgba(232, 93, 59, 0.25);
+    border-radius: 20px;
+    padding: 2px 10px;
+    letter-spacing: 0.01em;
+}
+
+.sbn-ct-summary-text {
+    font-size: 11px;
+    color: var(--sbn-text-muted);
+    line-height: 1.4;
+}
+
+.sbn-chord-types-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-content: flex-start;
+}
+
+/* ── Individual shape card ─────────────────────────────────────────── */
+.sbn-ct-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 7px 7px;
+    background: #fff;
+    border: 1px solid var(--sbn-border);
+    border-radius: var(--sbn-radius-md);
+    min-width: 72px;
+    max-width: 90px;
+    transition: border-color 0.15s ease;
+}
+
+.sbn-ct-card:has(.sbn-ct-card-diagram:hover) {
+    border-color: var(--sbn-primary);
+}
+
+.sbn-ct-card-diagram {
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    border-radius: 4px;
+    transition: opacity 0.12s ease;
+}
+
+.sbn-ct-card-diagram:hover {
+    opacity: 0.8;
+}
+
+.sbn-ct-card-chord-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--sbn-text);
+    text-align: center;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+}
+
+.sbn-ct-card-shape {
+    font-size: 9px;
+    font-weight: 400;
+    color: var(--sbn-text-muted);
+    text-align: center;
+    line-height: 1.3;
+    max-width: 80px;
+}
+
+/* ── Extension cycling row ─────────────────────────────────────────── */
+.sbn-ct-card-ext-row {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-top: 1px;
+}
+
+.sbn-ct-ext-btn {
+    background: none;
+    border: none;
+    padding: 0 3px;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--sbn-text-muted);
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.12s ease;
+}
+
+.sbn-ct-ext-btn:hover {
+    opacity: 1;
+    color: var(--sbn-primary);
+}
+
+.sbn-ct-ext-badge {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--sbn-primary);
+    background: rgba(232, 93, 59, 0.08);
+    border-radius: 3px;
+    padding: 1px 5px;
+    min-width: 22px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* ── Song Info Panel ──────────────────────────────────────────────────── */
+.sbn-info-panel {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    max-height: 320px;
+}
+
+.sbn-info-panel-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sbn-info-panel-section-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--sbn-primary);
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(232, 93, 59, 0.15);
+}
+
+.sbn-info-panel-icon {
+    font-size: 14px;
+}
+
+.sbn-info-panel-section-content {
+    font-size: 13.5px;
+    color: var(--sbn-text);
+    line-height: 1.6;
+}
+
+.sbn-info-panel-empty {
+    padding: 20px;
+    color: var(--sbn-text-muted);
+    font-style: italic;
+    font-size: 13px;
+}
+
+/* ── Admin: Info Panel Styles ────────────────────────────────────────── */
+.sbn-ve-info-panel {
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    margin: 12px 0;
+    overflow: hidden;
+}
+
+.sbn-ve-info-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+    cursor: pointer;
+}
+
+.sbn-ve-info-panel-icon {
+    font-size: 16px;
+}
+
+.sbn-ve-info-panel-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: #333;
+    flex: 1;
+}
+
+.sbn-ve-info-panel-toggle {
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 2px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #555;
+}
+
+.sbn-ve-info-panel-toggle:hover {
+    background: #fff;
+    border-color: #999;
+}
+
+.sbn-ve-info-panel-body {
+    padding: 14px;
+    background: #fff;
+}
+
+.sbn-ve-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+@media (max-width: 900px) {
+    .sbn-ve-info-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.sbn-ve-info-label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.sbn-ve-info-label-text {
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+}
+
+.sbn-ve-info-textarea {
+    width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 8px;
+    font-size: 13px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    line-height: 1.5;
+    resize: vertical;
+    color: #333;
+    transition: border-color 0.15s;
+}
+
+.sbn-ve-info-textarea:focus {
+    outline: none;
+    border-color: #e85d3b;
+    box-shadow: 0 0 0 2px rgba(232, 93, 59, 0.12);
+}
+
+/* ── Admin: Section Info Panel ────────────────────────────────────────── */
+.sbn-ve-section-info-btn {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 13px;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: all 0.15s;
+}
+
+.sbn-ve-section-info-btn:hover,
+.sbn-ve-section-info-btn.has-info {
+    opacity: 1;
+    border-color: #e85d3b;
+    background: rgba(232, 93, 59, 0.08);
+}
+
+.sbn-ve-section-info-panel {
+    display: none;
+    padding: 10px;
+    background: #fffcf9;
+    border: 1px solid rgba(232, 93, 59, 0.2);
+    border-radius: 4px;
+    margin: 4px 0 8px;
+}
+
+.sbn-ve-section-info-panel.is-open {
+    display: block;
+}
+
+.sbn-ve-section-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+@media (max-width: 900px) {
+    .sbn-ve-section-info-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.sbn-ve-section-info-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #777;
+}
+
+.sbn-ve-section-info-textarea {
+    width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-family: inherit;
+    line-height: 1.4;
+    resize: vertical;
+    color: #333;
+}
+
+.sbn-ve-section-info-textarea:focus {
+    outline: none;
+    border-color: #e85d3b;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .sbn-chord-types {
+        gap: 10px;
+        padding: 10px 12px 12px;
+    }
+    .sbn-chord-types-grid {
+        gap: 8px;
+    }
+    .sbn-info-panel {
+        grid-template-columns: 1fr;
+        padding: 12px;
+    }
+    .sbn-section-info-overlay-inner {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+/* ============================================================
+   CHORD PROGRESSION BADGES & PANEL  (Phase 2)
+   ============================================================ */
+
+/* ── Section header: "has progressions" glow signal ── */
+.sbn-leadsheet-section-header.has-progressions .sbn-leadsheet-section-id {
+    position: relative;
+}
+.sbn-leadsheet-section-header.has-progressions .sbn-leadsheet-section-id::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    right: -5px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245,158,11,0.3);
+    animation: sbn-prog-dot-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes sbn-prog-dot-pulse {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(245,158,11,0.3); }
+    50%       { box-shadow: 0 0 0 5px rgba(245,158,11,0.0); }
+}
+
+/* ── Progression info button in section header ── */
+.sbn-leadsheet-section-prog-btn {
+    background: none;
+    border: 1px solid rgba(245,158,11,0.4);
+    border-radius: 4px;
+    color: #b45309;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 2px 6px;
+    margin-left: 6px;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    opacity: 0.75;
+}
+.sbn-leadsheet-section-prog-btn:hover,
+.sbn-leadsheet-section-prog-btn.is-active {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    color: #92400e;
+    opacity: 1;
+}
+
+/* ── Collapsed preview: progression pills ── */
+.sbn-prog-pills-collapsed {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
+.sbn-prog-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 2px 7px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: filter 0.15s;
+    white-space: nowrap;
+}
+.sbn-prog-pill:hover {
+    filter: brightness(0.9);
+}
+.sbn-prog-pill-count {
+    font-weight: 400;
+    opacity: 0.8;
+}
+
+/* ── Progression panel ── */
+.sbn-prog-panel {
+    position: relative;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    margin: 0 0 12px 0;
+    overflow: hidden;
+    animation: sbn-prog-panel-in 0.18s ease-out;
+}
+
+@keyframes sbn-prog-panel-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.sbn-prog-panel-close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    color: #9ca3af;
+    padding: 2px 4px;
+    z-index: 1;
+}
+.sbn-prog-panel-close:hover { color: #374151; }
+
+.sbn-prog-panel-header {
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #6b7280;
+    padding: 8px 14px;
+}
+
+.sbn-prog-panel-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 14px;
+}
+
+.sbn-prog-panel-item {
+    flex: 1 1 220px;
+    background: #fafafa;
+    border: 1px solid #e5e7eb;
+    border-left-width: 3px;
+    border-radius: 6px;
+    padding: 10px 12px;
+}
+
+.sbn-prog-panel-item-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 7px;
+}
+
+.sbn-prog-panel-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.sbn-prog-panel-count {
+    font-size: 10px;
+    color: #6b7280;
+    background: #f3f4f6;
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+
+.sbn-prog-panel-numerals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-bottom: 8px;
+}
+
+.sbn-prog-numeral-chip {
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: 600;
+    background: #f3f4f6;
+    color: #374151;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #e5e7eb;
+}
+
+.sbn-prog-panel-desc {
+    font-size: 12px;
+    color: #4b5563;
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+
+.sbn-prog-panel-footer {
+    border-top: 1px solid #e5e7eb;
+    padding-top: 7px;
+    margin-top: 4px;
+}
+
+.sbn-prog-panel-link {
+    font-size: 11px;
+    font-weight: 600;
+    color: #2563eb;
+    text-decoration: none;
+}
+.sbn-prog-panel-link:hover {
+    text-decoration: underline;
+}
+
+/* ── Category color system ── */
+/* pill backgrounds */
+.sbn-prog-pill.sbn-prog-cat-jazz    { background: #fef3c7; color: #92400e; }
+.sbn-prog-pill.sbn-prog-cat-blues   { background: #ede9fe; color: #5b21b6; }
+.sbn-prog-pill.sbn-prog-cat-pop     { background: #d1fae5; color: #065f46; }
+.sbn-prog-pill.sbn-prog-cat-modal   { background: #e0f2fe; color: #0c4a6e; }
+.sbn-prog-pill.sbn-prog-cat-classical { background: #fce7f3; color: #9d174d; }
+.sbn-prog-pill.sbn-prog-cat-latin   { background: #ffedd5; color: #9a3412; }
+
+/* panel item left border + background tint */
+.sbn-prog-panel-item.sbn-prog-cat-jazz     { border-left-color: #f59e0b; background: #fffbeb; }
+.sbn-prog-panel-item.sbn-prog-cat-blues    { border-left-color: #8b5cf6; background: #f5f3ff; }
+.sbn-prog-panel-item.sbn-prog-cat-pop      { border-left-color: #10b981; background: #f0fdf4; }
+.sbn-prog-panel-item.sbn-prog-cat-modal    { border-left-color: #0ea5e9; background: #f0f9ff; }
+.sbn-prog-panel-item.sbn-prog-cat-classical { border-left-color: #ec4899; background: #fdf2f8; }
+.sbn-prog-panel-item.sbn-prog-cat-latin    { border-left-color: #f97316; background: #fff7ed; }
+
+/* cat badge (small inline tag) */
+.sbn-prog-cat-badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+.sbn-prog-cat-badge.sbn-prog-cat-jazz      { background: #fef3c7; color: #92400e; }
+.sbn-prog-cat-badge.sbn-prog-cat-blues     { background: #ede9fe; color: #5b21b6; }
+.sbn-prog-cat-badge.sbn-prog-cat-pop       { background: #d1fae5; color: #065f46; }
+.sbn-prog-cat-badge.sbn-prog-cat-modal     { background: #e0f2fe; color: #0c4a6e; }
+.sbn-prog-cat-badge.sbn-prog-cat-classical { background: #fce7f3; color: #9d174d; }
+.sbn-prog-cat-badge.sbn-prog-cat-latin     { background: #ffedd5; color: #9a3412; }
+
+/* ============================================================
+   Measure Highlighting for Chord Progressions
+   ============================================================ */
+
+/* Highlighted measure — base: thick top border as accent, solid bg tint */
+.sbn-leadsheet-measure.is-prog-highlighted {
+    border-top-width: 3px;
+    border-top-style: solid;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+/* Category-specific: solid background tints (opaque, clearly visible on white) */
+/* and matching top border colour — border-color overrides the default 1px border */
+.sbn-leadsheet-measure.is-prog-highlighted.sbn-prog-cat-jazz {
+    background: #fef9e7;
+    border-top-color: #f59e0b;
+    border-left-color: #fcd34d;
+    border-right-color: #fcd34d;
+    border-bottom-color: #fcd34d;
+}
+.sbn-leadsheet-measure.is-prog-highlighted.sbn-prog-cat-blues {
+    background: #f5f3ff;
+    border-top-color: #8b5cf6;
+    border-left-color: #c4b5fd;
+    border-right-color: #c4b5fd;
+    border-bottom-color: #c4b5fd;
+}
+.sbn-leadsheet-measure.is-prog-highlighted.sbn-prog-cat-pop {
+    background: #f0fdf4;
+    border-top-color: #10b981;
+    border-left-color: #6ee7b7;
+    border-right-color: #6ee7b7;
+    border-bottom-color: #6ee7b7;
+}
+.sbn-leadsheet-measure.is-prog-highlighted.sbn-prog-cat-modal {
+    background: #eff8ff;
+    border-top-color: #0ea5e9;
+    border-left-color: #7dd3fc;
+    border-right-color: #7dd3fc;
+    border-bottom-color: #7dd3fc;
+}
+.sbn-leadsheet-measure.is-prog-highlighted.sbn-prog-cat-classical {
+    background: #fdf2f8;
+    border-top-color: #ec4899;
+    border-left-color: #f9a8d4;
+    border-right-color: #f9a8d4;
+    border-bottom-color: #f9a8d4;
+}
+.sbn-leadsheet-measure.is-prog-highlighted.sbn-prog-cat-latin {
+    background: #fff7ed;
+    border-top-color: #f97316;
+    border-left-color: #fdba74;
+    border-right-color: #fdba74;
+    border-bottom-color: #fdba74;
+}
+
+/* When also currently playing — keep the playback top-border but show tinted bg */
+.sbn-leadsheet-measure.is-prog-highlighted.is-current {
+    border-top-width: 3px;
+}
+
+/* Active highlight state on pills */
+.sbn-prog-pill.is-highlighted {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+/* Highlight button inside progression panel */
+.sbn-prog-highlight-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #555;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+}
+.sbn-prog-highlight-btn:hover {
+    background: #e5e7eb;
+    color: #111;
+}
+.sbn-prog-highlight-btn.is-active {
+    background: #1e293b;
+    color: #fff;
+    border-color: #1e293b;
+}
+
+/* Panel item active state when highlight is on */
+.sbn-prog-panel-item.is-highlighted {
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.12);
+}
+
+/* Panel footer flex layout for button + link side by side */
+.sbn-prog-panel-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}

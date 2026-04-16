@@ -683,6 +683,27 @@
     border-radius: var(--radius) var(--radius-sm) 0 0;
 }
 
+/* ── Play button in tab bar ──────────────────────────────── */
+.sbn-ve-play-btn {
+    margin-left: auto;
+    background: var(--clr-surface);
+    border: 1px solid var(--clr-border);
+    border-bottom: none;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    padding: 8px 18px;
+    cursor: pointer;
+    color: var(--clr-text-dim);
+    transition: background 0.15s, color 0.15s;
+}
+.sbn-ve-play-btn:hover { background: var(--clr-white); color: var(--clr-text); }
+.sbn-ve-play-btn.is-playing {
+    background: var(--clr-white);
+    color: var(--clr-accent, #e74c3c);
+}
+
 /* ── Grid wrapper ────────────────────────────────────────── */
 .sbn-ve-grid {
     background: var(--clr-surface);

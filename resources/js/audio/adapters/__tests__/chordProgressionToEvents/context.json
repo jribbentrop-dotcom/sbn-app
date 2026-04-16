@@ -1,0 +1,5 @@
+{
+  "_comment": "startBeat=0. beatsPerChord is carried in the model for this adapter (not context), so context is minimal.",
+  "tempoBpm": 120,
+  "startBeat": 0
+}
