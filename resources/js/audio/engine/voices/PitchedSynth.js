@@ -44,6 +44,22 @@ export class PitchedSynth {
         this.synth.releaseAll();
     }
 
+    /**
+     * Expose the synth's underlying gain node so Mixer can adjust per-voice volume.
+     * @returns {Tone.Volume}
+     */
+    get gainNode() {
+        return this.synth.volume;
+    }
+
+    /**
+     * Set the synth volume in dB.
+     * @param {number} db — decibels (0 = unity, -16 = default, -∞ = silent)
+     */
+    setVolume(db) {
+        this.synth.volume.value = db;
+    }
+
     dispose() {
         this.synth.dispose();
         this.eq.dispose();
