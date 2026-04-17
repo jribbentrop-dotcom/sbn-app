@@ -44,8 +44,16 @@ export class Scheduler {
         this._nextIdx = 0;
     }
 
+    /** Move the playback head to a given beat without stopping. */
+    seekTo(beat) {
+        this._nextIdx = this._events.findIndex(ev => ev.time >= beat);
+        if (this._nextIdx === -1) this._nextIdx = this._events.length;
+    }
+
     start() {
-        if (this._running) return;
+        // Always reset — clears stale _nextIdx when events were replaced via load()
+        // while a previous playback was still running.
+        if (this._intervalId) clearInterval(this._intervalId);
         this._running = true;
         this._nextIdx = 0;
         this._intervalId = setInterval(() => this._tick(), this._tickMs);
@@ -103,7 +111,7 @@ export class Scheduler {
     _dispatch(ev, when, durSec) {
         const voice = this.voices[ev.voice];
         if (!voice) return;
-        if (ev.voice === 'pitched' && ev.pitch != null) {
+        if (ev.voice === 'pitched' && Number.isFinite(ev.pitch)) {
             voice.trigger(ev.pitch, when, durSec, ev.velocity ?? 0.8);
         }
         // Other voices land in later phases.

@@ -23,10 +23,11 @@ export class AudioEngine {
         this._scheduler = null;
         this._voices = null;
         this._listeners = {
-            tick: new Set(),
+            tick:        new Set(),
             sourceActive: new Set(),
-            ended: new Set(),
-            unlock: new Set(),
+            ended:       new Set(),
+            unlock:      new Set(),
+            playStarted: new Set(), // fired before every play — lets other composables clear isPlaying
         };
     }
 
@@ -71,9 +72,15 @@ export class AudioEngine {
 
     async play() {
         this._ensureInited();
+        this._scheduler.stop();
+        this._emit('playStarted'); // lets sibling composables clear their isPlaying flag
         await this._clock.start();
         this._emit('unlock');
+        // start() resets _nextIdx = 0 (prevents polyphony burst on fresh load),
+        // then seekTo() immediately corrects the index to the current clock position
+        // before the first 25ms tick fires.
         this._scheduler.start();
+        this._scheduler.seekTo(this._clock.currentBeat());
     }
 
     pause() {
@@ -89,6 +96,7 @@ export class AudioEngine {
 
     seek(beat) {
         this._clock?.seek(beat);
+        this._scheduler?.seekTo(beat);
     }
 
     setTempo(bpm) {
@@ -112,6 +120,10 @@ export class AudioEngine {
 
     _emit(event, payload) {
         this._listeners[event]?.forEach(cb => cb(payload));
+    }
+
+    get isInited() {
+        return this._inited;
     }
 
     _ensureInited() {

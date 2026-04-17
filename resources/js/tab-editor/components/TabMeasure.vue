@@ -2,6 +2,7 @@
     <div class="sbn-tab-measure"
          :class="{
              'sbn-tab-measure--overfill':  isOverfilled,
+             'sbn-tab-measure--playing':   isPlayingMeasure,
          }"
          :style="measureStyle"
          :data-measure="measure.index"
@@ -39,6 +40,7 @@
         </div>
 
         <svg
+            ref="svgEl"
             class="sbn-tab-svg"
             :viewBox="`0 0 ${effectiveWidth} ${LAYOUT.tabHeight}`"
             preserveAspectRatio="xMinYMid meet"
@@ -72,7 +74,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, inject, watch } from 'vue';
 import { LAYOUT } from '../utils/constants.js';
 import {
     renderFlag, renderRest, renderBeams, renderTies,
@@ -223,6 +225,24 @@ const measureStyle = computed(() => {
     const pct = 100 / Math.max(1, props.barsPerRow);
     if (widthRatio.value <= 1) return { flex: `0 0 ${pct}%` };
     return { flex: `0 0 ${pct * widthRatio.value}%` };
+});
+
+// ── Playback highlighting ─────────────────────────────
+const svgEl             = ref(null);
+const tabActiveSourceId  = inject('tabActiveSourceId',  null);
+const playingMeasureIndex = inject('playingMeasureIndex', null);
+
+// Measure-level highlight: driven by beat position so it works from either view.
+const isPlayingMeasure = computed(() =>
+    playingMeasureIndex?.value === props.measure.index
+);
+
+watch(tabActiveSourceId, (newId, oldId) => {
+    if (!svgEl.value) return;
+    if (oldId) svgEl.value.querySelectorAll(`[data-event-id="${oldId}"]`)
+        .forEach(el => el.classList.remove('is-active'));
+    if (newId) svgEl.value.querySelectorAll(`[data-event-id="${newId}"]`)
+        .forEach(el => el.classList.add('is-active'));
 });
 
 function getXm(xPos) {

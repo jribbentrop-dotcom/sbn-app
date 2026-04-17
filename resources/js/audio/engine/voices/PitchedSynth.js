@@ -36,6 +36,7 @@ export class PitchedSynth {
      * @param {number} velocity   0..1
      */
     trigger(midi, time, durationSec, velocity = 0.8) {
+        if (!Number.isFinite(midi)) return;
         const freq = Tone.Frequency(midi, 'midi').toFrequency();
         this.synth.triggerAttackRelease(freq, durationSec, time, velocity);
     }

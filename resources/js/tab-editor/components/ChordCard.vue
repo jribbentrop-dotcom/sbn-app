@@ -1,7 +1,7 @@
 <template>
   <div
     class="sbn-ve-chord"
-    :class="[densityClass, { 'is-selected': selected }]"
+    :class="[densityClass, { 'is-selected': selected, 'is-active': isPlayingCard }]"
     @click.stop="onBodyClick"
     @contextmenu.prevent="onContextMenu"
   >
@@ -31,6 +31,7 @@
 
 <script setup>
 import { inject, computed } from 'vue';
+
 import { formatChordHtml, renderDiagramSVG } from '../utils/chordFormat';
 
 const props = defineProps({
@@ -62,17 +63,23 @@ const emit = defineEmits(['contextmenu']);
 
 // ── Injected from TabEditor (provided once at root) ───────────────────────────
 
-const model          = inject('model');
-const globalIndexOf  = inject('globalIndexOf');
-const gridSelection  = inject('gridSelection');   // useGridSelection instance
-const chordPicker    = inject('chordPicker');     // useChordPickerStore instance
-const voicingPicker  = inject('voicingPicker');   // useVoicingPickerStore (stub until Step 5)
+const model               = inject('model');
+const globalIndexOf       = inject('globalIndexOf');
+const gridSelection       = inject('gridSelection');        // useGridSelection instance
+const chordPicker         = inject('chordPicker');          // useChordPickerStore instance
+const voicingPicker       = inject('voicingPicker');        // useVoicingPickerStore (stub until Step 5)
+const playingMeasureIndex = inject('playingMeasureIndex', null);
+const seekToMeasure       = inject('seekToMeasure', null);  // seek + play from TabEditor
 
 // ── Derived ───────────────────────────────────────────────────────────────────
 
 // gi is the global measure index (passed as measureIndex prop from ChordMeasure)
 const gi = computed(() => props.measureIndex);
 const ci = computed(() => props.chordIndex);
+
+const isPlayingCard = computed(() =>
+  playingMeasureIndex?.value === props.measureIndex && props.chordIndex === 0
+);
 
 const densityClass = computed(() => {
   const len = props.totalChords;
@@ -103,9 +110,10 @@ const renderedDiagram = computed(() => {
 
 // ── Interaction handlers ──────────────────────────────────────────────────────
 
-/** Click anywhere on the card body → selection */
+/** Click anywhere on the card body → selection + seek/play from this measure */
 function onBodyClick(event) {
   gridSelection?.handleClick(gi.value, ci.value, event);
+  seekToMeasure?.(gi.value);
 }
 
 /** Click on the chord name text → open chord picker */

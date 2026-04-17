@@ -20,9 +20,16 @@
                 v-if="hasData && viewMode === 'tab'"
                 class="sbn-ve-tab sbn-ve-play-btn"
                 :class="{ 'is-playing': isPlaying }"
-                @click="togglePlayback"
-                :title="isPlaying ? 'Stop playback (Esc)' : 'Play tab (Space)'"
-            >{{ isPlaying ? 'Stop' : 'Play' }}</button>
+                @click="onTransportToggle"
+                :title="isPlaying ? 'Pause (Space)' : 'Play / Resume (Space)'"
+            >{{ isPlaying ? 'Pause' : 'Play' }}</button>
+            <button
+                v-if="hasChordsData && viewMode === 'chords'"
+                class="sbn-ve-tab sbn-ve-play-btn"
+                :class="{ 'is-playing': isChordPlaying }"
+                @click="onTransportToggle"
+                :title="isChordPlaying ? 'Pause (Space)' : 'Play / Resume (Space)'"
+            >{{ isChordPlaying ? 'Pause' : 'Play' }}</button>
         </div>
 
         <!-- Chords Grid (Phase B) -->
@@ -195,6 +202,20 @@
                 </div>
             </div>
         </transition>
+
+        <!-- Transport bar — visible in tab and chord views when there's data -->
+        <TransportBar
+            v-if="(viewMode === 'tab' && hasData) || (viewMode === 'chords' && hasChordsData)"
+            :is-playing="transportPlaying"
+            :current-beat="transportBeat"
+            :total-beats="totalBeats"
+            :tempo="model?.tempo ?? 120"
+            :beats-per-measure="beatsPerMeasure"
+            @toggle="onTransportToggle"
+            @stop="onTransportReset"
+            @seek="onTransportSeek"
+            @tempo-change="onTransportTempo"
+        />
     </div>
 </template>
 
@@ -230,6 +251,9 @@ import { useChordClipboard }      from './composables/useChordClipboard.js';
 import { useChordPickerStore }    from './composables/useChordPickerStore.js';
 import { useVoicingPickerStore }  from './composables/useVoicingPickerStore.js';
 import { useAudioEngine }         from './composables/useAudioEngine.js';
+import { useChordAudio }          from './composables/useChordAudio.js';
+import { getAudioEngine }         from '../audio/engine/AudioEngine.js';
+import TransportBar               from './components/TransportBar.vue';
 
 const props = defineProps({
     initialView: {
@@ -318,7 +342,124 @@ const cursorState = computed(() => cursor.value);
 
 // ── Audio Engine (Phase 7C) ───────────────────────────────
 
-const { isPlaying, currentBeat, activeSourceId, toggle: togglePlayback, stop: stopPlayback } = useAudioEngine(model);
+const { isPlaying, currentBeat, activeSourceId, play: playTab, pause: pauseTab, reset: resetTab, seek: seekTab } = useAudioEngine(model);
+
+// ── Chord Audio (Phase 7D) ────────────────────────────────
+
+const { isPlaying: isChordPlaying, currentBeat: chordCurrentBeat, activeSourceId: chordActiveSourceId, play: playChord, pause: pauseChord, reset: resetChord, seek: seekChord } = useChordAudio(model);
+
+// ── Transport helpers ─────────────────────────────────────
+
+const totalBeats = computed(() => {
+    if (!model.value?.sections) return 0;
+    const bpm = (model.value.ticksPerMeasure ?? 1920) / 480;
+    return model.value.sections.reduce((t, s) => t + s.measures.length, 0) * bpm;
+});
+
+const beatsPerMeasure = computed(() => (model.value?.ticksPerMeasure ?? 1920) / 480);
+
+// Both composables read from the same Transport clock once inited, so they stay in sync.
+// Priority: whichever is actively playing; fallback to the other for position display.
+const transportPlaying = computed(() => isPlaying.value || isChordPlaying.value);
+const transportBeat    = computed(() => {
+    if (isPlaying.value)      return currentBeat.value;
+    if (isChordPlaying.value) return chordCurrentBeat.value;
+    // Neither playing — show last known position from either (they share the clock)
+    return currentBeat.value || chordCurrentBeat.value;
+});
+
+function onTransportToggle() {
+    if (transportPlaying.value) {
+        // Pause — keep position for resume.
+        if (isPlaying.value)      pauseTab();
+        if (isChordPlaying.value) pauseChord();
+    } else {
+        // Resume or start from current position.
+        if (viewMode.value === 'tab') playTab();
+        else playChord();
+    }
+}
+
+/** Full stop: seek to 0, clear all playback state. Mapped to Escape / ⏹ button. */
+function onTransportReset() {
+    resetTab();
+    resetChord();
+}
+
+function onTransportSeek(beat) {
+    // Both composables share the same engine; seekTab moves the clock for both.
+    seekTab(beat);
+    // If chord view is live, also update its currentBeat ref so the slider stays correct.
+    if (isChordPlaying.value) seekChord(beat);
+}
+
+/**
+ * Seek the playback cursor to the start of a global measure index and start playing.
+ * Called from ChordCard clicks (chord view) and can be used from tab view too.
+ * If already playing, immediately jumps to the new position.
+ */
+function seekToMeasure(gi) {
+    if (!model.value) return;
+    const beatStart = gi * beatsPerMeasure.value;
+    seekTab(beatStart); // engine.seek + currentBeat.value — jumps if playing, moves cursor if not
+}
+
+/**
+ * Convert a beat position to { measureIndex, eventIndex } in the tab model.
+ * Used to drive the tab cursor during playback.
+ */
+function beatToMeasureEvent(beat) {
+    if (!model.value) return null;
+    const bpm = beatsPerMeasure.value;
+    const ppq = (model.value.ticksPerMeasure ?? 1920) / bpm;
+    const mi = Math.floor(beat / bpm);
+    const beatInMeasure = beat % bpm;
+    const tickInMeasure = beatInMeasure * ppq;
+
+    const measures = allMeasures.value;
+    const m = measures.find(m => m.index === mi);
+    if (!m) return null;
+
+    const v1 = m.events.filter(e => (e.voice || 1) === 1).sort((a, b) => a.tick - b.tick);
+    if (!v1.length) return { measureIndex: mi, eventIndex: 0 };
+
+    let ei = 0;
+    for (let i = 0; i < v1.length; i++) {
+        if ((v1[i].tickInMeasure ?? 0) <= tickInMeasure) ei = i;
+        else break;
+    }
+    return { measureIndex: mi, eventIndex: ei };
+}
+
+function onTransportTempo(bpm) {
+    if (model.value) model.value.tempo = bpm;
+    getAudioEngine().setTempo(bpm);
+}
+
+// Unified position cursor: always shows current beat as a measure index, whether
+// playing or paused. Beat 0 before anything has played highlights measure 0 (useful
+// as a "you'll start here" indicator). Consumers (ChordCard, TabMeasure) use this
+// for the single unified highlight that covers both playback tracking and position.
+const playingMeasureIndex = computed(() =>
+    Math.floor(transportBeat.value / beatsPerMeasure.value)
+);
+
+provide('tabActiveSourceId',    activeSourceId);      // note-level SVG highlight (tab only)
+provide('chordActiveSourceId',  chordActiveSourceId); // kept for any future per-chord use
+provide('playingMeasureIndex',  playingMeasureIndex); // unified cursor highlight (both views)
+provide('seekToMeasure',        seekToMeasure);       // chord-card click → seek + play
+
+// ── Unified cursor: drive tab cursor to follow playback ───────────────────────
+// While the tab engine is playing, move the orange cursor column to match the
+// current beat. Uses beatToMeasureEvent to translate a beat into a measure+event
+// address. String index is preserved so string selection is not disrupted.
+watch(transportBeat, (beat) => {
+    if (!isPlaying.value) return;       // only when tab is actively playing
+    if (viewMode.value !== 'tab') return;
+    const pos = beatToMeasureEvent(beat);
+    if (!pos) return;
+    moveTo(pos.measureIndex, pos.eventIndex, cursor.value.stringIndex);
+});
 
 // ── Undo / Redo (Phase 7e) ─────────────────────────────────
 
@@ -864,14 +1005,18 @@ function onGenerateFromChords() {
 
 function onKeydown(e) {
     // Audio playback (Phase 7C)
-    if (e.key === ' ' && !e.ctrlKey && !e.metaKey && !e.altKey && viewMode.value === 'tab' && hasData.value) {
-        e.preventDefault();
-        togglePlayback();
-        return;
+    if (e.key === ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const canPlay = (viewMode.value === 'tab' && hasData.value) ||
+                        (viewMode.value === 'chords' && hasChordsData.value);
+        if (canPlay) {
+            e.preventDefault();
+            onTransportToggle();
+            return;
+        }
     }
-    if (e.key === 'Escape' && isPlaying.value) {
+    if (e.key === 'Escape' && (transportPlaying.value || transportBeat.value > 0)) {
         e.preventDefault();
-        stopPlayback();
+        onTransportReset();
         return;
     }
 
