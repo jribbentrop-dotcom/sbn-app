@@ -1,6 +1,5 @@
-import { ref, onBeforeUnmount, watch } from 'vue';
+import { ref, onBeforeUnmount } from 'vue';
 import { getAudioEngine } from '../../audio/engine/AudioEngine.js';
-import { chordVoicingsToEvents } from '../../audio/adapters/chordVoicingsToEvents.js';
 
 /**
  * Audio composable for chord-view playback.
@@ -41,16 +40,9 @@ export function useChordAudio(model) {
         );
     }
 
-    function loadFromModel() {
-        if (!model.value) return;
-        const events = chordVoicingsToEvents(model.value, { startBeat: 0 });
-        engine.load(events);
-        engine.setTempo(model.value.tempo || 120);
-    }
-
     async function play() {
         await init(); // always init this composable; engine.init() is idempotent
-        loadFromModel();
+        // Events are loaded by the parent (TabEditor.vue) via loadAllEvents()
         // If we have a stored position (from prior pause or seek), sync the engine
         // clock to it before play() reads clock.currentBeat().
         if (currentBeat.value > 0) {
@@ -89,10 +81,6 @@ export function useChordAudio(model) {
         engine.seek(beat);
         currentBeat.value = beat;
     }
-
-    watch(model, () => {
-        if (!isPlaying.value && _inited) loadFromModel();
-    }, { deep: false });
 
     onBeforeUnmount(() => {
         unsubs.forEach(fn => fn?.());

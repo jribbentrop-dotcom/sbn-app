@@ -505,6 +505,25 @@
     color: var(--clr-text-muted, #6b7280);
     min-width: 36px;
 }
+.sbn-transport-mixer {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-left: 1px solid var(--clr-border, #e5e7eb);
+    padding-left: 12px;
+}
+.sbn-transport-mixer-track {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.sbn-transport-mixer-label {
+    font-size: 11px;
+    color: var(--clr-text-muted, #6b7280);
+    white-space: nowrap;
+}
+.sbn-transport-mixer-track input[type=range] { width: 72px; }
 
 /* ── Chord Name Bar ────────────────────────────────── */
 .sbn-tab-chord-bar {
@@ -916,19 +935,91 @@
    Editor-only extensions follow. */
 .sbn-ve-measure-num { display: none; }
 
-/* Remove forced height — measure shrinks to fit chord card content.
+/* Beat-grid layout — measure content is a positioning context.
+   Chord cards are absolutely placed by beat offset; dots mark quarter beats.
    Scoped to .sbn-ve-grid so the progression builder is unaffected. */
 .sbn-ve-grid .sbn-ve-measure-content {
-    min-height:  unset;
-    padding-top: 6px;   /* small breathing room above chord name */
+    position:        relative;
+    min-height:      148px;   /* name + diagram + dot row */
+    padding:         0;
+    padding-bottom:  18px;    /* reserved for the dot row at bottom */
 }
 
+/* The beat-grid layer — dots sit at the bottom, act as a visual metronome row */
+.sbn-ve-beat-grid {
+    position:       absolute;
+    bottom:         0;
+    left:           0;
+    right:          0;
+    height:         18px;
+    pointer-events: none;
+}
 
-/* Beat dots */
-.sbn-ve-beats { display: flex; gap: 3px; }
-.sbn-ve-beat-dot {
-    width: 5px; height: 5px; border-radius: 50%;
-    background: var(--clr-border);
+/* Each quarter-note beat dot — centred on its beat position */
+.sbn-ve-beat-tick {
+    position:      absolute;
+    bottom:        6px;
+    width:         7px;
+    height:        7px;
+    border-radius: 50%;
+    background:    var(--clr-border, rgba(0,0,0,0.2));
+    transform:     translateX(-50%);  /* centre on the beat line */
+}
+/* Beat 1 dot slightly larger and more opaque */
+.sbn-ve-beat-tick.beat-one {
+    width:      9px;
+    height:     9px;
+    background: var(--clr-border, rgba(0,0,0,0.35));
+    bottom:     5px;
+}
+
+/* Remove dashed inter-chord borders — beat dots serve as the visual dividers */
+.sbn-ve-grid .sbn-ve-chord:not(:last-child) {
+    border-right: none;
+}
+
+/* Chord cards: absolutely positioned by beat offset, width = proportional beat duration.
+   Content scales down to fit — no overflow outside the slot. */
+.sbn-ve-grid .sbn-ve-chord {
+    position:    absolute;
+    top:         0;
+    bottom:      18px;   /* stop above the dot row */
+    /* left + width set inline by chordPositionStyle() */
+    flex:        unset;
+    display:         flex;
+    flex-direction:  column;
+    align-items:     center;
+    justify-content: center;
+    padding:         4px 2px 2px;
+    box-sizing:      border-box;
+    overflow:        hidden;
+    min-width:       0;
+    z-index:         1;
+}
+
+/* Chord name clips to slot width — font size stepped by density class */
+.sbn-ve-grid .sbn-ve-chord .sbn-ve-chord-name {
+    white-space:   nowrap;
+    overflow:      hidden;
+    text-overflow: ellipsis;
+    max-width:     100%;
+}
+/* double = 2 chords: comfortable */
+.sbn-ve-grid .sbn-ve-chord.double .sbn-ve-chord-name { font-size: 17px; }
+/* multi = 3-4 chords: smaller */
+.sbn-ve-grid .sbn-ve-chord.multi  .sbn-ve-chord-name { font-size: 14px; }
+/* dense = 5+ chords: minimal */
+.sbn-ve-grid .sbn-ve-chord.dense  .sbn-ve-chord-name { font-size: 10px; }
+
+/* Diagram scales to available slot width, never exceeds 80px */
+.sbn-ve-grid .sbn-ve-chord .sbn-ve-chord-diagram .sbn-diagram-card {
+    width:     min(80px, 90%);
+    max-width: 80px;
+    padding:   2px 2px;
+}
+.sbn-ve-grid .sbn-ve-chord .sbn-ve-chord-diagram.empty {
+    width:  min(64px, 90%);
+    height: min(64px, 90%);
 }
 
 /* Dense chord mode */

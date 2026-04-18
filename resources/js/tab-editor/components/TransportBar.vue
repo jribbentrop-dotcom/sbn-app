@@ -42,6 +42,28 @@
             />
             <span class="sbn-transport-bpm">{{ tempo }}</span>
         </div>
+
+        <!-- Mixer: shown in chord view (chord + rhythm) or tab view (tab only) -->
+        <div v-if="showMixer" class="sbn-transport-mixer">
+            <div v-if="viewMode === 'chords'" class="sbn-transport-mixer-track">
+                <span class="sbn-transport-mixer-label">♩ Chords</span>
+                <input type="range" min="0" max="1" step="0.05"
+                    :value="volumeChord"
+                    @input="$emit('volume-chord', +$event.target.value)" />
+            </div>
+            <div v-if="viewMode === 'chords'" class="sbn-transport-mixer-track">
+                <span class="sbn-transport-mixer-label">🥁 Rhythm</span>
+                <input type="range" min="0" max="1" step="0.05"
+                    :value="volumeRhythm"
+                    @input="$emit('volume-rhythm', +$event.target.value)" />
+            </div>
+            <div v-if="viewMode === 'tab'" class="sbn-transport-mixer-track">
+                <span class="sbn-transport-mixer-label">🎸 Tab</span>
+                <input type="range" min="0" max="1" step="0.05"
+                    :value="volumeTab"
+                    @input="$emit('volume-tab', +$event.target.value)" />
+            </div>
+        </div>
     </div>
 </template>
 
@@ -54,9 +76,14 @@ const props = defineProps({
     totalBeats:     { type: Number,  default: 0 },
     tempo:          { type: Number,  default: 120 },
     beatsPerMeasure:{ type: Number,  default: 4 },
+    viewMode:       { type: String,  default: 'chords' },
+    volumeChord:    { type: Number,  default: 1.0 },
+    volumeRhythm:   { type: Number,  default: 1.0 },
+    volumeTab:      { type: Number,  default: 1.0 },
+    showMixer:      { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['toggle', 'stop', 'seek', 'tempo-change']);
+const emit = defineEmits(['toggle', 'stop', 'seek', 'tempo-change', 'volume-chord', 'volume-rhythm', 'volume-tab']);
 
 // While the user is dragging, freeze the live beat value.
 const _seeking   = ref(false);

@@ -109,11 +109,63 @@ export class Scheduler {
     }
 
     _dispatch(ev, when, durSec) {
-        const voice = this.voices[ev.voice];
-        if (!voice) return;
-        if (ev.voice === 'pitched' && Number.isFinite(ev.pitch)) {
-            voice.trigger(ev.pitch, when, durSec, ev.velocity ?? 0.8);
+        if (ev.voice === 'pitched') {
+            const voice = this.voices.pitched;
+            if (voice && Number.isFinite(ev.pitch)) {
+                voice.trigger(ev.pitch, when, durSec, ev.velocity ?? 0.8);
+            }
+            return;
         }
-        // Other voices land in later phases.
+
+        if (ev.voice === 'percussion') {
+            const instrument = ev.sample;
+            const variant    = ev.variant ?? 'soft';
+            const velocity   = ev.velocity ?? 0.85;
+
+            // Try sample-based playback first; fall back to synth if buffer is missing.
+            const sampler  = this.voices.percussion;
+            const fallback = this.voices.percFallback;
+
+            if (sampler?.ready) {
+                // PercussionSampler.trigger returns silently if buffer is null —
+                // detect that case by checking the buffer map directly.
+                const key = `${instrument}_${variant}`;
+                const hasBuffer = sampler.buffers?.get(key) || sampler.buffers?.get(`${instrument}_soft`);
+                if (hasBuffer) {
+                    sampler.trigger(instrument, variant, when, velocity);
+                    return;
+                }
+            }
+
+            // Synthesised fallback
+            if (fallback) {
+                this._dispatchFallback(fallback, instrument, when);
+            }
+            return;
+        }
+    }
+
+    /**
+     * Route a percussion event to the FallbackSynths by instrument name.
+     */
+    _dispatchFallback(fb, instrument, when) {
+        const register = (instrument === 'kick') ? 'low' : 'high';
+        switch (instrument) {
+            case 'kick':
+                fb.playMuted(when, 'low');
+                break;
+            case 'shaker':
+            case 'tamborim':
+                fb.playClave(when, register);
+                break;
+            case 'hihat_brush':
+                fb.playHiHat(when);
+                break;
+            case 'brush_snare':
+                fb.playMuted(when, 'high');
+                break;
+            default:
+                fb.playClave(when, 'high');
+        }
     }
 }

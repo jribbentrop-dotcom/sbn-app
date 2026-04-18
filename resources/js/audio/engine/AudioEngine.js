@@ -2,6 +2,8 @@ import * as Tone from 'tone';
 import { ToneClock } from './ToneClock.js';
 import { Scheduler } from './Scheduler.js';
 import { PitchedSynth } from './voices/PitchedSynth.js';
+import { PercussionSampler } from './voices/PercussionSampler.js';
+import { FallbackSynths } from './voices/FallbackSynths.js';
 
 /**
  * @typedef {import('../types.js').EngineEvent} EngineEvent
@@ -35,9 +37,21 @@ export class AudioEngine {
         if (this._inited) return;
 
         this._clock = clock || new ToneClock(bpm);
+
+        const percSampler  = new PercussionSampler();
+        const percFallback = new FallbackSynths();
+
+        // Load samples if a base URL is provided; failures are caught inside init().
+        if (samplesBaseUrl) {
+            await percSampler.init(samplesBaseUrl);
+        }
+
         this._voices = {
-            pitched: new PitchedSynth(),
+            pitched:    new PitchedSynth(),
+            percussion: percSampler,
+            percFallback,
         };
+
         this._scheduler = new Scheduler({
             clock: this._clock,
             voices: this._voices,
@@ -47,7 +61,7 @@ export class AudioEngine {
 
         this._clock.onTick((beat) => this._emit('tick', beat));
 
-        this._samplesBaseUrl = samplesBaseUrl; // reserved for PercussionSampler (later phase)
+        this._samplesBaseUrl = samplesBaseUrl;
         this._inited = true;
     }
 

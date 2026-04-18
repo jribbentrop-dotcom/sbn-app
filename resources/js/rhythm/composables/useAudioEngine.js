@@ -1,6 +1,5 @@
 import { ref, onBeforeUnmount, watch } from 'vue';
 import { getAudioEngine } from '../../audio/engine/AudioEngine.js';
-import { rhythmPatternToEvents } from '../../audio/adapters/rhythmPatternToEvents.js';
 
 /**
  * Thin Vue wrapper around the AudioEngine singleton for rhythm patterns.
@@ -32,17 +31,9 @@ export function useAudioEngine(model) {
         );
     }
 
-    function loadFromModel() {
-        if (!model.value) return;
-        const events = rhythmPatternToEvents(model.value, { startBeat: 0 });
-        engine.load(events);
-        const bpm = model.value.bpm || 120;
-        engine.setTempo(bpm);
-    }
-
     async function play() {
         if (!engine.isInited) await init();
-        loadFromModel();
+        // Events are loaded by the parent component via loadAllEvents()
         await engine.play();
         isPlaying.value = true;
     }
@@ -63,11 +54,6 @@ export function useAudioEngine(model) {
     watch(blend, (val) => {
         engine.setBlend?.(val);
     });
-
-    // Re-load events when the model changes while stopped
-    watch(model, () => {
-        if (!isPlaying.value && engine.isInited) loadFromModel();
-    }, { deep: false });
 
     onBeforeUnmount(() => {
         unsubs.forEach(fn => fn?.());

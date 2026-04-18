@@ -13,7 +13,18 @@
     <div class="sbn-ve-rep-sign rep-end"   v-if="hasRepEnd">𝄇</div>
 
     <div class="sbn-ve-measure-content">
-      <!-- Real chord cards -->
+      <!-- Beat-grid tick marks — one per quarter-note beat across the measure -->
+      <div class="sbn-ve-beat-grid">
+        <div
+          v-for="b in beatsPerMeasure"
+          :key="b"
+          class="sbn-ve-beat-tick"
+          :class="{ 'beat-one': b === 1 }"
+          :style="{ left: ((b - 0.5) / beatsPerMeasure * 100) + '%' }"
+        ></div>
+      </div>
+
+      <!-- Real chord cards — absolutely positioned by beat offset -->
       <ChordCard
         v-for="(name, chordIndex) in chordNamesArray"
         :key="chordIndex"
@@ -22,6 +33,9 @@
         :measure-index="globalIdx"
         :chord-index="chordIndex"
         :total-chords="chordNamesArray.length"
+        :chord-offset="measure.chordOffsets?.[chordIndex]"
+        :chord-duration="measure.chordBeats?.[chordIndex]"
+        :style="chordPositionStyle(chordIndex)"
         @contextmenu="onCardContextMenu"
       />
       <!-- Ghost slot — shown when bar is empty so it stays clickable/right-clickable -->
@@ -32,6 +46,7 @@
         :measure-index="globalIdx"
         :chord-index="0"
         :total-chords="0"
+        :style="{ position: 'absolute', left: '0', width: '100%' }"
         @contextmenu="onCardContextMenu"
       />
     </div>
@@ -83,8 +98,33 @@ const chordNamesArray = computed(() => {
     : [];
 });
 
+// Compute quarter-note beats per chord slot: evenly divide the measure.
+// beatsPerMeasureRef is injected from TabEditor (provides 'beatsPerMeasureRef').
+const beatsPerMeasureRef = inject('beatsPerMeasureRef', null);
+
 function chordBeats(ci) {
-  return props.measure.chordBeats?.[ci] ?? 1;
+  const total = chordNamesArray.value.length || 1;
+  const bpm   = beatsPerMeasureRef?.value ?? 4;
+  // If the model has explicit per-chord beat data, honour it; otherwise divide evenly.
+  return props.measure.chordBeats?.[ci] ?? (bpm / total);
+}
+
+// Total beats in the measure — the denominator for the beat grid.
+const beatsPerMeasure = computed(() => beatsPerMeasureRef?.value ?? 4);
+
+// Absolute position style for each chord card.
+// left  = beat offset as % of measure width.
+// width = beat duration as % of measure width.
+// Falls back to even division when parser-derived offsets are absent.
+function chordPositionStyle(ci) {
+  const total  = chordNamesArray.value.length || 1;
+  const bpm    = beatsPerMeasure.value;
+  const offset = props.measure.chordOffsets?.[ci] ?? (ci * (bpm / total));
+  const dur    = props.measure.chordBeats?.[ci]   ?? (bpm / total);
+  return {
+    left:  (offset / bpm * 100) + '%',
+    width: (dur    / bpm * 100) + '%',
+  };
 }
 
 // Repeat signs and volta are serialized directly onto the measure object.

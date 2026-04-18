@@ -1,6 +1,5 @@
-import { ref, onBeforeUnmount, watch } from 'vue';
+import { ref, onBeforeUnmount } from 'vue';
 import { getAudioEngine } from '../../audio/engine/AudioEngine.js';
-import { tabModelToEvents } from '../../audio/adapters/tabMeasureToEvents.js';
 
 /**
  * Thin Vue wrapper around the AudioEngine singleton for tab playback.
@@ -40,16 +39,9 @@ export function useAudioEngine(model) {
         );
     }
 
-    function loadFromModel() {
-        if (!model.value) return;
-        const events = tabModelToEvents(model.value);
-        engine.load(events);
-        engine.setTempo(model.value.tempo || 120);
-    }
-
     async function play() {
         await init(); // always init this composable; engine.init() is idempotent
-        loadFromModel();
+        // Events are loaded by the parent (TabEditor.vue) via loadAllEvents()
         // If we have a stored position (from prior pause or seek), sync the engine
         // clock to it before play() reads clock.currentBeat().
         if (currentBeat.value > 0) {
@@ -88,10 +80,6 @@ export function useAudioEngine(model) {
         engine.seek(beat);
         currentBeat.value = beat;
     }
-
-    watch(model, () => {
-        if (!isPlaying.value && _inited) loadFromModel();
-    }, { deep: false });
 
     onBeforeUnmount(() => {
         unsubs.forEach(fn => fn?.());

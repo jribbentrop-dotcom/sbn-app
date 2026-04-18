@@ -256,7 +256,7 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
             }
             }
 
-        // ── Extract chord names from section data ────────────────
+        // ── Extract chord names, offsets, and durations from section data ──────
 
         const secs = sections.value || [];
         let chordOffset = 0;
@@ -264,18 +264,44 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
             const secMeasures = sec.measures || [];
             secMeasures.forEach((sm, li) => {
                 const globalIdx = chordOffset + li;
-                if (globalIdx < measures.length) {
-                    // Extract chord names — handles various formats from Alpine
-                    const chords = sm.chords || sm.chord_names || [];
-                    if (Array.isArray(chords)) {
-                        measures[globalIdx].chordNames = chords.map(c =>
-                            typeof c === 'string' ? c : (c.chordName || c.name || c.chord || '')
-                        ).filter(Boolean);
-                    } else if (typeof chords === 'string' && chords) {
-                        measures[globalIdx].chordNames = [chords];
+                if (globalIdx >= measures.length) return;
+
+                // Extract chord names — handles various formats from Alpine
+                const chords = sm.chords || sm.chord_names || [];
+                if (Array.isArray(chords) && chords.length) {
+                    measures[globalIdx].chordNames = chords.map(c =>
+                        typeof c === 'string' ? c : (c.chordName || c.name || c.chord || '')
+                    ).filter(Boolean);
+
+                    // Extract per-chord beat offsets and durations from parser data.
+                    // chord.beatInMeasure: float quarter-beats from measure start (parser-derived).
+                    // chord.beats: float duration in quarter beats (parser-derived).
+                    // If missing (shortcode path, manual edits) fall back to even distribution.
+                    const bpm = (model.value?.ticksPerMeasure ?? 1920) / 480;
+                    const hasOffsets = chords.some(c => typeof c === 'object' && c.beatInMeasure != null);
+
+                    if (hasOffsets) {
+                        measures[globalIdx].chordOffsets = chords.map(c =>
+                            typeof c === 'object' && c.beatInMeasure != null ? c.beatInMeasure : 0
+                        );
+                        measures[globalIdx].chordBeats = chords.map(c =>
+                            typeof c === 'object' && c.beats != null ? c.beats : bpm / chords.length
+                        );
                     } else {
-                        measures[globalIdx].chordNames = [];
+                        // Even distribution fallback
+                        const slotBeats = bpm / chords.length;
+                        measures[globalIdx].chordOffsets = chords.map((_, i) => i * slotBeats);
+                        measures[globalIdx].chordBeats   = chords.map(() => slotBeats);
                     }
+                } else if (typeof chords === 'string' && chords) {
+                    measures[globalIdx].chordNames   = [chords];
+                    const bpm = (model.value?.ticksPerMeasure ?? 1920) / 480;
+                    measures[globalIdx].chordOffsets = [0];
+                    measures[globalIdx].chordBeats   = [bpm];
+                } else {
+                    measures[globalIdx].chordNames   = [];
+                    measures[globalIdx].chordOffsets = [];
+                    measures[globalIdx].chordBeats   = [];
                 }
             });
             chordOffset += secMeasures.length;

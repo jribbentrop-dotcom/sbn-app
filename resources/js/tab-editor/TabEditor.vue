@@ -211,10 +211,18 @@
             :total-beats="totalBeats"
             :tempo="model?.tempo ?? 120"
             :beats-per-measure="beatsPerMeasure"
+            :view-mode="viewMode"
+            :show-mixer="true"
+            :volume-chord="volumeChord"
+            :volume-rhythm="volumeRhythm"
+            :volume-tab="volumeTab"
             @toggle="onTransportToggle"
             @stop="onTransportReset"
             @seek="onTransportSeek"
             @tempo-change="onTransportTempo"
+            @volume-chord="onVolumeChord"
+            @volume-rhythm="onVolumeRhythm"
+            @volume-tab="onVolumeTab"
         />
     </div>
 </template>
@@ -253,6 +261,8 @@ import { useVoicingPickerStore }  from './composables/useVoicingPickerStore.js';
 import { useAudioEngine }         from './composables/useAudioEngine.js';
 import { useChordAudio }          from './composables/useChordAudio.js';
 import { getAudioEngine }         from '../audio/engine/AudioEngine.js';
+import { tabModelToEvents }       from '../audio/adapters/tabMeasureToEvents.js';
+import { chordVoicingsToEvents }  from '../audio/adapters/chordVoicingsToEvents.js';
 import TransportBar               from './components/TransportBar.vue';
 
 const props = defineProps({
@@ -348,6 +358,50 @@ const { isPlaying, currentBeat, activeSourceId, play: playTab, pause: pauseTab, 
 
 const { isPlaying: isChordPlaying, currentBeat: chordCurrentBeat, activeSourceId: chordActiveSourceId, play: playChord, pause: pauseChord, reset: resetChord, seek: seekChord } = useChordAudio(model);
 
+// ── Unified Audio Loading ─────────────────────────────────
+// Centralized event loading to prevent each composable from overwriting
+// the others' events. All voices (tab, chords, future rhythm) are merged
+// into a single engine.load() call before playback starts.
+
+const engine = getAudioEngine();
+let _eventsLoaded = false; // Track if events have been loaded for current session
+
+/**
+ * Load combined events from all active voices into the audio engine.
+ * Called once before playback starts; subsequent calls only reload if model changed.
+ * Must be called after a user gesture (click/key) so the AudioContext can start.
+ */
+async function loadAllEvents() {
+    if (!model.value) return;
+
+    // Ensure engine is initialized (idempotent) before loading events.
+    // This must happen after a user gesture for AudioContext autoplay policy.
+    await engine.init({ bpm: model.value.tempo || 120 });
+
+    // Gather events from all voices
+    const tabEvents = tabModelToEvents(model.value, { startBeat: 0 });
+    const chordEvents = chordVoicingsToEvents(model.value, { startBeat: 0 });
+    // Future: const rhythmEvents = rhythmPatternToEvents(rhythmModel.value, { startBeat: 0 });
+
+    // Merge and sort by time
+    const combinedEvents = [...tabEvents, ...chordEvents].sort((a, b) => a.time - b.time);
+
+    // Single engine.load() call with all events
+    engine.load(combinedEvents);
+    engine.setTempo(model.value.tempo || 120);
+
+    _eventsLoaded = true;
+}
+
+/**
+ * Public method to force reload events (e.g., when model changes while stopped).
+ * Replaces the previous per-composable watch-based reloads.
+ */
+async function reloadEvents() {
+    _eventsLoaded = false;
+    await loadAllEvents();
+}
+
 // ── Transport helpers ─────────────────────────────────────
 
 const totalBeats = computed(() => {
@@ -368,15 +422,19 @@ const transportBeat    = computed(() => {
     return currentBeat.value || chordCurrentBeat.value;
 });
 
-function onTransportToggle() {
+async function onTransportToggle() {
     if (transportPlaying.value) {
         // Pause — keep position for resume.
         if (isPlaying.value)      pauseTab();
         if (isChordPlaying.value) pauseChord();
     } else {
         // Resume or start from current position.
-        if (viewMode.value === 'tab') playTab();
-        else playChord();
+        // Load all events once before playback to ensure all voices are merged.
+        if (!_eventsLoaded) {
+            loadAllEvents();
+        }
+        if (viewMode.value === 'tab') await playTab();
+        else await playChord();
     }
 }
 
@@ -384,6 +442,8 @@ function onTransportToggle() {
 function onTransportReset() {
     resetTab();
     resetChord();
+    // Clear loaded flag so next playback reloads fresh events
+    _eventsLoaded = false;
 }
 
 function onTransportSeek(beat) {
@@ -398,10 +458,22 @@ function onTransportSeek(beat) {
  * Called from ChordCard clicks (chord view) and can be used from tab view too.
  * If already playing, immediately jumps to the new position.
  */
-function seekToMeasure(gi) {
+async function seekToMeasure(gi) {
     if (!model.value) return;
     const beatStart = gi * beatsPerMeasure.value;
-    seekTab(beatStart); // engine.seek + currentBeat.value — jumps if playing, moves cursor if not
+
+    if (transportPlaying.value) {
+        // Already playing — jump the clock; the scheduler seekTo fires automatically via engine.seek
+        seekTab(beatStart);
+        if (isChordPlaying.value) seekChord(beatStart);
+    } else {
+        // Not playing — seek to position then start from there
+        if (!_eventsLoaded) await loadAllEvents();
+        // Seek before play so engine.play() picks up the right scheduler index
+        seekTab(beatStart);
+        if (viewMode.value === 'tab') await playTab();
+        else await playChord();
+    }
 }
 
 /**
@@ -436,6 +508,40 @@ function onTransportTempo(bpm) {
     getAudioEngine().setTempo(bpm);
 }
 
+// ── Per-voice mixer ───────────────────────────────────────────────────────────
+
+const volumeChord  = ref(1.0);
+const volumeRhythm = ref(1.0);
+const volumeTab    = ref(1.0);
+
+// Convert 0–1 linear to dB for PitchedSynth.setVolume (0 = unity = -16dB default).
+// We apply a relative offset from the default: volume 1.0 → 0dB offset (no change).
+function linearToRelativeDb(linear) {
+    if (linear <= 0) return -Infinity;
+    return 20 * Math.log10(linear); // 1.0→0, 0.5→-6, 0.0→-Inf
+}
+
+function onVolumeChord(v) {
+    volumeChord.value = v;
+    // Reload events so chord velocity scaling is recalculated.
+    // The PitchedSynth is shared; events already carry velocity — no setVolume needed.
+    _eventsLoaded = false;
+}
+
+function onVolumeRhythm(v) {
+    volumeRhythm.value = v;
+    _eventsLoaded = false;
+}
+
+function onVolumeTab(v) {
+    volumeTab.value = v;
+    // Tab uses PitchedSynth directly; adjust its gain node.
+    const eng = getAudioEngine();
+    if (eng.isInited) {
+        eng._voices?.pitched?.setVolume?.(linearToRelativeDb(v) - 16); // offset from synth default (-16)
+    }
+}
+
 // Unified position cursor: always shows current beat as a measure index, whether
 // playing or paused. Beat 0 before anything has played highlights measure 0 (useful
 // as a "you'll start here" indicator). Consumers (ChordCard, TabMeasure) use this
@@ -447,6 +553,8 @@ const playingMeasureIndex = computed(() =>
 provide('tabActiveSourceId',    activeSourceId);      // note-level SVG highlight (tab only)
 provide('chordActiveSourceId',  chordActiveSourceId); // kept for any future per-chord use
 provide('playingMeasureIndex',  playingMeasureIndex); // unified cursor highlight (both views)
+provide('transportBeat',        transportBeat);       // raw beat for sub-measure chord highlighting
+provide('beatsPerMeasureRef',   beatsPerMeasure);     // chord cards need this to compute windows
 provide('seekToMeasure',        seekToMeasure);       // chord-card click → seek + play
 
 // ── Unified cursor: drive tab cursor to follow playback ───────────────────────

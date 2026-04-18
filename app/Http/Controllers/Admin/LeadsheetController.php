@@ -246,19 +246,23 @@ class LeadsheetController extends Controller
 
     public function create()
     {
-        $rhythms = RhythmPattern::orderBy('category')->orderBy('name')->get();
+        $rhythms        = RhythmPattern::orderBy('category')->orderBy('name')->get();
+        $rhythmPatterns = $rhythms->mapWithKeys(fn ($r) => [$r->slug => $r->toPlayerData()]);
         return view('admin.leadsheets.edit', [
-            'leadsheet' => null,
-            'rhythms'   => $rhythms,
+            'leadsheet'      => null,
+            'rhythms'        => $rhythms,
+            'rhythmPatterns' => $rhythmPatterns,
         ]);
     }
 
     public function edit(Leadsheet $leadsheet)
     {
-        $rhythms = RhythmPattern::orderBy('category')->orderBy('name')->get();
+        $rhythms        = RhythmPattern::orderBy('category')->orderBy('name')->get();
+        $rhythmPatterns = $rhythms->mapWithKeys(fn ($r) => [$r->slug => $r->toPlayerData()]);
         return view('admin.leadsheets.edit', [
-            'leadsheet' => $leadsheet,
-            'rhythms'   => $rhythms,
+            'leadsheet'      => $leadsheet,
+            'rhythms'        => $rhythms,
+            'rhythmPatterns' => $rhythmPatterns,
         ]);
     }
 

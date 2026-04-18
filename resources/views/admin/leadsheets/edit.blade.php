@@ -300,6 +300,7 @@
 </div>
 @endsection
 @push('scripts')
+<script>window.__sbnRhythmPatterns = @json($rhythmPatterns);</script>
 {{-- Chord diagram renderer --}}
 <script src="{{ asset('js/chords.js') }}"></script>
 {{-- Chord name formatter (carried from Phase 4d) --}}
@@ -527,15 +528,75 @@ class MusicXMLParser {
     parseMeasure(measure, measureIndex) {
         const divisions = measure.querySelector('divisions');
         if (divisions) this.divisions = parseInt(divisions.textContent);
-        const beats = measure.querySelector('beats');
-        const beatsPerMeasure = beats ? parseInt(beats.textContent) : 4;
-        const harmonies = measure.querySelectorAll('harmony');
-        const chords = [];
-        if (harmonies.length === 0 && measure.querySelectorAll('note').length === 0) {
+        const beatsEl = measure.querySelector('beats');
+        const beatsPerMeasure = beatsEl ? parseInt(beatsEl.textContent) : 4;
+        const totalDivs = this.divisions * beatsPerMeasure; // total divisions in the measure
+
+        if (measure.querySelectorAll('harmony').length === 0 && measure.querySelectorAll('note').length === 0) {
             return { chords: [], notes: [], measureNumber: measureIndex + 1 };
         }
-        const beatsPerChord = harmonies.length > 0 ? beatsPerMeasure / harmonies.length : beatsPerMeasure;
-        harmonies.forEach(h => { const c = this.parseHarmony(h); c.beats = beatsPerChord; chords.push(c); });
+
+        // Walk children in document order to assign each <harmony> an exact tick position.
+        // MusicXML spec: a <harmony> with no <offset> sits at the current note-cursor position.
+        // An <offset> child (in divisions, can be negative) shifts it relative to that cursor.
+        const chords = [];
+        let cursorDivs = 0;  // note cursor in divisions
+        let lastNoteDivs = 0; // tracks last non-chord note start (for <chord/> notes)
+        const children = measure.children;
+        for (let i = 0; i < children.length; i++) {
+            const el = children[i];
+            const tag = el.tagName.toLowerCase();
+            if (tag === 'attributes') {
+                const d = el.querySelector('divisions');
+                if (d) this.divisions = parseInt(d.textContent);
+                continue;
+            }
+            if (tag === 'backup') {
+                const d = el.querySelector('duration');
+                if (d) cursorDivs = Math.max(0, cursorDivs - parseInt(d.textContent));
+                continue;
+            }
+            if (tag === 'forward') {
+                const d = el.querySelector('duration');
+                if (d) cursorDivs += parseInt(d.textContent);
+                continue;
+            }
+            if (tag === 'harmony') {
+                const offsetEl = el.querySelector('offset');
+                const tickDivs = offsetEl
+                    ? Math.max(0, cursorDivs + parseInt(offsetEl.textContent))
+                    : cursorDivs;
+                const beatInMeasure = tickDivs / this.divisions; // quarter beats from measure start
+                const chord = this.parseHarmony(el);
+                chord.beatInMeasure = beatInMeasure;
+                chords.push(chord);
+                continue;
+            }
+            if (tag === 'note') {
+                const isChordNote = !!el.querySelector('chord');
+                const dur = el.querySelector('duration');
+                const d = dur ? parseInt(dur.textContent) : this.divisions;
+                if (!isChordNote) {
+                    lastNoteDivs = cursorDivs;
+                    cursorDivs += d;
+                }
+                // chord notes don't advance the cursor
+            }
+        }
+
+        // Derive each chord's duration (in quarter beats) from successive start positions.
+        // The last chord spans to the end of the measure.
+        if (chords.length > 0) {
+            const divsPerBeat = this.divisions;
+            for (let i = 0; i < chords.length; i++) {
+                const startBeat = chords[i].beatInMeasure;
+                const endBeat = i + 1 < chords.length
+                    ? chords[i + 1].beatInMeasure
+                    : beatsPerMeasure;
+                chords[i].beats = Math.max(0.25, endBeat - startBeat);
+            }
+        }
+
         const notes = this.parseNotes(measure);
         return { chords, notes, measureNumber: measureIndex + 1 };
     }
@@ -772,7 +833,7 @@ class MusicXMLParser {
                 const beats=(nextTick-v.tick)/this.divisions;
                 let name=shapeToName[v.voicing.frets];
                 if(!name){name='Tab'+shapeCounter++;shapeToName[v.voicing.frets]=name;}
-                chords.push({name,beats:Math.max(beats,0.5),voicing:v.voicing});
+                chords.push({name,beats:Math.max(beats,0.5),beatInMeasure:v.tick/this.divisions,voicing:v.voicing});
                 if(!resultVoicings[name])resultVoicings[name]=v.voicing;
             });
             if(chords.length)resultMeasures.push({chords,notes:this.parseNotes(measures[mIdx]),measureNumber:mIdx+1,_fromTab:true});
@@ -1443,18 +1504,28 @@ function leadsheetEditor() {
                 return;
             }
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 try {
                     const xmlString = e.target.result;
                     const parser = new MusicXMLParser(xmlString);
+
+                    // Suppress the $watch('parsed') auto-dispatch so Vue doesn't receive
+                    // Tab1/Tab2 placeholder names before identification renames them.
+                    this._suppressTabInit = true;
                     this.parsed = parser.parse();
-                    this.tabXml = xmlString; // Preserve raw XML for Phase 7 tab editor
+                    this._suppressTabInit = false;
+
+                    this.tabXml = xmlString;
                     this.markDirty();
                     let msg = 'Parsed: ' + this.parsed.measures.length + ' bars';
                     if (this.parsed.melody && this.parsed.melody.length) msg += ', ' + this.parsed.melody.length + ' melody notes';
                     sbnToast(msg, 'success');
-                    // Fire tab voicing identification if needed
-                    this.identifyTabVoicings();
+
+                    // Await identification so Vue gets real chord names, not Tab1/Tab2.
+                    await this.identifyTabVoicings();
+
+                    // Now dispatch to Vue with fully-named chords.
+                    this._dispatchTabInit();
                 } catch (err) {
                     console.error('[SBN Editor] Parse error:', err);
                     sbnToast('Error: ' + err.message, 'error');

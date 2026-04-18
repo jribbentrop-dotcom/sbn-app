@@ -2,8 +2,8 @@
  * Chord voicings → EngineEvent[] adapter.
  * Pure function: no side effects, no Tone.js imports, no DOM access.
  *
- * Converts the tab model's chord voicings (one per measure) into pitched
- * EngineEvents — one strum per measure that has a voicing assigned.
+ * Converts the tab model's chord voicings into pitched EngineEvents.
+ * Multiple chords per measure are distributed evenly across the measure beats.
  * Used for chord-view playback in TabEditor.
  *
  * Voicing lookup key: "{chordName}@{globalMeasureIndex}.{chordSlot}"
@@ -56,33 +56,48 @@ export function chordVoicingsToEvents(model, ctx = {}) {
 
     for (const section of model.sections) {
         for (const measure of section.measures) {
-            const chordName = measure.chordNames?.[0];
+            const chordNames = measure.chordNames ?? [];
+            const chordCount = chordNames.length;
 
-            if (chordName) {
-                // Try voicing key for chord slot 0 at this measure
-                const key = `${chordName}@${globalMeasureIndex}.0`;
-                // Fall back to global key ("Am") if no per-measure key ("Am@3.0") exists.
-                // Global voicings are assigned from VoicingOverview (one for all occurrences).
-                const voicing = voicings[key] ?? voicings[chordName];
+            if (chordCount > 0) {
+                const measureStartBeat = startBeat + globalMeasureIndex * beatsPerMeasure;
 
-                if (voicing?.frets?.length) {
-                    const measureBeat = startBeat + globalMeasureIndex * beatsPerMeasure;
+                // Use parser-derived offsets/durations when available; fall back to even split.
+                const chordOffsets = measure.chordOffsets;
+                const chordBeats   = measure.chordBeats;
+                const hasOffsets   = Array.isArray(chordOffsets) && chordOffsets.length === chordCount;
+                const hasBeats     = Array.isArray(chordBeats)   && chordBeats.length   === chordCount;
+                const evenBeats    = beatsPerMeasure / chordCount;
 
-                    for (let i = 0; i < 6; i++) {
-                        const fret = parseFretChar(voicing.frets[i]);
-                        if (fret === null) continue;
+                for (let slotIndex = 0; slotIndex < chordCount; slotIndex++) {
+                    const chordName = chordNames[slotIndex];
+                    if (!chordName) continue;
 
-                        const stringNum = i + 1; // frets[0] = string 1 (Low E)
-                        const midi = OPEN_STRING_MIDI[stringNum] + fret;
+                    const slotKey  = `${chordName}@${globalMeasureIndex}.${slotIndex}`;
+                    const slot0Key = `${chordName}@${globalMeasureIndex}.0`;
+                    const voicing  = voicings[slotKey] ?? voicings[slot0Key] ?? voicings[chordName];
 
-                        out.push({
-                            time:     measureBeat,
-                            voice:    'pitched',
-                            pitch:    midi,
-                            duration: beatsPerMeasure,
-                            velocity: 0.8,
-                            sourceId: `measure-${globalMeasureIndex}`,
-                        });
+                    if (voicing?.frets?.length) {
+                        const offsetBeats = hasOffsets ? chordOffsets[slotIndex] : slotIndex * evenBeats;
+                        const duration    = hasBeats   ? chordBeats[slotIndex]   : evenBeats;
+                        const chordBeat   = measureStartBeat + offsetBeats;
+
+                        for (let i = 0; i < 6; i++) {
+                            const fret = parseFretChar(voicing.frets[i]);
+                            if (fret === null) continue;
+
+                            const stringNum = i + 1;
+                            const midi = OPEN_STRING_MIDI[stringNum] + fret;
+
+                            out.push({
+                                time:     chordBeat,
+                                voice:    'pitched',
+                                pitch:    midi,
+                                duration,
+                                velocity: 0.8,
+                                sourceId: `measure-${globalMeasureIndex}-slot-${slotIndex}`,
+                            });
+                        }
                     }
                 }
             }

@@ -22,10 +22,6 @@
       <span v-else class="sbn-ve-chord-no-voicing">🎸</span>
     </div>
 
-    <!-- Beat dots (hidden for dense cards) -->
-    <div class="sbn-ve-beats" v-if="totalChords < 5">
-      <div v-for="b in Math.round(chord.beats || 1)" :key="b" class="sbn-ve-beat-dot"></div>
-    </div>
   </div>
 </template>
 
@@ -57,6 +53,16 @@ const props = defineProps({
     required: false,
     default: 1,
   },
+  // Parser-derived beat offset and duration (quarter beats from measure start).
+  // When present, used for playhead highlighting instead of even division.
+  chordOffset: {
+    type: Number,
+    default: null,
+  },
+  chordDuration: {
+    type: Number,
+    default: null,
+  },
 });
 
 const emit = defineEmits(['contextmenu']);
@@ -69,6 +75,8 @@ const gridSelection       = inject('gridSelection');        // useGridSelection 
 const chordPicker         = inject('chordPicker');          // useChordPickerStore instance
 const voicingPicker       = inject('voicingPicker');        // useVoicingPickerStore (stub until Step 5)
 const playingMeasureIndex = inject('playingMeasureIndex', null);
+const transportBeat       = inject('transportBeat', null);
+const beatsPerMeasureRef  = inject('beatsPerMeasureRef', null);
 const seekToMeasure       = inject('seekToMeasure', null);  // seek + play from TabEditor
 
 // ── Derived ───────────────────────────────────────────────────────────────────
@@ -77,9 +85,21 @@ const seekToMeasure       = inject('seekToMeasure', null);  // seek + play from 
 const gi = computed(() => props.measureIndex);
 const ci = computed(() => props.chordIndex);
 
-const isPlayingCard = computed(() =>
-  playingMeasureIndex?.value === props.measureIndex && props.chordIndex === 0
-);
+const isPlayingCard = computed(() => {
+  if (playingMeasureIndex?.value !== props.measureIndex) return false;
+  const total = props.totalChords || 1;
+  if (total <= 1) return true; // single chord covers the full measure
+
+  const bpm           = beatsPerMeasureRef?.value ?? 4;
+  const beat          = transportBeat?.value ?? 0;
+  const beatInMeasure = ((beat % bpm) + bpm) % bpm; // clamp to [0, bpm)
+
+  // Use parser-derived window when available; otherwise fall back to even division.
+  const slotStart = props.chordOffset  != null ? props.chordOffset   : props.chordIndex * (bpm / total);
+  const slotEnd   = props.chordDuration != null ? slotStart + props.chordDuration : slotStart + (bpm / total);
+
+  return beatInMeasure >= slotStart && beatInMeasure < slotEnd;
+});
 
 const densityClass = computed(() => {
   const len = props.totalChords;
