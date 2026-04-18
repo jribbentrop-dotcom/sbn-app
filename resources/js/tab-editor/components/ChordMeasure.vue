@@ -19,7 +19,7 @@
           v-for="b in beatsPerMeasure"
           :key="b"
           class="sbn-ve-beat-tick"
-          :class="{ 'beat-one': b === 1 }"
+          :class="{ 'beat-one': b === 1, 'beat-active': activeBeat === b }"
           :style="{ left: ((b - 0.5) / beatsPerMeasure * 100) + '%' }"
         ></div>
       </div>
@@ -78,7 +78,9 @@ const emit = defineEmits(['contextmenu']);
 
 // ── Injected from TabEditor ───────────────────────────────────────────────────
 
-const globalIndexOf = inject('globalIndexOf');
+const globalIndexOf       = inject('globalIndexOf');
+const playingMeasureIndex = inject('playingMeasureIndex', null);
+const transportBeat       = inject('transportBeat', null);
 
 // ── Derived ───────────────────────────────────────────────────────────────────
 
@@ -108,6 +110,15 @@ function chordBeats(ci) {
   // If the model has explicit per-chord beat data, honour it; otherwise divide evenly.
   return props.measure.chordBeats?.[ci] ?? (bpm / total);
 }
+
+// Which beat (1-based) is currently playing in this measure, or 0 if none.
+const activeBeat = computed(() => {
+  if (playingMeasureIndex?.value !== globalIdx.value) return 0;
+  const bpm  = beatsPerMeasureRef?.value ?? 4;
+  const beat = transportBeat?.value ?? 0;
+  // beatInMeasure is 0-based; floor gives us the current quarter-beat slot (0..bpm-1)
+  return Math.floor(((beat % bpm) + bpm) % bpm) + 1; // 1-based
+});
 
 // Total beats in the measure — the denominator for the beat grid.
 const beatsPerMeasure = computed(() => beatsPerMeasureRef?.value ?? 4);

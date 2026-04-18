@@ -1310,7 +1310,11 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
                 }
                 const beatsEach = tsBeats / names.length;
                 return {
-                    chords: names.map(name => ({ name, beats: beatsEach })),
+                    chords: names.map((name, i) => ({
+                        name,
+                        beats:         m.chordBeats?.[i]   ?? beatsEach,
+                        beatInMeasure: m.chordOffsets?.[i] ?? (i * beatsEach),
+                    })),
                 };
             }),
         }));

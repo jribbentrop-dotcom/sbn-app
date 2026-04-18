@@ -185,7 +185,26 @@ export function useChordGridOps(model, undo, tabModel) {
                     // Compact remaining chord indices in this measure
                     _compactChordIndicesInMeasure(model.value.chordVoicings, gi, ci);
                 }
+                // Redistribute positions evenly across remaining slots
+                _recomputeEvenOffsets(m);
             });
+        }
+    }
+
+    /**
+     * Recompute chordOffsets / chordBeats for a measure using even distribution.
+     * Called after any structural change to chordNames (add/remove slot).
+     */
+    function _recomputeEvenOffsets(m) {
+        const bpm = (model.value?.ticksPerMeasure ?? 1920) / 480;
+        const count = m.chordNames.length;
+        if (count === 0) {
+            m.chordOffsets = [];
+            m.chordBeats   = [];
+        } else {
+            const slotBeats = bpm / count;
+            m.chordOffsets  = m.chordNames.map((_, i) => i * slotBeats);
+            m.chordBeats    = m.chordNames.map(() => slotBeats);
         }
     }
 
@@ -200,6 +219,7 @@ export function useChordGridOps(model, undo, tabModel) {
 
         undo.wrapCommand('Add chord', [gi], () => {
             m.chordNames.push('');
+            _recomputeEvenOffsets(m);
         });
     }
 

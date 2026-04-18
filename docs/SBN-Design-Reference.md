@@ -124,6 +124,14 @@ element.innerHTML = sbnFormatChordHtml('Dm7');  // chords.js (same output)
 ### ⚠ Rule
 **Everywhere** a chord name appears in the UI — tables, cards, headings, badges, tooltips — it must go through `chord()` / `sbnFormatChordHtml()`. Do not render chord names as plain strings.
 
+### Context override: chord grid
+`.sbn-chord-symbol` is orange (`--clr-accent-dim`) globally — intentional for most contexts (analysis panel, progression builder, etc.).  
+In chord grid cards (`ChordCard.vue`), names must be dark. Override lives in `chord-symbols.css`:
+```css
+.sbn-ve-chord-name .sbn-chord-symbol { color: var(--clr-text, #2c3e50); }
+```
+Do not add this override anywhere else — it is scoped to the chord grid container class.
+
 ---
 
 ## CHORD DIAGRAM CARD SYSTEM
@@ -437,12 +445,18 @@ These are in `admin2.css` and already available everywhere. Do not redefine:
 ### leadsheets.css
 - Leadsheet index table, filter bar, stat row
 - All leadsheet editor styles (extracted from inline `<style>` 2026-04-08)
-- Chord grid overrides: `.sbn-ve-grid .sbn-ve-measure-content`, `.sbn-ve-grid .sbn-ve-chord-name`
+- **Beat-grid layout** (chord grid, 2026-04-18):
+  - `.sbn-ve-grid .sbn-ve-measure-content` — `position: relative; min-height: 148px; padding-bottom: 18px` (dot row reserved)
+  - `.sbn-ve-beat-grid` — absolute bottom layer, `height: 18px`, holds dot elements
+  - `.sbn-ve-beat-tick` — 9px circle, centred at `(b-0.5)/bpm * 100%` (NOT at beat edge); beat-1 = 11px
+  - `.sbn-ve-beat-tick.beat-active` — orange fill + `sbn-beat-pulse` keyframe animation (driven by `transportBeat`)
+  - `.sbn-ve-grid .sbn-ve-chord` — `position: absolute; top: 0; bottom: 18px; justify-content: flex-start; padding-top: 8px`
+- Chord grid overrides: `.sbn-ve-grid .sbn-ve-chord-name`
 - Card sizing in grid: `.sbn-ve-chord-diagram .sbn-diagram-card { max-width: 80px; padding: 2px 4px }`
 - Density tier diagram sizing: `.double` (64px), `.multi` (52px), `.dense` (36px) — scoped to `.sbn-ve-grid`
-- Density tier chord name sizing: single=20px, double=18px, multi=15px, dense=12px
+- Density tier chord name sizing: double=17px, multi=14px, dense=10px (single inherits DS 20px base)
 - SVG aspect ratio: `.sbn-chord-svg { aspect-ratio: 80/95 }`
-- Selection: `.sbn-ve-measure.is-selected { box-shadow: inset 0 0 0 2px var(--clr-style-jazz) }`
+- Playback active: `.sbn-ve-chord.is-active { box-shadow: inset 0 0 0 2px var(--clr-accent); background: none }` — frame only
 - Paste target: `.sbn-ve-chord.is-paste-target` blue tint + `.sbn-ve-chord.is-paste-target .sbn-diagram-card { background: transparent }`
 - Toast: `.sbn-toast`, `.sbn-toast-*`
 
@@ -473,7 +487,8 @@ Both the leadsheet chord grid and progression builder grid share the same base v
 | State | Element | Method | Color | Thickness |
 |-------|---------|--------|-------|-----------|
 | Hover | `.sbn-ve-chord` | `::before` z-index 2 | `--clr-accent` (orange) | 1px inset box-shadow |
-| Chord selected | `.sbn-ve-chord.sbn-ve-selected` | `outline` + bg tint | blue `#1976d2` | 2px outline, -2px offset |
+| Chord selected | `.sbn-ve-chord.is-selected` | `outline` + bg tint | blue `#1976d2` | 2px outline, -2px offset, `rgba(25,118,210,0.14)` bg |
+| Playback active | `.sbn-ve-chord.is-active` | `box-shadow` only, no bg | `--clr-accent` (orange) | 2px inset |
 | Drag source | `.sbn-ve-measure.is-dragging` | opacity 0.3 | — | — |
 | Drag target | `.sbn-ve-measure.is-drag-target` | bg tint | `rgba(25,118,210,0.07)` | — |
 | Drop gap before | `.sbn-ve-measure.drop-gap-before` | padding-left + border-left | `--clr-accent` blue | 3px border |
@@ -481,7 +496,9 @@ Both the leadsheet chord grid and progression builder grid share the same base v
 
 **Rules:**
 - No background tints on hover — orange frame only.
-- Chord selection uses `.sbn-ve-selected` outline on `.sbn-ve-chord` cards — NOT on `.sbn-ve-measure`. When all chords in a measure are selected, frames share borders and visually merge.
+- Playback tracking (`is-active`): frame only, no background — content stays fully readable.
+- Selection (`is-selected`): solid blue outline + moderate bg tint covering the full card including diagram area.
+- Chord selection uses `.is-selected` outline on `.sbn-ve-chord` cards — NOT on `.sbn-ve-measure`.
 - `.sbn-ve-measure.is-selected` (old measure-level box-shadow) is no longer used — selection lives on chord cards only.
 - `::before` and `::after` on `.sbn-ve-measure` are fully reserved for barlines. Never use them for selection, drag, or any other visual effect.
 - Drop gap uses `padding` (not `margin`) so the measure's hit area stays intact for `dragover` events.

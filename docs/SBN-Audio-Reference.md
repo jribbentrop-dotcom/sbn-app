@@ -1,7 +1,7 @@
 # SBN Audio System
 
-> Last updated: April 2026  
-> Status: chord view and tab editor fully wired. Percussion voices implemented but not yet connected. Rhythm and video views deferred.
+> Last updated: 2026-04-18  
+> Status: chord view and tab editor fully wired. Percussion voices wired into AudioEngine + Scheduler (PercussionSampler + FallbackSynths routed). Rhythm and video views deferred.
 
 ---
 
@@ -20,8 +20,8 @@ All audio runs in the browser. The backend serves data models unchanged; it has 
 │    ToneClock  ←  Tone.Transport              │
 │    Scheduler  (25ms lookahead loop)          │
 │    Voices:  PitchedSynth                     │
-│             PercussionSampler  [not wired]   │
-│             FallbackSynths    [not wired]    │
+│             PercussionSampler  [wired]       │
+│             FallbackSynths    [wired]        │
 └───────────────────▲─────────────────────────┘
                     │ EngineEvent[]
 ┌───────────────────┴─────────────────────────┐
@@ -52,8 +52,8 @@ resources/js/audio/
     Scheduler.js            — 25ms lookahead, walks EngineEvent[]
     voices/
       PitchedSynth.js       — PolySynth + EQ3 + Reverb + Limiter [WIRED]
-      PercussionSampler.js  — WAV loading + playback              [implemented, not wired]
-      FallbackSynths.js     — raw WebAudio synth fallbacks         [implemented, not wired]
+      PercussionSampler.js  — WAV loading + playback              [WIRED]
+      FallbackSynths.js     — raw WebAudio synth fallbacks         [WIRED]
   adapters/
     tabMeasureToEvents.js             [WIRED — tab view]
     chordVoicingsToEvents.js          [WIRED — chord view]
@@ -193,15 +193,17 @@ Configuration (verbatim from WP, tuned by ear — do not change):
 - Reverb: decay 1.6, wet 0.18
 - Limiter: −3 dB
 
-### `PercussionSampler` — implemented, not wired
+### `PercussionSampler` — wired
 Port of `sbn-percussion.js`. Loads 10 WAV files (`shaker_soft/accent`, `tamborim`, `kick`, `hihat_brush`, `brush_snare`) via `Promise.allSettled()` — a missing file is a non-fatal warning. Always obtains `AudioContext` via `Tone.getContext().rawContext` (never `new AudioContext()`).
 
-**Not yet wired into `AudioEngine`** — `this._voices` currently contains only `{ pitched: PitchedSynth }`. Connecting percussion requires passing `samplesBaseUrl` from `window.sbnConfig.samplesBaseUrl` (injected by Blade layout) and adding a `Mixer` to handle sample/synth routing.
+Wired into `AudioEngine._voices = { pitched, percussion: percSampler, percFallback }`. `init()` calls `percSampler.init(samplesBaseUrl)` if `samplesBaseUrl` is provided.
 
-### `FallbackSynths` — implemented, not wired
+### `FallbackSynths` — wired
 Raw WebAudio API synthesis for when WAV samples are unavailable. Methods: `playClave(time, register)`, `playMuted(time, register)`, `playHiHat(time)`, `playNote(time, freq, dur, vol)`. Frequency values from WP `course-player.js` (do not change).
 
-Dispatch table (when percussion event arrives and sample bucket is missing):
+`Scheduler._dispatch()` routes `voice: 'percussion'` events: checks if sampler buffer is loaded → uses `PercussionSampler`; otherwise calls `_dispatchFallback(fb, instrument, when)` which routes by `event.sample`:
+
+Dispatch table (when percussion event arrives and sample buffer is missing):
 
 | `event.sample` | Fallback |
 |---|---|
@@ -319,14 +321,10 @@ function beatToMeasureEvent(beat) {
 
 ## 9. What's deferred
 
-### Percussion routing (next major audio task)
-`PercussionSampler` and `FallbackSynths` are implemented but `AudioEngine` only wires `{ pitched: PitchedSynth }`. Connecting percussion requires:
-1. A `Mixer` that routes `voice: 'percussion'` events to `PercussionSampler` (if sample loaded) or `FallbackSynths` (fallback), with a crossfade blend gain.
-2. `AudioEngine.init()` accepting `samplesBaseUrl` and conditionally constructing `PercussionSampler`.
-3. `window.sbnConfig.samplesBaseUrl` injected in the Blade layout (see §13.1 of the old contract).
-4. The rhythm view needs to be migrated to Vue before its composable is useful.
+### Rhythm / leadsheet composables
+`rhythm/composables/useAudioEngine.js` and `leadsheet/composables/useAudioEngine.js` are written and use `rhythmPatternToEvents` / `chordProgressionToEvents`. Not yet active — waiting for those views to migrate to Vue. The percussion engine is now wired; connecting them is a matter of mounting the composable.
 
-Blend slider formula (from WP, do not change):
+Blend slider formula for sample/synth mix (from WP, do not change):
 ```js
 synthGainNode.gain.value  = (1 - ratio) * 0.8;
 sampleGainNode.gain.value = ratio       * 0.8;

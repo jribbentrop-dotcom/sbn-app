@@ -440,8 +440,8 @@
     background: var(--clr-accent-bg, rgba(243,156,18,0.06));
 }
 .sbn-ve-chord.is-active {
-    box-shadow: inset 0 0 0 1.5px var(--clr-accent-border, rgba(243,156,18,0.4));
-    background: var(--clr-accent-bg, rgba(243,156,18,0.06));
+    box-shadow: inset 0 0 0 2px var(--clr-accent, #f39c12);
+    background: none;
 }
 
 /* ── Transport bar ──────────────────────────────────── */
@@ -955,22 +955,35 @@
     pointer-events: none;
 }
 
+/* Pulse animation for the active beat dot */
+@keyframes sbn-beat-pulse {
+    0%   { transform: translateX(-50%) scale(1);    opacity: 1; }
+    40%  { transform: translateX(-50%) scale(1.7);  opacity: 0.9; }
+    100% { transform: translateX(-50%) scale(1);    opacity: 0.6; }
+}
+
 /* Each quarter-note beat dot — centred on its beat position */
 .sbn-ve-beat-tick {
     position:      absolute;
-    bottom:        6px;
-    width:         7px;
-    height:        7px;
+    bottom:        5px;
+    width:         9px;
+    height:        9px;
     border-radius: 50%;
-    background:    var(--clr-border, rgba(0,0,0,0.2));
-    transform:     translateX(-50%);  /* centre on the beat line */
+    background:    var(--clr-border, rgba(0,0,0,0.25));
+    transform:     translateX(-50%);
+    transition:    background 0.1s;
 }
-/* Beat 1 dot slightly larger and more opaque */
+/* Beat 1 dot slightly more opaque */
 .sbn-ve-beat-tick.beat-one {
-    width:      9px;
-    height:     9px;
-    background: var(--clr-border, rgba(0,0,0,0.35));
-    bottom:     5px;
+    width:      11px;
+    height:     11px;
+    background: rgba(0,0,0,0.35);
+    bottom:     4px;
+}
+/* Active beat dot — accent colour + pulse */
+.sbn-ve-beat-tick.beat-active {
+    background: var(--clr-accent, #f39c12);
+    animation:  sbn-beat-pulse 0.25s ease-out forwards;
 }
 
 /* Remove dashed inter-chord borders — beat dots serve as the visual dividers */
@@ -979,7 +992,7 @@
 }
 
 /* Chord cards: absolutely positioned by beat offset, width = proportional beat duration.
-   Content scales down to fit — no overflow outside the slot. */
+   top-aligned so all chord names sit on the same baseline row. */
 .sbn-ve-grid .sbn-ve-chord {
     position:    absolute;
     top:         0;
@@ -989,15 +1002,15 @@
     display:         flex;
     flex-direction:  column;
     align-items:     center;
-    justify-content: center;
-    padding:         4px 2px 2px;
+    justify-content: flex-start;   /* pin name to top, diagram follows immediately below */
+    padding:         8px 2px 2px;  /* consistent top gap so all names sit on the same line */
     box-sizing:      border-box;
     overflow:        hidden;
     min-width:       0;
     z-index:         1;
 }
 
-/* Chord name clips to slot width — font size stepped by density class */
+/* Chord name clips to slot width */
 .sbn-ve-grid .sbn-ve-chord .sbn-ve-chord-name {
     white-space:   nowrap;
     overflow:      hidden;

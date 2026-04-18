@@ -77,18 +77,26 @@
    ──────────────────────────────────────────────────────────────────────── */
 
 .sbn-ve-chord.sbn-ve-selected {
-    outline: 2px solid var(--clr-accent, #1976d2);
+    outline: 2px solid #1976d2;
     outline-offset: -2px;
     border-radius: 4px;
-    background: rgba(25, 118, 210, 0.06);
+    background: rgba(25, 118, 210, 0.14);
+}
+.sbn-ve-chord.sbn-ve-selected .sbn-ve-chord-name .sbn-chord-symbol,
+.sbn-ve-chord.sbn-ve-selected .sbn-ve-chord-diagram {
+    opacity: 0.92;
 }
 
 /* Vue chord grid — .is-selected (v-bind alias for sbn-ve-selected) */
 .sbn-ve-chord.is-selected {
-    outline: 2px solid var(--clr-accent, #1976d2);
+    outline: 2px solid #1976d2;
     outline-offset: -2px;
     border-radius: 4px;
-    background: rgba(25, 118, 210, 0.06);
+    background: rgba(25, 118, 210, 0.14);
+}
+.sbn-ve-chord.is-selected .sbn-ve-chord-name .sbn-chord-symbol,
+.sbn-ve-chord.is-selected .sbn-ve-chord-diagram {
+    opacity: 0.92;
 }
 
 /* Chord picker popup (Vue ChordPicker.vue - Step 4) */

@@ -7,7 +7,7 @@
 
 ## CURRENT STATUS
 
-**Last updated:** 2026-04-15 (Phase B complete)
+**Last updated:** 2026-04-18 (Phase B complete + chord grid audio/visual polish)
 
 | Phase | What | Status |
 |-------|------|--------|
@@ -112,6 +112,12 @@ Tone.js playback engine hooks into `model.value`. Playback cursor is a Vue react
 | 2026-04-09 | Double-digit fret numbers not rendered | `chords.js` fret parser used `parseInt(c)` → changed to `parseInt(c, 16)` for hex encoding |
 | 2026-04-09 | Inline `<style>` block re-appeared in `edit.blade.php` | Deleted lines 28–1053; restored `<link>` to `leadsheets.css` |
 | 2026-04-15 | Analysis panel not showing on tab switch | `setViewMode()` dispatched wrong event name/shape; fixed to `sbn-tab-view-changed` + `{viewMode}` |
+| 2026-04-18 | Chord playback highlight only lit first chord | `isPlayingCard` used even beat division; rewritten to use `chordOffset`/`chordDuration` beat window `[slotStart, slotEnd)` |
+| 2026-04-18 | Chord positions evenly distributed despite precise XML data | `parseMeasure()` rewrote to sequential child-walk; stamps each `<harmony>` with `beatInMeasure = tickDivs / divisions`, derives `beats` from tick gaps |
+| 2026-04-18 | Tab chord names showing as Tab1/Tab2 intermittently | Two bugs: (1) `_tabInitDone=true` blocked re-dispatch after identification; fixed by resetting `_tabInitDone` before file import dispatch. (2) `extractVoicingsFromTab` missing `beatInMeasure` — added |
+| 2026-04-18 | Chord positions lost on save/reload | `exportAlpineSections()` discarded `chordOffsets`/`chordBeats`; now serializes `beatInMeasure`/`beats` on each chord object so round-trip preserves timing |
+| 2026-04-18 | Orange chord names in chord grid | Root cause: `chord-symbols.css` line 17 sets `.sbn-chord-symbol { color: var(--clr-accent-dim) }` globally; fixed by scoping override `.sbn-ve-chord-name .sbn-chord-symbol { color: var(--clr-text) }` |
+| 2026-04-18 | Add chord slot ignores beat grid layout | `addChordToMeasure` / `deleteChords` in `useChordGridOps.js` now call `_recomputeEvenOffsets(m)` after any chordNames splice |
 
 ---
 
@@ -252,11 +258,24 @@ resources/js/tab-editor/
 ```
 TabModel { timeSignature, ticksPerMeasure, sections: SectionModel[], chordVoicings{} }
 SectionModel { id, name, lineBreaks[], measures: MeasureModel[] }
-MeasureModel { index, events: TabEvent[], actualTicks, repeatStart/End, volta, chordNames[] }
+MeasureModel { index, events: TabEvent[], actualTicks, repeatStart/End, volta, chordNames[],
+               chordOffsets[], chordBeats[] }
+  chordOffsets[i] — beat offset of chord i from measure start (quarter beats, 0-based)
+  chordBeats[i]   — duration of chord i in quarter beats
+  Both arrays are always in sync with chordNames[]. Set by parseMeasure() from MusicXML
+  tick data, or by _recomputeEvenOffsets() when chords are added/removed manually.
 TabEvent { id, tick, tickInMeasure, duration, ticks, voice, isRest, notes: TabNote[],
            tieStart/Stop, stemDir, flagCount, beam1/2, beamWith, tuplet*, xPos }
 TabNote { string, fret, pitch, octave, tieStart, tieStop, tieEndEvent?, tieEndNote? }
 ```
+
+### Chord timing model (beat-grid layout)
+
+`parseMeasure()` in `edit.blade.php` walks measure children sequentially, tracking a note cursor in `divisions` (ticks). Each `<harmony>` element gets `beatInMeasure = tickDivs / divisions` and `beats` derived from the gap to the next harmony (or measure end). This gives 8th-note precision from MusicXML.
+
+On save, `exportAlpineSections()` serializes `beatInMeasure`/`beats` back onto each chord object so timing survives a round-trip through `json_data`. On load, `useTabModel.js` reads these fields back into `chordOffsets[]`/`chordBeats[]`.
+
+`ChordMeasure.vue` uses `chordPositionStyle(ci)` to absolutely position each `ChordCard` at `left: (offset/bpm*100)%` with `width: (dur/bpm*100)%`. A `sbn-ve-beat-grid` layer renders one dot per quarter-beat centred in its slot — purely visual metronome markers, not barlines. The active dot gets `beat-active` class + CSS pulse animation driven by `transportBeat`.
 
 ### Key conventions
 - Model uses **`ref()`** (deep reactive), NOT `shallowRef`

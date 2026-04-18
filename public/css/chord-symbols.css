@@ -20,6 +20,11 @@
     vertical-align: baseline;
 }
 
+/* In chord grid / tab editor cards, names are dark not orange */
+.sbn-ve-chord-name .sbn-chord-symbol {
+    color: var(--clr-text, #2c3e50);
+}
+
 /* -- Root note (A–G) ------------------------------------- */
 
 .sbn-chord-root {

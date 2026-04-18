@@ -1524,6 +1524,13 @@ function leadsheetEditor() {
                     // Await identification so Vue gets real chord names, not Tab1/Tab2.
                     await this.identifyTabVoicings();
 
+                    // A file import fully replaces the model — reset the init gate so
+                    // Vue receives a fresh sbn-tab-init with the renamed chord data.
+                    // Without this, _tabInitDone=true from loadExistingData silently
+                    // swallows the dispatch and Tab1/Tab2 names persist.
+                    this._tabInitDone = false;
+                    this._tabVueInitialized = false;
+
                     // Now dispatch to Vue with fully-named chords.
                     this._dispatchTabInit();
                 } catch (err) {
