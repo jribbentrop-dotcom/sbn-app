@@ -16,13 +16,8 @@
                     @click="setViewMode('tab')">Tab</button>
             <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'analysis' }"
                     @click="setViewMode('analysis')">Analysis</button>
-            <button
-                v-if="hasData && viewMode === 'tab'"
-                class="sbn-ve-tab sbn-ve-play-btn"
-                :class="{ 'is-playing': isPlaying }"
-                @click="onTransportToggle"
-                :title="isPlaying ? 'Pause (Space)' : 'Play / Resume (Space)'"
-            >{{ isPlaying ? 'Pause' : 'Play' }}</button>
+            <button class="sbn-ve-tab" :class="{ 'is-active': videoSidebarOpen }"
+                    @click="toggleVideoSidebar">🎬 Video</button>
             <button
                 v-if="hasChordsData && viewMode === 'chords'"
                 class="sbn-ve-tab sbn-ve-play-btn"
@@ -148,6 +143,31 @@
                     <button class="sbn-ve-add-section" @click="onAddSection()">+ Add Section</button>
             </div>
         </template>
+        <!-- Video sidebar slot — only mounted when sidebar is open so the player
+             doesn't exist in the DOM when the panel is hidden. -->
+        <Teleport v-if="videoSidebarOpen" to="#sbn-video-slot">
+            <div class="sbn-video-sidebar-panel">
+                <VideoSyncEditor
+                    :video-id="videoSync.videoId.value"
+                    :video-type="videoSync.videoType.value"
+                    :sorted-mappings="videoSync.sortedMappings.value"
+                    :video-time="videoSync.videoTime.value"
+                    :player-ref="videoSync.playerRef.value"
+                    @set-video-id="({ id, type }) => videoSync.setVideoId(id, type)"
+                    @add-mapping="(m) => videoSync.addMapping(m.measureIndex, m.videoTime)"
+                    @remove-mapping="(mi) => videoSync.removeMapping(mi)"
+                    @clear-mappings="videoSync.clearMappings()"
+                    @distribute-markers="() => { console.log('[TabEditor] distribute-markers received'); videoSync.distributeMarkers(); }"
+                    @untap="videoSync.untap()"
+                    @timeupdate="videoSync.onVideoTimeUpdate($event)"
+                    @play-state-change="videoSync.onVideoPlayStateChange($event)"
+                    @player-ref-change="videoSync.playerRef.value = $event"
+                    @toggle-playback="onTransportToggle"
+                    @tap-cursor-change="(mi) => { videoSync.tapCursor.value = mi; }"
+                />
+            </div>
+        </Teleport>
+
         <!-- Voicing picker panel — Teleports itself into #sbn-vp-slot -->
         <VoicingPicker v-if="voicingPickerStore" />
 
@@ -237,9 +257,10 @@
  * Phase 7d: Duration changes, reflow, tie toggle, dotted toggle.
  */
 
-import { computed, defineExpose, ref, onMounted, onUnmounted, watch, nextTick, provide } from 'vue';
+import { computed, defineExpose, ref, onMounted, onUnmounted, watch, nextTick, provide, Teleport } from 'vue';
 import ChordGridView from './components/ChordGridView.vue';
 import VoicingPicker from './components/VoicingPicker.vue';
+import VideoSyncEditor from './components/VideoSyncEditor.vue';
 import { LAYOUT, generateId } from './utils/constants.js';
 import { useAlpineBridge } from './composables/useAlpineBridge.js';
 import { useTabModel } from './composables/useTabModel.js';
@@ -260,6 +281,7 @@ import { useChordPickerStore }    from './composables/useChordPickerStore.js';
 import { useVoicingPickerStore }  from './composables/useVoicingPickerStore.js';
 import { useAudioEngine }         from './composables/useAudioEngine.js';
 import { useChordAudio }          from './composables/useChordAudio.js';
+import { useVideoSync }           from './composables/useVideoSync.js';
 import { getAudioEngine }         from '../audio/engine/AudioEngine.js';
 import { tabModelToEvents }       from '../audio/adapters/tabMeasureToEvents.js';
 import { chordVoicingsToEvents }  from '../audio/adapters/chordVoicingsToEvents.js';
@@ -276,11 +298,23 @@ const viewMode = ref(props.initialView);
 const collapsedSections = ref({});   // keyed by si, true = collapsed
 provide('viewMode', viewMode);
 
+// Video sidebar open state — mirrors Alpine's videoSidebarOpen, driven via CustomEvent
+const videoSidebarOpen = ref(false);
+
 function setViewMode(mode) {
     viewMode.value = mode;
     document.dispatchEvent(new CustomEvent('sbn-tab-view-changed', {
         detail: { viewMode: mode }
     }));
+}
+
+function toggleVideoSidebar() {
+    videoSidebarOpen.value = !videoSidebarOpen.value;
+    document.dispatchEvent(new CustomEvent('sbn-video-sidebar-toggle', {
+        detail: { open: videoSidebarOpen.value }
+    }));
+    // Auto-switch audio source: video tab → video audio, else → synth
+    videoSync.setAudioSource(videoSidebarOpen.value ? 'video' : 'synth');
 }
 
 // ── Alpine Bridge ──────────────────────────────────────────
@@ -290,6 +324,7 @@ const {
     melody, sections, chordVoicings, timeSignature, songKey,
     title, composer,
     tabXml, repeatMarkers, voltaEndings,
+    videoSync: bridgeVideoSync,
     initialized, setSaveHandler,
     setStructureHandler,
 } = bridge;
@@ -305,6 +340,10 @@ const {
     exportAlpineSections, cloneChordVoicings, applyChordVoicingOps,
 } = tabModel;
 
+// Placeholder for videoSync — populated after useUndo + useVideoSync below.
+// Using a plain object ref so the facade getter can safely call it before videoSync is assigned.
+const _videoSyncHolder = { instance: null };
+
 // ── __sbnTabModel facade (Phase B Step 7) ─────────────────────────────────
 // Exposes live Vue model data to Alpine via window.__sbnTabModel.
 // Getter functions read directly from the reactive model — no snapshot needed.
@@ -315,6 +354,8 @@ initTabModelFacade({
     getChordVoicings: () => cloneChordVoicings(model.value?.chordVoicings ?? {}),
     getRepeatMarkers: () => model.value?.repeatMarkers ?? null,
     getVoltaEndings:  () => model.value?.voltaEndings  ?? null,
+    // Phase D: expose videoSync for Alpine save pipeline (populated after undo stack init)
+    getVideoSync:     () => _videoSyncHolder.instance?.getVideoSync() ?? null,
     getMeta: () => model.value ? {
         title:         model.value.title,
         composer:      model.value.composer,
@@ -349,6 +390,13 @@ const {
 } = useCursor(model);
 
 const cursorState = computed(() => cursor.value);
+
+// Forwarding ref for videoSync.videoPlaying — populated after videoSync is created.
+// Allows transportPlaying (computed below) to include video state without a forward ref issue.
+const _videoPlayingRef = ref(false);
+
+// Reference to videoSync for transport computed (set after videoSync is created)
+let _videoSyncRef = null;
 
 // ── Audio Engine (Phase 7C) ───────────────────────────────
 
@@ -412,24 +460,43 @@ const totalBeats = computed(() => {
 
 const beatsPerMeasure = computed(() => (model.value?.ticksPerMeasure ?? 1920) / 480);
 
-// Both composables read from the same Transport clock once inited, so they stay in sync.
-// Priority: whichever is actively playing; fallback to the other for position display.
-const transportPlaying = computed(() => isPlaying.value || isChordPlaying.value);
-const transportBeat    = computed(() => {
+// ── Transport clock ─────────────────────────────────────
+// When video is master, YouTube drives the clock. Otherwise, synth engine drives it.
+const transportPlaying = computed(() => {
+    if (_videoSyncRef?.isVideoMaster.value) return _videoSyncRef.videoPlaying.value;
+    return isPlaying.value || isChordPlaying.value;
+});
+
+const transportBeat = computed(() => {
+    if (_videoSyncRef?.isVideoMaster.value) {
+        return _videoSyncRef.videoBeat.value ?? 0;
+    }
     if (isPlaying.value)      return currentBeat.value;
     if (isChordPlaying.value) return chordCurrentBeat.value;
-    // Neither playing — show last known position from either (they share the clock)
-    return currentBeat.value || chordCurrentBeat.value;
+    // Neither playing — show parked position (prefer tab beat; both share the same engine clock)
+    return currentBeat.value ?? chordCurrentBeat.value ?? 0;
 });
 
 async function onTransportToggle() {
+    // When video audio is active, YouTube is the clock: play/pause video, synth stays silent.
+    if (videoSync.isVideoMaster.value) {
+        if (videoSync.videoPlaying.value) {
+            videoSync.playerRef.value?.pause();
+        } else {
+            // Resume from last known video timestamp (preserved on pause).
+            const t = videoSync.videoTime.value;
+            if (t > 0) videoSync.playerRef.value?.seekTo(t);
+            videoSync.playerRef.value?.play();
+        }
+        return;
+    }
+
     if (transportPlaying.value) {
         // Pause — keep position for resume.
         if (isPlaying.value)      pauseTab();
         if (isChordPlaying.value) pauseChord();
     } else {
         // Resume or start from current position.
-        // Load all events once before playback to ensure all voices are merged.
         if (!_eventsLoaded) {
             loadAllEvents();
         }
@@ -438,42 +505,69 @@ async function onTransportToggle() {
     }
 }
 
-/** Full stop: seek to 0, clear all playback state. Mapped to Escape / ⏹ button. */
-function onTransportReset() {
-    resetTab();
-    resetChord();
-    // Clear loaded flag so next playback reloads fresh events
-    _eventsLoaded = false;
+/**
+ * Stop: first press parks at current position (pause + keep beat).
+ * Second press while already stopped resets to beat 0.
+ * Escape always resets to 0.
+ */
+function onTransportReset({ toZero = false } = {}) {
+    if (videoSync.isVideoMaster.value) {
+        const wasVideoPlaying = videoSync.videoPlaying.value;
+        videoSync.playerRef.value?.pause();
+        videoSync.onVideoPlayStateChange(false);
+        if (toZero || !wasVideoPlaying) {
+            videoSync.playerRef.value?.seekTo(0);
+            videoSync.videoTime.value = 0;
+            videoSync.videoMeasureIndex.value = null;
+        }
+        return;
+    }
+
+    const wasPlaying = transportPlaying.value;
+    if (wasPlaying) {
+        // First press: pause and park at current beat
+        if (isPlaying.value)      pauseTab();
+        if (isChordPlaying.value) pauseChord();
+        if (toZero) {
+            seekTab(0);
+            seekChord(0);
+            _eventsLoaded = false;
+        }
+    } else {
+        // Already stopped: reset to beat 0
+        seekTab(0);
+        seekChord(0);
+        _eventsLoaded = false;
+    }
 }
 
 function onTransportSeek(beat) {
-    // Both composables share the same engine; seekTab moves the clock for both.
     seekTab(beat);
-    // If chord view is live, also update its currentBeat ref so the slider stays correct.
-    if (isChordPlaying.value) seekChord(beat);
+    seekChord(beat);
 }
 
 /**
- * Seek the playback cursor to the start of a global measure index and start playing.
- * Called from ChordCard clicks (chord view) and can be used from tab view too.
- * If already playing, immediately jumps to the new position.
+ * Seek to the start of a global measure index.
+ * If already playing, jumps immediately. If stopped, updates the resume position
+ * without starting playback — so the next Play/Resume starts from there.
  */
 async function seekToMeasure(gi) {
     if (!model.value) return;
     const beatStart = gi * beatsPerMeasure.value;
 
-    if (transportPlaying.value) {
-        // Already playing — jump the clock; the scheduler seekTo fires automatically via engine.seek
+    if (videoSync.isVideoMaster.value) {
+        // Video is master: seek video once (no continuous seeks during playback)
+        const t = videoSync.measureToVideoTime(gi);
+        if (t !== null) videoSync.playerRef.value?.seekTo(t);
+        // Keep synth position synced for mode-switch continuity
         seekTab(beatStart);
-        if (isChordPlaying.value) seekChord(beatStart);
-    } else {
-        // Not playing — seek to position then start from there
-        if (!_eventsLoaded) await loadAllEvents();
-        // Seek before play so engine.play() picks up the right scheduler index
-        seekTab(beatStart);
-        if (viewMode.value === 'tab') await playTab();
-        else await playChord();
+        seekChord(beatStart);
+        return;
     }
+
+    // Always seek both — they share the engine clock, keeping refs in sync
+    seekTab(beatStart);
+    seekChord(beatStart);
 }
 
 /**
@@ -544,11 +638,10 @@ function onVolumeTab(v) {
 
 // Unified position cursor: always shows current beat as a measure index, whether
 // playing or paused. Beat 0 before anything has played highlights measure 0 (useful
-// as a "you'll start here" indicator). Consumers (ChordCard, TabMeasure) use this
-// for the single unified highlight that covers both playback tracking and position.
-const playingMeasureIndex = computed(() =>
-    Math.floor(transportBeat.value / beatsPerMeasure.value)
-);
+// Unified playback cursor: audio engine beat takes priority; YouTube-driven index
+// fills in when audio is stopped. Declared as ref so useVideoSync can feed into it.
+// Value is updated by a watcher set up after videoSync is created below.
+const playingMeasureIndex = ref(0);
 
 provide('tabActiveSourceId',    activeSourceId);      // note-level SVG highlight (tab only)
 provide('chordActiveSourceId',  chordActiveSourceId); // kept for any future per-chord use
@@ -556,22 +649,87 @@ provide('playingMeasureIndex',  playingMeasureIndex); // unified cursor highligh
 provide('transportBeat',        transportBeat);       // raw beat for sub-measure chord highlighting
 provide('beatsPerMeasureRef',   beatsPerMeasure);     // chord cards need this to compute windows
 provide('seekToMeasure',        seekToMeasure);       // chord-card click → seek + play
+provide('transportPlaying',     transportPlaying);    // playback active flag for cursor visibility
+provide('tapCursor',            computed(() => videoSync.tapCursor.value)); // D2: tap-to-mark cursor for measure highlight
 
-// ── Unified cursor: drive tab cursor to follow playback ───────────────────────
-// While the tab engine is playing, move the orange cursor column to match the
-// current beat. Uses beatToMeasureEvent to translate a beat into a measure+event
-// address. String index is preserved so string selection is not disrupted.
-watch(transportBeat, (beat) => {
-    if (!isPlaying.value) return;       // only when tab is actively playing
-    if (viewMode.value !== 'tab') return;
-    const pos = beatToMeasureEvent(beat);
-    if (!pos) return;
-    moveTo(pos.measureIndex, pos.eventIndex, cursor.value.stringIndex);
-});
+// Video sync map — provided after videoSync is created below (patched in post-init block)
+
 
 // ── Undo / Redo (Phase 7e) ─────────────────────────────────
 
 const { canUndo, canRedo, wrapCommand, undo, redo, reset: resetUndo } = useUndo(model);
+
+// ── Video Sync (Phase D) ──────────────────────────────────────
+const videoSync = useVideoSync(model, {
+    wrapCommand,
+    playingMeasureIndex,
+    transportPlaying,
+    beatsPerMeasure,
+});
+_videoSyncHolder.instance = videoSync;
+_videoSyncRef = videoSync; // For transportPlaying/transportBeat computed
+
+// Map of measureIndex → { videoTime, markerIndex } — consumed by measure badges.
+// Only populated when video sidebar is open.
+provide('videoSyncMap', computed(() => {
+    if (!videoSidebarOpen.value) return null;
+    const map = new Map();
+    videoSync.sortedMappings.value.forEach((m, i) => {
+        map.set(m.measureIndex, { videoTime: m.videoTime, markerIndex: i });
+    });
+    return map;
+}));
+
+// Nudge a mapping time by delta seconds (drag handler in measure badges → undoable).
+provide('nudgeSyncMapping', (measureIndex, delta) => {
+    const m = videoSync.mappings.value.find(m => m.measureIndex === measureIndex);
+    if (!m) return;
+    videoSync.addMapping(measureIndex, Math.max(0, m.videoTime + delta));
+});
+
+// Wire videoPlaying into the forwarding ref so transportPlaying sees it
+watch(videoSync.videoPlaying, (v) => { _videoPlayingRef.value = v; }, { immediate: true });
+
+// Populate videoSync from bridge data on first load
+watch(bridgeVideoSync, (data) => {
+    if (data) videoSync.setVideoSync(data);
+}, { immediate: true });
+
+// Keep playingMeasureIndex in sync with transportBeat.
+// When video is master, videoBeat (via transportBeat) drives this at 60fps.
+// When synth is master, synth transportBeat drives it.
+watch(
+    [transportBeat, beatsPerMeasure],
+    ([beat, bpm]) => {
+        playingMeasureIndex.value = Math.floor((beat ?? 0) / bpm);
+    },
+    { immediate: true }
+);
+
+// ── Mode switch handling ─────────────────────────────────
+// When switching audio sources, pause the outgoing source and seed position.
+watch(
+    () => videoSync.audioSource.value,
+    (newSource, oldSource) => {
+        if (newSource === oldSource) return;
+
+        if (newSource === 'video') {
+            // Synth → Video: pause synth, keep position for video
+            if (isPlaying.value) pauseTab();
+            if (isChordPlaying.value) pauseChord();
+        } else {
+            // Video → Synth: pause video, seed synth position
+            if (videoSync.videoPlaying.value) {
+                videoSync.playerRef.value?.pause();
+            }
+            // Seed synth to current visual position for continuity
+            const gi = playingMeasureIndex.value;
+            const beatStart = gi * beatsPerMeasure.value;
+            seekTab(beatStart);
+            seekChord(beatStart);
+        }
+    }
+);
 
 // Reset undo stack when a new leadsheet loads
 watch(model, (newVal, oldVal) => {
@@ -1112,9 +1270,10 @@ function onGenerateFromChords() {
 // ── Keyboard handling ──────────────────────────────────────
 
 function onKeydown(e) {
-    // Audio playback (Phase 7C)
+    // Audio playback (Phase 7C) - Space always triggers play/pause
     if (e.key === ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        const canPlay = (viewMode.value === 'tab' && hasData.value) ||
+        const canPlay = (videoSidebarOpen.value && videoSync.hasVideo.value) ||
+                        (viewMode.value === 'tab' && hasData.value) ||
                         (viewMode.value === 'chords' && hasChordsData.value);
         if (canPlay) {
             e.preventDefault();
@@ -1122,9 +1281,21 @@ function onKeydown(e) {
             return;
         }
     }
+
+    // M key: create video sync point at current position (always works when video loaded)
+    if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (videoSync.hasVideo.value) {
+            e.preventDefault();
+            // Use current playback measure or cursor position
+            const mi = playingMeasureIndex.value ?? cursor.value.measureIndex ?? 0;
+            videoSync.addMapping(mi, videoSync.videoTime.value);
+            return;
+        }
+    }
+
     if (e.key === 'Escape' && (transportPlaying.value || transportBeat.value > 0)) {
         e.preventDefault();
-        onTransportReset();
+        onTransportReset({ toZero: true });
         return;
     }
 
@@ -1496,6 +1667,7 @@ function onCursorMousedownEvent({ measureIndex, eventId, stringIndex, event }) {
     setSelectedEvents([eventId]);
     _noteSelAnchorIdx.value = null;
     editorRoot.value?.focus({ preventScroll: true });
+    seekToMeasure(measureIndex);
 }
 
 function onCursorMouseenterEvent({ eventId }) { }
@@ -1505,6 +1677,7 @@ function onCursorMousedownRest({ measureIndex, eventId, event }) {
     setSelectedEvents([eventId]);
     _noteSelAnchorIdx.value = null;
     editorRoot.value?.focus({ preventScroll: true });
+    seekToMeasure(measureIndex);
 }
 
 function onCursorMouseenterRest({ eventId }) { }

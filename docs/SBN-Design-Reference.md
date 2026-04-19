@@ -456,7 +456,10 @@ These are in `admin2.css` and already available everywhere. Do not redefine:
 - Density tier diagram sizing: `.double` (64px), `.multi` (52px), `.dense` (36px) — scoped to `.sbn-ve-grid`
 - Density tier chord name sizing: double=17px, multi=14px, dense=10px (single inherits DS 20px base)
 - SVG aspect ratio: `.sbn-chord-svg { aspect-ratio: 80/95 }`
-- Playback active: `.sbn-ve-chord.is-active { box-shadow: inset 0 0 0 2px var(--clr-accent); background: none }` — frame only
+- Playback active chord: `.sbn-ve-chord.is-active { box-shadow: inset 0 0 0 2px var(--clr-accent); background: none }` — frame only
+- Tab playback metronome column: `.sbn-tab-metronome-col { fill: var(--clr-accent); opacity: 0.1 }` — same geometry as `.sbn-cursor-sel-col` (half-width 9px, rx 3, stringAreaTop-4 to bottom)
+- Tab playback beat note: `.sbn-tab-note-text.sbn-beat-active { fill: #ef4444 !important }` — red, overrides hover/is-active
+- Tab playing measure: `.sbn-tab-measure--playing { background: none; box-shadow: none }` — no frame, metronome column is sole indicator
 - Paste target: `.sbn-ve-chord.is-paste-target` blue tint + `.sbn-ve-chord.is-paste-target .sbn-diagram-card { background: transparent }`
 - Toast: `.sbn-toast`, `.sbn-toast-*`
 
@@ -581,6 +584,128 @@ Implemented in `edit.blade.php` + `sbn-design-system.css` + new `public/js/sbn-c
 - **Tab editor context menu** — `buildMenuItems('tab', state)` stub exists; needs `useMeasureSelection.js` + `sbn-tab-structure-request` handler in `useAlpineBridge.js`
 - **Undo for chord grid** — copy `useUndo.js` pattern; `takeSnapshot()` wraps `markDirty()`
 - **Volta index invalidation on drag** — `parsed.voltaEndings` keyed by global index; moving measures breaks it
+
+---
+
+## PHASE D — VIDEO SYNC
+
+**Completed:** April 2026. Spec: `docs/Phase-D1-Video-Master-Refactor.md`, `docs/Phase-D2-Authoring-Spec.md`.
+
+### Architecture overview
+
+Video sync is a single-video-per-leadsheet feature. The sync data lives in `json_data.videoSync`:
+
+```json
+{
+  "videoId":   "dQw4w9WgXcQ",
+  "videoType": "youtube",
+  "mappings":  [{ "measureIndex": 0, "videoTime": 4.2 }, ...]
+}
+```
+
+`audioSource` is also persisted (not an authoring preference — it determines which clock drives playback on reload).
+
+### Files
+
+| File | Role |
+|------|------|
+| `resources/js/tab-editor/composables/useVideoSync.js` | All sync state + authoring mutations |
+| `resources/js/tab-editor/components/VideoSyncEditor.vue` | Sidebar UI: video ID, player, tap controls, rate buttons, mapping table |
+| `resources/js/tab-editor/components/VideoPlayer.vue` | YouTube / hosted `<video>` wrapper; emits `timeupdate` at 60fps via rAF |
+| `resources/js/tab-editor/components/SyncPointBadge.vue` | Draggable orange circle overlay on measure barlines |
+| `resources/js/tab-editor/TabEditor.vue` | Provides inject keys; wires VideoSyncEditor events; transport logic |
+
+### Inject keys (provided by TabEditor)
+
+| Key | Type | Value |
+|-----|------|-------|
+| `videoSyncMap` | `ComputedRef<Map<measureIndex, {videoTime, markerIndex}> \| null>` | `null` when sidebar closed; populated map when open |
+| `nudgeSyncMapping` | `(measureIndex: number, delta: number) => void` | Adjusts a mapping's `videoTime` by `delta` seconds, undoable |
+| `tapCursor` | `ComputedRef<number>` | Currently targeted measure for tap-to-mark |
+| `seekToMeasure` | `(gi: number) => void` | Seeks audio + video to measure `gi` |
+
+### Clock modes
+
+Two mutually exclusive clock modes:
+
+| Mode | Condition | Clock source |
+|------|-----------|--------------|
+| **Video master** | `audioSource === 'video'` AND `videoId` set | YouTube rAF loop → `videoMeasureIndex` → `transportBeat` |
+| **Synth master** | otherwise | Tone.js scheduler → `currentBeat` → `transportBeat` |
+
+`isVideoMaster = computed(() => audioSource.value === 'video' && hasVideo.value)`
+
+Audio source auto-switches: opening the Video sidebar sets source to `'video'`; closing it sets `'synth'`.
+
+### D1 — Playback sync
+
+- `VideoPlayer.vue` runs a `requestAnimationFrame` loop calling `player.getCurrentTime()` and emitting `timeupdate` at ~60fps.
+- `useVideoSync.onVideoTimeUpdate(time)` converts seconds → fractional `videoMeasureIndex` via binary-search interpolation.
+- `transportBeat = videoMeasureIndex * beatsPerMeasure` feeds the score cursor.
+- Seeking a measure in video-master mode calls `videoSync.measureToVideoTime(gi)` → `player.seekTo(t)`.
+
+### D2 — Authoring
+
+**Tap-to-mark flow:**
+1. User opens Video sidebar (auto-switches to video master), presses Play.
+2. Presses `M` at each downbeat — records `{ measureIndex: tapCursor, videoTime: currentVideoTime }`, advances `tapCursor`.
+3. `Shift+M` un-taps: removes last mapping, rewinds `tapCursor` by 1 (`useVideoSync.untap()`).
+4. All mutations go through `wrapCommand` → single Ctrl+Z undoes each tap.
+
+**Keyboard shortcuts (VideoSyncEditor.vue `onKeydown`):**
+
+| Key | Action |
+|-----|--------|
+| `Space` | Toggle playback |
+| `M` | Mark at tapCursor, advance |
+| `Shift+M` | Remove last mark, rewind tapCursor |
+| `←` / `→` | Nudge video −/+ 2s |
+| `Shift+←` / `Shift+→` | Nudge video −/+ 10s |
+| `,` / `.` | Decrease / increase playback rate |
+
+Guard: fires only when focused element is not `<input>` or `<textarea>`.
+
+**Playback rate:** buttons 0.25×–1.5×; session-local only (not persisted). YouTube's rate change does not affect `getCurrentTime()` units — rAF loop keeps working unchanged.
+
+**Distribute:** `useVideoSync.distributeMarkers()` linearly interpolates all unmapped measures between first and last marker. Single undoable command (`wrapCommand` with empty measure list).
+
+**Tempo warnings:** adjacent mappings that imply < 0.1s or > 5s per measure are flagged in red in the sidebar table. Non-blocking.
+
+### SyncPointBadge
+
+`resources/js/tab-editor/components/SyncPointBadge.vue`
+
+Rendered inside `ChordMeasure.vue` and `TabMeasure.vue` when `videoSyncMap` has an entry for that measure.
+
+```vue
+<SyncPointBadge
+    :marker-index="syncPoint.markerIndex"   <!-- 0-based, displayed as 1-based -->
+    :video-time="syncPoint.videoTime"        <!-- seconds -->
+    :measure-index="globalIdx"
+    context="chord"                          <!-- 'chord' | 'tab' -->
+/>
+```
+
+**Positioning:**
+- `left: 0; transform: translateX(-50%)` — centered on the measure's left barline
+- Chord view (`context="chord"`): `top: 6px` — near top of chord measure cell
+- Tab view (`context="tab"`): `top: 57px` — between D and G strings (27px chord bar + 30px SVG midpoint; G string y=25, D string y=35 inside SVG)
+
+**Interaction:**
+- **Click** (drag delta < 0.001s): calls `seekToMeasure(measureIndex)`
+- **Drag** (horizontal only): live-updates `displayTime`; on release commits via `nudgeSyncMapping(measureIndex, delta)` (undoable)
+- `SECS_PER_PX = 0.05` — 50ms per pixel of drag
+
+**Visual:** 22px circle, orange→red radial gradient, white bold number, `ew-resize` cursor.
+
+### Transport: park vs reset
+
+`onTransportReset({ toZero = false })`:
+- **First ⏹ press while playing:** pauses, keeps beat position ("parked"). ⏹ button gains `is-parked` class.
+- **Second ⏹ press while stopped** (or `Escape`): resets to beat 0 and clears events cache.
+- Video master mode: first press pauses video, second press seeks to 0:00 and clears `videoMeasureIndex`.
+
+Video resume (`Space` while paused): `videoSync.playerRef.value?.seekTo(videoSync.videoTime.value)` then `.play()`. `videoTime` is preserved through pause (not cleared on `onVideoPlayStateChange`).
 
 ---
 

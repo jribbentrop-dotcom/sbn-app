@@ -43,6 +43,7 @@ export function useAlpineBridge() {
     const repeatMarkers = ref({});
     const lineBreaks    = ref({});      // Added: Track layout in Vue
     const voltaEndings  = ref({});
+    const videoSync     = ref(null);   // Phase D: passed through from sbn-tab-init
     const initialized   = _globalInitialized; // shared singleton
 
     // ── Event handlers ─────────────────────────────────────
@@ -63,6 +64,9 @@ export function useAlpineBridge() {
         }
         if (d.tabXml !== undefined) {
             tabXml.value = d.tabXml;
+        }
+        if (d.videoSync !== undefined) {
+            videoSync.value = d.videoSync;
         }
         initialized.value = true;
         // Ack so Alpine knows Vue received the data and can stop retrying.
@@ -187,5 +191,8 @@ export function useAlpineBridge() {
 
         // Set tab model reference for structural operations
         setTabModel: (model) => { _tabModel = model; },
+
+        // Phase D
+        videoSync,
     };
 }

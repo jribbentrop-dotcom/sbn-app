@@ -42,6 +42,9 @@ const facade = {
     /** Returns voltaEndings or null. */
     getVoltaEndings()  { return _fns?.getVoltaEndings()  ?? null; },
 
+    /** Returns videoSync data or null. Phase D. */
+    getVideoSync()     { return _fns?.getVideoSync()     ?? null; },
+
     /**
      * Returns song metadata: { title, composer, key, tempo, timeSignature }.
      * Useful for save() Step 8 so Alpine doesn't have to keep parsed.title etc.
@@ -59,8 +62,8 @@ if (typeof window !== 'undefined' && !window.__sbnTabModel) {
  *
  * @param {{ getSections, getChordVoicings, getRepeatMarkers, getVoltaEndings, getMeta }} fns
  */
-export function initTabModelFacade({ getSections, getChordVoicings, getRepeatMarkers, getVoltaEndings, getMeta }) {
+export function initTabModelFacade({ getSections, getChordVoicings, getRepeatMarkers, getVoltaEndings, getVideoSync, getMeta }) {
     if (typeof window !== 'undefined') {
-        window.__sbnTabModel._init({ getSections, getChordVoicings, getRepeatMarkers, getVoltaEndings, getMeta });
+        window.__sbnTabModel._init({ getSections, getChordVoicings, getRepeatMarkers, getVoltaEndings, getVideoSync, getMeta });
     }
 }

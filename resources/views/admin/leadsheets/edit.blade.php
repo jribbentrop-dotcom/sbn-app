@@ -143,7 +143,7 @@
     <aside class="sbn-vp-panel sbn-vp-desktop-only">
 
         {{-- ── Song meta ──────────────────────────────────── --}}
-        <template x-if="parsed">
+        <template x-if="parsed && !videoSidebarOpen">
         <div class="sbn-vp-meta">
             <div class="sbn-vp-meta-title-row">
                 <input type="text" class="sbn-vp-meta-title"
@@ -199,9 +199,8 @@
         </template>
 
         {{-- ── Toolbar ─────────────────────────────────────── --}}
-        <div class="sbn-vp-toolbar" x-show="parsed">
+        <div class="sbn-vp-toolbar" x-show="parsed && !videoSidebarOpen">
             {{-- Row 1: stats --}}
-            {{-- Copy/Cut/Paste removed — use right-click context menu on chord cards --}}
             <div class="sbn-vp-toolbar-row">
                 <span class="sbn-vp-stats" x-text="statsText"></span>
             </div>
@@ -214,11 +213,18 @@
         </div>
 
         {{-- ── Voicing picker / overview — rendered by Vue via Teleport into #sbn-vp-slot ── --}}
-        <div id="sbn-vp-slot"></div>
+        <div id="sbn-vp-slot" x-show="!videoSidebarOpen"></div>
         {{-- Alpine .sbn-vp-context removed in Phase B Step 10b — Vue VoicingPicker.vue owns this panel --}}
 
+        {{-- ── Video sync panel — rendered by Vue via Teleport into #sbn-video-slot ──────── --}}
+        {{-- Phase D: sibling to #sbn-vp-slot; visibility toggled independently of viewMode --}}
+        <div id="sbn-video-slot"
+             x-show="videoSidebarOpen"
+             style="display:none;flex-direction:column;flex:1;min-height:0;overflow:auto;border-top:1px solid var(--clr-border);margin-top:8px;padding-top:8px;">
+        </div>
+
         {{-- ── Analysis sidebar — ANALYSIS view only ──────── --}}
-        <template x-if="alpineViewMode === 'analysis'">
+        <template x-if="alpineViewMode === 'analysis' && !videoSidebarOpen">
         <div style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
 
             {{-- Progression matches per section --}}
@@ -290,7 +296,7 @@
         </template>
 {{-- ── Tab sidebar — TAB view only ─────────────────── --}}
 <div id="sbn-tab-sidebar"
-     x-show="alpineViewMode === 'tab'"
+     x-show="alpineViewMode === 'tab' && !videoSidebarOpen"
      x-cloak
      style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
 </div>
@@ -952,6 +958,7 @@ function leadsheetEditor() {
 
         // View mode (Phase 5d)
         alpineViewMode: 'chords',
+        videoSidebarOpen: false,  // Phase D: toggle independent of viewMode
         analysisData: null,
         analysisLoading: false,
         highlightMatch: null,
@@ -995,10 +1002,11 @@ function leadsheetEditor() {
 
             // Build a temporary parsed-like object from the facade to ensure
             // the shortcode is generated from the absolute latest Vue state.
-            const sections = window.__sbnTabModel.getSections();
-            const chordVoicings = window.__sbnTabModel.getChordVoicings();
-            const repeatMarkers = window.__sbnTabModel.getRepeatMarkers();
-            const voltaEndings = window.__sbnTabModel.getVoltaEndings();
+            const model = window.__sbnTabModel;
+            const sections      = model ? model.getSections()      : this.parsed.sections;
+            const chordVoicings = model ? model.getChordVoicings() : (this.parsed.chordVoicings || {});
+            const repeatMarkers = model ? model.getRepeatMarkers() : (this.parsed.repeatMarkers || null);
+            const voltaEndings  = model ? model.getVoltaEndings()  : (this.parsed.voltaEndings || null);
 
             const snapshot = {
                 ...this.parsed,
@@ -1078,6 +1086,11 @@ function leadsheetEditor() {
 
             document.addEventListener('sbn-tab-view-changed', (e) => {
                 this.alpineViewMode = e.detail.viewMode;
+            });
+
+            // Phase D: Vue tab button toggles the video sidebar
+            document.addEventListener('sbn-video-sidebar-toggle', (e) => {
+                this.videoSidebarOpen = e.detail.open;
             });
 
             // Listen for tab edits from Vue
@@ -1471,6 +1484,7 @@ function leadsheetEditor() {
                     detail: {
                         parsed: JSON.parse(JSON.stringify(this.parsed)),
                         tabXml: this.tabXml,
+                        videoSync: this.parsed.videoSync ? JSON.parse(JSON.stringify(this.parsed.videoSync)) : null,
                     }
                 }));
             }, 0);
@@ -1693,13 +1707,17 @@ function leadsheetEditor() {
             this._suppressTabInit = true;
 
             // Pull fresh structural data from the facade (Phase B Step 8)
-            const sections = window.__sbnTabModel.getSections();
-            const chordVoicings = window.__sbnTabModel.getChordVoicings();
-            const repeatMarkers = window.__sbnTabModel.getRepeatMarkers();
-            const voltaEndings = window.__sbnTabModel.getVoltaEndings();
+            const model = window.__sbnTabModel;
+            const sections      = model ? model.getSections()      : this.parsed.sections;
+            const chordVoicings = model ? model.getChordVoicings() : (this.parsed.chordVoicings || {});
+            const repeatMarkers = model ? model.getRepeatMarkers() : (this.parsed.repeatMarkers || null);
+            const voltaEndings  = model ? model.getVoltaEndings()  : (this.parsed.voltaEndings || null);
 
             // Rebuild flattened measures array for server-side measure_count
             const allMeasures = sections.flatMap(s => s.measures || []);
+
+            // Phase D: pull videoSync from the facade; fall back to what's already in parsed
+            const videoSyncData = (model ? model.getVideoSync() : null) ?? this.parsed.videoSync ?? null;
 
             // Construct final json_data by merging Alpine meta fields with facade structural data
             const finalJsonData = {
@@ -1709,8 +1727,9 @@ function leadsheetEditor() {
                 chordVoicings,
                 repeatMarkers,
                 voltaEndings,
-                melody: this._savedMelody || this.parsed.melody
+                melody: this._savedMelody || this.parsed.melody,
             };
+            if (videoSyncData) finalJsonData.videoSync = videoSyncData;
 
             const shortcode = this.shortcodeOutput;
             const url = this.leadsheetId
@@ -1803,7 +1822,7 @@ function leadsheetEditor() {
 
             // Read fresh sections from the facade (Phase B Step 9)
             // Ensures the latest Vue state is considered before we fetch.
-            const sections = window.__sbnTabModel.getSections();
+            const sections = window.__sbnTabModel ? window.__sbnTabModel.getSections() : this.parsed.sections;
 
             try {
                 const resp = await fetch('/api/admin/leadsheets/' + this.leadsheetId + '/analyse-progressions');

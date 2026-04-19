@@ -3,6 +3,7 @@
          :class="{
              'sbn-tab-measure--overfill':  isOverfilled,
              'sbn-tab-measure--playing':   isPlayingMeasure,
+             'is-tap-target':              isTapTarget,     // D2: tap-to-mark cursor
          }"
          :style="measureStyle"
          :data-measure="measure.index"
@@ -39,6 +40,8 @@
             </template>
         </div>
 
+        <SyncPointBadge v-if="syncPoint" :marker-index="syncPoint.markerIndex" :video-time="syncPoint.videoTime" :measure-index="measure.index" context="tab" />
+
         <svg
             ref="svgEl"
             class="sbn-tab-svg"
@@ -55,6 +58,17 @@
             <!-- Static SVG content: notes, stems, beams, ties, rests -->
             <g v-html="svgContent"></g>
 
+            <!-- Metronome column: same geometry as TabCursor's selection column -->
+            <rect
+                v-if="isPlaying && metronomeBeatX !== null"
+                :x="metronomeBeatX - METRO_HALF_W"
+                :y="LAYOUT.stringAreaTop - 4"
+                :width="METRO_HALF_W * 2"
+                :height="LAYOUT.stringSpacing * 5 + 8"
+                rx="3"
+                class="sbn-tab-metronome-col"
+            />
+
             <!-- Cursor overlay: navigation ring + click hit targets + pending digit -->
             <TabCursor
                 v-if="cursor"
@@ -64,6 +78,7 @@
                 :effective-width="effectiveWidth"
                 :pending-digit="pendingDigit"
                 :selected-events="selectedEvents"
+                :is-playing="isPlaying"
                 @mousedown-event="onCursorMousedownEvent"
                 @mouseenter-event="onCursorMouseenterEvent"
                 @mousedown-rest="onCursorMousedownRest"
@@ -82,6 +97,7 @@ import {
 } from '../utils/svgHelpers.js';
 import { stringY, isDotted } from '../utils/constants.js';
 import TabCursor from './TabCursor.vue';
+import SyncPointBadge from './SyncPointBadge.vue';
 
 const props = defineProps({
     measure: {
@@ -228,21 +244,82 @@ const measureStyle = computed(() => {
 });
 
 // ── Playback highlighting ─────────────────────────────
-const svgEl             = ref(null);
-const tabActiveSourceId  = inject('tabActiveSourceId',  null);
+const svgEl               = ref(null);
 const playingMeasureIndex = inject('playingMeasureIndex', null);
+const transportBeat       = inject('transportBeat',       null);
+const beatsPerMeasureRef  = inject('beatsPerMeasureRef',  null);
+const transportPlaying    = inject('transportPlaying',    null);
+const tapCursor           = inject('tapCursor', null);
+const videoSyncMap        = inject('videoSyncMap', null);
+const isPlaying           = computed(() => transportPlaying?.value ?? false);
+
+const syncPoint = computed(() => videoSyncMap?.value?.get(props.measure.index) ?? null);
+
+// D2: Tap target highlight — show when this measure is the current tap cursor
+const isTapTarget = computed(() => tapCursor?.value === props.measure.index);
 
 // Measure-level highlight: driven by beat position so it works from either view.
 const isPlayingMeasure = computed(() =>
     playingMeasureIndex?.value === props.measure.index
 );
 
-watch(tabActiveSourceId, (newId, oldId) => {
+// The voice-1 event active at the current playback beat in this measure.
+function _eventAtTick(tickInMeasure) {
+    const v1 = (props.measure.events || [])
+        .filter(e => (e.voice || 1) === 1)
+        .sort((a, b) => a.tick - b.tick);
+    if (!v1.length) return null;
+    let found = v1[0];
+    for (const ev of v1) {
+        if ((ev.tickInMeasure ?? 0) <= tickInMeasure + 1) found = ev;
+        else break;
+    }
+    return found ?? null;
+}
+
+// Metronome column: strict quarter-beat grid, always proportional.
+// xPos for beat b = b/bpm, same mapping getXm uses (tickInMeasure/tpm).
+const METRO_HALF_W = 9;
+const metronomeBeatX = computed(() => {
+    if (!isPlayingMeasure.value || !isPlaying.value) return null;
+    const bpm      = beatsPerMeasureRef?.value ?? 4;
+    const beat     = transportBeat?.value ?? 0;
+    const bSnapped = Math.floor(((beat % bpm) + bpm) % bpm);
+    return getXm(bSnapped / bpm);
+});
+
+// Red note highlight: continuous (follows exact beat for responsive feel).
+const playingEventId = computed(() => {
+    if (!isPlayingMeasure.value || !isPlaying.value) return null;
+    const bpm  = beatsPerMeasureRef?.value ?? 4;
+    const beat = transportBeat?.value ?? 0;
+    const b    = ((beat % bpm) + bpm) % bpm;
+    const tpm  = props.ticksPerMeasure;
+    return _eventAtTick(b / bpm * tpm)?.id ?? null;
+});
+
+// Apply/remove red highlight on the playing event's note texts.
+let _lastPlayingEventId = null;
+watch(playingEventId, (newId, oldId) => {
     if (!svgEl.value) return;
-    if (oldId) svgEl.value.querySelectorAll(`[data-event-id="${oldId}"]`)
-        .forEach(el => el.classList.remove('is-active'));
-    if (newId) svgEl.value.querySelectorAll(`[data-event-id="${newId}"]`)
-        .forEach(el => el.classList.add('is-active'));
+    if (oldId && oldId !== newId) {
+        svgEl.value.querySelectorAll(`[data-event-id="${oldId}"]`)
+            .forEach(el => el.classList.remove('sbn-beat-active'));
+    }
+    if (newId) {
+        svgEl.value.querySelectorAll(`[data-event-id="${newId}"]`)
+            .forEach(el => el.classList.add('sbn-beat-active'));
+    }
+    _lastPlayingEventId = newId;
+});
+
+// Clear highlight when measure stops playing.
+watch(isPlayingMeasure, (playing) => {
+    if (!playing && svgEl.value && _lastPlayingEventId) {
+        svgEl.value.querySelectorAll(`[data-event-id="${_lastPlayingEventId}"]`)
+            .forEach(el => el.classList.remove('sbn-beat-active'));
+        _lastPlayingEventId = null;
+    }
 });
 
 function getXm(xPos) {

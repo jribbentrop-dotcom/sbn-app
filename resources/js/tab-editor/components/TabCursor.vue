@@ -31,9 +31,9 @@
             rx="3"
         />
 
-        <!-- Cursor: filled circle with gradient at low opacity -->
+        <!-- Cursor: filled circle with gradient at low opacity — hidden during playback -->
         <circle
-            v-if="activeCursorVisible && activeEventX !== null"
+            v-if="activeCursorVisible && activeEventX !== null && !isPlaying"
             :cx="activeEventX"
             :cy="activeCellY"
             :r="CURSOR_R"
@@ -51,7 +51,7 @@
             immediate visual feedback.
         -->
         <text
-            v-if="activeCursorVisible && activeEventX !== null && pendingDigit !== null"
+            v-if="activeCursorVisible && activeEventX !== null && pendingDigit !== null && !isPlaying"
             :x="activeEventX"
             :y="activeCellY"
             dominant-baseline="central"
@@ -145,6 +145,11 @@ const props = defineProps({
     selectedEvents: {
         type: Object,   // Set<string>
         default: () => new Set(),
+    },
+    /** Hide the cursor ring (but keep hit targets) during audio playback. */
+    isPlaying: {
+        type: Boolean,
+        default: false,
     },
 });
 

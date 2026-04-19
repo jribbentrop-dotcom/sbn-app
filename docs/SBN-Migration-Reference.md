@@ -7,7 +7,7 @@
 
 ## CURRENT STATUS
 
-**Last updated:** 2026-04-18 (Phase B complete + chord grid audio/visual polish)
+**Last updated:** 2026-04-19 (Video Master Refactor complete — Soundslice-style playback)
 
 | Phase | What | Status |
 |-------|------|--------|
@@ -40,8 +40,10 @@
 | grid-interact | Context menu + batch selection + drag-to-reorder + undo/redo (chord grid) | **DONE** |
 | 7-phase-a | Decouple from Alpine; Vue acts as sole structural and selection master | **DONE** |
 | 7-phase-b | Vue-Native Chord Grid & Voicing Picker | **DONE** |
-| 7-phase-c | Audio Playback Engine (Tone.js) | |
-| 7-phase-d | Video Sync (Timeline Mapping) | |
+| 7-phase-c | Audio Playback Engine (Tone.js) | **DONE** |
+| 7-phase-c-polish | Tab playback visual polish (metronome column, red note highlight, seek-on-click) | **DONE** |
+| 7-phase-d | Video Sync (Video Master Refactor) | **DONE** |
+| 7-phase-d1 | Video Master Refactor (Soundslice-style playback) | **DONE** |
 | 7-phase-e | Full Feature Parity (Drag-drop across sections, repeat/volta editing) | |
 | 8 | Public frontend (all student-facing pages) | |
 | 9 | Courses, auth, payments, video integration | |
@@ -85,11 +87,11 @@ Drag-and-drop across sections, repeat marker editing, volta editing — all hand
 - Chord-level drag (reorder chords within / across measures — needs beat redistribution design)
 - Repeat/volta editing UI (currently read-only rendered, no edit handles)
 
-**Phase D: Audio playback**
-Tone.js playback engine hooks into `model.value`. Playback cursor is a Vue reactive ref on a `requestAnimationFrame` loop synced to Tone.js transport.
+**Phase D: Video sync (NEXT)**
+`{ time, measureIndex }` mappings stored alongside the model. `VideoPlayer.vue` with bidirectional sync: play video → highlight measure, click measure → seek video. Mapping data authored in the editor (tap-to-mark or manual entry). See video sync architecture below.
 
-**Phase E: Video sync**
-`{ time, measureIndex }` mappings stored alongside the model. `VideoPlayer.vue` with bidirectional sync (play video → highlight measure, click measure → seek video).
+**Phase E: Full feature parity**
+Drag-and-drop across sections, repeat marker editing, volta editing — all handled natively inside Vue's reactive `model.value`.
 
 **Phase 8: Public frontend**
 `leadsheet-viewer.blade.php` (created in Phase B Step 10a — deferred, still TODO) is the seed: read-only chord grid + sidebar from `$leadsheet->json_data`, no Vue, no editing. When Phase 8 starts, this component gets a play button (Phase D), sidebar edu panel, and public card system.
@@ -100,6 +102,9 @@ Tone.js playback engine hooks into `model.value`. Playback cursor is a Vue react
 
 | Date | Bug | Fix |
 |------|-----|-----|
+| 2026-04-19 | Video sidebar Space shortcut didn't work | Added `@toggle-playback` listener + `onKeydown` handler in VideoSyncEditor |
+| 2026-04-19 | Video sidebar lacking padding / 16:9 aspect | Added scoped styles to VideoSyncEditor: `padding: 10px 14px`, `padding-top: 56.25%` |
+| 2026-04-19 | Play stutter with video audio | Removed continuous `seekTo()` calls; video is now master clock with rAF loop |
 | pre-2026-04 | #7: Quarter-triplet rendering | XML import fix + bracket direction + overfill false-positive |
 | pre-2026-04 | #10: Tab edits disappear on save | Re-parse freshly serialized XML before POST |
 | pre-2026-04 | #11: Tab edits disappear on view switch | `_tabInitDone` flag guards `$watch('parsed')` after first init |
@@ -118,6 +123,8 @@ Tone.js playback engine hooks into `model.value`. Playback cursor is a Vue react
 | 2026-04-18 | Chord positions lost on save/reload | `exportAlpineSections()` discarded `chordOffsets`/`chordBeats`; now serializes `beatInMeasure`/`beats` on each chord object so round-trip preserves timing |
 | 2026-04-18 | Orange chord names in chord grid | Root cause: `chord-symbols.css` line 17 sets `.sbn-chord-symbol { color: var(--clr-accent-dim) }` globally; fixed by scoping override `.sbn-ve-chord-name .sbn-chord-symbol { color: var(--clr-text) }` |
 | 2026-04-18 | Add chord slot ignores beat grid layout | `addChordToMeasure` / `deleteChords` in `useChordGridOps.js` now call `_recomputeEvenOffsets(m)` after any chordNames splice |
+| 2026-04-19 | Tab playback cursor moved selection ring | Removed `watch(transportBeat, moveTo)` — cursor ring no longer follows playback; metronome column is sole indicator |
+| 2026-04-19 | Click chord/note while stopped didn't update resume position | `seekToMeasure()` now calls `seekTab + seekChord` without starting playback; tab note clicks also call `seekToMeasure` |
 
 ---
 
@@ -327,6 +334,8 @@ Vue handles all key reindexing inline — no Alpine involvement needed:
 | Shift+←/→ | Extend note selection |
 | Ctrl+C/X/V | Copy/cut/paste |
 | Ctrl+Z / Ctrl+Shift+Z | Undo/redo (unified — covers chord grid + tab + voicings) |
+| **Space** | **Play/pause toggle (global — works in all contexts)** |
+| **M** | **Create video sync point at current measure (global — works in all contexts)** |
 | ? | Keyboard shortcut reference overlay |
 | Escape | Clear selection / return to navigate |
 
@@ -444,15 +453,27 @@ resources/views/admin/leadsheets/edit.blade.php   -- ~1,980 lines (Phase B compl
 public/css/leadsheets.css                         -- all editor + chord grid styles
 ```
 
-### Tab editor + chord grid — Vue.js (Phases 7 + B)
+### Tab editor + chord grid — Vue.js (Phases 7 + B + D)
+
 ```
 package.json  /  vite.config.js
 resources/js/tab-editor.js
 resources/js/tab-editor/
   TabEditor.vue  /  TabSidebarApp.vue
-  components/  (see file structure above)
-  composables/  (see file structure above)
-  utils/  (see file structure above)
+  components/
+    TabMeasure.vue / TabCursor.vue / TabSidebar.vue
+    ChordGridView.vue / ChordSection.vue / ChordMeasure.vue / ChordCard.vue
+    ChordPicker.vue / VoicingPicker.vue / VoicingOverview.vue / ChordContextMenu.vue
+    TransportBar.vue           ← Phase D: audio source toggle
+    VideoPlayer.vue            ← Phase D: YouTube iframe with rAF loop
+    VideoSyncEditor.vue        ← Phase D: tap-to-mark UI + fine-tune sliders
+  composables/
+    useAlpineBridge.js / useTabModel.js / useCursor.js / useNoteInput.js
+    useReflow.js / useChordSync.js / useSelection.js / useUndo.js
+    useSidebarStore.js / useChordGridOps.js / useGridSelection.js
+    useChordClipboard.js / useVoicingPicker.js / useChordPicker.js
+    useVideoSync.js            ← Phase D: audioSource, isVideoMaster, mappings, videoBeat
+  utils/  (constants.js, svgHelpers.js, musicXmlWriter.js, chordFormat.js, voicingApi.js, tabModelFacade.js)
 public/build/  (compiled by npm run build)
 ```
 
@@ -474,6 +495,150 @@ public/css/progression-builder.css
 - Alpine.js via CDN + `@alpinejs/collapse` plugin
 - **Vue 3 + Vite** for tab editor + chord grid
 - Fonts: DM Sans + JetBrains Mono + Crimson Text (Google Fonts) + Bravura SMuFL
+
+---
+
+## TAB PLAYBACK VISUAL SYSTEM (2026-04-19)
+
+### Metronome column (`TabMeasure.vue`)
+
+An SVG `<rect>` rendered on top of tab notation — the primary playback indicator in tab view.
+
+- **Position:** `getXm(bSnapped / bpm)` where `bSnapped = Math.floor(beatInMeasure)` — strict quarter-beat grid using the same coordinate transform as notes (`xPos = tickInMeasure / tpm`)
+- **Size:** half-width 9px (`METRO_HALF_W`), height = `LAYOUT.stringSpacing * 5 + 8`, `y = LAYOUT.stringAreaTop - 4`, `rx = 3`
+- **Style:** `.sbn-tab-metronome-col` — same as `.sbn-cursor-sel-col` (fill accent, opacity 0.1)
+- **Visibility:** only when `isPlaying && isPlayingMeasure`
+- **Key behaviour:** uses proportional beat position, never snaps to note x — so it moves strictly in quarter notes even over half/whole notes
+
+### Red note highlight (`TabMeasure.vue`)
+
+- `playingEventId` computed: finds the voice-1 event whose `tickInMeasure ≤ currentTick + 1` (continuous, not snapped)
+- Watch applies/removes `.sbn-beat-active` class on `[data-event-id]` elements inside `svgEl`
+- CSS: `.sbn-tab-note-text.sbn-beat-active { fill: #ef4444 !important }` — matches hover red
+- Cleared when `isPlayingMeasure` goes false
+
+### Cursor ring visibility
+
+`TabCursor.vue` accepts `isPlaying` prop — circle and pending digit hidden during playback. Hit targets remain active for mouse interaction.
+
+### Seek-on-click (stopped state)
+
+`seekToMeasure(gi)` in `TabEditor.vue`:
+- **Playing:** `seekTab(beat) + seekChord(beat)` — immediate clock jump
+- **Stopped:** `seekTab(beat) + seekChord(beat)` — updates both composables' `currentBeat` ref; no auto-start
+- Both `useAudioEngine.play()` and `useChordAudio.play()` re-seek the engine to their stored `currentBeat` before starting, so Resume picks up the clicked position
+- Tab note clicks (`onCursorMousedownEvent`, `onCursorMousedownRest`) also call `seekToMeasure`
+
+---
+
+## VIDEO SYNC ARCHITECTURE (Phase D — IMPLEMENTED)
+
+### Overview
+
+Soundslice-style playback: when "Video audio" mode is active, the **YouTube player is the clock** — it supplies audio and drives the score cursor at 60fps. The synth engine stays idle. When "Synth audio" is selected, video pauses and synth engine drives playback as before.
+
+**Key fix:** Eliminated play stutter caused by `player.seekTo()` calls on every measure change. Now seeks happen **once** on Play or click-to-seek, then `requestAnimationFrame` drives smooth cursor motion.
+
+### Data model
+
+```js
+// Stored in leadsheet json_data.videoSync
+videoSync: {
+  videoId: string,           // YouTube ID or hosted URL
+  videoType: 'youtube' | 'hosted',
+  audioSource: 'synth' | 'video',  // NEW in Phase D1 — default 'synth'
+  mappings: [
+    { measureIndex: number, videoTime: number },  // seconds
+    ...
+  ]
+}
+```
+
+### Audio Source Switch
+
+UI toggle in `TransportBar.vue`: **🎹 Synth** / **📹 Video audio**
+- Disabled when `!hasVideo`
+- Persists in `json_data.videoSync.audioSource`
+- Computed `isVideoMaster = audioSource === 'video' && hasVideo`
+
+### Transport clock routing (TabEditor.vue)
+
+```js
+// Branch on isVideoMaster — video drives transport when active
+const transportPlaying = computed(() => {
+    if (videoSync.isVideoMaster.value) return videoSync.videoPlaying.value;
+    return isPlaying.value || isChordPlaying.value;
+});
+
+const transportBeat = computed(() => {
+    if (videoSync.isVideoMaster.value) {
+        return videoSync.videoBeat.value ?? 0;  // 60fps from rAF loop
+    }
+    if (isPlaying.value)      return currentBeat.value;
+    if (isChordPlaying.value) return chordCurrentBeat.value;
+    return currentBeat.value || chordCurrentBeat.value;
+});
+```
+
+### 60fps Video Sync (VideoPlayer.vue)
+
+Replaced 250ms `setInterval` with `requestAnimationFrame`:
+
+```js
+let _rafId = null;
+function startPolling() {
+    stopPolling();
+    const tick = () => {
+        if (_ytPlayer?.getCurrentTime) {
+            emit('timeupdate', _ytPlayer.getCurrentTime());
+        }
+        _rafId = requestAnimationFrame(tick);
+    };
+    _rafId = requestAnimationFrame(tick);
+}
+```
+
+### Fractional measure indexing (useVideoSync.js)
+
+- `videoTimeToMeasureIndex(time)` returns **fractional** measure index for smooth cursor
+- `videoBeat` computed: `measureIndex * beatsPerMeasure` — drives metronome column + chord highlights
+
+### Mode switching mid-session
+
+Watcher on `videoSync.audioSource`:
+- **synth → video:** Pause synth (`pauseTab()`, `pauseChord()`), don't auto-start video
+- **video → synth:** Pause video (`playerRef.pause()`), seed synth position from current measure so Play resumes from same spot
+
+### Transport actions (branch on isVideoMaster)
+
+| Action | Video Master | Synth Master |
+|--------|--------------|--------------|
+| **Play/Pause** | `player.play()` / `player.pause()` | `playTab()` / `pauseTab()` |
+| **Stop** | `player.pause(); player.seekTo(0)` | `resetTab(); resetChord()` |
+| **Seek measure** | `player.seekTo(measureToVideoTime(gi))` once | `seekTab(beat); seekChord(beat)` |
+
+### Global shortcuts (work in all contexts)
+
+| Key | Action |
+|-----|--------|
+| Space | Toggle play/pause (works even when focused in video sidebar) |
+| M | Create sync point at current measure + video time |
+
+### Components
+
+| Component | Purpose |
+|-----------|---------|
+| `VideoPlayer.vue` | YouTube iframe API wrapper; rAF timeupdate; exposes `seekTo(t)`, `play()`, `pause()` |
+| `useVideoSync.js` | Composable: mappings[], `audioSource`, `isVideoMaster`, `videoBeat`, bidirectional sync |
+| `VideoSyncEditor.vue` | Tap-to-mark UI + mapping table with +/- 5sec fine-tune sliders |
+| `TransportBar.vue` | Audio source toggle (Synth / Video audio) |
+
+### Fine-tune slider
+
+Each mapping row has a narrow range slider for precise adjustment:
+- Range: +/- 5 seconds from current value
+- Step: 0.1 seconds
+- Real-time updates via `onFineTune()` → `addMapping()`
 
 ---
 

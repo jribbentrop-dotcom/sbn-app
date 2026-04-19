@@ -12,6 +12,8 @@
     <div class="sbn-ve-rep-sign rep-start" v-if="hasRepStart">𝄆</div>
     <div class="sbn-ve-rep-sign rep-end"   v-if="hasRepEnd">𝄇</div>
 
+    <SyncPointBadge v-if="syncPoint" :marker-index="syncPoint.markerIndex" :video-time="syncPoint.videoTime" :measure-index="globalIdx" />
+
     <div class="sbn-ve-measure-content">
       <!-- Beat-grid tick marks — one per quarter-note beat across the measure -->
       <div class="sbn-ve-beat-grid">
@@ -55,6 +57,7 @@
 
 <script setup>
 import { inject, computed } from 'vue';
+import SyncPointBadge from './SyncPointBadge.vue';
 import ChordCard from './ChordCard.vue';
 
 const props = defineProps({
@@ -81,6 +84,10 @@ const emit = defineEmits(['contextmenu']);
 const globalIndexOf       = inject('globalIndexOf');
 const playingMeasureIndex = inject('playingMeasureIndex', null);
 const transportBeat       = inject('transportBeat', null);
+const tapCursor           = inject('tapCursor', null);
+const videoSyncMap        = inject('videoSyncMap', null);
+
+const syncPoint = computed(() => videoSyncMap?.value?.get(globalIdx.value) ?? null);
 
 // ── Derived ───────────────────────────────────────────────────────────────────
 
@@ -148,6 +155,7 @@ const measureClasses = computed(() => ({
   'rep-start-bar':  hasRepStart.value,
   'rep-end-bar':    hasRepEnd.value,
   'is-empty':       chordNamesArray.value.length === 0,
+  'is-tap-target':  tapCursor?.value === globalIdx.value,  // D2: pulse when this measure is tap cursor
 }));
 
 // ── Context menu ─────────────────────────────────────────────────────────────

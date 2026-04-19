@@ -1,10 +1,11 @@
 <template>
     <div class="sbn-transport-bar" v-if="totalBeats > 0">
-        <!-- ⏹ Stop/Reset: always visible, seeks back to beat 0 -->
+        <!-- ⏹ Stop/Park: first press parks at position; second press returns to start -->
         <button
             class="sbn-transport-stop"
+            :class="{ 'is-parked': !isPlaying && currentBeat > 0 }"
             @click="$emit('stop')"
-            title="Stop and return to start (Esc)"
+            :title="isPlaying ? 'Stop (parks position)' : currentBeat > 0 ? 'Return to start (Esc)' : 'Return to start'"
         >⏹</button>
 
         <!-- ▶/⏸ Play / Pause toggle -->

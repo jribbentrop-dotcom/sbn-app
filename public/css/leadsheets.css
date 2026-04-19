@@ -434,10 +434,20 @@
 .sbn-tab-note-text.is-active {
     fill: var(--clr-accent, #f39c12);
 }
+/* Beat-active notes: red, like hover (overrides is-active) */
+.sbn-tab-note-text.sbn-beat-active {
+    fill: #ef4444 !important;
+}
+/* Playing measure: no highlight — metronome column is the only indicator */
 .sbn-tab-measure--playing {
-    border-radius: 3px;
-    box-shadow: inset 0 0 0 1.5px var(--clr-accent-border, rgba(243,156,18,0.4));
-    background: var(--clr-accent-bg, rgba(243,156,18,0.06));
+    background: none;
+    box-shadow: none;
+}
+/* Metronome column: same style as selection column in TabCursor */
+.sbn-tab-metronome-col {
+    fill: var(--clr-accent, #f39c12);
+    opacity: 0.1;
+    pointer-events: none;
 }
 .sbn-ve-chord.is-active {
     box-shadow: inset 0 0 0 2px var(--clr-accent, #f39c12);
@@ -1096,7 +1106,18 @@
     z-index: 1; opacity: 0.7;
 }
 
+/* D2: Tap-to-mark target measure highlight (pulsing orange border) */
+.sbn-ve-measure.is-tap-target {
+    outline: 2px solid var(--clr-accent);
+    outline-offset: -2px;
+    animation: pulse-tap-target 1s ease-in-out infinite;
+    z-index: 10;
+}
 
+@keyframes pulse-tap-target {
+    0%, 100% { outline-color: var(--clr-accent); outline-width: 2px; }
+    50% { outline-color: var(--clr-accent-dim); outline-width: 3px; }
+}
 
 .sbn-ve-chord.is-paste-target {
     background: rgba(133, 202, 255, 0.08) !important;
@@ -1613,3 +1634,243 @@
 @media (max-width: 768px) {
     .sbn-ve-chord-picker { left: 10px !important; right: 10px !important; width: auto !important; }
 }
+
+/* ════════════════════════════════════════════════════════════
+   VIDEO SYNC  (Phase D)
+   ════════════════════════════════════════════════════════════ */
+
+/* Main area hint shown in 'video' viewMode */
+.sbn-vsync-main {
+    padding: 24px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+}
+.sbn-vsync-hint {
+    background: var(--clr-surface);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    padding: 20px 28px;
+    font-size: 14px;
+    color: var(--clr-text-muted);
+    text-align: center;
+    max-width: 480px;
+}
+.sbn-vsync-hint strong { color: var(--clr-text); }
+
+/* Sidebar panel wrapper */
+.sbn-video-sidebar-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* VideoPlayer */
+.sbn-video-player {
+    width: 100%;
+    background: #000;
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+}
+.sbn-video-player-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 24px 12px;
+    color: var(--clr-text-muted);
+    font-size: 12px;
+}
+.sbn-video-iframe-wrap {
+    width: 100%;
+}
+.sbn-video-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 12px;
+    background: rgba(0,0,0,0.5);
+}
+.sbn-video-hosted {
+    width: 100%;
+    display: block;
+}
+
+/* VideoSyncEditor */
+.sbn-vsync-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 12px;
+}
+
+.sbn-vsync-url-row {
+    display: flex;
+    gap: 6px;
+}
+.sbn-vsync-url-input {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 8px;
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--clr-surface);
+    color: var(--clr-text);
+    font-size: 11px;
+}
+.sbn-vsync-url-input:focus { outline: none; border-color: var(--clr-accent); }
+
+.sbn-vsync-video-id-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    padding: 2px 0;
+}
+.sbn-vsync-video-id-badge strong { color: var(--clr-text); }
+.sbn-vsync-clear-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--clr-text-muted);
+    font-size: 11px;
+    padding: 0 2px;
+    line-height: 1;
+}
+.sbn-vsync-clear-btn:hover { color: var(--clr-danger, #ef4444); }
+
+.sbn-vsync-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.sbn-vsync-controls-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.sbn-vsync-time-badge {
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    background: var(--clr-surface);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm, 4px);
+    padding: 2px 6px;
+}
+.sbn-vsync-tap-hint {
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    font-style: italic;
+}
+.sbn-vsync-tap-hint kbd {
+    background: var(--clr-border);
+    border-radius: 3px;
+    padding: 0 4px;
+    font-style: normal;
+    font-size: 10px;
+}
+.sbn-vsync-label {
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    white-space: nowrap;
+}
+.sbn-vsync-measure-input {
+    width: 44px;
+    text-align: center;
+    padding: 2px 4px;
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--clr-surface);
+    color: var(--clr-text);
+    font-size: 11px;
+}
+
+/* Mapping table */
+.sbn-vsync-table-wrap {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.sbn-vsync-table-header {
+    display: grid;
+    grid-template-columns: 40px 1fr 24px;
+    gap: 4px;
+    padding: 4px 8px;
+    background: var(--clr-surface);
+    border-bottom: 1px solid var(--clr-border);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--clr-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.sbn-vsync-table-row {
+    display: grid;
+    grid-template-columns: 40px 1fr 24px;
+    gap: 4px;
+    align-items: center;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--clr-border);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.sbn-vsync-table-row:last-child { border-bottom: none; }
+.sbn-vsync-table-row:hover { background: var(--clr-hover, rgba(0,0,0,0.04)); }
+.sbn-vsync-table-row.is-active { background: rgba(var(--clr-accent-rgb, 243,156,18), 0.08); }
+.sbn-vsync-bar-num {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--clr-text);
+}
+.sbn-vsync-time-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: var(--clr-text);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    padding: 0;
+    cursor: text;
+}
+.sbn-vsync-time-input:focus { outline: none; background: var(--clr-surface); border-radius: 2px; }
+.sbn-vsync-del-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--clr-text-muted);
+    font-size: 10px;
+    padding: 0;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.1s;
+}
+.sbn-vsync-table-row:hover .sbn-vsync-del-btn { opacity: 1; }
+.sbn-vsync-del-btn:hover { color: var(--clr-danger, #ef4444); }
+
+.sbn-vsync-empty-table {
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    font-style: italic;
+    padding: 8px 0;
+}
+.sbn-vsync-footer {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* sbn-btn-danger (for tap mode active state) */
+.sbn-btn-danger {
+    background: var(--clr-danger, #ef4444);
+    color: #fff;
+    border-color: transparent;
+}
+.sbn-btn-danger:hover { opacity: 0.9; }
