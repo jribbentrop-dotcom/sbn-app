@@ -326,6 +326,7 @@ class MusicXMLParser {
         const parser = new DOMParser();
         this.doc = parser.parseFromString(xmlString, 'text/xml');
         this.divisions = 1;
+        this.beatsPerMeasure = 4;
     }
 
     parse() {
@@ -542,7 +543,8 @@ class MusicXMLParser {
         const divisions = measure.querySelector('divisions');
         if (divisions) this.divisions = parseInt(divisions.textContent);
         const beatsEl = measure.querySelector('beats');
-        const beatsPerMeasure = beatsEl ? parseInt(beatsEl.textContent) : 4;
+        if (beatsEl) this.beatsPerMeasure = parseInt(beatsEl.textContent);
+        const beatsPerMeasure = this.beatsPerMeasure;
         const totalDivs = this.divisions * beatsPerMeasure; // total divisions in the measure
 
         if (measure.querySelectorAll('harmony').length === 0 && measure.querySelectorAll('note').length === 0) {

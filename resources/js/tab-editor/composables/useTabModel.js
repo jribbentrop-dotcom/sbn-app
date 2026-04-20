@@ -277,7 +277,7 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
                     // chord.beatInMeasure: float quarter-beats from measure start (parser-derived).
                     // chord.beats: float duration in quarter beats (parser-derived).
                     // If missing (shortcode path, manual edits) fall back to even distribution.
-                    const bpm = (model.value?.ticksPerMeasure ?? 1920) / 480;
+                    const bpm = tpm / 480;
                     const hasOffsets = chords.some(c => typeof c === 'object' && c.beatInMeasure != null);
 
                     if (hasOffsets) {
@@ -295,7 +295,7 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
                     }
                 } else if (typeof chords === 'string' && chords) {
                     measures[globalIdx].chordNames   = [chords];
-                    const bpm = (model.value?.ticksPerMeasure ?? 1920) / 480;
+                    const bpm = tpm / 480;
                     measures[globalIdx].chordOffsets = [0];
                     measures[globalIdx].chordBeats   = [bpm];
                 } else {

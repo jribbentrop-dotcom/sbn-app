@@ -650,7 +650,7 @@ provide('transportBeat',        transportBeat);       // raw beat for sub-measur
 provide('beatsPerMeasureRef',   beatsPerMeasure);     // chord cards need this to compute windows
 provide('seekToMeasure',        seekToMeasure);       // chord-card click → seek + play
 provide('transportPlaying',     transportPlaying);    // playback active flag for cursor visibility
-provide('tapCursor',            computed(() => videoSync.tapCursor.value)); // D2: tap-to-mark cursor for measure highlight
+provide('tapCursor',            computed(() => videoSync.sidebarOpen.value ? videoSync.tapCursor.value : -1)); // D2: tap-to-mark cursor for measure highlight
 
 // Video sync map — provided after videoSync is created below (patched in post-init block)
 
