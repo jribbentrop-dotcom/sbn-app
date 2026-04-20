@@ -444,8 +444,17 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
             group.sort((a, b) => a.tick - b.tick);
             let beamGroup = [];
 
+            const abandonOpenGroup = () => {
+                // A new 'begin' (or loop end) before a matching 'end' means the
+                // previous begin was an orphan — clear its provisional flag so
+                // the note renders as a stand-alone flagged note, not mid-beam.
+                if (beamGroup.length === 1) beamGroup[0].beamStart = false;
+                beamGroup = [];
+            };
+
             group.forEach(e => {
                 if (e.beam1 === 'begin') {
+                    if (beamGroup.length) abandonOpenGroup();
                     beamGroup = [e];
                     e.beamStart = true;
                 } else if (e.beam1 === 'continue' && beamGroup.length) {
@@ -459,6 +468,7 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
                     beamGroup = [];
                 }
             });
+            abandonOpenGroup();
         }
     }
 

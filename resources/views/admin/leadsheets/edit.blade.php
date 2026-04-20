@@ -474,7 +474,14 @@ class MusicXMLParser {
             const measureStartTick = measureIdx * ticksPerMeasure;
             if (md.notes && md.notes.length > 0) {
                 md.notes.forEach(note => {
-                    const ticks = this.durationToTicks(note.durationName, ticksPerBeat);
+                    let ticks = this.durationToTicks(note.durationName, ticksPerBeat);
+                    // For tuplet notes the nominal duration (e.g. 240 for an eighth) must be
+                    // scaled to the real time consumed (e.g. 160 for an eighth-triplet 3:2).
+                    // This keeps ev.ticks consistent with tick spacing so repositionMeasure,
+                    // measureFill, and the XML writer all agree on the actual duration.
+                    if (note.tupletActual && note.tupletNormal && note.tupletActual !== note.tupletNormal) {
+                        ticks = Math.round(ticks * note.tupletNormal / note.tupletActual);
+                    }
                     const absoluteTick = measureStartTick + (note.measureTick * ticksPerBeat);
                     allNotes.push({ ...note, tick: absoluteTick, ticks: ticks, measureIdx: measureIdx });
                 });
@@ -631,7 +638,7 @@ class MusicXMLParser {
                 }
                 const rTupletEl = el.querySelector('notations tuplet');
                 const rTupletType    = rTupletEl ? rTupletEl.getAttribute('type') : null;
-                const rTupletBracket = rTupletEl ? rTupletEl.getAttribute('bracket') !== 'no' : false;
+                const rTupletBracket = rTupletEl ? rTupletEl.getAttribute('bracket') === 'yes' : false;
                 notes.push({ isRest: true, duration, durationName, voice, measureTick: noteTick, tupletActual: rTupletActual, tupletNormal: rTupletNormal, tupletType: rTupletType, tupletBracket: rTupletBracket });
                 continue;
             }
@@ -662,7 +669,7 @@ class MusicXMLParser {
             }
             const tupletEl = el.querySelector('notations tuplet');
             const tupletType    = tupletEl ? tupletEl.getAttribute('type') : null; // 'start' | 'stop' | null
-            const tupletBracket = tupletEl ? tupletEl.getAttribute('bracket') !== 'no' : false; // default bracket=yes when attribute absent
+            const tupletBracket = tupletEl ? tupletEl.getAttribute('bracket') === 'yes' : false; // explicit bracket="yes" only; absence = no bracket
             notes.push({ pitch: noteName, octave: parseInt(octave.textContent), duration, durationName, tieStart: !!tieStart, tieStop: !!tieStop, isRest: false, isChordNote, voice, measureTick: noteTick, string: tabString, fret: tabFret, beam1, beam2, tupletActual, tupletNormal, tupletType, tupletBracket });
         }
         return notes;
@@ -1684,7 +1691,7 @@ function leadsheetEditor() {
             this.saving = true;
 
             // If the tab editor is mounted, collect updated XML from Vue first
-            if (this.viewMode === 'tab' && document.getElementById('sbn-tab-editor')) {
+            if (this.alpineViewMode === 'tab' && document.getElementById('sbn-editor-content')) {
                 const xml = await this._requestTabXml();
                 if (xml) {
                     this.tabXml = xml;

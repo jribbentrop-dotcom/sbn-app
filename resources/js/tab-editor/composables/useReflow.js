@@ -94,8 +94,10 @@ function repositionMeasure(measure, tpm) {
         ev.xPos = ev.tickInMeasure / effectiveTicks;
     });
 
-    // Store actualTicks on the measure so TabMeasure can stretch
-    measure.actualTicks = totalTicks;
+    // Store actualTicks only when overfilled — TabMeasure uses it to stretch the bar.
+    // When the measure is full or underfull, clear it so isOverfilled falls through
+    // to the tick-span path, which correctly handles tuplet durations.
+    measure.actualTicks = totalTicks > tpm ? totalTicks : null;
 
     // Re-sort the full events array (including voice 2)
     measure.events.sort((a, b) => a.tick - b.tick || a.voice - b.voice);
@@ -112,42 +114,48 @@ function recomputeBeams(measure, tpm) {
     const events = voice1Sorted(measure);
 
     // ── Save tuplet groups before clearing ──
-    // Tuplet events use beamWith to link group members for rendering.
-    // We must re-link them after clearing beam data.
+    // Strategy: collect all tuplet events, then group them by tick-adjacency.
+    // This is robust against missing tupletType tags, mixed durations, and
+    // cases where beamWith was already null before this call.
     const tupletGroups = [];
     const tupletSeen = new Set();
+
     events.forEach(e => {
-        if (isTupletEvent(e) && !tupletSeen.has(e.id)) {
-            // Collect the group from beamWith or by scanning consecutive tuplet events
-            let group;
-            if (e.beamWith && e.beamWith.length >= 2) {
-                group = e.beamWith;
-            } else {
-                // Fallback: scan from this event's tupletType='start' to 'stop',
-                // accumulating all tuplet events regardless of individual duration.
-                // This handles mixed-duration groups (e.g. half+quarter in a 3:2 bracket).
-                const idx = events.indexOf(e);
-                group = [e];
-                if (e.tupletType === 'start') {
-                    for (let j = idx + 1; j < events.length; j++) {
-                        if (isTupletEvent(events[j])) {
-                            group.push(events[j]);
-                            if (events[j].tupletType === 'stop') break;
-                        } else break;
-                    }
-                } else {
-                    // No start tag — fall back to same-ticks scan
-                    for (let j = idx + 1; j < events.length; j++) {
-                        if (isTupletEvent(events[j]) && events[j].ticks === e.ticks) {
-                            group.push(events[j]);
-                        } else break;
-                    }
-                }
-            }
+        if (!isTupletEvent(e) || tupletSeen.has(e.id)) return;
+
+        // Prefer the existing beamWith group if it's still fully intact
+        // (all members still carry tupletActual — none were dissolved).
+        if (e.beamWith && e.beamWith.length >= 2 &&
+            e.beamWith.every(m => isTupletEvent(m))) {
+            const group = e.beamWith;
             if (group.length >= 2) {
                 tupletGroups.push(group);
                 group.forEach(m => tupletSeen.add(m.id));
+                return;
             }
+        }
+
+        // Fallback: walk forward collecting consecutive tuplet events by
+        // tick-adjacency (each event starts where the previous one ends).
+        // This works for same-duration groups (8th/quarter triplets) AND
+        // mixed-duration groups, without relying on tupletType tags.
+        const idx = events.indexOf(e);
+        const group = [e];
+        let nextTick = e.tick + e.ticks;
+
+        for (let j = idx + 1; j < events.length; j++) {
+            const next = events[j];
+            if (!isTupletEvent(next)) break;
+            // Allow a small rounding tolerance (±2 ticks) for XML-parsed values
+            if (Math.abs(next.tick - nextTick) > 2) break;
+            group.push(next);
+            nextTick = next.tick + next.ticks;
+            if (next.tupletType === 'stop') break;
+        }
+
+        if (group.length >= 2) {
+            tupletGroups.push(group);
+            group.forEach(m => tupletSeen.add(m.id));
         }
     });
 
@@ -165,40 +173,70 @@ function recomputeBeams(measure, tpm) {
     tupletGroups.forEach(group => {
         // noBeamBar = true for half and quarter triplets (ticks >= 320) — bracket only.
         // Eighth triplets (160) and shorter get real beam bars.
-        // Note: flagCount(320) returns 1 due to baseDuration() triplet mapping, so we
-        // cannot rely on flagCount here — compare ticks directly instead.
-        const needsBeamBar = group[0].ticks < 320;
-        group.forEach(m => {
+        // Use the minimum ticks in the group — a mixed group containing an 8th
+        // triplet (160) should still draw beam bars.
+        const minTicks = Math.min(...group.map(m => m.ticks));
+        const needsBeamBar = minTicks < 320;
+        group.forEach((m, i) => {
             m.beamWith = group;
             m.noBeamBar = !needsBeamBar;
+            // When the group is beamed, also set beamStart/Continue/End so the
+            // XML writer can emit <beam> tags; otherwise the reloaded file has
+            // no beam info and falls back to the heuristic path, which splits
+            // tuplets at beat boundaries and forces a bracket.
+            if (needsBeamBar) {
+                m.beamStart    = i === 0;
+                m.beamEnd      = i === group.length - 1;
+                m.beamContinue = i > 0 && i < group.length - 1;
+            }
         });
     });
 
     // ── Standard beam grouping for non-tuplet beamable events ──
-    const beamable = events.filter(e => !e.isRest && e.flagCount > 0 && !isTupletEvent(e));
-    if (beamable.length < 2) return;
-
-    // Group by beat (assumes 4/x time — ticksPerBeat = tpm / beatsPerMeasure)
-    // For simplicity, use quarter-note beats (480 ticks)
+    // Group by beat (quarter-note beats = 480 ticks), then split each beat
+    // group at tuplet-event boundaries so a beam bar never bridges across a
+    // tuplet (which already has its own beam/bracket).
     const ticksPerBeat = TICKS.perBeat;
+    const isBeamable = e => !e.isRest && e.flagCount > 0 && !isTupletEvent(e);
 
-    const groups = {};
-    beamable.forEach(e => {
+    const beatGroups = {};
+    events.forEach(e => {
+        if (!isBeamable(e)) return;
         const beat = Math.floor(e.tickInMeasure / ticksPerBeat);
-        if (!groups[beat]) groups[beat] = [];
-        groups[beat].push(e);
+        if (!beatGroups[beat]) beatGroups[beat] = [];
+        beatGroups[beat].push(e);
     });
 
-    for (const group of Object.values(groups)) {
-        if (group.length < 2) continue;
-        group.sort((a, b) => a.tick - b.tick);
-        group[0].beamStart = true;
-        group[group.length - 1].beamEnd = true;
-        for (let i = 1; i < group.length - 1; i++) {
-            group[i].beamContinue = true;
+    Object.entries(beatGroups).forEach(([beatStr, beatGroup]) => {
+        if (beatGroup.length < 2) return;
+        beatGroup.sort((a, b) => a.tick - b.tick);
+
+        // Split into runs separated by any tuplet event occurring in the
+        // event stream between two candidates.
+        const runs = [];
+        let run = [beatGroup[0]];
+        for (let i = 1; i < beatGroup.length; i++) {
+            const prev = beatGroup[i - 1];
+            const curr = beatGroup[i];
+            const prevIdx = events.indexOf(prev);
+            const currIdx = events.indexOf(curr);
+            let hasTupletBetween = false;
+            for (let j = prevIdx + 1; j < currIdx; j++) {
+                if (isTupletEvent(events[j])) { hasTupletBetween = true; break; }
+            }
+            if (hasTupletBetween) { runs.push(run); run = [curr]; }
+            else run.push(curr);
         }
-        group.forEach(m => { m.beamWith = group; });
-    }
+        runs.push(run);
+
+        runs.forEach(group => {
+            if (group.length < 2) return;
+            group[0].beamStart = true;
+            group[group.length - 1].beamEnd = true;
+            for (let i = 1; i < group.length - 1; i++) group[i].beamContinue = true;
+            group.forEach(m => { m.beamWith = group; });
+        });
+    });
 }
 
 /**

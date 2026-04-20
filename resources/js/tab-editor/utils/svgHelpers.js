@@ -149,7 +149,12 @@ export function renderBeams(measureEvents, getXFn) {
                     ? primaryBeamY - LAYOUT.interBeamGap - LAYOUT.beamThickness
                     : primaryBeamY + LAYOUT.beamThickness + LAYOUT.interBeamGap;
 
-                const hasBeam2 = bg.some(n => n.beam2);
+                // Only use the explicit begin/continue/end path when those values
+                // are actually present. MuseScore emits 'forward hook' / 'backward
+                // hook' for isolated 16ths inside a mixed-duration beam group, which
+                // never forms a begin/end pair — fall through to the adjacency-based
+                // partial-beam logic in that case.
+                const hasBeam2 = bg.some(n => n.beam2 === 'begin' || n.beam2 === 'end');
 
                 if (hasBeam2) {
                     let b2Group = [];

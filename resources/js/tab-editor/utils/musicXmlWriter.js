@@ -82,10 +82,44 @@ function parsePitch(pitchStr) {
     return { step, alter };
 }
 
+// Open-string pitches in standard tuning, indexed by SBN string (1 = high e, 6 = low E).
+const OPEN_STRING_SEMITONES = { 1: 64, 2: 59, 3: 55, 4: 50, 5: 45, 6: 40 }; // MIDI
+
+/**
+ * Derive { step, alter, octave } from a fretted string+fret pair.
+ * Used as a fallback when note.pitch is absent (fret-only entry).
+ */
+function pitchFromStringFret(string, fret) {
+    const open = OPEN_STRING_SEMITONES[string];
+    if (open == null || fret == null) return null;
+    const midi = open + fret;
+    const octave = Math.floor(midi / 12) - 1;
+    const pcSharp = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const token = pcSharp[midi % 12];
+    const step = token[0];
+    const alter = token.length > 1 ? 1 : 0;
+    return { step, alter, octave };
+}
+
 /**
  * Convert SBN ticks → MusicXML <duration> integer (at DIVISIONS=480).
+ * For tuplet events the MusicXML <duration> must reflect actual time consumed,
+ * not the nominal written duration. E.g. a quarter written as tuplet (nominal
+ * ticks=480) occupies 320 real ticks; an eighth triplet occupies 160.
+ * If ev.ticks is already a real tuplet value (320, 160, 640, 80) — as created
+ * by toggleTriplet — use it directly. If it's a nominal value (480, 240) with
+ * tuplet metadata — as produced by XML import — scale by normal/actual.
  */
-function ticksToDivDuration(ticks) {
+function ticksToDivDuration(ticks, event) {
+    if (event && isTuplet(event)) {
+        const actual = event.tupletActual || 3;
+        const normal = event.tupletNormal || 2;
+        // Known real triplet tick values: 80, 160, 320, 640 — use as-is.
+        const realTripletTicks = [80, 160, 320, 640];
+        if (realTripletTicks.includes(ticks)) return ticks;
+        // Nominal ticks (e.g. 480 for quarter) — convert to real duration.
+        return Math.round(ticks * normal / actual);
+    }
     return Math.round(ticks);
 }
 
@@ -335,18 +369,29 @@ function serializeNote(note, event, opts) {
     // Chord marker (all notes after the first in a chord)
     if (!isFirst) lines.push('  <chord/>');
 
-    // Pitch (required even for tab — helps some parsers)
-    if (!event.isRest && note.pitch) {
-        const { step, alter } = parsePitch(note.pitch);
-        lines.push('  <pitch>');
-        lines.push(`    <step>${esc(step)}</step>`);
-        if (alter !== 0) lines.push(`    <alter>${alter}</alter>`);
-        lines.push(`    <octave>${note.octave ?? 3}</octave>`);
-        lines.push('  </pitch>');
+    // Pitch (required — MusicXML rejects <note> with neither <pitch> nor <rest/>).
+    // Fret-only entries arrive with pitch=null; derive from string+fret so the
+    // note round-trips through the parser.
+    if (!event.isRest) {
+        let step = null, alter = 0, octave = 3;
+        if (note.pitch) {
+            ({ step, alter } = parsePitch(note.pitch));
+            octave = note.octave ?? 3;
+        } else if (note.string != null && note.fret != null) {
+            const derived = pitchFromStringFret(note.string, note.fret);
+            if (derived) ({ step, alter, octave } = derived);
+        }
+        if (step) {
+            lines.push('  <pitch>');
+            lines.push(`    <step>${esc(step)}</step>`);
+            if (alter !== 0) lines.push(`    <alter>${alter}</alter>`);
+            lines.push(`    <octave>${octave}</octave>`);
+            lines.push('  </pitch>');
+        }
     }
 
     // Duration
-    lines.push(`  <duration>${ticksToDivDuration(event.ticks)}</duration>`);
+    lines.push(`  <duration>${ticksToDivDuration(event.ticks, event)}</duration>`);
 
     // Rest marker
     if (event.isRest) lines.push('  <rest/>');
@@ -373,9 +418,15 @@ function serializeNote(note, event, opts) {
         lines.push(`  <stem>${stemDir === 'up' ? 'up' : 'down'}</stem>`);
     }
 
-    // Beam (only on first note of a chord)
-    if (isFirst && event.beam1) {
-        lines.push(`  <beam number="1">${esc(event.beam1)}</beam>`);
+    // Beam (only on first note of a chord). Derive from post-edit beam state
+    // (recomputeBeams sets beamStart/Continue/End); fall back to imported beam1.
+    if (isFirst) {
+        let beamLabel = null;
+        if (event.beamStart)         beamLabel = 'begin';
+        else if (event.beamEnd)      beamLabel = 'end';
+        else if (event.beamContinue) beamLabel = 'continue';
+        else if (event.beam1)        beamLabel = event.beam1;
+        if (beamLabel) lines.push(`  <beam number="1">${esc(beamLabel)}</beam>`);
     }
     if (isFirst && event.beam2) {
         lines.push(`  <beam number="2">${esc(event.beam2)}</beam>`);
