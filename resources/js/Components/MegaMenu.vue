@@ -2,7 +2,9 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import UserMenu from './UserMenu.vue';
+import { useCart } from '@/composables/useCart';
 
+const { count, openCart } = useCart();
 const openMenu = ref<string | null>(null);
 
 watch(openMenu, (newVal) => {
@@ -65,6 +67,9 @@ onUnmounted(() => {
             <li class="menu-item">
                 <Link href="/courses" @click="closeAllMenus">Courses</Link>
             </li>
+            <li class="menu-item">
+                <Link href="/top-10" @click="closeAllMenus">Top 10</Link>
+            </li>
 
             <li class="menu-item menu-item-has-children" 
                 :class="{ 'manual-hover': openMenu === 'explore' }">
@@ -89,7 +94,7 @@ onUnmounted(() => {
                         <p class="mega-featured-desc">Master the authentic Brazilian feel</p>
                         <div class="mega-featured-image">
                             <Link href="/courses/bossa-nova-rhythms" @click="closeAllMenus">
-                                <img src="https://images.unsplash.com/photo-1510915361894-db8b60106cb1?q=80&w=600&auto=format&fit=crop" alt="Bossa Nova Rhythms">
+                                <img src="/images/mega-menu/featured-collection.webp" alt="Bossa Nova Rhythms">
                                 <span class="mega-featured-button">Start Learning</span>
                             </Link>
                         </div>
@@ -111,6 +116,14 @@ onUnmounted(() => {
             
              <li class="menu-item">
                 <Link href="/shop" @click="closeAllMenus">Shop</Link>
+            </li>
+            <li class="menu-item menu-item-cart">
+                <button class="cart-icon-link" @click="openCart" aria-label="Shopping cart">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                    </svg>
+                    <span v-if="count > 0" class="cart-count">{{ count }}</span>
+                </button>
             </li>
             <li class="menu-item">
                 <UserMenu />

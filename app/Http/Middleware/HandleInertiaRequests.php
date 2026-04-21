@@ -40,6 +40,12 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            'cart' => [
+                'count' => session('cart.count', 0),
+            ],
+            'shop' => [
+                'usd_rate' => config('shop.usd_rate'),
+            ],
         ];
     }
 }

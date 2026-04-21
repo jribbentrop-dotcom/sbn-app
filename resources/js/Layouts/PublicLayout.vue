@@ -10,10 +10,10 @@ let resizeObserver: ResizeObserver | null = null;
 
 onMounted(() => {
     console.log('[PublicLayout] mounted - persistent layout initialized.');
-    
+
     if (headerRef.value) {
         resizeObserver = new ResizeObserver(() => {
-            const height = headerRef.value?.outerHeight || headerRef.value?.getBoundingClientRect().height || 102;
+            const height = headerRef.value?.getBoundingClientRect().height || 102;
             document.documentElement.style.setProperty('--header-height', `${height}px`);
         });
         resizeObserver.observe(headerRef.value);
@@ -21,9 +21,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    if (resizeObserver && headerRef.value) {
-        resizeObserver.unobserve(headerRef.value);
-    }
+    resizeObserver?.disconnect();
 });
 </script>
 

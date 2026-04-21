@@ -34,7 +34,7 @@ Each phase depends on the ones before it. Execute sequentially.
 |---|---|---|
 | 0 | **[DONE]** Stack scaffolding (Inertia + TS + Tailwind installed, base layout, shared props, one "hello world" Inertia page working alongside existing Blade) | — |
 | 1 | **[DONE]** App shell: mega menu, footer, layout slots, persistent audio player mount point, auth state in shared props | 0 |
-| 2 | Shop (catalog + product pages, stubbed checkout buttons, no real payment) | 1 |
+| 2 | **[DONE]** Shop (catalog + product pages, stubbed checkout, download) | 1 |
 | 3 | Chord library + frontend chord diagram component (Vue + TS) | 1 |
 | 4 | Rhythm library + frontend rhythm pattern component (Vue + TS) | 1 |
 | 5 | Top10 pages (composition over components from 3 and 4) | 3, 4 |

@@ -50,6 +50,10 @@
                 <x-admin.nav-item route="admin.rhythms.index" icon="rhythm" label="Rhythm Patterns" />
             </div>
             <div class="sbn-nav-section">
+                <span class="sbn-nav-label" x-show="!sidebarCollapsed" x-transition.opacity>Shop</span>
+                <x-admin.nav-item route="admin.orders.index" icon="leadsheet" label="Orders" />
+            </div>
+            <div class="sbn-nav-section">
                 <span class="sbn-nav-label" x-show="!sidebarCollapsed" x-transition.opacity>Tools</span>
                 <x-admin.nav-item route="admin.progressions.builder" icon="progression" label="Prog. Builder" />
             </div>

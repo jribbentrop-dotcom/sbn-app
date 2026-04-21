@@ -6,6 +6,7 @@
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
 
         <link rel="stylesheet" href="{{ asset('css/sbn-design-system.css') }}">
+        <link rel="stylesheet" href="{{ asset('css/mega-menu.css') }}">
         <link rel="stylesheet" href="{{ asset('css/chord-symbols.css') }}">
         <script src="{{ asset('js/chords.js') }}"></script>
 

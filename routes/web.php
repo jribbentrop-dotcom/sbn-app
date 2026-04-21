@@ -9,6 +9,12 @@ use App\Http\Controllers\Admin\RhythmPatternController;
 use App\Http\Controllers\Admin\VoicingController;
 use App\Http\Controllers\Admin\ProgressionDetectionController;
 use App\Http\Controllers\Admin\ProgressionBuilderController;
+use App\Http\Controllers\Shop\CartController;
+use App\Http\Controllers\Shop\CheckoutController;
+use App\Http\Controllers\Shop\DownloadController;
+use App\Http\Controllers\Shop\OrderController;
+use App\Http\Controllers\Shop\ShopController;
+use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -59,6 +65,9 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::get('/rhythms/{rhythm}/edit', [RhythmPatternController::class, 'edit'])->name('rhythms.edit');
     Route::put('/rhythms/{rhythm}', [RhythmPatternController::class, 'update'])->name('rhythms.update');
     Route::delete('/rhythms/{rhythm}', [RhythmPatternController::class, 'destroy'])->name('rhythms.destroy');
+
+    // Shop Orders (admin view)
+    Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
 });
 
 /*
@@ -110,6 +119,21 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
     Route::post('/voicings/clear-all', [VoicingController::class, 'clearAll'])->name('voicings.clearAll');
     Route::post('/voicings/reprocess', [VoicingController::class, 'reprocess'])->name('voicings.reprocess');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Public Shop
+|--------------------------------------------------------------------------
+*/
+Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
+Route::get('/shop/category/{slug}', [ShopController::class, 'category'])->name('shop.category');
+Route::get('/shop/product/{slug}', [ShopController::class, 'show'])->name('shop.show');
+Route::get('/shop/cart', [CartController::class, 'show'])->name('cart.show');
+Route::get('/shop/checkout', [CheckoutController::class, 'show'])->name('checkout.show');
+Route::post('/shop/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
+Route::get('/shop/order/{token}', [OrderController::class, 'success'])->name('order.success');
+Route::get('/shop/download/{token}/{productId}', [DownloadController::class, 'download'])
+    ->name('download.file');
 
 /*
 |--------------------------------------------------------------------------
