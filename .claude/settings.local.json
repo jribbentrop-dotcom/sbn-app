@@ -6,7 +6,8 @@
       "Bash(awk '/<measure number=\"1\">/,/<\\\\/measure>/' c:/Users/info/sbn-app/storage/app/saved_tab.xml)",
       "Bash(awk '/<measure number=\"1\">/,/<\\\\/measure>/' c:/Users/info/sbn-app/storage/app/saved_wine.xml)",
       "Bash(awk '/<measure number=\"1\"[ >]/,/<\\\\/measure>/' \"c:/Users/info/sbn-app/docs/BOSSA - O Barquinho.musicxml\")",
-      "Bash(awk '/<measure number=\"1\">/,/<\\\\/measure>/' c:/Users/info/sbn-app/storage/app/saved_barq.xml)"
+      "Bash(awk '/<measure number=\"1\">/,/<\\\\/measure>/' c:/Users/info/sbn-app/storage/app/saved_barq.xml)",
+      "Read(//c/Users/info/**)"
     ]
   }
 }

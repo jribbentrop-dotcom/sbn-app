@@ -119,3 +119,7 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
 Route::get('/', function () {
     return redirect()->route('admin.dashboard');
 });
+
+Route::get('/hello', function () {
+    return \Inertia\Inertia::render('Hello');
+});
