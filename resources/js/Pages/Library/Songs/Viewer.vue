@@ -15,6 +15,18 @@ const props = defineProps({
     type: Array,
     required: true,
   },
+  chordCards: {
+    type: Object,
+    default: () => ({}),
+  },
+  qualityByKey: {
+    type: Object,
+    default: () => ({}),
+  },
+  eduChordQualities: {
+    type: Object,
+    default: () => ({}),
+  },
 });
 
 // SEO metadata
@@ -36,8 +48,11 @@ const metaDescription = computed(() => {
     <meta property="og:type" content="article" />
   </Head>
 
-  <LeadsheetViewer 
-    :leadsheet="leadsheet" 
-    :progressions="progressions" 
+  <LeadsheetViewer
+    :leadsheet="leadsheet"
+    :progressions="progressions"
+    :chord-cards="chordCards"
+    :quality-by-key="qualityByKey"
+    :edu-chord-qualities="eduChordQualities"
   />
 </template>

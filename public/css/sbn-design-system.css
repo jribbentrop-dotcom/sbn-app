@@ -1505,18 +1505,81 @@
     opacity: 0;
     max-height: 0;
     pointer-events: none;
+    transform: scale(0.95);
+    z-index: 1;
 }
 
 .sbn-ve-measure.is-full .sbn-ve-chord-diagram {
     opacity: 1;
     max-height: 500px;
     pointer-events: auto;
+    transform: scale(1);
+    z-index: 1;
 }
 
-/* Smooth transitions for density changes */
-.sbn-ve-chord-diagram {
-    transition: opacity 200ms ease, max-height 200ms ease;
+/* Ensure chord names stay on top during transitions */
+.sbn-ve-chord-name {
+    position: relative;
+    z-index: 2;
 }
+
+/* Staged animation: different timing for fade-in vs fade-out */
+.sbn-ve-chord-diagram {
+    transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1) 150ms, 
+                max-height 150ms cubic-bezier(0.4, 0, 0.2, 1) 150ms,
+                transform 150ms cubic-bezier(0.4, 0, 0.2, 1) 150ms;
+}
+
+/* Measure content: immediate on expand, delayed on collapse */
+.sbn-ve-measure-content {
+    transition: min-height 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                padding 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Density rework - compact line height while keeping same row structure */
+.sbn-ve-measure.is-compact .sbn-ve-measure-content {
+    min-height: 80px; /* Reduced from 150px - compact line height */
+    padding: 8px 12px;
+    display: flex;
+    align-items: center; /* Center chord names vertically */
+}
+
+.sbn-ve-measure.is-compact .sbn-ve-chord {
+    padding: 6px 8px;
+    margin: 2px;
+    flex: 1;
+    text-align: center;
+}
+
+.sbn-ve-measure.is-compact .sbn-ve-chord-name {
+    font-size: 20px; /* Original size */
+    font-weight: 700; /* Original weight */
+    line-height: 1.2; /* Original line height */
+    margin: 0; /* Remove extra margins */
+    transform: translateY(0);
+    transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sbn-ve-measure.is-compact .sbn-ve-chord {
+    transition: background 200ms ease, transform 200ms ease;
+}
+
+.sbn-ve-measure.is-compact .sbn-ve-chord:hover {
+    background: var(--clr-surface-2);
+    transform: translateY(-1px);
+}
+
+/* Ensure full mode maintains proper spacing */
+.sbn-ve-measure.is-full .sbn-ve-measure-content {
+    min-height: 150px;
+    padding: 12px 16px;
+}
+
+.sbn-ve-measure.is-full .sbn-ve-chord {
+    padding: 6px 8px;
+    margin: 3px;
+}
+
 
 /* Active/selected measure — blue frame only, no background tint */
 .sbn-ve-measure.is-active {
@@ -1525,8 +1588,11 @@
 .sbn-ve-measure.is-active::after {
     content:        '';
     position:       absolute;
-    inset:          0;
-    box-shadow:     inset 0 0 0 1px var(--clr-style-jazz);
+    top:            -1px;
+    left:           -1px;
+    right:          -1px;
+    bottom:         -1px;
+    box-shadow:     inset 0 0 0 2px var(--clr-style-jazz);
     pointer-events: none;
     z-index:        4;
 }

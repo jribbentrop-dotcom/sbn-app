@@ -26,7 +26,27 @@
     <!-- Current chord block -->
     <div class="sbn-edu-section">
       <h4 class="sbn-edu-section-title">Current Chord</h4>
-      <div v-if="currentChord" class="sbn-edu-chord-detail">
+      <div v-if="activeCard" class="sbn-edu-chord-detail">
+        <!-- Full chord card from library -->
+        <LibraryChordCard :chord="activeCard" :show-root="true" />
+
+        <!-- Chord quality blurb (Step 6 replaces with edu content service) -->
+        <div v-if="chordQualityInfo" class="sbn-edu-chord-blurb">
+          <p>{{ chordQualityInfo.blurb }}</p>
+        </div>
+
+        <!-- Link to chord library -->
+        <div v-if="activeCard.slug" class="sbn-edu-chord-actions">
+          <a
+            :href="`/library/chords/${activeCard.slug}`"
+            class="sbn-edu-link"
+          >
+            View in chord library →
+          </a>
+        </div>
+      </div>
+      <div v-else-if="currentChord" class="sbn-edu-chord-detail">
+        <!-- Fallback when no voicing data available -->
         <div class="sbn-edu-chord-name">
           <span class="sbn-chord-symbol" v-html="formatChordHtml(currentChord)"></span>
         </div>
@@ -34,8 +54,8 @@
           <p>{{ chordQualityInfo.blurb }}</p>
         </div>
         <div class="sbn-edu-chord-actions">
-          <a 
-            :href="`/library/chords/${chordSlug}`" 
+          <a
+            :href="`/library/chords/${chordSlug}`"
             class="sbn-edu-link"
           >
             View in chord library →
@@ -82,12 +102,19 @@ import { computed } from 'vue';
 // Import chord formatting utilities (reuse from tab-editor)
 import { formatChordHtml } from '@/tab-editor/utils/chordFormat.js';
 
+// Import library chord card component
+import LibraryChordCard from '@/Components/Library/ChordCard.vue';
+
 const props = defineProps({
   currentChord: {
     type: String,
     default: null,
   },
   currentSectionId: {
+    type: String,
+    default: null,
+  },
+  selectionKey: {
     type: String,
     default: null,
   },
@@ -99,37 +126,52 @@ const props = defineProps({
     type: Array,
     required: true,
   },
+  chordCards: {
+    type: Object,
+    default: () => ({}),
+  },
+  qualityByKey: {
+    type: Object,
+    default: () => ({}),
+  },
+  eduChordQualities: {
+    type: Object,
+    default: () => ({}),
+  },
 });
 
-// ── Chord quality parsing ─────────────────────────────────────────────────────────────
+// Look up a value by per-slot key, falling back to bare-name (mirrors the
+// grid's lookup pattern: cv[`${name}@${gi}.${ci}`] || cv[name]). Voicings can
+// be stored either way; the viewer must accept both.
+function _lookupWithFallback(map, key) {
+  if (!map || !key) return null;
+  if (map[key] != null) return map[key];
+  const bare = key.replace(/@\d+\.\d+$/, '');
+  return map[bare] ?? null;
+}
+
+// Active chord card from the enriched map
+const activeCard = computed(() =>
+  _lookupWithFallback(props.chordCards, props.selectionKey)
+);
+
+// ── Chord quality blurb lookup ─────────────────────────────────────────────────────
 const chordQualityInfo = computed(() => {
-  if (!props.currentChord) return null;
-  
-  // Simple chord quality detection - this will be replaced with the service in Step 6
-  const chord = props.currentChord.toLowerCase();
-  
-  // Basic quality patterns
-  if (chord.includes('maj7') || chord.includes('△7') || chord.includes('M7')) {
-    return { title: 'Major 7th', blurb: 'A major triad with an added major 7th interval. Creates a rich, jazzy sound often used in bossa nova and jazz standards.' };
-  }
-  if (chord.includes('m7') || chord.includes('min7') || chord.includes('-7')) {
-    return { title: 'Minor 7th', blurb: 'A minor triad with an added minor 7th interval. Common in jazz, blues, and contemporary music for its sophisticated yet somber quality.' };
-  }
-  if (chord.includes('7') && !chord.includes('maj7') && !chord.includes('m7')) {
-    return { title: 'Dominant 7th', blurb: 'A major triad with a flat 7th interval. Creates tension that naturally resolves to the tonic, essential for blues and jazz progressions.' };
-  }
-  if (chord.includes('m') || chord.includes('-') || chord.includes('min')) {
-    return { title: 'Minor', blurb: 'A minor triad (root, minor third, perfect fifth). Creates a sad or contemplative mood, fundamental to most musical styles.' };
-  }
-  if (chord.includes('dim') || chord.includes('°')) {
-    return { title: 'Diminished', blurb: 'A diminished triad with a flat fifth and flat seventh. Creates intense tension, often used as a passing chord or leading tone chord.' };
-  }
-  if (chord.includes('aug') || chord.includes('+')) {
-    return { title: 'Augmented', blurb: 'An augmented triad with a raised fifth. Creates an unsettled, dreamy quality that wants to resolve.' };
-  }
-  
-  // Default to major
-  return { title: 'Major', blurb: 'A major triad (root, major third, perfect fifth). Creates a bright, happy sound that forms the foundation of most Western music.' };
+  if (!props.selectionKey) return null;
+
+  // Get quality slug from qualityByKey map (computed server-side by ChordVoicingSearch)
+  const qualitySlug = _lookupWithFallback(props.qualityByKey, props.selectionKey);
+  if (!qualitySlug) return null;
+
+  // Look up blurb from eduChordQualities (from EduContentService)
+  const info = props.eduChordQualities[qualitySlug];
+  if (info) return info;
+
+  // Fallback for unknown qualities
+  return {
+    title: qualitySlug,
+    blurb: 'This chord quality is not yet documented in our education library.',
+  };
 });
 
 // ── Chord slug generation ─────────────────────────────────────────────────────────────
@@ -176,13 +218,15 @@ const filteredProgressions = computed(() => {
   flex-direction: column;
   gap: 24px;
   height: 100%;
-  padding: 0;
+  padding: 24px;
+  background: var(--clr-surface);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius);
 }
 
 /* Header */
 .sbn-edu-header {
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--clr-border);
 }
 
 .sbn-edu-song-title {

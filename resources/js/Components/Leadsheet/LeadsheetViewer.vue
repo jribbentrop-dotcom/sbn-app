@@ -2,14 +2,13 @@
   <div class="sbn-leadsheet-viewer" :class="{ 'is-embedded': embedded }">
     <!-- Header band (hidden when embedded) -->
     <div v-if="!embedded" class="sbn-leadsheet-header">
-      <div class="sbn-leadsheet-title-section">
-        <h1 class="sbn-leadsheet-title">{{ leadsheet.title }}</h1>
-        <div class="sbn-leadsheet-meta">
-          <span v-if="leadsheet.composer" class="sbn-leadsheet-composer">{{ leadsheet.composer }}</span>
-          <span v-if="leadsheet.songKey" class="sbn-leadsheet-key">Key: {{ leadsheet.songKey }}</span>
-          <span v-if="leadsheet.tempo" class="sbn-leadsheet-tempo">{{ leadsheet.tempo }} BPM</span>
-          <span v-if="leadsheet.timeSignature" class="sbn-leadsheet-time-sig">{{ leadsheet.timeSignature }}</span>
-        </div>
+      <div class="sbn-leadsheet-back-section">
+        <a href="/library/songs" class="sbn-back-link">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M10 14L4 8L10 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Back to Library
+        </a>
       </div>
 
       <div class="sbn-leadsheet-controls">
@@ -52,8 +51,12 @@
         <EduPanel
           :current-chord="currentChord"
           :current-section-id="currentSectionId"
+          :selection-key="selectionKey"
           :song="songInfo"
           :progressions="progressions"
+          :chord-cards="chordCards"
+          :quality-by-key="qualityByKey"
+          :edu-chord-qualities="eduChordQualities"
         />
       </div>
     </div>
@@ -103,6 +106,21 @@ const props = defineProps({
   progressions: {
     type: Array,
     default: () => [],
+  },
+  /** ChordDiagramData map keyed by "chordName@gi.ci" — enriched chord card data */
+  chordCards: {
+    type: Object,
+    default: () => ({}),
+  },
+  /** Quality slug map keyed by "chordName@gi.ci" — for edu blurbs (Step 6) */
+  qualityByKey: {
+    type: Object,
+    default: () => ({}),
+  },
+  /** Edu content blurbs for chord qualities keyed by quality slug */
+  eduChordQualities: {
+    type: Object,
+    default: () => ({}),
   },
   /** When true, suppresses the standalone header band (course-lesson embed). */
   embedded: {
@@ -276,6 +294,18 @@ const currentSectionId = computed(() => {
   return found?.section?.id ?? null;
 });
 
+// Selection key for chordCards lookup: "chordName@gi.ci"
+const selectionKey = computed(() => {
+  const sel = gridSelection.selection.value;
+  if (!sel.length) return null;
+  const last = sel[sel.length - 1];
+  const found = _findInModel(last.gi);
+  if (!found) return null;
+  const name = found.measure.chordNames?.[last.ci];
+  if (!name) return null;
+  return `${name}@${last.gi}.${last.ci}`;
+});
+
 const songInfo = computed(() => ({
   title:         props.leadsheet.title,
   composer:      props.leadsheet.composer ?? null,
@@ -307,49 +337,52 @@ provide('globalIndexOf', (si, mi) => {
 
 <style scoped>
 .sbn-leadsheet-viewer {
-  display: flex;
-  flex-direction: column;
-  min-height: calc(100vh - 80px);
-  background: var(--clr-bg);
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+  background: white;
 }
 
 .sbn-leadsheet-viewer.is-embedded {
-  min-height: 0;
+  max-width: none;
+  margin: 0;
+  padding: 0;
   border-radius: var(--radius);
   box-shadow: var(--clr-shadow);
   overflow: hidden;
 }
 
-/* Header */
+/* Header - now inline, not full-width band */
 .sbn-leadsheet-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 24px;
-  padding: 24px 32px 16px;
-  border-bottom: 1px solid var(--clr-border);
-  background: var(--clr-surface);
+  padding: 0 0 24px;
+  background: transparent;
 }
 
-.sbn-leadsheet-title {
-  margin: 0 0 8px 0;
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--clr-text);
-}
-
-.sbn-leadsheet-meta {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+.sbn-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--clr-text-muted);
+  text-decoration: none;
   font-size: 14px;
-  color: var(--clr-text-dim);
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
 }
 
-.sbn-leadsheet-meta span {
-  padding: 4px 10px;
+.sbn-back-link:hover {
+  color: var(--clr-text);
   background: var(--clr-surface-2);
-  border-radius: var(--radius-sm);
+  text-decoration: none;
+}
+
+.sbn-back-link svg {
+  flex-shrink: 0;
 }
 
 /* Controls */
@@ -402,59 +435,83 @@ provide('globalIndexOf', (si, mi) => {
   opacity: 1;
 }
 
-/* Two-column layout */
+/* Two-column layout - match library structure */
 .sbn-leadsheet-content {
   display: flex;
-  flex: 1;
-  min-height: 0;
+  gap: 24px;
+  align-items: flex-start;
+  padding: 0 0 120px; /* Bottom padding for fixed transport */
 }
 
 .sbn-leadsheet-main {
   flex: 1;
   min-width: 0;
-  padding: 24px 24px 96px;
-  overflow-y: auto;
+  order: 0;
+  background: var(--clr-surface);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius);
+  padding: 24px;
 }
 
 .sbn-leadsheet-sidebar {
-  width: 320px;
+  position: sticky;
+  top: 80px;
+  align-self: flex-start;
+  width: 280px;
+  min-width: 280px;
   flex-shrink: 0;
-  border-left: 1px solid var(--clr-border);
-  background: var(--clr-surface-2);
-  padding: 24px;
-  overflow-y: auto;
+  order: 1;
 }
 
-/* Transport bar */
+/* Transport bar - fixed at bottom */
 .sbn-leadsheet-transport {
-  position: sticky;
+  position: fixed;
   bottom: 0;
-  z-index: 10;
+  left: 0;
+  right: 0;
+  z-index: 100;
   background: var(--clr-surface);
   border-top: 1px solid var(--clr-border);
   padding: 12px 24px;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
 }
 
-/* Mobile */
-@media (max-width: 768px) {
-  .sbn-leadsheet-header {
-    flex-direction: column;
-    gap: 16px;
-    padding: 20px 20px 12px;
-  }
-
+/* Mobile - match library responsive behavior */
+@media (max-width: 1024px) {
   .sbn-leadsheet-content {
     flex-direction: column;
   }
 
-  .sbn-leadsheet-main {
-    padding: 20px 20px 96px;
+  .sbn-leadsheet-sidebar {
+    position: static;
+    width: 100%;
+    min-width: 100%;
+    order: -1;
+  }
+}
+
+@media (max-width: 768px) {
+  .sbn-leadsheet-viewer {
+    padding: 24px 16px 60px;
   }
 
-  .sbn-leadsheet-sidebar {
-    width: 100%;
-    border-left: none;
-    border-top: 1px solid var(--clr-border);
+  .sbn-leadsheet-header {
+    flex-direction: column;
+    gap: 16px;
+    padding: 0 0 20px;
+  }
+
+  .sbn-leadsheet-content {
+    gap: 24px;
+    padding: 0 0 120px;
+  }
+
+  .sbn-leadsheet-main {
+    padding: 20px;
+  }
+
+  .sbn-leadsheet-transport {
+    padding: 12px 16px;
   }
 }
 </style>

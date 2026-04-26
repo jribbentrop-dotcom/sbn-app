@@ -97,9 +97,7 @@ const DEFAULT_BARS_PER_ROW = 4;
 
 // Density affects default bars per row - compact mode fits more measures
 const barsPerRow = computed(() => {
-  if (props.density === 'compact') {
-    return 6; // More measures fit when diagrams are hidden
-  }
+  // Keep same structure per row regardless of density
   return DEFAULT_BARS_PER_ROW;
 });
 
@@ -107,6 +105,7 @@ const rows = computed(() => {
   const lineBreaks = props.section.lineBreaks;
   const measures   = props.section.measures || [];
 
+  // Always respect lineBreaks regardless of density
   if (lineBreaks?.length) {
     const out = [];
     let idx = 0;
@@ -121,7 +120,7 @@ const rows = computed(() => {
     return out;
   }
 
-  // Fallback: uniform rows based on density
+  // Fallback: uniform rows
   const out = [];
   const currentBarsPerRow = barsPerRow.value;
   for (let i = 0; i < measures.length; i += currentBarsPerRow) {

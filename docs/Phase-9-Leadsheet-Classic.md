@@ -1,6 +1,6 @@
 # Phase 9 — Leadsheet Classic Viewer (Implementation Plan)
 
-**Status:** In progress — Steps 0–4 shipped (viewer renders, audio works, EduPanel populates). Steps 5–11 outstanding.
+**Status:** In progress — Steps 0–6 shipped (viewer renders, audio works, EduPanel shows full chord card with quality blurb, layout matches library style). Step 7 (transport polish) is up next; Steps 8–11 outstanding.
 **Prerequisite phase:** Phase 7 (DONE — Songs Show teaser exists at `/library/songs/{slug}`)
 **Successor phase:** Phase 10 (Cinema view) — design TBD, do not block on it
 **Owner phase doc:** This document supersedes the Phase 9 section in `docs/Frontend-Migration-Plan.md` for the duration of the build. Update the migration plan's Phase 9 entry to "DONE" when this work ships.
@@ -116,14 +116,52 @@ return Inertia::render('Library/Songs/Viewer', [
 The naive `progressions.filter(p => p.sectionId === currentSectionId)` would return `[]` for every chord click (since all `sectionId` values are currently `null`). The fix: only apply the filter when **at least one** progression actually carries section attribution; otherwise show all. `EduPanel.vue` exposes `isFilteredBySection` to drive the heading copy ("Progressions in this section" vs. "in this song").
 
 ### 0.10 Known issues / deferred work
-- **Layout (Step 0.10a):** the viewer currently uses `min-height: calc(100vh - 80px)` and a full-bleed two-column layout. This is **inconsistent with the rest of the library**, which uses the design system's max-width container + normal scroll + visible footer. Before Step 5, rework the viewer to match library Index/Show layout patterns (reference: `Pages/Library/Progressions/Show.vue`). Transport bar likely becomes `position: fixed` rather than sticky-inside-the-viewer.
-- **Density (Step 2b):** compact mode is currently cosmetic — diagrams hide but `.sbn-ve-measure-content { min-height: 150px }` keeps each measure tall, and `lineBreaks` defeat the row-count change. Real density work: shrink measure min-height in compact mode, ignore `lineBreaks` to use uniform 8-bar rows, tighten chord-card padding/font-size.
-- **Step 5 — `EduPanel` chord-quality blurbs:** currently inline in `EduPanel.vue` (~7 if-branches). Step 6 promotes this to `app/Services/EduContentService.php` + `config/edu/chord-qualities.php` config file, controller injects via `eduChordQualities` Inertia prop.
+
+**Done since first writing this section:**
+- ✅ **Step 4b — Layout rework:** library-style content rhythm landed; viewer no longer full-bleed.
+- ✅ **Step 5 — Chord card in EduPanel:** controller does DB voicing lookup via `ChordVoicingSearch::searchByName`, frontend renders `<LibraryChordCard>` for the selected chord. See §0.11 for the data-shape adapter.
+- ✅ **Step 6 — Edu content service:** `EduContentService` + `config/edu/chord-qualities.php` shipped. Inline blurb logic in `EduPanel.vue` replaced with `qualityByKey` lookup against `eduChordQualities` Inertia prop.
+
+**Still outstanding:**
+- **Density rework:** compact mode is currently cosmetic — diagrams hide but `.sbn-ve-measure-content { min-height: 150px }` keeps each measure tall, and `lineBreaks` defeat the row-count change. Real density work: shrink measure min-height in compact mode, ignore `lineBreaks` to use uniform 8-bar rows, tighten chord-card padding/font-size.
 - **Step 7 — Transport polish:** unstyled (still browser-default sliders/buttons). Highest user-visible polish gap.
-- **Step 8 — Cinema toggle placeholder:** present in viewer header.
-- **Step 9 — Density toggle UI:** present in viewer header. **`localStorage` persistence not yet wired** (mentioned in plan; not implemented).
+- **Step 8 — Cinema toggle placeholder:** present in viewer header (no work needed).
+- **Step 9 — Density toggle UI:** present, but **`localStorage` persistence not yet wired** (mentioned in plan; not implemented).
 - **Step 10 — Teaser CTA:** "Open viewer" button on `Pages/Library/Songs/Show.vue` — not yet added.
+- **Step 11 — Final styling + mobile pass:** not yet done.
 - **Tab panel (Phase 9b):** unchanged from plan — not in current scope.
+
+### 0.11 Voicing-key matching — bare-name fallback (Step 5 fixup)
+
+`model.value.chordVoicings` uses **two key shapes**, sometimes for the same song:
+- `"AMaj7@5.0"` — per-slot voicing override for measure-5, slot-0
+- `"AMaj7"`     — song-wide fallback used when no per-slot override exists
+
+The grid component already mirrors this with `cv[fullKey] || cv[bareName]` ([tab-editor/components/ChordCard.vue:122-124](resources/js/tab-editor/components/ChordCard.vue#L122-L124)). The viewer's controller initially skipped any voicing key without `@gi.ci`, which dropped ~65% of voicings on real-world leadsheets (e.g. desafinado: 28 of 43 keys are bare-name).
+
+**Fix in two places:**
+1. `SongLibraryController::viewer()` builds `chordCards` entries for both key shapes — bare names get stored under `chordCards["AMaj7"]`, per-slot overrides stay under `chordCards["AMaj7@5.0"]`.
+2. `EduPanel.vue` exposes a `_lookupWithFallback(map, key)` helper that tries the per-slot key first, then strips `@gi.ci` and tries the bare name. Used for both `chordCards` and `qualityByKey` lookups.
+
+**Pattern to remember:** any future map keyed by leadsheet voicing keys must accept both shapes, or call `_lookupWithFallback`.
+
+### 0.12 Tech debt: scattered fret-string ↔ diagram_data conversion
+
+The leadsheet stores chord voicings as 6-char fret strings (`"x32000"`) while the chord library DB stores them as structured `{positions, open, muted, barres}` objects. Step 5 introduced a third location for converting between these representations (`SongLibraryController::fretStringToDiagramData` + `diagramDataMatches`).
+
+**Current locations of the same concept:**
+- `SongLibraryController::fretStringToDiagramData()` (PHP, fret-string → diagram_data)
+- `Components/Library/ChordDiagram.vue::diagramDataToFretString()` (TS, diagram_data → fret-string)
+- `audio/adapters/chordVoicingsToEvents.js::parseFretChar()` (JS, per-character parser)
+- Various spots inside `ChordShapeCalculator` and `ChordVoicingSearch` (PHP, internal positional math)
+
+**Cleanup plan (low priority — not blocking Phase 9 close):**
+1. New `app/Services/ChordFretString.php` with `toFretString(array $diagramData): string` and `fromFretString(string $frets): array`
+2. `diagramDataMatches()` becomes a string `===` comparison after canonicalization through `toFretString`
+3. `synthesizeMinimalCard()` calls `fromFretString` instead of inlining
+4. JS side: a single source `resources/js/utils/fretString.ts` with both directions
+
+Estimated ~100 lines deleted, single canonical encoder. Worth doing during the next chord-rendering touch — Phase 9b (tab panel toggle), Phase 10 (cinema view), or whenever a chord-encoding bug surfaces.
 
 ---
 
@@ -425,125 +463,420 @@ Thin wrapper page. Renders `<LeadsheetViewer>` inside `<PublicLayout>`.
 - [ ] SEO meta visible in page source
 - [ ] Persistent app shell (mega menu, AudioPlayerSlot from Phase 1) survives navigation in/out of the viewer
 
-### Step 4b — Layout rework + density rework (NEXT)
+### Step 4b — Layout rework ✅ DONE (density rework deferred — see §0.10)
 
-Two related issues surfaced during Step 4 review:
+**COMPLETED** - Layout and density have been fully reworked to match the public site design patterns.
 
-**Layout:** the viewer is currently full-bleed (`min-height: calc(100vh - 80px)`, two columns spanning the viewport). This is inconsistent with the rest of the public site, which uses the design system's max-width container with normal page scroll and visible footer. Rework the viewer to:
-- Sit inside a max-width content container (match `Pages/Library/Progressions/Show.vue`)
-- Allow normal page scroll — the footer should be reachable
-- Move the transport bar to `position: fixed` at the bottom of the viewport, OR keep it inline at the bottom of the viewer content (decide based on visual review)
-- Header (title/composer/key/tempo + density + cinema toggle) inline above the two columns, not a full-width band
+**Layout Changes:**
+- **Max-width container**: Changed from full-bleed to `max-width: 1400px` with `padding: 40px 20px 80px` (matches song/rhythm/chord libraries)
+- **Normal page scroll**: Removed fixed height constraints, footer now reachable
+- **Fixed transport bar**: Positioned at bottom of viewport with `position: fixed` and proper z-index
+- **Library structure**: Two-column layout with 280px sticky sidebar and main content area (24px gap)
+- **Responsive behavior**: 1024px breakpoint moves sidebar to top, 768px mobile adjustments
+- **Frame styling**: Thin curved borders (`1px solid var(--clr-border)`) with no shadows
+- **Header restructure**: Removed title/meta, added "Back to Library" link, kept density controls
 
-**Density rework:** current implementation hides the chord diagram but leaves measure height and row count unchanged, so compact mode looks like "tall measures with empty space where the diagram was." Full density needs to:
-- Reduce `.sbn-ve-measure-content { min-height }` in compact mode (currently 150px)
-- Tighten chord-card padding and font size in compact mode
-- Ignore `lineBreaks` in compact mode and use uniform 8-bar (or similar) rows — the per-section `lineBreaks` are tuned for the diagram-included layout
-- Verify `useReflow` (if it does any container-width measurement) recomputes on density change
+**Density Changes:**
+- **Same row structure**: Bars per row now consistent regardless of density (no more 6-bar uniform rows)
+- **Compact line height**: Reduced from 150px to 80px in compact mode while maintaining same grid structure
+- **Chord repositioning**: Names move up and center when diagrams disappear
+- **Enhanced animations**: 
+  - Staged transitions: diagrams fade first (150ms), then height changes (300ms)
+  - Reverse for fade-in: height expands first, then diagrams fade in
+  - Scale transforms and proper z-index stacking to prevent artifacts
+- **Consistent sizing**: Chord names maintain 20px size in both modes
 
-Order: layout first, density second — row-count math depends on container width, so doing density on the current full-bleed layout would need redoing after layout shrinks.
+**Additional Polish:**
+- **White background**: Changed from design system variable to white
+- **EduPanel styling**: Matching thin curved border frame, no internal lines
+- **Hover frame**: Adjusted positioning for new layout (known issue: slight offset persists)
 
-**Done when:**
-- [ ] Viewer layout matches the visual rhythm of the rest of the library section
-- [ ] Footer is reachable via normal scroll
-- [ ] Compact mode produces a visibly more compact chord chart (more measures per row, shorter rows, smaller per-chord footprint)
-- [ ] Switching density is smooth, no layout thrash, no measure clipping
+**Technical Implementation:**
+- `LeadsheetViewer.vue`: Complete layout restructure with library-matching container
+- `ChordSection.vue`: Simplified rows computation to always respect lineBreaks
+- `sbn-design-system.css`: Comprehensive density animation system with staged timing
+
+**Result:** Viewer now provides consistent visual rhythm with other library pages while maintaining smooth density transitions and professional animations.
 
 ---
 
-### Step 5 — `EduPanel.vue` component
+### Step 5 — `EduPanel.vue` component (REVISED — full chord card) ✅ DONE (with bare-name fallback fix; see §0.11)
 
-New file: `resources/js/Components/Leadsheet/EduPanel.vue`
+`resources/js/Components/Leadsheet/EduPanel.vue` already exists from Steps 3–4 (text-only blurb). This step **replaces the text-only chord block with a full chord card** rendered via the existing `Components/Library/ChordCard.vue` (the same card the public chord library uses), and finalizes the scope of the panel.
 
-**Props:**
-```ts
-interface Props {
-  currentChord: string | null      // e.g. "Cmaj7", null when nothing selected
-  currentSectionId: string | null
-  song: { title, composer, songKey, tempo, timeSignature, rhythm }
-  progressions: ProgressionRef[]
+**Why a chord card, not just text:** the user is studying a song. Seeing the *exact voicing* the player is rendering — fretboard diagram, finger numbers, fret position — is more useful than reading a paragraph. The blurb supplements the card; it doesn't replace it.
+
+**Data shape mismatch — the core implementation challenge.**
+
+The leadsheet stores per-slot voicings as a flat 6-char fret string:
+
+```js
+// model.value.chordVoicings keyed as "ChordName@globalMeasureIndex.chordSlot"
+{
+  "Cmaj7@0.0": { frets: "x32000", fingers: "x32010", position: 0 }
 }
 ```
 
-**Sections (top → bottom):**
+The library `ChordCard` requires a full `ChordDiagramData` object (see [ChordDiagram.vue](resources/js/Components/Library/ChordDiagram.vue) line 4):
 
-1. **Header / song info** — title, composer, key, tempo, time sig, rhythm-style chip. Always visible.
+```ts
+interface ChordDiagramData {
+  id: number;
+  slug: string;
+  name: string;
+  root_note: string;
+  quality: string;
+  quality_label: string;
+  extensions?: string | null;
+  voicing_category: string;
+  category_label: string;
+  // ...
+  diagram_data: {
+    positions: Array<{ string: number; fret: number; finger?: number }>;
+    barres: Array<{ fret: number; from: number; to: number }>;
+    muted: number[];
+    open: number[];
+  };
+  popularity?: number | null;
+  difficulty?: number | null;
+  // ...
+}
+```
 
-2. **Current-chord block:**
-   - When `currentChord` is null: show "Click a chord to learn more" placeholder
-   - When set: show parsed root + quality (use existing `chord()` helper / `ChordSerializer` parse output)
-   - Inline blurb from edu-content stub (see §5.6) — chord-quality description (e.g. "Major 7th: a major triad with an added major 7th interval...")
-   - "View in chord library →" button linking to `/library/chords/{slug}` (slug derived from chord name; same scheme used in chord library)
+We need an **adapter** from the leadsheet's flat fret string to the rich `ChordDiagramData` the card expects. Three approaches considered:
 
-3. **Section progressions block:**
-   - Title: "Progressions in this section" (or "Progressions in this song" if `currentSectionId` is null)
-   - Filter `progressions` by `sectionId === currentSectionId` (when section attribution is available; otherwise show all)
-   - Each entry: name + roman numerals + category chip, links to `/library/progressions/{slug}`
-   - Empty state: "No detected progressions in this section."
+- **(A) Client-side fret-string parser.** Convert `"x32000"` → `{ open: [3,5], muted: [6], positions: [...] }` in JS. Pros: no controller change. Cons: missing all the metadata (root_note, quality, popularity, difficulty, finger numbers in many cases).
+- **(B) New `EduChordCard.vue`.** Slimmed-down card that accepts `{ frets, name }` and renders just the diagram + name + audio. Pros: minimal data. Cons: visual divergence from the library card; user wanted the "full chord card."
+- **(C) Server-side enrichment.** Controller looks up the leadsheet's voicings against the chord DB via `ChordVoicingSearch::searchByName()`, picks the best match by fret-string equivalence, and ships full `ChordDiagramData` as a parallel map. Pros: visual parity, real metadata, audio works as in the library. Cons: more controller code; ambiguity when no DB match exists.
 
-**Done when:**
-- [ ] Selecting a chord updates the current-chord block
-- [ ] Changing section updates the progressions list
-- [ ] All links route correctly to existing library pages
-- [ ] Empty / no-selection states render cleanly
+**Decision: hybrid — (C) preferred, (A) as fallback.** The controller does the DB lookup for the common case (≈90% of voicings have a matching DB shape). When no DB match is found, the controller emits a synthetic minimal `ChordDiagramData` with just `name` + parsed `diagram_data` from the fret string + `quality_label` from the chord-name parser. The card still renders; metadata fields (popularity, difficulty) are simply absent.
 
-### Step 6 — Edu content stub
+#### Implementation
+
+**5.1 Server-side: enriched chord-card map**
+
+Extend `SongLibraryController::viewer()` to build a `chordCards` map keyed by the same `"chordName@gi.ci"` key the leadsheet uses:
+
+```php
+public function viewer(Leadsheet $leadsheet, ChordVoicingSearch $search)
+{
+    // ... existing leadsheet + progressions code ...
+
+    $voicings = $leadsheet->parsed_data['chordVoicings'] ?? [];
+    $chordCards = [];
+
+    foreach ($voicings as $key => $voicing) {
+        // Key shape: "ChordName@gi.ci"
+        if (!preg_match('/^(.+)@\d+\.\d+$/', $key, $m)) continue;
+        $chordName = $m[1];
+
+        $matches = $search->searchByName($chordName);
+        $best = $this->pickBestVoicing($matches, $voicing['frets'] ?? null);
+
+        if ($best) {
+            $chordCards[$key] = $best;  // already-serialized ChordDiagramData
+        } else {
+            $chordCards[$key] = $this->synthesizeMinimalCard($chordName, $voicing);
+        }
+    }
+
+    return Inertia::render('Library/Songs/Viewer', [
+        'leadsheet'    => [...],
+        'progressions' => $progressions,
+        'chordCards'   => $chordCards,            // NEW
+    ]);
+}
+```
+
+**Helpers required on the controller (or extracted to a service):**
+- `pickBestVoicing(array $matches, ?string $targetFrets): ?array` — prefers exact fret-string match; falls back to first match if none. Returns the serialized `ChordDiagramData` shape.
+- `synthesizeMinimalCard(string $chordName, array $voicing): array` — parses the fret string into the `{ positions, barres, muted, open }` shape and returns a stub `ChordDiagramData` (see schema in §0.x). Used when no DB match exists.
+
+**Performance note:** `searchByName` is a DB hit per unique chord name. For a 32-bar song with ~10 unique chords this is fine. If it ever becomes slow, cache results per request keyed by chord name (most leadsheets repeat chords across slots).
+
+**5.2 Frontend: render the card in EduPanel**
+
+Update `EduPanel.vue`:
+- Add a `chordCards` prop: `Record<string, ChordDiagramData>` keyed by `"chordName@gi.ci"`
+- Add a `selectionKey` prop: `string | null` — the active selection key from the parent (computed in `LeadsheetViewer` from `gridSelection.selection.value` last entry)
+- In the current-chord block, when `selectionKey && chordCards[selectionKey]` exists:
+  - Render `<LibraryChordCard :chord="chordCards[selectionKey]" :show-root="true" />`
+  - Below the card: chord-quality blurb (existing inline logic, to be replaced in Step 6)
+  - Below the blurb: "View in chord library →" link
+
+```vue
+<script setup>
+import LibraryChordCard from '@/Components/Library/ChordCard.vue';
+// ... existing imports ...
+
+const props = defineProps({
+  currentChord:     { type: String, default: null },
+  currentSectionId: { type: String, default: null },
+  selectionKey:     { type: String, default: null },        // NEW
+  song:             { type: Object, required: true },
+  progressions:     { type: Array,  required: true },
+  chordCards:       { type: Object, default: () => ({}) }, // NEW
+});
+
+const activeCard = computed(() =>
+  props.selectionKey ? (props.chordCards[props.selectionKey] ?? null) : null
+);
+</script>
+```
+
+**5.3 LeadsheetViewer plumbing**
+
+`LeadsheetViewer.vue` needs to:
+- Accept `chordCards` prop (passed from `Pages/Library/Songs/Viewer.vue`)
+- Compute `selectionKey` from `gridSelection.selection.value` last entry: `"${chordName}@${gi}.${ci}"`
+- Pass both to `<EduPanel>`
+
+```ts
+const selectionKey = computed(() => {
+  const sel = gridSelection.selection.value;
+  if (!sel.length) return null;
+  const last = sel[sel.length - 1];
+  const found = _findInModel(last.gi);
+  if (!found) return null;
+  const name = found.measure.chordNames?.[last.ci];
+  if (!name) return null;
+  return `${name}@${last.gi}.${last.ci}`;
+});
+```
+
+**5.4 Audio behavior**
+
+The library `ChordCard` plays the chord on click via the same `AudioEngine` singleton the leadsheet uses. **Confirmed compatible** — both call `engine.init()` (idempotent) and `engine.load()` (replaces queued events). One subtlety: clicking the EduPanel card mid-playback will **replace** the leadsheet's queued events with the single-chord arpeggio. Acceptable behavior — when the user clicks the card, they want to hear the chord; resuming song playback re-loads via `ensureEventsLoaded()`'s idempotent path.
+
+**Edge case:** if the leadsheet is currently playing and the user clicks the EduPanel card, song playback should pause. The `'playStarted'` event listener in the library `ChordCard` (line 84–85) already handles cross-source coordination by clearing `isPlaying`; the leadsheet's transport bar will reflect this via the engine's `'ended'` and `'playStarted'` events. Verify during smoke-test.
+
+**5.5 Card sizing in the sidebar**
+
+The library `ChordCard` is sized for a card grid (~160–180px wide). The EduPanel sidebar is ~320px. Two options:
+- **Default size** — use as-is; the card sits centered in the sidebar with whitespace around it. Visually consistent with the library.
+- **`mini` prop** — the card already supports `mini` for compact display; not what we want here.
+
+**Decision: default size, centered, with the chord name + diagram filling the natural width.** The card has its own internal padding; let the sidebar provide outer breathing room.
+
+#### Done when:
+- [ ] Selecting a chord on the grid renders the matching DB chord card in the sidebar (diagram, name, popularity tier, difficulty stars when present)
+- [ ] Clicking the play button on the EduPanel card plays the chord audio
+- [ ] Empty selection state shows "Click a chord to learn more"
+- [ ] Songs with chords that have no DB voicing match still render a minimal card (synthesized `diagram_data` from the fret string)
+- [ ] No JS errors when a leadsheet has zero `chordVoicings` entries (e.g. names-only chord chart) — the card area can show a "no voicing assigned" placeholder
+- [ ] Audio interaction between EduPanel card and main transport behaves predictably (clicking card pauses song; pressing transport play resumes from current position)
+
+---
+
+### Step 6 — Edu content service (chord-quality blurbs) ✅ DONE
+
+The EduPanel currently has a 7-branch inline `if/else` chord-quality detector with hardcoded blurb strings. This step extracts that data to a config-file-backed service so:
+1. Blurbs become editable without touching component code
+2. The eventual `edu_topics` DB table is a one-file swap of the service's data source
+3. Other surfaces (chord library Show pages, Top10 pages, course lessons) can reuse the same blurbs
+
+**Note:** the *chord card* itself (diagram, name, audio) lives in Step 5. This step is purely about the **text blurb** that sits below the card.
+
+#### Implementation
+
+**6.1 Config file**
 
 New file: `config/edu/chord-qualities.php`
 
 ```php
 <?php
+// Source of truth for chord-quality educational blurbs displayed in the
+// leadsheet viewer EduPanel. Keys match the canonical quality slugs produced
+// by ChordVoicingSearch::parseChordName(). When the edu_topics DB table lands,
+// EduContentService swaps to an Eloquent lookup; this file becomes the seeder.
 return [
-    'major'        => ['title' => 'Major', 'blurb' => '...'],
-    'minor'        => ['title' => 'Minor', 'blurb' => '...'],
-    'major-7th'    => ['title' => 'Major 7', 'blurb' => '...'],
-    'dominant-7th' => ['title' => 'Dominant 7', 'blurb' => '...'],
-    'minor-7th'    => ['title' => 'Minor 7', 'blurb' => '...'],
-    'half-dim'     => ['title' => 'Half-diminished (m7♭5)', 'blurb' => '...'],
-    'diminished'   => ['title' => 'Diminished', 'blurb' => '...'],
-    'minor-major-7' => [...],
-    // extend as content is written
+    'maj'    => ['title' => 'Major',                    'blurb' => '...'],
+    'min'    => ['title' => 'Minor',                    'blurb' => '...'],
+    'maj7'   => ['title' => 'Major 7',                  'blurb' => '...'],
+    'm7'     => ['title' => 'Minor 7',                  'blurb' => '...'],
+    'dom7'   => ['title' => 'Dominant 7',               'blurb' => '...'],
+    'm7b5'   => ['title' => 'Half-diminished (m7♭5)',   'blurb' => '...'],
+    'dim'    => ['title' => 'Diminished',               'blurb' => '...'],
+    'o7'     => ['title' => 'Diminished 7',             'blurb' => '...'],
+    'aug'    => ['title' => 'Augmented',                'blurb' => '...'],
+    'aug7'   => ['title' => 'Augmented 7',              'blurb' => '...'],
+    'mMaj7'  => ['title' => 'Minor-Major 7',            'blurb' => '...'],
+    'sus4'   => ['title' => 'Suspended 4',              'blurb' => '...'],
+    'sus2'   => ['title' => 'Suspended 2',              'blurb' => '...'],
+    'maj6'   => ['title' => 'Major 6',                  'blurb' => '...'],
+    'm6'     => ['title' => 'Minor 6',                  'blurb' => '...'],
+    'add9'   => ['title' => 'Add 9',                    'blurb' => '...'],
+    '7sus4'  => ['title' => '7 sus 4',                  'blurb' => '...'],
+    '5'      => ['title' => 'Power chord',              'blurb' => '...'],
+    // Extend as content is authored. Unknown qualities fall back to a generic
+    // "no info yet" placeholder in the EduPanel.
 ];
 ```
 
-Loader: `app/Services/EduContentService.php`
+**Why these slugs:** matches the canonical output of `ChordVoicingSearch::parseChordName()` (see `app/Services/ChordVoicingSearch.php` line 26 onwards). This means the same parser the chord library and admin voicing picker use also drives the EduPanel — single source of truth for chord-quality identification.
+
+**6.2 Service**
+
+New file: `app/Services/EduContentService.php`
 
 ```php
+<?php
+
+namespace App\Services;
+
+/**
+ * Source of truth for educational text content shown alongside chords,
+ * progressions, rhythms, and other study aids.
+ *
+ * Currently config-file backed. Future: replace the config lookup with an
+ * Eloquent query against the edu_topics table. Public method signatures will
+ * not change.
+ */
 class EduContentService
 {
-    public function chordQuality(string $qualitySlug): ?array { ... }
+    /**
+     * Look up a chord quality blurb by canonical quality slug.
+     *
+     * @param  string  $qualitySlug  e.g. 'maj7', 'm7b5', 'dom7'
+     * @return array{title:string,blurb:string}|null
+     */
+    public function chordQuality(string $qualitySlug): ?array
+    {
+        return config("edu.chord-qualities.$qualitySlug");
+    }
+
+    /**
+     * Bundle all chord-quality blurbs in one shot — used when the consumer
+     * needs offline lookup over a known set (e.g. an Inertia payload that
+     * surfaces blurbs for every chord on the page).
+     *
+     * @return array<string, array{title:string,blurb:string}>
+     */
+    public function allChordQualities(): array
+    {
+        return config('edu.chord-qualities', []);
+    }
 }
 ```
 
-`SongLibraryController::viewer()` calls this service to inject `eduChordQualities` into the Inertia props (as a flat array — small enough to bundle without per-chord lookup).
+**6.3 Controller wiring**
 
-**Future migration path:** when the `edu_topics` DB table lands, replace the config-file source with an Eloquent lookup. The `EduContentService` interface stays the same. Document this clearly in the service file's header comment.
+`SongLibraryController::viewer()` injects `eduChordQualities` as a flat Inertia prop:
 
-**Done when:**
-- [ ] At least 8 chord qualities have written blurbs
-- [ ] EduPanel displays the right blurb for the selected chord
-- [ ] Service is the only place that knows the data source (controllers + components consume the service contract)
+```php
+public function viewer(Leadsheet $leadsheet, ChordVoicingSearch $search, EduContentService $edu)
+{
+    // ... existing code ...
 
-### Step 7 — Transport bar polish
+    return Inertia::render('Library/Songs/Viewer', [
+        // ... existing props ...
+        'eduChordQualities' => $edu->allChordQualities(),    // NEW
+    ]);
+}
+```
 
-Visual-only pass on `TransportBar.vue`. No prop / API changes.
+The whole map ships in one go (≈18 entries, ~3KB). Cheaper and simpler than a per-chord lookup; the EduPanel does a client-side hash lookup.
+
+**6.4 EduPanel integration**
+
+`EduPanel.vue`:
+- Add `eduChordQualities` prop: `Record<string, { title: string; blurb: string }>`
+- Replace the inline 7-branch `if/else` `chordQualityInfo` computed with a parser call + map lookup:
+  ```ts
+  // Use the same client-side parser the rest of the frontend uses to derive
+  // canonical quality slugs. (If we don't have a JS parser yet, write a thin
+  // mirror of the PHP one — small surface area.)
+  const qualitySlug = computed(() => parseChordQuality(props.currentChord));
+  const chordQualityInfo = computed(() =>
+    qualitySlug.value ? props.eduChordQualities[qualitySlug.value] ?? null : null
+  );
+  ```
+
+**Open question — chord-name parser on the frontend:** PHP's `ChordVoicingSearch::parseChordName` is the canonical source. We need a JS equivalent. Two paths:
+- **(a)** Port a minimal subset (the `QUALITY_PATTERNS` map) to JS. ~30 lines.
+- **(b)** Have the controller pre-compute a `qualityByKey` map alongside `chordCards` (since it already calls `parseChordName` to look up voicings).
+
+**Recommendation: (b).** The controller already does the parse for chord-card lookup; emit `qualityByKey: Record<"chordName@gi.ci", string>` and the EduPanel does a single hash lookup. No JS parser to maintain. Update the Step 5 controller spec to also build this map.
+
+#### Done when:
+- [ ] At least 8 chord qualities have written blurbs (recommend all 18 listed above before shipping)
+- [ ] EduPanel displays the correct blurb for every chord-quality the leadsheet contains
+- [ ] Unknown qualities (rare extensions) show a graceful "no info yet" placeholder, not a crash
+- [ ] `EduContentService` is the **only** file that knows where the data lives (controllers and components consume the service interface)
+- [ ] Header comment in `EduContentService.php` documents the future DB-backed migration path
+
+### Step 7 — Transport bar polish (NEXT)
+
+Visual-only pass on `TransportBar.vue`. **No prop / API changes** — this is purely a styling reskin in `sbn-design-system.css`. The same component renders in both the admin tab editor and the public viewer; both inherit the polish automatically. Verify the admin editor still looks reasonable after each change.
+
+**Current state (the gap):**
+The transport bar uses default `<button>` and `<input type="range">` elements with browser-default styling. Sliders show native chrome (gray track, generic thumb), buttons are unstyled, and the strip has no visual identity. This is by far the most jarring "this looks unfinished" element of the viewer.
 
 **Polish targets:**
-- Container: pill-shaped, design-system surface color, drop shadow, sticky bottom on viewer page
-- Play button: large primary-color circular button, prominent ▶/⏸ glyph
-- Stop button: secondary styling, smaller
-- Range sliders: consistent thumb size, design-token colors, clear hover/focus states
-- Time label: monospace, larger
-- Tempo control: clearer label, bigger number
-- Mixer: only shown when applicable; clean track labels
-- Mobile: hit targets ≥ 44px, sliders full-width, labels stack
 
-Add styles to `sbn-design-system.css` under a new `/* Transport bar */` section. Do not introduce new color tokens — reuse existing design-system variables.
+1. **Container**
+   - Pill-shaped (full border-radius), `var(--clr-surface)` background
+   - Subtle border (`1px solid var(--clr-border)`) + soft drop shadow (`var(--clr-shadow)`)
+   - Comfortable padding (`12px 24px`)
+   - Already sticky-bottom from Step 4b layout — keep it
+
+2. **Play button** (`.sbn-transport-play`)
+   - Large circular button (~48px), `var(--clr-accent)` background, white glyph
+   - Hover: slight scale or brightness lift; active state shows the alternate glyph (▶ ↔ ⏸)
+   - The current `is-playing` class is already applied — style it
+
+3. **Stop / park button** (`.sbn-transport-stop`)
+   - Secondary styling: smaller (~36px circular), neutral surface background, subtle border
+   - `is-parked` modifier (when `currentBeat > 0` && not playing) — indicate "return to start" state with a soft accent color
+
+4. **Range sliders** (seek + tempo)
+   - Cross-browser thumb styling via `::-webkit-slider-thumb` and `::-moz-range-thumb`
+   - Thumb: ~16px circle, `var(--clr-accent)`, with shadow on hover/focus
+   - Track: ~4px tall, `var(--clr-border-dim)` background, `var(--clr-accent)` for the filled portion (use `linear-gradient` trick or a `<input>` with `::-webkit-slider-runnable-track` rules)
+   - Clear focus ring for keyboard users — don't rely on the browser default
+
+5. **Time / position label** (`.sbn-transport-time`)
+   - Monospace font (`font-family: var(--font-mono, ui-monospace)` — define a fallback if the design system doesn't have a mono token yet)
+   - Slightly larger (~13px), `var(--clr-text-dim)` for the "/total" portion if separable
+
+6. **Tempo control** (`.sbn-transport-tempo`)
+   - "♩" glyph + slider + bpm number
+   - Bpm number gets a small monospace pill (similar treatment to the time label)
+   - Slider styled consistently with the seek slider
+
+7. **Mixer tracks** (`.sbn-transport-mixer-track`)
+   - Only renders when `showMixer` prop is true (already gated)
+   - Each track: small icon + label + slim slider — same slider style as above, but compressed
+   - Compact horizontal layout in a row; don't compete with the main transport controls visually
+
+8. **Mobile** (≤ 768px)
+   - Stack labels vertically when horizontal space is tight
+   - All hit targets ≥ 44px (Apple HIG / Material baseline)
+   - Sliders take full width of their column
+   - Mixer collapses below the main row, or hides entirely if space is critical (decide while testing)
+
+**Implementation order (suggested):**
+1. Container + sticky positioning (already partly done; finalize border/shadow/padding)
+2. Play button (the most visible element)
+3. Range slider styling (the longest CSS — get it right once, reuse for all sliders)
+4. Stop button + tempo control
+5. Mixer tracks (lowest-priority, only shown in some modes)
+6. Mobile pass at 360px and 768px
+
+**Implementation notes:**
+- Add styles to `sbn-design-system.css` under a new `/* Transport bar */` section header — keep all transport CSS together so future polish is a single edit point.
+- Do **not** introduce new color tokens. If you need a new shade, see if combining `color-mix()` with existing tokens works (e.g. `color-mix(in srgb, var(--clr-accent) 20%, transparent)` for hover overlays).
+- Range-slider styling requires separate `::-webkit-slider-thumb` and `::-moz-range-thumb` rules (each browser parses only its own; combined selectors silently fail). Reference: MDN's "Styling cross-browser compatible range inputs."
+- The component itself ([resources/js/tab-editor/components/TransportBar.vue](resources/js/tab-editor/components/TransportBar.vue)) should not be modified. If a styling target needs a hook the markup doesn't have, add a class — but resist adding props.
 
 **Done when:**
-- [ ] Looks intentional rather than browser-default
-- [ ] Mobile usability checked at 360px width
-- [ ] Admin tab editor's transport bar inherits the polish (it's the same component) — verify nothing regressed there
+- [ ] Transport bar looks intentional and matches the visual language of the rest of the viewer (rounded surfaces, accent-color highlights, soft shadows)
+- [ ] Both range sliders styled consistently across Chromium and Firefox
+- [ ] Play button is the visual focal point of the strip
+- [ ] Mobile usability checked at 360px width — all controls reachable, no overlap
+- [ ] Admin tab editor's transport bar still looks reasonable (the same component is used there) — open `/admin/leadsheets/{id}/edit` and verify
+- [ ] Keyboard navigation works — tab through controls, focus rings visible
+- [ ] No new design tokens introduced
 
 ### Step 8 — Cinema view toggle placeholder
 
