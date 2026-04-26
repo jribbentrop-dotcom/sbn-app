@@ -142,6 +142,7 @@ Route::get('/library/progressions/{slug}', [ProgressionLibraryController::class,
 
 Route::get('/library/songs', [SongLibraryController::class, 'index'])->name('library.songs.index');
 Route::get('/library/songs/{leadsheet:slug}', [SongLibraryController::class, 'show'])->name('library.songs.show');
+Route::get('/library/songs/{leadsheet:slug}/viewer', [SongLibraryController::class, 'viewer'])->name('library.songs.viewer');
 
 Route::get('/top10/bossa-nova-chords', [\App\Http\Controllers\Top10Controller::class, 'bossaNovaChords'])
     ->name('top10.bossa-nova-chords');

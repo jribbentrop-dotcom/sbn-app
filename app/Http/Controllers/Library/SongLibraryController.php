@@ -148,4 +148,47 @@ class SongLibraryController extends Controller
             'progressions' => $progressions,
         ]);
     }
+
+    public function viewer(Leadsheet $leadsheet)
+    {
+        $progressions = ChordProgression::query()
+            ->join('sbn_progression_occurrences as o', 'sbn_chord_progressions.id', '=', 'o.progression_id')
+            ->where('o.leadsheet_id', $leadsheet->id)
+            ->select(
+                'sbn_chord_progressions.id',
+                'sbn_chord_progressions.slug',
+                'sbn_chord_progressions.name',
+                'sbn_chord_progressions.category',
+                'sbn_chord_progressions.numerals',
+            )
+            ->distinct()
+            ->orderBy('sbn_chord_progressions.name')
+            ->get()
+            ->map(fn ($p) => [
+                'id'              => $p->id,
+                'slug'            => $p->slug,
+                'name'            => $p->name,
+                'category'        => $p->category,
+                'numeralsDisplay' => $p->numerals_display,
+                'sectionId'       => null, // R3 fallback — section attribution unavailable
+            ]);
+
+        return Inertia::render('Library/Songs/Viewer', [
+            'leadsheet' => [
+                'id'            => $leadsheet->id,
+                'slug'          => $leadsheet->slug,
+                'title'         => $leadsheet->title,
+                'composer'      => $leadsheet->composer,
+                'songKey'       => $leadsheet->song_key,
+                'tempo'         => $leadsheet->tempo,
+                'timeSignature' => $leadsheet->time_signature,
+                'rhythm'        => $leadsheet->rhythm,
+                'jsonData'      => $leadsheet->parsed_data,  // accessor-decoded array
+                'harmonyNotes'  => $leadsheet->harmony_notes,
+                'formNotes'     => $leadsheet->form_notes,
+                'voicingNotes'  => $leadsheet->voicing_notes,
+            ],
+            'progressions' => $progressions,
+        ]);
+    }
 }

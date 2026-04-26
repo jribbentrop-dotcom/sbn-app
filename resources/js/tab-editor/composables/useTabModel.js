@@ -41,7 +41,12 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
 
     function buildModel() {
         const mel = melody.value;
-        if (!mel || !mel.length) {
+        // Allow chord-only build path (Phase 9 viewer): if there's no melody but
+        // sections define a measure structure, fall through with an empty melody
+        // — the section-extension loop and chord-extraction passes below will
+        // populate measures from sections.value.
+        const hasSections = (sections.value || []).some(s => (s.measures || []).length > 0);
+        if ((!mel || !mel.length) && !hasSections) {
             model.value = null;
             return;
         }

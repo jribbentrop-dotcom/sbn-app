@@ -7,12 +7,14 @@
       :key="section.id || index"
       :section="section"
       :section-index="index"
+      :read-only="readOnly"
+      :density="density"
       @contextmenu="openContextMenu"
     />
 
-    <!-- Chord name inline picker (positioned popup) -->
+    <!-- Chord name inline picker (positioned popup) - hidden in readOnly mode -->
     <ChordPicker
-      v-if="chordPicker"
+      v-if="chordPicker && !readOnly"
       :open="chordPicker.open.value"
       :top="chordPicker.top.value"
       :left="chordPicker.left.value"
@@ -24,8 +26,9 @@
       @apply="onChordPickerApply"
     />
 
-    <!-- Context menu (Teleported to body inside the component) -->
+    <!-- Context menu (Teleported to body inside the component) - hidden in readOnly mode -->
     <ChordContextMenu
+      v-if="!readOnly"
       v-model:open="ctxMenuOpen"
       :top="ctxMenuTop"
       :left="ctxMenuLeft"
@@ -47,15 +50,24 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  readOnly: {
+    type: Boolean,
+    default: false,
+  },
+  density: {
+    type: String,
+    default: 'full',
+    validator: (value) => ['full', 'compact'].includes(value),
+  },
 });
 
 // ── Injected from TabEditor ───────────────────────────────────────────────────
 
-const ops          = inject('chordGridOps');    // useChordGridOps
-const clipboard    = inject('chordClipboard');  // useChordClipboard
-const gridSelection = inject('gridSelection'); // useGridSelection
-const chordPicker  = inject('chordPicker');     // useChordPickerStore
-const voicingPicker = inject('voicingPicker'); // useVoicingPickerStore (stub til Step 5)
+const ops          = inject('chordGridOps', null);   // useChordGridOps (not provided in viewer mode)
+const clipboard    = inject('chordClipboard', null); // useChordClipboard (not provided in viewer mode)
+const gridSelection = inject('gridSelection', null); // useGridSelection
+const chordPicker  = inject('chordPicker', null);    // useChordPickerStore (not provided in viewer mode)
+const voicingPicker = inject('voicingPicker', null); // useVoicingPickerStore (not provided in viewer mode)
 
 // ── Context menu state (flat refs — v-model in template binds directly) ─────
 
@@ -65,6 +77,7 @@ const ctxMenuLeft = ref(0);
 const ctxMenuData = ref({});
 
 function openContextMenu({ event, gi, ci, chordName, voicing, si, mi }) {
+  if (props.readOnly === true) return;
   ctxMenuTop.value  = event.clientY;
   ctxMenuLeft.value = event.clientX;
   ctxMenuData.value = { gi, ci, chordName, voicing, si, mi };

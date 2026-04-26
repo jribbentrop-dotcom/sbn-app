@@ -69,11 +69,11 @@ const emit = defineEmits(['contextmenu']);
 
 // ── Injected from TabEditor (provided once at root) ───────────────────────────
 
-const model               = inject('model');
-const globalIndexOf       = inject('globalIndexOf');
-const gridSelection       = inject('gridSelection');        // useGridSelection instance
-const chordPicker         = inject('chordPicker');          // useChordPickerStore instance
-const voicingPicker       = inject('voicingPicker');        // useVoicingPickerStore (stub until Step 5)
+const model               = inject('model', null);
+const globalIndexOf       = inject('globalIndexOf', null);
+const gridSelection       = inject('gridSelection', null);   // useGridSelection instance
+const chordPicker         = inject('chordPicker', null);     // useChordPickerStore (not provided in viewer mode)
+const voicingPicker       = inject('voicingPicker', null);   // useVoicingPickerStore (not provided in viewer mode)
 const playingMeasureIndex = inject('playingMeasureIndex', null);
 const transportBeat       = inject('transportBeat', null);
 const beatsPerMeasureRef  = inject('beatsPerMeasureRef', null);

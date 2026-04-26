@@ -75,13 +75,22 @@ const props = defineProps({
     type: Number,
     required: true,
   },
+  readOnly: {
+    type: Boolean,
+    default: false,
+  },
+  density: {
+    type: String,
+    default: 'full',
+    validator: (value) => ['full', 'compact'].includes(value),
+  },
 });
 
 const emit = defineEmits(['contextmenu']);
 
 // ── Injected from TabEditor ───────────────────────────────────────────────────
 
-const globalIndexOf       = inject('globalIndexOf');
+const globalIndexOf       = inject('globalIndexOf', null);
 const playingMeasureIndex = inject('playingMeasureIndex', null);
 const transportBeat       = inject('transportBeat', null);
 const tapCursor           = inject('tapCursor', null);
@@ -156,6 +165,8 @@ const measureClasses = computed(() => ({
   'rep-end-bar':    hasRepEnd.value,
   'is-empty':       chordNamesArray.value.length === 0,
   'is-tap-target':  tapCursor?.value === globalIdx.value,  // D2: pulse when this measure is tap cursor
+  'is-compact':     props.density === 'compact',
+  'is-full':        props.density === 'full',
 }));
 
 // ── Context menu ─────────────────────────────────────────────────────────────
@@ -165,6 +176,7 @@ const measureClasses = computed(() => ({
  * so ChordSection (and ultimately ChordGridView) can position the context menu.
  */
 function onCardContextMenu(payload) {
+  if (props.readOnly) return;
   emit('contextmenu', {
     ...payload,
     si: props.sectionIndex,
