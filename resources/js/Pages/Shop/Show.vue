@@ -5,130 +5,224 @@ import ProductCard from '@/Components/Shop/ProductCard.vue';
 import ProductPrice from '@/Components/Shop/ProductPrice.vue';
 import CartDrawer from '@/Components/Shop/CartDrawer.vue';
 import { useCart } from '@/composables/useCart';
-import { useCategoryColors } from '@/composables/useCategoryColors';
+import { useCategoryColors, getStyleSlug } from '@/composables/useCategoryColors';
 import type { Product } from '@/types/shop';
 
 interface Props {
     product: Product;
     related: Product[];
-    meta: {
-        title: string;
-        description: string;
-    };
+    meta: { title: string; description: string };
 }
 
 const props = defineProps<Props>();
 const { addToCart } = useCart();
-const { getStyle } = useCategoryColors();
+const { getCategoryStyle } = useCategoryColors();
 
 const pageStyle = computed(() => {
-    const firstCategory = props.product.categories?.[0];
-    return getStyle(firstCategory?.slug);
+    const slug = getStyleSlug(props.product?.categories ?? []);
+    return getCategoryStyle(slug);
 });
 
-const handleAddToCart = () => {
-    addToCart(props.product, 1);
+const handleAddToCart = () => addToCart(props.product, 1);
+
+// ── Attribute helper ─────────────────────────────────────────
+const attr = (key: string): string => {
+    const val = props.product.attributes?.[key];
+    if (!val) return '';
+    return Array.isArray(val) ? val.join(', ') : String(val);
 };
 
-const formatAttribute = (key: string, value: string | string[]): string => {
-    if (Array.isArray(value)) {
-        return value.join(', ');
-    }
-    return value;
+// ── Difficulty from categories ───────────────────────────────
+const DIFFICULTY_SLUGS: Record<string, number> = {
+    'basic': 1, 'early-intermediate': 2, 'intermediate': 3,
+    'late-intermediate': 4, 'advanced': 5,
 };
+
+const difficulty = computed(() => {
+    for (const cat of props.product.categories) {
+        const stars = DIFFICULTY_SLUGS[cat.slug];
+        if (stars !== undefined) return { label: cat.name, stars };
+    }
+    return null;
+});
+
+// Style category = first category not in difficulty slugs
+const styleCategory = computed(() => {
+    const slug = getStyleSlug(props.product.categories);
+    return slug ? props.product.categories.find(c => c.slug === slug) ?? null : null;
+});
+
+// ── Notation types ───────────────────────────────────────────
+const notationRaw = computed(() => attr('notation').toLowerCase());
+const hasStandard  = computed(() => notationRaw.value.includes('standard') || notationRaw.value.includes('notation'));
+const hasTab       = computed(() => notationRaw.value.includes('tab'));
+const hasChordGrid = computed(() => notationRaw.value.includes('chord'));
+
+// Only show features row if at least one chip applies
+const hasAnyFeature = computed(() =>
+    hasStandard.value || hasTab.value || hasChordGrid.value || !!attr('pages')
+);
 </script>
 
 <template>
-    <Head>
-        <title>{{ meta.title }}</title>
-        <meta name="description" :content="meta.description" />
-        <meta property="og:title" :content="product.title" />
-        <meta property="og:description" :content="product.excerpt || meta.description" />
-        <meta property="og:image" :content="product.thumbnail_url || ''" />
-    </Head>
+    <div>
+        <Head>
+            <title>{{ meta.title }}</title>
+            <meta name="description" :content="meta.description" />
+            <meta property="og:title" :content="product.title" />
+            <meta property="og:description" :content="product.excerpt || meta.description" />
+            <meta property="og:image" :content="product.thumbnail_url || ''" />
+        </Head>
 
-    <div class="product-show" :style="pageStyle">
+        <div class="sbn-single-product" :style="pageStyle">
+
             <!-- Breadcrumb -->
             <nav class="sbn-breadcrumb">
                 <ul>
                     <li><Link href="/shop">Shop</Link></li>
-                    <li v-if="product.categories.length > 0">
-                        <Link :href="`/shop/category/${product.categories[0].slug}`">
-                            {{ product.categories[0].name }}
-                        </Link>
+                    <li v-if="styleCategory">
+                        <Link :href="`/shop/category/${styleCategory.slug}`">{{ styleCategory.name }}</Link>
                     </li>
                     <li>{{ product.title }}</li>
                 </ul>
             </nav>
 
-            <div class="product-layout">
-                <!-- Product Image -->
-                <div class="product-image">
-                    <img
-                        v-if="product.thumbnail_url"
-                        :src="product.thumbnail_url"
-                        :alt="product.title"
-                    />
-                    <div v-else class="placeholder-image">
-                        <span>No Image Available</span>
+            <!-- Two-column main -->
+            <div class="sbn-product-main">
+
+                <!-- Left: sticky gallery -->
+                <div class="sbn-product-gallery">
+                    <div class="sbn-gallery-main">
+                        <div class="sbn-media-container">
+                            <div class="sbn-main-image">
+                                <img
+                                    v-if="product.thumbnail_url"
+                                    :src="product.thumbnail_url"
+                                    :alt="product.title"
+                                />
+                                <div v-else class="sbn-no-image">No Image Available</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Product Info -->
-                <div class="product-info">
-                    <h1 class="product-title">{{ product.title }}</h1>
+                <!-- Right: product info -->
+                <div class="sbn-product-info">
 
-                    <div v-if="product.excerpt" class="product-excerpt" v-html="product.excerpt" />
+                    <!-- Difficulty badge -->
+                    <div v-if="difficulty" class="sbn-difficulty-badge">
+                        <span>{{ difficulty.label }}</span>
+                        <span class="stars">
+                            <span v-for="i in 5" :key="i">{{ i <= difficulty.stars ? '★' : '☆' }}</span>
+                        </span>
+                    </div>
 
-                    <div class="product-price-box">
+                    <h1 class="sbn-product-title">{{ product.title }}</h1>
+
+                    <!-- Style + subcategory links -->
+                    <div v-if="product.categories.length" class="sbn-product-subtitle">
+                        <Link
+                            v-if="styleCategory"
+                            :href="`/shop/category/${styleCategory.slug}`"
+                            class="sbn-style-link"
+                        >{{ styleCategory.name }}</Link>
+                        <template v-for="cat in product.categories" :key="cat.id">
+                            <Link
+                                v-if="DIFFICULTY_SLUGS[cat.slug] === undefined && cat.id !== styleCategory?.id"
+                                :href="`/shop/category/${cat.slug}`"
+                                class="sbn-subcat-link"
+                            >{{ cat.name }}</Link>
+                        </template>
+                    </div>
+
+                    <!-- Price -->
+                    <div class="sbn-price-wrapper">
                         <ProductPrice :eur-cents="product.price_cents" size="lg" show-toggle />
                     </div>
 
-                    <div class="product-actions">
-                        <button class="add-to-cart-btn" @click="handleAddToCart">
-                            Add to Cart
-                        </button>
+                    <!-- Short description / excerpt -->
+                    <div v-if="product.excerpt" class="sbn-short-description" v-html="product.excerpt" />
+
+                    <!-- Feature chips grid (PDF pages, notation types) -->
+                    <div v-if="hasAnyFeature" class="sbn-features-grid">
+                        <div v-if="attr('pages')" class="sbn-feature-item">
+                            <span class="sbn-feature-icon">
+                                <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/><path d="M8 16h8v2H8zm0-4h8v2H8zm0-4h5v2H8z"/></svg>
+                            </span>
+                            <span>PDF, {{ attr('pages') }} pages</span>
+                        </div>
+                        <div v-if="hasChordGrid" class="sbn-feature-item">
+                            <span class="sbn-feature-icon">
+                                <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/><circle cx="7" cy="9" r="1.5"/><circle cx="12" cy="14" r="1.5"/><circle cx="17" cy="9" r="1.5"/></svg>
+                            </span>
+                            <span>Chord Grids</span>
+                        </div>
+                        <div v-if="hasStandard" class="sbn-feature-item">
+                            <span class="sbn-feature-icon">
+                                <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                            </span>
+                            <span>Standard Notation</span>
+                        </div>
+                        <div v-if="hasTab" class="sbn-feature-item">
+                            <span class="sbn-feature-icon">
+                                <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 18V6h16v12H4z"/><path d="M6 8h12v1.5H6zm0 3h12v1.5H6zm0 3h12v1.5H6z"/></svg>
+                            </span>
+                            <span>Tablature</span>
+                        </div>
                     </div>
 
-                    <!-- Attributes -->
-                    <div v-if="product.attributes" class="product-attributes">
-                        <h3>Details</h3>
-                        <dl class="attributes-list">
-                            <div
-                                v-for="(value, key) in product.attributes"
-                                :key="key"
-                                class="attribute-item"
-                            >
-                                <dt>{{ key.charAt(0).toUpperCase() + key.slice(1) }}</dt>
-                                <dd>{{ formatAttribute(key, value) }}</dd>
-                            </div>
-                        </dl>
+                    <!-- Meta bar: PAGES / FORMAT / LEVEL -->
+                    <div class="sbn-product-meta">
+                        <div v-if="attr('pages')" class="sbn-meta-item">
+                            <span class="sbn-meta-label">Pages:</span>
+                            <span class="sbn-meta-value">{{ attr('pages') }}</span>
+                        </div>
+                        <div class="sbn-meta-item">
+                            <span class="sbn-meta-label">Format:</span>
+                            <span class="sbn-meta-value">{{ attr('format') || 'PDF' }}</span>
+                        </div>
+                        <div v-if="attr('composer')" class="sbn-meta-item">
+                            <span class="sbn-meta-label">Composer:</span>
+                            <span class="sbn-meta-value">{{ attr('composer') }}</span>
+                        </div>
+                        <div v-if="attr('performer')" class="sbn-meta-item">
+                            <span class="sbn-meta-label">Performer:</span>
+                            <span class="sbn-meta-value">{{ attr('performer') }}</span>
+                        </div>
+                        <div v-if="difficulty" class="sbn-meta-item">
+                            <span class="sbn-meta-label">Level:</span>
+                            <span class="sbn-meta-value">{{ difficulty.label }}</span>
+                        </div>
                     </div>
 
-                    <!-- Categories -->
-                    <div v-if="product.categories.length > 0" class="product-categories">
-                        <span class="label">Categories:</span>
-                        <span
-                            v-for="category in product.categories"
-                            :key="category.id"
-                            class="category-tag"
-                        >
-                            {{ category.name }}
-                        </span>
-                    </div>
+                    <!-- Add to Cart -->
+                    <button class="sbn-add-to-cart-btn" @click="handleAddToCart">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+                            <path d="m1 1 4 0 2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                        </svg>
+                        Add to Cart
+                    </button>
+
                 </div>
             </div>
 
-            <!-- Description -->
-            <div v-if="product.description" class="product-description">
+            <!-- Long description -->
+            <div v-if="product.description" class="sbn-product-description-section">
                 <h2>Description</h2>
-                <div class="description-content" v-html="product.description" />
+                <div class="sbn-description-content" v-html="product.description" />
             </div>
 
-            <!-- Related Products -->
-            <div v-if="related.length > 0" class="related-products">
-                <h2>You May Also Like</h2>
-                <div class="related-grid">
+            <!-- Related products -->
+            <div v-if="related.length" class="sbn-related-section">
+                <div class="sbn-related-header">
+                    <h2>Related Products</h2>
+                    <Link
+                        v-if="styleCategory"
+                        :href="`/shop/category/${styleCategory.slug}`"
+                    >View All →</Link>
+                </div>
+                <div class="sbn-related-grid">
                     <ProductCard
                         v-for="item in related"
                         :key="item.id"
@@ -136,244 +230,304 @@ const formatAttribute = (key: string, value: string | string[]): string => {
                     />
                 </div>
             </div>
+
         </div>
 
-    <CartDrawer />
+        <CartDrawer />
+    </div>
 </template>
 
 <style scoped>
-.product-show {
+/* ── Page shell ─────────────────────────────────────────────── */
+.sbn-single-product {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 40px 20px;
+    padding: 20px;
+    --category-color: var(--clr-style-default);
+    --category-gradient: linear-gradient(
+        135deg,
+        var(--category-color) 0%,
+        color-mix(in srgb, var(--category-color) 60%, white) 100%
+    );
 }
 
-/* Breadcrumb - matches original .sbn-breadcrumb */
-.sbn-breadcrumb {
-    background: var(--category-gradient, var(--sbn-gradient, linear-gradient(135deg, #f39c12, #e74c3c)));
-    padding: 15px 25px;
-    border-radius: 10px;
-    margin-bottom: 25px;
-    color: white;
-}
-
-.sbn-breadcrumb ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.sbn-breadcrumb li {
-    font-size: 0.9em;
-    color: rgba(255,255,255,0.9);
-}
-
-.sbn-breadcrumb li a {
-    color: white;
-    text-decoration: none;
-    font-weight: 500;
-}
-
-.sbn-breadcrumb li a:hover {
-    opacity: 0.8;
-}
-
-.sbn-breadcrumb li:last-child {
-    color: white;
-    font-weight: 600;
-}
-
-.sbn-breadcrumb li::after {
-    content: "›";
-    margin-left: 10px;
-    opacity: 0.7;
-}
-
-.sbn-breadcrumb li:last-child::after {
-    display: none;
-}
-
-.product-layout {
+/* ── Two-column main ────────────────────────────────────────── */
+.sbn-product-main {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 48px;
-    margin-bottom: 48px;
+    gap: 50px;
+    margin-bottom: 50px;
+    align-items: start;
 }
 
-@media (max-width: 768px) {
-    .product-layout {
-        grid-template-columns: 1fr;
-        gap: 32px;
-    }
+/* ── Gallery (left) ─────────────────────────────────────────── */
+.sbn-product-gallery {
+    position: sticky;
+    top: 100px;
+    height: fit-content;
 }
 
-.product-image {
-    border-radius: var(--radius);
+.sbn-gallery-main {
+    background: var(--clr-white);
+    border-radius: var(--radius-lg);
     overflow: hidden;
-    background: var(--clr-surface-2);
 }
 
-.product-image img {
-    width: 100%;
-    height: auto;
-    display: block;
-}
-
-.placeholder-image {
-    aspect-ratio: 3 / 4;
+.sbn-main-image {
+    aspect-ratio: 1;
     display: flex;
     align-items: center;
     justify-content: center;
+    background: var(--clr-white);
+    padding: 20px;
+}
+
+.sbn-main-image img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.sbn-no-image {
     color: var(--clr-text-muted);
+    font-size: 14px;
 }
 
-.product-info {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
+/* ── Product info (right) ───────────────────────────────────── */
+.sbn-product-info { padding-top: 10px; }
 
-.product-title {
-    font-size: 32px;
+/* Difficulty pill */
+.sbn-difficulty-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--clr-surface-2);
+    color: var(--clr-text-dim);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 15px;
+    border: 1px solid var(--clr-border);
+}
+.sbn-difficulty-badge .stars { color: var(--clr-star); }
+
+/* Title */
+.sbn-product-title {
+    font-size: 2.2em;
     font-weight: 700;
-    margin: 0;
     color: var(--clr-text);
+    margin: 0 0 8px;
     line-height: 1.2;
 }
 
-.product-excerpt {
-    font-size: 16px;
-    color: var(--clr-text-dim);
-    line-height: 1.6;
-    margin: 0;
-}
-
-.product-price-box {
-    background: linear-gradient(135deg, rgba(243, 156, 18, 0.08) 0%, rgba(231, 76, 60, 0.08) 100%);
-    padding: 20px;
-    border-radius: var(--radius);
-    border: 1px solid var(--clr-accent-border);
-}
-
-.add-to-cart-btn {
-    background: var(--clr-gradient);
-    color: white;
-    border: none;
-    padding: 16px 32px;
-    border-radius: var(--radius-sm);
-    font-size: 16px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: transform 0.2s ease;
-    width: 100%;
-}
-
-.add-to-cart-btn:hover {
-    transform: scale(1.02);
-}
-
-.product-attributes h3 {
-    font-size: 16px;
-    font-weight: 700;
-    margin: 0 0 12px;
-    color: var(--clr-text);
-}
-
-.attributes-list {
-    display: grid;
-    gap: 8px;
-}
-
-.attribute-item {
-    display: flex;
-    gap: 16px;
-    font-size: 14px;
-}
-
-.attribute-item dt {
-    font-weight: 600;
-    color: var(--clr-text-dim);
-    min-width: 100px;
-}
-
-.attribute-item dd {
-    margin: 0;
-    color: var(--clr-text);
-}
-
-.product-categories {
+/* Subtitle: style + subcat links */
+.sbn-product-subtitle {
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-bottom: 20px;
     flex-wrap: wrap;
+}
+
+.sbn-style-link {
+    color: var(--clr-white);
+    background: var(--category-color);
+    padding: 4px 12px;
+    border-radius: 15px;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.sbn-subcat-link {
+    color: var(--clr-text-dim);
+    background: var(--clr-surface-3);
+    padding: 4px 10px;
+    border-radius: 12px;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 500;
+}
+.sbn-subcat-link:hover { background: var(--clr-border); }
+
+/* Price */
+.sbn-price-wrapper {
+    margin-bottom: 20px;
+}
+
+/* Short description */
+.sbn-short-description {
+    color: var(--clr-text-dim);
+    line-height: 1.8;
+    margin-bottom: 25px;
+    font-size: 15px;
+}
+
+/* ── Feature chips: 2-column grid ───────────────────────────── */
+.sbn-features-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.sbn-feature-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--clr-surface-2);
+    padding: 12px 15px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--clr-text-dim);
+    border: 1px solid var(--clr-border);
+}
+
+.sbn-feature-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    background: var(--category-color);
+    border-radius: 6px;
+    color: var(--clr-white);
+}
+
+.sbn-feature-icon svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+/* ── Meta bar: PAGES / FORMAT / LEVEL ───────────────────────── */
+.sbn-product-meta {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 25px;
+    padding: 15px;
+    background: var(--clr-surface-2);
+    border-radius: var(--radius);
+    flex-wrap: wrap;
+}
+
+.sbn-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sbn-meta-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--clr-text-muted);
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.sbn-meta-value {
+    font-weight: 600;
+    color: var(--clr-text);
     font-size: 14px;
 }
 
-.product-categories .label {
-    color: var(--clr-text-muted);
-}
-
-.category-tag {
-    background: var(--clr-surface-3);
-    padding: 4px 12px;
-    border-radius: 20px;
-    color: var(--clr-text-dim);
-}
-
-.product-description {
-    margin-bottom: 48px;
-}
-
-.product-description h2 {
-    font-size: 24px;
-    font-weight: 700;
-    margin: 0 0 20px;
-    color: var(--clr-text);
-}
-
-.description-content {
+/* ── Add to cart button ─────────────────────────────────────── */
+.sbn-add-to-cart-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--clr-gradient);
+    color: var(--clr-white);
+    padding: 16px 30px;
+    border-radius: var(--radius);
+    border: none;
     font-size: 16px;
-    line-height: 1.7;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+    font-family: var(--font-body);
+    margin-bottom: 20px;
+}
+.sbn-add-to-cart-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--clr-shadow);
+}
+
+/* ── Long description ───────────────────────────────────────── */
+.sbn-product-description-section {
+    margin-bottom: 50px;
+    padding-top: 32px;
+    border-top: 1px solid var(--clr-border);
+}
+.sbn-product-description-section h2 {
+    font-size: 1.4em;
+    font-weight: 700;
+    color: var(--clr-text);
+    margin: 0 0 20px;
+}
+.sbn-description-content {
+    font-size: 15px;
+    line-height: 1.75;
     color: var(--clr-text-dim);
 }
 
-.description-content :deep(p) {
-    margin: 0 0 16px;
-}
+/* ── Related products ───────────────────────────────────────── */
 
-.related-products h2 {
-    font-size: 24px;
-    font-weight: 700;
-    margin: 0 0 24px;
+/* Header: gradient banner matching legacy */
+.sbn-related-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 30px;
+    background: var(--clr-gradient);
+    border-radius: var(--radius);
+    margin-bottom: 25px;
+}
+.sbn-related-header h2 {
+    font-size: 1.5em;
+    color: var(--clr-white);
+    margin: 0;
+}
+.sbn-related-header a {
+    color: var(--clr-white);
+    background: rgba(255, 255, 255, 0.2);
+    padding: 8px 20px;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    transition: background 0.2s, color 0.2s;
+}
+.sbn-related-header a:hover {
+    background: var(--clr-white);
     color: var(--clr-text);
 }
 
-/* Related Products Grid - 4 columns per original spec */
-.related-grid {
+/* Grid: 4-up, matches shop index */
+.sbn-related-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 20px;
 }
 
-@media (max-width: 1200px) {
-    .related-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+    .sbn-product-main { grid-template-columns: 1fr 1fr; gap: 30px; }
+    .sbn-product-gallery { position: static; }
+    .sbn-related-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
-@media (max-width: 900px) {
-    .related-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
+@media (max-width: 768px) {
+    .sbn-product-main { grid-template-columns: 1fr; gap: 24px; }
+    .sbn-related-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
-@media (max-width: 600px) {
-    .related-grid {
-        grid-template-columns: 1fr;
-    }
+@media (max-width: 480px) {
+    .sbn-features-grid { grid-template-columns: 1fr; }
+    .sbn-related-grid { grid-template-columns: 1fr; }
 }
 </style>

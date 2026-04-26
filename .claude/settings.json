@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \" const fs = require\\('fs'\\); // Read the SQLite file raw to find category pivot data // Instead let's check ShopController to see what it passes \")",
+      "Bash(xargs grep *)",
+      "Bash(php -r ' *)",
+      "PowerShell(npx vite build 2>&1)",
+      "PowerShell(php artisan tinker --execute=\"echo \\\\App\\\\Models\\\\RhythmPattern::whereNotNull\\('mp3_file'\\)->where\\('mp3_file','!=',''\\)->take\\(5\\)->get\\(['slug','mp3_file']\\)->toJson\\(\\);\")",
+      "PowerShell(\\(Invoke-WebRequest -Uri \"http://localhost/audio/rhythm-demos/chega173.mp3\" -Method Head -UseBasicParsing -ErrorAction SilentlyContinue\\).StatusCode)",
+      "PowerShell(php -l app\\\\Http\\\\Controllers\\\\Library\\\\RhythmLibraryController.php)",
+      "Bash(git -C c:/Users/info/sbn-app log --oneline -15)",
+      "Bash(git -C c:/Users/info/sbn-app diff --stat HEAD~5 -- resources/ app/Http/Controllers/Library/)",
+      "PowerShell(php artisan tinker --execute='echo App\\\\Models\\\\ChordProgression::where\\(\"numerals\",\"like\",DB::raw\\(\"\\\\\"%7%\\\\\"\"\\)\\)->limit\\(8\\)->pluck\\(\"numerals\",\"name\"\\)->toJson\\(\\);')",
+      "PowerShell(php -l app\\\\Http\\\\Controllers\\\\Library\\\\ChordLibraryController.php)",
+      "PowerShell(php -l app\\\\Http\\\\Controllers\\\\Library\\\\ProgressionLibraryController.php)",
+      "PowerShell(php check_filter.php)"
+    ]
+  }
+}

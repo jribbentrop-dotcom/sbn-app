@@ -7,7 +7,11 @@
       "Bash(awk '/<measure number=\"1\">/,/<\\\\/measure>/' c:/Users/info/sbn-app/storage/app/saved_wine.xml)",
       "Bash(awk '/<measure number=\"1\"[ >]/,/<\\\\/measure>/' \"c:/Users/info/sbn-app/docs/BOSSA - O Barquinho.musicxml\")",
       "Bash(awk '/<measure number=\"1\">/,/<\\\\/measure>/' c:/Users/info/sbn-app/storage/app/saved_barq.xml)",
-      "Read(//c/Users/info/**)"
+      "Read(//c/Users/info/**)",
+      "WebFetch(domain:soulbossanova.com)",
+      "Bash(/c/Users/info/AppData/Local/Herd/resources/bin/php/8.4/php.exe artisan *)",
+      "PowerShell(Get-Command php -ErrorAction SilentlyContinue)",
+      "Bash(php artisan *)"
     ]
   }
 }

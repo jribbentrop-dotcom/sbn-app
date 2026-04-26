@@ -1,58 +1,49 @@
-/**
- * Category color/gradient mapping
- * Maps category slugs to their respective gradient colors
- */
-
-export const categoryGradients: Record<string, string> = {
-    // Styles
-    'bossa-nova': 'linear-gradient(135deg, #f39c12 0%, #e74c3c 100%)', // Orange-Red (default)
-    'samba': 'linear-gradient(135deg, #27ae60 0%, #2ecc71 100%)', // Green
-    'jazz': 'linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%)', // Purple
-    'mpb': 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)', // Blue
-    'choro': 'linear-gradient(135deg, #e67e22 0%, #d35400 100%)', // Dark Orange
-    'forro': 'linear-gradient(135deg, #1abc9c 0%, #16a085 100%)', // Teal
-    'sertanejo': 'linear-gradient(135deg, #795548 0%, #5d4037 100%)', // Brown
-    'reggae': 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)', // Red
-    'funk': 'linear-gradient(135deg, #ff6b9d 0%, #c44569 100%)', // Pink
-
-    // Difficulty levels
-    'beginner': 'linear-gradient(135deg, #2ecc71 0%, #27ae60 100%)', // Green
-    'intermediate': 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)', // Orange
-    'advanced': 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)', // Red
-    'expert': 'linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%)', // Purple
-
-    // Product types
-    'full-song': 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)', // Blue
-    'study-piece': 'linear-gradient(135deg, #1abc9c 0%, #16a085 100%)', // Teal
-    'exercise': 'linear-gradient(135deg, #e67e22 0%, #d35400 100%)', // Orange
-    'technique': 'linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%)', // Purple
+const SLUG_TO_TOKEN: Record<string, string> = {
+    'bossa-nova': '--clr-style-bossa',
+    'jazz':       '--clr-style-jazz',
+    'samba':      '--clr-style-samba',
+    'latin':      '--clr-style-latin',
+    'blues':      '--clr-style-blues',
+    'pop':        '--clr-style-pop',
+    'classical':  '--clr-style-classical',
+    'iconic':     '--clr-style-gold',
+    // Progression category mappings
+    'modal':      '--clr-style-pop',      // Modal uses pop colors
+    'other':      '--clr-style-bossa',    // Other uses default bossa color
 };
 
-/**
- * Get gradient for a category slug
- * Falls back to default SBN gradient if not found
- */
-export function getCategoryGradient(slug: string | undefined): string {
-    if (!slug) return 'linear-gradient(135deg, #f39c12 0%, #e74c3c 100%)';
-    return categoryGradients[slug] || 'linear-gradient(135deg, #f39c12 0%, #e74c3c 100%)';
+export const STYLE_SLUGS = new Set(Object.keys(SLUG_TO_TOKEN));
+
+export function getCategoryColor(slug: string | undefined): string {
+    const token = (slug && SLUG_TO_TOKEN[slug]) || '--clr-style-default';
+    return `var(${token})`;
 }
 
-/**
- * Get CSS style object with category gradient
- */
 export function getCategoryStyle(slug: string | undefined): Record<string, string> {
-    return {
-        '--category-gradient': getCategoryGradient(slug),
-    };
+    return { '--category-color': getCategoryColor(slug) };
 }
 
-/**
- * Composable for category colors
- */
+/** Pick the first category whose slug is a known music style. */
+export function getStyleSlug(categories: Array<{ slug: string }>): string | undefined {
+    return categories.find(c => STYLE_SLUGS.has(c.slug))?.slug;
+}
+
+export function difficultyLabel(n: number): string {
+    const labels: Record<number, string> = {
+        1: 'Beginner',
+        2: 'Early Intermediate',
+        3: 'Intermediate',
+        4: 'Late Intermediate',
+        5: 'Advanced',
+    };
+    return labels[n] || '';
+}
+
 export function useCategoryColors() {
     return {
-        getGradient: getCategoryGradient,
-        getStyle: getCategoryStyle,
-        gradients: categoryGradients,
+        getCategoryColor,
+        getCategoryStyle,
+        getStyleSlug,
+        getDifficultyLabel: difficultyLabel,
     };
 }

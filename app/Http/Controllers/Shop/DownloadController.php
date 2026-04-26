@@ -26,7 +26,7 @@ class DownloadController extends Controller
 
         $product = $grant->product;
 
-        if (!$product->pdf_path || !Storage::disk('local')->exists($product->pdf_path)) {
+        if (!$product->pdf_path || !Storage::disk('pdfs')->exists($product->pdf_path)) {
             abort(404, 'PDF file not found.');
         }
 
@@ -34,7 +34,7 @@ class DownloadController extends Controller
         $grant->recordDownload();
 
         // Stream file
-        $path = Storage::disk('local')->path($product->pdf_path);
+        $path = Storage::disk('pdfs')->path($product->pdf_path);
         $filename = $product->pdf_filename ?: basename($path);
 
         return response()->file($path, [

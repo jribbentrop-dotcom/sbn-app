@@ -38,6 +38,13 @@ return [
             'report' => false,
         ],
 
+        'pdfs' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/products/pdfs'),
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

@@ -156,11 +156,12 @@ function sbnRenderDiagramSVG(voicing, opts) {
              + '" stroke="var(--clr-text)" stroke-width="0.4" opacity="0.4"/>';
     }
 
-    // String lines
+    // String lines — flush at top (nut), extend 5px below bottom fret
+    var strTop = (position <= 1) ? top : (top - 6);
     for (var s = 0; s < 6; s++) {
-        svg += '<line x1="' + (left + s * strSp) + '" y1="' + top
-             + '" x2="' + (left + s * strSp) + '" y2="' + (top + fretSp * numFrets)
-             + '" stroke="var(--clr-text)" stroke-width="0.9" opacity="0.7"/>';
+        svg += '<line x1="' + (left + s * strSp) + '" y1="' + strTop
+             + '" x2="' + (left + s * strSp) + '" y2="' + (top + fretSp * numFrets + 5)
+             + '" stroke="var(--clr-text)" stroke-width="0.4" opacity="0.5"/>';
     }
 
     // Markers: ×, ○, dot
@@ -175,12 +176,14 @@ function sbnRenderDiagramSVG(voicing, opts) {
             var rf = fretVal - position + 1;
             if (rf > 0 && rf <= numFrets) {
                 var y = top + rf * fretSp - fretSp / 2;
-                svg += '<circle cx="' + x + '" cy="' + y
+                svg += '<circle class="sbn-svg-dot" data-string="' + (i + 1) + '"'
+                     + ' cx="' + x + '" cy="' + y
                      + '" r="4.5" fill="' + dotColor + '" opacity="1"/>';
                 if (showFingers && finger && finger !== '0') {
-                    svg += '<text x="' + x + '" y="' + (y + 3.5)
-                         + '" font-size="7" font-weight="600"'
-                         + ' text-anchor="middle" fill="#fff">' + finger + '</text>';
+                    svg += '<text x="' + x + '" y="' + y
+                         + '" font-size="6.5" font-weight="700"'
+                         + ' text-anchor="middle" dominant-baseline="central" fill="#fff"'
+                         + ' style="pointer-events:none">' + finger + '</text>';
                 }
             }
         }

@@ -25,18 +25,27 @@ export class Scheduler {
         /** @type {EngineEvent[]} */
         this._events = [];
         this._nextIdx = 0;
-        this._loop = null;
+        this._loop = false;
+        this._loopBeats = 0;
+        this._loopCycle = 0; // how many full loops we've elapsed since start
         this._intervalId = null;
         this._running = false;
         this._lookaheadSec = 0.1; // 100ms — matches WP RhythmPlayer
         this._tickMs = 25;
     }
 
-    /** @param {EngineEvent[]} events */
+    /**
+     * @param {EngineEvent[]} events
+     * @param {Object} [opts]
+     * @param {boolean} [opts.loop=false]
+     * @param {number}  [opts.loopBeats=0] — length of one loop iteration in beats
+     */
     load(events, opts = {}) {
         this._events = [...events].sort((a, b) => a.time - b.time);
         this._nextIdx = 0;
-        this._loop = opts.loop || null;
+        this._loop = !!opts.loop;
+        this._loopBeats = opts.loopBeats || 0;
+        this._loopCycle = 0;
     }
 
     clear() {
@@ -50,12 +59,20 @@ export class Scheduler {
         if (this._nextIdx === -1) this._nextIdx = this._events.length;
     }
 
+    /** True when the given clock beat is at or past the end of all loaded events. */
+    isAtOrPastEnd(beat) {
+        if (this._loop || this._events.length === 0) return false;
+        const last = this._events[this._events.length - 1];
+        return beat >= last.time + last.duration;
+    }
+
     start() {
         // Always reset — clears stale _nextIdx when events were replaced via load()
         // while a previous playback was still running.
         if (this._intervalId) clearInterval(this._intervalId);
         this._running = true;
         this._nextIdx = 0;
+        this._loopCycle = 0;
         this._intervalId = setInterval(() => this._tick(), this._tickMs);
     }
 
@@ -75,11 +92,24 @@ export class Scheduler {
         const lookaheadBeats = this._lookaheadSec / secPerBeat;
         const horizonBeat = currentBeat + lookaheadBeats;
 
-        while (this._nextIdx < this._events.length) {
-            const ev = this._events[this._nextIdx];
-            if (ev.time > horizonBeat) break;
+        // Walk the event list. If looping, wrap around and shift event times
+        // forward by (_loopCycle * _loopBeats) so each iteration's absolute
+        // time keeps advancing with the clock.
+        while (true) {
+            if (this._nextIdx >= this._events.length) {
+                if (this._loop && this._loopBeats > 0) {
+                    this._loopCycle++;
+                    this._nextIdx = 0;
+                } else {
+                    break;
+                }
+            }
 
-            const deltaBeats = ev.time - currentBeat;
+            const ev = this._events[this._nextIdx];
+            const evTime = ev.time + this._loopCycle * this._loopBeats;
+            if (evTime > horizonBeat) break;
+
+            const deltaBeats = evTime - currentBeat;
             const when = this.clock.now() + deltaBeats * secPerBeat;
             const durSec = ev.duration * secPerBeat;
 
@@ -93,17 +123,15 @@ export class Scheduler {
             this._nextIdx++;
         }
 
-        if (this._nextIdx >= this._events.length) {
-            // Events exhausted. Let the tail ring out, then signal ended.
-            if (this._events.length > 0) {
-                const last = this._events[this._events.length - 1];
-                const endBeat = last.time + last.duration;
-                if (currentBeat >= endBeat) {
-                    this._running = false;
-                    if (this._intervalId) clearInterval(this._intervalId);
-                    this._intervalId = null;
-                    this.onEnded?.();
-                }
+        // Non-loop end-of-events handling: let the tail ring out, then signal ended.
+        if (!this._loop && this._nextIdx >= this._events.length && this._events.length > 0) {
+            const last = this._events[this._events.length - 1];
+            const endBeat = last.time + last.duration;
+            if (currentBeat >= endBeat) {
+                this._running = false;
+                if (this._intervalId) clearInterval(this._intervalId);
+                this._intervalId = null;
+                this.onEnded?.();
             }
         }
     }

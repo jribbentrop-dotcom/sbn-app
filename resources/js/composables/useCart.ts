@@ -58,7 +58,7 @@ const addToCart = (product: Product, quantity: number = 1) => {
             slug: product.slug,
             title: product.title,
             price_cents: product.price_cents,
-            thumbnail_path: product.thumbnail_url ? new URL(product.thumbnail_url).pathname : null,
+            thumbnail_path: product.thumbnail_url ?? null,
             quantity,
         });
     }

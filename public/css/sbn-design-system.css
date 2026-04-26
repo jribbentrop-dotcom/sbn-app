@@ -55,6 +55,7 @@
     --clr-success:          #10b981;
     --clr-warning:          #f39c12;   /* same as accent intentionally */
     --clr-error:            #ef4444;
+    --clr-star:             #ffc107;
 
     /* ── Borders & Shadows ─────────────────────────────── */
     --clr-border:           #e2e8f0;
@@ -62,6 +63,7 @@
     --clr-shadow-sm:        0 1px 3px rgba(0, 0, 0, 0.05);
     --clr-shadow:           0 4px 12px rgba(0, 0, 0, 0.07);
     --clr-shadow-lg:        0 10px 32px rgba(0, 0, 0, 0.1);
+    --clr-overlay-dark:     rgba(45, 55, 72, 0.75);
 
     /* ── Module accent colors (sidebar icons, stat cards) ─ */
     --clr-mod-leadsheet:    #3b82f6;
@@ -70,18 +72,20 @@
     --clr-mod-rhythm:       #10b981;
     --clr-mod-voicing:      #ec4899;
 
-    /* ── Music style colors ────────────────────────────── */
-    /*    Used for category badges and pill filters.
-          Bossa nova = orange (matches brand accent).
-          Jazz = blue. Samba = green. Latin = purple.       */
-    --clr-style-bossa:      #f39c12;   /* orange — bossa nova */
-    --clr-style-jazz:       #3b82f6;   /* blue   — jazz       */
-    --clr-style-samba:      #10b981;   /* green  — samba      */
-    --clr-style-latin:      #8b5cf6;   /* purple — latin      */
-    --clr-style-blues:      #6366f1;   /* indigo — blues      */
-    --clr-style-pop:        #ec4899;   /* pink   — pop        */
-    --clr-style-classical:  #64748b;   /* slate  — classical  */
+    /* ── Music style colors ──────────────────────────────
+       Used for category badges, pill filters, progression
+       dots, chord-diagram tints, and shop card accents.   */
+    --clr-style-bossa:      #f39c12;   /* orange — bossa nova      */
+    --clr-style-jazz:       #3b82f6;   /* blue   — jazz            */
+    --clr-style-samba:      #10b981;   /* green  — samba           */
+    --clr-style-latin:      #8b5cf6;   /* purple — latin           */
+    --clr-style-blues:      #6366f1;   /* indigo — blues           */
+    --clr-style-pop:        #ec4899;   /* pink   — pop             */
+    --clr-style-classical:  #64748b;   /* slate  — classical       */
     --clr-style-gold:       #d69e2e;   /* gold   — iconic/featured */
+
+    /* Fallback when slug is unknown */
+    --clr-style-default:    var(--clr-style-bossa);
 
     /* ── Layout dimensions ─────────────────────────────── */
     --sidebar-w:            260px;
@@ -134,7 +138,7 @@
     border-radius:  var(--radius-sm);
     padding:        10px 12px;
     text-align:     center;
-    transition:     border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+    transition:     border-color 0.15s var(--ease);
     display:        flex;
     flex-direction: column;
     align-items:    center;
@@ -149,7 +153,6 @@
 .sbn-diagram-card:hover,
 .sbn-vp-card:hover {
     border-color: var(--clr-accent-border);
-    box-shadow:   var(--clr-shadow-sm);
 }
 
 .sbn-diagram-card.is-selected,
@@ -383,7 +386,6 @@
     border-radius: var(--radius);
     padding:       16px;
     transition:    border-color 0.2s var(--ease),
-                   box-shadow   0.2s var(--ease),
                    transform    0.2s var(--ease);
     cursor:        pointer;
     overflow:      visible;
@@ -395,7 +397,6 @@
 .sbn-chord-card:hover {
     transform:    translateY(-2px);
     border-color: var(--clr-accent);
-    box-shadow:   var(--clr-shadow);
 }
 
 .sbn-chord-card:focus-visible {
@@ -516,7 +517,6 @@
     align-items:     center;
     justify-content: center;
     transition:      all 0.15s var(--ease);
-    box-shadow:      var(--clr-shadow-sm);
     padding:         0;
 }
 
@@ -874,6 +874,32 @@
     line-height:   1.5;
 }
 
+/* Content panel — gray background box for grouped content */
+.sbn-panel {
+    background:    var(--clr-surface-2);
+    border:        1px solid var(--clr-border);
+    border-radius: var(--radius);
+    padding:       20px;
+}
+
+/* Card link — clickable card with hover effect (for related products, etc.) */
+.sbn-card-link {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    padding:         16px;
+    background:      var(--clr-surface-2);
+    border:          1px solid var(--clr-border);
+    border-radius:   var(--radius);
+    text-decoration: none;
+    transition:      all 0.2s var(--ease);
+}
+
+.sbn-card-link:hover {
+    background:   var(--clr-surface-3);
+    border-color: var(--clr-accent);
+}
+
 
 /* ──────────────────────────────────────────────────────────
    6. FORM ELEMENTS
@@ -891,7 +917,7 @@
     color:         var(--clr-text);
     font-family:   var(--font-body);
     font-size:     13px;
-    transition:    border-color 0.15s, box-shadow 0.15s;
+    transition:    border-color 0.15s;
     outline:       none;
 }
 .sbn-textarea {

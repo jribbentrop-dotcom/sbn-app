@@ -992,12 +992,11 @@
     border: 1px solid var(--clr-border);
     border-radius: var(--radius-sm);
     padding: 8px 10px;
-    transition: border-color 0.15s, box-shadow 0.15s;
+    transition: border-color 0.15s;
 }
 
 .sbn-draft-card:hover {
     border-color: var(--clr-accent-border);
-    box-shadow: var(--clr-shadow-sm);
 }
 
 .sbn-draft-card-header {

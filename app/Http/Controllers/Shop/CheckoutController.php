@@ -11,7 +11,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
-use Inertia\Redirect;
 
 class CheckoutController extends Controller
 {
@@ -31,7 +30,7 @@ class CheckoutController extends Controller
     /**
      * Process checkout (stub payment).
      */
-    public function store(Request $request): Redirect
+    public function store(Request $request): \Illuminate\Http\RedirectResponse
     {
         $validated = $request->validate([
             'guest_email' => 'required|email',

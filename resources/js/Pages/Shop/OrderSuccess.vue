@@ -139,7 +139,7 @@ const props = defineProps<Props>();
     width: 80px;
     height: 80px;
     background: var(--clr-success);
-    color: white;
+    color: var(--clr-white);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -164,7 +164,7 @@ const props = defineProps<Props>();
 .order-details,
 .order-items,
 .download-section {
-    background: white;
+    background: var(--clr-white);
     border-radius: var(--radius);
     padding: 24px;
     margin-bottom: 24px;
@@ -206,8 +206,8 @@ const props = defineProps<Props>();
 }
 
 .status-badge.pending {
-    background: #fef3c7;
-    color: #d97706;
+    background: color-mix(in srgb, var(--clr-warning) 15%, var(--clr-white));
+    color: var(--clr-warning);
 }
 
 .items-list {
@@ -296,13 +296,13 @@ const props = defineProps<Props>();
 
 .download-btn {
     background: var(--clr-gradient);
-    color: white;
+    color: var(--clr-white);
     text-decoration: none;
     padding: 10px 20px;
     border-radius: var(--radius-sm);
     font-weight: 600;
     font-size: 14px;
-    transition: transform 0.2s ease;
+    transition: transform 0.2s var(--ease);
 }
 
 .download-btn:hover:not(.disabled) {
@@ -323,12 +323,12 @@ const props = defineProps<Props>();
 .continue-btn {
     display: inline-block;
     background: var(--clr-gradient);
-    color: white;
+    color: var(--clr-white);
     text-decoration: none;
     padding: 14px 28px;
     border-radius: var(--radius-sm);
     font-weight: 700;
-    transition: transform 0.2s ease;
+    transition: transform 0.2s var(--ease);
 }
 
 .continue-btn:hover {

@@ -182,7 +182,7 @@ class ShopController extends Controller
             'related' => $related,
             'meta' => [
                 'title' => "{$product->title} - Shop - Soul Bossa Nova",
-                'description' => $product->meta_description ?: substr(strip_tags($product->excerpt), 0, 160),
+                'description' => $product->meta_description ?: substr(strip_tags($product->excerpt ?? ''), 0, 160),
             ],
         ]);
     }

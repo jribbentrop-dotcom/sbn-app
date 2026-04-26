@@ -60,63 +60,160 @@ onUnmounted(() => {
 <template>
     <nav class="main-navigation" role="navigation" aria-label="Primary Menu">
         <ul class="main-menu">
-           
-              <li class="menu-item">
-                <Link href="/home" @click="closeAllMenus">Home</Link>
-            </li>
+
+            <!-- Home -->
             <li class="menu-item">
-                <Link href="/courses" @click="closeAllMenus">Courses</Link>
-            </li>
-            <li class="menu-item">
-                <Link href="/top-10" @click="closeAllMenus">Top 10</Link>
+                <Link href="/" @click="closeAllMenus">Home</Link>
             </li>
 
-            <li class="menu-item menu-item-has-children" 
-                :class="{ 'manual-hover': openMenu === 'explore' }">
-                <a href="#" @click="toggleMenu('explore', $event)">
-                    Explore
-                </a>
+            <!-- Courses mega panel -->
+            <li class="menu-item menu-item-has-children"
+                :class="{ 'manual-hover': openMenu === 'courses' }">
+                <a href="#" @click="toggleMenu('courses', $event)">Courses</a>
                 <ul class="sub-menu">
-                    <!-- Column 1: Standard Nav -->
+                    <!-- Col 1: Browse by Level -->
                     <li class="menu-item-has-children mega-col-nav">
-                        <a href="#">Resources</a>
+                        <a href="#">Browse by Level</a>
                         <ul class="sub-menu">
-                            <li><Link href="/library/chords" @click="closeAllMenus">Chords</Link></li>
-                            <li><Link href="/library/rhythms" @click="closeAllMenus">Rhythms</Link></li>
-                            <li><Link href="/library/progressions" @click="closeAllMenus">Chord Progressions</Link></li>
-                            <li><Link href="/library/songs" @click="closeAllMenus">Songs</Link></li>
+                            <li><Link href="#" @click="closeAllMenus">Basic</Link></li><!-- TODO: Phase 3 routes -->
+                            <li><Link href="#" @click="closeAllMenus">Early Intermediate</Link></li>
+                            <li><Link href="#" @click="closeAllMenus">Intermediate</Link></li>
+                            <li><Link href="#" @click="closeAllMenus">Late Intermediate</Link></li>
+                            <li><Link href="#" @click="closeAllMenus">Advanced</Link></li>
                         </ul>
                     </li>
-
-                    <!-- Column 2: Featured -->
+                    <!-- Col 1b: Browse by Style -->
+                    <li class="menu-item-has-children mega-col-nav">
+                        <a href="#">Browse by Style</a>
+                        <ul class="sub-menu">
+                            <li><Link href="#" @click="closeAllMenus">Bossa Nova</Link></li>
+                            <li><Link href="#" @click="closeAllMenus">Classical</Link></li>
+                            <li><Link href="#" @click="closeAllMenus">Jazz</Link></li>
+                            <li><Link href="#" @click="closeAllMenus">All Courses</Link></li>
+                        </ul>
+                    </li>
+                    <!-- Col 2: Featured Course thumbnail -->
                     <li class="mega-col-featured">
-                        <a href="#">Featured Collection</a>
-                        <p class="mega-featured-desc">Master the authentic Brazilian feel</p>
+                        <a href="#">Featured Course</a>
+                        <p class="mega-featured-desc">Bossa Nova Basics — the foundation</p>
                         <div class="mega-featured-image">
-                            <Link href="/courses/bossa-nova-rhythms" @click="closeAllMenus">
-                                <img src="/images/mega-menu/featured-collection.webp" alt="Bossa Nova Rhythms">
-                                <span class="mega-featured-button">Start Learning</span>
+                            <Link href="#" @click="closeAllMenus"><!-- TODO: course route -->
+                                <img src="/images/mega-menu/courses-featured.webp" alt="Bossa Nova Basics">
+                                <span class="mega-featured-button">Start Course</span>
                             </Link>
                         </div>
                     </li>
-
-                    <!-- Column 3: CTA Box -->
+                    <!-- Col 3: New Course -->
                     <li class="menu-item-has-children mega-col-cta">
-                        <a href="#">Join SBN Premium</a>
+                        <a href="#">New Course</a>
                         <ul class="sub-menu">
-                            <li><Link href="#" @click="closeAllMenus">Full Tablatures</Link></li>
-                            <li><Link href="#" @click="closeAllMenus">Interactive Audio Engine</Link></li>
-                            <li><Link href="#" @click="closeAllMenus">Advanced Voicings</Link></li>
-                            <li><Link href="/join" @click="closeAllMenus" class="has-button-last">Become a Member</Link></li>
+                            <li><a href="#">Clave 101</a></li>
+                            <li><Link href="#" @click="closeAllMenus">Son Clave</Link></li>
+                            <li><Link href="#" @click="closeAllMenus">Rhumba Clave</Link></li>
+                            <li><Link href="#" @click="closeAllMenus">Bossa Nova Clave</Link></li>
+                            <li><Link href="#" @click="closeAllMenus">Basic Patterns &amp; Exercises</Link></li>
                         </ul>
                     </li>
                 </ul>
             </li>
 
-            
-             <li class="menu-item">
-                <Link href="/shop" @click="closeAllMenus">Shop</Link>
+            <!-- Explore mega panel -->
+            <li class="menu-item menu-item-has-children"
+                :class="{ 'manual-hover': openMenu === 'explore' }">
+                <a href="#" @click="toggleMenu('explore', $event)">Explore</a>
+                <ul class="sub-menu">
+                    <!-- Col 1: TOP10 Lists -->
+                    <li class="menu-item-has-children mega-col-nav">
+                        <a href="#">TOP10 Lists</a>
+                        <ul class="sub-menu">
+                            <li><Link href="/top10/bossa-nova-chords" @click="closeAllMenus">Bossa Nova Chords</Link></li><!-- TODO: top10 routes -->
+                            <li><Link href="/top10/latin-jazz-standards" @click="closeAllMenus">Latin Jazz Standards</Link></li>
+                            <li><Link href="/top10/bossa-nova-songs" @click="closeAllMenus">Bossa Nova Songs</Link></li>
+                            <li><Link href="#" @click="closeAllMenus">All TOP10 Lists</Link></li>
+                        </ul>
+                    </li>
+                    <!-- Col 1b: Resources -->
+                    <li class="menu-item-has-children mega-col-nav">
+                        <a href="#">Resources</a>
+                        <ul class="sub-menu">
+                            <li><Link href="/library/chords" @click="closeAllMenus">Chord Library</Link></li>
+                            <li><Link href="/library/rhythms" @click="closeAllMenus">Rhythm Library</Link></li>
+                            <li><Link href="/library/songs" @click="closeAllMenus">Song Library</Link></li>
+                            <li><Link href="/library/progressions" @click="closeAllMenus">Chord Progressions</Link></li>
+                        </ul>
+                    </li>
+                    <!-- Col 2: Featured Chord thumbnail -->
+                    <li class="mega-col-featured">
+                        <a href="#">Featured Content</a>
+                        <p class="mega-featured-desc">Free Music Theory Course</p>
+                        <div class="mega-featured-image">
+                            <Link href="#" @click="closeAllMenus"><!-- TODO: theory course route -->
+                                <img src="/images/mega-menu/explore-featured.webp" alt="Featured Chord">
+                                <span class="mega-featured-button">Explore</span>
+                            </Link>
+                        </div>
+                    </li>
+                    <!-- Col 3: Featured content list -->
+                    <li class="menu-item-has-children mega-col-cta">
+                        <a href="#">Free Resources</a>
+                        <ul class="sub-menu">
+                            <li><a href="#">Music Theory Course</a></li>
+                            <li><Link href="#" @click="closeAllMenus">Music Notation &amp; Tablature</Link></li>
+                            <li><Link href="#" @click="closeAllMenus">Rhythm Grids and Durations</Link></li>
+                            <li><Link href="#" @click="closeAllMenus">Scales and Fingerings</Link></li>
+                        </ul>
+                    </li>
+                </ul>
             </li>
+
+            <!-- Shop mega panel -->
+            <li class="menu-item menu-item-has-children"
+                :class="{ 'manual-hover': openMenu === 'shop' }">
+                <a href="#" @click="toggleMenu('shop', $event)">Shop</a>
+                <ul class="sub-menu">
+                    <!-- Col 1: Product Categories -->
+                    <li class="menu-item-has-children mega-col-nav">
+                        <a href="#">Product Categories</a>
+                        <ul class="sub-menu">
+                            <li><Link href="/shop/category/bossa-nova" @click="closeAllMenus">Bossa Nova</Link></li>
+                            <li><Link href="/shop/category/jazz" @click="closeAllMenus">Jazz</Link></li>
+                            <li><Link href="/shop/category/classical" @click="closeAllMenus">Classical</Link></li>
+                        </ul>
+                    </li>
+                    <!-- Col 1b: Browse by Category -->
+                    <li class="menu-item-has-children mega-col-nav">
+                        <a href="#">Browse by Category</a>
+                        <ul class="sub-menu">
+                            <li><Link href="/shop/category/solo-guitar" @click="closeAllMenus">Solo Guitar</Link></li>
+                            <li><Link href="/shop/category/chords" @click="closeAllMenus">Chords</Link></li>
+                            <li><Link href="/shop" @click="closeAllMenus">All Products</Link></li>
+                        </ul>
+                    </li>
+                    <!-- Col 2: Featured Product thumbnail -->
+                    <li class="mega-col-featured">
+                        <a href="#">Featured Product</a>
+                        <p class="mega-featured-desc">Intermediate Bossa Nova Collection</p>
+                        <div class="mega-featured-image">
+                            <Link href="/shop" @click="closeAllMenus">
+                                <img src="/images/mega-menu/shop-featured.webp" alt="Featured Product">
+                                <span class="mega-featured-button">View Product</span>
+                            </Link>
+                        </div>
+                    </li>
+                    <!-- Col 3: Custom Services -->
+                    <li class="menu-item-has-children mega-col-cta">
+                        <a href="#">Custom Services</a>
+                        <ul class="sub-menu">
+                            <li><a href="#">Bespoke arrangements</a></li>
+                            <li><Link href="#" @click="closeAllMenus">Jazz arrangements</Link></li><!-- TODO: contact/services route -->
+                            <li><Link href="#" @click="closeAllMenus">Bossa Nova arrangements</Link></li>
+                            <li><Link href="#" @click="closeAllMenus">Fingerstyle transcriptions</Link></li>
+                        </ul>
+                    </li>
+                </ul>
+            </li>
+
+            <!-- Cart -->
             <li class="menu-item menu-item-cart">
                 <button class="cart-icon-link" @click="openCart" aria-label="Shopping cart">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -125,6 +222,7 @@ onUnmounted(() => {
                     <span v-if="count > 0" class="cart-count">{{ count }}</span>
                 </button>
             </li>
+
             <li class="menu-item">
                 <UserMenu />
             </li>

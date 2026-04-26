@@ -185,7 +185,7 @@ const submit = () => {
 .continue-btn {
     display: inline-block;
     background: var(--clr-gradient);
-    color: white;
+    color: var(--clr-white);
     text-decoration: none;
     padding: 14px 28px;
     border-radius: var(--radius-sm);
@@ -204,12 +204,6 @@ const submit = () => {
         grid-template-columns: 1fr;
         gap: 32px;
     }
-}
-
-.checkout-form {
-    background: white;
-    border-radius: var(--radius);
-    padding: 32px;
 }
 
 .form-section {
@@ -241,7 +235,7 @@ const submit = () => {
     border: 1px solid var(--clr-border);
     border-radius: var(--radius-sm);
     font-size: 15px;
-    transition: border-color 0.2s ease;
+    transition: border-color 0.2s var(--ease);
 }
 
 .form-group input:focus {
@@ -311,8 +305,8 @@ const submit = () => {
 }
 
 .form-error {
-    background: #fee2e2;
-    color: #dc2626;
+    background: color-mix(in srgb, var(--clr-error) 10%, var(--clr-white));
+    color: var(--clr-error);
     padding: 12px 16px;
     border-radius: var(--radius-sm);
     margin-bottom: 20px;
@@ -322,14 +316,14 @@ const submit = () => {
 .pay-btn {
     width: 100%;
     background: var(--clr-gradient);
-    color: white;
+    color: var(--clr-white);
     border: none;
     padding: 18px;
     border-radius: var(--radius-sm);
     font-size: 16px;
     font-weight: 700;
     cursor: pointer;
-    transition: transform 0.2s ease;
+    transition: transform 0.2s var(--ease);
 }
 
 .pay-btn:hover:not(:disabled) {
@@ -346,14 +340,6 @@ const submit = () => {
     font-size: 13px;
     color: var(--clr-text-muted);
     margin: 16px 0 0;
-}
-
-.order-summary {
-    background: white;
-    border-radius: var(--radius);
-    padding: 24px;
-    position: sticky;
-    top: calc(var(--header-height, 102px) + 20px);
 }
 
 .order-summary h2 {

@@ -45,12 +45,11 @@
     border: 1px solid var(--clr-border);
     border-radius: var(--radius);
     padding: 20px;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition: border-color 0.2s;
 }
 
 .pattern-card:hover {
     border-color: var(--clr-accent-border);
-    box-shadow: var(--clr-shadow-sm);
 }
 
 .pattern-card-head {

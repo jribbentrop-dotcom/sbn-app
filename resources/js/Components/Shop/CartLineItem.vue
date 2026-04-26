@@ -139,7 +139,7 @@ const decreaseQty = () => setQuantity(props.item.product_id, props.item.quantity
     width: 28px;
     height: 28px;
     border: 1px solid var(--clr-border);
-    background: white;
+    background: var(--clr-white);
     border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 16px;

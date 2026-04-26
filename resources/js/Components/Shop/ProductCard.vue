@@ -3,7 +3,7 @@ import { Link } from '@inertiajs/vue3';
 import type { Product } from '@/types/shop';
 import ProductPrice from './ProductPrice.vue';
 import { useCart } from '@/composables/useCart';
-import { getCategoryGradient, getCategoryStyle } from '@/composables/useCategoryColors';
+import { useCategoryColors, getStyleSlug } from '@/composables/useCategoryColors';
 import { computed } from 'vue';
 
 interface Props {
@@ -12,12 +12,21 @@ interface Props {
 
 const props = defineProps<Props>();
 const { addToCart } = useCart();
+const { getCategoryStyle, getDifficultyLabel } = useCategoryColors();
 
 const categoryStyle = computed(() => {
-    const firstCategory = props.product.categories?.[0];
-    return getCategoryStyle(firstCategory?.slug);
+    const slug = getStyleSlug(props.product?.categories ?? []);
+    return getCategoryStyle(slug);
 });
 
+const difficultyValue = computed(() => {
+    if (!props.product?.attributes?.difficulty) return 1;
+    const val = Array.isArray(props.product.attributes.difficulty) 
+        ? props.product.attributes.difficulty[0] 
+        : props.product.attributes.difficulty;
+    const n = Number(val);
+    return isNaN(n) ? 1 : Math.max(1, Math.min(5, n));
+});
 
 const handleAddToCart = () => {
     addToCart(props.product, 1);
@@ -33,9 +42,19 @@ const handleAddToCart = () => {
                 <span v-if="product.attributes?.style" class="sbn-product-badge-style">
                     {{ Array.isArray(product.attributes.style) ? product.attributes.style[0] : product.attributes.style }}
                 </span>
-                <span v-if="product.attributes?.difficulty" class="sbn-product-difficulty">
-                    <span class="star-filled" v-for="n in Math.max(1, Math.min(5, Number(Array.isArray(product.attributes.difficulty) ? product.attributes.difficulty[0] : product.attributes.difficulty) || 1))" :key="n">★</span>
-                    <span class="star-empty" v-for="n in (5 - Math.max(1, Math.min(5, Number(Array.isArray(product.attributes.difficulty) ? product.attributes.difficulty[0] : product.attributes.difficulty) || 1)))" :key="'e'+n">☆</span>
+                <span 
+                    v-if="product.attributes?.difficulty" 
+                    class="sbn-product-difficulty"
+                    :aria-label="`Difficulty: ${getDifficultyLabel(difficultyValue)}`"
+                    :title="getDifficultyLabel(difficultyValue)"
+                >
+                    <span 
+                        v-for="i in 5" 
+                        :key="i" 
+                        :class="i <= difficultyValue ? 'star-filled' : 'star-empty'"
+                    >
+                        {{ i <= difficultyValue ? '★' : '☆' }}
+                    </span>
                 </span>
             </div>
 
@@ -85,23 +104,29 @@ const handleAddToCart = () => {
 </template>
 
 <style scoped>
-/* Card Container - matches original .sbn-product-card */
+/* Card Container */
 .sbn-product-card {
-    background: white;
-    border-radius: 12px;
+    background: var(--clr-white);
+    border-radius: var(--radius);
     overflow: hidden;
-    transition: box-shadow 0.3s ease;
+    transition: box-shadow 0.3s var(--ease);
     position: relative;
+    --category-color: var(--clr-style-default);
+    --category-gradient: linear-gradient(
+        135deg,
+        var(--category-color) 0%,
+        color-mix(in srgb, var(--category-color) 60%, white) 100%
+    );
 }
 
 .sbn-product-card:hover {
-    box-shadow: 0 6px 15px rgba(0,0,0,0.08);
+    box-shadow: var(--clr-shadow);
 }
 
-/* Product Image - 3:4 aspect ratio per original spec */
+/* Product Image - 3:4 aspect ratio */
 .sbn-product-image {
     aspect-ratio: 3/4;
-    background: white;
+    background: var(--clr-white);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -115,9 +140,9 @@ const handleAddToCart = () => {
     content: '';
     position: absolute;
     inset: 0;
-    background: var(--category-gradient, var(--sbn-gradient, linear-gradient(135deg, #f39c12, #e74c3c)));
+    background: var(--category-gradient);
     opacity: 0;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.3s var(--ease);
     z-index: 1;
 }
 
@@ -143,7 +168,7 @@ const handleAddToCart = () => {
     font-size: 14px;
 }
 
-/* Top Badge Row - Style (LEFT) + Difficulty (RIGHT) per original */
+/* Top Badge Row - Style (LEFT) + Difficulty (RIGHT) */
 .sbn-product-badge-row {
     position: absolute;
     top: 12px;
@@ -155,49 +180,49 @@ const handleAddToCart = () => {
     z-index: 10;
 }
 
-/* Style Badge (Bossa Nova, Jazz, etc) - uses category gradient per original */
+/* Style Badge (Bossa Nova, Jazz, etc) */
 .sbn-product-badge-style {
-    background: var(--category-gradient, var(--sbn-gradient, linear-gradient(135deg, #f39c12, #e74c3c)));
-    color: white;
+    background: var(--category-gradient);
+    color: var(--clr-white);
     padding: 5px 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: 0.7em;
     font-weight: 600;
     text-transform: uppercase;
-    transition: all 0.3s ease;
+    transition: all 0.3s var(--ease);
 }
 
 .sbn-product-card:hover .sbn-product-badge-style {
-    background: white;
-    color: #333;
+    background: var(--clr-white);
+    color: var(--clr-text);
 }
 
-/* Difficulty Stars - per original */
+/* Difficulty Stars */
 .sbn-product-difficulty {
-    color: #ffc107;
+    color: var(--clr-star);
     padding: 5px 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: 0.7em;
     display: flex;
     gap: 2px;
     background: transparent;
-    transition: all 0.3s ease;
+    transition: all 0.3s var(--ease);
     font-weight: 600;
 }
 
 .sbn-product-difficulty .star-filled {
-    color: #ffc107;
+    color: var(--clr-star);
 }
 
 .sbn-product-difficulty .star-empty {
-    color: rgba(0,0,0,0.25);
+    color: var(--clr-border);
 }
 
 .sbn-product-card:hover .sbn-product-difficulty {
-    background: white;
+    background: var(--clr-white);
 }
 
-/* Subcategory Badges (Bottom Center) - per original */
+/* Subcategory Badges (Bottom Center) */
 .sbn-product-badge-type {
     position: absolute;
     bottom: 50px;
@@ -209,19 +234,19 @@ const handleAddToCart = () => {
 }
 
 .sbn-product-badge-subcat {
-    background: rgba(45, 55, 72, 0.75);
-    color: white;
+    background: var(--clr-overlay-dark);
+    color: var(--clr-white);
     padding: 5px 12px;
     border-radius: 4px;
     font-size: 0.7em;
     font-weight: 600;
     text-transform: uppercase;
-    transition: all 0.3s ease;
+    transition: all 0.3s var(--ease);
 }
 
 .sbn-product-card:hover .sbn-product-badge-subcat {
     background: rgba(255, 255, 255, 0.75);
-    color: #2d3748;
+    color: var(--clr-text);
 }
 
 /* Hover Overlay with Buttons */
@@ -232,7 +257,7 @@ const handleAddToCart = () => {
     transform: translate(-50%, -50%);
     z-index: 10;
     opacity: 0;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.3s var(--ease);
     pointer-events: none;
     display: flex;
     flex-direction: column;
@@ -248,33 +273,33 @@ const handleAddToCart = () => {
 }
 
 .sbn-product-view-btn {
-    background: white;
-    color: #2d3748 !important;
+    background: var(--clr-white);
+    color: var(--clr-text) !important;
     padding: 10px 24px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     text-decoration: none;
     font-weight: 600;
     font-size: 0.85em;
-    transition: all 0.3s ease;
+    transition: all 0.3s var(--ease);
     display: inline-block;
 }
 
 .sbn-product-view-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    box-shadow: var(--clr-shadow);
 }
 
 .sbn-product-quick-add {
-    background: white;
-    color: #2d3748 !important;
+    background: var(--clr-white);
+    color: var(--clr-text) !important;
     padding: 10px 24px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     text-decoration: none;
     font-weight: 600;
     font-size: 0.85em;
     border: none;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.3s var(--ease);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -284,20 +309,20 @@ const handleAddToCart = () => {
 
 .sbn-product-quick-add:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    box-shadow: var(--clr-shadow);
 }
 
 /* Product Info Below Image */
 .sbn-product-info-bottom {
     padding: 5px 15px 8px;
     text-align: center;
-    background: white;
+    background: var(--clr-white);
 }
 
 .sbn-product-title-link {
     font-size: 0.9em;
     font-weight: 500;
-    color: #2d3748;
+    color: var(--clr-text);
     margin-bottom: 4px;
     display: block;
     text-decoration: none;
@@ -307,12 +332,12 @@ const handleAddToCart = () => {
 }
 
 .sbn-product-title-link:hover {
-    color: var(--sbn-orange, #f39c12);
+    color: var(--clr-style-bossa);
 }
 
 .sbn-product-price-display {
     font-size: 1em;
     font-weight: 700;
-    color: #e74c3c;
+    color: var(--clr-red);
 }
 </style>

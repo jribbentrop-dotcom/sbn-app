@@ -72,12 +72,9 @@ export function chordDiagramToEvents(model, ctx = {}) {
     // Determine muted strings to skip
     const mutedSet = new Set(model.diagram_data?.muted ?? []);
 
-    // Emit events for all 6 strings (1-6)
+    // Collect sounding strings first (low→high order, string 1=low E)
     for (let s = 1; s <= 6; s++) {
-        // Skip muted strings
         if (mutedSet.has(s)) continue;
-
-        // Skip if no fret defined for this string (not played)
         if (!stringFret.has(s)) continue;
 
         const fret = stringFret.get(s);
@@ -90,11 +87,17 @@ export function chordDiagramToEvents(model, ctx = {}) {
             duration,
             velocity: 0.8,
             sourceId,
+            stringNum: s, // carry string number for dot animation
         });
     }
 
-    // Sort by pitch ascending (lowest string first)
-    out.sort((a, b) => a.pitch - b.pitch);
+    // Sort low→high (string 1 first)
+    out.sort((a, b) => a.stringNum - b.stringNum);
+
+    // Stagger: 120 ms per string. At 120 BPM, 1 beat = 500ms → 0.24 beats per string.
+    // Can be overridden via ctx.staggerBeats for faster playback (e.g., progression viewer).
+    const STAGGER_BEATS = ctx.staggerBeats ?? 0.36;
+    out.forEach((ev, i) => { ev.time = startBeat + i * STAGGER_BEATS; });
 
     return out;
 }

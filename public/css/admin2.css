@@ -236,7 +236,6 @@ code { font-family: var(--font-mono); }
 }
 .sbn-stat-card:hover {
     border-color: var(--clr-accent-border); transform: translateY(-1px);
-    box-shadow: var(--clr-shadow-sm);
 }
 .sbn-stat-icon {
     display: flex; align-items: center; justify-content: center;

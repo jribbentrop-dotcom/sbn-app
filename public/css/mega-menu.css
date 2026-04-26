@@ -37,7 +37,7 @@ to the new design system --clr-* names, plus all header and mega menu styles.
     position: sticky;
     top: 0;
     z-index: 10000;
-    background: #fff;
+    background: var(--clr-white);
     padding: 16px 20px;
 }
 
@@ -118,7 +118,7 @@ to the new design system --clr-* names, plus all header and mega menu styles.
 @media (hover: hover) and (pointer: fine) {
     .main-navigation .menu-item > a:hover {
         background: var(--sbn-gradient);
-        color: #fff;
+        color: var(--clr-white);
         font-weight: 600;
         transform: translateY(-1px);
     }
@@ -127,12 +127,12 @@ to the new design system --clr-* names, plus all header and mega menu styles.
 .main-navigation .current-menu-item > a,
 .main-navigation .current-menu-ancestor > a {
     background: var(--sbn-gradient);
-    color: #fff;
+    color: var(--clr-white);
     font-weight: 600;
 }
 
 .main-navigation .menu-item-has-children.manual-hover > a {
-    color: #fff;
+    color: var(--clr-white);
     font-weight: 600;
     background: var(--sbn-gradient);
 }
@@ -160,7 +160,7 @@ to the new design system --clr-* names, plus all header and mega menu styles.
 
 .cart-icon-link:hover {
     background: var(--sbn-gradient);
-    color: #fff;
+    color: var(--clr-white);
     transform: translateY(-1px);
 }
 
@@ -174,7 +174,7 @@ to the new design system --clr-* names, plus all header and mega menu styles.
     top: 2px;
     right: 2px;
     background: var(--sbn-red);
-    color: white;
+    color: var(--clr-white);
     border-radius: 50%;
     width: 18px;
     height: 18px;
@@ -242,7 +242,7 @@ body.mega-menu-open .mega-menu-backdrop {
     padding: var(--mega-padding);
     margin: 0;
 
-    background: #fff;
+    background: var(--clr-white);
     border-radius: 0 0 var(--sbn-radius) var(--sbn-radius);
     list-style: none;
 
@@ -311,8 +311,8 @@ body.mega-menu-open .mega-menu-backdrop {
 
 /* Style for clicked/open menu item */
 .main-navigation .menu-item-has-children.manual-hover > a {
-    background: linear-gradient(135deg, #ffe5dc 0%, #ffd4c4 100%) !important;
-    color: #d84315 !important;
+    background: var(--clr-accent-bg) !important;
+    color: var(--clr-accent-dim) !important;
 }
 
 @media (min-width: 1400px) {
@@ -449,7 +449,7 @@ body.mega-menu-open .mega-menu-backdrop {
 @media (hover: hover) {
     .mega-col-nav > .sub-menu > li > a:hover {
         background: var(--sbn-gradient) !important;
-        color: #fff !important;
+        color: var(--clr-white) !important;
         padding-right: 16px;
     }
 
@@ -463,8 +463,8 @@ body.mega-menu-open .mega-menu-backdrop {
 .mega-col-nav > .sub-menu > li.current-menu-item > a,
 .mega-col-nav > .sub-menu > li.current-menu-ancestor > a,
 .mega-col-nav > .sub-menu > li.current-page-ancestor > a {
-    background: linear-gradient(135deg, #ffe5dc 0%, #ffd4c4 100%);
-    color: #d84315 !important;
+    background: var(--clr-accent-bg);
+    color: var(--clr-accent-dim) !important;
 }
 
 .mega-col-nav > .sub-menu > li.current-menu-item > a::after,
@@ -472,13 +472,13 @@ body.mega-menu-open .mega-menu-backdrop {
 .mega-col-nav > .sub-menu > li.current-page-ancestor > a::after {
     opacity: 1;
     transform: translateX(0);
-    color: #d84315;
+    color: var(--clr-accent-dim);
 }
 
 /* Last item = "View All" button */
 .mega-col-nav.has-button-last > .sub-menu > li:last-child > a {
     background: var(--sbn-gradient) !important;
-    color: #fff !important;
+    color: var(--clr-white) !important;
     font-weight: 600;
     margin-top: 10px;
     justify-content: space-between;
@@ -528,7 +528,7 @@ body.mega-menu-open .mega-menu-backdrop {
 .mega-col-featured .mega-featured-desc {
     font-size: 12px;
     line-height: 1.4;
-    color: #64748b;
+    color: var(--clr-style-classical);
     margin: 6px 0 10px 0;
     padding: 0;
 }
@@ -539,7 +539,7 @@ body.mega-menu-open .mega-menu-backdrop {
     position: relative;
     border-radius: 10px;
     overflow: hidden;
-    background: #f8f8f8;
+    background: var(--clr-surface-2);
     transition: transform 0.3s ease;
 }
 
@@ -567,7 +567,7 @@ body.mega-menu-open .mega-menu-backdrop {
     left: 50%;
     transform: translateX(-50%) translateY(8px);
     width: calc(100% - 24px);
-    background: #fff;
+    background: var(--clr-white);
     color: var(--sbn-dark);
     padding: 10px 14px;
     border-radius: var(--sbn-radius-sm);
@@ -598,7 +598,7 @@ body.mega-menu-open .mega-menu-backdrop {
 
 .mega-col-featured .mega-featured-image:hover .mega-featured-button:hover {
     background: var(--sbn-gradient);
-    color: #fff;
+    color: var(--clr-white);
 }
 
 .mega-col-featured .mega-featured-image:hover .mega-featured-button:hover::after {
@@ -626,7 +626,7 @@ body.mega-menu-open .mega-menu-backdrop {
     font-size: 13px;
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    color: #fff;
+    color: var(--clr-white);
     padding: 0;
     margin: 0 0 14px 0;
     line-height: 1.4;
@@ -663,7 +663,7 @@ body.mega-menu-open .mega-menu-backdrop {
 .mega-col-cta > .sub-menu li:first-child a {
     font-size: 12px;
     font-weight: 400;
-    color: rgba(255,255,255,0.9);
+    color: rgba(255, 255, 255, 0.9);
     padding: 0 0 14px 0;
     background: transparent;
     line-height: 1.5;
@@ -676,7 +676,7 @@ body.mega-menu-open .mega-menu-backdrop {
 .mega-col-cta > .sub-menu li:not(:first-child):not(:last-child) a {
     font-size: 12px;
     font-weight: 500;
-    color: rgba(255,255,255,0.95);
+    color: rgba(255, 255, 255, 0.95);
     padding: 5px 0 5px 24px;
     background: transparent;
     position: relative;
@@ -690,7 +690,7 @@ body.mega-menu-open .mega-menu-backdrop {
     content: "✓";
     position: absolute;
     left: 0;
-    color: #fff;
+    color: var(--clr-white);
     font-weight: 700;
     font-size: 12px;
 }
@@ -701,7 +701,7 @@ body.mega-menu-open .mega-menu-backdrop {
 }
 
 .mega-col-cta > .sub-menu li:last-child a {
-    background: #fff;
+    background: var(--clr-white);
     color: var(--sbn-dark) !important;
     font-weight: 700;
     font-size: 13px;

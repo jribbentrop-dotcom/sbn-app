@@ -12,6 +12,16 @@ export class PercussionSampler {
         this.buffers = new Map();
         /** @type {AudioContext|null} */
         this._audioContext = null;
+        /** @type {AudioNode|null} */
+        this._output = null;
+    }
+
+    /**
+     * Set the output node all triggered samples connect to. Defaults to
+     * the context's destination if never called.
+     */
+    setOutput(node) {
+        this._output = node;
     }
 
     /**
@@ -90,7 +100,7 @@ export class PercussionSampler {
         gainNode.gain.setValueAtTime(velocity, when);
 
         source.connect(gainNode);
-        gainNode.connect(this._audioContext.destination);
+        gainNode.connect(this._output ?? this._audioContext.destination);
 
         source.start(when);
     }

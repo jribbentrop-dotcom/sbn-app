@@ -47,7 +47,6 @@
 .sbn-pb-tab.is-active {
     background: var(--clr-white);
     color:      var(--clr-text);
-    box-shadow: var(--clr-shadow-sm);
 }
 
 .sbn-pb-tab:hover:not(.is-active) { color: var(--clr-text-dim); }

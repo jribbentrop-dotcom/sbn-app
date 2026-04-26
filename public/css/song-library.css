@@ -1,0 +1,377 @@
+/**
+ * Song Library — shared layout, card, and show-page styles.
+ * Follows chord-library.css / rhythm-library.css conventions.
+ * No hex literals — all values use design tokens from sbn-design-system.css.
+ * Loaded globally from app.blade.php after sbn-design-system.css.
+ */
+
+/* ============================================================
+   PAGE SHELL
+   ============================================================ */
+
+.sbn-song-library-main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+}
+
+/* Search examples */
+.sbn-search-examples {
+    margin-top: 14px;
+    font-size: 0.85em;
+    color: var(--clr-text-muted);
+    text-align: center;
+}
+
+.sbn-search-try {
+    color: var(--clr-text-dim);
+    margin-right: 6px;
+}
+
+.sbn-example-btn {
+    display: inline-block;
+    padding: 4px 12px;
+    margin: 3px;
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm);
+    background: var(--clr-white);
+    color: var(--clr-text-dim);
+    font-size: 0.82em;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    font-family: var(--font-body);
+}
+
+.sbn-example-btn:hover {
+    border-color: var(--clr-red);
+    color: var(--clr-red);
+    background: var(--clr-accent-bg);
+}
+
+/* ============================================================
+   SONGS GRID
+   ============================================================ */
+
+.sbn-songs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+/* ============================================================
+   SONG CARD
+   ============================================================ */
+
+.sbn-song-card {
+    position: relative;
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+    transition: transform 0.25s var(--ease), border-color 0.2s;
+    cursor: pointer;
+}
+
+.sbn-song-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--category-color, var(--clr-style-default));
+    text-decoration: none;
+}
+
+.sbn-song-card:focus-visible {
+    outline: 2px solid var(--clr-red);
+    outline-offset: 2px;
+}
+
+/* Style bar — thin colored stripe at top derived from --category-color */
+.sbn-song-card-header {
+    height: 4px;
+    background: var(--category-color, var(--clr-style-default));
+    flex-shrink: 0;
+}
+
+.sbn-song-card-body {
+    padding: 14px 14px 8px;
+    flex: 1;
+}
+
+.sbn-song-card-title {
+    font-size: 0.95em;
+    font-weight: 700;
+    color: var(--clr-text);
+    margin: 0 0 4px;
+    line-height: 1.3;
+}
+
+.sbn-song-card-composer {
+    font-size: 0.78em;
+    color: var(--clr-text-muted);
+    margin: 0;
+    font-weight: 400;
+}
+
+.sbn-song-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 0 14px 8px;
+}
+
+.sbn-song-card-key,
+.sbn-song-card-timesig,
+.sbn-song-card-tempo {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.65em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+}
+
+.sbn-song-card-key {
+    background: color-mix(in srgb, var(--category-color, var(--clr-style-default)) 15%, white);
+    color: color-mix(in srgb, var(--category-color, var(--clr-style-default)) 70%, black);
+}
+
+.sbn-song-card-timesig {
+    background: var(--clr-surface-2);
+    color: var(--clr-text-dim);
+}
+
+.sbn-song-card-tempo {
+    background: var(--clr-surface-2);
+    color: var(--clr-text-muted);
+}
+
+.sbn-song-card-desc {
+    font-size: 0.75em;
+    color: var(--clr-text-muted);
+    padding: 0 14px 8px;
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.sbn-song-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 14px 10px;
+    border-top: 1px solid var(--clr-surface-2);
+    gap: 6px;
+}
+
+.sbn-song-card-rhythm {
+    font-size: 0.65em;
+    color: var(--clr-text-muted);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 110px;
+}
+
+/* ============================================================
+   SHOW PAGE
+   ============================================================ */
+
+.sbn-song-show-main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+}
+
+.sbn-song-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82em;
+    color: var(--clr-text-muted);
+    margin-bottom: 24px;
+}
+
+.sbn-breadcrumb-link {
+    color: var(--clr-text-muted);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+.sbn-breadcrumb-link:hover {
+    color: var(--clr-red);
+}
+
+.sbn-breadcrumb-sep {
+    color: var(--clr-border);
+}
+
+.sbn-breadcrumb-current {
+    color: var(--clr-text-dim);
+    font-weight: 500;
+}
+
+.sbn-song-show-header {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 28px;
+}
+
+.sbn-song-show-style-bar {
+    height: 6px;
+    background: var(--category-color, var(--clr-style-default));
+}
+
+.sbn-song-show-header-body {
+    padding: 24px 28px;
+}
+
+.sbn-song-show-title {
+    font-size: 2em;
+    font-weight: 700;
+    color: var(--clr-text);
+    margin: 0 0 6px;
+    letter-spacing: -0.02em;
+}
+
+.sbn-song-show-composer {
+    font-size: 1.05em;
+    color: var(--clr-text-muted);
+    margin: 0 0 16px;
+    font-weight: 400;
+}
+
+.sbn-song-show-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.sbn-song-meta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    background: var(--clr-surface-2);
+    border-radius: 999px;
+    font-size: 0.8em;
+    color: var(--clr-text-dim);
+}
+
+.sbn-song-meta-chip strong {
+    color: var(--clr-text-muted);
+    font-weight: 600;
+}
+
+.sbn-song-show-section {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 20px;
+}
+
+.sbn-song-show-section-title {
+    font-size: 0.78em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--clr-text-muted);
+    margin: 0 0 10px;
+}
+
+.sbn-song-show-description {
+    font-size: 0.95em;
+    color: var(--clr-text-dim);
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Coming soon notice */
+.sbn-song-coming-soon {
+    background: var(--clr-surface-2);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    padding: 40px 28px;
+    text-align: center;
+}
+
+.sbn-coming-soon-icon {
+    color: var(--clr-text-muted);
+    margin-bottom: 16px;
+}
+
+.sbn-song-coming-soon h3 {
+    font-size: 1.1em;
+    font-weight: 600;
+    color: var(--clr-text-dim);
+    margin: 0 0 8px;
+}
+
+.sbn-song-coming-soon p {
+    font-size: 0.9em;
+    color: var(--clr-text-muted);
+    max-width: 440px;
+    margin: 0 auto 20px;
+    line-height: 1.55;
+}
+
+.sbn-back-link {
+    display: inline-block;
+    padding: 8px 20px;
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm);
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--clr-text-dim);
+    text-decoration: none;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.sbn-back-link:hover {
+    border-color: var(--clr-red);
+    color: var(--clr-red);
+    background: var(--clr-accent-bg);
+    text-decoration: none;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 1024px) {
+    .sbn-content-wrapper {
+        flex-direction: column;
+    }
+
+    .sbn-filter-sidebar {
+        position: static;
+        width: 100%;
+        min-width: 100%;
+        max-height: none;
+        order: -1;
+    }
+
+    .sbn-songs-grid {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .sbn-song-library-main { padding: 24px 16px 60px; }
+    .sbn-songs-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+    .sbn-song-show-title { font-size: 1.5em; }
+    .sbn-song-show-header-body { padding: 18px 20px; }
+}
+
+@media (max-width: 480px) {
+    .sbn-songs-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+}

@@ -122,8 +122,21 @@ class ProgressionBuilder
         // Determine locked group
         $lockedGroup = $style ?: null;
 
-        // Pick first voicing
-        $candidates = $this->filterCandidates($chordVoicings[0], $lockedGroup, $rootOnly);
+        // Pre-fill a pinned voicing if the caller supplied one (e.g. chord detail page).
+        // Note: $selections is array_filled with null, so isset() returns false on a
+        // valid-but-null slot. Use array_key_exists() / range check instead.
+        $pinnedSlot    = $options['pinnedSlot']    ?? null;
+        $pinnedVoicing = $options['pinnedVoicing'] ?? null;
+        if ($pinnedSlot !== null && $pinnedVoicing !== null
+            && $pinnedSlot >= 0 && $pinnedSlot < $n) {
+            $selections[$pinnedSlot] = (object) $pinnedVoicing;
+            if (!$lockedGroup) {
+                $lockedGroup = $this->voicingGroup($pinnedVoicing['voicing_category'] ?? '');
+            }
+        }
+
+        // Pick first voicing (skip if already pinned)
+        $candidates = $selections[0] ? [] : $this->filterCandidates($chordVoicings[0], $lockedGroup, $rootOnly);
         if (!empty($candidates)) {
             // Prefer voicings near fret 5 (middle of neck) as starting position
             $best = $candidates[0];
@@ -609,7 +622,7 @@ class ProgressionBuilder
      */
     public function selectVoicingsForSequence(array $chordNames, string $key, array $options = []): array
     {
-        $preferCategory = $options['category'] ?? 'Shell';
+        $preferCategory = $options['category'] ?? 'shell';
         $results        = [];
 
         foreach ($chordNames as $name) {
@@ -1132,6 +1145,7 @@ class ProgressionBuilder
             'inversion'        => $v->inversion ?? 'root',
             'frets'            => $v->frets ?? $this->buildFretString($dd ?? []),
             'position'         => $v->start_fret ?? 1,
+            'start_fret'       => $v->start_fret ?? 1,
             'diagram_data'     => $dd,
             'interval_labels'  => $v->interval_labels ?? '',
             'popularity'       => $v->popularity ?? 0,

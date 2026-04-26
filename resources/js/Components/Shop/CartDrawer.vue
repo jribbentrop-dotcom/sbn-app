@@ -10,102 +10,91 @@ const { formatEurCents } = useCurrency();
 
 <template>
     <Teleport to="body">
-        <!-- Backdrop -->
-        <Transition name="fade">
-            <div
-                v-if="isOpen"
-                class="cart-backdrop"
-                @click="closeCart"
-            />
-        </Transition>
+        <div class="sbn-cart-drawer-wrapper" :class="{ 'is-active': isOpen }">
+            <!-- Backdrop -->
+            <Transition name="fade">
+                <div
+                    v-if="isOpen"
+                    class="cart-drawer-overlay"
+                    @click="closeCart"
+                />
+            </Transition>
 
-        <!-- Drawer -->
-        <Transition name="slide">
-            <aside
-                v-if="isOpen"
-                class="cart-drawer"
-                role="dialog"
-                aria-label="Shopping Cart"
-            >
-                <div class="cart-header">
-                    <h2 class="cart-title">
-                        Shopping Cart ({{ count }})
-                    </h2>
-                    <button
-                        class="close-btn"
-                        @click="closeCart"
-                        aria-label="Close cart"
-                    >
-                        ×
-                    </button>
-                </div>
-
-                <div v-if="items.length === 0" class="cart-empty">
-                    <p>Your cart is empty</p>
-                    <Link href="/shop" class="continue-shopping" @click="closeCart">
-                        Continue Shopping
-                    </Link>
-                </div>
-
-                <div v-else class="cart-content">
-                    <div class="cart-items">
-                        <CartLineItem
-                            v-for="item in items"
-                            :key="item.product_id"
-                            :item="item"
-                        />
-                    </div>
-
-                    <div class="cart-footer">
-                        <div class="cart-subtotal">
-                            <span>Subtotal</span>
-                            <span class="subtotal-amount">{{ formatEurCents(subtotalCents) }}</span>
-                        </div>
-
-                        <Link
-                            href="/shop/checkout"
-                            class="checkout-btn"
-                            @click="closeCart"
-                        >
-                            Proceed to Checkout
-                        </Link>
-
+            <!-- Drawer -->
+            <Transition name="slide">
+                <aside
+                    v-if="isOpen"
+                    class="cart-drawer is-open"
+                    role="dialog"
+                    aria-label="Shopping Cart"
+                >
+                    <div class="cart-header">
+                        <h2 class="cart-title">
+                            Shopping Cart ({{ count }})
+                        </h2>
                         <button
-                            class="clear-cart-btn"
-                            @click="clearCart"
+                            class="close-btn"
+                            @click="closeCart"
+                            aria-label="Close cart"
                         >
-                            Clear Cart
+                            ×
                         </button>
                     </div>
-                </div>
-            </aside>
-        </Transition>
+
+                    <div v-if="items.length === 0" class="cart-empty">
+                        <p>Your cart is empty</p>
+                        <Link href="/shop" class="continue-shopping" @click="closeCart">
+                            Continue Shopping
+                        </Link>
+                    </div>
+
+                    <div v-else class="cart-content">
+                        <div class="cart-items">
+                            <CartLineItem
+                                v-for="item in items"
+                                :key="item.product_id"
+                                :item="item"
+                            />
+                        </div>
+
+                        <div class="cart-footer">
+                            <div class="cart-subtotal">
+                                <span>Subtotal</span>
+                                <span class="subtotal-amount">{{ formatEurCents(subtotalCents) }}</span>
+                            </div>
+
+                            <Link
+                                href="/shop/checkout"
+                                class="checkout-btn"
+                                @click="closeCart"
+                            >
+                                Proceed to Checkout
+                            </Link>
+
+                            <button
+                                class="clear-cart-btn"
+                                @click="clearCart"
+                            >
+                                Clear Cart
+                            </button>
+                        </div>
+                    </div>
+                </aside>
+            </Transition>
+        </div>
     </Teleport>
 </template>
 
 <style scoped>
-.cart-backdrop {
+.sbn-cart-drawer-wrapper {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.3);
+    inset: 0;
+    pointer-events: none;
     z-index: 10000;
 }
 
-.cart-drawer {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    max-width: 420px;
-    background: white;
-    z-index: 10001;
-    display: flex;
-    flex-direction: column;
-    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+.sbn-cart-drawer-wrapper.is-active {
+    pointer-events: auto;
 }
 
 .cart-header {
@@ -137,7 +126,7 @@ const { formatEurCents } = useCurrency();
     align-items: center;
     justify-content: center;
     border-radius: var(--radius-sm);
-    transition: all 0.2s ease;
+    transition: all 0.2s var(--ease);
 }
 
 .close-btn:hover {
@@ -187,7 +176,7 @@ const { formatEurCents } = useCurrency();
 .cart-footer {
     padding: 20px;
     border-top: 1px solid var(--clr-border);
-    background: var(--clr-surface);
+    background: var(--clr-white);
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -209,13 +198,13 @@ const { formatEurCents } = useCurrency();
 
 .checkout-btn {
     background: var(--clr-gradient);
-    color: white;
+    color: var(--clr-white);
     text-decoration: none;
     padding: 14px 24px;
     border-radius: var(--radius-sm);
     font-weight: 700;
     text-align: center;
-    transition: transform 0.2s ease;
+    transition: transform 0.2s var(--ease);
 }
 
 .checkout-btn:hover {
@@ -230,7 +219,7 @@ const { formatEurCents } = useCurrency();
     border-radius: var(--radius-sm);
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.2s var(--ease);
 }
 
 .clear-cart-btn:hover {
@@ -241,7 +230,7 @@ const { formatEurCents } = useCurrency();
 /* Transitions */
 .fade-enter-active,
 .fade-leave-active {
-    transition: opacity 0.3s ease;
+    transition: opacity 0.3s var(--ease);
 }
 
 .fade-enter-from,
@@ -251,11 +240,11 @@ const { formatEurCents } = useCurrency();
 
 .slide-enter-active,
 .slide-leave-active {
-    transition: transform 0.3s ease;
+    transition: transform 0.3s var(--ease);
 }
 
 .slide-enter-from,
 .slide-leave-to {
-    transform: translateX(100%);
+    /* transform: translateX(100%); handled by shop.css class .cart-drawer */
 }
 </style>

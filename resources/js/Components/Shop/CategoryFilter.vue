@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import type { Category } from '@/types/shop';
+import { getCategoryStyle } from '@/composables/useCategoryColors';
 
 interface Props {
     categories: Category[];
@@ -29,6 +30,7 @@ defineProps<Props>();
                 :key="category.id"
                 class="category-item"
                 :class="{ 'current-cat': currentCategory?.slug === category.slug }"
+                :style="getCategoryStyle(category.slug)"
             >
                 <Link
                     :href="`/shop/category/${category.slug}`"
@@ -43,6 +45,7 @@ defineProps<Props>();
                         v-for="child in category.children"
                         :key="child.id"
                         class="subcategory-item"
+                        :style="getCategoryStyle(child.slug)"
                     >
                         <Link
                             :href="`/shop/category/${child.slug}`"
@@ -59,10 +62,10 @@ defineProps<Props>();
 </template>
 
 <style scoped>
-/* Sidebar Widget - matches original .sidebar-widget */
+/* Sidebar Widget */
 .sidebar-widget {
-    background: white;
-    border-radius: 12px;
+    background: var(--clr-white);
+    border-radius: var(--radius);
     padding: 25px;
     margin-bottom: 25px;
 }
@@ -74,7 +77,7 @@ defineProps<Props>();
 .sidebar-widget-title {
     font-size: 1.1em;
     font-weight: 600;
-    color: var(--sbn-dark, #2d3748);
+    color: var(--clr-text);
     margin: 0 0 15px 0;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -92,28 +95,34 @@ defineProps<Props>();
 
 .category-link,
 .subcategory-link {
-    color: #555;
+    color: var(--clr-text-dim);
     text-decoration: none;
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 8px 12px;
-    border-radius: 6px;
-    transition: all 0.2s ease;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s var(--ease);
     font-size: 0.95em;
 }
 
 .category-link:hover,
 .subcategory-link:hover {
-    background: #f8f9fa;
-    color: var(--sbn-dark, #2d3748);
+    background: var(--clr-surface-2);
+    color: var(--clr-text);
 }
 
-/* Active state with gradient background per original spec */
-.category-item.current-cat .category-link,
+/* Active state with gradient background */
+.category-item.current-cat > .category-link,
 .category-link.active {
-    background: var(--category-gradient, var(--sbn-gradient, linear-gradient(135deg, #f39c12, #e74c3c)));
-    color: white;
+    --category-color: var(--clr-style-default);
+    --category-gradient: linear-gradient(
+        135deg,
+        var(--category-color) 0%,
+        color-mix(in srgb, var(--category-color) 60%, white) 100%
+    );
+    background: var(--category-gradient);
+    color: var(--clr-white);
     font-weight: 600;
 }
 
@@ -124,14 +133,14 @@ defineProps<Props>();
 
 .count {
     font-size: 0.85em;
-    color: #999;
+    color: var(--clr-text-muted);
 }
 
 .subcategory-list {
     list-style: none;
     margin: 0 0 4px;
     padding: 0 0 0 16px;
-    border-left: 2px solid var(--clr-border, #e2e8f0);
+    border-left: 2px solid var(--clr-border);
     margin-left: 12px;
 }
 
@@ -145,7 +154,8 @@ defineProps<Props>();
 }
 
 .subcategory-link.active {
-    color: var(--sbn-orange, #f39c12);
+    color: var(--category-color, var(--clr-style-default));
+    background: transparent;
     font-weight: 600;
 }
 </style>

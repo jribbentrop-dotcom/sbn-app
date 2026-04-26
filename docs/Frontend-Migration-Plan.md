@@ -35,22 +35,38 @@ Each phase depends on the ones before it. Execute sequentially.
 | 0 | **[DONE]** Stack scaffolding (Inertia + TS + Tailwind installed, base layout, shared props, one "hello world" Inertia page working alongside existing Blade) | — |
 | 1 | **[DONE]** App shell: mega menu, footer, layout slots, persistent audio player mount point, auth state in shared props | 0 |
 | 2 | **[DONE]** Shop (catalog + product pages, stubbed checkout, download) | 1 |
-| 3 | Chord library + frontend chord diagram component (Vue + TS) | 1 |
-| 4 | Rhythm library + frontend rhythm pattern component (Vue + TS) | 1 |
-| 5 | Top10 pages (composition over components from 3 and 4) | 3, 4 |
-| 6 | Chord progression library | 3 |
-| 7 | Leadsheet viewer — classic view (old layout + new context/edu panel) + song library | 3, 4, 6 |
-| 8 | Leadsheet viewer — cinema view (video-focused layout, toggle from classic view, full reload acceptable) | 7 |
-| 9 | Course player | 1, 7 |
-| 10 | Auth + payments (unstub shop, wire real checkout, gate courses) | 2, 9 |
+| 3 | **[DONE]** Chord library + chord diagram component + transposition search (Show deferred to Phase 7) | 1 |
+| 4 | **[DONE]** Rhythm library + RhythmPattern component + samples/demo audio + blend slider (Show detail area deferred to Phase 7) | 1 |
+| 5 | **[DONE]** Chord progression library — Index + minimal Show (ChordProgressionBlock deferred to Phase 7) | 3 |
+| 6 | **[DONE]** Songs library browse + minimal Show stub + `slug` on `sbn_leadsheets` | 3, 4 |
+| 7 | **[DONE]** Wire detail pages together — `ChordProgressionViewer`, chord-card audio, all Show pages live, cross-refs wired, several engine + transposition fixes | 3, 4, 5, 6 |
+| 8 | **[NEXT]** Top10 pages (pure composition over 3/4/5/6 components) | 3, 4, 5, 6 |
+| 9 | Leadsheet viewer — classic view (old layout + new context/edu panel) | 3, 4, 5, 6 |
+| 10 | Leadsheet viewer — cinema view (video-focused layout, toggle from classic view, full reload acceptable) | 9 |
+| 11 | Course player | 1, 9 |
+| 12 | Auth + payments (unstub shop, wire real checkout, gate courses) | 2, 11 |
 
 ### Why this order
 
 - Shell first so every later phase has a real frame to drop into and layout/routing issues surface cheap.
 - Shop as a low-stakes warmup to the new stack (full layout, stubbed payment, real product data).
-- Chord → rhythm → top10 builds the component library bottom-up; top10 is pure composition once its dependencies are done.
-- Leadsheet is the heaviest single phase and must come after all its component dependencies exist.
+- Chord → rhythm → progressions builds the atomic components bottom-up.
+- Songs library (browse) before detail-wiring because the chord/rhythm/progression detail pages will link to the songs that use them.
+- Dedicated wiring phase to avoid scattering "TODO: link to X once X exists" across earlier phases. All the small visual previews that one detail page needs from another (chord diagram preview on a progression card, progression preview on a chord card, etc.) land together.
+- Top10 is pure composition once 3/4/5/6 are stable.
+- Leadsheet (viewer) is the heaviest single phase. Held until all its component dependencies exist and the teaching-content surfaces have been shaken out.
 - Auth + payments last so we don't block feature development on Stripe plumbing; stubs earlier let us build UI without real money flow.
+
+### Show-page scope policy (applies to phases 3, 4, 5, 6)
+
+Detail pages are for **information and preview**, not authoring. On a detail page:
+
+- **Chord progression Show** shows a read-only mini preview of each chord diagram in the progression. It does NOT embed the admin progression builder.
+- **Chord Show** shows the diagram + sibling voicings + a mini preview of a few progressions that contain this chord. It does NOT embed the voicing picker.
+- **Rhythm Show** shows the pattern + a few songs that use it. It does NOT embed the pattern editor.
+- **Song Show** (Phase 9, "Leadsheet viewer") is the only place the full interactive authoring-adjacent UI lives.
+
+The builder/authoring components stay in admin. Public detail pages import the **read-only render components** only.
 
 ---
 
@@ -62,16 +78,16 @@ Much of the frontend work is already done in the admin side (tab editor + chord 
 
 | Component | Purpose | Reused in phase |
 |---|---|---|
-| `ChordCard.vue` | Single chord display (name + diagram) | 3, 5, 6, 7 |
-| `ChordMeasure.vue` | Chord grid measure | 7 (leadsheet) |
-| `ChordGridView.vue` | Chord grid layout | 7 |
-| `ChordSection.vue` | Chord section grouping | 7 |
-| `ChordPicker.vue` | Chord selection UI (admin) | Admin-only for now |
-| `VoicingPicker.vue` / `VoicingOverview.vue` | Voicing selection + display | 3 (detail page) |
-| `TabMeasure.vue` / `TabCursor.vue` | Tab rendering + cursor | 7 |
-| `TransportBar.vue` | Playback controls | 7, 8, 9 |
-| `VideoPlayer.vue` / `VideoSyncEditor.vue` / `SyncPointBadge.vue` | Video sync | 8 |
-| `ChordContextMenu.vue` | Right-click menu | 7 (if needed) |
+| `ChordCard.vue` | Single chord display (name + diagram) | 3, 5, 7, 8 |
+| `ChordMeasure.vue` | Chord grid measure | 9 (leadsheet) |
+| `ChordGridView.vue` | Chord grid layout | 9 |
+| `ChordSection.vue` | Chord section grouping | 9 |
+| `ChordPicker.vue` | Chord selection UI (admin) | Admin-only |
+| `VoicingPicker.vue` / `VoicingOverview.vue` | Voicing selection + display | Admin-only |
+| `TabMeasure.vue` / `TabCursor.vue` | Tab rendering + cursor | 9 |
+| `TransportBar.vue` | Playback controls | 9, 10, 11 |
+| `VideoPlayer.vue` / `VideoSyncEditor.vue` / `SyncPointBadge.vue` | Video sync | 10 |
+| `ChordContextMenu.vue` | Right-click menu | 9 (if needed) |
 
 ### Reusable composables (`resources/js/tab-editor/composables/`)
 
@@ -91,11 +107,11 @@ Much of the frontend work is already done in the admin side (tab editor + chord 
 | Gap | Where it bites | Notes |
 |---|---|---|
 | **Rhythm pattern renderer** | Phase 4 | Audio adapter (`rhythmPatternToEvents`) exists; visual Vue component does NOT. Biggest single new-component effort. |
-| **ChordProgressionBlock (consumer view)** | Phase 6 | Admin has a progression *builder*; the public playback/display component is new. |
-| **EduPanel** | Phase 7 | New teaching-content sidebar, replaces old context panel. |
-| **Public library index pages** | 3, 4, 6, 7 | Browse/search/filter pages are all new (admin indexes are Blade). |
-| **Cinema view layout** | Phase 8 | Reuses VideoPlayer etc.; only the layout is new. |
-| **Course player shell** | Phase 9 | Lesson nav, progress tracking — new, but embeds existing leadsheet. |
+| **ChordProgressionBlock (consumer view)** | Phase 5 | Admin has a progression *builder*; the public playback/display component is new. |
+| **EduPanel** | Phase 9 | New teaching-content sidebar, replaces old context panel. |
+| **Public library index pages** | 3, 4, 5, 6 | Browse/search/filter pages are all new (admin indexes are Blade). |
+| **Cinema view layout** | Phase 10 | Reuses VideoPlayer etc.; only the layout is new. |
+| **Course player shell** | Phase 11 | Lesson nav, progress tracking — new, but embeds existing leadsheet. |
 
 ### Component sharing policy
 
@@ -108,7 +124,7 @@ Much of the frontend work is already done in the admin side (tab editor + chord 
 - Existing components are `.vue` with `<script>` in JS. **Do not bulk-convert.**
 - Rule: when a phase touches a component, that phase converts it to TS (`<script setup lang="ts">`) and defines exportable prop types.
 - New components from day 1 are TS.
-- By end of Phase 7, most reused components will be TS. By end of Phase 9, all of them.
+- By end of Phase 9, most reused components will be TS. By end of Phase 11, all of them.
 
 ---
 
@@ -176,18 +192,53 @@ Component inventory entries are tagged:
 
 ---
 
-### Phase 2 — Shop
+### Phase 2 — Shop ✅ DONE (April 21, 2026)
 
 **Deliverable:** Full shop layout: catalog grid, product detail pages, cart sidebar, checkout page with stubbed "Pay" button (logs intent, shows success screen, does not charge).
+
+#### What was built
+
+**Database & Backend:**
+- Migrations: `sbn_products`, `sbn_product_categories`, `sbn_product_tags`, pivots, `sbn_orders`, `sbn_order_items`, `sbn_download_grants`
+- Models with relationships: `Product`, `ProductCategory`, `ProductTag`, `Order`, `OrderItem`, `DownloadGrant`
+- WXR import command `sbn:import-wc-products` — idempotent, supports `--dry-run` and `--download-pdfs`
+- Controllers: `ShopController`, `CartController`, `CheckoutController`, `OrderController`, `DownloadController`, `Admin\OrderController`
+- Config: `config/shop.php` (base currency EUR, USD display rate, configurable via `SHOP_USD_RATE`)
+- Routes: `/shop`, `/shop/category/{slug}`, `/shop/product/{slug}`, `/shop/checkout`, `/shop/order/{token}`, `/shop/download/{token}/{productId}`
+
+**Frontend:**
+- `Pages/Shop/Index.vue` — 4-column product grid + sidebar with `CategoryFilter`
+- `Pages/Shop/Show.vue` — product detail: breadcrumb, gallery, meta table (pages/format/composer/performer/level), feature chips, related products 4-column grid
+- `Pages/Shop/Cart.vue`, `Pages/Shop/Checkout.vue`, `Pages/Shop/OrderSuccess.vue`
+- `Components/Shop/ProductCard.vue` — gradient card with style badge, difficulty stars, hover overlay
+- `Components/Shop/CategoryFilter.vue` — sidebar with product counts and active state
+- `Components/Shop/CartDrawer.vue`, `Components/Shop/CartLineItem.vue`, `Components/Shop/ProductPrice.vue`
+- `composables/useCart.ts` — localStorage-persisted cart (plain composable, no Pinia)
+- `composables/useCurrency.ts` — EUR/USD toggle via localStorage
+- `composables/useCategoryColors.ts` — CSS custom-property-based style color system
+- `types/shop.ts` — TypeScript types for all shop entities
+- Admin Blade orders index (`/admin/orders`)
+
+**Key architectural decisions:**
+- Cart lives in localStorage via plain composable — no Pinia needed at this scale
+- Currency: charge always in EUR; USD is display-only via fixed conversion rate
+- Download grants are token-based (ULID), time-limited, work without auth
+- Guest checkout only — no auth required; real Stripe wired in Phase 12
+- Stub checkout creates `Order` with status `pending_stub`
 
 **Component inventory:**
 - **[NEW]** `Pages/Shop/Index.vue` (catalog)
 - **[NEW]** `Pages/Shop/Show.vue` (product detail)
 - **[NEW]** `Pages/Shop/Cart.vue`
 - **[NEW]** `Pages/Shop/Checkout.vue`
+- **[NEW]** `Pages/Shop/OrderSuccess.vue`
 - **[NEW]** `Components/Shop/ProductCard.vue`
 - **[NEW]** `Components/Shop/CartDrawer.vue`
-- **[NEW]** Pinia (or simple composable) store for cart state
+- **[NEW]** `Components/Shop/CartLineItem.vue`
+- **[NEW]** `Components/Shop/CategoryFilter.vue`
+- **[NEW]** `Components/Shop/ProductPrice.vue`
+- **[NEW]** `composables/useCart.ts`, `useCurrency.ts`, `useCategoryColors.ts`
+- **[NEW]** `types/shop.ts`
 
 **Backend:**
 - Laravel controllers returning Inertia responses with product data from existing tables.
@@ -200,130 +251,1111 @@ Component inventory entries are tagged:
 - `sbn-course-player(legacywp)/flavor-starter/flavor-starter/woocommerce/checkout/` — checkout markup
 - `sbn-course-player(legacywp)/flavor-starter/flavor-starter/css/shop.css` — shop styles
 
-**Done:**
-- All shop pages render with real product data.
-- Cart persists across navigation (shared state).
-- Checkout flow completes end-to-end with stubbed payment.
-- Admin order list shows stubbed orders (sanity check that data actually reached DB).
+**Known issues / deferred:**
+- ⚠️ PDF downloads require `--download-pdfs` flag run separately after metadata import (slow; hits WP server)
+- ⚠️ 75/80 products imported — 5 gap needs investigation on next import run
+- ⚠️ Real Stripe integration → Phase 12
+
+---
+
+### Phase 2.5 — CSS Polish + Design System Consolidation ✅ DONE (April 22, 2026)
+
+Consolidation pass closing Phase 1/2 loose ends. No new features — pure styling, token unification, bug fixes.
+
+#### What was done
+
+**Design System:**
+- Canonical 8-color music style palette in `sbn-design-system.css` under `/* Music style colors */`:
+  - `--clr-style-bossa` (orange), `--clr-style-jazz` (blue), `--clr-style-samba` (green), `--clr-style-latin` (purple), `--clr-style-blues` (indigo), `--clr-style-pop` (pink), `--clr-style-classical` (slate), `--clr-style-gold` (gold/iconic)
+  - `--clr-style-default: var(--clr-style-bossa)` — fallback when slug unknown
+- No per-style gradient tokens — gradients derived via `color-mix(in srgb, var(--category-color) 60%, white)` in CSS
+- Removed all hex literals from `mega-menu.css` and shop component styles
+- All gradients use `color-mix` with white second stop (lighter tint) — not black (dark) or arbitrary salmon
+
+**Category color system (`useCategoryColors.ts`):**
+- `SLUG_TO_TOKEN` — maps the 8 canonical music style slugs to their `--clr-style-*` token names
+- `getCategoryColor(slug)` → `var(--clr-style-jazz)` etc.
+- `getCategoryStyle(slug)` → `{ '--category-color': 'var(--clr-style-jazz)' }` — inline style object for component root
+- `getStyleSlug(categories[])` — finds first category whose slug is a known music style (key fix: ignores difficulty/subcategory slugs that were causing all cards to show default bossa orange)
+- `difficultyLabel(n)` → 'Beginner' | 'Early Intermediate' | 'Intermediate' | 'Late Intermediate' | 'Advanced'
+- Composable returns only CSS var references — no hex in TS
+
+**Color inheritance chain:**
+1. `useCategoryColors.ts` → `getStyleSlug` picks the music style slug from the categories array
+2. `getCategoryStyle(slug)` produces `{ '--category-color': 'var(--clr-style-jazz)' }`
+3. Component sets this as `:style` on root element (e.g. `.sbn-product-card`)
+4. Scoped CSS derives `--category-gradient` from `color-mix(in srgb, var(--category-color) 60%, white)`
+5. All badge/overlay/hover consumers reference `var(--category-gradient)` — no JS needed for gradients
+
+**Mega Menu (`MegaMenu.vue`, `mega-menu.css`):**
+- Three mega panels matching live site structure: Courses, Explore, Shop
+- Top 10 is a sub-column inside Explore (not a top-level item)
+- Explore panel includes: TOP10 Lists + Resources columns + Featured Content
+- Courses panel includes: Browse by Level + Browse by Style + Featured Course + New Course
+- Shop panel includes: Product Categories + Browse by Category + Featured Product + Custom Services
+- Images at `/images/mega-menu/courses-featured.webp`, `explore-featured.webp`, `shop-featured.webp`
+- All hex literals replaced with design tokens; zero hex literals remain in `mega-menu.css`
+
+**Shop stylesheet (`public/css/shop.css`):**
+- New file for shared shop layout (container/sidebar grid, products grid, pagination, breadcrumb, checkout form shell, order success layout)
+- Loaded from `app.blade.php` after `sbn-design-system.css`
+- Component-internal styles (card hover, badge positioning, drawer line items) stay scoped
+
+**Functional fixes applied:**
+- `DownloadController.php` — explicit `pdfs` disk in `config/filesystems.php`
+- `CheckoutController.php` — correct return type `\Illuminate\Http\RedirectResponse`
+- `ShopController.php` — null-safe `$product->excerpt ?? ''` before `strip_tags`
+- `useCart.ts` — thumbnail stored as raw URL string (not via `new URL()` which throws on relative paths)
+- `useCategoryColors.ts` — `getStyleSlug()` prevents wrong color from difficulty/subcategory slugs
+
+**Key rule going forward:** any new phase that adds a music style must add it to both `SLUG_TO_TOKEN` in `useCategoryColors.ts` AND to `sbn-design-system.css`. The 8 canonical slugs are the single source of truth for brand color assignment.
 
 ---
 
 ### Phase 3 — Chord Library + Chord Diagram Component
 
-**Deliverable:** Chord library browse/search page + reusable `<ChordDiagram>` Vue component used here and in later phases.
+**Status: Index DONE · Search DONE · Show deferred to Phase 7 (wire details)**
 
-**Component inventory:**
-- **[NEW]** `Pages/Library/Chords/Index.vue` — public browse/search page
-- **[NEW]** `Pages/Library/Chords/Show.vue` — single chord with voicings, diagrams, audio preview
-- **[REUSE/CONVERT]** `ChordCard.vue` — move to `resources/js/Components/`, convert to TS, define exportable prop types. This IS the chord diagram component; do not create a new `ChordDiagram.vue`.
-- **[REUSE/CONVERT]** `VoicingOverview.vue`, `VoicingPicker.vue` (picker only if needed on detail page) — used for showing alternate voicings
-- **[REUSE]** `public/js/chords.js` — underlying SVG renderer, already loaded globally
-- **[REUSE]** `useChordAudio` composable + `chordVoicingsToEvents` adapter for audio preview
-- **[NEW]** `Components/ChordAudioButton.vue` — thin wrapper around `useChordAudio` (optional; may just inline into ChordCard)
+**Deliverable:** Chord library browse/search page + reusable `<ChordDiagram>` / `<ChordCard>` Vue components used here and in later phases.
+
+#### Architecture decisions made
+
+- `ChordDiagram.vue` is a dedicated SVG-only rendering component (not merged into ChordCard). It exports the shared `ChordDiagramData` interface used throughout the system.
+- `ChordCard.vue` composes `ChordDiagram` and adds name, inversion label, popularity pill, difficulty stars, and hover controls. It is the reusable card atom for all phases.
+- Chord name on cards uses `quality + extensions` (e.g. `m7`, `maj7(9)`) mapped through a lookup table — **not** the `name` field. The root is only prepended when `transposed_from` is set on the chord (i.e. the card came from a transposition search result).
+- Finger numbers are built from `diagram_data.positions[i].finger` into a 6-char string passed to `sbnRenderDiagramSVG`.
+- Non-search filtering is client-side (quality, voicing, popularity, difficulty, inversion, extensions) over the initial payload. Text search that parses as a chord name hits the transposition endpoint; everything else is substring match.
+- Archetype panel (open-position shapes grouped by `shape_family`) is a separate section above the main grid, hidden when any filter is active.
+
+#### Transposition search
+
+The search box does double duty:
+
+- Substring match against name/quality/category/extensions for non-chord-shaped input (e.g. `drop 2`, `rootless`).
+- Transposition lookup when the query parses as a chord name. `Dm7` → backend parses root=D + quality=m7, queries all m7 shapes, transposes each to D via `ChordShapeCalculator`, returns them as full `ChordDiagramData[]`. Sidebar filters still narrow the transposed set.
+
+The transposition pipeline is owned by a new shared service, **`App\Services\ChordVoicingSearch`**, extracted from `Admin\LeadsheetController`. Both the admin voicing picker (`/api/admin/leadsheets/search-voicings[-advanced]`) and the public library (`/library/chords/search`) delegate to it. No duplicated chord-name parsing or transposition logic.
+
+Alias matching (via `sbn_chord_diagram_aliases`, e.g. a Bdim shape aliased as G7(b9)) is included in both entry points.
+
+#### Files created
+
+| File | Role |
+|------|------|
+| `resources/js/Components/Library/ChordDiagram.vue` | SVG renderer; exports `ChordDiagramData` TS interface |
+| `resources/js/Components/Library/ChordCard.vue` | Card atom; reusable in Phase 5, 7, 8 |
+| `resources/js/Pages/Library/Chords/Index.vue` | Browse page — archetype panel + filter sidebar + chord grid + transposition search |
+| `resources/js/Pages/Library/Chords/Show.vue` | **Stub only** — full implementation lands in Phase 7 (needs progression + song previews) |
+| `app/Services/ChordVoicingSearch.php` | Chord-name parse → query → transpose. Shared between admin picker and public library. |
+| `app/Http/Controllers/Library/ChordLibraryController.php` | `index()` splits chords into `archetypeFamilies` + `otherChords`; `show()` returns chord + siblings; `search()` delegates to `ChordVoicingSearch` |
+| `public/css/chord-library.css` | All chord library layout/card styles; loaded globally from `app.blade.php` |
+| `routes/web.php` | `GET /library/chords` + `GET /library/chords/search` + `GET /library/chords/{slug}` |
+
+Note: a dedicated public-facing `ChordCard.vue` was created under `Components/Library/` rather than reusing the admin `tab-editor/components/ChordCard.vue`. The two cards serve different audiences (admin picker vs public library) and their prop surfaces diverge enough that sharing one component would have complicated both. Keep this divergence in mind if a future phase wants to unify them.
+
+#### Key CSS notes
+
+- `public/css/chord-library.css` is the single source for all chord library styles. No scoped styles on Index or ChordCard.
+- `ChordDiagram.vue` has one scoped rule: `svg { width: 100%; height: auto; }`.
+- SVG line thickness overridden via `:deep(svg line)` in card CSS (renderer hardcodes stroke-width; cannot pass opts).
+- Extension badge `(9)`, `(#11)` etc. styled in muted colour to read as secondary.
+
+#### Remaining for Phase 3
+
+- [ ] `Show.vue` full implementation — lands in Phase 7 (needs progression examples + songs sidebar).
+- [ ] Audio preview on card play button (`useChordAudio` composable, already exists in tab-editor).
 
 **Legacy references:**
-- `sbn-course-player(legacywp)/inc/chord-diagrams/` — existing diagram renderer (source of truth for geometry)
-- `sbn-course-player(legacywp)/inc/chord-detail-page.php` — chord detail page template
-- `sbn-course-player(legacywp)/inc/chord-shapes/` — chord shape data model
-- `sbn-course-player(legacywp)/inc/chord-search-handler.php` — search/filter logic to port to Laravel controller
-- `sbn-course-player(legacywp)/flavor-starter/flavor-starter/page-chords-redesign.php` — library page template
-- `sbn-course-player(legacywp)/assets/css/chord-library-redesign.css` — library styles
-- `sbn-course-player(legacywp)/assets/css/chord-detail-page.css` — detail page styles
-- `sbn-course-player(legacywp)/assets/css/chord-styling.css` — chord name typography
-- `sbn-course-player(legacywp)/assets/css/sbn-chord-card.css` — chord card component styles
-- `sbn-course-player(legacywp)/assets/js/chord-library-redesign.js` — library interactions
-- `sbn-course-player(legacywp)/assets/js/sbn-chord-card.js` — chord card behavior
-
-**Done:**
-- `<ChordDiagram>` has TS prop types exported for reuse.
-- All existing chord voicings render correctly (spot-check against WP version).
-- Search/filter works without page reload (Inertia partial reloads).
-- Component is documented with at least one example usage in a Storybook-lite file OR as comments in the component.
+- `sbn-course-player(legacywp)/flavor-starter/flavor-starter/page-chords-redesign.php` — index page template
+- `sbn-course-player(legacywp)/inc/chord-detail-page.php` — detail page template (for Show.vue)
+- `sbn-course-player(legacywp)/assets/css/sbn-chord-card.css` — card styles reference
+- `sbn-course-player(legacywp)/assets/css/chord-detail-page.css` — detail page styles (for Show.vue)
+- `sbn-course-player(legacywp)/assets/css/chord-styling.css` — chord name typography reference
+- `sbn-course-player(legacywp)/inc/chord-search-handler.php` — transposition search logic to port
+- `public/js/chords.js` — `sbnRenderDiagramSVG({ frets, position, fingers })` + `sbnFormatChordHtml()`
 
 ---
 
-### Phase 4 — Rhythm Library + Rhythm Pattern Component
+### Phase 4 — Rhythm Library + Rhythm Pattern Component ✅ DONE (April 22, 2026)
 
-**Deliverable:** Rhythm library browse page + reusable `<RhythmPattern>` component.
+**Deliverable:** Public rhythm library (browse + detail) + reusable `<RhythmPattern>` Vue component that both renders and plays a pattern. This component is a dependency for Phases 5, 7, 9.
 
-**Component inventory:**
+**Status: DONE**
+
+#### Scope
+
+Mirror the Phase 3 pattern exactly so consumers have a consistent mental model:
+
+1. **`Pages/Library/Rhythms/Index.vue`** — browse/search page with filter sidebar, analogous to the chord library Index. Uses `PublicLayout`. Renders a grid of `RhythmCard`s (thin wrapper: name + style/category + difficulty + mini `RhythmPattern` preview + hover play).
+2. **`Pages/Library/Rhythms/Show.vue`** — pattern detail page. May defer full content like the chord `Show.vue` did (stub acceptable if content structure isn't ready) but the route + controller action must exist.
+3. **`Components/Library/RhythmPattern.vue`** — the reusable renderer + player. This is the substantial new-component effort in this phase. See "Component contract" below.
+4. **`Components/Library/RhythmCard.vue`** — card atom. Follows `ChordCard` conventions: uses CSS tokens from `sbn-design-system.css`, no hex literals, music-style color via `useCategoryColors`.
+5. **`app/Http/Controllers/Library/RhythmLibraryController.php`** — `index()` returns grouped + flat lists; `show(slug)` returns pattern + siblings. Same serialization pattern as `ChordLibraryController`.
+6. **Routes** (`routes/web.php`): `GET /library/rhythms`, `GET /library/rhythms/{slug}`. No separate search endpoint for this phase — client-side substring filter over the initial payload is sufficient (rhythms don't have a transposition equivalent).
+
+#### What already exists — reuse, do NOT rebuild
+
+- **Model**: `App\Models\RhythmPattern` + migration already in place. `toPlayerData()` returns the shape the frontend needs.
+- **Audio adapter**: `resources/js/audio/adapters/rhythmPatternToEvents.js` — pure function, converts the model to `EngineEvent[]`. Consumes `{ thumb, fingers, percTop, percBass, beats, gridType }` exactly as `toPlayerData()` emits. Do not touch this adapter.
+- **Audio engine**: `resources/js/audio/` (AudioEngine, Scheduler, PlaybackClock). Use via the `useAudioEngine` composable. Patterns of existing call sites: `resources/js/tab-editor/composables/` (see `useAudioEngine`, `useChordAudio` for reference).
+- **Admin authoring**: `app/Http/Controllers/Admin/RhythmPatternController.php` + its Blade views already exist — this is admin-side and stays on Blade. Do not migrate.
+- **Design tokens**: use `--clr-style-*` tokens from `sbn-design-system.css` via `useCategoryColors`. Canonical music-style slugs (`bossa`, `jazz`, `samba`, `latin`, `blues`, `pop`, `classical`, `gold`) are the single source of truth for color; do not add new ones without also updating `SLUG_TO_TOKEN` in `useCategoryColors.ts` AND the stylesheet.
+
+#### Component contract — `<RhythmPattern>`
+
+Props (define as exported TS interface in the component, import everywhere; do not redefine downstream):
+
+```ts
+interface RhythmPatternData {
+  name: string;
+  beats: number;         // total grid steps in pattern
+  gridType: 'eighth' | 'sixteenth' | 'triplet';
+  thumb: string;         // bass pattern: x=soft, X=accent, .=rest
+  fingers: string;       // fingers pattern, same encoding
+  bpm: number;
+  timeSignature: string; // e.g. '4/4'
+  percTop: string;       // instrument for fingers, or 'none'
+  percBass: string;      // instrument for thumb, or 'none'
+}
+
+interface RhythmPatternProps {
+  pattern: RhythmPatternData;
+  tempo?: number;        // override pattern.bpm
+  playable?: boolean;    // default false — when true, mount play button + wire audio
+  mini?: boolean;        // compact preview variant for cards
+}
+```
+
+Responsibilities:
+- **Visual**: render a grid of cells where each cell corresponds to one step of the pattern. Cell state: rest / soft hit / accent. Separate rows for thumb and fingers. Beat markers every 1 beat. Preserve time-signature and grid-type semantics visually (triplets look different from sixteenths).
+- **Playback**: when `playable`, provide a play/stop button. On play, build events via `rhythmPatternToEvents(pattern)`, feed to `AudioEngine`, and visually highlight the currently-playing step (subscribe to the engine's clock, light up the active cell). On stop, halt and clear highlight. Loop indefinitely while playing.
+- **A11y**: play/stop button has aria-label; pattern grid has role/labelling so a screen reader can read the pattern meta.
+
+Legacy reference for intended visual output: `sbn-course-player(legacywp)/inc/rhythm-patterns/class-rhythm-patterns.php` and `assets/css/rhythm-library-frontend.css`. Read these before writing CSS — port the design, don't reinvent it. Match cell shape/spacing, accent vs soft styling, and row layout.
+
+#### Order of work
+
+1. Scaffold `RhythmLibraryController` + routes + minimal `Index.vue` showing names only. Verify data flows end-to-end with current models.
+2. Build `RhythmPattern.vue` visual layer (no audio yet). Test by passing a few fixture patterns via a devroute or the Index grid. Match legacy visual reference.
+3. Add audio: wire `rhythmPatternToEvents` + `useAudioEngine`, play/stop button, active-step highlight. Use an existing tab-editor composable as the reference implementation for engine wiring — do not rewrite audio infrastructure.
+4. Card + filter sidebar (category, difficulty, time-signature, text search). Client-side only, mirror Phase 3 Index filtering.
+5. `Show.vue` — can be stub if no per-pattern content ready yet. Just ensure the route resolves and `<RhythmPattern :playable="true">` renders in a full-page layout.
+6. TypeScript: component and its props are TS from day 1. Export `RhythmPatternData` as the cross-phase contract.
+
+#### What was built
+
+**Architecture decisions:**
+
+- `RhythmPattern.vue` is both a visual renderer and a player (unlike ChordDiagram which is display-only). It manages its own audio lifecycle via component-local refs (no Pinia/store per Phase 4 spec). Each instance independently wires to the shared `AudioEngine` singleton.
+- Category-to-color mapping: `brazilian` → `samba` (green), `general` → `pop` (pink), `jazz` → `jazz` (blue), `latin` → `latin` (purple). The controller adds `styleSlug` during serialization so cards can use `getCategoryStyle()` directly.
+- Audio wiring follows the pattern from `useAudioEngine`/`useChordAudio` composables: local `_inited` flag, subscription cleanup in `onBeforeUnmount`, shared engine via `getAudioEngine()`.
+- Pattern encoding: `x` = soft hit, `X` = accent, `.` = rest. Same as admin editor. Grid types affect step duration (eighth = 0.5 beats, sixteenth = 0.25, triplet = 1/3).
+
+**Files created:**
+
+| File | Role |
+|------|------|
+| `resources/js/Components/Library/RhythmPattern.vue` | Core renderer + player component; exports `RhythmPatternData` and `RhythmPatternWithMeta` TS interfaces |
+| `resources/js/Components/Library/RhythmCard.vue` | Card atom with mini pattern preview + play button; category-colored per `useCategoryColors` |
+| `resources/js/Pages/Library/Rhythms/Index.vue` | Browse page with category-grouped grid, filter sidebar (category/time-sig/grid-type), text search |
+| `resources/js/Pages/Library/Rhythms/Show.vue` | Pattern detail page with full-size playable pattern, details table, sibling patterns sidebar |
+| `app/Http/Controllers/Library/RhythmLibraryController.php` | `index()` returns patterns grouped by category; `show()` returns pattern + siblings; maps categories to style slugs |
+| `public/css/rhythm-library.css` | Shared layout styles (grid, sidebar, filters) following chord-library.css pattern; loaded in `app.blade.php` |
+| `routes/web.php` | `GET /library/rhythms` + `GET /library/rhythms/{slug}` |
+
+**Key implementation notes:**
+
+- `RhythmPattern` visual grid has three rows: beat labels (1, +, 2, +...), fingers pattern, thumb pattern. Cells show hit states (soft/accent) with colors matching admin editor (`--clr-red` for accents, `#fef3f2` for soft hits).
+- Playback uses `rhythmPatternToEvents()` adapter (unchanged) to convert pattern → engine events. Active step highlighting syncs to engine `tick` events.
+- Index page groups patterns by category with colored category headers (dot matches style color). No difficulty filter (model doesn't have the field).
+- Show page includes a blend slider (samples ↔ demo MP3) sitting inline next to the play button. Details table + related-songs sidebar removed — that area is reserved for song-based content wired in Phase 7.
+
+#### Audio engine work that landed during this phase (April 23, 2026)
+
+The rhythm library was the first consumer of the audio engine's loop + percussion-sampler paths, so several engine-level fixes and features landed as part of Phase 4:
+
+- **Replay-after-ended bug fix.** `Scheduler.onEnded` now stops and rewinds the clock before emitting `ended`, so a subsequent `play()` starts from beat 0. `AudioEngine.play()` also defensively rewinds if the clock is past the loaded events' end.
+- **Native loop primitive.** `Scheduler.load(events, { loop: true, loopBeats })` wraps event scheduling around a configurable loop length. When looping, no `ended` fires — the scheduler just advances `_loopCycle` and rebases subsequent event times. Replaces the previous `ended → play` ping-pong hack.
+- **Samples ↔ demo blend.** `AudioEngine` now maintains two gain buses (`samplesBus` for percussion, `demoBus` for the demo MP3). `setBlend(0..1)` cross-fades with a biased power curve tuned to current WAV loudness. `PercussionSampler` routes through the samples bus via a new `setOutput()` method.
+- **Demo audio loading.** `load(events, { demoUrl, demoOffsetBeats })` fetches + decodes the MP3 and stores a `Promise` that `play()` awaits before starting. Demo source uses native `AudioBufferSourceNode.loop = true` for tight looping. No scheduling round-trip per loop iteration.
+- **Audio assets deployed:** percussion WAVs at `public/audio/rhythm-samples/`, demo MP3s at `public/audio/rhythm-demos/`. Controller serializes `mp3_file` column as `/audio/rhythm-demos/{file}`.
+
+**Known tuning constants** (in `_applyBlend()`): `SAMPLES_BASE = 1.3`, `DEMO_BASE = 0.85`, curves `(1-v)^1.3` / `v^1.7`. Revisit if WAV samples are re-normalized.
+
+#### Definition of done
+
+- `<RhythmPattern>` renders visually with parity against the legacy rhythm renderer (side-by-side spot check).
+- `<RhythmPattern :playable="true">` plays on click, loops, highlights the active step in sync with audio, stops cleanly.
+- Public rhythm library Index page browses all patterns, filters client-side, shows consistent music-style colors matching the shop / chord library.
+- `RhythmPatternData` TS interface is defined once in the component file and imported by any consumer (no duplication).
+- Build (`npm run build`) passes; admin rhythm pages (Blade) untouched and still work.
+- `docs/Frontend-Migration-Plan.md` Phase 4 section updated with "what was built" notes, same structure as the Phase 3 section.
+
+#### Scope boundary
+
+- Do not touch the admin rhythm editor (Blade).
+- Do not migrate any other phase's components. `RhythmPattern` is the only new reusable component this phase owns.
+- Do not add a server-side search endpoint. Client-side filter is the spec.
+- Do not introduce Pinia or a store for pattern playback state — component-local refs only. If multiple `RhythmPattern` instances on one page must share transport state, that's a Phase 7 concern, not this one.
+
+#### Component inventory
+
 - **[NEW]** `Pages/Library/Rhythms/Index.vue`
-- **[NEW]** `Pages/Library/Rhythms/Show.vue`
-- **[NEW]** `Components/RhythmPattern.vue` — props: `pattern`, `tempo`, `playable`. **This is the single biggest new-component effort in the whole migration.** Audio adapter exists (`rhythmPatternToEvents`); visual renderer does not. Reference legacy `inc/rhythm-patterns/` + `assets/css/rhythm-library-frontend.css` + `assets/js/sbn-percussion.js` for intended visual output.
-- **[REUSE]** `rhythmPatternToEvents` adapter (`resources/js/audio/adapters/`) — feeds the audio engine
-- **[REUSE]** `useAudioEngine` composable — transport integration
+- **[NEW]** `Pages/Library/Rhythms/Show.vue` (full or stub)
+- **[NEW]** `Components/Library/RhythmPattern.vue`
+- **[NEW]** `Components/Library/RhythmCard.vue`
+- **[NEW]** `app/Http/Controllers/Library/RhythmLibraryController.php`
+- **[NEW]** `public/css/rhythm-library.css` (following the chord-library.css pattern)
+- **[REUSE]** `resources/js/audio/adapters/rhythmPatternToEvents.js`
+- **[REUSE]** `useAudioEngine` composable from `resources/js/tab-editor/composables/`
+- **[REUSE]** `useCategoryColors` composable for music-style colors
 
-**Note:** budget real time for the renderer. Everything else in this phase (pages, data wiring) is routine; the renderer is not.
+#### Legacy references (read before writing code)
 
-**Legacy references:**
 - `sbn-course-player(legacywp)/inc/rhythm-patterns/` — pattern renderer + data model
-- `sbn-course-player(legacywp)/inc/rhythm-grid.php` — grid layout logic
+- `sbn-course-player(legacywp)/inc/rhythm-grid.php` — grid layout
 - `sbn-course-player(legacywp)/flavor-starter/flavor-starter/page-rhythms.php` — library page template
-- `sbn-course-player(legacywp)/assets/css/rhythm-library-frontend.css` — library styles
-- `sbn-course-player(legacywp)/assets/js/sbn-percussion.js` — percussion playback
-- `sbn-course-player(legacywp)/assets/js/sbn-audio.js` — audio engine glue (verify against current Laravel audio adapters)
-- `sbn-course-player(legacywp)/assets/js/soundfonts/` — soundfont assets
-
-**Done:**
-- `<RhythmPattern>` plays back in sync with transport.
-- Pattern notation renders visually (matches current rhythm component output).
-- TS types exported for reuse in top10 and leadsheet.
+- `sbn-course-player(legacywp)/assets/css/rhythm-library-frontend.css` — library styles (port into `public/css/rhythm-library.css`)
+- `sbn-course-player(legacywp)/assets/js/sbn-percussion.js` — percussion playback (reference for intent only; audio already handled by current adapter)
+- `public/css/chord-library.css` — structural reference; match the same Index/card layout conventions
 
 ---
 
-### Phase 5 — Top10 Pages
+### Phase 5 — Chord Progression Library ✅ DONE (April 23, 2026)
 
-**Deliverable:** Top10 landing pages (bossa nova songs, chord progressions, etc.) as pure composition of existing components + song metadata.
+**Deliverable:** Public chord progression library: an Index page ported from the legacy WP layout, plus a minimal Show page (title, description, metadata, list of songs featuring the progression). **No `ChordProgressionBlock` component, no audio, no visual rendering of the progression itself in this phase** — the visualization approach is still being decided and will land in Phase 7 when all detail pages wire together.
+
+**Status: DONE** — controller, routes, slug column, songs-cross-reference query, and both pages shipped. `ProgressionCard` inlined in `Index.vue` rather than extracted (acceptable; card is simple text). Known follow-up: song links use `id` until Phase 6 backfills a `slug` column on `sbn_leadsheets`.
+
+#### Scope
+
+1. **`Pages/Library/Progressions/Index.vue`** — browse page. Port the legacy WP progression library page (see Legacy references below) 1:1 in structure: cards grouped by category, filter sidebar, text search. Match the existing design; don't redesign. Client-side filtering only.
+2. **`Pages/Library/Progressions/Show.vue`** — **minimal** detail page. Header with title, category badge, tags. Description. Roman numerals displayed in a simple read-only strip (styled text, not chord diagrams). "Songs featuring this progression" list — rendered as a list of song titles with composer (link target can be a stub / disabled until Phase 6 ships the songs library). No key selector, no play button, no chord diagrams, no `ChordProgressionBlock`.
+3. **`Components/Library/ProgressionCard.vue`** — card atom following the Phase 3/4 card conventions. Shows name, numerals (as styled text, not diagrams), category color, tag chips. Click → Show page.
+4. **`app/Http/Controllers/Library/ProgressionLibraryController.php`** — `index()` + `show(slug)` following the established pattern.
+5. **Routes** (`routes/web.php`): `GET /library/progressions`, `GET /library/progressions/{slug}`.
+
+Explicitly NOT in this phase:
+- `ChordProgressionBlock.vue` (deferred; the visual design for "how do we display an example of a progression on an info page" is unresolved — `ChordProgressionBlock` if it exists at all will be defined in Phase 7 after the detail-page wiring makes its role clear).
+- Audio playback.
+- Key selector / transposition UI.
+- Chord diagram rendering on the Show page.
+
+#### What already exists — reuse, do NOT rebuild
+
+- **Model**: `App\Models\ChordProgression` with `name`, `category`, `numerals` (comma-separated Roman), `description`, `typical_genres`, `tags`, `tonality`. Table: `sbn_chord_progressions`. Scopes: `category()`, `search()`. Accessors: `numerals_display` (comma → en-dash), `tags_array`, `category_color`.
+- **Songs cross-reference table**: `sbn_progression_occurrences` links `progression_id` → `leadsheet_id`. Use this for the "songs featuring this progression" query. `ChordProgression::getStats()` already demonstrates the join pattern.
+- **Admin progression builder**: `app/Http/Controllers/Admin/ProgressionBuilderController.php` — admin-only, Blade. Do NOT migrate, do NOT look at for visual reference (too feature-rich for a public info page).
+- **Design tokens**: music-style colors via `useCategoryColors`. Map progression categories (`jazz`, `blues`, `pop`, `modal`, `classical`, `latin`, `other`) → existing style slugs. Extend `SLUG_TO_TOKEN` in `useCategoryColors.ts` ONLY if no existing slug fits.
+
+#### Controller contract
+
+```php
+// index()
+return Inertia::render('Library/Progressions/Index', [
+    'progressions'  => $collection,   // each with: id, slug, name, category, styleSlug,
+                                      //            numerals, numeralsDisplay, tonality,
+                                      //            tags (array), description, typicalGenres,
+                                      //            chordCount (count of comma-separated numerals),
+                                      //            songCount (how many leadsheets reference it)
+    'categories'    => [...],         // distinct used categories
+    'tags'          => [...],         // distinct tags across all progressions
+    'totalCount'    => int,
+]);
+
+// show(slug)
+return Inertia::render('Library/Progressions/Show', [
+    'progression' => [
+        'id', 'slug', 'name', 'category', 'styleSlug',
+        'numerals', 'numeralsDisplay',
+        'tonality', 'tags' (array), 'description', 'typicalGenres',
+    ],
+    'songs' => [                      // leadsheets featuring this progression
+        ['id' => ..., 'title' => ..., 'composer' => ..., 'song_key' => ..., 'slug' => ...],
+        ...
+    ],
+    'siblings' => [...],              // other progressions in same category
+]);
+```
+
+#### Order of work
+
+1. Check if `sbn_chord_progressions` has a `slug` column. If not, migration to add + backfill slugs from `name`.
+2. Controller + route + minimal `Index.vue` showing names and numerals only. Verify data flows.
+3. `ProgressionCard.vue` + category-grouped grid + filter sidebar + client-side filtering. Match legacy WP layout.
+4. `Show.vue` minimal: header, description, numerals strip, songs list.
+5. Style polish per design system tokens.
+
+#### Scope boundary (IMPORTANT)
+
+- **Do NOT build `ChordProgressionBlock.vue`.** Defer to Phase 7. The visual approach for progression examples on info pages is still being determined.
+- **Do NOT wire any audio.** No `chordProgressionToEvents`, no `engine.load`, no play button.
+- **Do NOT port the admin progression builder.** Stays in admin as Blade.
+- **Do NOT render chord diagrams on the Show page.** Only styled numerals + metadata + songs list.
+- **Do NOT add a key selector or transposition UI.** Not in scope.
+- **Do NOT add a separate search endpoint.** Client-side substring filter is the spec.
+- **Do NOT introduce Pinia.**
+
+#### Open items to resolve at start of phase
+
+- **Slug column.** Check whether `sbn_chord_progressions` has a `slug` column. If not, add a migration that derives slugs from `name` (idempotent).
+- **Category→style color mapping.** Add progression category keys to `useCategoryColors.ts`'s `SLUG_TO_TOKEN` only if they don't already resolve via existing music-style slugs.
+- **Songs link target.** Song detail pages don't exist yet (Phase 9). Decision for this phase: link the song titles to `/library/songs/{slug}` anyway — this lands in Phase 6 which is the next phase. If clicking a song before Phase 6 returns 404, that's acceptable.
+
+#### Definition of done
+
+- `/library/progressions` renders the library with the legacy WP layout, filters work client-side, cards show proper category colors.
+- `/library/progressions/{slug}` renders a minimal detail page: header, description, numerals as styled text, list of songs featuring the progression.
+- Songs are queried via `sbn_progression_occurrences` join.
+- No `ChordProgressionBlock`, no audio, no chord diagrams on the Show page.
+- Build (`npm run build`) passes. Admin progression builder untouched and still works.
+- `docs/Frontend-Migration-Plan.md` Phase 5 section updated with a "What was built" subsection, same structure as Phases 3 and 4.
+
+#### Component inventory
+
+- **[NEW]** `Pages/Library/Progressions/Index.vue`
+- **[NEW]** `Pages/Library/Progressions/Show.vue` (minimal)
+- **[NEW]** `Components/Library/ProgressionCard.vue`
+- **[NEW]** `app/Http/Controllers/Library/ProgressionLibraryController.php`
+- **[NEW]** `public/css/progression-library.css` (follow chord-library.css / rhythm-library.css conventions)
+- **[REUSE]** `App\Services\ProgressionBuilder::selectVoicingsForSequence`
+- **[REUSE]** `useCategoryColors` composable
+
+#### Legacy references (read before writing code)
+
+- `sbn-course-player(legacywp)/inc/chord-progressions/` — progression data model
+- `sbn-course-player(legacywp)/inc/progression-library.php` — library page template (design intent)
+- `sbn-course-player(legacywp)/assets/css/progression-library.css` — library styles (port selectively; extend design system, do NOT copy hex literals)
+- `sbn-course-player(legacywp)/assets/js/progression-library.js` — library interactions (read for intent only; rewrite in Vue)
+- `sbn-course-player(legacywp)/inc/progression-builder.php` + `assets/css/progression-builder.css` — **reference only for visual language of chord tiles**; the builder interactivity is NOT ported to the public library
+
+---
+
+### Phase 6 — Songs Library Browse ✅ DONE (April 24, 2026)
+
+**Deliverable:** Public songs catalog at `/library/songs` — grid of song cards, filter sidebar, text search. Catalog only. **No Show page** (the leadsheet viewer is the whole of Phase 9). Song cards link to `/library/songs/{slug}` which returns a minimal stub "coming soon" page until Phase 9.
+
+**Status: DONE**
+
+#### What was built
+
+**Database & Backend:**
+- Migration `2026_04_24_000001_add_slug_to_leadsheets_table` adds a `slug` column (unique, indexed) to `sbn_leadsheets` and backfills from `title` via `Str::slug()` with collision-suffix logic. Idempotent.
+- `Leadsheet` model: `slug` added to `$fillable`.
+- `SongLibraryController` (`index()` + `show()`): serializes songs with `id, slug, title, composer, songKey, tempo, timeSignature, rhythm, styleSlug, description (truncated 120 chars), popularity, measureCount`. Style slug derived via `rhythmToStyleSlug()` — maps rhythm pattern slugs (bossa, samba, jazz, swing, latin, afro-cuban, blues, pop, ballad, classical) to the 8 canonical design-system color slugs, with `bossa` as default.
+- Routes: `GET /library/songs` + `GET /library/songs/{leadsheet:slug}` (route-model binding via slug).
+- `ProgressionLibraryController::show()` patched to select and return the `slug` column on songs (previously used `id` as a placeholder).
+
+**Frontend:**
+- `Components/Library/SongCard.vue` — exports `SongCardData` interface. Renders: colored style-bar (from `--category-color`), title, composer, key/timesig/tempo meta badges, description snippet (2-line clamp), rhythm label + popularity pill in footer.
+- `Pages/Library/Songs/Index.vue` — header with search box + example chips (Wave, Jobim, bossa, Dm7), count bar, songs grid, sticky filter sidebar (Key, Composer, Rhythm/Style, Tempo range). All filtering is client-side. Reuses `sbn-content-wrapper`, `sbn-filter-sidebar`, `sbn-sidebar-option` CSS from chord/rhythm library conventions.
+- `Pages/Library/Songs/Show.vue` — minimal stub: breadcrumb, header card with style-bar + meta chips, optional description section, "coming soon" notice with back link.
+- `public/css/song-library.css` — all song library layout + card + show-page styles; no hex literals; follows chord-library.css conventions.
+- `app.blade.php` updated to load `song-library.css`.
+
+**Key architectural decisions:**
+- Style color derivation: rhythm slug → `rhythmToStyleSlug()` → canonical style slug → `useCategoryColors.getCategoryStyle()`. Documented in `SongCard.vue` and controller. `bossa` is the defensive default.
+- No server-side search — client-side substring filter over initial payload (same as rhythm/progression libraries).
+- `SongCard` uses a thin top color bar (4 px) instead of the full-card gradient used by shop `ProductCard`. Keeps it visually lighter than a product.
+
+#### Scope
+
+1. **`Pages/Library/Songs/Index.vue`** — port the legacy WP songs library layout (see legacy refs below). Header with unified search box + example chip buttons, filter sidebar on the right, grid of song cards on the left. Client-side filtering over the initial payload.
+2. **`Pages/Library/Songs/Show.vue`** — **minimal stub only.** Title, composer, key, tempo, description. No leadsheet rendering. A note ("Full viewer coming in Phase 9") and a back-link to the library. Keeps routes coherent so cards can link without 404s.
+3. **`Components/Library/SongCard.vue`** — card atom. Title, composer, key badge, tempo, style color. Link → `/library/songs/{slug}`.
+4. **`app/Http/Controllers/Library/SongLibraryController.php`** — `index()` + `show(slug)`.
+5. **Route**: `GET /library/songs`, `GET /library/songs/{slug}`.
+
+#### What already exists — reuse, do NOT rebuild
+
+- **Model**: `App\Models\Leadsheet` (table `sbn_leadsheets`). Columns: `title`, `composer`, `song_key`, `tempo`, `time_signature`, `rhythm`, `measure_count`, `popularity`, `description`, `harmony_notes`, `form_notes`, `voicing_notes`. Scopes: `search()`, `inKey()`, `forCourse()`, `withRhythm()`. Static helpers: `getDistinctKeys()`, `getDistinctComposers()`, `getStats()`.
+- **Admin editor**: `Admin\LeadsheetController` + Blade views already exist. Do NOT migrate.
+- **Design tokens**: music-style colors via `useCategoryColors`. Songs don't have an explicit style/genre column — infer style slug from `rhythm` (the rhythm pattern slug) OR from a new mapping keyed on composer / title keywords. Prefer a defensive default (`bossa`) if nothing matches — the 8 canonical slugs in `sbn-design-system.css` are the source of truth; do NOT add new ones.
+
+#### Open item — slug column
+
+`sbn_leadsheets` doesn't currently have a `slug` column. The Phase 5 controller works around this by using `id` as the URL path. Phase 6 should fix this properly:
+
+- Add a migration that adds a `slug` column (unique, indexed) and backfills from `title` (case-insensitive, hyphenated, ASCII). Idempotent.
+- Update `Leadsheet` model to include `slug` in `$fillable`.
+- Route-binds by slug: `Route::get('/library/songs/{leadsheet:slug}', ...)`.
+- Phase 5's songs-list query should be updated to return `slug` instead of `id` as the route target. That's a small follow-up patch to `ProgressionLibraryController::show()`.
+
+#### Controller contract
+
+```php
+// index()
+return Inertia::render('Library/Songs/Index', [
+    'songs'      => $collection,  // each: id, slug, title, composer, songKey, tempo,
+                                  //        timeSignature, rhythm (slug), styleSlug,
+                                  //        description (short), popularity, measureCount
+    'composers'  => [...],        // distinct composers, sorted
+    'keys'       => [...],        // distinct keys actually used
+    'rhythms'    => [...],        // distinct rhythm slugs used
+    'totalCount' => int,
+]);
+
+// show(slug) — minimal stub
+return Inertia::render('Library/Songs/Show', [
+    'song' => [  // title, composer, songKey, tempo, timeSignature, description,
+                 // rhythm, styleSlug
+    ],
+]);
+```
+
+#### Filter sidebar
+
+Client-side only. Filters over the initial payload:
+
+- **Search** — substring match on `title + composer + description`.
+- **Key** — toggle pills showing every distinct key in the dataset.
+- **Composer** — toggle pills, limit to top N (e.g. 20) most common; rest accessible via search.
+- **Rhythm / style** — toggle pills over distinct rhythm slugs used.
+- **Tempo range** — optional, only if straightforward (min/max slider). Skip if it's fussy.
+
+Match Phase 3 chord library's sidebar semantics and class naming so the CSS can be reused / extended.
+
+#### Scope boundary (IMPORTANT)
+
+- **No leadsheet rendering.** The Show page is a stub.
+- **No server-side search endpoint.** Client-side filter only.
+- **No course gating / auth.** Public browse.
+- **Do NOT touch the admin leadsheet editor.**
+- **Do NOT introduce Pinia.** Component-local refs.
+
+#### Definition of done
+
+- `/library/songs` browses all leadsheets, filters + search work client-side.
+- `/library/songs/{slug}` returns a minimal stub page.
+- `slug` column added to `sbn_leadsheets`, backfilled, unique.
+- Phase 5's progression Show page updated to use the new song slugs (one-line patch to the `songs[].slug` field in `ProgressionLibraryController::show`).
+- `SongCard.vue` shows consistent style color via `useCategoryColors` (derivation rule documented in the component file).
+- Build passes. Admin editor untouched.
+- Plan doc Phase 6 updated with a "What was built" subsection.
+
+#### Component inventory
+
+- **[NEW]** `Pages/Library/Songs/Index.vue`
+- **[NEW]** `Pages/Library/Songs/Show.vue` (stub)
+- **[NEW]** `Components/Library/SongCard.vue`
+- **[NEW]** `app/Http/Controllers/Library/SongLibraryController.php`
+- **[NEW]** `public/css/song-library.css` (follow chord-library.css / rhythm-library.css conventions)
+- **[NEW]** migration: add `slug` column to `sbn_leadsheets`
+- **[REUSE]** `useCategoryColors` composable
+
+#### Legacy references (read before writing code)
+
+- `sbn-course-player(legacywp)/flavor-starter/flavor-starter/page-song-library.php` — library page template (port DOM structure)
+- `sbn-course-player(legacywp)/inc/song-library-handler.php` — data shape + filter logic reference
+- `sbn-course-player(legacywp)/assets/css/song-library.css` — styles (port selectively; use design-system tokens, no hex literals)
+- `sbn-course-player(legacywp)/assets/js/song-library.js` — interactions (read for intent; rewrite in Vue)
+- `public/css/chord-library.css` + `public/css/rhythm-library.css` — structural reference; match conventions
+
+#### Scope follow-ups (NOT in this phase)
+
+- "Has tab data" badge or filter — tempting but deferred until Phase 9 defines what tab data means visually.
+- Songs by course / lesson grouping — deferred until Phase 11 (course player).
+- Full-text search (chord names within a song) — deferred; current `search()` scope already matches title/composer/chord names via the shortcode blob.
+
+---
+
+### Phase 7 — Wire Detail Pages Together ✅ DONE (April 24, 2026)
+
+**Deliverable:** Full implementation of every Show page (chord, rhythm, progression, song teaser) with cross-references between libraries. A new `ChordProgressionViewer` component — a compact strip of chord diagrams with global playback for demonstrating progressions. Chord card click-to-play audio preview via the existing audio engine.
+
+**Status: DONE** — all Show pages live, cross-link queries wired, ChordProgressionViewer shipping with click-to-play tiles and global progression playback, chord card audio preview shipped. Several engine + transposition bugs fixed along the way (see "What was built" below).
+
+#### Scope — summary
+
+1. **New component: `ChordProgressionViewer.vue`** — purpose-built for info-box rendering of a chord progression with global playback. Visual: horizontal strip of small chord diagram tiles with chord names, centered circular play button. Audio: per-tile click plays that single chord, global play button sequences through entire progression with faster tempo (180 BPM).
+2. **`Pages/Library/Chords/Show.vue`** — full implementation (stub since Phase 3).
+3. **`Pages/Library/Rhythms/Show.vue`** — add "Used in songs" section.
+4. **`Pages/Library/Progressions/Show.vue`** — add the `ChordProgressionViewer` rendering + "Used in songs" section.
+5. **`Pages/Library/Songs/Show.vue`** — promote from stub to teaser page: chord-name sequence, rhythm preview, progressions found in the song. Still NOT the full leadsheet viewer (that's Phase 9).
+6. **`ChordCard.vue`** — wire the existing play button to play a one-shot strum via `chordDiagramToEvents` + shared `AudioEngine`. Shared mutex across cards (only one plays at a time).
+
+#### Component contract — `<ChordProgressionViewer>`
+
+**Note:** This component was refined during Phase 7 to include global playback, blue theme, and faster tempo for progression sequencing.
+
+The viewer is a compact horizontal strip of chord tiles with a global play button. It supports both individual chord playback and full progression sequencing.
+
+Props (exported TS interface in the component file; import everywhere; do not redefine):
+
+```ts
+export interface ProgressionChord {
+  chordName: string;                // e.g. 'Dm7' — resolved server-side
+  diagramData: ChordDiagramData | null;  // null = unresolvable; render a placeholder tile
+  beats?: number;                   // Duration in beats (default 0.5 for progression playback)
+  slug?: string | null;             // chord slug for optional deep-link
+}
+
+export interface ChordProgressionViewerProps {
+  chords: ProgressionChord[];
+  interactive?: boolean;            // default true — tiles respond to click-to-play
+  compact?: boolean;                // default false — tighter spacing for sidebars
+  showFlowArrows?: boolean;         // default true — show arrows between chords (currently unused)
+}
+```
+
+Responsibilities:
+- **Visual**: horizontal row of tiles; each tile = chord name + small ChordDiagram. Thin 1px border (matches `.sbn-chord-card`). Blue hover highlights (`#3b82f6`) to distinguish from regular chord cards (which use red). Global play button: 34px circle, centered vertically, blue theme. No meta info header, no roman numerals, no flow arrows.
+- **Audio (when `interactive`)**:
+  - Global play button: plays entire progression sequentially
+  - Individual tile click: plays that single chord (strum)
+  - Progression playback uses faster tempo (180 BPM) and duration (0.5 beats per chord)
+  - Custom stagger via `ctx.staggerBeats: 0.08` for faster chord transitions (progression-only optimization, passed to `chordDiagramToEvents`)
+  - Pre-empts any previous audio (engine is a singleton)
+- **A11y**: global play button has aria-label, each tile has aria-label for individual playback
+
+Resolving Roman numerals → concrete tiles stays server-side via `ProgressionBuilder::selectVoicingsForSequence`. The viewer never parses numerals.
+
+#### Cross-link policy (anti-rabbit-hole rule)
+
+On any given Show page, users can navigate **outward** from top-level related lists ("Progressions containing this chord", "Songs using this rhythm", etc.) but tiles inside a progression viewer do NOT link elsewhere — they're click-to-play only. This keeps the graph linear instead of circular:
+
+- Chord Show → list of progressions containing this chord (each is a clickable `ChordProgressionViewer` header linking to the progression Show)
+- Progression Show → preview of the progression (non-clickable tiles) + list of songs using it
+- Rhythm Show → list of songs using it
+- Song Show → chord name strip, rhythm preview, progressions detected; each item links to its own Show page
+
+Rule of thumb: **one list at the bottom of each Show page links to the next hop. Previews inside the page body do not.**
+
+#### Chord Show page — full implementation
+
+`Pages/Library/Chords/Show.vue`:
+- Header: chord name (formatted via existing chord-name formatter), inversion label, difficulty stars, popularity pill.
+- Main diagram: large `ChordDiagram`, read-only.
+- Meta table: interval labels, notes, category, root string, fret position.
+- "Sibling voicings" grid: other voicings of the same chord (same `quality + extensions`). The existing Phase 3 `siblings` payload already carries these.
+- "Progressions containing this chord": up to 4 mini-previews. Each shows the progression name as a link to its Show page, then a `ChordProgressionViewer`.
+- "Used in songs": up to 8 `SongCard`s linking to song Show pages.
+
+Backend: `ChordLibraryController::show(slug)` already serializes siblings. Add: progressions that contain this chord (via `sbn_voicing_usage` → `sbn_progression_occurrences`), and leadsheets that use this chord (via `sbn_voicing_usage.leadsheet_id`). Cap lists server-side.
+
+#### Rhythm Show page — add songs section
+
+`Pages/Library/Rhythms/Show.vue`: add a "Used in songs" section at the bottom, querying `sbn_leadsheets WHERE rhythm = {slug}`. Existing layout stays.
+
+#### Progression Show page — add preview + songs
+
+`Pages/Library/Progressions/Show.vue`: currently renders the progression's numerals as styled text (Phase 5 decision). Phase 7 adds:
+
+- A `ChordProgressionViewer` below the description, resolved for the default key `C` (no key selector in this phase — see "Scope follow-ups"). Controller already has access to `ProgressionBuilder::selectVoicingsForSequence`.
+- "Used in songs" section already exists from Phase 5. Leave it or tidy the layout if needed.
+
+#### Song Show page — promote from stub
+
+`Pages/Library/Songs/Show.vue` currently shows a minimal stub. In Phase 7 it becomes a **teaser page**:
+- Title, composer, key, tempo (as today)
+- Chord strip (just chord names, read-only, styled)
+- Mini `RhythmPattern` preview (use the `mini` prop; NO audio on the Show page yet — keep the player for the leadsheet viewer)
+- "Progressions detected in this song" list, each a link to the progression Show page
+- Prominent "Open in leadsheet viewer" button → `/library/songs/{slug}/viewer` or similar, which remains a stub route until Phase 9
+
+Backend: `SongLibraryController::show(slug)` already returns the leadsheet. Add: detected progressions via `sbn_progression_occurrences WHERE leadsheet_id = {id}`, and a chord-name list derived from the JSON data (`Leadsheet::getChordNames()` exists).
+
+#### Chord card audio preview
+
+`Components/Library/ChordCard.vue` currently has a play button that does nothing. Wire it up:
+
+- On click: `engine.init({ samplesBaseUrl: '/audio/rhythm-samples/' })` (idempotent), load events via `chordDiagramToEvents(chord)` with a `durationBeats: 2` default, `engine.play()`.
+- Cards subscribe to `engine.on('playStarted')` to clear their own "is playing" state when another card starts — same singleton-mutex UX as rhythm cards.
+- Component-local `isPlaying` ref. `onBeforeUnmount` cleanup. No Pinia.
+
+This is the Phase 3 TODO. Do NOT use the full `useChordAudio` composable from the tab editor — that one takes a tab model and plays measures. For a single-card strum, inline the five lines directly in `ChordCard.vue`.
+
+#### Backend — cross-reference queries
+
+All the tables already exist. Controllers just need new methods / query additions:
+
+| What | Query |
+|------|-------|
+| Progressions containing a chord | `sbn_voicing_usage.chord_diagram_id = X` → `leadsheet_id`s → `sbn_progression_occurrences.leadsheet_id IN (...)` → distinct `progression_id`s → `sbn_chord_progressions` |
+| Leadsheets using a chord | `sbn_voicing_usage WHERE chord_diagram_id = X` → distinct `leadsheet_id`s → `sbn_leadsheets` |
+| Leadsheets using a rhythm | `sbn_leadsheets WHERE rhythm = 'slug'` |
+| Progressions in a leadsheet | `sbn_progression_occurrences WHERE leadsheet_id = X` → `sbn_chord_progressions` |
+| Leadsheets using a progression | already implemented in Phase 5 |
+
+Cap each list server-side (8 for songs, 4 for progressions by default — component-agnostic). Add `->limit()` and `->orderByDesc('popularity')` where popularity exists. If any query shows up as slow in practice, a minute-level cache via `Cache::remember` is fine; don't preemptively optimize.
+
+#### Order of work
+
+1. `ChordProgressionViewer.vue` — visual first. Render fixture tiles. Match design-system tokens.
+2. Wire per-tile click-to-play via `chordDiagramToEvents` + shared engine. Share the singleton-mutex pattern with ChordCard.
+3. `ChordCard.vue` audio wiring. Same pattern.
+4. `ChordLibraryController::show` — add progression + songs queries. Serialize tiles via `ProgressionBuilder::selectVoicingsForSequence` so the frontend receives ready-to-render previews.
+5. `Pages/Library/Chords/Show.vue` — full implementation using the above.
+6. `ProgressionLibraryController::show` — add preview resolution (call `selectVoicingsForSequence` for key=C, stash `tiles` in the payload).
+7. `Pages/Library/Progressions/Show.vue` — render the preview.
+8. `RhythmLibraryController::show` + `Pages/Library/Rhythms/Show.vue` — add songs section.
+9. `SongLibraryController::show` + `Pages/Library/Songs/Show.vue` — promote from stub to teaser.
+10. Smoke test end-to-end: click through chord → progression → songs → rhythm → songs. Verify no page is a dead end.
+
+#### Scope boundary (IMPORTANT)
+
+- **Do NOT build a `ChordProgressionBlock` with full progression playback.** `ChordProgressionViewer` is per-tile click-to-play with optional global sequencing. Full progression playback belongs to the leadsheet viewer (Phase 9) or is explicitly out of scope for this entire migration.
+- **Do NOT add a key selector** to progression Show or any preview. Key=C is the spec default. If users need transposed progressions, that's its own phase.
+- **Do NOT embed the leadsheet viewer** anywhere. Song Show links to it, doesn't include it.
+- **Do NOT port the admin progression builder.** Still stays in admin.
+- **Do NOT make tiles inside a `ChordProgressionViewer` link anywhere.** Click-to-play only. Navigation comes from the outer list headers.
+- **Do NOT introduce Pinia.** Component-local refs + shared `AudioEngine` singleton.
+- **Do NOT add audio on the Song Show teaser's rhythm preview.** Play happens on the Rhythm Show page; on the Song page the rhythm is informational.
+
+#### Component inventory
+
+- **[NEW]** `Components/Library/ChordProgressionViewer.vue`
+- **[MODIFY]** `Components/Library/ChordCard.vue` (wire play button audio)
+- **[REWRITE]** `Pages/Library/Chords/Show.vue` (full implementation — replaces Phase 3 stub)
+- **[MODIFY]** `Pages/Library/Rhythms/Show.vue` (add songs section)
+- **[MODIFY]** `Pages/Library/Progressions/Show.vue` (add viewer + clean songs section)
+- **[MODIFY]** `Pages/Library/Top10/BossaNovaChords.vue` (use ChordProgressionViewer)
+- **[PROMOTE]** `Pages/Library/Songs/Show.vue` (stub → teaser page)
+- **[MODIFY]** `ChordLibraryController` (+ progression + songs queries)
+- **[MODIFY]** `ProgressionLibraryController` (+ tile resolution for viewer)
+- **[MODIFY]** `RhythmLibraryController` (+ songs query)
+- **[MODIFY]** `SongLibraryController` (+ chord names + progressions queries)
+- **[MODIFY]** `audio/adapters/chordDiagramToEvents.js` (+ ctx.staggerBeats for progression optimization)
+- **[REUSE]** `chordDiagramToEvents` adapter, `AudioEngine`, `ProgressionBuilder::selectVoicingsForSequence`, `Leadsheet::getChordNames`
+
+#### Definition of done
+
+- Every Show page is fully implemented (no stubs) and cross-links work end-to-end.
+- Chord cards play on click; only one card plays at a time across the whole page (including cards inside viewers).
+- `ChordProgressionViewer` renders on chord Show (inside the "progressions containing this chord" list), on progression Show (as the main visualization), and on Top10 pages.
+- `ChordProgressionViewerProps` + `ProgressionChord` TS interfaces exported from the component.
+- Smoke-test navigation completes: start from any library Index, click through 3+ Show pages following cross-links, no 404, no silent failure.
+- Build passes. Admin untouched.
+- Plan doc Phase 7 updated with a "What was built" subsection.
+
+#### What was built
+
+**New component**
+
+- **`Components/Library/ChordProgressionViewer.vue`** — exports `ProgressionChord` + `ChordProgressionViewerProps` interfaces. Horizontal strip of chord tiles with global play button, each tile click-plays one strum via `chordDiagramToEvents` + the shared `AudioEngine`. Global play button sequences through entire progression with faster tempo (180 BPM) and custom stagger. Uses `engine.on('playStarted')` to clear its own active-tile state when another consumer (card or rhythm) takes over the engine — same singleton-mutex UX as rhythm cards. Supports `interactive` and `compact` props. Blue hover theme to distinguish from regular chord cards. Tiles never link out (anti-rabbit-hole rule preserved).
+
+**Show pages**
+
+- **`Pages/Library/Chords/Show.vue`** — full implementation. Hero diagram via `ChordCard` (reuses the card's audio plumbing). Sibling voicings, theory/intervals panel, "Chord Progression Examples" section listing up to 4 progressions that contain a chord with this quality, each rendered as a `ChordProgressionViewer` with the current chord pinned at its slot.
+- **`Pages/Library/Rhythms/Show.vue`** — added "Used in songs" section. Existing blend slider + pattern visualization unchanged.
+- **`Pages/Library/Progressions/Show.vue`** — renders the progression as a `ChordProgressionViewer` resolved in key C; "Used in songs" was already present from Phase 5 (now using `songKey` per the field-naming normalization fix).
+- **`Pages/Library/Songs/Show.vue`** — promoted from stub to teaser: title/composer/key/tempo, mini rhythm preview (no audio), chord-name strip, detected progressions list, link to future `/library/songs/{slug}/viewer` (stub route until Phase 9).
+
+**Chord card audio**
+
+- **`Components/Library/ChordCard.vue`** — play button wired with `chordDiagramToEvents` + `engine.play()`. Local `isPlaying` ref; `playStarted` listener clears it when another consumer takes the engine. Includes a small SVG dot-ping animation during the arpeggio sweep (120ms per string).
+
+**Backend cross-reference queries**
+
+- `ChordLibraryController::show` — adds `progressions` (filtered by parsed numeral quality, not raw `LIKE`) and `songs` (via `sbn_voicing_usage`).
+- `RhythmLibraryController::show` — adds `songs` (via `sbn_leadsheets.rhythm`).
+- `SongLibraryController::show` — adds detected progressions and chord-name list.
+- `ProgressionLibraryController::show` — `tiles` resolved server-side via `HarmonicContext::buildFromNumerals` + `ProgressionBuilder::buildVoicings` (the richer voice-leading path) instead of `selectVoicingsForSequence`. Result is voice-led across the progression rather than picking each chord in isolation.
+
+**Engine + transposition fixes that landed during this phase**
+
+Several latent issues in adjacent code surfaced as soon as detail pages started rendering progressions:
+
+1. **Voicing pinning was silently dropped.** `ProgressionBuilder::buildVoicings`'s pinned-slot guard used `isset($selections[$pinnedSlot])`, which returns false on null entries. Replaced with a range check (`>= 0 && < $n`) so the pinned voicing actually lands in the selections array. Without this, the pinned-chord trick on the chord Show page was never taking effect — every progression silently rendered with default voicings.
+2. **Progression key was always C.** The chord-Show resolver originally built the harmonic context in key C and just slotted in the user's chord, producing collisions (Ebm7 pinned into a context where IIm7 was Dm7 and surrounding chords were G7/Cmaj7). Now the controller searches all 12 candidate keys and picks the one whose parsed slot resolves to a chord with the same root + quality as the pinned chord. Surrounding chords are then in the correct harmonic relationship (Ebm7 → key Db → Ab7, Dbmaj7).
+3. **Pinned diagram_data wasn't transposed.** The DB stores transposable shapes at their canonical root (e.g. Cm7 for the m7 shape); the controller was passing the raw stored diagram_data into the pinned voicing even when the user was viewing a transposed version. Now calls `ChordShapeCalculator::calculateFrets($chord, $pinnedRoot)` whenever the pinned root differs from the stored root, so the pinned tile shows the same exact frets as the hero diagram.
+4. **Hero diagram lost frets when ?root= was passed.** `serializeChord` read `$chord->diagram_data` directly without transposing, so the hero diagram showed the raw stored shape while the label said the transposed name. Same `calculateFrets` treatment applied — hero and pinned tile now agree.
+5. **Over-broad progression matching.** The original `ChordLibraryController::show` used `LIKE '%{$qualitySuffix}%'` which produced massive false positives (`'7'` matched every progression with any 7th chord). Replaced with parsed-quality membership: load all progressions, parse each via `HarmonicContext::buildFromNumerals('C', $numerals)`, keep ones whose parsed chord qualities include the target. Cheap at table scale (~50 progressions); cache via `Cache::remember` if it ever becomes a hotspot.
+6. **`song_key` vs `songKey` field-naming inconsistency.** `ProgressionLibraryController` was emitting `song_key` while every other Library controller used `songKey`. Normalized to `songKey` everywhere; updated `Progressions/Show.vue` accordingly.
+
+**Open follow-up the user resolved separately**
+
+- Fret-data display issue with voicings stored at convenient (non-canonical) fret positions — user solved this themselves; no further action needed in this phase.
+
+**Files touched**
+
+| File | Role |
+|------|------|
+| `resources/js/Components/Library/ChordProgressionViewer.vue` | New component |
+| `resources/js/Components/Library/ChordCard.vue` | Audio + dot-ping animation |
+| `resources/js/Pages/Library/Chords/Show.vue` | Full implementation |
+| `resources/js/Pages/Library/Rhythms/Show.vue` | + Songs section |
+| `resources/js/Pages/Library/Progressions/Show.vue` | + Preview, songKey rename |
+| `resources/js/Pages/Library/Songs/Show.vue` | Stub → teaser |
+| `app/Http/Controllers/Library/ChordLibraryController.php` | Cross-refs, parsed-quality progression filter, hero transposition |
+| `app/Http/Controllers/Library/ProgressionLibraryController.php` | Tile resolution, songKey rename |
+| `app/Http/Controllers/Library/RhythmLibraryController.php` | + Songs query |
+| `app/Http/Controllers/Library/SongLibraryController.php` | + Progressions + chord names |
+| `app/Services/ProgressionBuilder.php` | Pinned-slot guard fix |
+
+#### Scope follow-ups (NOT in this phase)
+
+- Key selector on progression Show — punt until someone asks.
+- Full progression playback with loop — leadsheet viewer (Phase 9) if ever.
+- Audio on Song Show — same.
+- Caching strategy for cross-reference queries — only if a profile shows a real hotspot.
+
+---
+
+### Phase 8 — Top10 Pages
+
+**Deliverable:** Top10 landing pages (bossa nova chords, chord progressions, best voicings, etc.) as pure composition of existing components.
 
 **Component inventory:**
-- **[NEW]** `Pages/Top10/[Slug].vue` (dynamic, one template per list type)
-- **[REUSE]** `ChordCard` (from Phase 3), `RhythmPattern` (from Phase 4). No new components beyond the page itself — this phase is pure composition.
+- **[NEW]** `Pages/Top10/[Slug].vue` (one template per list type)
+- **[REUSE]** `ChordCard`, `ChordProgressionViewer`
+- **[REUSE]** `PublicLayout`
 
 **Reference:** existing React implementation in WP. Read it for UX, rebuild in Vue; do not mechanically translate.
 
 **Legacy references:**
-- Existing React Top10 bundle (locate in WP plugin/theme — not in `sbn-course-player(legacywp)` directory; likely lives in main WP install). **TODO:** user to point to exact path before phase starts.
-- Any Top10 page templates in the legacy theme (none found under `flavor-starter/` — confirm location).
+- Existing React Top10 bundle (locate in WP plugin/theme). **TODO:** user to point to exact path before phase starts.
+
+---
+
+#### Implementation pattern (from Bossa Nova Chords migration)
+
+**Phase 8 refactoring (April 25, 2026)**
+
+Before implementing additional Top10 pages, the initial Bossa Nova Chords implementation was refactored to address two structural issues:
+
+**Issue A — Duplicate serializeChord with missing transposition**
+- Problem: `Top10Controller` carried its own copy of `serializeChord` forked from `ChordLibraryController` before Phase 7 fixes
+- Impact: Transposable shapes would silently render wrong frets (no `$rootOverride`, no `calculateFrets`)
+- Fix: Extracted `ChordSerializer` service with the Phase 7 version (includes transposition)
+- Both `Top10Controller` and `ChordLibraryController` now inject and use `ChordSerializer::serialize()`
+
+**Issue B — Hardcoded content in controller**
+- Problem: 190-line `$chordConfig` array hardcoded in controller method
+- Impact: Each new Top10 page would be another 200-line PHP addition, mixing content with code
+- Fix: Moved config to `config/top10/bossa-nova-chords.php`
+- Controller now loads via `require config_path('top10/bossa-nova-chords.php')`
+- Future Top10 pages will be new config files, not new controller methods
+
+**Additional fixes:**
+- Swapped internal `<a href>` to Inertia `<Link>` for SPA pattern (footer cross-links, related product links)
+- CSS extraction deferred until second Top10 page lands to identify genuinely shared patterns
+
+**Config loading note for next Top10 page:**
+Current implementation uses `require config_path('top10/bossa-nova-chords.php')`. For consistency with Laravel conventions, consider switching to `config('top10.bossa-nova-chords')` for the next Top10 page. Laravel auto-loads everything under `config/` by directory + filename, so this works with no additional wiring and enables `php artisan config:cache` to pre-compile the file if ever needed.
+
+---
+
+**1. Controller setup (Top10Controller.php)**
+
+```php
+public function __construct(
+    private ChordSerializer $chordSerializer
+) {}
+
+public function bossaNovaChords()
+{
+    $chordConfig = require config_path('top10/bossa-nova-chords.php');
+    // OR for Laravel config caching (next page): config('top10.bossa-nova-chords');
+
+    $allSlugs = array_keys($chordConfig);
+    $allProgressionSlugs = collect($chordConfig)->flatMap(fn ($c) => $c['progressionSlugs'])->unique()->toArray();
+    $allRequiredSlugs = array_unique(array_merge($allSlugs, $allProgressionSlugs));
+
+    $chords = ChordDiagram::whereIn('slug', $allRequiredSlugs)
+        ->get()
+        ->map(fn ($c) => $this->chordSerializer->serialize($c))
+        ->keyBy('slug');
+
+    $top10Data = collect($chordConfig)->map(function ($config, $slug) use ($chords) {
+        $progressionTiles = collect($config['progressionSlugs'])->map(function ($progressionSlug) use ($chords) {
+            $tileData = $chords[$progressionSlug] ?? null;
+            return [
+                'chordName' => $tileData['name'] ?? $progressionSlug,
+                'diagramData' => $tileData,
+            ];
+        })->toArray();
+
+        return array_merge($config, [
+            'id' => null, // Assigned by Vue
+            'slug' => $slug,
+            'voicingData' => $chords[$slug] ?? null,
+            'progressionTiles' => $progressionTiles,
+        ]);
+    })->values()->toArray();
+
+    return Inertia::render('Top10/BossaNovaChords', [
+        'top10Data' => $top10Data,
+    ]);
+}
+```
+
+**Config file structure (config/top10/bossa-nova-chords.php):**
+
+```php
+return [
+    'chord-slug' => [
+        'title' => 'The Major 6/9 Chord',
+        'shortTitle' => 'Major 6/9',
+        'chordName' => 'Db6/9/Ab',  // Full legacy chord name for nav
+        'image' => '/images/top10/bossa-chords/1.jpg',
+        'description' => '...',
+        'voicingCaption' => '...',
+        'progressionName' => 'Trademark Progression',
+        'progressionCaption' => '...',
+        'progressionSlugs' => ['slug1', 'slug2', ...],
+        'relatedProducts' => [
+            [
+                'title' => 'Product Name',
+                'description' => '...',
+                'url' => '/shop/product/...',
+                'type' => 'product',
+            ],
+        ],
+    ],
+    // ... 10 items total
+];
+```
+
+**Key points:**
+- Use actual `ChordDiagram` slugs for voicings and progression tiles
+- Serialize chords via `ChordSerializer` service (shared with ChordLibraryController)
+- Content lives in config files, not controller methods
+- Include `relatedProducts` array for each chord
+- Pass `top10Data` to Vue via Inertia
+
+**2. Vue component structure (BossaNovaChords.vue)**
+
+```typescript
+interface Top10Chord {
+    id: number;
+    title: string;          // Full title for detail view
+    shortTitle: string;    // Short title for alt text
+    chordName: string;      // Legacy chord name (optional, for nav if needed)
+    image: string;
+    description: string;
+    slug: string;
+}
+
+interface Top10ChordWithDetail extends Top10Chord {
+    voicingData: ChordDiagramData | null;
+    progressionTiles: Array<{ chordName: string; diagramData: ChordDiagramData | null }>;
+    voicingCaption: string;
+    progressionName: string;
+    progressionCaption: string;
+    relatedProducts: RelatedProduct[];
+}
+
+interface RelatedProduct {
+    title: string;
+    description: string;
+    url: string;
+    type: string;  // 'product' or 'course'
+}
+
+const props = defineProps<{
+    top10Data: Top10DataItem[];
+}>();
+
+const chords = ref<Top10ChordWithDetail[]>([]);
+const selectedChord = ref<Top10ChordWithDetail | null>(null);
+
+function loadChords() {
+    chords.value = props.top10Data.map((item, index) => ({
+        id: index + 1,
+        title: item.title,
+        shortTitle: item.shortTitle,
+        chordName: item.chordName,
+        image: item.image,
+        description: item.description,
+        slug: item.slug,
+        voicingData: item.voicingData,
+        progressionTiles: item.progressionTiles,
+        voicingCaption: item.voicingCaption,
+        progressionName: item.progressionName,
+        progressionCaption: item.progressionCaption,
+        relatedProducts: item.relatedProducts,
+    }));
+    selectedChord.value = chords.value[0] || null;
+}
+```
+
+**3. Template structure**
+
+```vue
+<template>
+    <div class="sbn-top10-page">
+        <!-- Mobile Navigation -->
+        <div class="sbn-top10-nav-mobile">
+            <div class="sbn-nav-scroll">
+                <button
+                    v-for="chord in chords"
+                    :key="chord.id"
+                    @click="selectChord(chord)"
+                    class="sbn-nav-thumb"
+                    :class="{ 'sbn-nav-thumb--active': selectedChord?.id === chord.id }"
+                >
+                    <div class="sbn-nav-thumb-image">
+                        <img :src="chord.image" :alt="chord.shortTitle" />
+                        <div class="sbn-nav-thumb-number">{{ chord.id }}</div>
+                    </div>
+                    <div class="sbn-nav-thumb-title">{{ chord.title }}</div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Desktop Navigation -->
+        <div class="sbn-top10-nav-desktop">
+            <button
+                v-for="chord in chords"
+                :key="chord.id"
+                @click="selectChord(chord)"
+                class="sbn-nav-card"
+                :class="{ 'sbn-nav-card--active': selectedChord?.id === chord.id }"
+            >
+                <div class="sbn-nav-card-image">
+                    <img :src="chord.image" :alt="chord.shortTitle" />
+                    <div class="sbn-nav-card-number">{{ chord.id }}</div>
+                </div>
+                <div class="sbn-nav-card-title">{{ chord.title }}</div>
+            </button>
+        </div>
+
+        <!-- Detail View -->
+        <div v-if="selectedChord" class="sbn-top10-detail">
+            <div class="sbn-detail-header">
+                <span class="sbn-detail-badge">CHORD #{{ selectedChord.id }}</span>
+                <h1 class="sbn-detail-title">{{ selectedChord.title }}</h1>
+                <p class="sbn-detail-description">{{ selectedChord.description }}</p>
+            </div>
+
+            <!-- Panels Grid (side-by-side on desktop) -->
+            <div class="sbn-panels-grid">
+                <div v-if="selectedChord.voicingData" class="sbn-panel">
+                    <h3 class="sbn-panel-title">Chord Voicing</h3>
+                    <div class="sbn-panel-content">
+                        <ChordCard :chord="selectedChord.voicingData" :show-root="true" />
+                        <p class="sbn-panel-caption">{{ selectedChord.voicingCaption }}</p>
+                    </div>
+                </div>
+
+                <div class="sbn-panel">
+                    <h3 class="sbn-panel-title">{{ selectedChord.progressionName }}</h3>
+                    <div class="sbn-panel-content">
+                        <ChordProgressionViewer
+                            :tiles="selectedChord.progressionTiles.map(t => ({ chordName: t.chordName, diagramData: t.diagramData }))"
+                            :interactive="true"
+                        />
+                        <p class="sbn-panel-caption">{{ selectedChord.progressionCaption }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Buttons -->
+            <div class="sbn-detail-nav">
+                <button @click="prevChord" class="sbn-nav-btn">← Previous</button>
+                <button @click="nextChord" class="sbn-nav-btn">Next →</button>
+            </div>
+
+            <!-- Related Products -->
+            <div v-if="selectedChord.relatedProducts && selectedChord.relatedProducts.length > 0" class="sbn-related-products">
+                <h3 class="sbn-related-title">Related Products & Courses</h3>
+                <div class="sbn-related-list">
+                    <Link
+                        v-for="(product, index) in selectedChord.relatedProducts"
+                        :key="index"
+                        :href="product.url"
+                        class="sbn-card-link sbn-related-item"
+                    >
+                        <div class="sbn-related-content">
+                            <div class="sbn-related-header">
+                                <span class="sbn-related-badge" :class="`sbn-related-badge--${product.type}`">{{ product.type }}</span>
+                            </div>
+                            <h4 class="sbn-related-name">{{ product.title }}</h4>
+                            <p class="sbn-related-desc">{{ product.description }}</p>
+                        </div>
+                        <div class="sbn-related-arrow">→</div>
+                    </Link>
+                </div>
+            </div>
+
+            <!-- Footer Links -->
+            <div class="sbn-footer-links">
+                <Link href="/top10/bossa-nova-chords" class="sbn-footer-link">Top10 Bossa Nova Chords</Link>
+                <span class="sbn-footer-separator">•</span>
+                <Link href="/top10/latin-jazz-standards" class="sbn-footer-link sbn-footer-link--active">Top10 Latin Jazz Standards</Link>
+                <span class="sbn-footer-separator">•</span>
+                <Link href="/top10/bossa-nova-songs" class="sbn-footer-link">Top10 Bossa Nova Songs</Link>
+            </div>
+        </div>
+    </div>
+</template>
+```
+
+**4. Styling approach**
+
+**Design system additions (sbn-design-system.css):**
+```css
+/* Content panel — gray background box for grouped content */
+.sbn-panel {
+    background:    var(--clr-surface-2);
+    border:        1px solid var(--clr-border);
+    border-radius: var(--radius);
+    padding:       20px;
+}
+
+/* Card link — clickable card with hover effect (for related products, etc.) */
+.sbn-card-link {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    padding:         16px;
+    background:      var(--clr-surface-2);
+    border:          1px solid var(--clr-border);
+    border-radius:   var(--radius);
+    text-decoration: none;
+    transition:      all 0.2s var(--ease);
+}
+
+.sbn-card-link:hover {
+    background:   var(--clr-surface-3);
+    border-color: var(--clr-accent);
+}
+```
+
+**Scoped styles in Vue (Top10-specific only):**
+- Navigation layout (mobile scroll, desktop grid)
+- Nav thumb/card sizing (100px mobile, 140px desktop)
+- Nav number badges (grey for non-selected, accent for selected)
+- Panels grid layout (3fr 7fr split on desktop)
+- Panel content layout (flex column, centered)
+- Detail view typography
+- Navigation buttons (gradient, hover effects)
+- Related products layout
+- Footer links layout
+
+**Use design system variables for:**
+- Colors: `var(--clr-surface-2)`, `var(--clr-border)`, `var(--clr-accent)`, `var(--clr-text)`, `var(--clr-text-muted)`
+- Spacing: `var(--radius)`, `var(--radius-sm)`
+- Gradients: `var(--clr-gradient)`
+
+**5. Component reuse**
+- `ChordCard` - for voicing display with `show-root` prop
+- `ChordProgressionViewer` - for progression tiles with `interactive` prop
+- `PublicLayout` - wraps the page with header, footer, mega menu
+
+**6. Route setup (web.php)**
+```php
+Route::get('/top10/bossa-nova-chords', [Top10Controller::class, 'bossaNovaChords'])
+    ->name('top10.bossa-nova-chords');
+```
 
 **Done:**
 - At least one Top10 page live and indexable.
-- SEO meta (title, description, og tags) handled via Inertia head manager.
+- SEO meta (title, description, og tags) via Inertia head manager.
 - Parity with WP React version for interactive behavior.
+- Styling centralized in design system + Top10-specific scoped styles.
+- Navigation works (mobile scroll, desktop grid, prev/next buttons).
+- Related products section displays.
+- Footer links section displays.
 
 ---
 
-### Phase 6 — Chord Progression Library
+### Phase 9 — Leadsheet Viewer (Classic View)
 
-**Deliverable:** Browse + detail pages for chord progressions, reusing chord diagram component.
-
-**Component inventory:**
-- **[NEW]** `Pages/Library/Progressions/Index.vue`
-- **[NEW]** `Pages/Library/Progressions/Show.vue`
-- **[NEW]** `Components/ChordProgressionBlock.vue` — consumer-facing playback component (sequence of ChordCards with timing). Admin progression *builder* exists separately; this is the public view.
-- **[REUSE]** `ChordCard` (from Phase 3)
-- **[REUSE]** `chordProgressionToEvents` adapter + `useAudioEngine` for playback
-
-**Legacy references:**
-- `sbn-course-player(legacywp)/inc/chord-progressions/` — progression data model + renderer
-- `sbn-course-player(legacywp)/inc/progression-library.php` — library page template
-- `sbn-course-player(legacywp)/inc/progression-builder.php` — builder UI (admin-side reference only; builder itself stays in Laravel admin)
-- `sbn-course-player(legacywp)/assets/css/progression-library.css` — library styles
-- `sbn-course-player(legacywp)/assets/css/progression-builder.css` — builder styles
-- `sbn-course-player(legacywp)/assets/js/progression-library.js` — library interactions
-- `sbn-course-player(legacywp)/inc/voicing-crossref/` — voicing cross-reference (if used on progression pages)
-
-**Done:**
-- Progressions playable with audio.
-- Filtering by key / style / difficulty works.
-
----
-
-### Phase 7 — Leadsheet Viewer (Classic View) + Song Library
-
-**Deliverable:** Song library browse page + leadsheet classic view (old layout, new context/edu panel in sidebar).
+**Deliverable:** Public leadsheet classic view (old layout, new context/edu panel in sidebar). The song browse page is already in place from Phase 6 — this phase wires up what a Song card's click-target renders.
 
 **Component inventory:**
-- **[NEW]** `Pages/Library/Songs/Index.vue` — song library browse page
 - **[NEW]** `Pages/Leadsheet/Classic.vue` — public-facing wrapper page
 - **[REUSE/CONVERT]** `ChordMeasure.vue`, `ChordGridView.vue`, `ChordSection.vue` — chord grid rendering
 - **[REUSE/CONVERT]** `TabMeasure.vue`, `TabCursor.vue` — tab rendering (if song has tab)
@@ -331,37 +1363,86 @@ Component inventory entries are tagged:
 - **[REUSE]** `useTabModel`, `useReflow`, `useChordGridOps`, `useCursor`, `useSelection` composables
 - **[REUSE]** full `AudioEngine` stack
 - **[NEW]** `Components/Leadsheet/EduPanel.vue` — teaching-content sidebar; replaces old context panel
-- **[NEW]** View toggle UI (placeholder link to cinema view, disabled until Phase 8)
+- **[NEW]** View toggle UI (placeholder link to cinema view, disabled until Phase 10)
 
 **Note:** the heavy Vue work already exists from the tab editor. This phase is mostly wrapping those components in a public-facing page + building the new `EduPanel`.
 
 **Legacy references:**
 - `sbn-course-player(legacywp)/inc/leadsheet/` — leadsheet renderer + core logic
 - `sbn-course-player(legacywp)/inc/song-page.php` — song page template
-- `sbn-course-player(legacywp)/inc/song-library-handler.php` — song library data handling
 - `sbn-course-player(legacywp)/inc/sheet-players.php` — embedded player logic
 - `sbn-course-player(legacywp)/inc/chord-grid.php` — chord grid (context panel source)
 - `sbn-course-player(legacywp)/inc/alphatex-shortcode.php` — alphaTex notation (if reused)
-- `sbn-course-player(legacywp)/flavor-starter/flavor-starter/page-song-library.php` — song library page template
 - `sbn-course-player(legacywp)/flavor-starter/flavor-starter/page-repertoire.php` — repertoire page template
 - `sbn-course-player(legacywp)/flavor-starter/flavor-starter/repertoire-quiz.php` — repertoire quiz (defer to later phase if not essential)
 - `sbn-course-player(legacywp)/assets/css/leadsheet.css` — leadsheet styles
-- `sbn-course-player(legacywp)/assets/css/song-library.css` — library styles
 - `sbn-course-player(legacywp)/assets/css/song-page.css` — song page styles
 - `sbn-course-player(legacywp)/assets/css/sheet-player.css` — player styles
 - `sbn-course-player(legacywp)/assets/js/leadsheet.js` — leadsheet interactions
-- `sbn-course-player(legacywp)/assets/js/sheet-player.js` — player interactions
-- `sbn-course-player(legacywp)/assets/js/song-library.js` — library interactions
+- `sbn-course-player(legacywp)/assets/js/sheet-player.js` — sheet player interactions
+
+**Leadsheet JSON data structure** — the contract between the admin editor and the public viewer:
+
+```json
+{
+  "title": "string",
+  "composer": "string",
+  "key": "C",
+  "tempo": 120,
+  "timeSignature": "4/4",
+  "melody": "...MusicXML string...",
+  "sections": [
+    {
+      "id": "section-uuid",
+      "name": "A",
+      "lineBreaks": [4, 8],
+      "measures": [
+        {
+          "index": 0,
+          "chordNames": ["Cmaj7", "Am7"],
+          "chordOffsets": [0, 2],
+          "chordBeats": [2, 2],
+          "repeatStart": false,
+          "repeatEnd": false,
+          "volta": null
+        }
+      ]
+    }
+  ],
+  "chordVoicings": {
+    "Cmaj7@0.0": { "frets": "x32000", "fingers": "...", "position": 0 }
+  },
+  "repeatMarkers": [],
+  "voltaEndings": [],
+  "videoSync": {
+    "videoId": "...",
+    "videoType": "youtube",
+    "audioSource": "synth",
+    "mappings": [{ "measureIndex": 0, "videoTime": 4.5 }]
+  }
+}
+```
+
+Field notes:
+- `chordOffsets[i]` — beat offset of chord i from measure start (quarter beats, 0-based)
+- `chordBeats[i]` — duration in quarter beats; parallel array with `chordNames`
+- `chordVoicings` keys: `"chordName@globalMeasureIndex.chordIndex"`
+- `videoSync.audioSource` — `'synth'` or `'video'`; determines which clock drives playback
+- `melody` — full MusicXML string; null if no tab data entered
+
+**Note on Alpine chord grid (for public viewer):** The original fully-featured Alpine grid (drag-to-reorder, context menu, voicing picker) exists intact in commit `dd1c739`. The old shape used `chord.name`/`chord.beats` objects per measure; current `json_data` uses parallel `chordNames[]`/`chordOffsets[]`/`chordBeats[]` arrays. Build the public viewer against the **current shape**.
+
+**CSS extraction needed before Phase 9:** Tab SVG classes (`.sbn-tab-note-text`, `.sbn-tab-metronome-col`, `.sbn-beat-active`, etc.) currently live in `leadsheets.css` (admin-only). Move them to `sbn-design-system.css` before Phase 9 so the public viewer can use them without importing admin CSS.
 
 **Done:**
 - Existing songs render correctly.
 - Edu panel surfaces contextual teaching content (chord theory, rhythm notes) tied to current selection.
 - Audio playback works.
-- View toggle placeholder present (disabled until Phase 8).
+- View toggle placeholder present (disabled until Phase 10).
 
 ---
 
-### Phase 8 — Leadsheet Cinema View
+### Phase 10 — Leadsheet Cinema View
 
 **Deliverable:** Alternate leadsheet layout optimized for video-sync learning. Full reload on toggle between classic and cinema is acceptable.
 
@@ -374,7 +1455,7 @@ Component inventory entries are tagged:
 - **[NEW]** Any additional layout components required by the exported design (e.g. `SyncedChordStrip`)
 
 **Legacy references:**
-- No direct WP equivalent — cinema view is a new design. Reuse Phase 7 leadsheet components; video sync machinery comes from the Laravel Phase D work, not from the legacy theme.
+- No direct WP equivalent — cinema view is a new design. Reuse Phase 9 leadsheet components; video sync machinery comes from the Laravel Phase D work, not from the legacy theme.
 
 **Done:**
 - Cinema view renders with video primary, chord/melody secondary.
@@ -383,7 +1464,7 @@ Component inventory entries are tagged:
 
 ---
 
-### Phase 9 — Course Player
+### Phase 11 — Course Player
 
 **Deliverable:** Course viewer with lesson navigation, video lessons, embedded leadsheets, progress tracking.
 
@@ -393,7 +1474,7 @@ Component inventory entries are tagged:
 - **[NEW]** `Pages/Courses/Lesson.vue` (single lesson player)
 - **[NEW]** `Components/Course/LessonSidebar.vue`
 - **[NEW]** `Components/Course/ProgressBar.vue`
-- **[REUSE]** leadsheet classic + cinema views (from 7, 8)
+- **[REUSE]** leadsheet classic + cinema views (from 9, 10)
 - **[REUSE]** full audio/video machinery
 - **[CONVERT]** by end of this phase, all remaining JS components should be TS
 
@@ -410,11 +1491,11 @@ Component inventory entries are tagged:
 - Full course flow: catalog → course → lesson → next lesson.
 - Progress persists per user.
 - Embedded leadsheets render inside lessons.
-- Auth-gated (redirects guests to signup) — stubbed gate acceptable if Phase 10 not done yet.
+- Auth-gated (redirects guests to signup) — stubbed gate acceptable if Phase 12 not done yet.
 
 ---
 
-### Phase 10 — Auth + Payments
+### Phase 12 — Auth + Payments
 
 **Deliverable:** Real auth flows (login, signup, password reset), Stripe wired to shop and course purchases, course access gated by ownership.
 
@@ -499,10 +1580,10 @@ Each phase is one or more AI sessions. For each handoff:
 | TypeScript friction with existing JS Vue components | Port components to TS as they land in their new phase. Don't bulk-migrate existing code; rewrite in-place during each phase. |
 | Chord/rhythm components diverge between phases | Define TS prop types once (Phase 3, 4) and import everywhere. No local re-definitions. |
 | Audio engine coupling across phases | Keep current audio adapters; expose via composables (`useChordAudio`, `useRhythmAudio`). Do not rewrite audio layer during frontend migration. |
-| Cinema view spec missing until Phase 8 | Placeholder noted; do not start Phase 8 until design exported from Claude design app. |
+| Cinema view spec missing until Phase 10 | Placeholder noted; do not start Phase 10 until design exported from Claude design app. |
 | Admin accidentally migrated | Scope discipline: Inertia pages live only under `resources/js/Pages/`. Admin routes continue to return Blade views. |
 | SEO regression on Top10 (high-traffic pages) | Inertia head manager for meta tags; validate with crawler before DNS cutover. Consider SSR if needed (Phase 5 decision). |
-| Stripe/auth rework at end blocking launch | Stubs earlier let us ship internally without real payments. Phase 10 is strictly about wiring, not UX design. |
+| Stripe/auth rework at end blocking launch | Stubs earlier let us ship internally without real payments. Phase 12 is strictly about wiring, not UX design. |
 | Silent design drift from legacy | Section 4 policy: read listed legacy files before each phase, spot-check visually at end, document intentional deviations. |
 | Missing legacy references (e.g. Top10 React source) | Flagged per-phase as **TODO**; user to point to exact paths before that phase starts. |
 | Rhythm pattern renderer is the real unknown | Phase 4 budgets time for it explicitly; it is the biggest single new-component effort. Reference legacy `inc/rhythm-patterns/` + `sbn-percussion.js` for visual intent. |

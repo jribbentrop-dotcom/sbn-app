@@ -221,12 +221,11 @@
     border: 1px solid var(--clr-border);
     border-radius: var(--radius);
     padding: 14px;
-    transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+    transition: border-color 0.2s var(--ease);
 }
 
 .sbn-draft-card:hover {
     border-color: var(--clr-accent-border);
-    box-shadow: var(--clr-shadow-sm);
 }
 
 .sbn-draft-card-header {

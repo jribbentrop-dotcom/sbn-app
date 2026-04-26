@@ -15,6 +15,10 @@ use App\Http\Controllers\Shop\DownloadController;
 use App\Http\Controllers\Shop\OrderController;
 use App\Http\Controllers\Shop\ShopController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
+use App\Http\Controllers\Library\ChordLibraryController;
+use App\Http\Controllers\Library\RhythmLibraryController;
+use App\Http\Controllers\Library\ProgressionLibraryController;
+use App\Http\Controllers\Library\SongLibraryController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -125,6 +129,23 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
 | Public Shop
 |--------------------------------------------------------------------------
 */
+// Public library routes
+Route::get('/library/chords', [ChordLibraryController::class, 'index'])->name('library.chords.index');
+Route::get('/library/chords/search', [ChordLibraryController::class, 'search'])->name('library.chords.search');
+Route::get('/library/chords/{slug}', [ChordLibraryController::class, 'show'])->name('library.chords.show');
+
+Route::get('/library/rhythms', [RhythmLibraryController::class, 'index'])->name('library.rhythms.index');
+Route::get('/library/rhythms/{slug}', [RhythmLibraryController::class, 'show'])->name('library.rhythms.show');
+
+Route::get('/library/progressions', [ProgressionLibraryController::class, 'index'])->name('library.progressions.index');
+Route::get('/library/progressions/{slug}', [ProgressionLibraryController::class, 'show'])->name('library.progressions.show');
+
+Route::get('/library/songs', [SongLibraryController::class, 'index'])->name('library.songs.index');
+Route::get('/library/songs/{leadsheet:slug}', [SongLibraryController::class, 'show'])->name('library.songs.show');
+
+Route::get('/top10/bossa-nova-chords', [\App\Http\Controllers\Top10Controller::class, 'bossaNovaChords'])
+    ->name('top10.bossa-nova-chords');
+
 Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
 Route::get('/shop/category/{slug}', [ShopController::class, 'category'])->name('shop.category');
 Route::get('/shop/product/{slug}', [ShopController::class, 'show'])->name('shop.show');

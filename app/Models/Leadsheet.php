@@ -17,6 +17,7 @@ class Leadsheet extends Model
      */
     protected $fillable = [
         'title',
+        'slug',
         'composer',
         'song_key',
         'tempo',

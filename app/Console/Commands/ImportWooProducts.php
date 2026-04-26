@@ -195,12 +195,20 @@ class ImportWooProducts extends Command
         $attributes = [];
         $notation = $this->getPostMeta($item, $wp, 'pa_notation');
         $pages = $this->getPostMeta($item, $wp, 'pa_pages');
+        $composer = $this->getPostMeta($item, $wp, 'pa_composer');
+        $performer = $this->getPostMeta($item, $wp, 'pa_performer');
 
         if ($notation) {
             $attributes['notation'] = explode('|', $notation);
         }
         if ($pages) {
             $attributes['pages'] = $pages;
+        }
+        if ($composer) {
+            $attributes['composer'] = explode('|', $composer);
+        }
+        if ($performer) {
+            $attributes['performer'] = explode('|', $performer);
         }
 
         // Get SEO description if available (Yoast or similar)
