@@ -2521,6 +2521,7 @@
     margin-bottom: 16px;
     font-size: 14px;
     transition: color 0.15s;
+    white-space: nowrap;
 }
 
 .sbn-back-link:hover {
