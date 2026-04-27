@@ -27,7 +27,7 @@
     <div class="sbn-edu-section">
       <h4 class="sbn-edu-section-title">Current Chord</h4>
       <div v-if="activeCard" class="sbn-edu-chord-detail">
-        <a :href="`/library/chords/${activeCard.slug}`" class="sbn-edu-chord-card-link">
+        <a :href="`/library/chords/${activeCard.slug}?root=${chordRoot}`" class="sbn-edu-chord-card-link">
           <LibraryChordCard :chord="activeCard" :show-root="true" />
         </a>
 
@@ -39,7 +39,7 @@
         <!-- Link to chord library -->
         <div v-if="activeCard.slug" class="sbn-edu-chord-actions">
           <a
-            :href="`/library/chords/${activeCard.slug}`"
+            :href="`/library/chords/${activeCard.slug}?root=${chordRoot}`"
             class="sbn-edu-link"
           >
             View in chord library →
@@ -48,7 +48,7 @@
       </div>
       <div v-else-if="currentChord" class="sbn-edu-chord-detail">
         <!-- Fallback when no voicing data available -->
-        <a :href="`/library/chords/${chordSlug}`" class="sbn-edu-chord-card-link">
+        <a :href="`/library/chords/${chordSlug}?root=${chordRoot}`" class="sbn-edu-chord-card-link">
           <div class="sbn-edu-chord-name">
             <span class="sbn-chord-symbol" v-html="formatChordHtml(currentChord)"></span>
           </div>
@@ -58,7 +58,7 @@
         </div>
         <div class="sbn-edu-chord-actions">
           <a
-            :href="`/library/chords/${chordSlug}`"
+            :href="`/library/chords/${chordSlug}?root=${chordRoot}`"
             class="sbn-edu-link"
           >
             View in chord library →
@@ -189,6 +189,17 @@ const chordSlug = computed(() => {
     .replace(/[^a-z0-9]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
+});
+
+const chordRoot = computed(() => {
+  const name = props.currentChord || (activeCard.value ? activeCard.value.name : '');
+  if (!name) return '';
+  const roots2 = ['C#', 'Db', 'D#', 'Eb', 'F#', 'Gb', 'G#', 'Ab', 'A#', 'Bb'];
+  if (name.length >= 2) {
+    const r2 = name.substring(0, 2);
+    if (roots2.includes(r2)) return r2;
+  }
+  return name.substring(0, 1);
 });
 
 // True only when section-level filtering is actually being applied.
