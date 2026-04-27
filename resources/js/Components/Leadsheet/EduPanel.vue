@@ -27,7 +27,7 @@
     <div class="sbn-edu-section">
       <h4 class="sbn-edu-section-title">Current Chord</h4>
       <div v-if="activeCard" class="sbn-edu-chord-detail">
-        <a :href="`/library/chords/${activeCard.slug}?root=${chordRoot}`" class="sbn-edu-chord-card-link">
+        <a :href="chordDetailUrl" class="sbn-edu-chord-card-link">
           <LibraryChordCard :chord="activeCard" :show-root="true" />
         </a>
 
@@ -39,7 +39,7 @@
         <!-- Link to chord library -->
         <div v-if="activeCard.slug" class="sbn-edu-chord-actions">
           <a
-            :href="`/library/chords/${activeCard.slug}?root=${chordRoot}`"
+            :href="chordDetailUrl"
             class="sbn-edu-link"
           >
             View in chord library →
@@ -48,7 +48,7 @@
       </div>
       <div v-else-if="currentChord" class="sbn-edu-chord-detail">
         <!-- Fallback when no voicing data available -->
-        <a :href="`/library/chords/${chordSlug}?root=${chordRoot}`" class="sbn-edu-chord-card-link">
+        <a :href="chordDetailUrl" class="sbn-edu-chord-card-link">
           <div class="sbn-edu-chord-name">
             <span class="sbn-chord-symbol" v-html="formatChordHtml(currentChord)"></span>
           </div>
@@ -58,7 +58,7 @@
         </div>
         <div class="sbn-edu-chord-actions">
           <a
-            :href="`/library/chords/${chordSlug}?root=${chordRoot}`"
+            :href="chordDetailUrl"
             class="sbn-edu-link"
           >
             View in chord library →
@@ -200,6 +200,14 @@ const chordRoot = computed(() => {
     if (roots2.includes(r2)) return r2;
   }
   return name.substring(0, 1);
+});
+
+const chordDetailUrl = computed(() => {
+  const root = encodeURIComponent(chordRoot.value);
+  if (activeCard.value && activeCard.value.slug) {
+    return `/library/chords/${activeCard.value.slug}?root=${root}`;
+  }
+  return `/library/chords/${chordSlug.value}?root=${root}`;
 });
 
 // True only when section-level filtering is actually being applied.
