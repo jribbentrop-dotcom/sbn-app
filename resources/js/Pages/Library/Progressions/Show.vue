@@ -98,12 +98,7 @@ function getTonalityClass(tonality: string): string {
         <div class="sbn-prog-detail-container">
             <!-- Header -->
             <header class="sbn-prog-detail-header">
-                <Link href="/library/progressions" class="sbn-back-link">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M10 3L3 8l7 5V3z" fill="currentColor"/>
-                    </svg>
-                    Back to Progressions
-                </Link>
+                <Link href="/library/progressions" class="sbn-back-link"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L3 8l7 5V3z" fill="currentColor"/></svg><span>Back to Progressions</span></Link>
                 <h1 class="sbn-prog-detail-title">{{ progression.name }}</h1>
                 <p class="sbn-prog-detail-subtitle">
                     {{ categoryLabel }} chord progression

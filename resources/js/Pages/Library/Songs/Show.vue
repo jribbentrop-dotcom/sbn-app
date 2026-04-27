@@ -53,12 +53,7 @@ const categoryLabels: Record<string, string> = {
 
     <!-- Back Link -->
     <div style="margin-bottom: 24px;">
-      <Link href="/library/songs" class="sbn-back-link">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M10 3L3 8l7 5V3z" fill="currentColor"/>
-        </svg>
-        Back to Library
-      </Link>
+      <Link href="/library/songs" class="sbn-back-link"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L3 8l7 5V3z" fill="currentColor"/></svg><span>Back to Library</span></Link>
     </div>
 
     <!-- Header card -->

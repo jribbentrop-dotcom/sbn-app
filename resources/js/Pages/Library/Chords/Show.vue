@@ -161,12 +161,7 @@ function getChords(prog: ProgressionRef): ProgressionChord[] {
 
         <!-- Back Link -->
         <div style="margin-bottom: 24px;">
-          <Link href="/library/chords" class="sbn-back-link">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M10 3L3 8l7 5V3z" fill="currentColor"/>
-            </svg>
-            Back to Chord Library
-          </Link>
+          <Link href="/library/chords" class="sbn-back-link"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L3 8l7 5V3z" fill="currentColor"/></svg><span>Back to Chord Library</span></Link>
         </div>
 
         <!-- ════ IDENTITY PANEL ════ -->
