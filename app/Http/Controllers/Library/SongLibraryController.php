@@ -161,6 +161,8 @@ class SongLibraryController extends Controller
                 'numeralsDisplay'=> $p->numerals_display,
             ]);
 
+        $chordNames = $leadsheet->getChordNames();
+
         return Inertia::render('Library/Songs/Show', [
             'song' => [
                 'id'            => $leadsheet->id,
