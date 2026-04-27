@@ -27,8 +27,9 @@
     <div class="sbn-edu-section">
       <h4 class="sbn-edu-section-title">Current Chord</h4>
       <div v-if="activeCard" class="sbn-edu-chord-detail">
-        <!-- Full chord card from library -->
-        <LibraryChordCard :chord="activeCard" :show-root="true" />
+        <a :href="`/library/chords/${activeCard.slug}`" class="sbn-edu-chord-card-link">
+          <LibraryChordCard :chord="activeCard" :show-root="true" />
+        </a>
 
         <!-- Chord quality blurb (Step 6 replaces with edu content service) -->
         <div v-if="chordQualityInfo" class="sbn-edu-chord-blurb">
@@ -47,9 +48,11 @@
       </div>
       <div v-else-if="currentChord" class="sbn-edu-chord-detail">
         <!-- Fallback when no voicing data available -->
-        <div class="sbn-edu-chord-name">
-          <span class="sbn-chord-symbol" v-html="formatChordHtml(currentChord)"></span>
-        </div>
+        <a :href="`/library/chords/${chordSlug}`" class="sbn-edu-chord-card-link">
+          <div class="sbn-edu-chord-name">
+            <span class="sbn-chord-symbol" v-html="formatChordHtml(currentChord)"></span>
+          </div>
+        </a>
         <div v-if="chordQualityInfo" class="sbn-edu-chord-blurb">
           <p>{{ chordQualityInfo.blurb }}</p>
         </div>
@@ -279,6 +282,17 @@ const filteredProgressions = computed(() => {
 }
 
 /* Chord detail */
+.sbn-edu-chord-card-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: transform 0.2s var(--ease, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.sbn-edu-chord-card-link:hover {
+  transform: translateY(-2px);
+}
+
 .sbn-edu-chord-detail {
   display: flex;
   flex-direction: column;
