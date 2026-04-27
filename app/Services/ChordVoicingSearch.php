@@ -355,6 +355,7 @@ class ChordVoicingSearch
 
             $results[] = [
                 'id'               => $shape->id,
+                'slug'             => $shape->slug ?? '',
                 'name'             => $chordName,
                 'root_note'        => $root,
                 'original_root'    => $shape->root_note,
@@ -499,6 +500,7 @@ class ChordVoicingSearch
 
             $results[] = [
                 'id'               => $shape->id,
+                'slug'             => $shape->slug ?? '',
                 'name'             => $chordName,
                 'root_note'        => $root,
                 'original_root'    => $shape->root_note,

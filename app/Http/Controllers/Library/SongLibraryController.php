@@ -137,7 +137,7 @@ class SongLibraryController extends Controller
                 $uniqueChords[$chordName] = $best;
             } else {
                 $card = $this->synthesizeMinimalCard($chordName, $voicing, $search);
-                if (!empty($matches)) {
+                if (!empty($matches) && isset($matches[0]['slug'])) {
                     $card['slug'] = $matches[0]['slug'];
                 } else {
                     $card['slug'] = \App\Models\ChordDiagram::where('quality', $card['quality'])->first()?->slug ?? '';
