@@ -5,6 +5,7 @@ import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { getCategoryStyle } from '@/composables/useCategoryColors';
 
 import ChordCard from '@/Components/Library/ChordCard.vue';
+import RhythmPattern from '@/Components/Library/RhythmPattern.vue';
 
 defineOptions({ layout: PublicLayout });
 
@@ -23,6 +24,7 @@ interface Song {
   rhythm: string | null;
   rhythmName: string | null;
   rhythmCategory: string | null;
+  rhythmData: any | null;
   styleSlug: string;
   measureCount: number | null;
   popularity: number | null;
@@ -157,7 +159,10 @@ function chordShowUrl(chord: any): string {
           <span :class="['sbn-prog-row-cat-badge', 'sbn-prog-cat-' + (song.rhythmCategory || 'general')]">
             {{ categoryLabels[song.rhythmCategory] || song.rhythmCategory || 'General' }}
           </span>
-          <span class="sbn-song-prog-numerals">View pattern →</span>
+          <div v-if="song.rhythmData" style="margin-left: auto;">
+            <RhythmPattern :pattern="song.rhythmData" mini :playable="false" />
+          </div>
+          <span v-else class="sbn-song-prog-numerals">View pattern →</span>
         </li>
       </ul>
     </div>
@@ -318,6 +323,7 @@ function chordShowUrl(chord: any): string {
 .sbn-prog-row-cat-badge.sbn-prog-cat-bossa-nova { background: #fee2e2; color: #991b1b; }
 .sbn-prog-row-cat-badge.sbn-prog-cat-bossa      { background: #fee2e2; color: #991b1b; }
 .sbn-prog-row-cat-badge.sbn-prog-cat-samba      { background: #fef3c7; color: #92400e; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-brazilian  { background: #fef3c7; color: #92400e; }
 .sbn-prog-row-cat-badge.sbn-prog-cat-general   { background: #f3f4f6; color: #4b5563; }
 .sbn-prog-row-cat-badge.sbn-prog-cat-other     { background: #f3f4f6; color: #4b5563; }
 

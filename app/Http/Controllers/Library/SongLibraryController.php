@@ -202,6 +202,7 @@ class SongLibraryController extends Controller
                 'rhythm'        => $leadsheet->rhythm,
                 'rhythmName'    => $rhythmPattern?->name ?? $leadsheet->rhythm,
                 'rhythmCategory'=> $rhythmPattern?->category ?? 'general',
+                'rhythmData'    => $rhythmPattern ? $rhythmPattern->toPlayerData() : null,
                 'styleSlug'     => $this->rhythmToStyleSlug($leadsheet->rhythm),
                 'measureCount'  => $leadsheet->measure_count,
                 'popularity'    => $leadsheet->popularity,
