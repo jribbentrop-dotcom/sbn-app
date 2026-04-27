@@ -4,6 +4,8 @@ import { Link } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { getCategoryStyle } from '@/composables/useCategoryColors';
 
+import ChordCard from '@/Components/Library/ChordCard.vue';
+
 defineOptions({ layout: PublicLayout });
 
 interface Song {
@@ -35,6 +37,7 @@ interface ProgressionRef {
 interface Props {
   song: Song;
   chordNames: string[];
+  chords: any[];
   progressions: ProgressionRef[];
 }
 
@@ -46,6 +49,16 @@ const categoryLabels: Record<string, string> = {
   jazz: 'Jazz', blues: 'Blues', pop: 'Pop / Rock',
   modal: 'Modal', classical: 'Classical', latin: 'Latin', other: 'Other',
 };
+
+function chordShowUrl(chord: any): string {
+    const base = `/library/chords/${chord.slug}`;
+    const root = chord.root_note ?? '';
+    const isRootless = chord.voicing_category === 'rootless';
+    const hasRoot = chord.transposed_from != null;
+    if (isRootless) return `${base}?root=C`;
+    if (hasRoot || (root && root !== 'C')) return `${base}?root=${encodeURIComponent(root)}`;
+    return base;
+}
 </script>
 
 <template>
@@ -96,15 +109,18 @@ const categoryLabels: Record<string, string> = {
       <p class="sbn-song-show-description">{{ song.description }}</p>
     </div>
 
-    <!-- Chord strip -->
-    <div v-if="chordNames.length" class="sbn-song-show-section">
+    <!-- Chords used (Top 4 by popularity) -->
+    <div v-if="chords && chords.length" class="sbn-song-show-section">
       <h2 class="sbn-song-show-section-title">Chords</h2>
-      <div class="sbn-chord-strip">
-        <span
-          v-for="(name, i) in chordNames"
-          :key="i"
-          class="sbn-chord-strip-chip sbn-chord-symbol"
-        >{{ name }}</span>
+      <div class="sbn-song-chords-grid">
+        <Link
+          v-for="chord in chords"
+          :key="chord.id"
+          :href="chordShowUrl(chord)"
+          style="text-decoration: none;"
+        >
+          <ChordCard :chord="chord" />
+        </Link>
       </div>
     </div>
 
@@ -230,20 +246,12 @@ const categoryLabels: Record<string, string> = {
   margin: 0;
 }
 
-/* Chord strip */
-.sbn-chord-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.sbn-chord-strip-chip {
-  background: var(--clr-white);
-  border: 1px solid var(--clr-border);
-  border-radius: 6px;
-  padding: 5px 12px;
-  font-size: 0.9em;
-  color: var(--clr-text);
+/* Chords grid */
+.sbn-song-chords-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+  margin-top: 14px;
 }
 
 /* Progressions list */

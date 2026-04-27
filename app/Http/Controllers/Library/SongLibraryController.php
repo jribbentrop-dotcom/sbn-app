@@ -107,10 +107,29 @@ class SongLibraryController extends Controller
         ]);
     }
 
-    public function show(Leadsheet $leadsheet)
+    public function show(Leadsheet $leadsheet, ChordVoicingSearch $search)
     {
         // Chord names from the parsed leadsheet JSON
         $chordNames = $leadsheet->getChordNames();
+
+        $bestVoicings = [];
+        foreach ($chordNames as $name) {
+            $voicings = $search->searchByName($name);
+            if (!empty($voicings)) {
+                // Find the one with highest popularity
+                $best = $voicings[0];
+                foreach ($voicings as $v) {
+                    if (($v['popularity'] ?? 0) > ($best['popularity'] ?? 0)) {
+                        $best = $v;
+                    }
+                }
+                $bestVoicings[] = $best;
+            }
+        }
+
+        // Sort all best matches by popularity DESC, take top 4
+        usort($bestVoicings, fn ($a, $b) => ($b['popularity'] ?? 0) <=> ($a['popularity'] ?? 0));
+        $topChords = array_slice($bestVoicings, 0, 4);
 
         // Progressions detected in this song
         $progressions = ChordProgression::query()
@@ -147,6 +166,7 @@ class SongLibraryController extends Controller
                 'popularity'    => $leadsheet->popularity,
             ],
             'chordNames'   => $chordNames,
+            'chords'       => $topChords,
             'progressions' => $progressions,
         ]);
     }
