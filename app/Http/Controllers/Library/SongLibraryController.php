@@ -143,7 +143,22 @@ class SongLibraryController extends Controller
         // Sort all unique chords by popularity DESC and take top 4
         $bestVoicings = array_values($uniqueChords);
         usort($bestVoicings, fn ($a, $b) => ($b['popularity'] ?? 0) <=> ($a['popularity'] ?? 0));
-        $topChords = array_slice($bestVoicings, 0, 4);
+        $topChords = [];
+        $seenPatterns = [];
+
+        foreach ($bestVoicings as $card) {
+            $pattern = $this->getVoicingShapePattern($card['diagram_data'] ?? null);
+            if ($pattern && in_array($pattern, $seenPatterns)) {
+                continue;
+            }
+            if ($pattern) {
+                $seenPatterns[] = $pattern;
+            }
+            $topChords[] = $card;
+            if (count($topChords) >= 4) {
+                break;
+            }
+        }
 
         // Progressions detected in this song
         $progressions = ChordProgression::query()
@@ -267,6 +282,53 @@ class SongLibraryController extends Controller
         }
 
         return true;
+    }
+    /**
+     * Get the relative fret pattern for a voicing to detect identical shapes.
+     * Subtracts the lowest fretted fret from all fretted positions.
+     */
+    private function getVoicingShapePattern(?array $diagramData): string
+    {
+        if (!$diagramData) {
+            return '';
+        }
+
+        $fretMap = array_fill(1, 6, -1);
+
+        foreach ($diagramData['positions'] ?? [] as $pos) {
+            $fretMap[$pos['string']] = $pos['fret'];
+        }
+        foreach ($diagramData['open'] ?? [] as $s) {
+            $fretMap[$s] = 0;
+        }
+        foreach ($diagramData['muted'] ?? [] as $s) {
+            $fretMap[$s] = -1;
+        }
+
+        $minFret = 99;
+        $hasFretted = false;
+        foreach ($fretMap as $fret) {
+            if ($fret > 0 && $fret < $minFret) {
+                $minFret = $fret;
+                $hasFretted = true;
+            }
+        }
+
+        $offset = $hasFretted ? $minFret : 0;
+
+        $pattern = '';
+        for ($s = 1; $s <= 6; $s++) {
+            $fret = $fretMap[$s];
+            if ($fret === -1) {
+                $pattern .= 'x';
+            } elseif ($fret === 0) {
+                $pattern .= '0';
+            } else {
+                $pattern .= ($fret - $offset);
+            }
+        }
+
+        return $pattern;
     }
 
     /**
