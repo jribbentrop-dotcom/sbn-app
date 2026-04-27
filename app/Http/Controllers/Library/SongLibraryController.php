@@ -184,6 +184,8 @@ class SongLibraryController extends Controller
 
         $chordNames = $leadsheet->getChordNames();
 
+        $rhythmPattern = \App\Models\RhythmPattern::where('slug', $leadsheet->rhythm)->first();
+
         return Inertia::render('Library/Songs/Show', [
             'song' => [
                 'id'            => $leadsheet->id,
@@ -198,6 +200,8 @@ class SongLibraryController extends Controller
                 'formNotes'     => $leadsheet->form_notes,
                 'voicingNotes'  => $leadsheet->voicing_notes,
                 'rhythm'        => $leadsheet->rhythm,
+                'rhythmName'    => $rhythmPattern?->name ?? $leadsheet->rhythm,
+                'rhythmCategory'=> $rhythmPattern?->category ?? 'general',
                 'styleSlug'     => $this->rhythmToStyleSlug($leadsheet->rhythm),
                 'measureCount'  => $leadsheet->measure_count,
                 'popularity'    => $leadsheet->popularity,

@@ -21,6 +21,8 @@ interface Song {
   formNotes: string | null;
   voicingNotes: string | null;
   rhythm: string | null;
+  rhythmName: string | null;
+  rhythmCategory: string | null;
   styleSlug: string;
   measureCount: number | null;
   popularity: number | null;
@@ -136,7 +138,9 @@ function chordShowUrl(chord: any): string {
           <Link :href="`/library/progressions/${prog.slug}`" class="sbn-song-prog-link">
             {{ prog.name }}
           </Link>
-          <span class="sbn-song-prog-cat">{{ categoryLabels[prog.category] || prog.category }}</span>
+          <span :class="['sbn-prog-row-cat-badge', 'sbn-prog-cat-' + prog.category]">
+            {{ categoryLabels[prog.category] || prog.category }}
+          </span>
           <span class="sbn-song-prog-numerals">{{ prog.numeralsDisplay }}</span>
         </li>
       </ul>
@@ -145,12 +149,17 @@ function chordShowUrl(chord: any): string {
     <!-- Rhythm info -->
     <div v-if="song.rhythm" class="sbn-song-show-section">
       <h2 class="sbn-song-show-section-title">Rhythm</h2>
-      <div class="sbn-song-rhythm-row">
-        <span class="sbn-song-rhythm-label">{{ song.rhythm }}</span>
-        <Link :href="`/library/rhythms/${song.rhythm}`" class="sbn-song-rhythm-link">
-          View pattern →
-        </Link>
-      </div>
+      <ul class="sbn-song-prog-list">
+        <li class="sbn-song-prog-item">
+          <Link :href="`/library/rhythms/${song.rhythm}`" class="sbn-song-prog-link">
+            {{ song.rhythmName || song.rhythm }}
+          </Link>
+          <span :class="['sbn-prog-row-cat-badge', 'sbn-prog-cat-' + (song.rhythmCategory || 'general')]">
+            {{ categoryLabels[song.rhythmCategory] || song.rhythmCategory || 'General' }}
+          </span>
+          <span class="sbn-song-prog-numerals">View pattern →</span>
+        </li>
+      </ul>
     </div>
 
   </div>
@@ -290,50 +299,33 @@ function chordShowUrl(chord: any): string {
   color: var(--category-color, var(--clr-style-bossa));
 }
 
-.sbn-song-prog-cat {
-  font-size: 0.75em;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--clr-text-muted);
-  background: var(--clr-surface-2);
-  padding: 2px 8px;
-  border-radius: 4px;
-  white-space: nowrap;
+.sbn-prog-row-cat-badge {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 12px;
+    display: inline-block;
 }
+
+.sbn-prog-row-cat-badge.sbn-prog-cat-jazz      { background: #e3f2fd; color: #1565c0; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-blues     { background: #fce4ec; color: #c62828; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-pop       { background: #e0f2f1; color: #00695c; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-modal     { background: #ede7f6; color: #4527a0; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-classical { background: #e8f5e9; color: #2e7d32; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-latin     { background: linear-gradient(135deg, #ff8c42, #e65100); color: #fff; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-bossa-nova { background: #fee2e2; color: #991b1b; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-bossa      { background: #fee2e2; color: #991b1b; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-samba      { background: #fef3c7; color: #92400e; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-general   { background: #f3f4f6; color: #4b5563; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-other     { background: #f3f4f6; color: #4b5563; }
 
 .sbn-song-prog-numerals {
   font-size: 0.82em;
   color: var(--clr-text-muted);
   font-family: Georgia, serif;
   margin-left: auto;
-}
-
-/* Rhythm row */
-.sbn-song-rhythm-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  background: var(--clr-white);
-  border-radius: 6px;
-  padding: 12px 16px;
-}
-
-.sbn-song-rhythm-label {
-  font-weight: 600;
-  font-size: 0.95em;
-  color: var(--clr-text);
-}
-
-.sbn-song-rhythm-link {
-  font-size: 0.88em;
-  color: var(--category-color, var(--clr-style-bossa));
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.sbn-song-rhythm-link:hover {
-  text-decoration: underline;
 }
 
 @media (max-width: 768px) {
