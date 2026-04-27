@@ -130,31 +130,30 @@ const renderedDiagram = computed(() => {
 
 // ── Interaction handlers ──────────────────────────────────────────────────────
 
-/** Click anywhere on the card body → selection + seek/play from this measure */
+/** Click anywhere on the card body → selection + seek (no auto-play when stopped) */
 function onBodyClick(event) {
   gridSelection?.handleClick(gi.value, ci.value, event);
   seekToMeasure?.(gi.value);
 }
 
-/** Click on the chord name text → open chord picker */
+/** Click on the chord name text → select + seek (viewer mode) or open picker (editor mode) */
 function onNameClick(event) {
   event.stopPropagation();
-  // Also update selection to this card
   gridSelection?.handleClick(gi.value, ci.value, event);
+  seekToMeasure?.(gi.value);
 
-  if (chordPicker) {
+  if (!props.readOnly && chordPicker) {
     chordPicker.openAt(event.currentTarget, gi.value, ci.value, props.chord.name || '');
   }
 }
 
-/** Click on diagram area → open voicing picker */
+/** Click on diagram area → select + seek (viewer mode) or open voicing picker (editor mode) */
 function onDiagramClick(event) {
   event.stopPropagation();
-  // Also select this card
   gridSelection?.handleClick(gi.value, ci.value, event);
+  seekToMeasure?.(gi.value);
 
-  if (voicingPicker) {
-    // openForChord is the Step 5 API — stub accepts this call gracefully
+  if (!props.readOnly && voicingPicker) {
     voicingPicker.openForChord?.(props.chord.name || '', gi.value, ci.value);
   }
 }

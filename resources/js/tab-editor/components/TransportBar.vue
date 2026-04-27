@@ -1,20 +1,12 @@
 <template>
     <div class="sbn-transport-bar" v-if="totalBeats > 0">
-        <!-- ⏹ Stop/Park: first press parks at position; second press returns to start -->
-        <button
-            class="sbn-transport-stop"
-            :class="{ 'is-parked': !isPlaying && currentBeat > 0 }"
-            @click="$emit('stop')"
-            :title="isPlaying ? 'Stop (parks position)' : currentBeat > 0 ? 'Return to start (Esc)' : 'Return to start'"
-        >⏹</button>
-
         <!-- ▶/⏸ Play / Pause toggle -->
         <button
             class="sbn-transport-play"
             :class="{ 'is-playing': isPlaying }"
             @click="$emit('toggle')"
             :title="isPlaying ? 'Pause (Space)' : currentBeat > 0 ? 'Resume (Space)' : 'Play (Space)'"
-        >{{ isPlaying ? '⏸' : currentBeat > 0 ? '▶ Resume' : '▶ Play' }}</button>
+        >{{ isPlaying ? '⏸' : '▶' }}</button>
 
         <div class="sbn-transport-seek">
             <input
@@ -109,11 +101,10 @@ function onSeekCommit(e) {
     emit('seek', _seekValue.value);
 }
 
-/** Format a beat position as "bar:beat" (1-indexed). */
+/** Format a beat position as measure number (1-indexed). */
 function barLabel(beat) {
     const bpm  = props.beatsPerMeasure || 4;
     const bar  = Math.floor(beat / bpm) + 1;
-    const b    = Math.floor(beat % bpm) + 1;
-    return `${bar}:${b}`;
+    return `${bar}`;
 }
 </script>

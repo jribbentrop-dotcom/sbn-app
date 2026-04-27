@@ -61,8 +61,13 @@
       </div>
     </div>
 
-    <!-- Transport bar (sticky) -->
-    <div class="sbn-leadsheet-transport">
+    <!-- Transport bar (fixed positioning, constrained to main container width) -->
+    <div
+      class="sbn-leadsheet-transport"
+      :class="{ 'is-visible': transportVisible || transportHovered, 'is-hidden': !transportVisible && !transportHovered }"
+      @mouseenter="onTransportMouseEnter"
+      @mouseleave="onTransportMouseLeave"
+    >
       <TransportBar
         :is-playing="isPlaying"
         :current-beat="currentBeat"
@@ -71,7 +76,6 @@
         :beats-per-measure="beatsPerMeasure"
         view-mode="chords"
         @toggle="onTransportToggle"
-        @stop="onTransportStop"
         @seek="onTransportSeek"
         @tempo-change="onTempoChange"
       />
@@ -80,7 +84,7 @@
 </template>
 
 <script setup>
-import { ref, computed, provide, watch } from 'vue';
+import { ref, computed, provide, watch, onMounted, onUnmounted } from 'vue';
 
 // Components
 import ChordGridView from '@/tab-editor/components/ChordGridView.vue';
@@ -131,6 +135,66 @@ const props = defineProps({
 
 // ── Density state (Step 9 will add localStorage persistence + polished UI) ───
 const density = ref('full');
+
+// ── Smart sticky transport bar (contained within main content) ───────────────
+// Hide on scroll down, show on scroll up (modern header pattern)
+const transportVisible = ref(true);
+const transportHovered = ref(false);
+let _lastScrollY = 0;
+let _scrollTimeout = null;
+
+function onScroll() {
+  const currentY = window.scrollY;
+  const scrollDelta = currentY - _lastScrollY;
+  
+  // Show when scrolling up, hide when scrolling down (with threshold)
+  if (scrollDelta < -5) {
+    transportVisible.value = true; // Scrolling up
+  } else if (scrollDelta > 10 && currentY > 100) {
+    transportVisible.value = false; // Scrolling down, past initial viewport
+  }
+  
+  // Always show when near bottom of page
+  const nearBottom = (window.innerHeight + currentY) >= (document.documentElement.scrollHeight - 100);
+  if (nearBottom) {
+    transportVisible.value = true;
+  }
+  
+  _lastScrollY = currentY;
+  
+  // Clear existing timeout and set new one to show bar after scroll stops
+  clearTimeout(_scrollTimeout);
+  _scrollTimeout = setTimeout(() => {
+    transportVisible.value = true;
+  }, 2000); // Show after 2s of no scrolling
+}
+
+function onTransportMouseEnter() {
+  transportHovered.value = true;
+  transportVisible.value = true;
+}
+
+function onTransportMouseLeave() {
+  transportHovered.value = false;
+}
+
+function onKeyDown(e) {
+  if (e.code === 'Space' || e.key === ' ') {
+    e.preventDefault(); // Prevent page scroll
+    onTransportToggle();
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('keydown', onKeyDown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', onScroll);
+  window.removeEventListener('keydown', onKeyDown);
+  clearTimeout(_scrollTimeout);
+});
 
 // ── Tab model from leadsheet json_data ───────────────────────────────────────
 // useTabModel expects refs as inputs (it calls .value on each). The admin
@@ -224,14 +288,6 @@ async function onTransportToggle() {
   }
 }
 
-function onTransportStop() {
-  // First press parks at current position via pause; second press returns to 0.
-  if (isPlaying.value) {
-    chordPause();
-  } else {
-    chordReset();
-  }
-}
 
 function onTransportSeek(beat) {
   chordSeek(beat);
@@ -243,14 +299,13 @@ function onTempoChange(newTempo) {
   engine.setTempo(newTempo);
 }
 
-// Click-to-play from a chord card: seek + play from that measure.
+// Click-to-seek from a chord card: seek to measure (only auto-play if already playing)
 async function seekToMeasure(gi) {
   const beatStart = gi * beatsPerMeasure.value;
   await ensureEventsLoaded();
   chordSeek(beatStart);
-  if (!isPlaying.value) {
-    await chordPlay();
-  }
+  // If already playing, playback continues from new position
+  // If stopped/paused, just seek without starting playback
 }
 
 // ── Active-measure highlight (drives the beat-tick sweep across the grid) ────
@@ -440,7 +495,7 @@ provide('globalIndexOf', (si, mi) => {
   display: flex;
   gap: 24px;
   align-items: flex-start;
-  padding: 0 0 120px; /* Bottom padding for fixed transport */
+  padding: 0 0 40px;
 }
 
 .sbn-leadsheet-main {
@@ -463,17 +518,41 @@ provide('globalIndexOf', (si, mi) => {
   order: 1;
 }
 
-/* Transport bar - fixed at bottom */
+/* Transport bar container - fixed positioning, constrained to main container width */
 .sbn-leadsheet-transport {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  background: var(--clr-surface);
-  border-top: 1px solid var(--clr-border);
-  padding: 12px 24px;
-  box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(0);
+    z-index: 100;
+    width: calc(100% - 40px);
+    max-width: 900px; /* Constrain to main container approximate width */
+    transition: transform 0.3s var(--ease), opacity 0.3s var(--ease);
+    pointer-events: auto;
+}
+
+/* Hidden state: slide down + fade out */
+.sbn-leadsheet-transport.is-hidden {
+    transform: translateX(-50%) translateY(120%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Visible state: slide up + fade in */
+.sbn-leadsheet-transport.is-visible {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+/* Hover peek area - invisible strip at bottom that triggers show */
+.sbn-leadsheet-transport::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: transparent;
 }
 
 /* Mobile - match library responsive behavior */
@@ -503,15 +582,23 @@ provide('globalIndexOf', (si, mi) => {
 
   .sbn-leadsheet-content {
     gap: 24px;
-    padding: 0 0 120px;
+    padding: 0 0 100px; /* Space for floating transport bar */
   }
 
   .sbn-leadsheet-main {
     padding: 20px;
   }
 
+  /* Mobile: full-width floating bar with smaller padding */
   .sbn-leadsheet-transport {
-    padding: 12px 16px;
+    width: calc(100% - 32px);
+    bottom: 12px;
+    max-width: none;
+  }
+
+  /* Reduce hover peek area on mobile */
+  .sbn-leadsheet-transport::before {
+    height: 20px;
   }
 }
 </style>

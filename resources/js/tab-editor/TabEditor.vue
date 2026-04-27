@@ -237,7 +237,6 @@
             :volume-rhythm="volumeRhythm"
             :volume-tab="volumeTab"
             @toggle="onTransportToggle"
-            @stop="onTransportReset"
             @seek="onTransportSeek"
             @tempo-change="onTransportTempo"
             @volume-chord="onVolumeChord"

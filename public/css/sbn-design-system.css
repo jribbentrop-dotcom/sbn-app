@@ -1387,17 +1387,17 @@
 .sbn-pb-row .sbn-ve-measure:first-of-type::before {
     content:    '';
     position:   absolute;   
-    left:       0;
+    left:       1px;
     top:        10%;
     height:     80%;
     width:      2px;
     background: var(--clr-text-muted);
 }
 
-.sbn-ve-measure::before {
+.sbn-ve-measure:not(:first-of-type)::before {
     content:    '';
     position:   absolute;
-    left:       0;
+    left:       1px;
     top:        10%;
     height:     70%;
     width:      0.5px;
@@ -1407,7 +1407,7 @@
 .sbn-ve-measure::after {
     content:    '';
     position:   absolute;
-    right:      0;
+    right:      1px;
     top:        10%;
     height:     70%;
     width:      0.5px;
@@ -1418,6 +1418,22 @@
 .sbn-ve-measure.is-selected {
     z-index:    2;
     position:   relative;
+    box-shadow: none;
+    outline: none;
+}
+
+.sbn-ve-measure.is-selected .sbn-ve-measure-content {
+    position: relative;
+}
+
+.sbn-ve-measure.is-selected .sbn-ve-measure-content::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 2px;
+    pointer-events: none;
     box-shadow: inset 0 0 0 1px var(--clr-style-jazz);
 }
 
@@ -1440,7 +1456,7 @@
     align-items:     center;
     justify-content: center;
     gap:             3px;
-    padding:         8px 2px;
+    padding:         8px 0;
     cursor:          pointer;
     position:        relative;
     transition:      background 0.1s;
@@ -1452,7 +1468,7 @@
 .sbn-ve-chord::before {
     content:        '';
     position:       absolute;
-    inset:          0;
+    inset:          0 3px 0 0;
     pointer-events: none;
     z-index:        2;
     transition:     box-shadow 0.12s;
@@ -2227,97 +2243,287 @@
 
 
 /* ──────────────────────────────────────────────────────────
-   10. TRANSPORT BAR (Phase 9 extraction)
+   10. TRANSPORT BAR (Phase 9 Step 7 polish)
    ──────────────────────────────────────────────────────────
-   Playback control bar. Base styles extracted from admin
-   leadsheets.css; Step 7 polish pass will enhance with
-   design-system tokens.
+   Playback control bar with design-system polish.
+   Pill-shaped container, circular accent play button,
+   styled range sliders, monospace labels.
    ────────────────────────────────────────────────────────── */
 
+/* Container: pill-shaped with shadow */
 .sbn-transport-bar {
     position: sticky;
-    bottom: 0;
+    bottom: 20px;
     z-index: 10;
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 6px 16px;
+    gap: 16px;
+    padding: 12px 24px;
+    margin: 0 20px 20px;
     background: var(--clr-surface, #fff);
-    border-top: 1px solid var(--clr-border, #e5e7eb);
-    font-size: 12px;
+    border: 1px solid var(--clr-border, #e2e8f0);
+    border-radius: 9999px;
+    box-shadow: var(--clr-shadow, 0 4px 12px rgba(0,0,0,0.07));
+    font-size: 13px;
 }
 
-.sbn-transport-stop {
-    flex-shrink: 0;
-    padding: 3px 8px;
-    border: 1px solid var(--clr-border, #e5e7eb);
-    border-radius: 4px;
-    background: none;
-    cursor: pointer;
-    font-size: 11px;
-    color: var(--clr-text-muted, #6b7280);
+/* Modifier: floating container (LeadsheetViewer smart sticky) */
+/* When wrapped in a fixed-position container, disable sticky behavior */
+.sbn-leadsheet-transport .sbn-transport-bar {
+    position: static;
+    margin: 0;
 }
-.sbn-transport-stop:hover { border-color: #ef4444; color: #ef4444; }
 
+/* Play button: large circular accent */
 .sbn-transport-play {
     flex-shrink: 0;
-    padding: 3px 12px;
-    border: 1px solid var(--clr-border, #e5e7eb);
-    border-radius: 4px;
-    background: none;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--clr-gradient, linear-gradient(135deg, #f39c12 0%, #e74c3c 100%));
     cursor: pointer;
-    font-size: 12px;
+    font-size: 22px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s var(--ease), filter 0.15s var(--ease);
 }
-.sbn-transport-play:hover { border-color: var(--clr-accent); color: var(--clr-accent); }
-.sbn-transport-play.is-playing { border-color: var(--clr-accent); color: var(--clr-accent); }
+.sbn-transport-play:hover {
+    transform: scale(1.05);
+    filter: brightness(1.1);
+}
+.sbn-transport-play:active {
+    transform: scale(0.95);
+}
+.sbn-transport-play.is-playing {
+    background: var(--clr-text-muted, #8896a4);
+}
+.sbn-transport-play.is-playing:hover {
+    background: var(--clr-text-dim, #5a5a5a);
+}
 
+/* Seek section */
 .sbn-transport-seek {
     flex: 1;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
     min-width: 0;
 }
-.sbn-transport-seek input[type=range] { flex: 1; min-width: 0; }
 
+/* Time label: monospace pill */
 .sbn-transport-time {
     flex-shrink: 0;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 13px;
     font-variant-numeric: tabular-nums;
-    color: var(--clr-text-muted, #6b7280);
-    min-width: 60px;
+    color: var(--clr-text, #2c3e50);
+    background: var(--clr-surface-2, #f7fafc);
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--clr-border-dim, #eef1f5);
+    min-width: 70px;
+    text-align: center;
 }
 
+/* Tempo section */
 .sbn-transport-tempo {
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 10px;
 }
-.sbn-transport-tempo input[type=range] { width: 80px; }
+.sbn-transport-tempo > span:first-child {
+    font-size: 16px;
+    color: var(--clr-text-dim, #5a5a5a);
+}
 
+/* BPM label: monospace pill */
 .sbn-transport-bpm {
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 13px;
     font-variant-numeric: tabular-nums;
-    color: var(--clr-text-muted, #6b7280);
-    min-width: 36px;
+    color: var(--clr-text, #2c3e50);
+    background: var(--clr-surface-2, #f7fafc);
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--clr-border-dim, #eef1f5);
+    min-width: 44px;
+    text-align: center;
 }
 
+/* Mixer section */
 .sbn-transport-mixer {
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 12px;
-    border-left: 1px solid var(--clr-border, #e5e7eb);
-    padding-left: 12px;
+    gap: 16px;
+    border-left: 1px solid var(--clr-border, #e2e8f0);
+    padding-left: 16px;
 }
 .sbn-transport-mixer-track {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 8px;
 }
 .sbn-transport-mixer-label {
     font-size: 11px;
-    color: var(--clr-text-muted, #6b7280);
+    font-weight: 500;
+    color: var(--clr-text-muted, #8896a4);
     white-space: nowrap;
 }
+
+/* ── Range slider styling (cross-browser) ── */
+
+/* WebKit (Chrome, Safari, Edge) */
+.sbn-transport-bar input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: var(--clr-border-dim, #eef1f5);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+.sbn-transport-bar input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--clr-accent, #f39c12);
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.sbn-transport-bar input[type=range]::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 2px 6px rgba(243, 156, 18, 0.4);
+}
+.sbn-transport-bar input[type=range]::-webkit-slider-thumb:active {
+    transform: scale(1.05);
+}
+.sbn-transport-bar input[type=range]:focus::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px var(--clr-accent-border, rgba(243,156,18,0.25));
+}
+
+/* Firefox */
+.sbn-transport-bar input[type=range]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--clr-accent, #f39c12);
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease);
+    cursor: pointer;
+}
+.sbn-transport-bar input[type=range]::-moz-range-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 2px 6px rgba(243, 156, 18, 0.4);
+}
+.sbn-transport-bar input[type=range]::-moz-range-track {
+    height: 4px;
+    background: var(--clr-border-dim, #eef1f5);
+    border-radius: 2px;
+    border: none;
+}
+.sbn-transport-bar input[type=range]:focus::-moz-range-thumb {
+    box-shadow: 0 0 0 3px var(--clr-accent-border, rgba(243,156,18,0.25));
+}
+
+/* Specific slider widths */
+.sbn-transport-seek input[type=range] { flex: 1; min-width: 60px; }
+.sbn-transport-tempo input[type=range] { width: 100px; }
 .sbn-transport-mixer-track input[type=range] { width: 72px; }
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+    .sbn-transport-bar {
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 12px 16px;
+        margin: 0 12px 12px;
+        border-radius: 16px;
+    }
+    
+    .sbn-transport-seek {
+        order: 1;
+        width: 100%;
+        min-width: 100%;
+    }
+    
+    .sbn-transport-play {
+        order: 2;
+        width: 44px;
+        height: 44px;
+        font-size: 16px;
+    }
+    
+    .sbn-transport-stop {
+        order: 3;
+        width: 32px;
+        height: 32px;
+    }
+    
+    .sbn-transport-tempo {
+        order: 4;
+        margin-left: auto;
+    }
+    
+    .sbn-transport-mixer {
+        order: 5;
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid var(--clr-border, #e2e8f0);
+        padding: 12px 0 0 0;
+        justify-content: space-around;
+    }
+    
+    .sbn-transport-mixer-track input[type=range] {
+        width: 80px;
+    }
+    
+    /* Ensure touch targets meet 44px minimum */
+    .sbn-transport-bar button,
+    .sbn-transport-bar input[type=range]::-webkit-slider-thumb {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+@media (max-width: 480px) {
+    .sbn-transport-bar {
+        padding: 10px 12px;
+        margin: 0 8px 8px;
+    }
+    
+    .sbn-transport-time,
+    .sbn-transport-bpm {
+        font-size: 12px;
+        padding: 3px 8px;
+    }
+    
+    .sbn-transport-tempo input[type=range] {
+        width: 80px;
+    }
+    
+    .sbn-transport-mixer {
+        flex-direction: column;
+        gap: 8px;
+        align-items: stretch;
+    }
+    
+    .sbn-transport-mixer-track {
+        justify-content: space-between;
+    }
+    
+    .sbn-transport-mixer-track input[type=range] {
+        flex: 1;
+        max-width: 120px;
+    }
+}
 
