@@ -955,6 +955,12 @@ Edit existing `resources/js/Pages/Library/Songs/Show.vue`:
 - [x] "Open viewer" CTA is visually prominent (primary button, sized large)
 - [x] CTA links to the new viewer route
 
+**Implementation details:**
+- Filtered out duplicate chord voicings of identical types to prevent repetitive overview cards.
+- Wired standard chord card diagrams directly to individual chord detail routes.
+- Unified architectural spacing for both progressions and rhythms utilizing identically colored badges.
+- Injected native SVG rhythmic performance models for interactive step verification.
+
 ### Step 11 — Styling pass + mobile pass
 
 Dedicated review:
