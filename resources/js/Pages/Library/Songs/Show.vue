@@ -119,7 +119,7 @@ function chordShowUrl(chord: any): string {
           :href="chordShowUrl(chord)"
           style="text-decoration: none;"
         >
-          <ChordCard :chord="chord" />
+          <ChordCard :chord="chord" mini :show-root="true" />
         </Link>
       </div>
     </div>
@@ -248,10 +248,15 @@ function chordShowUrl(chord: any): string {
 
 /* Chords grid */
 .sbn-song-chords-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
   margin-top: 14px;
+}
+
+.sbn-song-chords-grid > a {
+  width: 120px;
+  text-decoration: none;
 }
 
 /* Progressions list */

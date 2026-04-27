@@ -109,25 +109,39 @@ class SongLibraryController extends Controller
 
     public function show(Leadsheet $leadsheet, ChordVoicingSearch $search)
     {
-        // Chord names from the parsed leadsheet JSON
-        $chordNames = $leadsheet->getChordNames();
+        // Fetch actual voicings from the leadsheet
+        $leadsheetVoicings = $leadsheet->parsed_data['chordVoicings'] ?? [];
+        $uniqueChords = [];
+        $searchCache = [];
 
-        $bestVoicings = [];
-        foreach ($chordNames as $name) {
-            $voicings = $search->searchByName($name);
-            if (!empty($voicings)) {
-                // Find the one with highest popularity
-                $best = $voicings[0];
-                foreach ($voicings as $v) {
-                    if (($v['popularity'] ?? 0) > ($best['popularity'] ?? 0)) {
-                        $best = $v;
-                    }
-                }
-                $bestVoicings[] = $best;
+        foreach ($leadsheetVoicings as $key => $voicing) {
+            if (preg_match('/^(.+)@\d+\.\d+$/', $key, $m)) {
+                $chordName = $m[1];
+            } else {
+                $chordName = $key;
+            }
+
+            // If we already have a voicing for this chord name, skip
+            if (isset($uniqueChords[$chordName])) {
+                continue;
+            }
+
+            if (!isset($searchCache[$chordName])) {
+                $searchCache[$chordName] = $search->searchByName($chordName);
+            }
+            $matches = $searchCache[$chordName];
+
+            $best = $this->pickBestVoicing($matches, $voicing['frets'] ?? null);
+
+            if ($best) {
+                $uniqueChords[$chordName] = $best;
+            } else {
+                $uniqueChords[$chordName] = $this->synthesizeMinimalCard($chordName, $voicing, $search);
             }
         }
 
-        // Sort all best matches by popularity DESC, take top 4
+        // Sort all unique chords by popularity DESC and take top 4
+        $bestVoicings = array_values($uniqueChords);
         usort($bestVoicings, fn ($a, $b) => ($b['popularity'] ?? 0) <=> ($a['popularity'] ?? 0));
         $topChords = array_slice($bestVoicings, 0, 4);
 
