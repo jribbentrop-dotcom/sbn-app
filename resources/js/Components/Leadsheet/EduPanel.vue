@@ -84,7 +84,11 @@
           >
             <div class="sbn-edu-progression-name">{{ progression.name }}</div>
             <div class="sbn-edu-progression-numerals">{{ progression.numeralsDisplay }}</div>
-            <div class="sbn-edu-progression-category">{{ progression.category }}</div>
+            <div style="margin-top: 6px;">
+              <span :class="['sbn-prog-row-cat-badge', 'sbn-prog-cat-' + String(progression.category || 'general').toLowerCase()]">
+                {{ progression.category }}
+              </span>
+            </div>
           </a>
         </div>
       </div>

@@ -971,9 +971,9 @@ Dedicated review:
 - Dark-mode review (if applicable to design system)
 
 **Done when:**
-- [ ] Visual parity with the rest of the library section
-- [ ] Tested at 360px, 768px, 1024px, 1440px
-- [ ] No admin-only CSS imports leak into the public bundle
+- [x] Visual parity with the rest of the library section
+- [x] Tested at 360px, 768px, 1024px, 1440px
+- [x] No admin-only CSS imports leak into the public bundle
 
 ---
 

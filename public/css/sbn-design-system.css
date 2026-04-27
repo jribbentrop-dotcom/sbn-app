@@ -511,6 +511,31 @@
     color: var(--clr-style-gold);
 }
 
+/* Category Badges */
+.sbn-prog-row-cat-badge {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 12px;
+    display: inline-block;
+}
+
+.sbn-prog-row-cat-badge.sbn-prog-cat-jazz      { background: #e3f2fd; color: #1565c0; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-blues     { background: #fce4ec; color: #c62828; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-pop       { background: #e0f2f1; color: #00695c; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-modal     { background: #ede7f6; color: #4527a0; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-classical { background: #e8f5e9; color: #2e7d32; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-latin     { background: linear-gradient(135deg, #ff8c42, #e65100); color: #fff; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-cuban     { background: linear-gradient(135deg, #ff8c42, #e65100); color: #fff; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-bossa-nova { background: #fee2e2; color: #991b1b; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-bossa      { background: #fee2e2; color: #991b1b; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-samba      { background: #fef3c7; color: #92400e; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-brazilian  { background: #fef3c7; color: #92400e; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-general   { background: #f3f4f6; color: #4b5563; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-other     { background: #f3f4f6; color: #4b5563; }
+
 /* Difficulty stars */
 .sbn-card-diff {
     display: inline-flex;
