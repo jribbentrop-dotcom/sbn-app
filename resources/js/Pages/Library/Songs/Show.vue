@@ -140,7 +140,7 @@ function chordShowUrl(chord: any): string {
           <Link :href="`/library/progressions/${prog.slug}`" class="sbn-song-prog-link">
             {{ prog.name }}
           </Link>
-          <span :class="['sbn-prog-row-cat-badge', 'sbn-prog-cat-' + prog.category]">
+          <span :class="['sbn-prog-row-cat-badge', 'sbn-prog-cat-' + String(prog.category || 'general').toLowerCase()]">
             {{ categoryLabels[prog.category] || prog.category }}
           </span>
           <span class="sbn-song-prog-numerals">{{ prog.numeralsDisplay }}</span>
@@ -156,7 +156,7 @@ function chordShowUrl(chord: any): string {
           <Link :href="`/library/rhythms/${song.rhythm}`" class="sbn-song-prog-link">
             {{ song.rhythmName || song.rhythm }}
           </Link>
-          <span :class="['sbn-prog-row-cat-badge', 'sbn-prog-cat-' + (song.rhythmCategory || 'general')]">
+          <span :class="['sbn-prog-row-cat-badge', 'sbn-prog-cat-' + String(song.rhythmCategory || 'general').toLowerCase()]">
             {{ categoryLabels[song.rhythmCategory] || song.rhythmCategory || 'General' }}
           </span>
           <div v-if="song.rhythmData" style="margin-left: auto;">
@@ -320,6 +320,7 @@ function chordShowUrl(chord: any): string {
 .sbn-prog-row-cat-badge.sbn-prog-cat-modal     { background: #ede7f6; color: #4527a0; }
 .sbn-prog-row-cat-badge.sbn-prog-cat-classical { background: #e8f5e9; color: #2e7d32; }
 .sbn-prog-row-cat-badge.sbn-prog-cat-latin     { background: linear-gradient(135deg, #ff8c42, #e65100); color: #fff; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-cuban     { background: linear-gradient(135deg, #ff8c42, #e65100); color: #fff; }
 .sbn-prog-row-cat-badge.sbn-prog-cat-bossa-nova { background: #fee2e2; color: #991b1b; }
 .sbn-prog-row-cat-badge.sbn-prog-cat-bossa      { background: #fee2e2; color: #991b1b; }
 .sbn-prog-row-cat-badge.sbn-prog-cat-samba      { background: #fef3c7; color: #92400e; }
