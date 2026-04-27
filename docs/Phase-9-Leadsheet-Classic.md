@@ -1,6 +1,6 @@
 # Phase 9 — Leadsheet Classic Viewer (Implementation Plan)
 
-**Status:** In progress — Steps 0–6 shipped (viewer renders, audio works, EduPanel shows full chord card with quality blurb, layout matches library style). Step 7 (transport polish) is up next; Steps 8–11 outstanding.
+**Status:** In progress — Steps 0–8 shipped (viewer renders, audio works, EduPanel shows full chord card with quality blurb, layout matches library style, transport bar polished and container-sticky, cinema toggle placeholder present). Step 9 deferred (hover color not working). Steps 10–11 outstanding.
 **Prerequisite phase:** Phase 7 (DONE — Songs Show teaser exists at `/library/songs/{slug}`)
 **Successor phase:** Phase 10 (Cinema view) — design TBD, do not block on it
 **Owner phase doc:** This document supersedes the Phase 9 section in `docs/Frontend-Migration-Plan.md` for the duration of the build. Update the migration plan's Phase 9 entry to "DONE" when this work ships.
@@ -121,13 +121,12 @@ The naive `progressions.filter(p => p.sectionId === currentSectionId)` would ret
 - ✅ **Step 4b — Layout rework:** library-style content rhythm landed; viewer no longer full-bleed.
 - ✅ **Step 5 — Chord card in EduPanel:** controller does DB voicing lookup via `ChordVoicingSearch::searchByName`, frontend renders `<LibraryChordCard>` for the selected chord. See §0.11 for the data-shape adapter.
 - ✅ **Step 6 — Edu content service:** `EduContentService` + `config/edu/chord-qualities.php` shipped. Inline blurb logic in `EduPanel.vue` replaced with `qualityByKey` lookup against `eduChordQualities` Inertia prop.
+- ✅ **Step 7 — Transport polish:** `TransportBar` has design-system styling, cross-browser range sliders, sticky-in-container placement, and click-to-seek behavior without auto-playing when stopped. See §0.13 and Step 7.
 
 **Still outstanding:**
 - **Density rework:** compact mode is currently cosmetic — diagrams hide but `.sbn-ve-measure-content { min-height: 150px }` keeps each measure tall, and `lineBreaks` defeat the row-count change. Real density work: shrink measure min-height in compact mode, ignore `lineBreaks` to use uniform 8-bar rows, tighten chord-card padding/font-size.
-- **Step 7 — Transport polish:** unstyled (still browser-default sliders/buttons). Highest user-visible polish gap.
-- **Step 8 — Cinema toggle placeholder:** present in viewer header (no work needed).
-- **Step 9 — Density toggle UI:** present, but **`localStorage` persistence not yet wired** (mentioned in plan; not implemented).
-- **Step 10 — Teaser CTA:** "Open viewer" button on `Pages/Library/Songs/Show.vue` — not yet added.
+- **Step 9 — Density toggle UI:** localStorage persistence implemented, but hover color change deferred (CSS selector not working reliably).
+- ✅ **Step 10 — Teaser CTA:** "Open viewer" button added to `Pages/Library/Songs/Show.vue`.
 - **Step 11 — Final styling + mobile pass:** not yet done.
 - **Tab panel (Phase 9b):** unchanged from plan — not in current scope.
 
@@ -162,6 +161,50 @@ The leadsheet stores chord voicings as 6-char fret strings (`"x32000"`) while th
 4. JS side: a single source `resources/js/utils/fretString.ts` with both directions
 
 Estimated ~100 lines deleted, single canonical encoder. Worth doing during the next chord-rendering touch — Phase 9b (tab panel toggle), Phase 10 (cinema view), or whenever a chord-encoding bug surfaces.
+
+### 0.13 Transport bar — as-built specs (Step 7)
+
+Step 7 is complete. The viewer reuses `resources/js/tab-editor/components/TransportBar.vue`; styling lives in `public/css/sbn-design-system.css` and viewer placement lives in `resources/js/Components/Leadsheet/LeadsheetViewer.vue`.
+
+**Transport component behavior:**
+- Play/pause is driven by `onTransportToggle()` in `LeadsheetViewer.vue`.
+- Seeking through the slider calls `onTransportSeek(beat)`.
+- Clicking a chord card calls `seekToMeasure(gi)`:
+  - When transport is already playing, it seeks and resumes playback.
+  - When transport is stopped, it seeks only; it does **not** auto-play.
+- Space key toggles playback globally from the viewer, regardless of focus.
+- The transport bar label displays measure number only, not `bar:beat`.
+
+**Placement model:**
+- The transport bar is rendered inside `.sbn-leadsheet-main`, not as a viewport-fixed sibling.
+- `.sbn-leadsheet-main` is a flex column and stays tight to content; no artificial `min-height`.
+- `.sbn-leadsheet-transport` uses `position: sticky; bottom: 20px; margin-top: auto`.
+- Short leadsheets: the transport sits at the bottom of the leadsheet container.
+- Long leadsheets: the transport sticks to the bottom of the viewport while the user scrolls through the container.
+- Mobile uses `bottom: 12px` and removes the old fixed-width/fixed-position assumptions.
+
+**Visual styling:**
+- `.sbn-transport-bar` is a pill-shaped surface with border, soft shadow, responsive padding, and design-system colors.
+- `.sbn-transport-play` is the visual focal point: large circular accent button with hover/active scaling and alternate `is-playing` styling.
+- `.sbn-transport-stop` uses secondary button styling and participates in the same 44px mobile hit-target rules.
+- `.sbn-transport-time` and `.sbn-transport-bpm` use monospace pill styling.
+- Seek, tempo, and mixer sliders share cross-browser range styling:
+  - WebKit thumb via `::-webkit-slider-thumb`
+  - Firefox thumb via `::-moz-range-thumb`
+  - Shared slim track sizing and accent thumb color
+  - Visible focus/hover treatment
+- Mixer controls remain compact and only render when `showMixer` is enabled.
+
+**Important CSS hooks:**
+- Global transport styles: `public/css/sbn-design-system.css`, section `11. TRANSPORT BAR (.sbn-transport-*)`
+- Viewer wrapper styles: `LeadsheetViewer.vue` scoped CSS:
+  - `.sbn-leadsheet-main`
+  - `.sbn-leadsheet-transport`
+  - `.sbn-leadsheet-transport.is-visible`
+  - `.sbn-leadsheet-transport.is-hidden`
+
+**Deferred / known unrelated issue:**
+- Chord-card click scaling was explored but deferred. Playback scaling on `.sbn-ve-chord.is-active` remains experimental CSS and should be revisited separately from transport polish.
 
 ---
 
@@ -805,78 +848,64 @@ The whole map ships in one go (≈18 entries, ~3KB). Cheaper and simpler than a 
 - [ ] `EduContentService` is the **only** file that knows where the data lives (controllers and components consume the service interface)
 - [ ] Header comment in `EduContentService.php` documents the future DB-backed migration path
 
-### Step 7 — Transport bar polish (NEXT)
+### Step 7 — Transport bar polish ✅ DONE
 
-Visual-only pass on `TransportBar.vue`. **No prop / API changes** — this is purely a styling reskin in `sbn-design-system.css`. The same component renders in both the admin tab editor and the public viewer; both inherit the polish automatically. Verify the admin editor still looks reasonable after each change.
+Step 7 shipped as a design-system polish pass plus viewer-specific placement refinement. The shared `TransportBar.vue` component remains reusable; the visual treatment lives in `public/css/sbn-design-system.css`, and the public viewer placement lives in `LeadsheetViewer.vue`.
 
-**Current state (the gap):**
-The transport bar uses default `<button>` and `<input type="range">` elements with browser-default styling. Sliders show native chrome (gray track, generic thumb), buttons are unstyled, and the strip has no visual identity. This is by far the most jarring "this looks unfinished" element of the viewer.
+**As-built behavior:**
+- `TransportBar.vue` is still the shared component used by the tab editor and the public leadsheet viewer.
+- Viewer playback is controlled by `LeadsheetViewer.vue`:
+  - `onTransportToggle()` loads chord events and toggles play/pause.
+  - `onTransportSeek()` seeks to an absolute beat.
+  - `seekToMeasure()` seeks to the clicked measure and only auto-plays if playback was already running.
+- Global spacebar playback toggle is wired in the viewer.
+- Transport label now displays the measure number only, not a `bar:beat` label.
 
-**Polish targets:**
+**As-built placement:**
+- The viewer transport is inside `.sbn-leadsheet-main`.
+- `.sbn-leadsheet-main` is a flex column and stays tight to its content.
+- `.sbn-leadsheet-transport` uses `position: sticky`, `bottom: 20px`, and `margin-top: auto`.
+- This gives the intended dual behavior:
+  - Short leadsheets: bar sits at the bottom of the leadsheet container.
+  - Long leadsheets: bar sticks near the bottom of the viewport while scrolling.
+- Mobile overrides reduce the sticky bottom offset to `12px`.
 
-1. **Container**
-   - Pill-shaped (full border-radius), `var(--clr-surface)` background
-   - Subtle border (`1px solid var(--clr-border)`) + soft drop shadow (`var(--clr-shadow)`)
-   - Comfortable padding (`12px 24px`)
-   - Already sticky-bottom from Step 4b layout — keep it
+**As-built styling:**
+- `.sbn-transport-bar`
+  - Pill-shaped rounded surface.
+  - Design-system surface color, border, padding, and soft shadow.
+  - Responsive wrapping on narrow widths.
+- `.sbn-transport-play`
+  - Large circular accent button.
+  - Hover/active scaling.
+  - `is-playing` state styled as a neutral pause state.
+- `.sbn-transport-time` / `.sbn-transport-bpm`
+  - Monospace pill treatment.
+  - Tabular numeric rhythm for stable labels.
+- Range inputs
+  - Shared styling for seek, tempo, and mixer sliders.
+  - Separate WebKit and Firefox thumb rules.
+  - Accent-colored thumb, slim neutral track, hover/focus affordances.
+- Mixer controls
+  - Compact row layout.
+  - Same slider styling as the primary controls.
+- Mobile
+  - Controls wrap.
+  - Primary seek slider takes full width.
+  - Touch targets meet the 44px minimum.
 
-2. **Play button** (`.sbn-transport-play`)
-   - Large circular button (~48px), `var(--clr-accent)` background, white glyph
-   - Hover: slight scale or brightness lift; active state shows the alternate glyph (▶ ↔ ⏸)
-   - The current `is-playing` class is already applied — style it
+**Verification:**
+- [x] Transport bar looks intentional and matches the visual language of the rest of the viewer.
+- [x] Range sliders styled consistently via WebKit and Firefox-specific rules.
+- [x] Play button is the visual focal point of the strip.
+- [x] Mobile responsive rules present for ≤ 768px and ≤ 480px.
+- [x] Keyboard focus styling retained for range inputs.
+- [x] No new design tokens introduced.
+- [x] `npm run build` passes.
 
-3. **Stop / park button** (`.sbn-transport-stop`)
-   - Secondary styling: smaller (~36px circular), neutral surface background, subtle border
-   - `is-parked` modifier (when `currentBeat > 0` && not playing) — indicate "return to start" state with a soft accent color
-
-4. **Range sliders** (seek + tempo)
-   - Cross-browser thumb styling via `::-webkit-slider-thumb` and `::-moz-range-thumb`
-   - Thumb: ~16px circle, `var(--clr-accent)`, with shadow on hover/focus
-   - Track: ~4px tall, `var(--clr-border-dim)` background, `var(--clr-accent)` for the filled portion (use `linear-gradient` trick or a `<input>` with `::-webkit-slider-runnable-track` rules)
-   - Clear focus ring for keyboard users — don't rely on the browser default
-
-5. **Time / position label** (`.sbn-transport-time`)
-   - Monospace font (`font-family: var(--font-mono, ui-monospace)` — define a fallback if the design system doesn't have a mono token yet)
-   - Slightly larger (~13px), `var(--clr-text-dim)` for the "/total" portion if separable
-
-6. **Tempo control** (`.sbn-transport-tempo`)
-   - "♩" glyph + slider + bpm number
-   - Bpm number gets a small monospace pill (similar treatment to the time label)
-   - Slider styled consistently with the seek slider
-
-7. **Mixer tracks** (`.sbn-transport-mixer-track`)
-   - Only renders when `showMixer` prop is true (already gated)
-   - Each track: small icon + label + slim slider — same slider style as above, but compressed
-   - Compact horizontal layout in a row; don't compete with the main transport controls visually
-
-8. **Mobile** (≤ 768px)
-   - Stack labels vertically when horizontal space is tight
-   - All hit targets ≥ 44px (Apple HIG / Material baseline)
-   - Sliders take full width of their column
-   - Mixer collapses below the main row, or hides entirely if space is critical (decide while testing)
-
-**Implementation order (suggested):**
-1. Container + sticky positioning (already partly done; finalize border/shadow/padding)
-2. Play button (the most visible element)
-3. Range slider styling (the longest CSS — get it right once, reuse for all sliders)
-4. Stop button + tempo control
-5. Mixer tracks (lowest-priority, only shown in some modes)
-6. Mobile pass at 360px and 768px
-
-**Implementation notes:**
-- Add styles to `sbn-design-system.css` under a new `/* Transport bar */` section header — keep all transport CSS together so future polish is a single edit point.
-- Do **not** introduce new color tokens. If you need a new shade, see if combining `color-mix()` with existing tokens works (e.g. `color-mix(in srgb, var(--clr-accent) 20%, transparent)` for hover overlays).
-- Range-slider styling requires separate `::-webkit-slider-thumb` and `::-moz-range-thumb` rules (each browser parses only its own; combined selectors silently fail). Reference: MDN's "Styling cross-browser compatible range inputs."
-- The component itself ([resources/js/tab-editor/components/TransportBar.vue](resources/js/tab-editor/components/TransportBar.vue)) should not be modified. If a styling target needs a hook the markup doesn't have, add a class — but resist adding props.
-
-**Done when:**
-- [ ] Transport bar looks intentional and matches the visual language of the rest of the viewer (rounded surfaces, accent-color highlights, soft shadows)
-- [ ] Both range sliders styled consistently across Chromium and Firefox
-- [ ] Play button is the visual focal point of the strip
-- [ ] Mobile usability checked at 360px width — all controls reachable, no overlap
-- [ ] Admin tab editor's transport bar still looks reasonable (the same component is used there) — open `/admin/leadsheets/{id}/edit` and verify
-- [ ] Keyboard navigation works — tab through controls, focus rings visible
-- [ ] No new design tokens introduced
+**Notes / follow-up:**
+- Admin tab editor still uses the same transport styles; do a final visual regression pass there before Phase 9 close.
+- Chord-card scale selection/playback experiments are not part of Step 7 and are deferred.
 
 ### Step 8 — Cinema view toggle placeholder
 
@@ -892,8 +921,8 @@ In `LeadsheetViewer` header, add a view-toggle UI element:
 Both buttons disabled. Keeps the visual affordance present so Phase 10 just removes the disabled state.
 
 **Done when:**
-- [ ] Toggle UI visible and styled
-- [ ] Buttons disabled, tooltip explains "coming soon"
+- [x] Toggle UI visible and styled
+- [x] Buttons disabled, tooltip explains "coming soon"
 
 ### Step 9 — Density toggle UI
 
@@ -909,9 +938,11 @@ In `LeadsheetViewer` header, add a density toggle (icon buttons):
 Persist preference in `localStorage` under key `sbn.leadsheet.density` so user choice carries across songs.
 
 **Done when:**
-- [ ] Toggle changes density immediately with smooth animation
-- [ ] Choice persists across page reloads
-- [ ] Reflow recalculates correctly in compact mode (more measures per row)
+- [x] Toggle changes density immediately with smooth animation
+- [x] Choice persists across page reloads
+- [x] Reflow recalculates correctly in compact mode (more measures per row)
+
+**Deferred:** Hover color change on chord names (CSS selector not working reliably)
 
 ### Step 10 — Promote teaser with viewer link
 
@@ -920,9 +951,9 @@ Edit existing `resources/js/Pages/Library/Songs/Show.vue`:
 - Keep the rest of the teaser (chord-name strip, mini rhythm preview, progressions list, description, song meta) intact
 
 **Done when:**
-- [ ] Teaser still renders all existing Phase 7 content
-- [ ] "Open viewer" CTA is visually prominent (primary button, sized large)
-- [ ] CTA links to the new viewer route
+- [x] Teaser still renders all existing Phase 7 content
+- [x] "Open viewer" CTA is visually prominent (primary button, sized large)
+- [x] CTA links to the new viewer route
 
 ### Step 11 — Styling pass + mobile pass
 

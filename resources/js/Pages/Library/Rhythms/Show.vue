@@ -50,7 +50,12 @@ watch(() => props.pattern.slug, () => {
     <div class="sbn-rhythm-show-container">
       <!-- Header -->
       <header class="sbn-rhythm-show-header" :style="categoryStyle">
-        <Link href="/library/rhythms" class="sbn-back-link">← Back to Rhythm Library</Link>
+        <Link href="/library/rhythms" class="sbn-back-link">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M10 3L3 8l7 5V3z" fill="currentColor"/>
+          </svg>
+          Back to Rhythm Library
+        </Link>
         <h1 class="sbn-rhythm-show-title">{{ pattern.name }}</h1>
         <div class="sbn-rhythm-show-meta">
           <span class="sbn-category-badge">{{ pattern.category }}</span>
@@ -149,18 +154,7 @@ watch(() => props.pattern.slug, () => {
   border-bottom: 3px solid var(--category-color, var(--clr-red));
 }
 
-.sbn-back-link {
-  display: inline-block;
-  margin-bottom: 16px;
-  color: var(--clr-text-muted);
-  text-decoration: none;
-  font-size: 14px;
-  transition: color 0.15s;
-}
 
-.sbn-back-link:hover {
-  color: var(--category-color, var(--clr-red));
-}
 
 .sbn-rhythm-show-title {
   margin: 0 0 12px;

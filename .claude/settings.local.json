@@ -11,7 +11,12 @@
       "WebFetch(domain:soulbossanova.com)",
       "Bash(/c/Users/info/AppData/Local/Herd/resources/bin/php/8.4/php.exe artisan *)",
       "PowerShell(Get-Command php -ErrorAction SilentlyContinue)",
-      "Bash(php artisan *)"
+      "Bash(php artisan *)",
+      "Bash(git commit -m ' *)",
+      "Bash(sqlite3 database/sbn.db \"SELECT name, diagram_data FROM sbn_chord_diagrams WHERE name='Dmaj7' LIMIT 3;\")",
+      "PowerShell($env:Path = \"C:\\\\Program Files\\\\sqlite\\\\;\" + $env:Path; if \\(Get-Command sqlite3 -ErrorAction SilentlyContinue\\) { sqlite3 database/sbn.db \"SELECT name, diagram_data FROM sbn_chord_diagrams WHERE name='Dmaj7' LIMIT 2;\" } else { Write-Output \"no sqlite3\" })",
+      "Bash('/c/Users/info/.config/herd/bin/php84/php.exe' -r 'echo \"ok\\\\n\";')",
+      "Bash(/c/Users/info/.config/herd/bin/php84/php.exe artisan tinker '--execute= *)"
     ]
   }
 }

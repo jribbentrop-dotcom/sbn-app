@@ -5,7 +5,7 @@
       <div class="sbn-leadsheet-back-section">
         <a href="/library/songs" class="sbn-back-link">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M10 14L4 8L10 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M10 3L3 8l7 5V3z" fill="currentColor"/>
           </svg>
           Back to Library
         </a>
@@ -36,7 +36,7 @@
 
     <!-- Two-column layout -->
     <div class="sbn-leadsheet-content">
-      <!-- Main chord grid -->
+      <!-- Main chord grid + transport -->
       <div class="sbn-leadsheet-main">
         <ChordGridView
           v-if="model"
@@ -44,6 +44,26 @@
           :read-only="true"
           :density="density"
         />
+
+        <!-- Transport bar (sticky within main container) -->
+        <div
+          class="sbn-leadsheet-transport"
+          :class="{ 'is-visible': transportVisible || transportHovered, 'is-hidden': !transportVisible && !transportHovered }"
+          @mouseenter="onTransportMouseEnter"
+          @mouseleave="onTransportMouseLeave"
+        >
+      <TransportBar
+        :is-playing="isPlaying"
+        :current-beat="currentBeat"
+        :total-beats="totalBeats"
+        :tempo="tempo"
+        :beats-per-measure="beatsPerMeasure"
+        view-mode="chords"
+        @toggle="onTransportToggle"
+        @seek="onTransportSeek"
+        @tempo-change="onTempoChange"
+      />
+        </div>
       </div>
 
       <!-- Education panel -->
@@ -59,26 +79,6 @@
           :edu-chord-qualities="eduChordQualities"
         />
       </div>
-    </div>
-
-    <!-- Transport bar (fixed positioning, constrained to main container width) -->
-    <div
-      class="sbn-leadsheet-transport"
-      :class="{ 'is-visible': transportVisible || transportHovered, 'is-hidden': !transportVisible && !transportHovered }"
-      @mouseenter="onTransportMouseEnter"
-      @mouseleave="onTransportMouseLeave"
-    >
-      <TransportBar
-        :is-playing="isPlaying"
-        :current-beat="currentBeat"
-        :total-beats="totalBeats"
-        :tempo="tempo"
-        :beats-per-measure="beatsPerMeasure"
-        view-mode="chords"
-        @toggle="onTransportToggle"
-        @seek="onTransportSeek"
-        @tempo-change="onTempoChange"
-      />
     </div>
   </div>
 </template>
@@ -133,8 +133,12 @@ const props = defineProps({
   },
 });
 
-// ── Density state (Step 9 will add localStorage persistence + polished UI) ───
-const density = ref('full');
+// ── Density state with localStorage persistence (Step 9) ───
+const density = ref(localStorage.getItem('sbn.leadsheet.density') || 'full');
+
+watch(density, (newVal) => {
+  localStorage.setItem('sbn.leadsheet.density', newVal);
+});
 
 // ── Smart sticky transport bar (contained within main content) ───────────────
 // Hide on scroll down, show on scroll up (modern header pattern)
@@ -417,28 +421,7 @@ provide('globalIndexOf', (si, mi) => {
   background: transparent;
 }
 
-.sbn-back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--clr-text-muted);
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-  padding: 6px 12px;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-}
 
-.sbn-back-link:hover {
-  color: var(--clr-text);
-  background: var(--clr-surface-2);
-  text-decoration: none;
-}
-
-.sbn-back-link svg {
-  flex-shrink: 0;
-}
 
 /* Controls */
 .sbn-leadsheet-controls {
@@ -506,6 +489,8 @@ provide('globalIndexOf', (si, mi) => {
   border: 1px solid var(--clr-border);
   border-radius: var(--radius);
   padding: 24px;
+  display: flex;
+  flex-direction: column;
 }
 
 .sbn-leadsheet-sidebar {
@@ -518,29 +503,26 @@ provide('globalIndexOf', (si, mi) => {
   order: 1;
 }
 
-/* Transport bar container - fixed positioning, constrained to main container width */
+/* Transport bar container - sticky within main container */
 .sbn-leadsheet-transport {
-    position: fixed;
+    position: sticky;
     bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%) translateY(0);
     z-index: 100;
-    width: calc(100% - 40px);
-    max-width: 900px; /* Constrain to main container approximate width */
+    margin-top: auto;
     transition: transform 0.3s var(--ease), opacity 0.3s var(--ease);
     pointer-events: auto;
 }
 
 /* Hidden state: slide down + fade out */
 .sbn-leadsheet-transport.is-hidden {
-    transform: translateX(-50%) translateY(120%);
+    transform: translateY(120%);
     opacity: 0;
     pointer-events: none;
 }
 
 /* Visible state: slide up + fade in */
 .sbn-leadsheet-transport.is-visible {
-    transform: translateX(-50%) translateY(0);
+    transform: translateY(0);
     opacity: 1;
 }
 
@@ -582,18 +564,16 @@ provide('globalIndexOf', (si, mi) => {
 
   .sbn-leadsheet-content {
     gap: 24px;
-    padding: 0 0 100px; /* Space for floating transport bar */
+    padding: 0 0 20px;
   }
 
   .sbn-leadsheet-main {
     padding: 20px;
   }
 
-  /* Mobile: full-width floating bar with smaller padding */
+  /* Mobile: transport bar adjustments */
   .sbn-leadsheet-transport {
-    width: calc(100% - 32px);
     bottom: 12px;
-    max-width: none;
   }
 
   /* Reduce hover peek area on mobile */

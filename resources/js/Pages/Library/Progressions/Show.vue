@@ -98,7 +98,7 @@ function getTonalityClass(tonality: string): string {
         <div class="sbn-prog-detail-container">
             <!-- Header -->
             <header class="sbn-prog-detail-header">
-                <Link href="/library/progressions" class="sbn-prog-back-link">
+                <Link href="/library/progressions" class="sbn-back-link">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <path d="M10 3L3 8l7 5V3z" fill="currentColor"/>
                     </svg>
@@ -258,26 +258,7 @@ function getTonalityClass(tonality: string): string {
     border-bottom: 3px solid #e85d3b;
 }
 
-.sbn-prog-back-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    color: #718096;
-    text-decoration: none;
-    font-weight: 500;
-    margin-bottom: 16px;
-    font-size: 14px;
-    transition: color 0.15s;
-}
 
-.sbn-prog-back-link:hover {
-    color: #e85d3b;
-}
-
-.sbn-prog-back-link svg {
-    width: 16px;
-    height: 16px;
-}
 
 .sbn-prog-detail-title {
     font-size: 36px;

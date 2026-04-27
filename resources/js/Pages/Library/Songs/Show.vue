@@ -51,14 +51,15 @@ const categoryLabels: Record<string, string> = {
 <template>
   <div class="sbn-song-show" :style="categoryStyle">
 
-    <!-- Breadcrumb -->
-    <nav class="sbn-breadcrumb">
-      <Link href="/">Home</Link>
-      <span>›</span>
-      <Link href="/library/songs">Song Library</Link>
-      <span>›</span>
-      <span>{{ song.title }}</span>
-    </nav>
+    <!-- Back Link -->
+    <div style="margin-bottom: 24px;">
+      <Link href="/library/songs" class="sbn-back-link">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M10 3L3 8l7 5V3z" fill="currentColor"/>
+        </svg>
+        Back to Library
+      </Link>
+    </div>
 
     <!-- Header card -->
     <div class="sbn-song-show-header">
@@ -87,10 +88,9 @@ const categoryLabels: Record<string, string> = {
 
         <!-- Open in viewer CTA -->
         <div class="sbn-song-show-cta">
-          <Link :href="`/library/songs/${song.slug}/viewer`" class="sbn-btn-viewer">
-            Open in Leadsheet Viewer →
+          <Link :href="`/library/songs/${song.slug}/viewer`" class="sbn-btn sbn-btn-primary sbn-btn-lg">
+            Open in viewer →
           </Link>
-          <span class="sbn-viewer-note">(coming in Phase 9)</span>
         </div>
       </div>
     </div>
@@ -213,27 +213,6 @@ const categoryLabels: Record<string, string> = {
   gap: 12px;
 }
 
-.sbn-btn-viewer {
-  display: inline-block;
-  background: var(--category-color, var(--clr-style-bossa));
-  color: var(--clr-white);
-  padding: 8px 20px;
-  border-radius: 6px;
-  font-weight: 600;
-  font-size: 0.9em;
-  text-decoration: none;
-  transition: opacity 0.15s;
-}
-
-.sbn-btn-viewer:hover {
-  opacity: 0.88;
-}
-
-.sbn-viewer-note {
-  font-size: 0.78em;
-  color: var(--clr-text-muted);
-  font-style: italic;
-}
 
 /* Sections */
 .sbn-song-show-section {

@@ -159,15 +159,15 @@ function getChords(prog: ProgressionRef): ProgressionChord[] {
 <template>
     <div class="sbn-chord-detail">
 
-        <!-- Back nav -->
-        <nav class="sbn-chord-detail-nav">
-            <Link class="sbn-chord-detail-back" href="/library/chords">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Chord Library
-            </Link>
-        </nav>
+        <!-- Back Link -->
+        <div style="margin-bottom: 24px;">
+          <Link href="/library/chords" class="sbn-back-link">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M10 3L3 8l7 5V3z" fill="currentColor"/>
+            </svg>
+            Back to Chord Library
+          </Link>
+        </div>
 
         <!-- ════ IDENTITY PANEL ════ -->
         <div class="sbn-chord-identity">
@@ -337,20 +337,7 @@ function getChords(prog: ProgressionRef): ProgressionChord[] {
     padding: 24px 20px 80px;
 }
 
-/* ── Back nav ── */
-.sbn-chord-detail-nav { margin-bottom: 28px; }
 
-.sbn-chord-detail-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.88em;
-    font-weight: 500;
-    color: var(--clr-text-muted);
-    text-decoration: none;
-    transition: color 0.15s;
-}
-.sbn-chord-detail-back:hover { color: var(--clr-red); }
 
 /* ── Identity panel ── */
 .sbn-chord-identity {
