@@ -3,7 +3,7 @@
     <!-- Header band (hidden when embedded) -->
     <div v-if="!embedded" class="sbn-leadsheet-header">
       <div class="sbn-leadsheet-back-section">
-        <a href="/library/songs" class="sbn-back-link"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L3 8l7 5V3z" fill="currentColor"/></svg><span>Back to Library</span></a>
+        <a href="/library/songs" class="sbn-back-link">← Back to Library</a>
       </div>
 
       <div class="sbn-leadsheet-controls">

@@ -2972,9 +2972,7 @@
 /* 13. GLOBAL COMPONENTS */
 /* Back Link (Unified style for all library return links) */
 .sbn-back-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+    display: inline-block;
     color: var(--clr-text-muted, #718096);
     text-decoration: none;
     font-weight: 500;
@@ -2986,10 +2984,4 @@
 
 .sbn-back-link:hover {
     color: var(--category-color, var(--clr-accent, #e85d3b));
-}
-
-.sbn-back-link svg {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
 }
