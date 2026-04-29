@@ -19,17 +19,36 @@
                     v-for="(name, ci) in chordNames"
                     :key="ci"
                     class="sbn-tab-chord-name-wrap"
+                    :style="getChordStyle(ci)"
                 >
+                    <input
+                        v-if="renamingCi === ci"
+                        ref="renameInput"
+                        class="sbn-ve-chord-name-input sbn-tab-chord-rename-input"
+                        :value="renameValue"
+                        @input="renameValue = $event.target.value"
+                        @keydown.enter.prevent="commitRename"
+                        @keydown.escape.prevent="cancelRename"
+                        @blur="commitRename"
+                        @click.stop
+                        @pointerdown.stop
+                        @contextmenu.stop
+                    />
                     <span
-                        class="sbn-tab-chord-name sbn-chord-symbol sbn-tab-chord-name--clickable"
-                        :title="'Click to change voicing for ' + name"
+                        v-else
+                        class="sbn-tab-chord-name sbn-chord-symbol"
+                        :class="{
+                            'sbn-tab-chord-name--clickable': !readOnly || allowChordClick,
+                            'is-active': activeChordIndex === ci
+                        }"
+                        :title="readOnly ? name : 'Click to change voicing for ' + name"
                         v-html="formatChord(name)"
                         @click.stop="onChordNameClick(name, ci)"
                         @contextmenu.prevent.stop="onChordNameContextMenu($event, name, ci)"
                     ></span>
                 </span>
             </template>
-            <template v-else>
+            <template v-else-if="!readOnly">
                 <!-- Empty bar placeholder — click opens the chord name picker.
                      The chord bar has a fixed height so this never causes offset. -->
                 <span class="sbn-tab-chord-name-wrap sbn-tab-chord-empty-wrap"
@@ -60,7 +79,7 @@
 
             <!-- Metronome column: same geometry as TabCursor's selection column -->
             <rect
-                v-if="isPlaying && metronomeBeatX !== null"
+                v-if="metronomeBeatX !== null"
                 :x="metronomeBeatX - METRO_HALF_W"
                 :y="LAYOUT.stringAreaTop - 4"
                 :width="METRO_HALF_W * 2"
@@ -79,6 +98,7 @@
                 :pending-digit="pendingDigit"
                 :selected-events="selectedEvents"
                 :is-playing="isPlaying"
+                :read-only="readOnly"
                 @mousedown-event="onCursorMousedownEvent"
                 @mouseenter-event="onCursorMouseenterEvent"
                 @mousedown-rest="onCursorMousedownRest"
@@ -89,7 +109,7 @@
 </template>
 
 <script setup>
-import { computed, ref, inject, watch } from 'vue';
+import { computed, ref, inject, watch, nextTick } from 'vue';
 import { LAYOUT } from '../utils/constants.js';
 import {
     renderFlag, renderRest, renderBeams, renderTies,
@@ -156,6 +176,19 @@ const props = defineProps({
     barsPerRow: {
         type: Number,
         default: 4,
+    },
+    allowChordClick: {
+        type: Boolean,
+        default: false,
+    },
+    /**
+     * Phase 9b: read-only mode — disables chord editing, context menus,
+     * and other editor-only affordances while keeping visual rendering
+     * and measure selection / click-to-seek intact.
+     */
+    readOnly: {
+        type: Boolean,
+        default: false,
     },
 });
 
@@ -245,12 +278,44 @@ const measureStyle = computed(() => {
 
 // ── Playback highlighting ─────────────────────────────
 const svgEl               = ref(null);
-const playingMeasureIndex = inject('playingMeasureIndex', null);
-const transportBeat       = inject('transportBeat',       null);
-const beatsPerMeasureRef  = inject('beatsPerMeasureRef',  null);
-const transportPlaying    = inject('transportPlaying',    null);
-const tapCursor           = inject('tapCursor', null);
-const videoSyncMap        = inject('videoSyncMap', null);
+const playingMeasureIndex  = inject('playingMeasureIndex', null);
+const transportBeat        = inject('transportBeat',       null);
+const beatsPerMeasureRef   = inject('beatsPerMeasureRef',  null);
+const transportPlaying     = inject('transportPlaying',    null);
+const tapCursor            = inject('tapCursor', null);
+const videoSyncMap         = inject('videoSyncMap', null);
+const inlineRenameTarget   = inject('inlineRenameTarget', null);
+const setChordNameFn       = inject('setChordName', null);
+
+// ── Inline chord rename ───────────────────────────────────────────────────────
+const renameInput    = ref(null);
+const renamingCi     = ref(null);   // chord index currently being renamed, or null
+const renameValue    = ref('');
+
+watch(inlineRenameTarget, (target) => {
+    if (target && target.gi === props.measure.index) {
+        renameValue.value = props.chordNames[target.ci] || '';
+        renamingCi.value  = target.ci;
+        nextTick(() => { renameInput.value?.focus(); renameInput.value?.select(); });
+    } else {
+        // Target moved to a different measure or was cleared — cancel any open input
+        renamingCi.value = null;
+    }
+});
+
+function commitRename() {
+    if (renamingCi.value === null) return;
+    const ci      = renamingCi.value;
+    const newName = renameValue.value.trim();
+    renamingCi.value = null;
+    if (newName !== (props.chordNames[ci] || '')) {
+        setChordNameFn?.(props.measure.index, ci, newName);
+    }
+}
+
+function cancelRename() {
+    renamingCi.value = null;
+}
 const isPlaying           = computed(() => transportPlaying?.value ?? false);
 
 const syncPoint = computed(() => videoSyncMap?.value?.get(props.measure.index) ?? null);
@@ -281,7 +346,7 @@ function _eventAtTick(tickInMeasure) {
 // xPos for beat b = b/bpm, same mapping getXm uses (tickInMeasure/tpm).
 const METRO_HALF_W = 9;
 const metronomeBeatX = computed(() => {
-    if (!isPlayingMeasure.value || !isPlaying.value) return null;
+    if (!isPlayingMeasure.value) return null;
     const bpm      = beatsPerMeasureRef?.value ?? 4;
     const beat     = transportBeat?.value ?? 0;
     const bSnapped = Math.floor(((beat % bpm) + bpm) % bpm);
@@ -290,12 +355,74 @@ const metronomeBeatX = computed(() => {
 
 // Red note highlight: continuous (follows exact beat for responsive feel).
 const playingEventId = computed(() => {
-    if (!isPlayingMeasure.value || !isPlaying.value) return null;
+    if (!isPlayingMeasure.value) return null;
     const bpm  = beatsPerMeasureRef?.value ?? 4;
     const beat = transportBeat?.value ?? 0;
     const b    = ((beat % bpm) + bpm) % bpm;
     const tpm  = props.ticksPerMeasure;
     return _eventAtTick(b / bpm * tpm)?.id ?? null;
+});
+
+const activeChordIndex = computed(() => {
+    const total = props.chordNames.length;
+    if (!total) return -1;
+    
+    // 1. Playback highlighting takes priority
+    if (isPlayingMeasure.value) {
+        if (total === 1) return 0;
+        const bpm = beatsPerMeasureRef?.value ?? 4;
+        const beat = transportBeat?.value ?? 0;
+        const beatInMeasure = ((beat % bpm) + bpm) % bpm;
+        
+        const offsets = props.measure.chordOffsets || [];
+        const durations = props.measure.chordDurations || [];
+        
+        for (let i = 0; i < total; i++) {
+            const slotStart = offsets[i] != null ? offsets[i] : i * (bpm / total);
+            const duration = durations[i] != null ? durations[i] : (bpm / total);
+            const slotEnd = slotStart + duration;
+            
+            if (beatInMeasure >= slotStart - 0.05 && beatInMeasure < slotEnd - 0.05) {
+                return i;
+            }
+        }
+        const idx = Math.floor(beatInMeasure / (bpm / total));
+        return Math.min(idx, total - 1);
+    }
+    
+    // 2. Cursor positioning highlighting (when not playing)
+    if (props.cursor && props.cursor.measureIndex === props.measure.index) {
+        if (total === 1) return 0;
+        
+        const v1 = (props.measure.events || [])
+            .filter(e => (e.voice || 1) === 1)
+            .sort((a, b) => a.tick - b.tick);
+            
+        const cursorEv = v1[props.cursor.eventIndex];
+        if (cursorEv) {
+            const tick = cursorEv.tickInMeasure || 0;
+            const tpm = props.ticksPerMeasure || 1920;
+            const bpm = beatsPerMeasureRef?.value ?? 4;
+            const beatInMeasure = (tick / tpm) * bpm;
+            
+            const offsets = props.measure.chordOffsets || [];
+            const durations = props.measure.chordDurations || [];
+            
+            for (let i = 0; i < total; i++) {
+                const slotStart = offsets[i] != null ? offsets[i] : i * (bpm / total);
+                const duration = durations[i] != null ? durations[i] : (bpm / total);
+                const slotEnd = slotStart + duration;
+                
+                if (beatInMeasure >= slotStart - 0.05 && beatInMeasure < slotEnd - 0.05) {
+                    return i;
+                }
+            }
+            const idx = Math.floor(beatInMeasure / (bpm / total));
+            return Math.min(idx, total - 1);
+        }
+    }
+    
+    return -1;
 });
 
 // Apply/remove red highlight on the playing event's note texts.
@@ -329,6 +456,58 @@ function getXm(xPos) {
     const xL = props.isFirstOfSection ? LAYOUT.xPaddingFirst : LAYOUT.xPadding;
     const xRng = w - xL - LAYOUT.xPadding;
     return xL + xPos * xRng;
+}
+
+function getChordStyle(ci) {
+    const total = props.chordNames.length;
+    let xPos = null;
+    
+    // 1. Try explicit chordOffsets
+    if (props.measure.chordOffsets && props.measure.chordOffsets[ci] != null) {
+        const offset = props.measure.chordOffsets[ci];
+        const effectiveTicks = Math.max(props.measure.actualTicks || 0, props.ticksPerMeasure);
+        xPos = (offset * 480) / effectiveTicks;
+    } 
+    
+    // 2. Try binding to chordal event inside expected slot
+    if (xPos === null) {
+        const slotTicks = props.ticksPerMeasure / total;
+        const startTick = ci * slotTicks;
+        const endTick = (ci + 1) * slotTicks;
+        
+        const chordEvent = (props.measure.events || []).find(ev =>
+            !ev.isRest &&
+            ev.notes.length >= 3 &&
+            ev.tickInMeasure >= startTick &&
+            ev.tickInMeasure < endTick
+        );
+        
+        if (chordEvent) {
+            xPos = chordEvent.xPos;
+        }
+    }
+    
+    // 3. Ultimate fallback: strictly even division
+    if (xPos === null) {
+        xPos = ci / total;
+    }
+    
+    const xPx = getXm(xPos);
+    const w = effectiveWidth.value || 160;
+    const pct = (xPx / w) * 100;
+    
+    let transform = 'translateX(-50%)';
+    if (xPos < 0.8) {
+        transform = 'translateX(-20%)';
+    } else if (xPos > 0.92) {
+        transform = 'translateX(-100%)';
+    }
+    
+    return {
+        position: 'absolute',
+        left: `${pct}%`,
+        transform: transform,
+    };
 }
 
 // For cross-measure ties: compute X in the NEXT measure's coordinate space
@@ -450,6 +629,8 @@ const svgContent = computed(() => {
 });
 
 function onChordNameClick(chordName, chordIndex) {
+    // In read-only mode, still emit if allowChordClick is true (for viewer selection)
+    if (props.readOnly && !props.allowChordClick) return;
     emit('chord-click', {
         measureIndex: props.measure.index,
         chordIndex,
@@ -476,6 +657,7 @@ function onChordIdentifyClick(chordName, chordIndex) {
 }
 
 function onChordNameContextMenu(event, chordName, chordIndex) {
+    if (props.readOnly) return;
     emit('chord-context-menu', {
         measureIndex: props.measure.index,
         chordIndex,
@@ -520,6 +702,7 @@ function onCursorMouseenterRest({ eventId, event }) {
 // ── Measure-level selection / context menu (Phase 2b) ─────────
 
 function onMeasureContextMenu(event) {
+    if (props.readOnly) return;
     emit('measure-context-menu', { measureIndex: props.measure.index, event });
 }
 </script>

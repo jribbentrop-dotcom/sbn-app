@@ -1247,58 +1247,35 @@ function leadsheetEditor() {
 
 
 
-            // Step 3: Vue identified a chord from frets → update chord name in grid
-            document.addEventListener('sbn-tab-chord-update', (e) => {
-                const { globalMeasureIndex, chordIndex, newName } = e.detail || {};
-                console.log('[SBN chord-update] received', { globalMeasureIndex, chordIndex, newName });
-                if (newName === undefined || globalMeasureIndex === undefined || chordIndex === undefined) return;
+            // Step 3: Vue identified a chord from frets → update chord name via Vue model
+            // Guard: register once only (init() can run multiple times on hot reload)
+            if (!window._sbnTabChordUpdateRegistered) {
+                window._sbnTabChordUpdateRegistered = true;
 
-                // Resolve globalMeasureIndex → sectionIndex + local measureIndex
-                let remaining = globalMeasureIndex;
-                let resolved = false;
-                for (let si = 0; si < (this.parsed?.sections || []).length; si++) {
-                    const measures = this.parsed.sections[si].measures || [];
-                    console.log('[SBN chord-update] si', si, 'measures.length', measures.length, 'remaining', remaining);
-                    if (remaining < measures.length) {
-                        const oldName = measures[remaining].chords?.[chordIndex]?.name;
-                        console.log('[SBN chord-update] found measure — oldName:', oldName, 'newName:', newName);
-                        if (oldName !== undefined) {
-                            if (oldName === newName) {
-                                sbnToast('Already ' + newName, 'info');
-                            } else {
-                                // Guard against $watch('parsed') re-dispatching sbn-tab-init
-                                this._suppressTabInit = true;
-                                this.parsed.sections[si].measures[remaining].chords[chordIndex].name = newName;
-                                this._suppressTabInit = false;
-                                this.markDirty();
-                                sbnToast('Chord updated to ' + newName, 'success');
-                            }
+                document.addEventListener('sbn-tab-chord-update', (e) => {
+                    const { globalMeasureIndex, chordIndex, newName } = e.detail || {};
+                    if (newName === undefined || globalMeasureIndex === undefined || chordIndex === undefined) return;
+                    window.__sbnTabModel?.setChordName(globalMeasureIndex, chordIndex, newName);
+                    sbnToast('Chord updated to ' + newName, 'success');
+                });
+
+                document.addEventListener('sbn-tab-identify-result', (e) => {
+                    const { oldName, newName, measureIndex, chordIndex, tabData } = e.detail || {};
+                    if (!newName) return;
+                    const msg = !oldName
+                        ? `Identified as <strong>${newName}</strong> — assign?`
+                        : oldName === newName
+                            ? `Confirmed as <strong>${newName}</strong> — update?`
+                            : `Identified as <strong>${newName}</strong> (was ${oldName}) — update?`;
+                    sbnConfirmToast(
+                        msg,
+                        'Update',
+                        () => {
+                            window.__sbnTabModel?.setChordNameWithVoicing(measureIndex, chordIndex, newName, tabData);
                         }
-                        resolved = true;
-                        break;
-                    }
-                    remaining -= measures.length;
-                }
-                if (!resolved) console.warn('[SBN] sbn-tab-chord-update: measure not found for globalIndex', globalMeasureIndex);
-            });
-
-            // Step 3: Vue tab identified chord as different name → show confirm UI
-            document.addEventListener('sbn-tab-identify-result', (e) => {
-                const { oldName, newName, measureIndex, chordIndex } = e.detail || {};
-                if (!oldName || !newName) return;
-                const msg = oldName === newName
-                    ? `Confirmed as <strong>${newName}</strong> — update?`
-                    : `Identified as <strong>${newName}</strong> (was ${oldName}) — update?`;
-                sbnConfirmToast(
-                    msg,
-                    'Update',
-                    () => {
-                        document.dispatchEvent(new CustomEvent('sbn-tab-chord-update', {
-                            detail: { globalMeasureIndex: measureIndex, chordIndex, newName },
-                        }));
-                    }
-                );
-            });
+                    );
+                });
+            }
 
 
             // Phase B Step 7: Vue is now the authority on sections/voicings.
@@ -1314,6 +1291,7 @@ function leadsheetEditor() {
                 if (rm !== null) this.parsed.repeatMarkers = rm;
                 if (ve !== null) this.parsed.voltaEndings  = ve;
                 this._analysisStale = true;
+                this.markDirty();
             };
             document.addEventListener('sbn-tab-sections-sync', _syncFromFacade);
             window.addEventListener('sbn-tab-sections-sync', _syncFromFacade);

@@ -12,20 +12,6 @@
       @contextmenu="openContextMenu"
     />
 
-    <!-- Chord name inline picker (positioned popup) - hidden in readOnly mode -->
-    <ChordPicker
-      v-if="chordPicker && !readOnly"
-      :open="chordPicker.open.value"
-      :top="chordPicker.top.value"
-      :left="chordPicker.left.value"
-      :value="chordPicker.value.value"
-      :si="0"
-      :mi="chordPicker.gi.value"
-      :ci="chordPicker.ci.value"
-      @update:open="chordPicker.close()"
-      @apply="onChordPickerApply"
-    />
-
     <!-- Context menu (Teleported to body inside the component) - hidden in readOnly mode -->
     <ChordContextMenu
       v-if="!readOnly"
@@ -42,7 +28,6 @@
 <script setup>
 import { inject, ref, onMounted, onUnmounted } from 'vue';
 import ChordSection     from './ChordSection.vue';
-import ChordPicker      from './ChordPicker.vue';
 import ChordContextMenu from './ChordContextMenu.vue';
 
 const props = defineProps({
@@ -63,11 +48,12 @@ const props = defineProps({
 
 // ── Injected from TabEditor ───────────────────────────────────────────────────
 
-const ops          = inject('chordGridOps', null);   // useChordGridOps (not provided in viewer mode)
-const clipboard    = inject('chordClipboard', null); // useChordClipboard (not provided in viewer mode)
-const gridSelection = inject('gridSelection', null); // useGridSelection
-const chordPicker  = inject('chordPicker', null);    // useChordPickerStore (not provided in viewer mode)
-const voicingPicker = inject('voicingPicker', null); // useVoicingPickerStore (not provided in viewer mode)
+const ops                = inject('chordGridOps', null);
+const clipboard          = inject('chordClipboard', null);
+const gridSelection      = inject('gridSelection', null);
+const chordPicker        = inject('chordPicker', null);
+const voicingPicker      = inject('voicingPicker', null);
+const triggerInlineRename = inject('triggerInlineRename', null);
 
 // ── Context menu state (flat refs — v-model in template binds directly) ─────
 
@@ -98,11 +84,6 @@ function onGridClick(event) {
 
 // ── Chord picker apply ────────────────────────────────────────────────────────
 
-function onChordPickerApply({ name, mi: gi, ci }) {
-  ops?.setChordName(gi, ci, name);
-  chordPicker?.close();
-}
-
 // ── Context menu action dispatch ──────────────────────────────────────────────
 
 function onContextMenuAction(actionId, data) {
@@ -112,10 +93,7 @@ function onContextMenuAction(actionId, data) {
 
     // Chord slot ops
     case 'rename-chord':
-      chordPicker?.openAt(
-        { bottom: ctxMenuTop.value, left: ctxMenuLeft.value },
-        gi, ci, chordName
-      );
+      triggerInlineRename?.(gi, ci);
       break;
 
     case 'change-voicing':

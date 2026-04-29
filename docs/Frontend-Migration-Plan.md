@@ -40,9 +40,9 @@ Each phase depends on the ones before it. Execute sequentially.
 | 5 | **[DONE]** Chord progression library — Index + minimal Show (ChordProgressionBlock deferred to Phase 7) | 3 |
 | 6 | **[DONE]** Songs library browse + minimal Show stub + `slug` on `sbn_leadsheets` | 3, 4 |
 | 7 | **[DONE]** Wire detail pages together — `ChordProgressionViewer`, chord-card audio, all Show pages live, cross-refs wired, several engine + transposition fixes | 3, 4, 5, 6 |
-| 8 | **[NEXT]** Top10 pages (pure composition over 3/4/5/6 components) | 3, 4, 5, 6 |
-| 9 | Leadsheet viewer — classic view (old layout + new context/edu panel) | 3, 4, 5, 6 |
-| 10 | Leadsheet viewer — cinema view (video-focused layout, toggle from classic view, full reload acceptable) | 9 |
+| 8 | **[DONE]** Top10 pages (pure composition over 3/4/5/6 components) | 3, 4, 5, 6 |
+| 9 | **[DONE]** Leadsheet viewer — classic view (old layout + new context/edu panel) | 3, 4, 5, 6 |
+| 10 | **[NEXT]** Leadsheet viewer — cinema view (video-focused layout, toggle from classic view, full reload acceptable) | 9 |
 | 11 | Course player | 1, 9 |
 | 12 | Auth + payments (unstub shop, wire real checkout, gate courses) | 2, 11 |
 
@@ -1351,9 +1351,17 @@ Route::get('/top10/bossa-nova-chords', [Top10Controller::class, 'bossaNovaChords
 
 ---
 
-### Phase 9 — Leadsheet Viewer (Classic View)
+### Phase 9 — Leadsheet Viewer ✅ DONE (April 27, 2026)
 
-**Deliverable:** Public leadsheet classic view (old layout, new context/edu panel in sidebar). The song browse page is already in place from Phase 6 — this phase wires up what a Song card's click-target renders.
+**Full reference:** [`docs/Phase-9-Leadsheet-Viewer.md`](Phase-9-Leadsheet-Viewer.md) — unified doc covering both Phase 9 (Classic Viewer) and Phase 9b (Tab Viewer).
+
+**Deliverable:** Public leadsheet viewer with three rendering modes (`No chords` / `Chords` / `Tab`), chord-aware education sidebar, and design-system-polished transport bar. Song catalog from Phase 6 links into the viewer; admin tab editor remains the source of truth for data entry.
+
+#### What was built
+
+- **Routing & Viewers:** Implemented `/library/songs/{leadsheet:slug}/viewer`.
+- **Read-Only Engine Wrappers:** Built `LeadsheetViewer.vue` context frames.
+- **Unified SVG Models:** Accommodated progression/rhythmic previews.
 
 **Component inventory:**
 - **[NEW]** `Pages/Leadsheet/Classic.vue` — public-facing wrapper page
@@ -1435,10 +1443,11 @@ Field notes:
 **CSS extraction needed before Phase 9:** Tab SVG classes (`.sbn-tab-note-text`, `.sbn-tab-metronome-col`, `.sbn-beat-active`, etc.) currently live in `leadsheets.css` (admin-only). Move them to `sbn-design-system.css` before Phase 9 so the public viewer can use them without importing admin CSS.
 
 **Done:**
-- Existing songs render correctly.
-- Edu panel surfaces contextual teaching content (chord theory, rhythm notes) tied to current selection.
-- Audio playback works.
-- View toggle placeholder present (disabled until Phase 10).
+- Existing songs render correctly in chord and tab modes.
+- 3-way mode toggle (No chords / Chords / Tab) with localStorage persistence; Tab button gated on whether the song has melody data.
+- Edu panel surfaces contextual teaching content (chord theory, progressions) tied to current selection across all modes.
+- Audio playback works in both chord and tab paths, with smooth mode-swap mid-playback.
+- Cinema-view toggle placeholder present (disabled until Phase 10).
 
 ---
 

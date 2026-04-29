@@ -39,8 +39,8 @@
             :r="CURSOR_R"
             class="sbn-cursor-ring"
             :class="{
-                'sbn-cursor-ring--input':   cursor.mode === 'input' || pendingDigit !== null,
-                'sbn-cursor-ring--pending': pendingDigit !== null,
+                'sbn-cursor-ring--input':   !readOnly && (cursor.mode === 'input' || pendingDigit !== null),
+                'sbn-cursor-ring--pending': !readOnly && pendingDigit !== null,
             }"
         />
 
@@ -51,7 +51,7 @@
             immediate visual feedback.
         -->
         <text
-            v-if="activeCursorVisible && activeEventX !== null && pendingDigit !== null && !isPlaying"
+            v-if="activeCursorVisible && activeEventX !== null && pendingDigit !== null && !isPlaying && !readOnly"
             :x="activeEventX"
             :y="activeCellY"
             dominant-baseline="central"
@@ -148,6 +148,14 @@ const props = defineProps({
     },
     /** Hide the cursor ring (but keep hit targets) during audio playback. */
     isPlaying: {
+        type: Boolean,
+        default: false,
+    },
+    /**
+     * Phase 9b: read-only mode — hides input-mode styling and pending digit
+     * while keeping selection hit targets and visual cursor intact.
+     */
+    readOnly: {
         type: Boolean,
         default: false,
     },

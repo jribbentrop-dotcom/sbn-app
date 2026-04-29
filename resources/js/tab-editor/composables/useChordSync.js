@@ -28,19 +28,25 @@
  */
 export function extractFretsAtChord(measure, chordIndex, ticksPerMeasure) {
     const numChords = Math.max((measure.chordNames || []).length, 1);
-    const slotTicks = ticksPerMeasure / numChords;
-    const startTick = chordIndex * slotTicks;
-    const endTick   = (chordIndex + 1) * slotTicks;
+    // Use parser-derived offsets when available, otherwise fall back to even division
+    const bpm       = ticksPerMeasure / 480;  // beats per measure
+    const hasOffsets = Array.isArray(measure.chordOffsets) && measure.chordOffsets.length === numChords;
+    const hasBeats   = Array.isArray(measure.chordBeats)   && measure.chordBeats.length   === numChords;
+    const evenBeats  = bpm / numChords;
+    const startBeat  = hasOffsets ? measure.chordOffsets[chordIndex] : chordIndex * evenBeats;
+    const durBeats   = hasBeats   ? measure.chordBeats[chordIndex]   : evenBeats;
+    const startTick  = startBeat * 480;
+    const endTick    = (startBeat + durBeats) * 480;
 
-    // Find first chordal event (≥3 simultaneous notes) in this chord's time slot
-    const chordEvent = (measure.events || []).find(ev =>
+    // Find the event with the most notes in this slot (prefer ≥3, accept any)
+    const candidates = (measure.events || []).filter(ev =>
         !ev.isRest &&
-        ev.notes.length >= 3 &&
+        ev.notes.length >= 1 &&
         ev.tickInMeasure >= startTick &&
         ev.tickInMeasure < endTick
     );
-
-    if (!chordEvent) return null;
+    if (!candidates.length) return null;
+    const chordEvent = candidates.reduce((best, ev) => ev.notes.length > best.notes.length ? ev : best);
 
     // Build fret string: position 0 = SBN diagram string 1 = low E
     // Tab string → diagram index: diagIdx = 6 - tabString
@@ -72,10 +78,16 @@ export function extractFretsAtChord(measure, chordIndex, ticksPerMeasure) {
  * @param {string} frets          - 6-char diagram fret string (position 0 = low E)
  */
 export function applyVoicingToChord(measure, chordIndex, ticksPerMeasure, frets) {
-    const numChords = Math.max((measure.chordNames || []).length, 1);
-    const slotTicks = ticksPerMeasure / numChords;
-    const startTick = chordIndex * slotTicks;
-    const endTick   = (chordIndex + 1) * slotTicks;
+    const numChords  = Math.max((measure.chordNames || []).length, 1);
+    const bpm        = ticksPerMeasure / 480;
+    const hasOffsets = Array.isArray(measure.chordOffsets) && measure.chordOffsets.length === numChords;
+    const hasBeats   = Array.isArray(measure.chordBeats)   && measure.chordBeats.length   === numChords;
+    const evenBeats  = bpm / numChords;
+    const startBeat  = hasOffsets ? measure.chordOffsets[chordIndex] : chordIndex * evenBeats;
+    const durBeats   = hasBeats   ? measure.chordBeats[chordIndex]   : evenBeats;
+    const startTick  = startBeat * 480;
+    const endTick    = (startBeat + durBeats) * 480;
+    const slotTicks  = endTick - startTick;
 
     // Parse diagram frets → tab note objects
     // Diagram index → tab string: tabString = 6 - diagIdx
@@ -109,8 +121,17 @@ export function applyVoicingToChord(measure, chordIndex, ticksPerMeasure, frets)
             ev.tieEndEvent   = null;
         }
     } else {
-        // No chordal events — generate a single new quarter-note event
-        // Place it at the start of the chord's time slot
+        // No chordal events — remove any rests covering this slot, then insert a quarter note
+        const restIndices = [];
+        measure.events.forEach((ev, i) => {
+            if (ev.isRest && ev.tickInMeasure >= startTick && ev.tickInMeasure < endTick) {
+                restIndices.push(i);
+            }
+        });
+        for (let i = restIndices.length - 1; i >= 0; i--) {
+            measure.events.splice(restIndices[i], 1);
+        }
+
         const { generateId } = _importGenerateId();
         const tickInMeasure  = startTick;
         const baseTick       = measure.index * ticksPerMeasure;

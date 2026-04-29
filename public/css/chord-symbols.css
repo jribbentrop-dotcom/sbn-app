@@ -14,15 +14,18 @@
     display: inline-block;
     font-family: var(--font-chord);
     font-size: 1.05em;
-    color: var(--clr-accent-dim);
+    color: var(--sbn-chord-color, var(--clr-accent-dim));
     font-weight: 600;
     white-space: nowrap;
     vertical-align: baseline;
 }
 
-/* In chord grid / tab editor cards, names are dark not orange */
-.sbn-ve-chord-name .sbn-chord-symbol {
-    color: var(--clr-text, #2c3e50);
+/* In UI cards, pickers, and editors, names are dark not orange */
+.sbn-ve-chord-name,
+.sbn-vp-chord-name,
+.sbn-vp-card-name,
+.sbn-ve-modal-chord-name {
+    --sbn-chord-color: var(--clr-text, #2c3e50);
 }
 
 /* -- Root note (A–G) ------------------------------------- */

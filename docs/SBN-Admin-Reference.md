@@ -1,7 +1,7 @@
 # SBN Teaching Hub — Admin Reference
 
 > **Purpose:** Complete functional documentation for the SBN admin section. Covers all implemented modules, their architecture, data models, and the design system. Use this as the reference when building the public frontend.
-> **Last updated:** 2026-04-20 (Video Sync complete — all legacy WP components migrated)
+> **Last updated:** 2026-04-29 (Phase B chord editing complete — inline rename, tab chord ops, identify-from-tab with voicing write)
 
 ---
 
@@ -108,18 +108,30 @@ Three tabs owned by Vue: **Chords** | **Tab** | **Analysis**. Vue's `viewMode` r
 | `sbn-tab-save-response` | Vue → Alpine | Reply with MusicXML string |
 | `sbn-tab-view-changed` | Vue → Alpine | Alpine mirrors viewMode; triggers analysis load |
 | `sbn-tab-sections-sync` | Vue → Alpine | Structural change: invalidate analysis, update parsed.sections |
-| `sbn-tab-identify-result` | Vue → Alpine | Tab chord identified — update chord name in parsed.sections |
+| `sbn-tab-identify-result` | Vue → Alpine | Tab chord identified — show confirm toast; on confirm calls `window.__sbnTabModel.setChordNameWithVoicing()` |
+
+**`sbn-tab-chord-update` is NOT used for confirm flow.** The `sbn-tab-identify-result` handler calls `setChordNameWithVoicing` directly. `sbn-tab-chord-update` is kept only as a legacy direct-update path.
+
+Both listeners are guarded with `window._sbnTabChordUpdateRegistered` to prevent duplicate registration on hot reload.
 
 ### `window.__sbnTabModel` facade
 Singleton in `utils/tabModelFacade.js`. Exposes live Vue model data to Alpine without snapshot staleness:
 ```js
+// Read
 window.__sbnTabModel.getSections()       // exportAlpineSections() shape
 window.__sbnTabModel.getChordVoicings()  // plain-object clone
 window.__sbnTabModel.getRepeatMarkers()
 window.__sbnTabModel.getVoltaEndings()
 window.__sbnTabModel.getMeta()           // { title, composer, key, tempo, timeSignature }
+
+// Write (Alpine → Vue, routes through chordGridOps with undo)
+window.__sbnTabModel.setChordName(gi, ci, name)
+window.__sbnTabModel.setChordNameWithVoicing(gi, ci, name, tabData)
+  // tabData = { frets: '6-char string', position: number } from extractFretsAtChord()
+  // writes chordName + positional voicing key `name@gi.ci` in one undo command
 ```
 Initialized once by `TabEditor.vue` via `initTabModelFacade({...})` after `useTabModel` setup.
+Write functions are registered separately after `chordGridOps` is created via `registerSetChordName()` / `registerSetChordNameWithVoicing()` — avoids circular init order.
 
 ### Save pipeline
 1. User clicks Save → Alpine `save()`
@@ -159,7 +171,7 @@ resources/js/tab-editor/
     useCursor.js                                         ← cursor state machine + navigation
     useNoteInput.js                                      ← fret entry, delete, rest↔note
     useReflow.js                                         ← duration changes, repositionMeasure
-    useChordSync.js                                      ← extractFretsAtChord + applyVoicingToChord
+    useChordSync.js                                      ← extractFretsAtChord + applyVoicingToChord (beat-positioned, uses chordOffsets)
     useSelection.js                                      ← copy/paste, Shift+arrow range selection
     useUndo.js                                           ← command stack with measure snapshots
     useSidebarStore.js                                   ← shared reactive store between TabEditor + TabSidebarApp
@@ -207,7 +219,7 @@ On save, `exportAlpineSections()` serializes `beatInMeasure`/`beats` back onto e
 ### Key conventions
 - Model uses **`ref()`** (deep reactive), NOT `shallowRef`
 - Tick constants: whole=1920, half=960, quarter=480, eighth=240, sixteenth=120, thirty-second=60
-- Chord grid provide/inject: `TabEditor.vue` provides `model`, `globalIndexOf`, `chordGridOps`, `gridSelection`, `chordClipboard`, `chordPicker`, `voicingPicker`, `renameSection`, `addMeasureToSection`, `deleteSection`, `sectionCount`, `rowShrink`, `rowGrow`, `rowSplit`
+- Chord grid provide/inject: `TabEditor.vue` provides `model`, `globalIndexOf`, `chordGridOps`, `setChordName`, `inlineRenameTarget`, `triggerInlineRename`, `gridSelection`, `chordClipboard`, `chordPicker`, `voicingPicker`, `renameSection`, `addMeasureToSection`, `deleteSection`, `sectionCount`, `rowShrink`, `rowGrow`, `rowSplit`
 - `useVoicingPickerStore` and `useChordPickerStore` are **module-level singletons** — both Vue apps share the same instance without provide/inject
 - `VoicingPicker.vue` Teleports unconditionally into `#sbn-vp-slot`
 
@@ -233,6 +245,38 @@ undo.wrapCommand('Insert bar', [], () => { tabModel.insertMeasureAfter(si, mi); 
 - `deleteChords` calls `_compactChordIndicesInMeasure` after removing a chord slot
 - `setChordName` calls `_renameVoicingKey` (new key = `newName@gi.ci`)
 - Keys are always clean — no orphan pruning needed
+- `ChordCard.vue` resolves voicing: `cv["name@gi.ci"] || cv["name"] || null` — positional key takes priority over global name key
+
+### Inline chord rename
+Both chord grid and tab view share a single `inlineRenameTarget = ref({ gi, ci, ts })` provided from `TabEditor.vue`.
+
+- **Chord grid (`ChordCard.vue`):** watches `inlineRenameTarget`; swaps chord name `<span>` for `<input class="sbn-ve-chord-name-input">` when `gi/ci` match; commits via `chordGridOps.setChordName`
+- **Tab view (`TabMeasure.vue`):** same watch; swaps chord label span for `<input class="sbn-ve-chord-name-input sbn-tab-chord-rename-input">` in the chord strip; commits via injected `setChordName`
+- `triggerInlineRename(gi, ci)` is provided globally and used by both `ChordGridView` (context menu "Rename chord") and `TabEditor` (chord context menu "Rename chord")
+- View switch (`setViewMode`) clears `inlineRenameTarget` to prevent stale open inputs
+- Global `onKeydown` guard: returns early when `e.target.tagName === 'INPUT'` so numbers/backspace/delete reach the input
+
+### Tab chord operations (context menu)
+Right-clicking a chord slot in tab view or the measure background dispatches to `handleTabContextAction(actionId, measureIndex, chordIndex, clickBeat)`:
+
+| Action | Handler |
+|--------|---------|
+| `renameChord` | `triggerInlineRename(gi, ci)` |
+| `changeVoicing` | `voicingPickerStore.openForTab(...)` with current frets pre-filled |
+| `addChordSlot` | `chordGridOps.addChordAtBeat(gi, clickBeat)` — snaps to 0.5-beat grid |
+| `identifyChord` | `extractFretsAtChord()` → chord API → `_showIdentifyConfirm()` |
+| `deleteChord` | `chordGridOps.deleteChords(gi, ci)` |
+
+**Right-click on measure background** (no chord slot): `clickBeat` is computed from `(clientX - rect.left) / rect.width * bpm`. Slot lookup uses actual `chordOffsets[]` (last slot whose offset ≤ clickBeat). If `identifyChord` fires with no existing slot, a new slot is first created at `clickBeat` via `addChordAtBeat`.
+
+### Identify-from-tab flow
+1. `extractFretsAtChord(measure, ci, ticksPerMeasure)` — reads tab note events in the chord's beat window (uses `chordOffsets`/`chordBeats` when available); returns `{ frets, position }` where `frets` is a 6-char diagram string (position 0 = low E)
+2. POST to `/admin/chord-shapes/identify-from-frets` → returns chord name
+3. `_showIdentifyConfirm(oldName, newName, gi, ci, tabData)` dispatches `sbn-tab-identify-result` with `tabData` in detail
+4. Alpine shows confirm toast; on confirm: `window.__sbnTabModel.setChordNameWithVoicing(gi, ci, newName, tabData)`
+5. Vue writes chord name (with undo) + `chordVoicings["name@gi.ci"] = { frets, position, fingers: '000000' }`
+
+**Note:** The voicing written is derived from actual tab frets, not the DB diagram library. It will not automatically match a DB-canonical voicing even if the frets are identical — the diagram shows exactly what was played.
 
 ### Keyboard shortcuts (tab editor)
 | Key | Action |

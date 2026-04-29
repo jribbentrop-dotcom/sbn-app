@@ -270,7 +270,7 @@ import { useUndo } from './composables/useUndo.js';
 import { useSelection } from './composables/useSelection.js';
 import { sidebarStore } from './composables/useSidebarStore.js';
 import { modelToMusicXml } from './utils/musicXmlWriter.js';
-import { initTabModelFacade } from './utils/tabModelFacade.js';
+import { initTabModelFacade, registerSetChordName, registerSetChordNameWithVoicing } from './utils/tabModelFacade.js';
 import { extractFretsAtChord, applyVoicingToChord } from './composables/useChordSync.js';
 import TabMeasure from './components/TabMeasure.vue';
 import { useChordGridOps }        from './composables/useChordGridOps.js';
@@ -302,6 +302,7 @@ const videoSidebarOpen = ref(false);
 
 function setViewMode(mode) {
     viewMode.value = mode;
+    inlineRenameTarget.value = null;  // cancel any open inline rename input
     document.dispatchEvent(new CustomEvent('sbn-tab-view-changed', {
         detail: { viewMode: mode }
     }));
@@ -738,6 +739,17 @@ watch(model, (newVal, oldVal) => {
 // ── Chord Grid composables (Phase B Step 4) ────────────────
 
 const chordGridOps      = useChordGridOps(model, { wrapCommand }, tabModel);
+registerSetChordName((gi, ci, name) => chordGridOps.setChordName(gi, ci, name));
+registerSetChordNameWithVoicing((gi, ci, name, tabData) => {
+    chordGridOps.setChordName(gi, ci, name);
+    if (tabData && model.value?.chordVoicings) {
+        model.value.chordVoicings[`${name}@${gi}.${ci}`] = {
+            frets:    tabData.frets,
+            position: tabData.position,
+            fingers:  '000000',
+        };
+    }
+});
 const gridSelection     = useGridSelection(model);
 const chordClipboard    = useChordClipboard(model, { wrapCommand });
 const chordPickerStore  = useChordPickerStore();
@@ -746,6 +758,11 @@ const voicingPickerStore = useVoicingPickerStore(model, { wrapCommand }, { apply
 
 // Provide to the entire ChordGridView / VoicingPicker subtree
 provide('chordGridOps',      chordGridOps);
+provide('setChordName',      (gi, ci, name) => chordGridOps.setChordName(gi, ci, name));
+
+const inlineRenameTarget = ref(null);  // { gi, ci } — set to trigger inline edit on matching card
+provide('inlineRenameTarget',  inlineRenameTarget);
+provide('triggerInlineRename', (gi, ci) => { inlineRenameTarget.value = { gi, ci, ts: Date.now() }; });
 provide('gridSelection',     gridSelection);
 provide('chordClipboard',    chordClipboard);
 provide('chordPicker',       chordPickerStore);
@@ -1269,6 +1286,10 @@ function onGenerateFromChords() {
 // ── Keyboard handling ──────────────────────────────────────
 
 function onKeydown(e) {
+    // Let native inputs handle their own keys
+    const tag = e.target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
+
     // Audio playback (Phase 7C) - Space always triggers play/pause
     if (e.key === ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const canPlay = (videoSidebarOpen.value && videoSync.hasVideo.value) ||
@@ -1427,6 +1448,28 @@ function onChordClick({ measureIndex, chordIndex, chordName }) {
         globalMeasureIndex: measureIndex,
         chordIndex,
     });
+
+    // Select associated tab notes & synchronize cursor
+    const total      = (measure.chordNames || []).length || 1;
+    const slotTicks  = tpm / total;
+    const startTick  = chordIndex * slotTicks;
+    const endTick    = (chordIndex + 1) * slotTicks;
+
+    const slotEvents = (measure.events || []).filter(ev =>
+        ev.tickInMeasure >= startTick - 5 &&
+        ev.tickInMeasure < endTick - 5
+    ).sort((a, b) => (a.tickInMeasure || 0) - (b.tickInMeasure || 0));
+
+    if (slotEvents.length > 0) {
+        const eventIds = slotEvents.map(ev => ev.id);
+        selectedEvents.value = new Set(eventIds);
+
+        const v1 = measure.events.filter(ev => (ev.voice || 1) === 1).sort((a, b) => a.tick - b.tick);
+        const eventIdx = v1.findIndex(ev => ev.id === slotEvents[0].id);
+        if (eventIdx !== -1) {
+            moveTo(measureIndex, eventIdx, cursor.value.stringIndex || 1);
+        }
+    }
 }
 
 /**
@@ -1537,7 +1580,7 @@ async function onChordIdentify({ measureIndex, chordIndex, chordName }) {
         const identifiedName = data.name;
 
         // Always show confirm — even if same name, user may want to verify
-        _showIdentifyConfirm(chordName, identifiedName, measureIndex, chordIndex);
+        _showIdentifyConfirm(chordName, identifiedName, measureIndex, chordIndex, tabData);
 
     } catch (err) {
         console.error('[SBN] onChordIdentify fetch error:', err);
@@ -1554,10 +1597,9 @@ function _showIdentifyToast(msg, type = 'info') {
     }
 }
 
-function _showIdentifyConfirm(oldName, newName, measureIndex, chordIndex) {
-    // Dispatch a custom event that Alpine can handle to show a confirm toast
+function _showIdentifyConfirm(oldName, newName, measureIndex, chordIndex, tabData = null) {
     document.dispatchEvent(new CustomEvent('sbn-tab-identify-result', {
-        detail: { oldName, newName, measureIndex, chordIndex },
+        detail: { oldName, newName, measureIndex, chordIndex, tabData },
     }));
 }
 
@@ -1806,7 +1848,7 @@ function onNotationMousedown(e) {
  */
 function onMeasureContextMenu({ measureIndex, event }) {
     const indices = getSelectedMeasureIndices();
-    
+
     if (!indices.includes(measureIndex)) {
         const all = allMeasures.value;
         const clickedM = all[measureIndex];
@@ -1820,7 +1862,29 @@ function onMeasureContextMenu({ measureIndex, event }) {
     const currentIndices = getSelectedMeasureIndices();
     const single  = currentIndices.length === 1;
     const m       = allMeasures.value[measureIndex];
-    const chordName = m?.chordNames?.[0];
+
+    // Beat position of the right-click — used both for slot lookup and new slot placement
+    const _bpm = (model.value?.ticksPerMeasure ?? 1920) / 480;
+    let clickBeat = 0;
+    if (event?.currentTarget) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        clickBeat = ((event.clientX - rect.left) / rect.width) * _bpm;
+    }
+
+    // Determine which chord slot was right-clicked using actual offsets
+    const slotCount = m?.chordNames?.length || 0;
+    let clickedChordIndex = 0;
+    if (slotCount > 0) {
+        const offsets = m.chordOffsets?.length === slotCount ? m.chordOffsets : m.chordNames.map((_, i) => i * (_bpm / slotCount));
+        const beats   = m.chordBeats?.length  === slotCount ? m.chordBeats   : m.chordNames.map(() => _bpm / slotCount);
+        // Find last slot whose start is <= clickBeat
+        clickedChordIndex = 0;
+        for (let i = 0; i < slotCount; i++) {
+            if (offsets[i] <= clickBeat) clickedChordIndex = i;
+        }
+    }
+
+    const chordName = m?.chordNames?.[clickedChordIndex];
     const items   = [];
 
     const hasPartialBarSelection = single && selectedEvents.value.size > 0 && selectedEvents.value.size < m.events.filter(e => (e.voice ?? 1) === 1).length;
@@ -1829,8 +1893,15 @@ function onMeasureContextMenu({ measureIndex, event }) {
     if (single) {
         if (chordName) {
             items.push(
-                { id: 'openVoicingPicker', label: 'Open voicing picker', icon: '🎸', group: 'chord' },
-                { id: 'identifyChord',     label: 'Identify chord from tab', icon: '🔍', group: 'chord' },
+                { id: 'renameChord',   label: 'Rename chord',            icon: '✏️', group: 'chord' },
+                { id: 'changeVoicing', label: 'Change voicing',          icon: '🎸', group: 'chord' },
+                { id: 'identifyChord', label: 'Identify chord from tab', icon: '🔍', group: 'chord' },
+                { id: 'addChordSlot',  label: 'Add chord slot',                       group: 'chord' },
+            );
+        } else {
+            items.push(
+                { id: 'identifyChord', label: 'Identify chord from tab', icon: '🔍', group: 'chord' },
+                { id: 'addChordSlot',  label: 'Add chord slot manually',              group: 'chord' },
             );
         }
         items.push(
@@ -1857,7 +1928,7 @@ function onMeasureContextMenu({ measureIndex, event }) {
 
     if (typeof window.showContextMenu === 'function') {
         window.showContextMenu(event, items, (actionId) => {
-            handleTabContextAction(actionId, measureIndex);
+            handleTabContextAction(actionId, measureIndex, clickedChordIndex, clickBeat);
         });
     }
 
@@ -1869,20 +1940,39 @@ function onMeasureContextMenu({ measureIndex, event }) {
  * and sync harmony to Alpine via sbn-tab-sections-sync.
  * Clipboard ops are stubs pending measure-level tab copy/paste.
  */
-function handleTabContextAction(actionId, measureIndex) {
+function handleTabContextAction(actionId, measureIndex, chordIndex = 0, clickBeat = 0) {
     switch (actionId) {
-        case 'openVoicingPicker': {
+        case 'renameChord': {
+            inlineRenameTarget.value = { gi: measureIndex, ci: chordIndex, ts: Date.now() };
+            break;
+        }
+        case 'changeVoicing': {
             const m = allMeasures.value[measureIndex];
-            if (m?.chordNames?.[0]) {
-                onChordClick({ measureIndex, chordIndex: 0, chordName: m.chordNames[0] });
-            }
+            onChordClick({ measureIndex, chordIndex, chordName: m?.chordNames?.[chordIndex] || '' });
+            break;
+        }
+        case 'addChordSlot': {
+            chordGridOps.addChordAtBeat(measureIndex, clickBeat);
+            nextTick(() => {
+                const m = allMeasures.value[measureIndex];
+                const snapped = Math.round(clickBeat / 0.5) * 0.5;
+                let ci = (m.chordOffsets || []).findIndex(o => Math.abs(o - snapped) < 0.01);
+                if (ci === -1) ci = (m?.chordNames?.length ?? 1) - 1;
+                inlineRenameTarget.value = { gi: measureIndex, ci, ts: Date.now() };
+            });
             break;
         }
         case 'identifyChord': {
             const m = allMeasures.value[measureIndex];
-            if (m?.chordNames?.[0]) {
-                onChordIdentify({ measureIndex, chordIndex: 0, chordName: m.chordNames[0] });
+            if (!m?.chordNames?.length) {
+                // No slots yet — create one at the clicked beat position
+                chordGridOps.addChordAtBeat(measureIndex, clickBeat);
+                // Find the new slot index by matching the snapped beat
+                const snapped = Math.round(clickBeat / 0.5) * 0.5;
+                chordIndex = (m.chordOffsets || []).findIndex(o => Math.abs(o - snapped) < 0.01);
+                if (chordIndex === -1) chordIndex = 0;
             }
+            onChordIdentify({ measureIndex, chordIndex, chordName: m?.chordNames?.[chordIndex] || '' });
             break;
         }
         case 'insertBarAfter': {
@@ -1969,21 +2059,39 @@ function handleTabContextAction(actionId, measureIndex) {
  * Click on the "?" placeholder in an empty bar.
  * Tells Alpine to open the chord name text-input picker for that measure.
  */
-function onChordNameNeeded({ measureIndex, chordIndex, clientX, clientY }) {
-    // Use a fake DOMRect so openAt can compute top/left from the click coords
-    chordPickerStore.openAt({ bottom: clientY, left: clientX }, measureIndex, chordIndex, '');
+function onChordNameNeeded({ measureIndex, chordIndex }) {
+    inlineRenameTarget.value = { gi: measureIndex, ci: chordIndex, ts: Date.now() };
 }
 function onChordContextMenu({ measureIndex, chordIndex, chordName, event }) {
+    const m = allMeasures.value[measureIndex];
+    const slotCount = m?.chordNames?.length ?? 0;
     const items = [
-        { id: 'openVoicingPicker', label: 'Rename chord (open picker)', icon: '✏️', group: 'chord' },
-        { id: 'changeVoicing',     label: 'Change voicing',             icon: '🎸', group: 'chord' },
-        { id: 'identifyChord',     label: 'Identify chord from tab',    icon: '🔍', group: 'chord' },
+        { id: 'renameChord',   label: 'Rename chord',            icon: '✏️', group: 'chord' },
+        { id: 'changeVoicing', label: 'Change voicing',          icon: '🎸', group: 'chord' },
+        { id: 'identifyChord', label: 'Identify chord from tab', icon: '🔍', group: 'chord' },
+        { divider: true, group: 'chord' },
+        { id: 'addChordSlot',    label: 'Add chord slot',  group: 'chord' },
+        { id: 'deleteChordSlot', label: 'Delete this slot', danger: true, group: 'chord' },
     ];
     if (typeof window.showContextMenu === 'function') {
         window.showContextMenu(event, items, (actionId) => {
-            // Reuse the existing action handlers — all three are already wired
-            // in handleTabContextAction and operate on measureIndex.
-            handleTabContextAction(actionId, measureIndex);
+            switch (actionId) {
+                case 'renameChord':
+                    inlineRenameTarget.value = { gi: measureIndex, ci: chordIndex, ts: Date.now() };
+                    break;
+                case 'changeVoicing':
+                    onChordClick({ measureIndex, chordIndex, chordName });
+                    break;
+                case 'identifyChord':
+                    onChordIdentify({ measureIndex, chordIndex, chordName });
+                    break;
+                case 'addChordSlot':
+                    chordGridOps.addChordToMeasure(measureIndex);
+                    break;
+                case 'deleteChordSlot':
+                    chordGridOps.deleteChords([{ gi: measureIndex, ci: chordIndex }]);
+                    break;
+            }
         });
     }
 }

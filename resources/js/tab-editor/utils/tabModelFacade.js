@@ -16,6 +16,8 @@
  */
 
 let _fns = null;
+let _setChordName = null;
+let _setChordNameWithVoicing = null;
 
 const facade = {
     /** True once TabEditor has registered its getter functions. */
@@ -50,6 +52,20 @@ const facade = {
      * Useful for save() Step 8 so Alpine doesn't have to keep parsed.title etc.
      */
     getMeta()          { return _fns?.getMeta()          ?? {}; },
+
+    /**
+     * Write a chord name into the Vue model (triggers reactivity + undo).
+     * @param {number} globalMeasureIndex
+     * @param {number} chordIndex
+     * @param {string} name
+     */
+    setChordName(globalMeasureIndex, chordIndex, name) {
+        _setChordName?.(globalMeasureIndex, chordIndex, name);
+    },
+
+    setChordNameWithVoicing(globalMeasureIndex, chordIndex, name, tabData) {
+        _setChordNameWithVoicing?.(globalMeasureIndex, chordIndex, name, tabData);
+    },
 };
 
 if (typeof window !== 'undefined' && !window.__sbnTabModel) {
@@ -66,4 +82,14 @@ export function initTabModelFacade({ getSections, getChordVoicings, getRepeatMar
     if (typeof window !== 'undefined') {
         window.__sbnTabModel._init({ getSections, getChordVoicings, getRepeatMarkers, getVoltaEndings, getVideoSync, getMeta });
     }
+}
+
+/** Patch in setChordName after chordGridOps is created (called from TabEditor after line ~740). */
+export function registerSetChordName(fn) {
+    _setChordName = fn;
+}
+
+/** Patch in setChordNameWithVoicing after chordGridOps is created. */
+export function registerSetChordNameWithVoicing(fn) {
+    _setChordNameWithVoicing = fn;
 }

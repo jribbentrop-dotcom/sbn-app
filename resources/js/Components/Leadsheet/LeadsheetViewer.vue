@@ -7,18 +7,24 @@
       </div>
 
       <div class="sbn-leadsheet-controls">
-        <!-- Density toggle (Step 9 polishes UI + adds localStorage) -->
+        <!-- Mode toggle (Phase 9b: 3-way: no-chords / chords / tab) -->
         <div class="sbn-leadsheet-density-toggle">
           <button
-            :class="{ active: density === 'full' }"
-            @click="density = 'full'"
-            title="Show diagrams"
+            :class="{ active: mode === 'no-chords' }"
+            @click="mode = 'no-chords'"
+            title="No chords"
+          >—</button>
+          <button
+            :class="{ active: mode === 'chords' }"
+            @click="mode = 'chords'"
+            title="Chords"
           >▦</button>
           <button
-            :class="{ active: density === 'compact' }"
-            @click="density = 'compact'"
-            title="Names only"
-          >≡</button>
+            v-if="hasTab"
+            :class="{ active: mode === 'tab' }"
+            @click="mode = 'tab'"
+            title="Tab notation"
+          >♫</button>
         </div>
 
         <!-- Cinema view toggle placeholder (Step 8) -->
@@ -33,8 +39,48 @@
     <div class="sbn-leadsheet-content">
       <!-- Main chord grid + transport -->
       <div class="sbn-leadsheet-main">
+        <!-- Tab view (Phase 9b) -->
+        <div v-if="mode === 'tab' && model" class="sbn-tab-viewer">
+          <div 
+            v-for="(section, si) in model.sections" 
+            :key="section.id || si"
+            class="sbn-ve-section"
+          >
+            <div class="sbn-ve-section-header">
+              <div v-if="section.id" class="sbn-ve-section-id">{{ section.id }}</div>
+              <span class="sbn-ve-section-name">{{ section.name }}</span>
+              <span class="sbn-ve-section-bar-count">{{ section.measures?.length || 0 }} bars</span>
+            </div>
+            <div class="sbn-ve-section-body">
+              <div v-for="(row, ri) in tabMeasureRows(section)" :key="ri" class="sbn-tab-row">
+                <div class="sbn-tab-measures">
+                  <TabMeasure
+                    v-for="(measure, li) in row"
+                    :key="measure.index"
+                    :measure="measure"
+                    :is-first-of-section="ri === 0 && li === 0"
+                    :ticks-per-measure="model.ticksPerMeasure"
+                    :next-measure="getNextTabMeasure(measure.index)"
+                    :is-next-first-of-section="isNextTabMeasureFirstOfSection(measure.index)"
+                    :chord-names="measure.chordNames || []"
+                    :bars-per-row="row._intendedCount"
+                    :read-only="true"
+                    :allow-chord-click="true"
+                    :cursor="null"
+                    :pending-digit="null"
+                    :selected-events="new Set()"
+                    @click="() => onTabMeasureClick(measure.index)"
+                    @chord-click="onTabChordClick"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chord grid view (existing) -->
         <ChordGridView
-          v-if="model"
+          v-else-if="model"
           :sections="model.sections || []"
           :read-only="true"
           :density="density"
@@ -48,12 +94,12 @@
           @mouseleave="onTransportMouseLeave"
         >
       <TransportBar
-        :is-playing="isPlaying"
-        :current-beat="currentBeat"
+        :is-playing="transportPlaying"
+        :current-beat="transportBeat"
         :total-beats="totalBeats"
         :tempo="tempo"
         :beats-per-measure="beatsPerMeasure"
-        view-mode="chords"
+        :view-mode="mode === 'tab' ? 'tab' : 'chords'"
         @toggle="onTransportToggle"
         @seek="onTransportSeek"
         @tempo-change="onTempoChange"
@@ -85,14 +131,17 @@ import { ref, computed, provide, watch, onMounted, onUnmounted } from 'vue';
 import ChordGridView from '@/tab-editor/components/ChordGridView.vue';
 import TransportBar from '@/tab-editor/components/TransportBar.vue';
 import EduPanel from './EduPanel.vue';
+import TabMeasure from '@/tab-editor/components/TabMeasure.vue';
 
 // Composables
 import { useTabModel } from '@/tab-editor/composables/useTabModel.js';
 import { useGridSelection } from '@/tab-editor/composables/useGridSelection.js';
 import { useChordAudio } from '@/tab-editor/composables/useChordAudio.js';
+import { useAudioEngine } from '@/tab-editor/composables/useAudioEngine.js';
 
-// Audio engine + adapters (required to load chord events before playback)
+// Audio engine + adapters (required to load tab + chord events before playback)
 import { getAudioEngine } from '@/audio/engine/AudioEngine.js';
+import { tabModelToEvents } from '@/audio/adapters/tabMeasureToEvents.js';
 import { chordVoicingsToEvents } from '@/audio/adapters/chordVoicingsToEvents.js';
 
 const props = defineProps({
@@ -128,11 +177,88 @@ const props = defineProps({
   },
 });
 
-// ── Density state with localStorage persistence (Step 9) ───
-const density = ref(localStorage.getItem('sbn.leadsheet.density') || 'full');
+// ── 3-way mode state with localStorage persistence (Phase 9b) ───────────────
+/**
+ * Load initial mode from localStorage, migrating from old density key.
+ * Mirrors Phase 9b §4: density → mode mapping during refactor.
+ */
+function loadInitialMode() {
+  const newKey = localStorage.getItem('sbn.leadsheet.mode');
+  if (newKey === 'no-chords' || newKey === 'chords' || newKey === 'tab') return newKey;
 
-watch(density, (newVal) => {
-  localStorage.setItem('sbn.leadsheet.density', newVal);
+  // Migrate old density key
+  const oldDensity = localStorage.getItem('sbn.leadsheet.density');
+  if (oldDensity === 'compact') return 'no-chords';
+  return 'chords'; // 'full' or default
+}
+
+const mode = ref(loadInitialMode());
+
+/**
+ * Mode watcher: persists to localStorage and handles audio handoff.
+ * Per Phase 9b §5.3: switching modes while playing pauses, seeks both
+ * paths to the same position, then resumes in the new path. Audio gap
+ * is < 50 ms — imperceptible.
+ *
+ * Also converts selection between modes to preserve user context.
+ *
+ * Note: callbacks reference symbols declared further down (transportPlaying,
+ * isTabPlaying, etc.). This works because the watcher only fires after
+ * setup completes.
+ */
+watch(mode, async (newMode, oldMode) => {
+  localStorage.setItem('sbn.leadsheet.mode', newMode);
+  if (oldMode === newMode) return;
+
+  // Preserve selection across mode switches
+  if (oldMode === 'tab' && newMode !== 'tab') {
+    // Tab → chord/no-chords: convert tabSelection to gridSelection
+    if (tabSelection.value) {
+      const gi = tabSelection.value.gi;
+      gridSelection.handleClick(gi, 0, new MouseEvent('click'));
+      tabSelection.value = null;
+    }
+  } else if (oldMode !== 'tab' && newMode === 'tab') {
+    // Chord/no-chords → tab: convert gridSelection to tabSelection
+    const sel = gridSelection.selection.value;
+    if (sel.length) {
+      const last = sel[sel.length - 1];
+      tabSelection.value = { gi: last.gi };
+      gridSelection.clearSelection();
+    }
+  }
+
+  const wasPlaying = transportPlaying.value;
+  const beat       = transportBeat.value;
+
+  if (isTabPlaying.value)   pauseTab();
+  if (isChordPlaying.value) pauseChord();
+
+  seekTab(beat);
+  seekChord(beat);
+
+  if (wasPlaying) {
+    if (!_eventsLoaded) await loadAllEvents();
+    if (newMode === 'tab') await playTab();
+    else                   await playChord();
+  }
+});
+
+/**
+ * hasTab gate: Tab button only renders when leadsheet has actual tab notes
+ * (string/fret data). useTabModel exposes hasData which scans melody.value
+ * for notes with string/fret set — exactly the signal we want.
+ */
+const hasTab = computed(() => hasData.value);
+
+/**
+ * Density computed: maps mode → density prop for ChordGridView.
+ * Per Phase 9b §4: mode === 'chords' → density='full', mode === 'no-chords' → density='compact'.
+ */
+const density = computed(() => {
+  if (mode.value === 'chords') return 'full';
+  if (mode.value === 'no-chords') return 'compact';
+  return 'full'; // tab mode doesn't render ChordGridView, so density is irrelevant
 });
 
 // ── Smart sticky transport bar (contained within main content) ───────────────
@@ -214,7 +340,7 @@ const tabModel = useTabModel(
   voltaEndingsRef,
   chordVoicingsRef,
 );
-const { model, buildModel } = tabModel;
+const { model, buildModel, hasData } = tabModel;
 
 // Build the model immediately. (TabEditor relies on a watcher; we call directly
 // since our refs never change after mount.)
@@ -227,35 +353,74 @@ if (model.value) {
   model.value.tempo = props.leadsheet.tempo ?? 120;
 }
 
+// Mode fallback: if persisted mode === 'tab' but this song has no melody,
+// silently demote to 'chords'. Done inline since model is now built.
+if (mode.value === 'tab' && !hasTab.value) {
+  mode.value = 'chords';
+}
+
 // ── Selection (read-only — drives EduPanel current-chord) ────────────────────
+// Chord grid selection (used in chord/no-chords modes)
 const gridSelection = useGridSelection(model);
 
-// ── Audio (chord playback only — no tab in classic viewer Phase 9a) ──────────
+// Tab mode selection (measure index only — chord index defaults to 0)
+const tabSelection = ref(null); // { gi: number } or null
+
+// ── Audio (two playback paths: chord + tab — Phase 9b) ───────────────────────
+// Chord audio path (existing)
 const chordAudio = useChordAudio(model);
 const {
-  isPlaying,
-  currentBeat,
-  play:   chordPlay,
-  pause:  chordPause,
-  reset:  chordReset,
-  seek:   chordSeek,
+  isPlaying: isChordPlaying,
+  currentBeat: chordCurrentBeat,
+  play:   playChord,
+  pause:  pauseChord,
+  seek:   seekChord,
 } = chordAudio;
 
-// Engine event-loading. The audio engine is a singleton shared with the admin
-// editor; events must be (re)loaded once per model before play(). Replicates
-// TabEditor.loadAllEvents(), but chord-only — no tab events in Phase 9a.
+// Tab audio path (new for Phase 9b — mirrors TabEditor.vue)
+const tabAudio = useAudioEngine(model);
+const {
+  isPlaying: isTabPlaying,
+  currentBeat: tabCurrentBeat,
+  play:   playTab,
+  pause:  pauseTab,
+  seek:   seekTab,
+} = tabAudio;
+
+// Engine event-loading. Phase 9b: always load both tab + chord events.
+// The engine is a singleton shared with the admin editor; events must be
+// (re)loaded once per model before play(). Mirrors TabEditor.vue:421-441.
 const engine = getAudioEngine();
 let _eventsLoaded = false;
 
-async function ensureEventsLoaded() {
+async function loadAllEvents() {
   if (!model.value) return;
-  if (_eventsLoaded) return;
-  await engine.init({ bpm: model.value.tempo ?? props.leadsheet.tempo ?? 120 });
-  const events = chordVoicingsToEvents(model.value, { startBeat: 0 });
-  engine.load(events);
-  engine.setTempo(model.value.tempo ?? props.leadsheet.tempo ?? 120);
+  await engine.init({ bpm: model.value.tempo ?? 120 });
+
+  const tabEvents   = tabModelToEvents(model.value, { startBeat: 0 });
+  const chordEvents = chordVoicingsToEvents(model.value, { startBeat: 0 });
+  const combined    = [...tabEvents, ...chordEvents].sort((a, b) => a.time - b.time);
+
+  engine.load(combined);
+  engine.setTempo(model.value.tempo ?? 120);
   _eventsLoaded = true;
 }
+
+async function reloadEvents() {
+  _eventsLoaded = false;
+  await loadAllEvents();
+}
+
+// ── Unified transport state (mirrors TabEditor.vue:464-477) ───────────────────
+// Phase 9b: unified state across both playback paths. Mode dispatch happens in
+// transport handlers (Step 3 adds mode-aware dispatch).
+const transportPlaying = computed(() => isTabPlaying.value || isChordPlaying.value);
+
+const transportBeat = computed(() => {
+  if (isTabPlaying.value)   return tabCurrentBeat.value;
+  if (isChordPlaying.value) return chordCurrentBeat.value;
+  return tabCurrentBeat.value ?? chordCurrentBeat.value ?? 0;  // parked
+});
 
 // ── Transport derived values ─────────────────────────────────────────────────
 const tempo = ref(props.leadsheet.tempo ?? 120);
@@ -278,18 +443,24 @@ const totalBeats = computed(() => {
 });
 
 // ── Transport handlers ───────────────────────────────────────────────────────
+// Phase 9b: unified handlers that drive both playback paths with mode dispatch.
 async function onTransportToggle() {
-  if (isPlaying.value) {
-    chordPause();
+  if (transportPlaying.value) {
+    // Pause whichever path is active
+    if (isTabPlaying.value)   pauseTab();
+    if (isChordPlaying.value) pauseChord();
   } else {
-    await ensureEventsLoaded();
-    await chordPlay();
+    if (!_eventsLoaded) await loadAllEvents();
+    // Dispatch by mode: tab mode uses tab audio, else chord audio
+    if (mode.value === 'tab') await playTab();
+    else                      await playChord();
   }
 }
 
-
 function onTransportSeek(beat) {
-  chordSeek(beat);
+  // Seek both paths (cheap; only one is active)
+  seekTab(beat);
+  seekChord(beat);
 }
 
 function onTempoChange(newTempo) {
@@ -298,18 +469,39 @@ function onTempoChange(newTempo) {
   engine.setTempo(newTempo);
 }
 
-// Click-to-seek from a chord card: seek to measure (only auto-play if already playing)
-async function seekToMeasure(gi) {
-  const beatStart = gi * beatsPerMeasure.value;
-  await ensureEventsLoaded();
-  chordSeek(beatStart);
+// Click-to-seek from a chord card: seek to measure + chord offset (only auto-play if already playing)
+async function seekToMeasure(gi, ci = 0) {
+  let total = 1;
+  let offset = null;
+  if (model.value) {
+    let currentMeasure = null;
+    for (const section of model.value.sections || []) {
+      const found = (section.measures || []).find(m => m.index === gi);
+      if (found) { currentMeasure = found; break; }
+    }
+    if (currentMeasure) {
+      if (currentMeasure.chordNames) {
+        total = currentMeasure.chordNames.length || 1;
+      }
+      if (currentMeasure.chordOffsets && currentMeasure.chordOffsets[ci] != null) {
+        offset = currentMeasure.chordOffsets[ci];
+      }
+    }
+  }
+  const bpm = beatsPerMeasure.value;
+  const beatOffset = offset != null ? offset : ci * (bpm / total);
+  const beatStart = gi * bpm + beatOffset;
+
+  if (!_eventsLoaded) await loadAllEvents();
+  // Seek both paths
+  seekTab(beatStart);
+  seekChord(beatStart);
   // If already playing, playback continues from new position
   // If stopped/paused, just seek without starting playback
 }
 
 // ── Active-measure highlight (drives the beat-tick sweep across the grid) ────
 const playingMeasureIndex = ref(0);
-const transportBeat = computed(() => currentBeat.value ?? 0);
 watch(
   [transportBeat, beatsPerMeasure],
   ([beat, bpm]) => {
@@ -331,34 +523,70 @@ function _findInModel(gi) {
   return null;
 }
 
-const currentChord = computed(() => {
+/**
+ * Current selection data for EduPanel.
+ * Phase 9b: Unified across chord mode ({ gi, ci }) and tab mode ({ gi } only, ci defaults to 0).
+ */
+const selectionData = computed(() => {
+  // Tab mode: use tabSelection (measure index only, or with ci if chord was clicked)
+  if (mode.value === 'tab' && tabSelection.value) {
+    const found = _findInModel(tabSelection.value.gi);
+    if (found) {
+      return {
+        gi: tabSelection.value.gi,
+        ci: tabSelection.value.ci ?? 0, // Use ci if chord was clicked, else default to 0
+        section: found.section,
+        measure: found.measure,
+      };
+    }
+    return null;
+  }
+
+  // Chord/no-chords mode: use gridSelection
   const sel = gridSelection.selection.value;
   if (!sel.length) return null;
   const last = sel[sel.length - 1];
   const found = _findInModel(last.gi);
   if (!found) return null;
-  return found.measure.chordNames?.[last.ci] ?? null;
+  return {
+    gi: last.gi,
+    ci: last.ci,
+    section: found.section,
+    measure: found.measure,
+  };
+});
+
+const currentChord = computed(() => {
+  const data = selectionData.value;
+  if (!data) return null;
+  return data.measure.chordNames?.[data.ci] ?? null;
 });
 
 const currentSectionId = computed(() => {
-  const sel = gridSelection.selection.value;
-  if (!sel.length) return null;
-  const last = sel[sel.length - 1];
-  const found = _findInModel(last.gi);
-  return found?.section?.id ?? null;
+  const data = selectionData.value;
+  return data?.section?.id ?? null;
 });
 
 // Selection key for chordCards lookup: "chordName@gi.ci"
 const selectionKey = computed(() => {
-  const sel = gridSelection.selection.value;
-  if (!sel.length) return null;
-  const last = sel[sel.length - 1];
-  const found = _findInModel(last.gi);
-  if (!found) return null;
-  const name = found.measure.chordNames?.[last.ci];
+  const data = selectionData.value;
+  if (!data) return null;
+  const name = data.measure.chordNames?.[data.ci];
   if (!name) return null;
-  return `${name}@${last.gi}.${last.ci}`;
+  return `${name}@${data.gi}.${data.ci}`;
 });
+
+/** Tab measure selection handler (Phase 9b). */
+function onTabMeasureClick(gi) {
+  tabSelection.value = { gi };
+  seekToMeasure(gi);
+}
+
+/** Tab chord name click handler (Phase 9b) - updates selection with chord index. */
+function onTabChordClick({ measureIndex, chordIndex, chordName }) {
+  tabSelection.value = { gi: measureIndex, ci: chordIndex };
+  seekToMeasure(measureIndex, chordIndex);
+}
 
 const songInfo = computed(() => ({
   title:         props.leadsheet.title,
@@ -368,6 +596,63 @@ const songInfo = computed(() => ({
   timeSignature: props.leadsheet.timeSignature ?? null,
   rhythm:        props.leadsheet.rhythm ?? null,
 }));
+
+// ── Tab view helpers (Phase 9b) ───────────────────────────────────────────────
+/**
+ * Simplified measure row computation for tab viewer.
+ * Respects section.lineBreaks if present; otherwise uses 4 measures per row.
+ */
+function tabMeasureRows(section) {
+  const lineBreaks = section.lineBreaks;
+  const measures = section.measures || [];
+
+  if (lineBreaks?.length) {
+    const rows = [];
+    let idx = 0;
+    for (const count of lineBreaks) {
+      if (idx >= measures.length) break;
+      const row = measures.slice(idx, idx + count);
+      row._intendedCount = count;
+      rows.push(row);
+      idx += count;
+    }
+    if (idx < measures.length) {
+      const row = measures.slice(idx);
+      row._intendedCount = row.length;
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  // Fallback: uniform rows of 4 measures
+  const rows = [];
+  const barsPerRow = 4;
+  for (let i = 0; i < measures.length; i += barsPerRow) {
+    const row = measures.slice(i, i + barsPerRow);
+    row._intendedCount = barsPerRow;
+    rows.push(row);
+  }
+  return rows;
+}
+
+/** Get the next measure in the tab sequence (for cross-measure ties). */
+function getNextTabMeasure(index) {
+  if (!model.value) return null;
+  const allMeasures = model.value.sections.flatMap(s => s.measures || []);
+  const idx = allMeasures.findIndex(m => m.index === index);
+  return idx >= 0 && idx < allMeasures.length - 1 ? allMeasures[idx + 1] : null;
+}
+
+/** Check if the next measure is the first in its section. */
+function isNextTabMeasureFirstOfSection(index) {
+  if (!model.value) return false;
+  const next = getNextTabMeasure(index);
+  if (!next) return false;
+  for (const section of model.value.sections) {
+    if (section.measures?.[0]?.index === next.index) return true;
+  }
+  return false;
+}
 
 // ── Provide to descendants (matches tab-editor contract) ─────────────────────
 // Only the read-only essentials. Editor-only stores (chordPicker, voicingPicker,
@@ -379,6 +664,7 @@ provide('beatsPerMeasureRef', beatsPerMeasure);
 provide('playingMeasureIndex', playingMeasureIndex);
 provide('transportBeat', transportBeat);
 provide('seekToMeasure', seekToMeasure);
+provide('transportPlaying', transportPlaying);
 provide('readOnly', true);
 // globalIndexOf: in the viewer the model already stores measure.index as the
 // global index, so the identity-style fallback in ChordMeasure is fine. We
@@ -483,9 +769,40 @@ provide('globalIndexOf', (si, mi) => {
   background: var(--clr-surface);
   border: 1px solid var(--clr-border);
   border-radius: var(--radius);
-  padding: 24px;
+  padding: 0 24px;
   display: flex;
   flex-direction: column;
+}
+
+.sbn-ve-section {
+  padding: 24px 0;
+  margin: 0;
+}
+
+.sbn-ve-section:first-child {
+  padding-top: 0;
+}
+
+/* Remove borders from ChordGridView to match tab viewer layout */
+.sbn-ve-grid {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Remove padding from chord view section-body to match tab view */
+.sbn-ve-grid .sbn-ve-section-body {
+  padding: 0;
+}
+
+/* Tab viewer chord name hover styling */
+.sbn-tab-viewer .sbn-tab-chord-name-wrap {
+  cursor: pointer;
+}
+
+.sbn-tab-viewer .sbn-tab-chord-name-wrap:hover .sbn-tab-chord-name,
+.sbn-tab-chord-name--clickable:hover {
+  color: var(--clr-red, #e74c3c) !important;
 }
 
 .sbn-leadsheet-sidebar {

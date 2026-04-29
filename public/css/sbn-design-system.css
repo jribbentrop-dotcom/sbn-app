@@ -522,19 +522,70 @@
     display: inline-block;
 }
 
-.sbn-prog-row-cat-badge.sbn-prog-cat-jazz      { background: #e3f2fd; color: #1565c0; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-blues     { background: #fce4ec; color: #c62828; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-pop       { background: #e0f2f1; color: #00695c; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-modal     { background: #ede7f6; color: #4527a0; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-classical { background: #e8f5e9; color: #2e7d32; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-latin     { background: linear-gradient(135deg, #ff8c42, #e65100); color: #fff; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-cuban     { background: linear-gradient(135deg, #ff8c42, #e65100); color: #fff; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-bossa-nova { background: #fee2e2; color: #991b1b; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-bossa      { background: #fee2e2; color: #991b1b; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-samba      { background: #fef3c7; color: #92400e; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-brazilian  { background: #fef3c7; color: #92400e; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-general   { background: #f3f4f6; color: #4b5563; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-other     { background: #f3f4f6; color: #4b5563; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-jazz {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+
+.sbn-prog-row-cat-badge.sbn-prog-cat-blues {
+    background: #fce4ec;
+    color: #c62828;
+}
+
+.sbn-prog-row-cat-badge.sbn-prog-cat-pop {
+    background: #e0f2f1;
+    color: #00695c;
+}
+
+.sbn-prog-row-cat-badge.sbn-prog-cat-modal {
+    background: #ede7f6;
+    color: #4527a0;
+}
+
+.sbn-prog-row-cat-badge.sbn-prog-cat-classical {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.sbn-prog-row-cat-badge.sbn-prog-cat-latin {
+    background: linear-gradient(135deg, #ff8c42, #e65100);
+    color: #fff;
+}
+
+.sbn-prog-row-cat-badge.sbn-prog-cat-cuban {
+    background: linear-gradient(135deg, #ff8c42, #e65100);
+    color: #fff;
+}
+
+.sbn-prog-row-cat-badge.sbn-prog-cat-bossa-nova {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.sbn-prog-row-cat-badge.sbn-prog-cat-bossa {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.sbn-prog-row-cat-badge.sbn-prog-cat-samba {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.sbn-prog-row-cat-badge.sbn-prog-cat-brazilian {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.sbn-prog-row-cat-badge.sbn-prog-cat-general {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+
+.sbn-prog-row-cat-badge.sbn-prog-cat-other {
+    background: #f3f4f6;
+    color: #4b5563;
+}
 
 /* Difficulty stars */
 .sbn-card-diff {
@@ -1659,6 +1710,11 @@
 }
 
 .sbn-ve-measure:hover .sbn-ve-measure-content::after {
+    box-shadow: none;
+}
+
+/* Orange hover frame only in the frontend leadsheet viewer */
+.sbn-leadsheet-viewer .sbn-ve-measure:hover .sbn-ve-measure-content::after {
     box-shadow: inset 0 0 0 1px var(--clr-accent);
 }
 
@@ -1691,8 +1747,11 @@
     gap: 3px;
     padding: 8px 0;
     cursor: pointer;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    box-sizing: border-box;
     position: relative;
-    transition: background 0.1s;
+    transition: background 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sbn-ve-chord:not(:last-child) {
@@ -1701,8 +1760,8 @@
 
 /* Chord name — Crimson Text, large */
 .sbn-ve-chord-name {
-    font-size: 20px;
-    font-weight: 700;
+    font-size: 18px;
+    font-weight: 400;
     color: var(--clr-text);
     text-align: center;
     line-height: 1.2;
@@ -1712,6 +1771,27 @@
 .sbn-ve-chord-name sup {
     font-size: 0.72em;
     font-weight: 600;
+}
+
+.sbn-ve-chord-name-input {
+    width: 100%;
+    font-size: inherit;
+    font-family: var(--font-chord);
+    font-weight: 400;
+    color: var(--clr-text);
+    text-align: center;
+    background: var(--clr-surface, #fff);
+    border: 1px solid var(--clr-accent);
+    border-radius: 4px;
+    outline: none;
+    padding: 0 2px;
+    box-sizing: border-box;
+}
+
+.sbn-tab-chord-rename-input {
+    width: 80px;
+    font-size: 18px;
+    font-weight: 700;
 }
 
 /* Smaller when multiple chords share a measure */
@@ -1976,15 +2056,19 @@
 
 
 /* ── §2d Chord card selection frame ────────────────────────────────────────
-   .sbn-ve-selected on .sbn-ve-chord — per-chord blue frame.
+   .sbn-ve-selected on .sbn-ve-chord — per-chord orange frame.
    When all chords in a measure are selected the frames merge visually.
    ──────────────────────────────────────────────────────────────────────── */
 
+.sbn-tab-editor-root .sbn-ve-chord:hover {
+    border-color: var(--clr-accent);
+}
+
 .sbn-ve-chord.sbn-ve-selected {
-    outline: 2px solid var(--clr-accent, #1976d2);
-    outline-offset: -2px;
-    border-radius: 4px;
-    background: rgba(25, 118, 210, 0.06);
+    border-color: var(--clr-accent);
+    border-width: 2px;
+    border-radius: var(--radius);
+    background: var(--clr-accent-bg, rgba(243, 156, 18, 0.06));
 }
 
 
@@ -2024,12 +2108,12 @@
 /* Gap opens via padding — stays inside the hit area so dragover still fires */
 .sbn-ve-measure.drop-gap-before {
     padding-left: 36px;
-    border-left: 3px solid var(--clr-accent, #1976d2);
+    border-left: 3px solid var(--clr-accent);
 }
 
 .sbn-ve-measure.drop-gap-after {
     padding-right: 36px;
-    border-right: 3px solid var(--clr-accent, #1976d2);
+    border-right: 3px solid var(--clr-accent);
 }
 
 /* Read-only indicators for Phase A completion */
@@ -2323,7 +2407,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    padding: 8px 2px 2px;
+    padding: 16px 6px 6px;
     box-sizing: border-box;
     overflow: hidden;
     min-width: 0;
@@ -2529,7 +2613,7 @@
 
 /* Playback highlighting */
 .sbn-tab-note-text.is-active {
-    fill: var(--clr-accent, #f39c12);
+    fill: var(--clr-accent, #000000);
 }
 
 .sbn-tab-note-text.sbn-beat-active {
@@ -2539,6 +2623,7 @@
 .sbn-tab-measure--playing {
     background: none;
     box-shadow: none;
+    border: none;
 }
 
 .sbn-tab-metronome-col {
@@ -2547,28 +2632,116 @@
     pointer-events: none;
 }
 
-/* Playback / active chord: scale up instead of frame */
-.sbn-ve-chord.is-active {
-    transform: scale(1.08);
-    transition: transform 0.15s ease;
+/* Playback / active chord: red name always, scale only in frontend viewer */
+.sbn-ve-chord.is-active .sbn-ve-chord-name {
+    color: var(--clr-red, #e74c3c) !important;
+}
+
+.sbn-leadsheet-viewer .sbn-ve-chord.is-active {
+    transform: scale(1.18);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 3;
 }
 
-/* Selected chord: same scale as playback for visual consistency */
-.sbn-ve-chord.is-selected {
-    transform: scale(1.08);
-    transition: transform 0.15s ease;
+/* Selected chord: scale only in frontend viewer */
+.sbn-leadsheet-viewer .sbn-ve-chord.is-selected {
+    transform: scale(1.18);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 3;
+}
+
+/* ── Chord drag-and-drop ────────────────────────────────────────────────────── */
+
+/* Chord card drag cursor in editor mode */
+
+/* Resize handles — left and right edges of the card */
+.sbn-ve-chord-resize-handle {
+    position: absolute;
+    top: 0;
+    width: 14px;
+    height: 100%;
+    cursor: ew-resize;
+    background: transparent;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 10;
+}
+
+.sbn-ve-chord-resize-handle--right {
+    right: 0;
+    border-radius: 0 var(--radius, 4px) var(--radius, 4px) 0;
+}
+
+.sbn-ve-chord-resize-handle--left {
+    left: 0;
+    border-radius: var(--radius, 4px) 0 0 var(--radius, 4px);
+}
+
+.sbn-ve-chord-resize-handle--right:hover {
+    opacity: 1;
+    border-right: 3px solid var(--clr-accent);
+}
+
+.sbn-ve-chord-resize-handle--left:hover {
+    opacity: 1;
+    border-left: 3px solid var(--clr-accent);
+}
+
+/* Drag cursor on diagram only */
+.sbn-tab-editor-root .sbn-ve-chord-diagram {
+    cursor: grab;
+}
+
+.sbn-tab-editor-root .sbn-ve-chord-diagram:active {
+    cursor: grabbing;
+}
+
+/* Resize ghost — solid border instead of dashed to distinguish from move ghost */
+.sbn-ve-chord-ghost--resize {
+    border-style: solid;
+}
+
+/* Dragged/resized source card — faded in place */
+.sbn-ve-chord.is-being-dragged {
+    pointer-events: none;
+    transition: none;
+}
+
+/* Measure during drag — disable text selection */
+.sbn-ve-measure.is-dragging {
+    user-select: none;
+    cursor: grabbing;
+}
+
+/* Ghost card — follows pointer at snapped beat position */
+.sbn-ve-chord-ghost {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 20;
+    border: 2px dashed var(--clr-accent);
+    border-radius: var(--radius, 4px);
+    background: color-mix(in srgb, var(--clr-accent) 12%, transparent);
+    display: flex;
+    align-items: flex-start;
+    padding: 4px 6px;
+    box-sizing: border-box;
+}
+
+.sbn-ve-chord-ghost-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--clr-accent);
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 /* Tab chord bar */
 .sbn-tab-chord-bar {
-    display: flex;
-    align-items: flex-start;
-    gap: 5px;
-    justify-content: flex-start;
-    padding: 0;
-    height: 27px;
+    position: relative;
+    padding: 10px 0;
+    height: 38px;
     overflow: visible;
 }
 
@@ -2587,19 +2760,20 @@
 }
 
 .sbn-tab-chord-name-wrap {
-    flex: 1;
     display: inline-flex;
     align-items: baseline;
     gap: 2px;
-    position: relative;
 }
 
 .sbn-tab-chord-bar .sbn-tab-chord-name {
     font-size: 18px;
-    line-height: 1.5;
+    font-weight: 700;
+    line-height: 1.2;
     color: var(--clr-text);
     white-space: nowrap;
     cursor: default;
+    font-family: var(--font-chord);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sbn-tab-chord-name--clickable {
@@ -2608,7 +2782,12 @@
 }
 
 .sbn-tab-chord-name--clickable:hover {
-    color: var(--clr-style-jazz, #3b82f6);
+    color: var(--clr-red, #e74c3c);
+}
+
+.sbn-tab-chord-name.is-active {
+    transform: scale(1.15);
+    color: var(--clr-red, #e74c3c) !important;
 }
 
 /* SVG canvas */

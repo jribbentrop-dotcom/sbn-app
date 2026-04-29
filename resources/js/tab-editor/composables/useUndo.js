@@ -37,10 +37,11 @@ export function useUndo(model) {
      */
     function snapshotMeasure(measure) {
         return {
-            index:       measure.index,
-            actualTicks: measure.actualTicks,
-            // Include chordNames so Pattern A (chord name ops) are covered by undo.
-            chordNames:  measure.chordNames ? [...measure.chordNames] : [],
+            index:        measure.index,
+            actualTicks:  measure.actualTicks,
+            chordNames:   measure.chordNames  ? [...measure.chordNames]  : [],
+            chordOffsets: measure.chordOffsets ? [...measure.chordOffsets] : [],
+            chordBeats:   measure.chordBeats   ? [...measure.chordBeats]   : [],
             events:      measure.events.map(ev => ({
                 ...ev,
                 notes:    ev.notes.map(n => {
@@ -64,9 +65,14 @@ export function useUndo(model) {
      */
     function restoreSnapshot(measure, snap) {
         measure.actualTicks = snap.actualTicks;
-        // Restore chord names in-place.
         if (snap.chordNames) {
             measure.chordNames.splice(0, measure.chordNames.length, ...snap.chordNames);
+        }
+        if (snap.chordOffsets) {
+            measure.chordOffsets = [...snap.chordOffsets];
+        }
+        if (snap.chordBeats) {
+            measure.chordBeats = [...snap.chordBeats];
         }
         // Replace events array contents in-place (keeps the same array reference
         // so TabMeasure's v-for doesn't fully remount)
@@ -196,9 +202,11 @@ export function useUndo(model) {
 
         // Check if anything actually changed (events, ticks, or chord names)
         const changed = measures.some((m, i) => {
-            return JSON.stringify(before[i].events) !== JSON.stringify(after[i].events) ||
-                   before[i].actualTicks !== after[i].actualTicks ||
-                   JSON.stringify(before[i].chordNames) !== JSON.stringify(after[i].chordNames);
+            return JSON.stringify(before[i].events)       !== JSON.stringify(after[i].events)       ||
+                   before[i].actualTicks                  !== after[i].actualTicks                  ||
+                   JSON.stringify(before[i].chordNames)   !== JSON.stringify(after[i].chordNames)   ||
+                   JSON.stringify(before[i].chordOffsets) !== JSON.stringify(after[i].chordOffsets) ||
+                   JSON.stringify(before[i].chordBeats)   !== JSON.stringify(after[i].chordBeats);
         });
         if (!changed) return;
 

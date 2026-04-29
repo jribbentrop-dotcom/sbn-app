@@ -1,32 +1,60 @@
 <template>
   <div
     class="sbn-ve-chord"
-    :class="[densityClass, { 'is-selected': selected, 'is-active': isPlayingCard }]"
+    :class="[densityClass, { 'is-selected': selected, 'is-active': isPlayingCard, 'is-being-dragged': isBeingDragged }]"
     @click.stop="onBodyClick"
     @contextmenu.prevent="onContextMenu"
   >
-    <!-- Chord name — click opens inline name editor -->
-    <div
-      class="sbn-ve-chord-name"
-      v-html="formattedChordName"
-      @click.stop="onNameClick"
-    ></div>
 
-    <!-- Diagram area — click opens voicing picker -->
+    <!-- Chord name — click activates inline rename input -->
+    <div class="sbn-ve-chord-name" @click.stop="onNameClick">
+      <input
+        v-if="editing"
+        ref="nameInput"
+        class="sbn-ve-chord-name-input"
+        :value="editValue"
+        @input="editValue = $event.target.value"
+        @keydown.enter.prevent="commitEdit"
+        @keydown.escape.prevent="cancelEdit"
+        @blur="commitEdit"
+        @click.stop
+        @pointerdown.stop
+      />
+      <span v-else v-html="formattedChordName"></span>
+    </div>
+
+    <!-- Diagram area — drag to move, click opens voicing picker -->
     <div
       class="sbn-ve-chord-diagram"
       :class="{ empty: !voicing }"
       @click.stop="onDiagramClick"
+      @pointerdown.stop="onCardPointerDown"
     >
       <div v-if="voicing" class="sbn-diagram-card" v-html="renderedDiagram"></div>
       <span v-else class="sbn-ve-chord-no-voicing">🎸</span>
     </div>
 
+    <!-- Left-edge resize handle -->
+    <div
+      v-if="chordPicker"
+      class="sbn-ve-chord-resize-handle sbn-ve-chord-resize-handle--left"
+      title="Drag to resize"
+      @pointerdown.stop="onLeftResizeHandlePointerDown"
+    ></div>
+
+    <!-- Right-edge resize handle -->
+    <div
+      v-if="chordPicker"
+      class="sbn-ve-chord-resize-handle sbn-ve-chord-resize-handle--right"
+      title="Drag to resize"
+      @pointerdown.stop="onResizeHandlePointerDown"
+    ></div>
+
   </div>
 </template>
 
 <script setup>
-import { inject, computed } from 'vue';
+import { inject, computed, ref, nextTick, watch } from 'vue';
 
 import { formatChordHtml, renderDiagramSVG } from '../utils/chordFormat';
 
@@ -63,9 +91,17 @@ const props = defineProps({
     type: Number,
     default: null,
   },
+  isBeingDragged: {
+    type: Boolean,
+    default: false,
+  },
+  readOnly: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-const emit = defineEmits(['contextmenu']);
+const emit = defineEmits(['contextmenu', 'chord-drag-start', 'chord-resize-start', 'chord-resize-start-left']);
 
 // ── Injected from TabEditor (provided once at root) ───────────────────────────
 
@@ -78,6 +114,22 @@ const playingMeasureIndex = inject('playingMeasureIndex', null);
 const transportBeat       = inject('transportBeat', null);
 const beatsPerMeasureRef  = inject('beatsPerMeasureRef', null);
 const seekToMeasure       = inject('seekToMeasure', null);  // seek + play from TabEditor
+const setChordName         = inject('setChordName', null);
+const inlineRenameTarget   = inject('inlineRenameTarget', null);
+
+// ── Inline editing state ──────────────────────────────────────────────────────
+
+const nameInput = ref(null);
+const editing   = ref(false);
+const editValue = ref('');
+
+watch(inlineRenameTarget, (target) => {
+  if (target && target.gi === gi.value && target.ci === ci.value) {
+    editValue.value = props.chord.name || '';
+    editing.value = true;
+    nextTick(() => { nameInput.value?.focus(); nameInput.value?.select(); });
+  }
+});
 
 // ── Derived ───────────────────────────────────────────────────────────────────
 
@@ -133,29 +185,81 @@ const renderedDiagram = computed(() => {
 /** Click anywhere on the card body → selection + seek (no auto-play when stopped) */
 function onBodyClick(event) {
   gridSelection?.handleClick(gi.value, ci.value, event);
-  seekToMeasure?.(gi.value);
+  seekToMeasure?.(gi.value, ci.value);
 }
 
-/** Click on the chord name text → select + seek (viewer mode) or open picker (editor mode) */
+/** Click on the chord name text → select + seek, then activate inline edit in editor mode */
 function onNameClick(event) {
   event.stopPropagation();
   gridSelection?.handleClick(gi.value, ci.value, event);
-  seekToMeasure?.(gi.value);
+  seekToMeasure?.(gi.value, ci.value);
 
-  if (!props.readOnly && chordPicker) {
-    chordPicker.openAt(event.currentTarget, gi.value, ci.value, props.chord.name || '');
+  if (!props.readOnly && setChordName && !editing.value) {
+    editValue.value = props.chord.name || '';
+    editing.value = true;
+    nextTick(() => {
+      nameInput.value?.focus();
+      nameInput.value?.select();
+    });
   }
+}
+
+function commitEdit() {
+  if (!editing.value) return;
+  editing.value = false;
+  const newName = editValue.value.trim();
+  if (newName !== (props.chord.name || '')) {
+    setChordName?.(gi.value, ci.value, newName);
+  }
+}
+
+function cancelEdit() {
+  editing.value = false;
 }
 
 /** Click on diagram area → select + seek (viewer mode) or open voicing picker (editor mode) */
 function onDiagramClick(event) {
   event.stopPropagation();
   gridSelection?.handleClick(gi.value, ci.value, event);
-  seekToMeasure?.(gi.value);
+  seekToMeasure?.(gi.value, ci.value);
 
   if (!props.readOnly && voicingPicker) {
     voicingPicker.openForChord?.(props.chord.name || '', gi.value, ci.value);
   }
+}
+
+/** Pointerdown on card body — emit drag-start only after a small movement threshold
+ *  so plain clicks still fire normally. */
+function onCardPointerDown(event) {
+  if (!chordPicker) return;  // viewer mode — no drag
+  const startX = event.clientX;
+  const startY = event.clientY;
+
+  function onMove(e) {
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    if (Math.sqrt(dx * dx + dy * dy) > 4) {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      emit('chord-drag-start', e);
+    }
+  }
+
+  function onUp() {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  }
+
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
+function onResizeHandlePointerDown(event) {
+  emit('chord-resize-start', event);
+}
+
+function onLeftResizeHandlePointerDown(event) {
+  emit('chord-resize-start-left', event);
 }
 
 /** Right-click → bubble contextmenu up to ChordMeasure */

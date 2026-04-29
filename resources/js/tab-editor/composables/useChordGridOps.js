@@ -147,6 +147,7 @@ export function useChordGridOps(model, undo, tabModel) {
             m.chordNames[ci] = name;
             _renameVoicingKey(model.value.chordVoicings, oldName, name, gi, ci);
         });
+        _dispatchSync();
     }
 
     /**
@@ -198,14 +199,12 @@ export function useChordGridOps(model, undo, tabModel) {
     function _recomputeEvenOffsets(m) {
         const bpm = (model.value?.ticksPerMeasure ?? 1920) / 480;
         const count = m.chordNames.length;
-        if (count === 0) {
-            m.chordOffsets = [];
-            m.chordBeats   = [];
-        } else {
-            const slotBeats = bpm / count;
-            m.chordOffsets  = m.chordNames.map((_, i) => i * slotBeats);
-            m.chordBeats    = m.chordNames.map(() => slotBeats);
-        }
+        const newOffsets = count === 0 ? [] : m.chordNames.map((_, i) => i * (bpm / count));
+        const newBeats   = count === 0 ? [] : m.chordNames.map(() => bpm / count);
+        if (!m.chordOffsets) m.chordOffsets = [];
+        if (!m.chordBeats)   m.chordBeats   = [];
+        m.chordOffsets.splice(0, m.chordOffsets.length, ...newOffsets);
+        m.chordBeats.splice(0, m.chordBeats.length, ...newBeats);
     }
 
     /**
@@ -220,6 +219,287 @@ export function useChordGridOps(model, undo, tabModel) {
         undo.wrapCommand('Add chord', [gi], () => {
             m.chordNames.push('');
             _recomputeEvenOffsets(m);
+        });
+    }
+
+    /**
+     * Add a single chord slot at a specific beat offset, snapped to 0.5-beat grid.
+     * The slot spans from beatOffset to the next existing slot (or measure end).
+     * Existing slots are not moved — the new slot is inserted in sorted order.
+     *
+     * @param {number} gi
+     * @param {number} beatOffset — beat position (quarter beats from measure start)
+     */
+    function addChordAtBeat(gi, beatOffset) {
+        const m = _findMeasureByGi(gi);
+        if (!m) return;
+        const bpm = (model.value?.ticksPerMeasure ?? 1920) / 480;
+
+        undo.wrapCommand('Add chord at beat', [gi], () => {
+            // Snap to 0.5-beat grid, clamp to measure
+            const snapped = Math.max(0, Math.min(bpm - 0.5, Math.round(beatOffset / 0.5) * 0.5));
+
+            if (!m.chordNames) m.chordNames = [];
+            if (!m.chordOffsets) m.chordOffsets = [];
+            if (!m.chordBeats) m.chordBeats = [];
+
+            // Find insertion index (sorted by offset)
+            const offsets = [...m.chordOffsets];
+            let insertAt = offsets.findIndex(o => o > snapped);
+            if (insertAt === -1) insertAt = offsets.length;
+
+            // Duration: from snapped to next slot (or measure end)
+            const nextOffset = insertAt < offsets.length ? offsets[insertAt] : bpm;
+            const duration = Math.max(0.5, nextOffset - snapped);
+
+            // Trim the preceding slot's duration if it overlaps
+            if (insertAt > 0) {
+                const prevEnd = offsets[insertAt - 1] + m.chordBeats[insertAt - 1];
+                if (prevEnd > snapped) {
+                    m.chordBeats[insertAt - 1] = snapped - offsets[insertAt - 1];
+                }
+            }
+
+            m.chordNames.splice(insertAt, 0, '');
+            m.chordOffsets.splice(insertAt, 0, snapped);
+            m.chordBeats.splice(insertAt, 0, duration);
+        });
+
+        return (m.chordOffsets || []).findIndex(o => Math.abs(o - Math.round(beatOffset / 0.5) * 0.5) < 0.01);
+    }
+
+    /**
+     * Move a chord slot to a new beat offset (8th-note grid drag-and-drop).
+     *
+     * Rules:
+     *  - newOffset is snapped to 0.5-beat grid by the caller before this runs.
+     *  - The dragged chord keeps its original duration unless a neighbor forces a trim.
+     *  - If the dragged chord's end overlaps the START of another chord → that chord's
+     *    start is pushed right (trimmed) to where the dragged chord ends. If the trim
+     *    would reduce it below 0.5 beats it is removed entirely (fully covered).
+     *  - If newOffset lands fully inside another chord AND the dragged chord's end also
+     *    stays inside that chord → replace mode: remove the target slot entirely.
+     *  - Gap is left where the dragged chord came from; neighbors don't expand.
+     *
+     * @param {number} gi        — global measure index
+     * @param {number} ci        — chord slot index being dragged
+     * @param {number} newOffset — snapped beat offset (quarter beats from measure start)
+     */
+    function setChordOffset(gi, ci, newOffset) {
+        const m = _findMeasureByGi(gi);
+        if (!m) return;
+
+        const bpm = (model.value?.ticksPerMeasure ?? 1920) / 480;
+
+        undo.wrapCommand('Move chord', [gi], () => {
+            // Work on local copies — write back all three arrays atomically at the end
+            const names   = [...m.chordNames];
+            const offsets = [...(m.chordOffsets || names.map((_, i) => i * (bpm / names.length)))];
+            const beats   = [...(m.chordBeats   || names.map(() => bpm / names.length))];
+
+            const dragBeats = beats[ci];
+            const newEnd    = newOffset + dragBeats;
+
+            offsets[ci] = newOffset;
+
+            // Resolve collisions with every other slot
+            const toRemove = [];
+            for (let i = 0; i < names.length; i++) {
+                if (i === ci) continue;
+                const slotStart = offsets[i];
+                const slotEnd   = slotStart + beats[i];
+
+                // No overlap at all — skip
+                if (newEnd <= slotStart || newOffset >= slotEnd) continue;
+
+                // Dragged chord fully covers the other slot → remove it
+                if (newOffset <= slotStart && newEnd >= slotEnd) {
+                    toRemove.push(i);
+                    continue;
+                }
+
+                // Dragged chord overlaps the RIGHT end of a preceding slot
+                // (dragged start lands inside it) → trim that slot's end
+                if (newOffset > slotStart && newOffset < slotEnd) {
+                    const remaining = newOffset - slotStart;
+                    if (remaining < 0.5) {
+                        toRemove.push(i);
+                    } else {
+                        beats[i] = remaining;
+                    }
+                    continue;
+                }
+
+                // Dragged chord overlaps the LEFT start of a following slot
+                // (dragged end lands inside it) → trim that slot's start
+                if (newEnd > slotStart && newEnd < slotEnd) {
+                    const remaining = slotEnd - newEnd;
+                    if (remaining < 0.5) {
+                        toRemove.push(i);
+                    } else {
+                        offsets[i] = newEnd;
+                        beats[i]   = remaining;
+                    }
+                }
+            }
+
+            // Remove fully-covered slots descending so indices stay valid
+            toRemove.sort((a, b) => b - a);
+            for (const i of toRemove) {
+                const removedName = names[i];
+                names.splice(i, 1);
+                offsets.splice(i, 1);
+                beats.splice(i, 1);
+                const key = `${removedName}@${gi}.${i}`;
+                if (model.value.chordVoicings?.[key]) delete model.value.chordVoicings[key];
+                _compactChordIndicesInMeasure(model.value.chordVoicings, gi, i);
+            }
+
+            // Write back in-place so Vue's reactivity on the existing array refs fires
+            m.chordNames.splice(0, m.chordNames.length, ...names);
+            if (!m.chordOffsets) m.chordOffsets = [];
+            m.chordOffsets.splice(0, m.chordOffsets.length, ...offsets);
+            if (!m.chordBeats) m.chordBeats = [];
+            m.chordBeats.splice(0, m.chordBeats.length, ...beats);
+        });
+    }
+
+    /**
+     * Resize a chord slot by dragging its right edge to a new beat end position.
+     * Start is fixed. Same collision rules as setChordOffset:
+     *  - newEnd trims the start of any following chord it overlaps
+     *  - newEnd fully covering a following chord removes it
+     *  - minimum duration 0.5 beats
+     *
+     * @param {number} gi     — global measure index
+     * @param {number} ci     — chord slot index being resized
+     * @param {number} newEnd — snapped beat end position (quarter beats from measure start)
+     */
+    function setChordEnd(gi, ci, newEnd) {
+        const m = _findMeasureByGi(gi);
+        if (!m) return;
+
+        const bpm = (model.value?.ticksPerMeasure ?? 1920) / 480;
+
+        undo.wrapCommand('Resize chord', [gi], () => {
+            const names   = [...m.chordNames];
+            const offsets = [...(m.chordOffsets || names.map((_, i) => i * (bpm / names.length)))];
+            const beats   = [...(m.chordBeats   || names.map(() => bpm / names.length))];
+
+            const fixedStart = offsets[ci];
+            const clampedEnd = Math.max(fixedStart + 0.5, Math.min(newEnd, bpm));
+            beats[ci] = clampedEnd - fixedStart;
+
+            const toRemove = [];
+            for (let i = 0; i < names.length; i++) {
+                if (i === ci) continue;
+                const slotStart = offsets[i];
+                const slotEnd   = slotStart + beats[i];
+
+                if (clampedEnd <= slotStart || fixedStart >= slotEnd) continue;
+
+                // Fully covered → remove
+                if (fixedStart <= slotStart && clampedEnd >= slotEnd) {
+                    toRemove.push(i);
+                    continue;
+                }
+
+                // Partial overlap on left of following slot → trim its start
+                if (clampedEnd > slotStart && clampedEnd < slotEnd) {
+                    const remaining = slotEnd - clampedEnd;
+                    if (remaining < 0.5) {
+                        toRemove.push(i);
+                    } else {
+                        offsets[i] = clampedEnd;
+                        beats[i]   = remaining;
+                    }
+                }
+            }
+
+            toRemove.sort((a, b) => b - a);
+            for (const i of toRemove) {
+                const removedName = names[i];
+                names.splice(i, 1);
+                offsets.splice(i, 1);
+                beats.splice(i, 1);
+                const key = `${removedName}@${gi}.${i}`;
+                if (model.value.chordVoicings?.[key]) delete model.value.chordVoicings[key];
+                _compactChordIndicesInMeasure(model.value.chordVoicings, gi, i);
+            }
+
+            m.chordNames.splice(0, m.chordNames.length, ...names);
+            if (!m.chordOffsets) m.chordOffsets = [];
+            m.chordOffsets.splice(0, m.chordOffsets.length, ...offsets);
+            if (!m.chordBeats) m.chordBeats = [];
+            m.chordBeats.splice(0, m.chordBeats.length, ...beats);
+        });
+    }
+
+    /**
+     * Resize a chord slot by dragging its left edge to a new beat start position.
+     * End is fixed. Same collision rules: trims/removes preceding chords that overlap.
+     *
+     * @param {number} gi       — global measure index
+     * @param {number} ci       — chord slot index being resized
+     * @param {number} newStart — snapped beat start position
+     */
+    function setChordStart(gi, ci, newStart) {
+        const m = _findMeasureByGi(gi);
+        if (!m) return;
+
+        const bpm = (model.value?.ticksPerMeasure ?? 1920) / 480;
+
+        undo.wrapCommand('Resize chord', [gi], () => {
+            const names   = [...m.chordNames];
+            const offsets = [...(m.chordOffsets || names.map((_, i) => i * (bpm / names.length)))];
+            const beats   = [...(m.chordBeats   || names.map(() => bpm / names.length))];
+
+            const fixedEnd    = offsets[ci] + beats[ci];
+            const clampedStart = Math.min(Math.max(0, newStart), fixedEnd - 0.5);
+            offsets[ci] = clampedStart;
+            beats[ci]   = fixedEnd - clampedStart;
+
+            const toRemove = [];
+            for (let i = 0; i < names.length; i++) {
+                if (i === ci) continue;
+                const slotStart = offsets[i];
+                const slotEnd   = slotStart + beats[i];
+
+                if (clampedStart >= slotEnd || fixedEnd <= slotStart) continue;
+
+                // Fully covered → remove
+                if (clampedStart <= slotStart && fixedEnd >= slotEnd) {
+                    toRemove.push(i);
+                    continue;
+                }
+
+                // New start cuts into the right end of a preceding slot → trim its end
+                if (clampedStart > slotStart && clampedStart < slotEnd) {
+                    const remaining = clampedStart - slotStart;
+                    if (remaining < 0.5) {
+                        toRemove.push(i);
+                    } else {
+                        beats[i] = remaining;
+                    }
+                }
+            }
+
+            toRemove.sort((a, b) => b - a);
+            for (const i of toRemove) {
+                const removedName = names[i];
+                names.splice(i, 1);
+                offsets.splice(i, 1);
+                beats.splice(i, 1);
+                const key = `${removedName}@${gi}.${i}`;
+                if (model.value.chordVoicings?.[key]) delete model.value.chordVoicings[key];
+                _compactChordIndicesInMeasure(model.value.chordVoicings, gi, i);
+            }
+
+            m.chordNames.splice(0, m.chordNames.length, ...names);
+            if (!m.chordOffsets) m.chordOffsets = [];
+            m.chordOffsets.splice(0, m.chordOffsets.length, ...offsets);
+            if (!m.chordBeats) m.chordBeats = [];
+            m.chordBeats.splice(0, m.chordBeats.length, ...beats);
         });
     }
 
@@ -377,6 +657,10 @@ export function useChordGridOps(model, undo, tabModel) {
         setChordName,
         deleteChords,
         addChordToMeasure,
+        addChordAtBeat,
+        setChordOffset,
+        setChordEnd,
+        setChordStart,
         // Pattern B
         insertBarAfter,
         insertBarBefore,
