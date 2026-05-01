@@ -35,4 +35,27 @@ return [
         ],
     ],
 
+    'llm' => [
+        'provider' => env('LLM_PROVIDER', 'gemini'),  // 'gemini' | 'deepseek'
+        'gemini' => [
+            'key'   => env('GEMINI_API_KEY'),
+            'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+        ],
+        'deepseek' => [
+            'key'   => env('DEEPSEEK_API_KEY'),
+            'model' => env('DEEPSEEK_MODEL', 'deepseek-chat'),
+            'base'  => env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1'),
+        ],
+        'groq' => [
+            'key'   => env('GROQ_API_KEY'),
+            'model' => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+            'base'  => env('GROQ_BASE_URL', 'https://api.groq.com/openai/v1'),
+        ],
+        'cohere' => [
+            'key'   => env('COHERE_API_KEY'),
+            'model' => env('COHERE_MODEL', 'command-r-plus-08-2024'),
+        ],
+    ],
+
 ];
+

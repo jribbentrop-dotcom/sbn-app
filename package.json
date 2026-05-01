@@ -27,6 +27,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "tone": "^15.1.22"
+    "@spotify/basic-pitch": "^1.0.1",
+    "tone": "^15.1.22",
+    "web-audio-beat-detector": "^8.2.36"
   }
 }

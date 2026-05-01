@@ -263,6 +263,9 @@ async function _openPicker(chordName, voicingKey) {
  * Pass gi=null for a global (name-only) lookup (e.g. from the overview).
  */
 function openForChord(name, gi, ci) {
+    // Clear tab context to prevent bleed from tab view
+    store._tabSource = null;
+    store._tabMatchIndex = -1;
     const voicingKey = (gi != null) ? `${name}@${gi}.${ci}` : null;
     _openPicker(name, voicingKey);
 }
@@ -393,7 +396,12 @@ function applyVoicing(v) {
         }
     });
 
-    store.open = false;
+    // Keep picker open after selection
+    // store.open = false;
+
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sbn-tab-sections-sync'));
+    }
 
     // Apply frets into the tab notation model (separate undo entry via onVoicingApplied)
     const tabSrc = store._tabSource;
@@ -428,7 +436,84 @@ function removeVoicing() {
     const removeKey = store.voicingKey || store.chordName;
     if (_model?.value?.chordVoicings) delete _model.value.chordVoicings[removeKey];
     store.open = false;
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sbn-tab-sections-sync'));
+    }
     if (typeof window.sbnToast === 'function') window.sbnToast('Voicing removed', 'success');
+}
+
+/**
+ * Remove a voicing from the overview / all voicings section.
+ * Called when user right-clicks a voicing card and selects "Remove voicing".
+ */
+function removeVoicingByName(chordName) {
+    if (!_model?.value?.chordVoicings) return false;
+    const cv = _model.value.chordVoicings;
+
+    // Find and remove the voicing for this chord name
+    if (cv[chordName]) {
+        _undo?.wrapCommand?.('Remove voicing', [], () => {
+            delete cv[chordName];
+        });
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('sbn-tab-sections-sync'));
+        }
+        if (typeof window.sbnToast === 'function') {
+            window.sbnToast(`Removed ${chordName} voicing`, 'success');
+        }
+        return true;
+    }
+    return false;
+}
+
+function cleanUnusedVoicings() {
+    if (!_model?.value?.chordVoicings) return 0;
+
+    const cv = _model.value.chordVoicings;
+    const usedBaseNames = new Set();
+    const usedPositionalKeys = new Set();
+
+    let gi = 0;
+    for (const sec of (_model.value.sections || [])) {
+        for (const m of (sec.measures || [])) {
+            const names = m.chordNames || [];
+            for (let ci = 0; ci < names.length; ci++) {
+                const name = names[ci];
+                if (!name) continue;
+                usedBaseNames.add(name);
+                usedPositionalKeys.add(`${name}@${gi}.${ci}`);
+            }
+            gi++;
+        }
+    }
+
+    const keysToDelete = [];
+    for (const key of Object.keys(cv)) {
+        if (key.includes('@')) {
+            if (!usedPositionalKeys.has(key)) keysToDelete.push(key);
+            continue;
+        }
+        if (!usedBaseNames.has(key)) keysToDelete.push(key);
+    }
+
+    if (!keysToDelete.length) {
+        if (typeof window.sbnToast === 'function') window.sbnToast('No unused voicings found', 'success');
+        return 0;
+    }
+
+    _undo?.wrapCommand?.('Clean unused voicings', [], () => {
+        keysToDelete.forEach(k => { delete cv[k]; });
+    });
+
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sbn-tab-sections-sync'));
+    }
+    if (typeof window.sbnToast === 'function') {
+        window.sbnToast(`Removed ${keysToDelete.length} unused voicing${keysToDelete.length !== 1 ? 's' : ''}`, 'success');
+    }
+
+    return keysToDelete.length;
 }
 
 function togglePickerFilter(type, value) {
@@ -531,6 +616,30 @@ function resetPickerFilters() {
 function close() {
     store.open        = false;
     store._tabSource  = null;
+    store._tabMatchIndex = -1;
+}
+
+/**
+ * Directly apply a voicing from external sources (e.g. Research Hints).
+ */
+function applyVoicingWithFrets(chord, frets, position) {
+    if (store.open && (store.chordName === chord || store.voicingKey)) {
+        // Apply to the active picker target
+        applyVoicing({ frets, position });
+    } else {
+        // Apply globally to chordVoicings
+        if (!_model?.value) return;
+        _undo.wrapCommand('Apply voicing hint', [], () => {
+            if (!_model.value.chordVoicings) _model.value.chordVoicings = {};
+            _model.value.chordVoicings[chord] = { frets, position: position || 1, fingers: '000000' };
+        });
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('sbn-tab-sections-sync'));
+        }
+        if (typeof window.sbnToast === 'function') {
+            window.sbnToast(`Voicing for ${chord} updated from research`, 'success');
+        }
+    }
 }
 
 // Attach all methods directly to the reactive store object so consumers can
@@ -539,7 +648,10 @@ Object.assign(store, {
     openForChord,
     openForTab,
     applyVoicing,
+    applyVoicingWithFrets,
     removeVoicing,
+    removeVoicingByName,
+    cleanUnusedVoicings,
     togglePickerFilter,
     stepExtension,
     clearExtension,

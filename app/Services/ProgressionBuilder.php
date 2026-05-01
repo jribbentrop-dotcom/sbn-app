@@ -44,6 +44,21 @@ class ProgressionBuilder
         'A' => 9, 'A#' => 10, 'Bb' => 10, 'B' => 11,
     ];
 
+    // Category-mode voicing pools (priority order per §5)
+    private const CATEGORY_VOICING_POOLS = [
+        'jazz' => ['drop2', 'drop3', 'shell', 'closed'],
+        'blues' => ['archetype'], // Basic blues; advanced selected by style/extension trigger
+        'pop' => ['archetype'],
+        'classical' => ['closed_triads', 'spread_triads'],
+        'modal' => ['quartal', 'shell', 'drop3'],
+        'latin' => ['drop2', 'drop3', 'shell', 'closed'],
+    ];
+
+    private const CATEGORY_DEFAULT = 'jazz';
+
+    // Blues advanced pool (triggered by style or extensions)
+    private const BLUES_ADVANCED_POOL = ['shell', 'drop3', 'drop2', 'closed'];
+
     // Interval label groups for voice leading scoring
     private const SEVENTH_LABELS  = ['b7' => true, '7' => true, 'maj7' => true];
     private const THIRD_LABELS    = ['3' => true, 'b3' => true];
@@ -70,6 +85,8 @@ class ProgressionBuilder
      *
      * @param  array  $context  HarmonicContext output (from HarmonicContext::build*)
      * @param  array  $options  {
+     *     mode: 'simple'|'',                    // simple lookup mode bypasses scoring/style/extensions
+     *     category: 'jazz'|'blues'|'pop'|'classical'|'modal'|'latin', // category-driven pool filtering
      *     style: 'drop'|'shell'|'closed'|'',  // voicing group preference
      *     extensions: bool,                     // include extension voicings
      *     rootOnly: bool,                       // root position only
@@ -81,14 +98,36 @@ class ProgressionBuilder
      *         vl_score: float|null,
      *     }>,
      *     vl_scores: array<int, float|null>,
+     *     diagnostics: array{
+     *         category_pool_fallbacks: array<int, array{slot: int, requested_pool: string, fallback_pool: string, reason: string}>,
+     *         style_ignored: array{reason: string, requested_style: string}|null,
+     *         category_normalized: string,
+     *         category_input: string|null,
+     *     },
      * }
      */
     public function buildVoicings(array $context, array $options = []): array
     {
+        $mode       = $options['mode'] ?? '';
+        $category   = $options['category'] ?? self::CATEGORY_DEFAULT;
         $style      = $options['style'] ?? '';
         $extensions = $options['extensions'] ?? false;
         $rootOnly   = $options['rootOnly'] ?? false;
         $vlLevel    = $extensions ? 2 : 1;
+
+        // Diagnostics container
+        $diagnostics = [
+            'category_pool_fallbacks' => [],
+            'style_ignored' => null,
+            'category_normalized' => $category,
+            'category_input' => $category,
+        ];
+
+        // Normalize category (treat unrecognized as jazz)
+        if (!array_key_exists($category, self::CATEGORY_VOICING_POOLS)) {
+            $diagnostics['category_normalized'] = self::CATEGORY_DEFAULT;
+            $category = self::CATEGORY_DEFAULT;
+        }
 
         // Flatten all chords across sections into a single sequence
         $allChords = [];
@@ -99,8 +138,19 @@ class ProgressionBuilder
         }
 
         if (empty($allChords)) {
-            return ['selections' => [], 'vl_scores' => []];
+            return [
+                'selections' => [],
+                'vl_scores' => [],
+                'diagnostics' => $diagnostics,
+            ];
         }
+
+        if ($mode === 'simple') {
+            return $this->buildSimpleModeVoicings($context, $allChords, $options, $diagnostics);
+        }
+
+        // Apply numeral upgrade (§6.1) for category-aware progressions
+        $context = $this->applyCategoryNumeralUpgrade($context, $category);
 
         $n = count($allChords);
 
@@ -112,7 +162,11 @@ class ProgressionBuilder
                 $chord['quality'],
                 $chord['extension'],
                 $style,
-                $rootOnly
+                $rootOnly,
+                $category,
+                $extensions,
+                $i,
+                $diagnostics
             );
         }
 
@@ -254,6 +308,7 @@ class ProgressionBuilder
             'selections' => $result,
             'vl_scores'  => $vlScores,
             'sections'   => $sections,
+            'diagnostics' => $diagnostics,
         ];
     }
 
@@ -276,7 +331,11 @@ class ProgressionBuilder
         string $quality,
         string $extension,
         string $styleFilter,
-        bool $rootOnly
+        bool $rootOnly,
+        string $category = self::CATEGORY_DEFAULT,
+        bool $extensions = false,
+        int $slotIndex = 0,
+        array &$diagnostics = null
     ): array {
         if (!$root) return [];
 
@@ -286,33 +345,30 @@ class ProgressionBuilder
 
         $qualityAliases = $this->getQualityAliases($dbQuality);
 
+        // Determine pool based on category and blues sub-mode trigger
+        $pool = $this->getCategoryPool($category, $styleFilter, $extensions);
+
+        // Check if style is outside category pool
+        if ($styleFilter && $styleFilter !== 'drop' && $styleFilter !== '') {
+            if (!in_array($styleFilter, $pool, true)) {
+                // Style is not in category pool — ignore it, log warning
+                if ($diagnostics !== null && $diagnostics['style_ignored'] === null) {
+                    $diagnostics['style_ignored'] = [
+                        'reason' => "style '{$styleFilter}' not in category '{$category}' pool",
+                        'requested_style' => $styleFilter,
+                    ];
+                }
+                $styleFilter = ''; // Clear style to stay category-correct
+            }
+        }
+
         $query = DB::table('sbn_chord_diagrams')
             ->whereIn('quality', $qualityAliases)
             ->whereRaw("(bass_note = '' OR bass_note IS NULL)")
             ->orderByDesc('popularity');
 
-        // Style filter
-        if ($styleFilter && $styleFilter !== 'drop') {
-            $query->where('voicing_category', $styleFilter);
-        }
-
-        // Root only
-        if ($rootOnly) {
-            $query->where(function ($q) {
-                $q->where('inversion', 'root')
-                  ->orWhereNull('inversion')
-                  ->orWhere('inversion', '');
-            });
-        }
-
-        // Exclude open voicings (but allow null/empty category — these are triads/archetypes)
-        $query->where(function ($q) {
-            $q->where('voicing_category', '!=', 'open')
-              ->orWhereNull('voicing_category')
-              ->orWhere('voicing_category', '');
-        });
-
-        $shapes = $query->limit(60)->get();
+        // Apply category pool filter
+        $shapes = $this->queryWithCategoryPool($query, $pool, $styleFilter, $rootOnly, $slotIndex, $diagnostics);
 
         if ($shapes->isEmpty()) return [];
 
@@ -352,6 +408,630 @@ class ProgressionBuilder
         }
 
         return $results;
+    }
+
+    /**
+     * Get the voicing category pool for a given category, style, and extensions flag.
+     *
+     * Blues sub-mode trigger: advanced blues when style is structured OR extensions=true.
+     * Explicit 'archetype' style = basic blues (no trigger).
+     */
+    private function getCategoryPool(string $category, string $style, bool $extensions): array
+    {
+        $basePool = self::CATEGORY_VOICING_POOLS[$category] ?? self::CATEGORY_VOICING_POOLS[self::CATEGORY_DEFAULT];
+
+        // Blues sub-mode trigger (per user answer Q1)
+        if ($category === 'blues') {
+            $advancedBlues = in_array($style, ['shell', 'drop2', 'drop3', 'closed'], true)
+                || $extensions === true;
+            // Explicit 'archetype' style = basic blues (no trigger)
+            if ($style === 'archetype') {
+                $advancedBlues = false;
+            }
+            if ($advancedBlues) {
+                return self::BLUES_ADVANCED_POOL;
+            }
+        }
+
+        return $basePool;
+    }
+
+    /**
+     * Query with category pool filtering and fallback logging.
+     *
+     * Tries each category in priority order, falling back to the next if empty.
+     * Logs fallback events to diagnostics.
+     */
+    private function queryWithCategoryPool($query, array $pool, string $styleFilter, bool $rootOnly, int $slotIndex, ?array &$diagnostics)
+    {
+        $originalPool = $pool;
+
+        foreach ($pool as $poolIdx => $category) {
+            $queryClone = clone $query;
+            $queryClone->whereIn('voicing_category', [$category, '', null]); // Include empty/null as archetype
+
+            // Apply style filter if within pool
+            if ($styleFilter && $styleFilter !== 'drop' && in_array($styleFilter, $pool, true)) {
+                $queryClone->where('voicing_category', $styleFilter);
+            }
+
+            // Root only
+            if ($rootOnly) {
+                $queryClone->where(function ($q) {
+                    $q->where('inversion', 'root')
+                      ->orWhereNull('inversion')
+                      ->orWhere('inversion', '');
+                });
+            }
+
+            // Exclude open voicings
+            $queryClone->where(function ($q) {
+                $q->where('voicing_category', '!=', 'open')
+                  ->orWhereNull('voicing_category')
+                  ->orWhere('voicing_category', '');
+            });
+
+            $shapes = $queryClone->limit(80)->get();
+
+            if (!$shapes->isEmpty()) {
+                // Apply non-barré priority for archetype pool
+                if (in_array($category, ['archetype', '', null], true)) {
+                    $shapes = $this->applyArchetypePriority($shapes);
+                }
+                return $shapes;
+            }
+
+            // Log fallback
+            if ($diagnostics !== null && $poolIdx < count($pool) - 1) {
+                $nextCategory = $pool[$poolIdx + 1] ?? 'unrestricted';
+                $diagnostics['category_pool_fallbacks'][] = [
+                    'slot' => $slotIndex,
+                    'requested_pool' => $category,
+                    'fallback_pool' => $nextCategory,
+                    'reason' => 'no candidates',
+                ];
+            }
+        }
+
+        // Final fallback: unrestricted query
+        $query->where(function ($q) {
+            $q->where('voicing_category', '!=', 'open')
+              ->orWhereNull('voicing_category')
+              ->orWhere('voicing_category', '');
+        });
+
+        if ($rootOnly) {
+            $query->where(function ($q) {
+                $q->where('inversion', 'root')
+                  ->orWhereNull('inversion')
+                  ->orWhere('inversion', '');
+            });
+        }
+
+        if ($styleFilter && $styleFilter !== 'drop') {
+            $query->where('voicing_category', $styleFilter);
+        }
+
+        if ($diagnostics !== null) {
+            $diagnostics['category_pool_fallbacks'][] = [
+                'slot' => $slotIndex,
+                'requested_pool' => implode(',', $originalPool),
+                'fallback_pool' => 'unrestricted',
+                'reason' => 'all pools exhausted',
+            ];
+        }
+
+        return $query->limit(80)->get();
+    }
+
+    /**
+     * Apply non-barré priority ordering to archetype pool.
+     * Non-barré → partial-barré → full-barré.
+     */
+    private function applyArchetypePriority($shapes)
+    {
+        $ranked = [];
+        foreach ($shapes as $shape) {
+            $rank = $this->archetypePriorityRank((object) $shape);
+            $ranked[] = ['shape' => $shape, 'rank' => $rank];
+        }
+
+        usort($ranked, function ($a, $b) {
+            if ($a['rank'] !== $b['rank']) {
+                return $a['rank'] <=> $b['rank'];
+            }
+            return ($b['shape']->popularity ?? 0) <=> ($a['shape']->popularity ?? 0);
+        });
+
+        return collect($ranked)->pluck('shape');
+    }
+
+    /**
+     * Phase A simple-mode voicing builder.
+     *
+     * Bypasses scoring and style/extensions filtering, and selects archetype
+     * voicings by direct lookup:
+     * - strict root+quality first
+     * - then root-only triad equivalent fallback
+     * - repeated adjacent chords reuse prior voicing unless pinned
+     */
+    private function buildSimpleModeVoicings(array $context, array $allChords, array $options, array $diagnostics): array
+    {
+        $n = count($allChords);
+        $chordVoicings = [];
+        $selections = array_fill(0, $n, null);
+
+        $pinnedSlot = $options['pinnedSlot'] ?? null;
+        $pinnedVoicing = $options['pinnedVoicing'] ?? null;
+
+        foreach ($allChords as $i => $chord) {
+            $chordVoicings[$i] = $this->fetchSimpleModeVoicingsForChord(
+                $chord['root'],
+                $chord['quality'] ?? ''
+            );
+
+            $isPinnedSlot = $pinnedSlot !== null
+                && $pinnedVoicing !== null
+                && $pinnedSlot >= 0
+                && $pinnedSlot < $n
+                && $pinnedSlot === $i;
+
+            if ($isPinnedSlot) {
+                $selections[$i] = (object) $pinnedVoicing;
+                continue;
+            }
+
+            if ($i > 0
+                && ($allChords[$i - 1]['chord_name'] ?? '') === ($chord['chord_name'] ?? '')
+                && $selections[$i - 1]) {
+                $selections[$i] = $selections[$i - 1];
+                continue;
+            }
+
+            $selections[$i] = $chordVoicings[$i][0] ?? null;
+        }
+
+        $vlScores = [];
+        for ($i = 0; $i < $n - 1; $i++) {
+            if ($selections[$i] && $selections[$i + 1]) {
+                $vlScores[] = $this->scoreVL($selections[$i], $selections[$i + 1], 1);
+            } else {
+                $vlScores[] = null;
+            }
+        }
+
+        $result = [];
+        foreach ($allChords as $i => $chord) {
+            $sel = $selections[$i];
+            $pool = $chordVoicings[$i] ?? [];
+            $result[] = [
+                'chord_name' => $chord['chord_name'],
+                'roman_numeral' => $chord['roman_numeral'],
+                'measure_index' => $chord['measure_index'],
+                'voicing' => $sel ? $this->formatVoicing($sel) : null,
+                'voicings' => array_values(array_map([$this, 'formatVoicing'], $pool)),
+            ];
+        }
+
+        $sections = [];
+        foreach ($context['sections'] as $sec) {
+            $sections[] = [
+                'section_key' => $sec['section_key'] ?? '',
+                'length' => count($sec['chords']),
+            ];
+        }
+
+        return [
+            'selections' => $result,
+            'vl_scores' => $vlScores,
+            'sections' => $sections,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * Fetch simple-mode archetype candidates for a root/quality pair.
+     */
+    private function fetchSimpleModeVoicingsForChord(?string $root, string $quality): array
+    {
+        if (!$root) {
+            return [];
+        }
+
+        $baseQuery = DB::table('sbn_chord_diagrams')
+            ->where(function ($q) {
+                $q->where('voicing_category', 'archetype')
+                    ->orWhereNull('voicing_category')
+                    ->orWhere('voicing_category', '');
+            })
+            ->whereRaw("(bass_note = '' OR bass_note IS NULL)")
+            ->orderByDesc('popularity');
+
+        $strictQuality = $this->normalizeSimpleLookupQuality($quality);
+        $strictAliases = $this->getQualityAliases($strictQuality);
+
+        $shapes = (clone $baseQuery)
+            ->whereIn('quality', $strictAliases)
+            ->limit(80)
+            ->get();
+
+        if ($shapes->isEmpty()) {
+            $fallbackQuality = $this->simpleFallbackQuality($quality);
+            if ($fallbackQuality === null) {
+                return [];
+            }
+
+            $fallbackAliases = $this->getQualityAliases($fallbackQuality);
+            $shapes = (clone $baseQuery)
+                ->whereIn('quality', $fallbackAliases)
+                ->limit(80)
+                ->get();
+        }
+
+        if ($shapes->isEmpty()) {
+            return [];
+        }
+
+        $results = [];
+        foreach ($shapes as $shape) {
+            $calculated = $this->calculator->calculateFrets($shape, $root);
+
+            if (empty($calculated['diagram_data']) ||
+                (empty($calculated['diagram_data']['positions']) && empty($calculated['diagram_data']['open']))) {
+                continue;
+            }
+
+            $voicingCategory = $shape->voicing_category ?: 'archetype';
+
+            $voicing = (object) [
+                'id' => $shape->id,
+                'root_note' => $root,
+                'original_root' => $shape->root_note,
+                'quality' => $shape->quality,
+                'extensions' => $shape->extensions ?? '',
+                'voicing_category' => $voicingCategory,
+                'root_string' => $shape->root_string,
+                'inversion' => $shape->inversion ?? 'root',
+                'start_fret' => $calculated['start_fret'],
+                'diagram_data' => (object) $calculated['diagram_data'],
+                'interval_labels' => $calculated['interval_labels'] ?: ($shape->interval_labels ?? ''),
+                'notes' => $calculated['notes'] ?? '',
+                'popularity' => $shape->popularity ?? 0,
+                'frets' => null,
+            ];
+
+            $voicing->frets = $this->buildFretString($calculated['diagram_data']);
+            $results[] = $voicing;
+        }
+
+        usort($results, function ($a, $b) {
+            $aRank = $this->archetypePriorityRank($a);
+            $bRank = $this->archetypePriorityRank($b);
+
+            if ($aRank !== $bRank) {
+                return $aRank <=> $bRank;
+            }
+
+            return ($b->popularity ?? 0) <=> ($a->popularity ?? 0);
+        });
+
+        return $results;
+    }
+
+    private function normalizeSimpleLookupQuality(string $quality): string
+    {
+        return $quality === '7' ? 'dom7' : $quality;
+    }
+
+    private function simpleFallbackQuality(string $quality): ?string
+    {
+        $q = $this->normalizeSimpleLookupQuality(trim($quality));
+
+        if ($q === '' || in_array($q, ['maj', 'dom7', '7', 'maj7', 'maj6', '6', '69', '9', '13', 'sus2', 'sus4', 'aug', '+'], true)) {
+            return 'maj';
+        }
+
+        if (in_array($q, ['m', 'min', 'm7', 'm6', 'mMaj7', 'mMin7', 'm7b5', 'half-dim', 'dim', 'dim7', 'o7'], true)) {
+            return 'min';
+        }
+
+        return 'maj';
+    }
+
+    private function archetypePriorityRank(object $voicing): int
+    {
+        $dd = $voicing->diagram_data ?? null;
+        if (is_object($dd)) {
+            $dd = json_decode(json_encode($dd), true);
+        }
+        if (!is_array($dd)) {
+            return 2;
+        }
+
+        $barres = $dd['barres'] ?? [];
+        $hasBarre = !empty($barres);
+        $hasFullBarre = false;
+        foreach ($barres as $barre) {
+            $from = (int) ($barre['fromString'] ?? 0);
+            $to = (int) ($barre['toString'] ?? 0);
+            if ($from > 0 && $to > 0 && abs($to - $from) >= 4) {
+                $hasFullBarre = true;
+                break;
+            }
+        }
+
+        if ($hasFullBarre) {
+            return 2;
+        }
+        if ($hasBarre) {
+            return 1;
+        }
+
+        $open = $dd['open'] ?? [];
+        if (!empty($open)) {
+            return 0;
+        }
+
+        return 1;
+    }
+
+    /**
+     * Apply category-aware numeral upgrade (§6.1) to the harmonic context.
+     *
+     * Upgrades plain numerals to category-appropriate qualities:
+     * - jazz/latin: I→Imaj7, IV→IVmaj7, IIm→IIm7, V→V7, etc.
+     * - blues: I→I7, IV→IV7, V→V7
+     * - modal: Im→Im7, IV→IV7
+     * - pop/classical: no upgrade
+     *
+     * Only upgrades when the roman_numeral is plain (no quality suffix beyond m/o/+/b)
+     * and the chord_name has no explicit quality. Pinned slots are never upgraded.
+     */
+    private function applyCategoryNumeralUpgrade(array $context, string $category): array
+    {
+        $pinnedSlot = $context['pinnedSlot'] ?? null;
+
+        foreach ($context['sections'] as $secIdx => $section) {
+            foreach ($section['chords'] as $chordIdx => $chord) {
+                $globalIdx = $this->globalChordIndex($context, $secIdx, $chordIdx);
+                if ($globalIdx === $pinnedSlot) {
+                    continue; // Never upgrade pinned slots
+                }
+
+                $romanNumeral = $chord['roman_numeral'] ?? '';
+                $chordName = $chord['chord_name'] ?? '';
+                $quality = $chord['quality'] ?? '';
+
+                // Skip if roman numeral has explicit quality (e.g. Imaj7, V7b9)
+                if (!$this->isPlainNumeral($romanNumeral)) {
+                    continue;
+                }
+
+                // Skip if chord_name already has explicit quality
+                if ($this->hasExplicitQuality($chordName)) {
+                    continue;
+                }
+
+                $newQuality = $this->upgradeQualityForCategory($romanNumeral, $category, $chord['tonality'] ?? 'major');
+                if ($newQuality !== $quality) {
+                    $context['sections'][$secIdx]['chords'][$chordIdx]['quality'] = $newQuality;
+                    // Update chord_name to reflect new quality
+                    $root = $chord['root'] ?? '';
+                    $context['sections'][$secIdx]['chords'][$chordIdx]['chord_name'] = $this->composeChordName($root, $newQuality, $chord['extension'] ?? '');
+                }
+            }
+        }
+
+        return $context;
+    }
+
+    /**
+     * Check if a Roman numeral is plain (no quality suffix beyond basic m/o/+/b).
+     */
+    private function isPlainNumeral(string $numeral): bool
+    {
+        // Plain numerals: I, II, III, IV, V, VI, VII, Im, IIm, etc.
+        // Also with accidentals: bII, #III, etc.
+        // Not plain if contains: 7, maj7, m7, dim, aug, sus, add, etc.
+        $plainPattern = '/^(b|#)?[IViv]+m?$/';
+        return (bool) preg_match($plainPattern, $numeral);
+    }
+
+    /**
+     * Check if a chord name has an explicit quality beyond basic triad.
+     */
+    private function hasExplicitQuality(string $chordName): bool
+    {
+        // Explicit if contains: 7, maj7, m7, m9, dim, aug, sus, add, etc.
+        // Basic triads: C, Cm, C#, F#m, etc. are not explicit
+        $explicitPattern = '/(7|maj|m9|m6|mMaj|dim|aug|sus|add|b9|#9|#11|b13)/i';
+        return (bool) preg_match($explicitPattern, $chordName);
+    }
+
+    /**
+     * Upgrade a plain numeral to category-appropriate quality (§6.1).
+     * Returns the new quality string (e.g. 'maj7', 'dom7', 'm7').
+     */
+    private function upgradeQualityForCategory(string $numeral, string $category, string $tonality): string
+    {
+        // Parse numeral to get degree and whether it's minor
+        $isMinor = str_ends_with($numeral, 'm');
+        $baseNumeral = rtrim($numeral, 'm');
+
+        // Map degree to number (I=1, II=2, etc.)
+        $degree = $this->romanToDegree($baseNumeral);
+
+        return match ($category) {
+            'jazz', 'latin' => $this->upgradeJazzLatin($degree, $isMinor, $tonality),
+            'blues' => $this->upgradeBlues($degree, $isMinor),
+            'modal' => $this->upgradeModal($degree, $isMinor, $tonality),
+            'pop', 'classical' => $isMinor ? 'min' : 'maj', // No upgrade, just normalize
+            default => $isMinor ? 'min' : 'maj',
+        };
+    }
+
+    private function upgradeJazzLatin(int $degree, bool $isMinor, string $tonality): string
+    {
+        // I, IV → maj7
+        // IIm, IIIm, IVm, VIm → m7
+        // V → dom7
+        // bVII, bIII → 7 or maj7 depending on context (simplified to 7 for now)
+        // VIIm → m7b5 in major
+        if ($isMinor) {
+            if ($degree === 7) { // VIIm
+                return 'm7b5';
+            }
+            return 'm7';
+        }
+
+        if ($degree === 1 || $degree === 4) {
+            return 'maj7';
+        }
+
+        if ($degree === 5) {
+            return 'dom7';
+        }
+
+        return 'maj'; // Fallback for others (bVII, bIII, etc.)
+    }
+
+    private function upgradeBlues(int $degree, bool $isMinor): string
+    {
+        // I, IV, V → dom7
+        if ($degree === 1 || $degree === 4 || $degree === 5) {
+            return 'dom7';
+        }
+        return $isMinor ? 'min' : 'maj';
+    }
+
+    private function upgradeModal(int $degree, bool $isMinor, string $tonality): string
+    {
+        // Im → m7 (dorian, aeolian)
+        // IV → 7 (dorian bluesy color)
+        // bVII → plain triad (mixolydian)
+        if ($isMinor) {
+            if ($degree === 1) {
+                return 'm7';
+            }
+            return 'min';
+        }
+
+        if ($degree === 4) {
+            return 'dom7';
+        }
+
+        return 'maj';
+    }
+
+    /**
+     * Convert Roman numeral to degree number (I=1, II=2, ..., VII=7).
+     * Handles accidentals: bII=2, #III=4, etc.
+     */
+    private function romanToDegree(string $numeral): int
+    {
+        $romanMap = ['I' => 1, 'II' => 2, 'III' => 3, 'IV' => 4, 'V' => 5, 'VI' => 6, 'VII' => 7];
+        $base = strtoupper(preg_replace('/^[b#]/', '', $numeral));
+        $degree = $romanMap[$base] ?? 1;
+
+        // Handle accidentals
+        if (str_starts_with($numeral, 'b')) {
+            $degree = ($degree - 1 + 7) % 7;
+            if ($degree === 0) $degree = 7;
+        } elseif (str_starts_with($numeral, '#')) {
+            $degree = ($degree + 1) % 7;
+            if ($degree === 0) $degree = 7;
+        }
+
+        return $degree;
+    }
+
+    /**
+     * Compose a chord name from root, quality, and extension.
+     * // TODO(harmonic-scorer): extract to shared module — duplicated from ProgressionDetector
+     */
+    private function composeChordName(string $root, string $quality, string $extension): string
+    {
+        $name = $root;
+
+        // Normalize quality for display
+        $displayQuality = $this->qualityToSuffix($quality);
+        if ($displayQuality) {
+            $name .= $displayQuality;
+        }
+
+        if ($extension) {
+            $name .= '(' . $extension . ')';
+        }
+
+        return $name;
+    }
+
+    /**
+     * Map quality to Roman numeral suffix.
+     * // TODO(harmonic-scorer): extract to shared module — duplicated from ProgressionDetector::qualityToSuffix
+     */
+    private function qualityToSuffix(string $quality): string
+    {
+        $q = $this->normalizeQuality($quality);
+
+        $suffixMap = [
+            'maj' => '',
+            'dom7' => '7',
+            '7' => '7',
+            'maj7' => 'maj7',
+            'min' => 'm',
+            'm' => 'm',
+            'm7' => 'm7',
+            'm7b5' => 'm7b5',
+            'dim' => 'o',
+            'dim7' => 'o7',
+            'o7' => 'o7',
+            'aug' => '+',
+            'aug7' => '7+',
+            'sus4' => 'sus4',
+            'sus2' => 'sus2',
+            'maj6' => '6',
+            'm6' => 'm6',
+            'add9' => 'add9',
+            '9' => '9',
+            '11' => '11',
+            '13' => '13',
+        ];
+
+        return $suffixMap[$q] ?? $q;
+    }
+
+    /**
+     * Normalize quality for suffix mapping.
+     * // TODO(harmonic-scorer): extract to shared module — duplicated from ProgressionDetector
+     */
+    private function normalizeQuality(string $quality): string
+    {
+        $q = trim($quality);
+
+        // Handle common aliases
+        $aliases = [
+            'dom7' => '7',
+            'dominant' => '7',
+            'major' => 'maj',
+            'minor' => 'm',
+            'half-dim' => 'm7b5',
+            'half-diminished' => 'm7b5',
+        ];
+
+        return $aliases[$q] ?? $q;
+    }
+
+    /**
+     * Calculate global chord index from section and chord indices.
+     */
+    private function globalChordIndex(array $context, int $secIdx, int $chordIdx): int
+    {
+        $index = 0;
+        for ($i = 0; $i < $secIdx; $i++) {
+            $index += count($context['sections'][$i]['chords'] ?? []);
+        }
+        return $index + $chordIdx;
     }
 
     /**
@@ -622,7 +1302,7 @@ class ProgressionBuilder
      */
     public function selectVoicingsForSequence(array $chordNames, string $key, array $options = []): array
     {
-        $preferCategory = $options['category'] ?? 'shell';
+        $preferCategory = $options['category'] ?? '';
         $results        = [];
 
         foreach ($chordNames as $name) {
@@ -638,11 +1318,15 @@ class ProgressionBuilder
                 continue;
             }
 
-            // Prefer the requested category; fall back to first available
-            $preferred = array_filter($pool, fn($v) =>
-                strcasecmp($v->voicing_category ?? '', $preferCategory) === 0
-            );
-            $pick = !empty($preferred) ? array_values($preferred)[0] : $pool[0];
+            if ($preferCategory !== '') {
+                $preferred = array_filter($pool, fn($v) =>
+                    strcasecmp($v->voicing_category ?? '', $preferCategory) === 0
+                );
+                $pick = !empty($preferred) ? array_values($preferred)[0] : $pool[0];
+            } else {
+                $pick = $pool[0];
+            }
+
 
             $results[] = [
                 'chord_name' => $name,

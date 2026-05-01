@@ -22,3 +22,12 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Audio Transcription Binaries & Env
+/yt-dlp.exe
+/ffmpeg.exe
+/ffprobe.exe
+/python_env/
+/python-installer.exe
+/ffmpeg.zip
+/storage/app/temp_audio/

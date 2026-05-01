@@ -42,6 +42,10 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::get('/leadsheets', [LeadsheetController::class, 'index'])->name('leadsheets.index');
     Route::get('/leadsheets/create', [LeadsheetController::class, 'create'])->name('leadsheets.create');
     Route::post('/leadsheets', [LeadsheetController::class, 'store'])->name('leadsheets.store');
+    Route::post('/leadsheets/create-blank', [LeadsheetController::class, 'createBlank'])->name('leadsheets.create-blank');
+    Route::post('/leadsheets/create-from-sequence', [LeadsheetController::class, 'createFromSequence'])->name('leadsheets.create-from-sequence');
+    Route::post('/leadsheets/create-from-lookup', [LeadsheetController::class, 'createFromLookup'])->name('leadsheets.create-from-lookup');
+
     Route::get('/leadsheets/{leadsheet}/edit', [LeadsheetController::class, 'edit'])->name('leadsheets.edit');
     Route::put('/leadsheets/{leadsheet}', [LeadsheetController::class, 'update'])->name('leadsheets.update');
 
@@ -84,6 +88,7 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
     Route::get('/leadsheets/search-voicings', [LeadsheetController::class, 'searchVoicings'])->name('leadsheets.searchVoicings');
     Route::get('/leadsheets/search-voicings-advanced', [LeadsheetController::class, 'searchVoicingsAdvanced'])->name('leadsheets.searchVoicingsAdvanced');
     Route::delete('/leadsheets/{leadsheet}', [LeadsheetController::class, 'destroy'])->name('leadsheets.destroy');
+    Route::post('/leadsheets/{leadsheet}/remove-voicing', [LeadsheetController::class, 'removeVoicing'])->name('leadsheets.removeVoicing');
     Route::post('/leadsheets/{leadsheet}/description', [LeadsheetController::class, 'updateDescription'])->name('leadsheets.updateDescription');
     Route::get('/leadsheets/{leadsheet}/data', [LeadsheetController::class, 'apiShow'])->name('leadsheets.show');
     Route::post('/leadsheets/identify-voicings', [LeadsheetController::class, 'identifyVoicings'])->name('leadsheets.identifyVoicings');
@@ -96,6 +101,9 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
     Route::get('/leadsheets/{leadsheet}/analyse-progressions', [ProgressionDetectionController::class, 'analyse'])->name('leadsheets.analyse-progressions');
     Route::post('/leadsheets/reprocess-progressions', [ProgressionDetectionController::class, 'reprocessAll'])->name('leadsheets.reprocess-progressions');
 
+    // YouTube Search
+    Route::get('/youtube/search', [LeadsheetController::class, 'youtubeSearch'])->name('youtube.search');
+
     // Rhythm Patterns
     Route::get('/rhythms', [RhythmPatternController::class, 'apiIndex'])->name('rhythms.index');
     Route::get('/rhythms/songs', [RhythmPatternController::class, 'apiSongs'])->name('rhythms.songs');
@@ -103,6 +111,8 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
     // Chord Progressions
     Route::post('/progressions/reprocess', [ProgressionController::class, 'reprocess'])->name('progressions.reprocess');
     Route::post('/progressions/{progression}/toggle-featured', [ProgressionController::class, 'toggleFeatured'])->name('progressions.toggleFeatured');
+    Route::post('/progressions/resolve-numerals', [LeadsheetController::class, 'resolveNumerals'])->name('progressions.resolveNumerals');
+
 
     // Phase 6d — Progression Builder API
     Route::post('/progressions/build-voicings', [ProgressionBuilderController::class, 'buildVoicings'])->name('progressions.buildVoicings');

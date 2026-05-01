@@ -1,0 +1,1546 @@
+{
+    "generated_at": "2026-04-30T19:43:21+00:00",
+    "source": "docs\/BOSSA - O Barquinho.musicxml",
+    "key": "G",
+    "chord_count": 42,
+    "chords": [
+        {
+            "index": 0,
+            "measure": 1,
+            "frets": "7x577x",
+            "position": 5,
+            "pitch_classes": [
+                11,
+                7,
+                2,
+                6
+            ],
+            "note_names": [
+                "B2",
+                "G3",
+                "D4",
+                "F#4"
+            ],
+            "isolated": {
+                "name": "Bmin(b13)",
+                "root": "B",
+                "quality": "min",
+                "extensions": "b13",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "exact"
+            },
+            "context": {
+                "name": "Gmaj7\/B",
+                "root": "G",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": "B",
+                "inversion": "inv1",
+                "confidence": "exact"
+            },
+            "flags": [
+                {
+                    "kind": "exotic_extension",
+                    "detail": "Extension 'b13' on non-dominant quality 'min' (full: b13)"
+                },
+                {
+                    "kind": "context_changed_label",
+                    "detail": "Isolated: Bmin(b13) → Context: Gmaj7\/B"
+                }
+            ]
+        },
+        {
+            "index": 1,
+            "measure": 1,
+            "frets": "xx577x",
+            "position": 5,
+            "pitch_classes": [
+                7,
+                2,
+                6
+            ],
+            "note_names": [
+                "G3",
+                "D4",
+                "F#4"
+            ],
+            "isolated": {
+                "name": "Gmaj7",
+                "root": "G",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Gmaj7",
+                "root": "G",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 2,
+            "measure": 1,
+            "frets": "xx577x",
+            "position": 5,
+            "pitch_classes": [
+                7,
+                2,
+                6
+            ],
+            "note_names": [
+                "G3",
+                "D4",
+                "F#4"
+            ],
+            "isolated": {
+                "name": "Gmaj7",
+                "root": "G",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Gmaj7",
+                "root": "G",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 3,
+            "measure": 2,
+            "frets": "7xxx8x",
+            "position": 7,
+            "pitch_classes": [
+                11,
+                7
+            ],
+            "note_names": [
+                "B2",
+                "G4"
+            ],
+            "isolated": {
+                "name": "Baug",
+                "root": "B",
+                "quality": "aug",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Baug",
+                "root": "B",
+                "quality": "aug",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 4,
+            "measure": 2,
+            "frets": "xx577x",
+            "position": 5,
+            "pitch_classes": [
+                7,
+                2,
+                6
+            ],
+            "note_names": [
+                "G3",
+                "D4",
+                "F#4"
+            ],
+            "isolated": {
+                "name": "Gmaj7",
+                "root": "G",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Gmaj7",
+                "root": "G",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 5,
+            "measure": 2,
+            "frets": "xx6x9x",
+            "position": 6,
+            "pitch_classes": [
+                8
+            ],
+            "note_names": [
+                "Ab3",
+                "Ab4"
+            ],
+            "isolated": {
+                "name": null,
+                "root": null,
+                "quality": null,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "none"
+            },
+            "context": {
+                "name": null,
+                "root": null,
+                "quality": null,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "none"
+            },
+            "flags": [
+                {
+                    "kind": "no_identification",
+                    "detail": "No chord name returned"
+                }
+            ]
+        },
+        {
+            "index": 6,
+            "measure": 2,
+            "frets": "xx5x8x",
+            "position": 5,
+            "pitch_classes": [
+                7
+            ],
+            "note_names": [
+                "G3",
+                "G4"
+            ],
+            "isolated": {
+                "name": null,
+                "root": null,
+                "quality": null,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "none"
+            },
+            "context": {
+                "name": null,
+                "root": null,
+                "quality": null,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "none"
+            },
+            "flags": [
+                {
+                    "kind": "no_identification",
+                    "detail": "No chord name returned"
+                }
+            ]
+        },
+        {
+            "index": 7,
+            "measure": 3,
+            "frets": "6x467x",
+            "position": 4,
+            "pitch_classes": [
+                10,
+                6,
+                1
+            ],
+            "note_names": [
+                "A#2",
+                "F#3",
+                "C#4",
+                "F#4"
+            ],
+            "isolated": {
+                "name": "Bbaug(#9)",
+                "root": "Bb",
+                "quality": "aug",
+                "extensions": "#9",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Bbaug(#9)",
+                "root": "Bb",
+                "quality": "aug",
+                "extensions": "#9",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": [
+                {
+                    "kind": "exotic_extension",
+                    "detail": "Extension '#9' on non-dominant quality 'aug' (full: #9)"
+                }
+            ]
+        },
+        {
+            "index": 8,
+            "measure": 4,
+            "frets": "6x467x",
+            "position": 4,
+            "pitch_classes": [
+                10,
+                6,
+                1
+            ],
+            "note_names": [
+                "A#2",
+                "F#3",
+                "C#4",
+                "F#4"
+            ],
+            "isolated": {
+                "name": "Bbaug(#9)",
+                "root": "Bb",
+                "quality": "aug",
+                "extensions": "#9",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Bbaug(#9)",
+                "root": "Bb",
+                "quality": "aug",
+                "extensions": "#9",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": [
+                {
+                    "kind": "exotic_extension",
+                    "detail": "Extension '#9' on non-dominant quality 'aug' (full: #9)"
+                }
+            ]
+        },
+        {
+            "index": 9,
+            "measure": 4,
+            "frets": "6xxx7x",
+            "position": 6,
+            "pitch_classes": [
+                10,
+                6
+            ],
+            "note_names": [
+                "Bb2",
+                "F#4"
+            ],
+            "isolated": {
+                "name": "Bbaug",
+                "root": "Bb",
+                "quality": "aug",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Bbaug",
+                "root": "Bb",
+                "quality": "aug",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 10,
+            "measure": 4,
+            "frets": "xxx67x",
+            "position": 6,
+            "pitch_classes": [
+                1,
+                6
+            ],
+            "note_names": [
+                "C#4",
+                "F#4"
+            ],
+            "isolated": {
+                "name": "Dbsus4",
+                "root": "Db",
+                "quality": "sus4",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Dbsus4",
+                "root": "Db",
+                "quality": "sus4",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 11,
+            "measure": 5,
+            "frets": "5x355x",
+            "position": 3,
+            "pitch_classes": [
+                9,
+                5,
+                0,
+                4
+            ],
+            "note_names": [
+                "A2",
+                "F3",
+                "C4",
+                "E4"
+            ],
+            "isolated": {
+                "name": "Amin(b13)",
+                "root": "A",
+                "quality": "min",
+                "extensions": "b13",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "exact"
+            },
+            "context": {
+                "name": "Amin(b13)",
+                "root": "A",
+                "quality": "min",
+                "extensions": "b13",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "exact"
+            },
+            "flags": [
+                {
+                    "kind": "exotic_extension",
+                    "detail": "Extension 'b13' on non-dominant quality 'min' (full: b13)"
+                }
+            ]
+        },
+        {
+            "index": 12,
+            "measure": 5,
+            "frets": "xx355x",
+            "position": 3,
+            "pitch_classes": [
+                5,
+                0,
+                4
+            ],
+            "note_names": [
+                "F3",
+                "C4",
+                "E4"
+            ],
+            "isolated": {
+                "name": "Fmaj7",
+                "root": "F",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Fmaj7",
+                "root": "F",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 13,
+            "measure": 5,
+            "frets": "xx355x",
+            "position": 3,
+            "pitch_classes": [
+                5,
+                0,
+                4
+            ],
+            "note_names": [
+                "F3",
+                "C4",
+                "E4"
+            ],
+            "isolated": {
+                "name": "Fmaj7",
+                "root": "F",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Fmaj7",
+                "root": "F",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 14,
+            "measure": 6,
+            "frets": "5xxx6x",
+            "position": 5,
+            "pitch_classes": [
+                9,
+                5
+            ],
+            "note_names": [
+                "A2",
+                "F4"
+            ],
+            "isolated": {
+                "name": "Aaug",
+                "root": "A",
+                "quality": "aug",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Aaug",
+                "root": "A",
+                "quality": "aug",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 15,
+            "measure": 6,
+            "frets": "xx355x",
+            "position": 3,
+            "pitch_classes": [
+                5,
+                0,
+                4
+            ],
+            "note_names": [
+                "F3",
+                "C4",
+                "E4"
+            ],
+            "isolated": {
+                "name": "Fmaj7",
+                "root": "F",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Fmaj7",
+                "root": "F",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 16,
+            "measure": 6,
+            "frets": "xx4x7x",
+            "position": 4,
+            "pitch_classes": [
+                6
+            ],
+            "note_names": [
+                "F#3",
+                "F#4"
+            ],
+            "isolated": {
+                "name": null,
+                "root": null,
+                "quality": null,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "none"
+            },
+            "context": {
+                "name": null,
+                "root": null,
+                "quality": null,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "none"
+            },
+            "flags": [
+                {
+                    "kind": "no_identification",
+                    "detail": "No chord name returned"
+                }
+            ]
+        },
+        {
+            "index": 17,
+            "measure": 6,
+            "frets": "xx3x6x",
+            "position": 3,
+            "pitch_classes": [
+                5
+            ],
+            "note_names": [
+                "F3",
+                "F4"
+            ],
+            "isolated": {
+                "name": null,
+                "root": null,
+                "quality": null,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "none"
+            },
+            "context": {
+                "name": null,
+                "root": null,
+                "quality": null,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "none"
+            },
+            "flags": [
+                {
+                    "kind": "no_identification",
+                    "detail": "No chord name returned"
+                }
+            ]
+        },
+        {
+            "index": 18,
+            "measure": 7,
+            "frets": "4x245x",
+            "position": 2,
+            "pitch_classes": [
+                8,
+                4,
+                11
+            ],
+            "note_names": [
+                "Ab2",
+                "E3",
+                "B3",
+                "E4"
+            ],
+            "isolated": {
+                "name": "Abaug(#9)",
+                "root": "Ab",
+                "quality": "aug",
+                "extensions": "#9",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Abaug(#9)",
+                "root": "Ab",
+                "quality": "aug",
+                "extensions": "#9",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": [
+                {
+                    "kind": "exotic_extension",
+                    "detail": "Extension '#9' on non-dominant quality 'aug' (full: #9)"
+                }
+            ]
+        },
+        {
+            "index": 19,
+            "measure": 8,
+            "frets": "4x245x",
+            "position": 2,
+            "pitch_classes": [
+                8,
+                4,
+                11
+            ],
+            "note_names": [
+                "Ab2",
+                "E3",
+                "B3",
+                "E4"
+            ],
+            "isolated": {
+                "name": "Abaug(#9)",
+                "root": "Ab",
+                "quality": "aug",
+                "extensions": "#9",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Abaug(#9)",
+                "root": "Ab",
+                "quality": "aug",
+                "extensions": "#9",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": [
+                {
+                    "kind": "exotic_extension",
+                    "detail": "Extension '#9' on non-dominant quality 'aug' (full: #9)"
+                }
+            ]
+        },
+        {
+            "index": 20,
+            "measure": 8,
+            "frets": "4xxx5x",
+            "position": 4,
+            "pitch_classes": [
+                8,
+                4
+            ],
+            "note_names": [
+                "Ab2",
+                "E4"
+            ],
+            "isolated": {
+                "name": "Abaug",
+                "root": "Ab",
+                "quality": "aug",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Abaug",
+                "root": "Ab",
+                "quality": "aug",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 21,
+            "measure": 8,
+            "frets": "xxx45x",
+            "position": 4,
+            "pitch_classes": [
+                11,
+                4
+            ],
+            "note_names": [
+                "B3",
+                "E4"
+            ],
+            "isolated": {
+                "name": "Bsus4",
+                "root": "B",
+                "quality": "sus4",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Bsus4",
+                "root": "B",
+                "quality": "sus4",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 22,
+            "measure": 9,
+            "frets": "3x133x",
+            "position": 1,
+            "pitch_classes": [
+                7,
+                3,
+                10,
+                2
+            ],
+            "note_names": [
+                "G2",
+                "Eb3",
+                "Bb3",
+                "D4"
+            ],
+            "isolated": {
+                "name": "Gmin(b13)",
+                "root": "G",
+                "quality": "min",
+                "extensions": "b13",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "exact"
+            },
+            "context": {
+                "name": "Gmin(b13)",
+                "root": "G",
+                "quality": "min",
+                "extensions": "b13",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "exact"
+            },
+            "flags": [
+                {
+                    "kind": "exotic_extension",
+                    "detail": "Extension 'b13' on non-dominant quality 'min' (full: b13)"
+                }
+            ]
+        },
+        {
+            "index": 23,
+            "measure": 9,
+            "frets": "xx133x",
+            "position": 1,
+            "pitch_classes": [
+                3,
+                10,
+                2
+            ],
+            "note_names": [
+                "D#3",
+                "Bb3",
+                "D4"
+            ],
+            "isolated": {
+                "name": "Ebmaj7",
+                "root": "Eb",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Ebmaj7",
+                "root": "Eb",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 24,
+            "measure": 9,
+            "frets": "xx133x",
+            "position": 1,
+            "pitch_classes": [
+                3,
+                10,
+                2
+            ],
+            "note_names": [
+                "D#3",
+                "Bb3",
+                "D4"
+            ],
+            "isolated": {
+                "name": "Ebmaj7",
+                "root": "Eb",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Ebmaj7",
+                "root": "Eb",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 25,
+            "measure": 10,
+            "frets": "3xxx4x",
+            "position": 3,
+            "pitch_classes": [
+                7,
+                3
+            ],
+            "note_names": [
+                "G2",
+                "Eb4"
+            ],
+            "isolated": {
+                "name": "Gaug",
+                "root": "G",
+                "quality": "aug",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Gaug",
+                "root": "G",
+                "quality": "aug",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 26,
+            "measure": 10,
+            "frets": "xx133x",
+            "position": 1,
+            "pitch_classes": [
+                3,
+                10,
+                2
+            ],
+            "note_names": [
+                "D#3",
+                "Bb3",
+                "D4"
+            ],
+            "isolated": {
+                "name": "Ebmaj7",
+                "root": "Eb",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Ebmaj7",
+                "root": "Eb",
+                "quality": "maj7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 27,
+            "measure": 10,
+            "frets": "xx2x5x",
+            "position": 2,
+            "pitch_classes": [
+                4
+            ],
+            "note_names": [
+                "E3",
+                "E4"
+            ],
+            "isolated": {
+                "name": null,
+                "root": null,
+                "quality": null,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "none"
+            },
+            "context": {
+                "name": null,
+                "root": null,
+                "quality": null,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "none"
+            },
+            "flags": [
+                {
+                    "kind": "no_identification",
+                    "detail": "No chord name returned"
+                }
+            ]
+        },
+        {
+            "index": 28,
+            "measure": 10,
+            "frets": "xx1x4x",
+            "position": 1,
+            "pitch_classes": [
+                3
+            ],
+            "note_names": [
+                "Eb3",
+                "Eb4"
+            ],
+            "isolated": {
+                "name": null,
+                "root": null,
+                "quality": null,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "none"
+            },
+            "context": {
+                "name": null,
+                "root": null,
+                "quality": null,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "none"
+            },
+            "flags": [
+                {
+                    "kind": "no_identification",
+                    "detail": "No chord name returned"
+                }
+            ]
+        },
+        {
+            "index": 29,
+            "measure": 11,
+            "frets": "2x023x",
+            "position": 2,
+            "pitch_classes": [
+                6,
+                2,
+                9
+            ],
+            "note_names": [
+                "F#2",
+                "D3",
+                "A3",
+                "D4"
+            ],
+            "isolated": {
+                "name": "Gbaug(#9)",
+                "root": "Gb",
+                "quality": "aug",
+                "extensions": "#9",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Gbmin(b13)",
+                "root": "Gb",
+                "quality": "min",
+                "extensions": "b13",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": [
+                {
+                    "kind": "exotic_extension",
+                    "detail": "Extension '#9' on non-dominant quality 'aug' (full: #9)"
+                },
+                {
+                    "kind": "context_changed_label",
+                    "detail": "Isolated: Gbaug(#9) → Context: Gbmin(b13)"
+                }
+            ]
+        },
+        {
+            "index": 30,
+            "measure": 12,
+            "frets": "2x02xx",
+            "position": 2,
+            "pitch_classes": [
+                6,
+                2,
+                9
+            ],
+            "note_names": [
+                "F#2",
+                "D3",
+                "A3"
+            ],
+            "isolated": {
+                "name": "Bm7",
+                "root": "B",
+                "quality": "m7",
+                "extensions": "",
+                "bass_note": "Gb",
+                "inversion": "",
+                "confidence": "rootless"
+            },
+            "context": {
+                "name": "Bm7",
+                "root": "B",
+                "quality": "m7",
+                "extensions": "",
+                "bass_note": "Gb",
+                "inversion": "",
+                "confidence": "rootless"
+            },
+            "flags": []
+        },
+        {
+            "index": 31,
+            "measure": 12,
+            "frets": "xx02xx",
+            "position": 2,
+            "pitch_classes": [
+                2,
+                9
+            ],
+            "note_names": [
+                "D3",
+                "A3"
+            ],
+            "isolated": {
+                "name": "D5",
+                "root": "D",
+                "quality": 5,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "exact"
+            },
+            "context": {
+                "name": "D5",
+                "root": "D",
+                "quality": 5,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "exact"
+            },
+            "flags": [
+                {
+                    "kind": "rare_quality",
+                    "detail": "Quality '5' is outside the common set"
+                }
+            ]
+        },
+        {
+            "index": 32,
+            "measure": 13,
+            "frets": "xx023x",
+            "position": 2,
+            "pitch_classes": [
+                2,
+                9
+            ],
+            "note_names": [
+                "D3",
+                "A3",
+                "D4"
+            ],
+            "isolated": {
+                "name": "D5",
+                "root": "D",
+                "quality": 5,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "exact"
+            },
+            "context": {
+                "name": "D5",
+                "root": "D",
+                "quality": 5,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "exact"
+            },
+            "flags": [
+                {
+                    "kind": "rare_quality",
+                    "detail": "Quality '5' is outside the common set"
+                }
+            ]
+        },
+        {
+            "index": 33,
+            "measure": 13,
+            "frets": "x2xx3x",
+            "position": 2,
+            "pitch_classes": [
+                11,
+                2
+            ],
+            "note_names": [
+                "B2",
+                "D4"
+            ],
+            "isolated": {
+                "name": "Bdim",
+                "root": "B",
+                "quality": "dim",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Bdim",
+                "root": "B",
+                "quality": "dim",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 34,
+            "measure": 14,
+            "frets": "xx676x",
+            "position": 6,
+            "pitch_classes": [
+                8,
+                2,
+                5
+            ],
+            "note_names": [
+                "G#3",
+                "D4",
+                "F4"
+            ],
+            "isolated": {
+                "name": "Bb7\/Ab",
+                "root": "Bb",
+                "quality": "dom7",
+                "extensions": "",
+                "bass_note": "Ab",
+                "inversion": "inv3",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Bb7\/Ab",
+                "root": "Bb",
+                "quality": "dom7",
+                "extensions": "",
+                "bass_note": "Ab",
+                "inversion": "inv3",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 35,
+            "measure": 14,
+            "frets": "xxx768",
+            "position": 6,
+            "pitch_classes": [
+                2,
+                5,
+                0
+            ],
+            "note_names": [
+                "D4",
+                "F4",
+                "C5"
+            ],
+            "isolated": {
+                "name": "Dm7",
+                "root": "D",
+                "quality": "m7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Dm7",
+                "root": "D",
+                "quality": "m7",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 36,
+            "measure": 14,
+            "frets": "xx6xx8",
+            "position": 6,
+            "pitch_classes": [
+                8,
+                0
+            ],
+            "note_names": [
+                "G#3",
+                "C5"
+            ],
+            "isolated": {
+                "name": "Abaug",
+                "root": "Ab",
+                "quality": "aug",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Abaug",
+                "root": "Ab",
+                "quality": "aug",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 37,
+            "measure": 15,
+            "frets": "xx201x",
+            "position": 1,
+            "pitch_classes": [
+                4,
+                7,
+                0
+            ],
+            "note_names": [
+                "E3",
+                "G3",
+                "C4"
+            ],
+            "isolated": {
+                "name": "Am7",
+                "root": "A",
+                "quality": "m7",
+                "extensions": "",
+                "bass_note": "E",
+                "inversion": "",
+                "confidence": "rootless"
+            },
+            "context": {
+                "name": "Am7",
+                "root": "A",
+                "quality": "m7",
+                "extensions": "",
+                "bass_note": "E",
+                "inversion": "",
+                "confidence": "rootless"
+            },
+            "flags": []
+        },
+        {
+            "index": 38,
+            "measure": 15,
+            "frets": "x0xx1x",
+            "position": 1,
+            "pitch_classes": [
+                9,
+                0
+            ],
+            "note_names": [
+                "A2",
+                "C4"
+            ],
+            "isolated": {
+                "name": "Adim",
+                "root": "A",
+                "quality": "dim",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "Amin",
+                "root": "A",
+                "quality": "min",
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "partial"
+            },
+            "flags": [
+                {
+                    "kind": "context_changed_label",
+                    "detail": "Isolated: Adim → Context: Amin"
+                }
+            ]
+        },
+        {
+            "index": 39,
+            "measure": 16,
+            "frets": "x5xx4x",
+            "position": 4,
+            "pitch_classes": [
+                2,
+                3
+            ],
+            "note_names": [
+                "D3",
+                "Eb4"
+            ],
+            "isolated": {
+                "name": null,
+                "root": null,
+                "quality": null,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "none"
+            },
+            "context": {
+                "name": null,
+                "root": null,
+                "quality": null,
+                "extensions": "",
+                "bass_note": null,
+                "inversion": "",
+                "confidence": "none"
+            },
+            "flags": [
+                {
+                    "kind": "no_identification",
+                    "detail": "No chord name returned"
+                }
+            ]
+        },
+        {
+            "index": 40,
+            "measure": 16,
+            "frets": "xx45xx",
+            "position": 4,
+            "pitch_classes": [
+                6,
+                0
+            ],
+            "note_names": [
+                "F#3",
+                "C4"
+            ],
+            "isolated": {
+                "name": "D7\/Gb",
+                "root": "D",
+                "quality": "dom7",
+                "extensions": "",
+                "bass_note": "Gb",
+                "inversion": "inv1",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "D7\/Gb",
+                "root": "D",
+                "quality": "dom7",
+                "extensions": "",
+                "bass_note": "Gb",
+                "inversion": "inv1",
+                "confidence": "partial"
+            },
+            "flags": []
+        },
+        {
+            "index": 41,
+            "measure": 16,
+            "frets": "xx45xx",
+            "position": 4,
+            "pitch_classes": [
+                6,
+                0
+            ],
+            "note_names": [
+                "F#3",
+                "C4"
+            ],
+            "isolated": {
+                "name": "D7\/Gb",
+                "root": "D",
+                "quality": "dom7",
+                "extensions": "",
+                "bass_note": "Gb",
+                "inversion": "inv1",
+                "confidence": "partial"
+            },
+            "context": {
+                "name": "D7\/Gb",
+                "root": "D",
+                "quality": "dom7",
+                "extensions": "",
+                "bass_note": "Gb",
+                "inversion": "inv1",
+                "confidence": "partial"
+            },
+            "flags": []
+        }
+    ],
+    "flag_counts": {
+        "exotic_extension": 8,
+        "context_changed_label": 3,
+        "no_identification": 7,
+        "rare_quality": 2
+    }
+}

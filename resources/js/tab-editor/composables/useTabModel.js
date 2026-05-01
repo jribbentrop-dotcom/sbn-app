@@ -19,7 +19,10 @@ import {
 } from '../utils/constants.js';
 
 function cloneChordVoicings(src) {
-    return JSON.parse(JSON.stringify(src && typeof src === 'object' ? src : {}));
+    if (Array.isArray(src) || !src || typeof src !== 'object') {
+        return {};
+    }
+    return JSON.parse(JSON.stringify(src));
 }
 
 export function useTabModel(melody, sections, timeSignature, repeatMarkers, voltaEndings, chordVoicings, lineBreaks) {

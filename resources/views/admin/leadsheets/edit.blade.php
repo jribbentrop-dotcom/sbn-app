@@ -29,12 +29,22 @@
 @endpush
 
 @section('content')
-<div x-data="leadsheetEditor()" x-cloak class="sbn-vp-layout">
+<div x-data="leadsheetEditor()" x-cloak class="sbn-vp-layout" style="flex-direction: column;">
 
-    {{-- ═══════════════════════════════════════════════════════
-         MAIN EDITOR COLUMN
-    ═══════════════════════════════════════════════════════ --}}
-    <div class="sbn-vp-editor-main">
+    @if(session('lookup_confidence') && in_array(session('lookup_confidence'), ['low', 'medium']))
+        <div style="background-color: #fffbeb; color: #92400e; padding: 12px 16px; border-bottom: 1px solid #fde68a; font-size: 14px; font-weight: 500; text-align: center; width: 100%;">
+            ⚠️ AI Draft (Confidence: {{ session('lookup_confidence') }}). Please review chord changes carefully.
+            @if(session('lookup_alternatives') && count(session('lookup_alternatives')) > 0)
+                <span style="font-size: 13px; font-weight: 400; opacity: 0.8; margin-left: 8px;">(Other versions found in lookup cache)</span>
+            @endif
+        </div>
+    @endif
+
+    <div style="display: flex; flex: 1; min-height: 0; width: 100%;">
+        {{-- ═══════════════════════════════════════════════════════
+             MAIN EDITOR COLUMN
+        ═══════════════════════════════════════════════════════ --}}
+        <div class="sbn-vp-editor-main">
 
         {{-- ── Upload zone (no data yet) ─────────────────── --}}
         <div x-show="!parsed" class="sbn-upload-zone"
@@ -144,7 +154,12 @@
 
         {{-- ── Song meta ──────────────────────────────────── --}}
         <template x-if="parsed && !videoSidebarOpen">
-        <div class="sbn-vp-meta">
+        <div class="sbn-vp-meta" x-data="{ songMetaCollapsed: alpineViewMode === 'tab' }">
+            <button class="sbn-vp-meta-toggle" @click="songMetaCollapsed = !songMetaCollapsed" type="button">
+                <span>Song Info</span>
+                <span class="sbn-vp-meta-toggle-icon" :class="{ 'is-open': !songMetaCollapsed }">▾</span>
+            </button>
+            <div x-show="!songMetaCollapsed">
             <div class="sbn-vp-meta-title-row">
                 <input type="text" class="sbn-vp-meta-title"
                        x-model="parsed.title" placeholder="Song title" @input="markDirty()">
@@ -195,6 +210,7 @@
                     </select>
                 </div>
             </div>
+            </div>
         </div>
         </template>
 
@@ -216,10 +232,14 @@
         <div id="sbn-vp-slot" x-show="!videoSidebarOpen"></div>
         {{-- Alpine .sbn-vp-context removed in Phase B Step 10b — Vue VoicingPicker.vue owns this panel --}}
 
-        {{-- ── Video sync panel — rendered by Vue via Teleport into #sbn-video-slot ──────── --}}
-        {{-- Phase D: sibling to #sbn-vp-slot; visibility toggled independently of viewMode --}}
         <div id="sbn-video-slot"
              x-show="videoSidebarOpen"
+             style="display:none;flex-direction:column;flex:1;min-height:0;overflow:auto;border-top:1px solid var(--clr-border);margin-top:8px;padding-top:8px;">
+        </div>
+
+        {{-- ── Research panel — rendered by Vue via Teleport into #sbn-research-slot ──────── --}}
+        <div id="sbn-research-slot"
+             x-show="researchSidebarOpen"
              style="display:none;flex-direction:column;flex:1;min-height:0;overflow:auto;border-top:1px solid var(--clr-border);margin-top:8px;padding-top:8px;">
         </div>
 
@@ -303,6 +323,7 @@
     
     </aside>
 
+    </div>
 </div>
 @endsection
 @push('scripts')
@@ -910,8 +931,8 @@ function generateShortcode(parsed, options) {
         measures.forEach(m => { shortcode += '| ' + m.chords.map(c=>c.name).join(' ').padEnd(12) + ' '; bc++; if(bc%barsPerRow===0) shortcode += '|\n'; });
         if (bc%barsPerRow!==0) shortcode += '|\n';
     }
-    if (Object.keys(parsed.chordVoicings||{}).length > 0) {
-        shortcode += '\n[sbn_voicings]\n';
+    shortcode += '\n[sbn_voicings]\n';
+    if (parsed.chordVoicings) {
         Object.keys(parsed.chordVoicings).sort().forEach(name => {
             const v = parsed.chordVoicings[name];
             if (!v || !v.frets || typeof v.frets !== 'string') return;
@@ -921,8 +942,8 @@ function generateShortcode(parsed, options) {
             if (v.fingers && v.fingers !== '000000' && v.fingers !== '') shortcode += ' (' + v.fingers + ')';
             shortcode += '\n';
         });
-        shortcode += '[/sbn_voicings]\n';
     }
+    shortcode += '[/sbn_voicings]\n';
     // Repeat markers
     const repeatMarkers = {};
     if (parsed.sections) { let gi=0; parsed.sections.forEach(s=>{(s.measures||[]).forEach(m=>{if(m.repeatStart)repeatMarkers[gi]={...repeatMarkers[gi],start:true};if(m.repeatEnd)repeatMarkers[gi]={...repeatMarkers[gi],end:true};gi++;});}); }
@@ -968,6 +989,7 @@ function leadsheetEditor() {
         // View mode (Phase 5d)
         alpineViewMode: 'chords',
         videoSidebarOpen: false,  // Phase D: toggle independent of viewMode
+        researchSidebarOpen: false,
         analysisData: null,
         analysisLoading: false,
         highlightMatch: null,
@@ -1073,6 +1095,19 @@ function leadsheetEditor() {
                 this._dispatchTabInit();
             });
 
+            // Listen for Vue view-changed events
+            document.addEventListener('sbn-tab-view-changed', (e) => {
+                this.alpineViewMode = e.detail.viewMode;
+            });
+            document.addEventListener('sbn-video-sidebar-toggle', (e) => {
+                this.videoSidebarOpen = e.detail.open;
+                if (this.videoSidebarOpen) this.researchSidebarOpen = false;
+            });
+            document.addEventListener('sbn-research-sidebar-toggle', (e) => {
+                this.researchSidebarOpen = e.detail.open;
+                if (this.researchSidebarOpen) this.videoSidebarOpen = false;
+            });
+
             // Also dispatch whenever tab data changes — but NOT when the tab editor
             // is already live (that would rebuild Vue's model and wipe any tab edits).
             // Once _tabInitDone is true, chord/voicing changes from Alpine reach Vue
@@ -1147,6 +1182,7 @@ function leadsheetEditor() {
                 const voicings   = this.parsed.chordVoicings || {};
                 const melody     = [];
                 let   globalTick = 0;
+                let   gi         = 0;
 
                 this.parsed.sections.forEach(section => {
                     (section.measures || []).forEach(measure => {
@@ -1155,9 +1191,10 @@ function leadsheetEditor() {
                         const { dur, ticks: chordTicks } = chordDuration(numChords);
                         let tickInMeasure = 0;
 
-                        chords.forEach(chord => {
+                        chords.forEach((chord, ci) => {
                             const name    = chord.name || '';
-                            const voicing = voicings[name];
+                            const overrideKey = `${name}@${gi}.${ci}`;
+                            const voicing = voicings[overrideKey] || voicings[name];
                             const tick    = globalTick + tickInMeasure;
 
                             if (voicing && voicing.frets && voicing.frets.length === 6) {
@@ -1184,6 +1221,7 @@ function leadsheetEditor() {
                         });
 
                         globalTick += tpm;
+                        gi++;
                     });
                 });
 
@@ -1191,6 +1229,7 @@ function leadsheetEditor() {
                 const keyEl = '<key><fifths>0</fifths><mode>major</mode></key>';
                 let measureNum = 1;
                 let measuresXml = '';
+                let gi2         = 0;
                 this.parsed.sections.forEach(section => {
                     (section.measures || []).forEach(measure => {
                         const chords    = measure.chords || [];
@@ -1203,9 +1242,10 @@ function leadsheetEditor() {
 
                         let notesXml = '';
                         let offsetTick = 0;
-                        chords.forEach(chord => {
+                        chords.forEach((chord, ci) => {
                             const name    = chord.name || '';
-                            const voicing = voicings[name];
+                            const overrideKey = `${name}@${gi2}.${ci}`;
+                            const voicing = voicings[overrideKey] || voicings[name];
                             const offsetEl = offsetTick > 0 ? '<offset>' + Math.round(offsetTick) + '</offset>' : '';
                             const harmXml = '<harmony>' + offsetEl + '<root><root-step>' + name.charAt(0) + '</root-step></root><kind text="' + name + '">other</kind></harmony>';
 
@@ -1227,6 +1267,7 @@ function leadsheetEditor() {
 
                         measuresXml += '<measure number="' + measureNum + '">' + attrs + notesXml + '</measure>';
                         measureNum++;
+                        gi2++;
                     });
                 });
 

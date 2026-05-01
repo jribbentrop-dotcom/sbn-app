@@ -44,6 +44,7 @@ export function useAlpineBridge() {
     const lineBreaks    = ref({});      // Added: Track layout in Vue
     const voltaEndings  = ref({});
     const videoSync     = ref(null);   // Phase D: passed through from sbn-tab-init
+    const research      = ref(null);   // Transcribing Assistant v1
     const initialized   = _globalInitialized; // shared singleton
 
     // ── Event handlers ─────────────────────────────────────
@@ -61,6 +62,7 @@ export function useAlpineBridge() {
             voltaEndings.value  = d.parsed.voltaEndings || {};
             lineBreaks.value    = d.parsed.lineBreaks || {}; // Sync layout
             chordVoicings.value = JSON.parse(JSON.stringify(d.parsed.chordVoicings || {}));
+            research.value      = d.parsed.research || null;
         }
         if (d.tabXml !== undefined) {
             tabXml.value = d.tabXml;
@@ -194,5 +196,8 @@ export function useAlpineBridge() {
 
         // Phase D
         videoSync,
+
+        // Transcribing Assistant v1
+        research,
     };
 }

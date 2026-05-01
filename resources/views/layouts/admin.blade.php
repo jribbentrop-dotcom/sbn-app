@@ -102,6 +102,17 @@
             </div>
         @endif
 
+        @if($errors->any())
+            <div class="sbn-flash sbn-flash-danger" style="background-color: #fee2e2; color: #b91c1c; border-left: 4px solid #ef4444;" x-data="{ show: true }" x-show="show"
+                 x-init="setTimeout(() => show = false, 8000)" x-transition>
+                <ul style="margin: 0; padding-left: 20px;">
+                    @foreach($errors->all() as $err)
+                        <li>{{ $err }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         <main class="sbn-content">
             @hasSection('context')
                 <div class="sbn-content-layout">

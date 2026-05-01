@@ -3,11 +3,63 @@
 @section('title', 'Leadsheets')
 
 @section('actions')
-    <a href="{{ route('admin.leadsheets.create') }}" class="sbn-btn sbn-btn-primary">+ Import XML</a>
+    <div class="sbn-dropdown" x-data="{ open: false }">
+        <button class="sbn-btn sbn-btn-primary" @click="open = !open" @click.outside="open = false">
+            + New leadsheet ▾
+        </button>
+        <div class="sbn-dropdown-menu" x-show="open" x-cloak>
+            <a href="#blank" class="sbn-dropdown-item" @click="open = false; window.blankModal && window.blankModal().open()">Blank sheet</a>
+            <a href="#progression" class="sbn-dropdown-item" @click="open = false; window.progressionModal && window.progressionModal().open()">From progression</a>
+            <a href="#lookup" class="sbn-dropdown-item" @click="open = false; window.lookupModal && window.lookupModal().open()">From song lookup</a>
+
+            <a href="#" class="sbn-dropdown-item sbn-dropdown-item-disabled" title="Coming soon (L4)">From source…</a>
+        </div>
+    </div>
+    <a href="{{ route('admin.leadsheets.create') }}" class="sbn-btn">Import XML</a>
 @endsection
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('css/leadsheets.css') }}">
+    <style>
+        .sbn-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .sbn-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 4px;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            min-width: 200px;
+            z-index: 100;
+        }
+
+        .sbn-dropdown-item {
+            display: block;
+            padding: 8px 16px;
+            color: #374151;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .sbn-dropdown-item:hover {
+            background: #f3f4f6;
+        }
+
+        .sbn-dropdown-item-disabled {
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .sbn-dropdown-item-disabled:hover {
+            background: none;
+        }
+    </style>
 @endpush
 
 @section('content')
@@ -150,7 +202,12 @@
             @endunless
         </div>
     @endif
+
+    @include('admin.leadsheets._blank-modal')
+    @include('admin.leadsheets._progression-modal')
+    @include('admin.leadsheets._lookup-modal')
 </div>
+
 @endsection
 
 @push('scripts')

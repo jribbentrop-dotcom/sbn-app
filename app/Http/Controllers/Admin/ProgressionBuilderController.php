@@ -51,12 +51,21 @@ class ProgressionBuilderController extends Controller
         $style      = $request->get('style') ?? '';
         $extensions = (bool) ($request->get('extensions') ?? false);
         $rootOnly   = (bool) ($request->get('root_only') ?? false);
+        $progressionId = $request->get('progression_id');
 
         $options = [
             'style'      => $style,
             'extensions' => $extensions,
             'rootOnly'   => $rootOnly,
         ];
+
+        // Pass category if progression_id is supplied
+        if ($progressionId) {
+            $progression = ChordProgression::find($progressionId);
+            if ($progression) {
+                $options['category'] = $progression->category;
+            }
+        }
 
         // Build harmonic context from one of three sources
         $leadsheetId = $request->get('leadsheet_id');

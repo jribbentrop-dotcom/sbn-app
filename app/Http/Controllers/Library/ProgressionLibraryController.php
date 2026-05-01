@@ -81,7 +81,9 @@ class ProgressionLibraryController extends Controller
 
         // Resolve chord diagram tiles via the proper voice-leading path
         $context = $this->harmonicContext->buildFromNumerals('C', $progression->numerals);
-        $built   = $this->progressionBuilder->buildVoicings($context);
+        $built   = $this->progressionBuilder->buildVoicings($context, [
+            'category' => $progression->category,
+        ]);
         $tiles   = array_map(function ($sel) {
             $v = $sel['voicing'] ?? null;
             return [

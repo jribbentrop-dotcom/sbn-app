@@ -3,7 +3,6 @@
 
         <!-- ── Header ──────────────────────────────────────── -->
         <div class="sbn-tab-sidebar-header">
-            <span class="sbn-tab-sidebar-title">Note Inspector</span>
             <div class="sbn-tab-sidebar-undo-bar">
                 <button
                     class="sbn-tab-undo-btn"
@@ -40,6 +39,23 @@
                 Paste
             </button>
         </div>
+
+        <!-- ── Note Inspector (Collapsible) ─────────────────── -->
+        <div class="sbn-tab-collapsible">
+            <button
+                class="sbn-tab-collapsible-header"
+                @click="inspectorCollapsed = !inspectorCollapsed"
+                :class="{ 'is-collapsed': inspectorCollapsed }"
+            >
+                <span>Note Inspector</span>
+                <svg
+                    width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    :class="{ 'is-rotated': !inspectorCollapsed }"
+                >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+            <div v-show="!inspectorCollapsed" class="sbn-tab-collapsible-content">
 
         <!-- ── No selection ─────────────────────────────────── -->
         <div v-if="!hasSelection" class="sbn-tab-sidebar-empty">
@@ -177,10 +193,25 @@
             </div>
 
         </template>
+            </div><!-- /sbn-tab-collapsible-content -->
+        </div><!-- /Note Inspector collapsible -->
 
-        <!-- ── Keyboard shortcut hints ─────────────────────── -->
-        <div class="sbn-tab-sidebar-hints">
-            <div class="sbn-tab-sidebar-hints-title">Keyboard</div>
+        <!-- ── Keyboard shortcut hints (Collapsible) ─────────── -->
+        <div class="sbn-tab-collapsible sbn-tab-collapsible--keyboard">
+            <button
+                class="sbn-tab-collapsible-header"
+                @click="keyboardCollapsed = !keyboardCollapsed"
+                :class="{ 'is-collapsed': keyboardCollapsed }"
+            >
+                <span>Keyboard Shortcuts</span>
+                <svg
+                    width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    :class="{ 'is-rotated': !keyboardCollapsed }"
+                >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+            <div v-show="!keyboardCollapsed" class="sbn-tab-collapsible-content sbn-tab-sidebar-hints">
             <div class="sbn-tab-hint-row"><kbd>0–9</kbd> <span>Enter fret number</span></div>
             <div class="sbn-tab-hint-row"><kbd>A</kbd> <span>Add note/rest</span></div>
             <div class="sbn-tab-hint-row"><kbd>Del</kbd> <span>Remove note or rest</span></div>
@@ -197,13 +228,18 @@
             <div class="sbn-tab-hint-row"><kbd>Ctrl+C</kbd> <span>Copy bar</span></div>
             <div class="sbn-tab-hint-row"><kbd>Ctrl+X</kbd> <span>Cut bar</span></div>
             <div class="sbn-tab-hint-row"><kbd>Ctrl+V</kbd> <span>Paste at cursor</span></div>
-        </div>
+            </div><!-- /sbn-tab-collapsible-content -->
+        </div><!-- /Keyboard Shortcuts collapsible -->
 
     </div>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+
+// Collapsible sections state (initially collapsed)
+const inspectorCollapsed = ref(true);
+const keyboardCollapsed = ref(true);
 
 const props = defineProps({
     cursor: {
@@ -630,8 +666,6 @@ const currentNoteTied = computed(() => {
 /* ── Keyboard hints ─────────────────────────────────────── */
 .sbn-tab-sidebar-hints {
     padding: 10px 14px 14px;
-    margin-top: auto;
-    border-top: 1px solid var(--clr-border);
 }
 
 .sbn-tab-sidebar-hints-title {
@@ -727,5 +761,48 @@ const currentNoteTied = computed(() => {
 }
 .sbn-tab-clip-btn--primary:hover {
     background: rgba(16, 185, 129, 0.17);
+}
+
+/* ── Collapsible sections ──────────────────────────────── */
+.sbn-tab-collapsible {
+    display: flex;
+    flex-direction: column;
+}
+
+.sbn-tab-collapsible--keyboard {
+    border-top: 1px solid var(--clr-border);
+}
+
+.sbn-tab-collapsible-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--clr-text);
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--clr-border);
+    cursor: pointer;
+    transition: background 0.12s;
+}
+
+.sbn-tab-collapsible-header:hover {
+    background: var(--clr-surface-2, rgba(0,0,0,0.03));
+}
+
+.sbn-tab-collapsible-header svg {
+    transition: transform 0.2s var(--ease);
+    opacity: 0.6;
+}
+
+.sbn-tab-collapsible-header svg.is-rotated {
+    transform: rotate(180deg);
+}
+
+.sbn-tab-collapsible-content {
+    overflow: hidden;
 }
 </style>

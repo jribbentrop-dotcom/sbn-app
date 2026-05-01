@@ -215,6 +215,7 @@ class ChordLibraryController extends Controller
                 $context = $this->harmonicContext->buildFromNumerals($chosenKey, $p->numerals);
 
                 $built = $this->progressionBuilder->buildVoicings($context, [
+                    'category'      => $p->category,
                     'pinnedSlot'    => $pinnedSlot,
                     'pinnedVoicing' => $pinnedSlot !== null ? $pinnedVoicing : null,
                 ]);

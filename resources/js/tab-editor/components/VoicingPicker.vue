@@ -111,7 +111,6 @@
                 ? renderDiagramSVG({ frets: picker._tabSource.currentFrets, position: picker._tabSource.currentPosition || 1 })
                 : ''"
               ></span>
-              <span class="sbn-vp-from-tab-label">Current (from tab)</span>
             </div>
 
             <!-- Voicing result cards -->
@@ -125,7 +124,6 @@
               }"
               @click="picker.applyVoicing(v)"
             >
-              <div v-if="picker.isVoicingSelected(v)" class="sbn-vp-check">✓</div>
               <div class="sbn-vp-card-name" v-html="formatChordHtml(picker.pickerDisplayName())"></div>
               <span v-html="renderDiagramSVG({ frets: v.frets, position: v.position })"></span>
             </div>
@@ -156,10 +154,28 @@
 </template>
 
 <script setup>
-import { inject } from 'vue';
+
+import { inject, onMounted, onUnmounted } from 'vue';
 import { formatChordHtml, renderDiagramSVG } from '../utils/chordFormat.js';
 import VoicingOverview from './VoicingOverview.vue';
 
 const picker           = inject('voicingPicker');
 const viewMode         = inject('viewMode');
+
+function handleVoicingHint(e) {
+    const { chord, frets, position } = e.detail;
+    // We assume the picker store has a method to apply frets directly.
+    // Let's check useVoicingPickerStore.js to be sure.
+    if (typeof picker.applyVoicingWithFrets === 'function') {
+        picker.applyVoicingWithFrets(chord, frets, position);
+    }
+}
+
+onMounted(() => {
+    document.addEventListener('sbn-voicing-hint-applied', handleVoicingHint);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('sbn-voicing-hint-applied', handleVoicingHint);
+});
 </script>

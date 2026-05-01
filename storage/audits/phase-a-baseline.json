@@ -1,0 +1,3281 @@
+{
+    "generated_at": "2026-05-01T20:02:57+00:00",
+    "progression_count": 43,
+    "modes": [
+        "simple"
+    ],
+    "runs": [
+        {
+            "mode": "simple",
+            "progression_id": 12,
+            "name": "12-Bar Blues",
+            "category": "blues",
+            "numerals": "I7,I7,I7,I7,IV7,IV7,I7,I7,V7,IV7,I7,V7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F7",
+                    "numeral": "IV7",
+                    "frets": "133241",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F7",
+                    "numeral": "IV7",
+                    "frets": "133241",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F7",
+                    "numeral": "IV7",
+                    "frets": "133241",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0,
+                0,
+                0,
+                0.08,
+                0,
+                0.08,
+                0,
+                0.25,
+                0.33,
+                0.08,
+                0.25
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 0
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 15,
+            "name": "I–IV–V",
+            "category": "blues",
+            "numerals": "I7,IV7,V7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F7",
+                    "numeral": "IV7",
+                    "frets": "133241",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.08,
+                0.33
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    1,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 0
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 14,
+            "name": "Minor Blues",
+            "category": "blues",
+            "numerals": "Im7,Im7,Im7,Im7,IVm7,IVm7,Im7,Im7,V7b9,IVm7,Im7,V7b9",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Cm7",
+                    "numeral": "Im7",
+                    "frets": "8aa8b8",
+                    "position": 8,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Cm7",
+                    "numeral": "Im7",
+                    "frets": "8aa8b8",
+                    "position": 8,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Cm7",
+                    "numeral": "Im7",
+                    "frets": "8aa8b8",
+                    "position": 8,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Cm7",
+                    "numeral": "Im7",
+                    "frets": "8aa8b8",
+                    "position": 8,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Fm7",
+                    "numeral": "IVm7",
+                    "frets": "133141",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Fm7",
+                    "numeral": "IVm7",
+                    "frets": "133141",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Cm7",
+                    "numeral": "Im7",
+                    "frets": "8aa8b8",
+                    "position": 8,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Cm7",
+                    "numeral": "Im7",
+                    "frets": "8aa8b8",
+                    "position": 8,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7b9",
+                    "numeral": "V7b9",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Fm7",
+                    "numeral": "IVm7",
+                    "frets": "133141",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Cm7",
+                    "numeral": "Im7",
+                    "frets": "8aa8b8",
+                    "position": 8,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7b9",
+                    "numeral": "V7b9",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0,
+                0,
+                0,
+                10.7,
+                0,
+                12.7,
+                0,
+                7.17,
+                0.17,
+                12.7,
+                7.17
+            ],
+            "flags": [
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 8 to fret 1 between chord 3 (Cm7) and chord 4 (Fm7): 7 frets"
+                },
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 1 to fret 8 between chord 5 (Fm7) and chord 6 (Cm7): 7 frets"
+                },
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 8 to fret 1 between chord 7 (Cm7) and chord 8 (G7b9): 7 frets"
+                },
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 1 to fret 8 between chord 9 (Fm7) and chord 10 (Cm7): 7 frets"
+                },
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 8 to fret 1 between chord 10 (Cm7) and chord 11 (G7b9): 7 frets"
+                },
+                {
+                    "kind": "high_vl_score",
+                    "detail": "Adjacent VL score(s) at indices 3,5,9 ≥ top-decile threshold 9.17"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    8,
+                    8,
+                    8,
+                    8,
+                    1,
+                    1,
+                    8,
+                    8,
+                    1,
+                    1,
+                    8,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 7
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 45,
+            "name": "Minor Blues Cadenza",
+            "category": "blues",
+            "numerals": "bVI, V, I",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Ab",
+                    "numeral": "bVI",
+                    "frets": "466544",
+                    "position": 4,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G",
+                    "numeral": "V",
+                    "frets": "320003",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                2.17,
+                0.67
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    4,
+                    2,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 3
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 13,
+            "name": "Quick-Change Blues",
+            "category": "blues",
+            "numerals": "I7,IV7,I7,I7,IV7,IV7,I7,I7,V7,IV7,I7,V7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F7",
+                    "numeral": "IV7",
+                    "frets": "133241",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F7",
+                    "numeral": "IV7",
+                    "frets": "133241",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F7",
+                    "numeral": "IV7",
+                    "frets": "133241",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F7",
+                    "numeral": "IV7",
+                    "frets": "133241",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.08,
+                0.08,
+                0,
+                0.08,
+                0,
+                0.08,
+                0,
+                0.25,
+                0.33,
+                0.08,
+                0.25
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 0
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 35,
+            "name": "Deceptive Cadence",
+            "category": "classical",
+            "numerals": "V7,VIm",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Am",
+                    "numeral": "VIm",
+                    "frets": "x02210",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.33
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 0
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 32,
+            "name": "Pachelbel Canon",
+            "category": "classical",
+            "numerals": "I,V,VIm,IIIm,IV,I,IV,V",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G",
+                    "numeral": "V",
+                    "frets": "320003",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Am",
+                    "numeral": "VIm",
+                    "frets": "x02210",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Em",
+                    "numeral": "IIIm",
+                    "frets": "022000",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F",
+                    "numeral": "IV",
+                    "frets": "133211",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F",
+                    "numeral": "IV",
+                    "frets": "133211",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G",
+                    "numeral": "V",
+                    "frets": "320003",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.67,
+                1,
+                0.33,
+                0.17,
+                0.17,
+                0.17,
+                0.83
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    2,
+                    1,
+                    2,
+                    1,
+                    1,
+                    1,
+                    2
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 1
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 20,
+            "name": "Perfect Authentic Cadence",
+            "category": "classical",
+            "numerals": "IV,V,I",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "F",
+                    "numeral": "IV",
+                    "frets": "133211",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G",
+                    "numeral": "V",
+                    "frets": "320003",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.83,
+                0.67
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    2,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 1
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 37,
+            "name": "Tonic Dominant",
+            "category": "classical",
+            "numerals": "I7, IV",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F",
+                    "numeral": "IV",
+                    "frets": "133211",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.42
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 0
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 6,
+            "name": "Backdoor Dominant",
+            "category": "jazz",
+            "numerals": "bVII7,Imaj7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Bb7",
+                    "numeral": "bVII7",
+                    "frets": "688796",
+                    "position": 6,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Cmaj7",
+                    "numeral": "Imaj7",
+                    "frets": "x32000",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                4.83
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    6,
+                    2
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 4
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 33,
+            "name": "Circle of Fifths (partial)",
+            "category": "jazz",
+            "numerals": "IIIm7,VI7,IIm7,V7,Imaj7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Em7",
+                    "numeral": "IIIm7",
+                    "frets": "022030",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "A7",
+                    "numeral": "VI7",
+                    "frets": "x02020",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Dm7",
+                    "numeral": "IIm7",
+                    "frets": "accada",
+                    "position": 10,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Cmaj7",
+                    "numeral": "Imaj7",
+                    "frets": "x32000",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.33,
+                9.17,
+                9.17,
+                0.5
+            ],
+            "flags": [
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 2 to fret 10 between chord 1 (A7) and chord 2 (Dm7): 8 frets"
+                },
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 10 to fret 1 between chord 2 (Dm7) and chord 3 (G7): 9 frets"
+                },
+                {
+                    "kind": "high_vl_score",
+                    "detail": "Adjacent VL score(s) at indices 1,2 ≥ top-decile threshold 9.17"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    2,
+                    2,
+                    10,
+                    1,
+                    2
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 9
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 46,
+            "name": "Deceptive Cadence to IV",
+            "category": "jazz",
+            "numerals": "Imaj7, III7, IVmaj7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Cmaj7",
+                    "numeral": "Imaj7",
+                    "frets": "x32000",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "E7",
+                    "numeral": "III7",
+                    "frets": "022130",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Fmaj7",
+                    "numeral": "IVmaj7",
+                    "frets": "x87555",
+                    "position": 5,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.5,
+                4
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    2,
+                    1,
+                    5
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 4
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 36,
+            "name": "Ellington Progression",
+            "category": "jazz",
+            "numerals": "Imaj7, Imaj7, II7, II7, IIm7, V7, Imaj7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Cmaj7",
+                    "numeral": "Imaj7",
+                    "frets": "x32000",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Cmaj7",
+                    "numeral": "Imaj7",
+                    "frets": "x32000",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "D7",
+                    "numeral": "II7",
+                    "frets": "xx0212",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "D7",
+                    "numeral": "II7",
+                    "frets": "xx0212",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Dm7",
+                    "numeral": "IIm7",
+                    "frets": "accada",
+                    "position": 10,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Cmaj7",
+                    "numeral": "Imaj7",
+                    "frets": "x32000",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0,
+                0.83,
+                0,
+                9.5,
+                9.17,
+                0.5
+            ],
+            "flags": [
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 1 to fret 10 between chord 3 (D7) and chord 4 (Dm7): 9 frets"
+                },
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 10 to fret 1 between chord 4 (Dm7) and chord 5 (G7): 9 frets"
+                },
+                {
+                    "kind": "high_vl_score",
+                    "detail": "Adjacent VL score(s) at indices 3,4 ≥ top-decile threshold 9.17"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    2,
+                    2,
+                    1,
+                    1,
+                    10,
+                    1,
+                    2
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 9
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 43,
+            "name": "II-V to relative Major",
+            "category": "jazz",
+            "numerals": "IVm7, bVII7, bIIImaj7",
+            "key": "A",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Dm7",
+                    "numeral": "IVm7",
+                    "frets": "accada",
+                    "position": 10,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "bVII7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Cmaj7",
+                    "numeral": "bIIImaj7",
+                    "frets": "x32000",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                9.17,
+                0.5
+            ],
+            "flags": [
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 10 to fret 1 between chord 0 (Dm7) and chord 1 (G7): 9 frets"
+                },
+                {
+                    "kind": "high_vl_score",
+                    "detail": "Adjacent VL score(s) at indices 0 ≥ top-decile threshold 9.17"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    10,
+                    1,
+                    2
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 9
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 44,
+            "name": "II-V to relative Minor",
+            "category": "jazz",
+            "numerals": "VIIm7b5, III7, VIm",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Bm7b5",
+                    "numeral": "VIIm7b5",
+                    "frets": "x2323x",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "E7",
+                    "numeral": "III7",
+                    "frets": "022130",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Am",
+                    "numeral": "VIm",
+                    "frets": "x02210",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.5,
+                0.33
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    2,
+                    1,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 1
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 10,
+            "name": "Minor Plagal Cadence",
+            "category": "jazz",
+            "numerals": "IVm,Imaj7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Fm",
+                    "numeral": "IVm",
+                    "frets": "xx3564",
+                    "position": 3,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Cmaj7",
+                    "numeral": "Imaj7",
+                    "frets": "x32000",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                2
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    3,
+                    2
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 1
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 11,
+            "name": "Parker Blues",
+            "category": "jazz",
+            "numerals": "Imaj7,VIIm7b5,III7,VIm7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Cmaj7",
+                    "numeral": "Imaj7",
+                    "frets": "x32000",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Bm7b5",
+                    "numeral": "VIIm7b5",
+                    "frets": "x2323x",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "E7",
+                    "numeral": "III7",
+                    "frets": "022130",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Am7",
+                    "numeral": "VIm7",
+                    "frets": "x02010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0,
+                0.5,
+                0.5
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    2,
+                    2,
+                    1,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 1
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 4,
+            "name": "Rhythm Changes Bridge",
+            "category": "jazz",
+            "numerals": "III7,VI7,II7,V7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "E7",
+                    "numeral": "III7",
+                    "frets": "022130",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "A7",
+                    "numeral": "VI7",
+                    "frets": "x02020",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "D7",
+                    "numeral": "II7",
+                    "frets": "xx0212",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0,
+                0.33,
+                0.33
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    2,
+                    1,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 1
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 42,
+            "name": "Secondary Dominant II-V",
+            "category": "jazz",
+            "numerals": "II7, V7, I",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "D7",
+                    "numeral": "II7",
+                    "frets": "xx0212",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.33,
+                0
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    1,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 0
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 47,
+            "name": "Test Jazz Progression",
+            "category": "jazz",
+            "numerals": "IIm7, V7, Imaj7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Dm7",
+                    "numeral": "IIm7",
+                    "frets": "accada",
+                    "position": 10,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Cmaj7",
+                    "numeral": "Imaj7",
+                    "frets": "x32000",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                9.17,
+                0.5
+            ],
+            "flags": [
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 10 to fret 1 between chord 0 (Dm7) and chord 1 (G7): 9 frets"
+                },
+                {
+                    "kind": "high_vl_score",
+                    "detail": "Adjacent VL score(s) at indices 0 ≥ top-decile threshold 9.17"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    10,
+                    1,
+                    2
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 9
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 8,
+            "name": "The Bill Evans Turnaround",
+            "category": "jazz",
+            "numerals": "Imaj7,bIIImaj7,bVImaj7, bIImaj7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Cmaj7",
+                    "numeral": "Imaj7",
+                    "frets": "x32000",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Ebmaj7",
+                    "numeral": "bIIImaj7",
+                    "frets": "x65333",
+                    "position": 3,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Abmaj7",
+                    "numeral": "bVImaj7",
+                    "frets": "xba888",
+                    "position": 8,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Dbmaj7",
+                    "numeral": "bIImaj7",
+                    "frets": "x43111",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                1.5,
+                0.5,
+                6.7
+            ],
+            "flags": [
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 8 to fret 1 between chord 2 (Abmaj7) and chord 3 (Dbmaj7): 7 frets"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    2,
+                    3,
+                    8,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 7
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 9,
+            "name": "The Extended Turnaround",
+            "category": "jazz",
+            "numerals": "IIIm7,VI7,IIm7,V7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Em7",
+                    "numeral": "IIIm7",
+                    "frets": "022030",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "A7",
+                    "numeral": "VI7",
+                    "frets": "x02020",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Dm7",
+                    "numeral": "IIm7",
+                    "frets": "accada",
+                    "position": 10,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.33,
+                9.17,
+                9.17
+            ],
+            "flags": [
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 2 to fret 10 between chord 1 (A7) and chord 2 (Dm7): 8 frets"
+                },
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 10 to fret 1 between chord 2 (Dm7) and chord 3 (G7): 9 frets"
+                },
+                {
+                    "kind": "high_vl_score",
+                    "detail": "Adjacent VL score(s) at indices 1,2 ≥ top-decile threshold 9.17"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    2,
+                    2,
+                    10,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 9
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 34,
+            "name": "The Jazz Half Cadence",
+            "category": "jazz",
+            "numerals": "IIm7,V7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Dm7",
+                    "numeral": "IIm7",
+                    "frets": "accada",
+                    "position": 10,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                9.17
+            ],
+            "flags": [
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 10 to fret 1 between chord 0 (Dm7) and chord 1 (G7): 9 frets"
+                },
+                {
+                    "kind": "high_vl_score",
+                    "detail": "Adjacent VL score(s) at indices 0 ≥ top-decile threshold 9.17"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    10,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 9
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 1,
+            "name": "The Major Jazz Cadence",
+            "category": "jazz",
+            "numerals": "IIm7,V7,Imaj7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Dm7",
+                    "numeral": "IIm7",
+                    "frets": "accada",
+                    "position": 10,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Cmaj7",
+                    "numeral": "Imaj7",
+                    "frets": "x32000",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                9.17,
+                0.5
+            ],
+            "flags": [
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 10 to fret 1 between chord 0 (Dm7) and chord 1 (G7): 9 frets"
+                },
+                {
+                    "kind": "high_vl_score",
+                    "detail": "Adjacent VL score(s) at indices 0 ≥ top-decile threshold 9.17"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    10,
+                    1,
+                    2
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 9
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 2,
+            "name": "The Minor Jazz Cadence",
+            "category": "jazz",
+            "numerals": "IIm7b5,V7,Im",
+            "key": "A",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Bm7b5",
+                    "numeral": "IIm7b5",
+                    "frets": "x2323x",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "E7",
+                    "numeral": "V7",
+                    "frets": "022130",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Am",
+                    "numeral": "Im",
+                    "frets": "x02210",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.5,
+                0.33
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    2,
+                    1,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 1
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 39,
+            "name": "The Rhythm Changes Progression",
+            "category": "jazz",
+            "numerals": "I, VI7, IIm7, VII7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "A7",
+                    "numeral": "VI7",
+                    "frets": "x02020",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Dm7",
+                    "numeral": "IIm7",
+                    "frets": "accada",
+                    "position": 10,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "B7",
+                    "numeral": "VII7",
+                    "frets": "7998a7",
+                    "position": 7,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0,
+                9.17,
+                7.33
+            ],
+            "flags": [
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 2 to fret 10 between chord 1 (A7) and chord 2 (Dm7): 8 frets"
+                },
+                {
+                    "kind": "high_vl_score",
+                    "detail": "Adjacent VL score(s) at indices 1 ≥ top-decile threshold 9.17"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    1,
+                    2,
+                    10,
+                    7
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 9
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 38,
+            "name": "The Turnaround",
+            "category": "jazz",
+            "numerals": "I, VIm, IIm, V7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Am",
+                    "numeral": "VIm",
+                    "frets": "x02210",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Dm",
+                    "numeral": "IIm",
+                    "frets": "xx0231",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.33,
+                0.33,
+                0
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    1,
+                    1,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 0
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 5,
+            "name": "The Turnaround #2",
+            "category": "jazz",
+            "numerals": "I,VI7,IIm7,V7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "A7",
+                    "numeral": "VI7",
+                    "frets": "x02020",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Dm7",
+                    "numeral": "IIm7",
+                    "frets": "accada",
+                    "position": 10,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G7",
+                    "numeral": "V7",
+                    "frets": "320001",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0,
+                9.17,
+                9.17
+            ],
+            "flags": [
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 2 to fret 10 between chord 1 (A7) and chord 2 (Dm7): 8 frets"
+                },
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 10 to fret 1 between chord 2 (Dm7) and chord 3 (G7): 9 frets"
+                },
+                {
+                    "kind": "high_vl_score",
+                    "detail": "Adjacent VL score(s) at indices 1,2 ≥ top-decile threshold 9.17"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    1,
+                    2,
+                    10,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 9
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 7,
+            "name": "Tritone Substitution Jazz Cadence",
+            "category": "jazz",
+            "numerals": "II,bII,I",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "D",
+                    "numeral": "II",
+                    "frets": "xx0232",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Db",
+                    "numeral": "bII",
+                    "frets": "9bba99",
+                    "position": 9,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                7.5,
+                7.83
+            ],
+            "flags": [
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 2 to fret 9 between chord 0 (D) and chord 1 (Db): 7 frets"
+                },
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 9 to fret 1 between chord 1 (Db) and chord 2 (C): 8 frets"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    2,
+                    9,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 8
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 41,
+            "name": "The Corcovado Progression",
+            "category": "latin",
+            "numerals": "Im, VIIo7, bVIIm",
+            "key": "A",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Am",
+                    "numeral": "Im",
+                    "frets": "x02210",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Abdim7",
+                    "numeral": "VIIo7",
+                    "frets": "xbcacx",
+                    "position": 10,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Gm",
+                    "numeral": "bVIIm",
+                    "frets": "xx5786",
+                    "position": 5,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                9.58,
+                6.6
+            ],
+            "flags": [
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 1 to fret 10 between chord 0 (Am) and chord 1 (Abdim7): 9 frets"
+                },
+                {
+                    "kind": "high_vl_score",
+                    "detail": "Adjacent VL score(s) at indices 0 ≥ top-decile threshold 9.17"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    1,
+                    10,
+                    5
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 9
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 25,
+            "name": "Dorian Vamp (i–IV)",
+            "category": "modal",
+            "numerals": "Im7,IV7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Cm7",
+                    "numeral": "Im7",
+                    "frets": "8aa8b8",
+                    "position": 8,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F7",
+                    "numeral": "IV7",
+                    "frets": "133241",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                11.63
+            ],
+            "flags": [
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 8 to fret 1 between chord 0 (Cm7) and chord 1 (F7): 7 frets"
+                },
+                {
+                    "kind": "high_vl_score",
+                    "detail": "Adjacent VL score(s) at indices 0 ≥ top-decile threshold 9.17"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    8,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 7
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 27,
+            "name": "Lydian (I–II)",
+            "category": "modal",
+            "numerals": "Imaj7,IImaj7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Cmaj7",
+                    "numeral": "Imaj7",
+                    "frets": "x32000",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Dmaj7",
+                    "numeral": "IImaj7",
+                    "frets": "xx0222",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.5
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    2,
+                    2
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 0
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 28,
+            "name": "Mixolydian Vamp (I7–bVII)",
+            "category": "modal",
+            "numerals": "I7,bVII",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C7",
+                    "numeral": "I7",
+                    "frets": "x32310",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Bb",
+                    "numeral": "bVII",
+                    "frets": "688766",
+                    "position": 6,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                4.58
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    6
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 5
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 29,
+            "name": "Phrygian Cadence",
+            "category": "modal",
+            "numerals": "I,bII",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Db",
+                    "numeral": "bII",
+                    "frets": "9bba99",
+                    "position": 9,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                7.83
+            ],
+            "flags": [
+                {
+                    "kind": "position_thrash",
+                    "detail": "Position jump from fret 1 to fret 9 between chord 0 (C) and chord 1 (Db): 8 frets"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    1,
+                    9
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 8
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 26,
+            "name": "So What Changes",
+            "category": "modal",
+            "numerals": "Im7,bIIm7",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Cm7",
+                    "numeral": "Im7",
+                    "frets": "8aa8b8",
+                    "position": 8,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Dbm7",
+                    "numeral": "bIIm7",
+                    "frets": "9bb9c9",
+                    "position": 9,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                10.9
+            ],
+            "flags": [
+                {
+                    "kind": "high_vl_score",
+                    "detail": "Adjacent VL score(s) at indices 0 ≥ top-decile threshold 9.17"
+                }
+            ],
+            "metrics": {
+                "positions": [
+                    8,
+                    9
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 1
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 23,
+            "name": "Andalusian Cadence (Minor)",
+            "category": "pop",
+            "numerals": "Im,bVII,bVI,V",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Cm",
+                    "numeral": "Im",
+                    "frets": "xxacdb",
+                    "position": 10,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Bb",
+                    "numeral": "bVII",
+                    "frets": "688766",
+                    "position": 6,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Ab",
+                    "numeral": "bVI",
+                    "frets": "466544",
+                    "position": 4,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G",
+                    "numeral": "V",
+                    "frets": "320003",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                4.87,
+                3.3,
+                2.17
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    10,
+                    6,
+                    4,
+                    2
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 8
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 19,
+            "name": "I–II–III (Ascending)",
+            "category": "pop",
+            "numerals": "I,IIm,IIIm",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Dm",
+                    "numeral": "IIm",
+                    "frets": "xx0231",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Em",
+                    "numeral": "IIIm",
+                    "frets": "022000",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0,
+                0
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    1,
+                    2
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 1
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 18,
+            "name": "I–IV–I–V",
+            "category": "pop",
+            "numerals": "I,IV,I,V",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F",
+                    "numeral": "IV",
+                    "frets": "133211",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G",
+                    "numeral": "V",
+                    "frets": "320003",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.17,
+                0.17,
+                0.67
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    1,
+                    1,
+                    2
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 1
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 22,
+            "name": "I–V–IV (Rock)",
+            "category": "pop",
+            "numerals": "I,V,IV",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G",
+                    "numeral": "V",
+                    "frets": "320003",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F",
+                    "numeral": "IV",
+                    "frets": "133211",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.67,
+                0.83
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    2,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 1
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 16,
+            "name": "I–V–vi–IV",
+            "category": "pop",
+            "numerals": "I,V,VIm,IV",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G",
+                    "numeral": "V",
+                    "frets": "320003",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Am",
+                    "numeral": "VIm",
+                    "frets": "x02210",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F",
+                    "numeral": "IV",
+                    "frets": "133211",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.67,
+                1,
+                0.17
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    2,
+                    1,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 1
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 24,
+            "name": "I–bVII–IV (Rock)",
+            "category": "pop",
+            "numerals": "I,bVII,IV",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Bb",
+                    "numeral": "bVII",
+                    "frets": "688766",
+                    "position": 6,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F",
+                    "numeral": "IV",
+                    "frets": "133211",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                4.83,
+                0.5
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    6,
+                    1
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 5
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 21,
+            "name": "I–vi–IV–V (50s Progression)",
+            "category": "pop",
+            "numerals": "I,VIm,IV,V",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "Am",
+                    "numeral": "VIm",
+                    "frets": "x02210",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F",
+                    "numeral": "IV",
+                    "frets": "133211",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G",
+                    "numeral": "V",
+                    "frets": "320003",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.33,
+                0.17,
+                0.83
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    1,
+                    1,
+                    2
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 1
+            }
+        },
+        {
+            "mode": "simple",
+            "progression_id": 17,
+            "name": "vi–IV–I–V",
+            "category": "pop",
+            "numerals": "VIm,IV,I,V",
+            "key": "C",
+            "options": {
+                "mode": "simple",
+                "style": "",
+                "extensions": false,
+                "rootOnly": true
+            },
+            "chords": [
+                {
+                    "chord_name": "Am",
+                    "numeral": "VIm",
+                    "frets": "x02210",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "F",
+                    "numeral": "IV",
+                    "frets": "133211",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "C",
+                    "numeral": "I",
+                    "frets": "x32010",
+                    "position": 1,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                },
+                {
+                    "chord_name": "G",
+                    "numeral": "V",
+                    "frets": "320003",
+                    "position": 2,
+                    "category": "archetype",
+                    "extensions": "",
+                    "inversion": "root"
+                }
+            ],
+            "vl_scores": [
+                0.17,
+                0.17,
+                0.67
+            ],
+            "flags": [],
+            "metrics": {
+                "positions": [
+                    1,
+                    1,
+                    1,
+                    2
+                ],
+                "categories": [
+                    "archetype",
+                    "archetype",
+                    "archetype",
+                    "archetype"
+                ],
+                "fret_range": 1
+            }
+        }
+    ],
+    "vl_threshold_top_decile": 9.17,
+    "flag_counts": {
+        "position_thrash": 24,
+        "high_vl_score": 13
+    }
+}

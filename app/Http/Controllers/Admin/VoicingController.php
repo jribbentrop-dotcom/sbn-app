@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ChordDiagram;
+use App\Models\Leadsheet;
 use App\Models\VoicingDraft;
 use App\Models\VoicingUsage;
 use App\Services\VoicingCrossref;
@@ -74,6 +75,7 @@ class VoicingController extends Controller
 
     /**
      * Dismiss a pending draft (AJAX).
+     * Also removes the voicing from the leadsheet's shortcode_content and json_data.
      */
     public function dismiss(VoicingDraft $draft)
     {
@@ -81,9 +83,19 @@ class VoicingController extends Controller
             return response()->json(['success' => false, 'error' => 'Draft is not pending.'], 422);
         }
 
-        $draft->dismiss();
+        // Load the leadsheet and remove the voicing from it
+        $leadsheet = Leadsheet::find($draft->leadsheet_id);
+        if ($leadsheet) {
+            $removed = $leadsheet->removeVoicing($draft->chord_name, $draft->fret_string);
+            if ($removed) {
+                $leadsheet->save();
+            }
+        }
 
-        return response()->json(['success' => true]);
+        // Delete the draft (don't just mark dismissed - it's been removed from leadsheet)
+        $draft->delete();
+
+        return response()->json(['success' => true, 'removed_from_leadsheet' => $removed ?? false]);
     }
 
     /**

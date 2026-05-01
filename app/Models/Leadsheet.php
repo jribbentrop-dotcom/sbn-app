@@ -304,4 +304,151 @@ class Leadsheet extends Model
             ->pluck('composer')
             ->toArray();
     }
+
+    /**
+     * Generate a unique slug for a leadsheet title.
+     */
+    public static function generateUniqueSlug(string $title): string
+    {
+        $slug = \Illuminate\Support\Str::slug($title);
+        $originalSlug = $slug;
+        $counter = 1;
+        while (static::where('slug', $slug)->exists()) {
+            $slug = $originalSlug . '-' . $counter++;
+        }
+        return $slug;
+    }
+
+
+    // =========================================================================
+    // VOICING MANAGEMENT
+    // =========================================================================
+
+    /**
+     * Remove a voicing from the leadsheet by chord name and fret pattern.
+     * Updates both shortcode_content and json_data.
+     *
+     * @param string $chordName The chord name (e.g., "Cmaj7", "F#m7b5")
+     * @param string $fretString The 6-character fret string (e.g., "x32010")
+     * @return bool Whether any voicing was removed
+     */
+    public function removeVoicing(string $chordName, string $fretString): bool
+    {
+        $removed = false;
+
+        // 1. Remove from shortcode_content [sbn_voicings] block
+        if (!empty($this->shortcode_content)) {
+            $newContent = $this->removeVoicingFromShortcode($this->shortcode_content, $chordName, $fretString);
+            if ($newContent !== $this->shortcode_content) {
+                $this->shortcode_content = $newContent;
+                $removed = true;
+            }
+        }
+
+        // 2. Remove from json_data chordVoicings
+        if (!empty($this->json_data)) {
+            $jsonData = json_decode($this->json_data, true);
+            if (is_array($jsonData) && isset($jsonData['chordVoicings'])) {
+                $voicings = $jsonData['chordVoicings'];
+                $newVoicings = $this->removeVoicingFromJson($voicings, $chordName, $fretString);
+                if ($newVoicings !== $voicings) {
+                    $jsonData['chordVoicings'] = $newVoicings;
+                    $this->json_data = json_encode($jsonData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                    $removed = true;
+                }
+            }
+        }
+
+        return $removed;
+    }
+
+    /**
+     * Remove a voicing line from the [sbn_voicings] shortcode block.
+     */
+    private function removeVoicingFromShortcode(string $content, string $chordName, string $fretString): string
+    {
+        // Pattern to match [sbn_voicings]...[/sbn_voicings]
+        if (!preg_match('/(\[sbn_voicings\])([\s\S]*?)(\[\/sbn_voicings\])/', $content, $match)) {
+            return $content;
+        }
+
+        $prefix = $match[1]; // [sbn_voicings]
+        $voicingsBlock = $match[2];
+        $suffix = $match[3]; // [/sbn_voicings]
+
+        // Normalize fret string for comparison (lowercase, trim)
+        $targetFrets = strtolower(trim($fretString));
+
+        // Parse and filter lines
+        $lines = explode("\n", $voicingsBlock);
+        $filteredLines = [];
+
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if (empty($trimmed)) {
+                $filteredLines[] = $line; // Preserve empty lines
+                continue;
+            }
+
+            // Check if this line matches the voicing to remove
+            // Format: ChordName: frets @position (fingers)
+            $sepPos = strpos($trimmed, ': ');
+            if ($sepPos === false) {
+                $filteredLines[] = $line;
+                continue;
+            }
+
+            $lineChordName = trim(substr($trimmed, 0, $sepPos));
+            $rest = trim(substr($trimmed, $sepPos + 2));
+
+            // Extract frets from the rest
+            if (!preg_match('/^([x0-9a-fA-F]+)/', $rest, $m)) {
+                $filteredLines[] = $line;
+                continue;
+            }
+
+            $lineFrets = strtolower(trim($m[1]));
+
+            // If chord name and frets match, skip this line (remove it)
+            if ($lineChordName === $chordName && $lineFrets === $targetFrets) {
+                continue; // Skip this line = remove it
+            }
+
+            $filteredLines[] = $line;
+        }
+
+        $newVoicingsBlock = implode("\n", $filteredLines);
+
+        // Replace in content
+        return str_replace($match[0], $prefix . $newVoicingsBlock . $suffix, $content);
+    }
+
+    /**
+     * Remove a voicing entry from json_data chordVoicings object.
+     */
+    private function removeVoicingFromJson(array $voicings, string $chordName, string $fretString): array
+    {
+        $targetFrets = strtolower(trim($fretString));
+        $result = [];
+
+        foreach ($voicings as $key => $voicing) {
+            // Check if this is a positional override key (contains @)
+            $baseName = $key;
+            if (str_contains($key, '@')) {
+                $baseName = explode('@', $key)[0];
+            }
+
+            // If base name matches and frets match, skip it (remove)
+            if ($baseName === $chordName && isset($voicing['frets'])) {
+                $voicingFrets = strtolower(trim($voicing['frets']));
+                if ($voicingFrets === $targetFrets) {
+                    continue; // Skip = remove
+                }
+            }
+
+            $result[$key] = $voicing;
+        }
+
+        return $result;
+    }
 }

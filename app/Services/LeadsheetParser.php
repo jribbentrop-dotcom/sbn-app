@@ -289,6 +289,10 @@ class LeadsheetParser
             }
         }
 
+        if (empty($result['chordVoicings'])) {
+            $result['chordVoicings'] = (object) [];
+        }
+        
         return $result;
     }
 

@@ -18,6 +18,8 @@
                     @click="setViewMode('analysis')">Analysis</button>
             <button class="sbn-ve-tab" :class="{ 'is-active': videoSidebarOpen }"
                     @click="toggleVideoSidebar">🎬 Video</button>
+            <button class="sbn-ve-tab" :class="{ 'is-active': researchSidebarOpen }"
+                    @click="toggleResearchSidebar">📚 Research</button>
             <button
                 v-if="hasChordsData && viewMode === 'chords'"
                 class="sbn-ve-tab sbn-ve-play-btn"
@@ -167,6 +169,16 @@
                 />
             </div>
         </Teleport>
+        
+        <Teleport v-if="researchSidebarOpen" to="#sbn-research-slot">
+            <div class="sbn-research-sidebar-panel">
+                <ResearchPanel
+                    v-if="research"
+                    :data="research"
+                    @set-video="({ id, type }) => videoSync.setVideoId(id, type)"
+                />
+            </div>
+        </Teleport>
 
         <!-- Voicing picker panel — Teleports itself into #sbn-vp-slot -->
         <VoicingPicker v-if="voicingPickerStore" />
@@ -260,6 +272,7 @@ import { computed, defineExpose, ref, onMounted, onUnmounted, watch, nextTick, p
 import ChordGridView from './components/ChordGridView.vue';
 import VoicingPicker from './components/VoicingPicker.vue';
 import VideoSyncEditor from './components/VideoSyncEditor.vue';
+import ResearchPanel from './components/ResearchPanel.vue';
 import { LAYOUT, generateId } from './utils/constants.js';
 import { useAlpineBridge } from './composables/useAlpineBridge.js';
 import { useTabModel } from './composables/useTabModel.js';
@@ -299,6 +312,7 @@ provide('viewMode', viewMode);
 
 // Video sidebar open state — mirrors Alpine's videoSidebarOpen, driven via CustomEvent
 const videoSidebarOpen = ref(false);
+const researchSidebarOpen = ref(false);
 
 function setViewMode(mode) {
     viewMode.value = mode;
@@ -310,11 +324,20 @@ function setViewMode(mode) {
 
 function toggleVideoSidebar() {
     videoSidebarOpen.value = !videoSidebarOpen.value;
+    if (videoSidebarOpen.value) researchSidebarOpen.value = false;
     document.dispatchEvent(new CustomEvent('sbn-video-sidebar-toggle', {
         detail: { open: videoSidebarOpen.value }
     }));
     // Auto-switch audio source: video tab → video audio, else → synth
     videoSync.setAudioSource(videoSidebarOpen.value ? 'video' : 'synth');
+}
+
+function toggleResearchSidebar() {
+    researchSidebarOpen.value = !researchSidebarOpen.value;
+    if (researchSidebarOpen.value) videoSidebarOpen.value = false;
+    document.dispatchEvent(new CustomEvent('sbn-research-sidebar-toggle', {
+        detail: { open: researchSidebarOpen.value }
+    }));
 }
 
 // ── Alpine Bridge ──────────────────────────────────────────
@@ -325,6 +348,7 @@ const {
     title, composer,
     tabXml, repeatMarkers, voltaEndings,
     videoSync: bridgeVideoSync,
+    research,
     initialized, setSaveHandler,
     setStructureHandler,
 } = bridge;

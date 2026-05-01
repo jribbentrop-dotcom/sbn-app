@@ -1510,9 +1510,8 @@
         }
 
         // Voicings section - only if we have voicings
-        if (Object.keys(parsed.chordVoicings).length > 0) {
-            shortcode += '\n[sbn_voicings]\n';
-
+        shortcode += '\n[sbn_voicings]\n';
+        if (parsed.chordVoicings) {
             // Sort chord names for consistent output
             const sortedChords = Object.keys(parsed.chordVoicings).sort();
             
@@ -1540,9 +1539,8 @@
                 
                 shortcode += '\n';
             });
-
-            shortcode += '[/sbn_voicings]\n';
         }
+        shortcode += '[/sbn_voicings]\n';
         
         // Repeat markers section - collect from all sources
         const repeatMarkers = {};

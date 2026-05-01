@@ -1396,6 +1396,8 @@ class VoicingCrossref
         // ── Step 2: Score (root, quality) pairs — Pass 1 ──
         $bassBoost  = 4;
         $exactBonus = 3;
+        $slashBonus7th = 3.5;
+        $slashBonusTriad = 2.5;
 
         $bestScore   = -1;
         $bestRootPc  = null;
@@ -1440,7 +1442,20 @@ class VoicingCrossref
                     continue;
                 }
 
-                $score = $isBass ? $raw * $bassBoost : $raw;
+                // Slash-chord candidate check: bass is chord tone (3rd, 5th, 7th, maj7th)
+                $bassIv = ($bassPc - $rootPc + 12) % 12;
+                $isSlashCandidate = !$isBass
+                    && in_array($bassIv, [3, 4, 7, 10, 11], true)
+                    && ($matched === $total || $unexplained === 0);
+
+                $score = $raw;
+                if ($isBass) {
+                    $score *= $bassBoost;
+                } elseif ($isSlashCandidate) {
+                    // Two-tier slash bonus: higher for 7th chords, lower for triads
+                    $slashBonus = ($total >= 4) ? $slashBonus7th : $slashBonusTriad;
+                    $score *= $slashBonus;
+                }
 
                 if ($score > $bestScore) {
                     $bestScore   = $score;
@@ -1593,8 +1608,13 @@ class VoicingCrossref
 
         // ── Step 5: Assemble name ──
         $rootName    = $this->pcToNoteName($bestRootPc, $bestQuality);
-        // Normalize quality for display: 'dom7' → '7' (leadsheet convention)
-        $displayQuality = $bestQuality === 'dom7' ? '7' : $bestQuality;
+        // Normalize quality for display: 'dom7' → '7', 'min'/'m' → 'm', 'maj' → '' (leadsheet convention)
+        $displayQuality = match($bestQuality) {
+            'dom7' => '7',
+            'min', 'm' => 'm',
+            'maj' => '',
+            default => $bestQuality
+        };
         $chordName   = $rootName . $displayQuality . $extensionsStr . $slashSuffix;
 
         $baseMatched = count(array_intersect($basePcs, $pcSet));
@@ -2136,5 +2156,117 @@ class VoicingCrossref
         }
 
         return null;
+    }
+
+    /**
+     * Identify a chord from a set of MIDI pitch numbers.
+     * Uses the lowest note as the bass note.
+     */
+    public function identifyFromMidi(array $midiPitches): array
+    {
+        if (empty($midiPitches)) {
+            return $this->noResult();
+        }
+
+        sort($midiPitches);
+        $pitchClasses = array_map(fn($p) => $p % 12, $midiPitches);
+        $bassPc = $pitchClasses[0];
+        $pcSet = array_values(array_unique($pitchClasses));
+
+        return $this->identifyFromPcSet($pcSet, $bassPc);
+    }
+
+    /**
+     * Core identification logic from a unique set of pitch classes.
+     */
+    private function identifyFromPcSet(array $pcSet, ?int $bassPc = null): array
+    {
+        // ── Step 2: Score (root, quality) pairs — Pass 1 ──
+        $bassBoost  = 4;
+        $exactBonus = 3;
+        
+        $bestScore   = -1;
+        $bestRootPc  = null;
+        $bestQuality = null;
+
+        $qualities = self::IDENTIFY_QUALITY_INTERVALS;
+        uasort($qualities, fn($a, $b) => count($b) - count($a));
+
+        $candidateRoots = array_values(array_unique(array_merge(
+            $bassPc !== null ? [$bassPc] : [],
+            $pcSet,
+            range(0, 11)
+        )));
+
+        foreach ($candidateRoots as $rootPc) {
+            $isBass = ($rootPc === $bassPc);
+
+            foreach ($qualities as $quality => $intervals) {
+                $expectedPcs = array_map(fn($iv) => ($rootPc + $iv) % 12, $intervals);
+                $matched     = count(array_intersect($expectedPcs, $pcSet));
+                $total       = count($expectedPcs);
+
+                $leftover    = array_diff($pcSet, $expectedPcs);
+                $unexplained = 0;
+                foreach ($leftover as $lpc) {
+                    $ivLeft = ($lpc - $rootPc + 12) % 12;
+                    if (!isset(self::IDENTIFY_EXTENSION_INTERVALS[$ivLeft])) {
+                        $unexplained++;
+                    }
+                }
+
+                if ($matched === $total) {
+                    $raw = $total * 100 - $unexplained * 50;
+                    if ($total >= 4) $raw *= $exactBonus;
+                } elseif ($matched >= 2 && $matched >= $total - 1) {
+                    $raw = $matched * 100 - 50 - $unexplained * 50;
+                } else {
+                    continue;
+                }
+
+                $score = $isBass ? $raw * $bassBoost : $raw;
+                if ($score > $bestScore) {
+                    $bestScore   = $score;
+                    $bestRootPc  = $rootPc;
+                    $bestQuality = $quality;
+                }
+            }
+        }
+
+        if ($bestRootPc === null) return $this->noResult();
+
+        // ── Extension detection ──
+        $basePcs = array_map(
+            fn($iv) => ($bestRootPc + $iv) % 12,
+            self::IDENTIFY_QUALITY_INTERVALS[$bestQuality]
+        );
+        $leftoverPcs = array_diff($pcSet, $basePcs);
+        $extensionLabels = [];
+        foreach ($leftoverPcs as $lpc) {
+            $iv = ($lpc - $bestRootPc + 12) % 12;
+            if (isset(self::IDENTIFY_EXTENSION_INTERVALS[$iv])) {
+                $extensionLabels[$iv] = self::IDENTIFY_EXTENSION_INTERVALS[$iv];
+            }
+        }
+        ksort($extensionLabels);
+        $extensionsStr = !empty($extensionLabels) ? '(' . implode(',', $extensionLabels) . ')' : '';
+
+        // ── Inversion / slash detection ──
+        $slashSuffix = '';
+        if ($bassPc !== null && $bassPc !== $bestRootPc) {
+            $bassNoteName = $this->pcToNoteName($bassPc, $bestQuality);
+            $slashSuffix = '/' . $bassNoteName;
+        }
+
+        $rootName = $this->pcToNoteName($bestRootPc, $bestQuality);
+        $qualityDisplay = $this->getQualityDisplayName($bestQuality);
+
+        return [
+            'name'       => $rootName . $qualityDisplay . $extensionsStr . $slashSuffix,
+            'confidence' => $bestScore > 500 ? 'high' : ($bestScore > 200 ? 'medium' : 'low'),
+            'root'       => $rootName,
+            'quality'    => $bestQuality,
+            'bass'       => $bassPc !== null ? $this->pcToNoteName($bassPc) : null,
+        ];
     }
 }
