@@ -348,6 +348,7 @@ const {
     title, composer,
     tabXml, repeatMarkers, voltaEndings,
     videoSync: bridgeVideoSync,
+    openVideoSidebar: bridgeOpenVideoSidebar,
     research,
     initialized, setSaveHandler,
     setStructureHandler,
@@ -717,6 +718,15 @@ watch(videoSync.videoPlaying, (v) => { _videoPlayingRef.value = v; }, { immediat
 // Populate videoSync from bridge data on first load
 watch(bridgeVideoSync, (data) => {
     if (data) videoSync.setVideoSync(data);
+}, { immediate: true });
+ 
+// Phase D: Auto-open video sidebar if requested via bridge (flashed session)
+watch(bridgeOpenVideoSidebar, (val) => {
+    if (val) {
+        videoSidebarOpen.value = true;
+        researchSidebarOpen.value = false;
+        videoSync.setAudioSource('video');
+    }
 }, { immediate: true });
 
 // Keep playingMeasureIndex in sync with transportBeat.

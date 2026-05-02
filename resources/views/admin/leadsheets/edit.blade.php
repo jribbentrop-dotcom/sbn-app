@@ -1060,6 +1060,11 @@ function leadsheetEditor() {
             if (this.leadsheetId) {
                 this.loadExistingData();
             }
+
+            @if(session('open_video_sidebar'))
+                this.videoSidebarOpen = true;
+                this.alpineViewMode = 'tab';
+            @endif
             // Load Bravura SMuFL font and force tab re-render when ready
             const bravura = new FontFace('Bravura',
                 "url('/fonts/Bravura.otf')"
@@ -1513,6 +1518,7 @@ function leadsheetEditor() {
                         parsed: JSON.parse(JSON.stringify(this.parsed)),
                         tabXml: this.tabXml,
                         videoSync: this.parsed.videoSync ? JSON.parse(JSON.stringify(this.parsed.videoSync)) : null,
+                        openVideoSidebar: this.videoSidebarOpen,
                     }
                 }));
             }, 0);

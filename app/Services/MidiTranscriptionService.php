@@ -11,12 +11,14 @@ class MidiTranscriptionService
     protected string $pythonPath;
     protected string $scriptPath;
     protected string $ytDlpPath;
+    protected string $ffmpegPath;
 
     public function __construct()
     {
         $this->pythonPath = base_path('python_env/python.exe');
         $this->scriptPath = base_path('scripts/transcribe.py');
         $this->ytDlpPath = base_path('yt-dlp.exe');
+        $this->ffmpegPath = base_path('ffmpeg.exe');
     }
 
     /**
@@ -24,20 +26,22 @@ class MidiTranscriptionService
      */
     public function transcribe(string $youtubeId): array
     {
-        // 1. Download Audio
-        $audioPath = $this->downloadAudio($youtubeId);
+        // 1. Download Audio (Raw format from YT)
+        $rawPath = $this->downloadAudio($youtubeId);
         
-        if (!$audioPath) {
+        if (!$rawPath) {
             throw new \Exception("Failed to download audio from YouTube.");
         }
 
-        // 2. Run Python Transcription
-        $result = $this->runPythonTranscription($audioPath);
+        // 2. Convert to standard WAV (Ensures Python/librosa compatibility)
+        $wavPath = $this->convertToWav($rawPath);
 
-        // 3. Cleanup
-        if (file_exists($audioPath)) {
-            unlink($audioPath);
-        }
+        // 3. Run Python Transcription
+        $result = $this->runPythonTranscription($wavPath);
+
+        // 4. Cleanup
+        if (file_exists($rawPath)) unlink($rawPath);
+        if (file_exists($wavPath)) unlink($wavPath);
 
         return $result;
     }
@@ -60,10 +64,34 @@ class MidiTranscriptionService
         $cmd = "\"{$this->ytDlpPath}\" -f \"ba\" -o \"{$filenameTemplate}\" \"https://www.youtube.com/watch?v={$youtubeId}\"";
         
         Log::info("Downloading audio: {$cmd}");
-        exec($cmd, $output, $returnCode);
+        
+        $env = getenv();
+        $env['PATH'] = base_path() . ';' . ($env['PATH'] ?? '');
+        $env['TF_CPP_MIN_LOG_LEVEL'] = '3'; // Suppress TF logging
+        
+        // Ensure Windows temp directories are set
+        $temp = sys_get_temp_dir();
+        $env['TEMP'] = $temp;
+        $env['TMP'] = $temp;
+
+        $process = proc_open($cmd, [
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ], $pipes, null, $env);
+
+        if (!is_resource($process)) {
+            Log::error("Could not start yt-dlp process.");
+            return null;
+        }
+
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $returnCode = proc_close($process);
 
         if ($returnCode !== 0) {
-            Log::error("yt-dlp failed: " . implode("\n", $output));
+            Log::error("yt-dlp failed (code {$returnCode}): " . $stderr);
             return null;
         }
 
@@ -72,24 +100,74 @@ class MidiTranscriptionService
         return !empty($files) ? $files[0] : null;
     }
 
+    protected function convertToWav(string $inputPath): string
+    {
+        $outputPath = preg_replace('/\.[^.]+$/', '.wav', $inputPath);
+        
+        // Use ffmpeg to convert to standard mono 22050Hz WAV (ideal for basic-pitch)
+        $cmd = "\"{$this->ffmpegPath}\" -y -i \"{$inputPath}\" -ar 22050 -ac 1 \"{$outputPath}\"";
+        
+        Log::info("Converting to WAV: {$cmd}");
+        
+        exec($cmd, $output, $returnCode);
+        
+        if ($returnCode !== 0) {
+            Log::error("FFmpeg conversion failed: " . implode("\n", $output));
+            return $inputPath; // Fallback to raw if conversion fails
+        }
+        
+        return $outputPath;
+    }
+
     protected function runPythonTranscription(string $audioPath): array
     {
-        $cmd = "\"{$this->pythonPath}\" \"{$this->scriptPath}\" \"{$audioPath}\"";
+        // Use forward slashes even on Windows for Python/Librosa stability
+        $audioPath = str_replace('\\', '/', $audioPath);
+        $scriptPath = str_replace('\\', '/', $this->scriptPath);
+        $pythonPath = str_replace('\\', '/', $this->pythonPath);
+        
+        $cmd = "\"{$pythonPath}\" \"{$scriptPath}\" \"{$audioPath}\"";
         
         Log::info("Running Python transcription: {$cmd}");
-        exec($cmd, $output, $returnCode);
+        
+        // Add project root to PATH so the script can find ffmpeg.exe/ffprobe.exe
+        $env = getenv();
+        $env['PATH'] = base_path() . ';' . ($env['PATH'] ?? '');
+        $env['TF_CPP_MIN_LOG_LEVEL'] = '3'; // Suppress TF logging
+        
+        // Ensure Windows temp directories are set
+        $temp = sys_get_temp_dir();
+        $env['TEMP'] = $temp;
+        $env['TMP'] = $temp;
 
-        if ($returnCode !== 0) {
-            Log::error("Python transcription failed: " . implode("\n", $output));
-            throw new \Exception("Transcription engine failed.");
+        $process = proc_open($cmd, [
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ], $pipes, null, $env);
+
+        if (!is_resource($process)) {
+            throw new \Exception("Could not start transcription process.");
         }
 
-        $json = implode("", $output);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $returnCode = proc_close($process);
+
+        if ($returnCode !== 0) {
+            Log::error("Python transcription failed (code {$returnCode}): " . $stderr);
+            throw new \Exception("Transcription engine failed: " . $stderr);
+        }
+
+        // Find the JSON part in the output
+        $parts = explode("JSON_START", $stdout);
+        $json = trim(end($parts));
+
         $data = json_decode($json, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            Log::error("Invalid JSON from Python: {$json}");
-            throw new \Exception("Invalid output from transcription engine.");
+            throw new \Exception("Invalid JSON output from transcription engine.");
         }
 
         return $data;

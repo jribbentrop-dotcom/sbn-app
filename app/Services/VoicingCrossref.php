@@ -2107,6 +2107,25 @@ class VoicingCrossref
         return $sharp;
     }
 
+    private function getQualityDisplayName(string $quality): string
+    {
+        return match ($quality) {
+            'maj'    => '',
+            'min'    => 'm',
+            'dom7'   => '7',
+            'maj7'   => 'maj7',
+            'm7'     => 'm7',
+            'm7b5'   => 'm7b5',
+            'o7'     => 'o7',
+            'dim'    => 'dim',
+            'sus4'   => 'sus4',
+            'sus2'   => 'sus2',
+            'aug'    => '+',
+            'mMaj7'  => 'mMaj7',
+            default  => $quality,
+        };
+    }
+
     /**
      * Scan chord diagrams DB for a shape that transposes to match the fret string.
      * Mirrors forward matchVoicing() logic but driven by pitch-class results.

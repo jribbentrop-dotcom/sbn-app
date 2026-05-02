@@ -122,6 +122,16 @@
 
                     <input type="hidden" name="youtube_id" :value="selectedVideoId">
                     <input type="hidden" name="youtube_title" :value="selectedVideoTitle">
+
+                    <div class="sbn-form-group" style="margin-top: 15px;">
+                        <label class="sbn-checkbox">
+                            <input type="checkbox" name="ai_cleanup" value="1" checked>
+                            <div>
+                                <div style="font-weight: 600;">AI Rhythmic Cleanup</div>
+                                <div style="font-size: 11px; color: #6b7280;">Simplifies micro-timing and corrects harmonic errors using Gemini.</div>
+                            </div>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="sbn-form-group">

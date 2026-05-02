@@ -44,6 +44,7 @@ export function useAlpineBridge() {
     const lineBreaks    = ref({});      // Added: Track layout in Vue
     const voltaEndings  = ref({});
     const videoSync     = ref(null);   // Phase D: passed through from sbn-tab-init
+    const openVideoSidebar = ref(false);
     const research      = ref(null);   // Transcribing Assistant v1
     const initialized   = _globalInitialized; // shared singleton
 
@@ -69,6 +70,9 @@ export function useAlpineBridge() {
         }
         if (d.videoSync !== undefined) {
             videoSync.value = d.videoSync;
+        }
+        if (d.openVideoSidebar !== undefined) {
+            openVideoSidebar.value = d.openVideoSidebar;
         }
         initialized.value = true;
         // Ack so Alpine knows Vue received the data and can stop retrying.
@@ -196,6 +200,7 @@ export function useAlpineBridge() {
 
         // Phase D
         videoSync,
+        openVideoSidebar,
 
         // Transcribing Assistant v1
         research,

@@ -76,6 +76,45 @@ class ProgressionBuilder
     private const HALF_DIM_QUALITIES  = ['m7b5', 'half-dim'];
     private const MINOR_QUALITIES     = ['m7', 'm6', 'm7b5', 'mMaj7', 'min', 'mMin7'];
 
+    private const SCORE_VL_NORMALIZER = 15.0;
+
+    private const CATEGORY_SEED_BIAS = [
+        'pop' => ['target_fret' => 0, 'range' => 3],
+        'jazz' => ['target_fret' => 5, 'range' => 3],
+        'classical' => ['target_fret' => 2, 'range' => 2],
+        'blues' => ['target_fret' => 1, 'range' => 3],
+        'modal' => ['target_fret' => 5, 'range' => 3],
+        'latin' => ['target_fret' => 5, 'range' => 3],
+    ];
+
+    private const CATEGORY_REGISTER_TARGET = [
+        'pop' => 0,
+        'jazz' => 5,
+        'classical' => 2,
+        'blues' => 1,
+        'modal' => 5,
+        'latin' => 5,
+    ];
+
+    private const CATEGORY_REGISTER_WEIGHT = [
+        'pop' => 0.10,
+        'jazz' => 0.05,
+        'classical' => 0.10,
+        'blues' => 0.15,
+        'modal' => 0.05,
+        'latin' => 0.05,
+    ];
+
+    private const COST_WEIGHTS = [
+        'simplicity' => 0.10,
+        'position' => 0.20,
+        'bass_motion' => 0.20,
+        'common_tone' => 0.15,
+        'voice_leading' => 0.25,
+        'group_continuity' => 0.10,
+        'register' => 0.10,
+    ];
+
     // =========================================================================
     // MAIN ENTRY POINT
     // =========================================================================
@@ -121,6 +160,10 @@ class ProgressionBuilder
             'style_ignored' => null,
             'category_normalized' => $category,
             'category_input' => $category,
+            'slot_constraints' => [], // Phase C.6: per-slot constraint tracking
+            'cost_breakdown' => [],
+            'path_cost' => null,
+            'observed_raw_vl_max' => 0.0,
         ];
 
         // Normalize category (treat unrecognized as jazz)
@@ -131,9 +174,11 @@ class ProgressionBuilder
 
         // Flatten all chords across sections into a single sequence
         $allChords = [];
-        foreach ($context['sections'] as $section) {
-            foreach ($section['chords'] as $chord) {
-                $allChords[] = $chord;
+        if (isset($context['sections'])) {
+            foreach ($context['sections'] as $section) {
+                foreach ($section['chords'] as $chord) {
+                    $allChords[] = $chord;
+                }
             }
         }
 
@@ -145,12 +190,32 @@ class ProgressionBuilder
             ];
         }
 
+        // Auto-route pop without explicit style to simple-mode lookup
+        if (($options['category'] ?? null) === 'pop'
+            && empty($options['style'])
+            && ($options['mode'] ?? '') !== 'simple') {
+            $options['mode'] = 'simple';
+        }
+
+        // Re-read mode after potential pop routing
+        $mode = $options['mode'] ?? '';
+
         if ($mode === 'simple') {
             return $this->buildSimpleModeVoicings($context, $allChords, $options, $diagnostics);
         }
 
         // Apply numeral upgrade (§6.1) for category-aware progressions
         $context = $this->applyCategoryNumeralUpgrade($context, $category);
+
+        // Re-flatten chords after upgrade (allChords was flattened before upgrade)
+        $allChords = [];
+        if (isset($context['sections'])) {
+            foreach ($context['sections'] as $section) {
+                foreach ($section['chords'] as $chord) {
+                    $allChords[] = $chord;
+                }
+            }
+        }
 
         $n = count($allChords);
 
@@ -169,117 +234,66 @@ class ProgressionBuilder
                 $diagnostics
             );
         }
+        $lattice = $this->buildAnchorFreeLattice($chordVoicings, $style, $rootOnly, $category);
 
-        // Run auto-suggest algorithm
-        $selections = array_fill(0, $n, null);
+        // Apply harmony filter to each slot
+        for ($i = 0; $i < $n; $i++) {
+            $lattice[$i] = $this->applyHarmonyFilter($lattice[$i], $allChords, $i);
+        }
 
-        // Determine locked group
-        $lockedGroup = $style ?: null;
-
-        // Pre-fill a pinned voicing if the caller supplied one (e.g. chord detail page).
-        // Note: $selections is array_filled with null, so isset() returns false on a
-        // valid-but-null slot. Use array_key_exists() / range check instead.
-        $pinnedSlot    = $options['pinnedSlot']    ?? null;
+        // Handle pinned slot
+        $pinnedSlot = $options['pinnedSlot'] ?? null;
         $pinnedVoicing = $options['pinnedVoicing'] ?? null;
-        if ($pinnedSlot !== null && $pinnedVoicing !== null
-            && $pinnedSlot >= 0 && $pinnedSlot < $n) {
-            $selections[$pinnedSlot] = (object) $pinnedVoicing;
-            if (!$lockedGroup) {
-                $lockedGroup = $this->voicingGroup($pinnedVoicing['voicing_category'] ?? '');
-            }
+        if ($pinnedSlot !== null && $pinnedVoicing !== null && $pinnedSlot >= 0 && $pinnedSlot < $n) {
+            $lattice[$pinnedSlot] = [(object) $pinnedVoicing];
         }
 
-        // Pick first voicing (skip if already pinned)
-        $candidates = $selections[0] ? [] : $this->filterCandidates($chordVoicings[0], $lockedGroup, $rootOnly);
-        if (!empty($candidates)) {
-            // Prefer voicings near fret 5 (middle of neck) as starting position
-            $best = $candidates[0];
-            $bestDist = 999;
-            foreach ($candidates as $v) {
-                $avg = $this->averageFret($v);
-                $dist = abs($avg - 5);
-                if ($dist < $bestDist) {
-                    $bestDist = $dist;
-                    $best = $v;
+        // Handle repeated-chord reuse
+        for ($i = 1; $i < $n; $i++) {
+            if ($this->shouldReusePreviousVoicing(
+                $allChords[$i]['chord_name'] ?? '',
+                $allChords[$i - 1]['chord_name'] ?? null,
+                $i,
+                true,
+                $options
+            )) {
+                if (!empty($lattice[$i - 1])) {
+                    $lattice[$i] = [$lattice[$i - 1][0]];
                 }
             }
-            $selections[0] = $best;
-            if (!$lockedGroup) {
-                $lockedGroup = $this->voicingGroup($best->voicing_category ?? '');
-            }
         }
 
-        // Forward pass
-        for ($i = 0; $i < $n; $i++) {
-            if (!$selections[$i]) continue;
-            if (!$lockedGroup) {
-                $lockedGroup = $this->voicingGroup($selections[$i]->voicing_category ?? '');
-            }
-            for ($j = $i + 1; $j < $n; $j++) {
-                if ($selections[$j]) break;
-                $prev = $selections[$j - 1];
-                if (!$prev) break;
-                $pool = $chordVoicings[$j];
-                if (empty($pool)) {
-                    $selections[$j] = null;
-                    continue;
-                }
-                // Apply harmonic suitability filter
-                $pool = $this->applyHarmonyFilter($pool, $allChords, $j);
-                $selections[$j] = $this->pickBestVL(
-                    $prev, $pool, $vlLevel, $lockedGroup, $rootOnly, $extensions
-                );
-            }
-        }
+        $context = [
+            'category' => $category,
+            'vlLevel' => $vlLevel,
+            'weight_overrides' => $options['weight_overrides'] ?? [],
+        ];
 
-        // Backward pass
-        for ($i = $n - 1; $i >= 0; $i--) {
-            if (!$selections[$i]) continue;
-            if (!$lockedGroup) {
-                $lockedGroup = $this->voicingGroup($selections[$i]->voicing_category ?? '');
-            }
-            for ($j = $i - 1; $j >= 0; $j--) {
-                if ($selections[$j]) break;
-                $next = $selections[$j + 1];
-                if (!$next) break;
-                $pool = $chordVoicings[$j];
-                if (empty($pool)) {
-                    $selections[$j] = null;
-                    continue;
-                }
-                $pool = $this->applyHarmonyFilter($pool, $allChords, $j);
-                $selections[$j] = $this->pickBestVL(
-                    $next, $pool, $vlLevel, $lockedGroup, $rootOnly, $extensions
-                );
-            }
-        }
-
-        // Fill remaining gaps
-        for ($i = 0; $i < $n; $i++) {
-            if ($selections[$i]) continue;
-            $pool = $chordVoicings[$i];
-            if (empty($pool)) continue;
-            $pool = $this->applyHarmonyFilter($pool, $allChords, $i);
-            $anchor = $i > 0 ? $selections[$i - 1] : null;
-            if ($anchor) {
-                $selections[$i] = $this->pickBestVL(
-                    $anchor, $pool, $vlLevel, $lockedGroup, $rootOnly, $extensions
-                );
-            } else {
-                $filtered = $this->filterCandidates($pool, $lockedGroup, $rootOnly);
-                $selections[$i] = !empty($filtered) ? $filtered[0] : ($pool[0] ?? null);
-            }
-        }
+        $selections = $this->viterbiSearchWithRelaxation($lattice, $context, $style, $diagnostics);
 
         // Compute VL scores between adjacent selections
         $vlScores = [];
+        $pathCost = 0.0;
         for ($i = 0; $i < $n - 1; $i++) {
             if ($selections[$i] && $selections[$i + 1]) {
-                $vlScores[] = $this->scoreVL($selections[$i], $selections[$i + 1], $vlLevel);
+                $rawScore = $this->scoreVL($selections[$i], $selections[$i + 1], $vlLevel);
+                $vlScores[] = $rawScore;
+                $breakdown = $this->costBreakdown($selections[$i], $selections[$i + 1], [
+                    'vlLevel' => $vlLevel,
+                    'category' => $category,
+                    'weight_overrides' => $options['weight_overrides'] ?? [],
+                ]);
+                $diagnostics['cost_breakdown'][] = array_merge([
+                    'from' => $i,
+                    'to' => $i + 1,
+                ], $breakdown);
+                $pathCost += $breakdown['total'];
+                $diagnostics['observed_raw_vl_max'] = max($diagnostics['observed_raw_vl_max'], $breakdown['raw_voice_leading']);
             } else {
                 $vlScores[] = null;
             }
         }
+        $diagnostics['path_cost'] = round($pathCost, 4);
 
         // Format output — include the full voicing pool per chord for the picker UI
         $result = [];
@@ -290,18 +304,20 @@ class ProgressionBuilder
                 'chord_name'    => $chord['chord_name'],
                 'roman_numeral' => $chord['roman_numeral'],
                 'measure_index' => $chord['measure_index'],
-                'voicing'       => $sel ? $this->formatVoicing($sel) : null,
-                'voicings'      => array_values(array_map([$this, 'formatVoicing'], $pool)),
+                'voicing'       => $sel ? $this->formatVoicing($sel, $chord['chord_name']) : null,
+                'voicings'      => array_values(array_map(fn($v) => $this->formatVoicing($v, $chord['chord_name']), $pool)),
             ];
         }
 
         // Also include section structure so the UI can render section breaks
         $sections = [];
-        foreach ($context['sections'] as $sec) {
-            $sections[] = [
-                'section_key' => $sec['section_key'] ?? '',
-                'length'      => count($sec['chords']),
-            ];
+        if (isset($context['sections'])) {
+            foreach ($context['sections'] as $sec) {
+                $sections[] = [
+                    'section_key' => $sec['section_key'] ?? '',
+                    'length'      => count($sec['chords']),
+                ];
+            }
         }
 
         return [
@@ -375,6 +391,9 @@ class ProgressionBuilder
         // Transpose each shape to the target root
         $results = [];
         foreach ($shapes as $shape) {
+            if (!empty($shape->is_fixed_position) && strtolower($shape->root_note ?? '') !== strtolower($root)) {
+                continue;
+            }
             $calculated = $this->calculator->calculateFrets($shape, $root);
 
             if (empty($calculated['diagram_data']) ||
@@ -547,8 +566,87 @@ class ProgressionBuilder
     }
 
     /**
+     * Determine whether to reuse the previous voicing for the current chord.
+     * 
+     * Reuse logic: adjacent identical chords reuse the same voicing unless pinned.
+     * This provides consistency and avoids unnecessary position changes.
+     * 
+     * @param string $currentChord Current chord name
+     * @param string|null $prevChord Previous chord name
+     * @param int $slotIdx Current slot index
+     * @param int|null $prevSelectionExists Whether previous selection exists
+     * @param array $options Builder options (for pinnedSlot)
+     * @return bool True if should reuse previous voicing
+     */
+    private function shouldReusePreviousVoicing(
+        string $currentChord,
+        ?string $prevChord,
+        int $slotIdx,
+        ?bool $prevSelectionExists,
+        array $options
+    ): bool {
+        $pinnedSlot = $options['pinnedSlot'] ?? null;
+        
+        // Never reuse if current slot is pinned
+        if ($pinnedSlot !== null && $pinnedSlot === $slotIdx) {
+            return false;
+        }
+        
+        // Reuse if adjacent chords are identical and previous selection exists
+        return $slotIdx > 0
+            && $prevChord === $currentChord
+            && $prevSelectionExists;
+    }
+
+    /**
+     * Get the bass note (lowest sounding note) MIDI value for a voicing.
+     * Returns null if unable to determine bass note.
+     * 
+     * @param object $voicing The voicing object
+     * @return int|null MIDI value of bass note, or null
+     */
+    private function getBassNote(object $voicing): ?int
+    {
+        $pitchMap = $this->buildPitchMap($voicing);
+        if (empty($pitchMap)) return null;
+        
+        // Find the lowest MIDI value (bass note)
+        $bassMidi = null;
+        foreach ($pitchMap as $pitch) {
+            if ($bassMidi === null || $pitch['midi'] < $bassMidi) {
+                $bassMidi = $pitch['midi'];
+            }
+        }
+        
+        return $bassMidi;
+    }
+
+    /**
+     * Check if a transition is a tritone-substitution (dom7 → maj/maj7).
+     * Used to relax bass-motion constraint for this specific jazz cadence.
+     * 
+     * @param object $anchorVoicing Previous voicing
+     * @param object $candidateVoicing Candidate voicing
+     * @return bool True if this is a tritone-sub transition
+     */
+    private function isTritoneSubTransition(object $anchorVoicing, object $candidateVoicing, int $bassInterval): bool
+    {
+        if ($bassInterval !== 6) {
+            return false;
+        }
+
+        $anchorQuality = $anchorVoicing->quality ?? '';
+        $anchorIsDom7 = $anchorQuality === '7' || $anchorQuality === 'dom7';
+        
+        $candidateQuality = $candidateVoicing->quality ?? '';
+        $candidateIsMaj = in_array($candidateQuality, ['maj', 'maj7', 'maj6', 'maj9'], true);
+        
+        return $anchorIsDom7 && $candidateIsMaj;
+    }
+
+    /**
      * Phase A simple-mode voicing builder.
-     *
+     * 
      * Bypasses scoring and style/extensions filtering, and selects archetype
      * voicings by direct lookup:
      * - strict root+quality first
@@ -581,9 +679,14 @@ class ProgressionBuilder
                 continue;
             }
 
-            if ($i > 0
-                && ($allChords[$i - 1]['chord_name'] ?? '') === ($chord['chord_name'] ?? '')
-                && $selections[$i - 1]) {
+            // Reuse previous voicing for adjacent identical chords (skip first slot)
+            if ($i > 0 && $this->shouldReusePreviousVoicing(
+                $chord['chord_name'] ?? '',
+                $allChords[$i - 1]['chord_name'] ?? null,
+                $i,
+                $selections[$i - 1] !== null,
+                $options
+            )) {
                 $selections[$i] = $selections[$i - 1];
                 continue;
             }
@@ -608,17 +711,19 @@ class ProgressionBuilder
                 'chord_name' => $chord['chord_name'],
                 'roman_numeral' => $chord['roman_numeral'],
                 'measure_index' => $chord['measure_index'],
-                'voicing' => $sel ? $this->formatVoicing($sel) : null,
-                'voicings' => array_values(array_map([$this, 'formatVoicing'], $pool)),
+                'voicing' => $sel ? $this->formatVoicing($sel, $chord['chord_name']) : null,
+                'voicings' => array_values(array_map(fn($v) => $this->formatVoicing($v, $chord['chord_name']), $pool)),
             ];
         }
 
         $sections = [];
-        foreach ($context['sections'] as $sec) {
-            $sections[] = [
-                'section_key' => $sec['section_key'] ?? '',
-                'length' => count($sec['chords']),
-            ];
+        if (isset($context['sections'])) {
+            foreach ($context['sections'] as $sec) {
+                $sections[] = [
+                    'section_key' => $sec['section_key'] ?? '',
+                    'length' => count($sec['chords']),
+                ];
+            }
         }
 
         return [
@@ -791,6 +896,10 @@ class ProgressionBuilder
     {
         $pinnedSlot = $context['pinnedSlot'] ?? null;
 
+        if (!isset($context['sections'])) {
+            return $context;
+        }
+
         foreach ($context['sections'] as $secIdx => $section) {
             foreach ($section['chords'] as $chordIdx => $chord) {
                 $globalIdx = $this->globalChordIndex($context, $secIdx, $chordIdx);
@@ -813,12 +922,13 @@ class ProgressionBuilder
                 }
 
                 $newQuality = $this->upgradeQualityForCategory($romanNumeral, $category, $chord['tonality'] ?? 'major');
-                if ($newQuality !== $quality) {
-                    $context['sections'][$secIdx]['chords'][$chordIdx]['quality'] = $newQuality;
-                    // Update chord_name to reflect new quality
-                    $root = $chord['root'] ?? '';
-                    $context['sections'][$secIdx]['chords'][$chordIdx]['chord_name'] = $this->composeChordName($root, $newQuality, $chord['extension'] ?? '');
-                }
+
+                // Force upgrade for plain numerals (HarmonicContext may pre-fill quality)
+                $context['sections'][$secIdx]['chords'][$chordIdx]['quality'] = $newQuality;
+                // Update chord_name to reflect new quality
+                $root = $chord['root'] ?? '';
+                $newChordName = $this->composeChordName($root, $newQuality, $chord['extension'] ?? '');
+                $context['sections'][$secIdx]['chords'][$chordIdx]['chord_name'] = $newChordName;
             }
         }
 
@@ -862,7 +972,7 @@ class ProgressionBuilder
         $degree = $this->romanToDegree($baseNumeral);
 
         return match ($category) {
-            'jazz', 'latin' => $this->upgradeJazzLatin($degree, $isMinor, $tonality),
+            'jazz', 'latin' => $this->upgradeJazzLatin($numeral, $degree, $isMinor, $tonality),
             'blues' => $this->upgradeBlues($degree, $isMinor),
             'modal' => $this->upgradeModal($degree, $isMinor, $tonality),
             'pop', 'classical' => $isMinor ? 'min' : 'maj', // No upgrade, just normalize
@@ -870,12 +980,12 @@ class ProgressionBuilder
         };
     }
 
-    private function upgradeJazzLatin(int $degree, bool $isMinor, string $tonality): string
+    private function upgradeJazzLatin(string $fullNumeral, int $degree, bool $isMinor, string $tonality): string
     {
-        // I, IV → maj7
-        // IIm, IIIm, IVm, VIm → m7
-        // V → dom7
-        // bVII, bIII → 7 or maj7 depending on context (simplified to 7 for now)
+        // Tonic family (I, IV) uppercase plain → maj7
+        // Non-tonic uppercase plain (II, III, VI, VII, bII, bIII, bVI, bVII) → dom7
+        // Uppercase + m (IIm, IIIm, IVm, VIm, VIIm) → m7
+        // Lowercase (ii, iii, vi) → m7
         // VIIm → m7b5 in major
         if ($isMinor) {
             if ($degree === 7) { // VIIm
@@ -884,15 +994,15 @@ class ProgressionBuilder
             return 'm7';
         }
 
-        if ($degree === 1 || $degree === 4) {
+        // Check if this is a tonic numeral (I or IV) - case-sensitive
+        $isTonic = ($fullNumeral === 'I' || $fullNumeral === 'IV');
+        
+        if ($isTonic) {
             return 'maj7';
         }
 
-        if ($degree === 5) {
-            return 'dom7';
-        }
-
-        return 'maj'; // Fallback for others (bVII, bIII, etc.)
+        // All other uppercase plain → dom7 (V, II, III, VI, VII, bII, bIII, bVI, bVII)
+        return 'dom7';
     }
 
     private function upgradeBlues(int $degree, bool $isMinor): string
@@ -1095,35 +1205,6 @@ class ProgressionBuilder
         return $map[$quality] ?? [$quality];
     }
 
-    // =========================================================================
-    // CANDIDATE FILTERING
-    // =========================================================================
-
-    /**
-     * Filter candidates by group and root-only constraints.
-     */
-    private function filterCandidates(array $voicings, ?string $lockedGroup, bool $rootOnly): array
-    {
-        // Try structured group first
-        $filtered = array_filter($voicings, function ($v) use ($lockedGroup, $rootOnly) {
-            if ($this->isOpenVoicing($v)) return false;
-            if ($rootOnly && ($v->inversion ?? 'root') !== 'root') return false;
-            if ($lockedGroup && $this->voicingGroup($v->voicing_category ?? '') !== $lockedGroup) return false;
-            return $this->isStructuredGroup($this->voicingGroup($v->voicing_category ?? ''));
-        });
-
-        if (!empty($filtered)) return array_values($filtered);
-
-        // Fallback: non-open, any group
-        $filtered = array_filter($voicings, function ($v) use ($rootOnly) {
-            if ($this->isOpenVoicing($v)) return false;
-            if ($rootOnly && ($v->inversion ?? 'root') !== 'root') return false;
-            return true;
-        });
-
-        return array_values(!empty($filtered) ? $filtered : $voicings);
-    }
-
     /**
      * Apply harmonic suitability filter for a chord slot.
      * Removes voicings with harmonically inappropriate extensions.
@@ -1167,109 +1248,25 @@ class ProgressionBuilder
     }
 
     // =========================================================================
-    // PICK BEST VOICE-LED VOICING (4-level funnel)
+    // ANCHOR-FREE LATTICE
     // =========================================================================
 
-    /**
-     * Pick the voicing from candidates with the best VL score to anchor.
-     *
-     * Candidate pools (each falls back to next if empty):
-     *   A: same group AND same upper string set
-     *   B: same group, any string set
-     *   C: any structured non-open voicing
-     *   D: anything
-     *
-     * Within the winning pool, if extensions mode is on, prefer voicings
-     * with extensions — but fall back to full pool if none qualify.
-     */
-    private function pickBestVL(
-        object $anchor,
-        array $candidates,
-        int $level,
+    private function buildAnchorFreeLattice(
+        array $chordVoicings,
         ?string $group,
         bool $rootOnly,
-        bool $preferExtensions
-    ): ?object {
-        if (empty($candidates)) return null;
-
-        $anchorSet = $this->upperStringSet($anchor);
-
-        $rootFilter = function ($v) use ($rootOnly) {
-            if (!$rootOnly) return true;
-            return ($v->inversion ?? 'root') === 'root';
-        };
-
-        // Pool A: same group + same string set
-        $poolA = array_filter($candidates, function ($v) use ($group, $anchorSet, $rootFilter) {
-            if ($this->isOpenVoicing($v)) return false;
-            if (!$rootFilter($v)) return false;
-            if ($group && $this->voicingGroup($v->voicing_category ?? '') !== $group) return false;
-            return $this->upperStringSet($v) === $anchorSet;
-        });
-
-        // Pool B: same group, any string set
-        $poolB = array_filter($candidates, function ($v) use ($group, $rootFilter) {
-            if ($this->isOpenVoicing($v)) return false;
-            if (!$rootFilter($v)) return false;
-            if ($group && $this->voicingGroup($v->voicing_category ?? '') !== $group) return false;
-            return true;
-        });
-
-        // Pool C: any structured non-open voicing
-        $poolC = array_filter($candidates, function ($v) use ($rootFilter) {
-            return !$this->isOpenVoicing($v)
-                && $rootFilter($v)
-                && $this->isStructuredGroup($this->voicingGroup($v->voicing_category ?? ''));
-        });
-
-        // Pool C': any non-open
-        $poolCp = array_filter($candidates, function ($v) use ($rootFilter) {
-            return !$this->isOpenVoicing($v) && $rootFilter($v);
-        });
-
-        // Pick first non-empty pool
-        $pool = !empty($poolA) ? array_values($poolA)
-              : (!empty($poolB) ? array_values($poolB)
-              : (!empty($poolC) ? array_values($poolC)
-              : (!empty($poolCp) ? array_values($poolCp)
-              : $candidates)));
-
-        // Extension preference (soft)
-        if ($preferExtensions) {
-            $extPool = array_filter($pool, function ($v) {
-                return !empty(trim($v->extensions ?? ''));
+        string $category
+    ): array {
+        $lattice = [];
+        foreach ($chordVoicings as $slotVoicings) {
+            $pool = array_filter($slotVoicings, function ($v) use ($rootOnly) {
+                if ($this->isOpenVoicing($v)) return false;
+                if ($rootOnly && ($v->inversion ?? 'root') !== 'root') return false;
+                return true;
             });
-            if (!empty($extPool)) $pool = array_values($extPool);
+            $lattice[] = array_values($pool);
         }
-
-        // Score within the chosen pool
-        $best = $pool[0];
-        $bestScore = 999;
-        foreach ($pool as $v) {
-            $s = $this->scoreVL($anchor, $v, $level);
-            if ($s < $bestScore) {
-                $bestScore = $s;
-                $best = $v;
-            }
-        }
-
-        // Cross-pool rescue: if a voicing from a lower-priority pool scores
-        // significantly better, break the group lock
-        $rescueThreshold = 4.0;
-        if ($bestScore > $rescueThreshold) {
-            $rescuePool = array_filter($candidates, function ($v) use ($pool) {
-                return !$this->isOpenVoicing($v) && !in_array($v, $pool, true);
-            });
-            foreach ($rescuePool as $v) {
-                $s = $this->scoreVL($anchor, $v, $level);
-                if ($s < $bestScore - $rescueThreshold) {
-                    $bestScore = $s;
-                    $best = $v;
-                }
-            }
-        }
-
-        return $best;
+        return $lattice;
     }
 
     // =========================================================================
@@ -1497,35 +1494,6 @@ class ProgressionBuilder
             $score += array_sum($resPenalties);
         }
 
-        // ── 1b. WRONG-ALTERATION PENALTIES ──────────────────────────
-
-        // Dom→minor: natural 13/9/#9 on source clash
-        if ($targetIsMinor) {
-            foreach ($pitchesA as $p) {
-                if (in_array($p['label'], ['13', '6'], true)) $score += 10;
-                if (in_array($p['label'], ['9', '#9'], true)) $score += 10;
-            }
-        }
-
-        // #11 on major tonic target
-        if ($targetIsMaj) {
-            foreach ($pitchesB as $p) {
-                if ($p['label'] === '#11') $score += 10;
-            }
-        }
-
-        // Natural 9 on half-dim (source or target)
-        if ($sourceIsHalfDim) {
-            foreach ($pitchesA as $p) {
-                if ($p['label'] === '9') $score += 8;
-            }
-        }
-        if ($this->isHalfDimQuality($qualityB)) {
-            foreach ($pitchesB as $p) {
-                if ($p['label'] === '9') $score += 8;
-            }
-        }
-
         // ── 2. GENERAL GUIDE TONE PROXIMITY (fallback) ──────────────
 
         if (empty($resPenalties)) {
@@ -1586,6 +1554,312 @@ class ProgressionBuilder
         }
 
         return round($score, 2);
+    }
+
+    public function costBetween(object $v1, object $v2, array $context = []): float
+    {
+        $breakdown = $this->costBreakdown($v1, $v2, $context);
+        return $breakdown['total'];
+    }
+
+    private function costBreakdown(object $v1, object $v2, array $context = []): array
+    {
+        $weights = $this->costWeights($context['weight_overrides'] ?? [], $context['category'] ?? self::CATEGORY_DEFAULT);
+        $rawVoiceLeading = $this->scoreVL($v1, $v2, $context['vlLevel'] ?? 1);
+
+        $terms = [
+            'simplicity' => $this->costSimplicity($v2, $context),
+            'position' => $this->costPosition($v1, $v2),
+            'bass_motion' => $this->costBassMotion($v1, $v2),
+            'common_tone' => $this->costCommonTone($v1, $v2),
+            'voice_leading' => $this->boundedCost($rawVoiceLeading / self::SCORE_VL_NORMALIZER),
+            'group_continuity' => $this->costGroupContinuity($v1, $v2),
+            'register' => $this->costRegister($v2, $context),
+        ];
+
+        $weighted = [];
+        $total = 0.0;
+        foreach ($terms as $term => $value) {
+            $weighted[$term] = round($value * ($weights[$term] ?? 0.0), 4);
+            $total += $weighted[$term];
+        }
+
+        return array_merge($terms, [
+            'raw_voice_leading' => $rawVoiceLeading,
+            'weighted' => $weighted,
+            'weighted_total' => round($total, 4),
+            'total' => round($total, 4),
+        ]);
+    }
+
+    private function costWeights(array $overrides, string $category = self::CATEGORY_DEFAULT): array
+    {
+        $weights = self::COST_WEIGHTS;
+        if (isset(self::CATEGORY_REGISTER_WEIGHT[$category])) {
+            $weights['register'] = self::CATEGORY_REGISTER_WEIGHT[$category];
+        }
+        return array_merge($weights, array_intersect_key($overrides, $weights));
+    }
+
+    private function costRegister(object $voicing, array $context): float
+    {
+        $category = $context['category'] ?? self::CATEGORY_DEFAULT;
+        $target = self::CATEGORY_REGISTER_TARGET[$category] ?? 5;
+        $pos = $voicing->start_fret ?? $voicing->position ?? null;
+        if ($pos === null) return 0.0;
+        return $this->boundedCost(abs($pos - $target) / 12.0);
+    }
+
+    private function costSimplicity(object $voicing, array $context): float
+    {
+        $category = $context['category'] ?? self::CATEGORY_DEFAULT;
+        $quality = $this->resolveVoicingQuality($voicing);
+        $baseline = in_array($category, ['pop', 'classical'], true) ? 3 : 4;
+        if ($category === 'blues' && !$this->isDomQuality($quality)) {
+            $baseline = 3;
+        }
+
+        $noteCount = $this->soundingNoteCount($voicing);
+        $notePenalty = max(0, $noteCount - $baseline);
+        $extensionPenalty = $this->extensionCount($voicing);
+
+        return $this->boundedCost(($notePenalty * 0.5 + $extensionPenalty * 0.5) / 2.0);
+    }
+
+    private function costPosition(object $v1, object $v2): float
+    {
+        $pos1 = $v1->start_fret ?? $v1->position ?? null;
+        $pos2 = $v2->start_fret ?? $v2->position ?? null;
+        if ($pos1 === null || $pos2 === null) return 0.0;
+        return $this->boundedCost(min(abs($pos2 - $pos1), 5) / 5);
+    }
+
+    private function costBassMotion(object $v1, object $v2): float
+    {
+        $bass1 = $this->getBassNote($v1);
+        $bass2 = $this->getBassNote($v2);
+        if ($bass1 === null || $bass2 === null) return 0.0;
+
+        $interval = ($bass2 - $bass1 + 12) % 12;
+        if (in_array($interval, [0, 5, 7], true)) return 0.0;
+        if (in_array($interval, [3, 4, 9, 10], true)) return 0.1;
+        if (in_array($interval, [1, 2, 11], true)) return 0.2;
+        if ($interval === 6 && $this->isTritoneSubTransition($v1, $v2, $interval)) return 0.2;
+        return 1.0;
+    }
+
+    private function costCommonTone(object $v1, object $v2): float
+    {
+        $pitches1 = $this->buildPitchMap($v1);
+        $pitches2 = $this->buildPitchMap($v2);
+        if (empty($pitches1) || empty($pitches2)) return 1.0;
+
+        $sameString = 0;
+        foreach ($pitches1 as $p1) {
+            foreach ($pitches2 as $p2) {
+                if ($p1['string'] === $p2['string'] && $p1['midi'] === $p2['midi']) {
+                    $sameString++;
+                }
+            }
+        }
+
+        $pcSet1 = array_unique(array_map(fn($p) => $p['midi'] % 12, $pitches1));
+        $pcSet2 = array_unique(array_map(fn($p) => $p['midi'] % 12, $pitches2));
+        $anyString = count(array_intersect($pcSet1, $pcSet2));
+        $maxPossible = max(1, min(count($pitches1), count($pitches2)));
+
+        return $this->boundedCost(1 - (($sameString * 0.7 + $anyString * 0.3) / $maxPossible));
+    }
+
+    private function costGroupContinuity(object $v1, object $v2): float
+    {
+        $group1 = $this->voicingGroup($v1->voicing_category ?? '');
+        $group2 = $this->voicingGroup($v2->voicing_category ?? '');
+        if ($group1 === $group2) return 0.0;
+
+        $pos1 = $v1->start_fret ?? $v1->position ?? null;
+        $pos2 = $v2->start_fret ?? $v2->position ?? null;
+        $positionOk = $pos1 !== null && $pos2 !== null && abs($pos2 - $pos1) <= 2;
+        if ($positionOk && $this->soundingNoteCount($v1) === $this->soundingNoteCount($v2)) {
+            return 0.1;
+        }
+
+        return 0.5;
+    }
+
+    private function soundingNoteCount(object $voicing): int
+    {
+        $pitches = $this->buildPitchMap($voicing);
+        if (!empty($pitches)) return count($pitches);
+
+        $frets = (string) ($voicing->frets ?? '');
+        if ($frets !== '') {
+            return strlen(preg_replace('/[xX-]/', '', $frets));
+        }
+
+        return 0;
+    }
+
+    private function extensionCount(object $voicing): int
+    {
+        $extensions = trim((string) ($voicing->extensions ?? ''));
+        if ($extensions === '') return 0;
+        return count(array_filter(array_map('trim', preg_split('/[, ]+/', $extensions))));
+    }
+
+    private function boundedCost(float $value): float
+    {
+        return round(max(0.0, min(1.0, $value)), 4);
+    }
+
+    private function seedCost(object $candidate, string $category): float
+    {
+        $bias = self::CATEGORY_SEED_BIAS[$category] ?? self::CATEGORY_SEED_BIAS['jazz'];
+        $target = $bias['target_fret'];
+        $range = $bias['range'];
+        $pos = $candidate->start_fret ?? $candidate->position ?? 5;
+        return $this->boundedCost(abs($pos - $target) / $range);
+    }
+
+    private function isEdgeAdmissible(object $from, object $to, ?int $positionLimit = 3): bool
+    {
+        $pos1 = $from->start_fret ?? $from->position ?? null;
+        $pos2 = $to->start_fret ?? $to->position ?? null;
+        if ($positionLimit !== null && $pos1 !== null && $pos2 !== null && abs($pos2 - $pos1) > $positionLimit) {
+            return false;
+        }
+
+        $bass1 = $this->getBassNote($from);
+        $bass2 = $this->getBassNote($to);
+        if ($bass1 !== null && $bass2 !== null) {
+            $interval = ($bass2 - $bass1 + 12) % 12;
+            if (in_array($interval, [6, 8], true) && !$this->isTritoneSubTransition($from, $to, $interval)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function viterbiSearch(array $pools, array $context, ?int $positionLimit = 3): array
+    {
+        $n = count($pools);
+        if ($n === 0) return [];
+        if ($n === 1) {
+            if (empty($pools[0])) return [];
+            $category = $context['category'] ?? self::CATEGORY_DEFAULT;
+            $best = $pools[0][0];
+            $bestCost = $this->seedCost($best, $category);
+            foreach ($pools[0] as $c) {
+                $cost = $this->seedCost($c, $category);
+                if ($cost < $bestCost) {
+                    $bestCost = $cost;
+                    $best = $c;
+                }
+            }
+            return [$best];
+        }
+
+        $category = $context['category'] ?? self::CATEGORY_DEFAULT;
+        $INF = 999999.0;
+
+        $cost = [];
+        $prev = [];
+
+        $cost[0] = array_map(fn($c) => $this->seedCost($c, $category), $pools[0]);
+        $prev[0] = array_fill(0, count($pools[0]), null);
+
+        for ($i = 1; $i < $n; $i++) {
+            $cost[$i] = [];
+            $prev[$i] = [];
+            foreach ($pools[$i] as $k => $cCurr) {
+                $best = $INF;
+                $bestPrev = null;
+                foreach ($pools[$i - 1] as $j => $cPrev) {
+                    if (!$this->isEdgeAdmissible($cPrev, $cCurr, $positionLimit)) {
+                        continue;
+                    }
+                    $edgeCost = $this->costBetween($cPrev, $cCurr, $context);
+                    $total = $cost[$i - 1][$j] + $edgeCost;
+                    if ($total < $best) {
+                        $best = $total;
+                        $bestPrev = $j;
+                    }
+                }
+                $cost[$i][$k] = $best;
+                $prev[$i][$k] = $bestPrev;
+            }
+        }
+
+        $path = [];
+        $idx = null;
+        $minLast = $INF;
+        foreach ($cost[$n - 1] as $k => $c) {
+            if ($c < $minLast) {
+                $minLast = $c;
+                $idx = $k;
+            }
+        }
+
+        if ($idx === null || $minLast >= $INF) {
+            return [];
+        }
+
+        for ($i = $n - 1; $i >= 0; $i--) {
+            $path[$i] = $pools[$i][$idx];
+            $idx = $prev[$i][$idx];
+        }
+
+        return array_reverse($path);
+    }
+
+    private function viterbiSearchWithRelaxation(array $lattice, array $context, ?string $group, ?array &$diagnostics = null): array
+    {
+        $relaxations = [];
+        $diagnostics['slot_constraints'] = [];
+
+        $cascade = [
+            ['position' => 3, 'useCategory' => true],
+            ['position' => 4, 'useCategory' => true],
+            ['position' => 6, 'useCategory' => true],
+            ['position' => null, 'useCategory' => true],
+            ['position' => 6, 'useCategory' => false],
+            ['position' => null, 'useCategory' => false],
+        ];
+
+        foreach ($cascade as $step) {
+            $positionLimit = $step['position'];
+            $useCategory = $step['useCategory'];
+
+            $filteredLattice = [];
+            foreach ($lattice as $slotIdx => $pool) {
+                $slotPool = $pool;
+                if ($useCategory && $group) {
+                    $slotPool = array_filter($slotPool, fn($v) => $this->voicingGroup($v->voicing_category ?? '') === $group);
+                } elseif ($useCategory && !$group) {
+                    $slotPool = array_filter($slotPool, fn($v) => $this->isStructuredGroup($this->voicingGroup($v->voicing_category ?? '')));
+                }
+                $filteredLattice[$slotIdx] = array_values($slotPool);
+            }
+
+            $path = $this->viterbiSearch($filteredLattice, $context, $positionLimit);
+
+            if (!empty($path)) {
+                $relaxations[] = [
+                    'rule' => 'position',
+                    'from' => 3,
+                    'to' => $positionLimit,
+                    'category_relaxed' => !$useCategory,
+                ];
+                $diagnostics['slot_constraints'] = $relaxations;
+                return $path;
+            }
+        }
+
+        $relaxations[] = ['rule' => 'bass_motion_unsatisfiable', 'from' => 'legal', 'to' => 'unrestricted'];
+        $diagnostics['slot_constraints'] = $relaxations;
+
+        return [];
     }
 
     // =========================================================================
@@ -1795,8 +2069,11 @@ class ProgressionBuilder
 
     /**
      * Format a voicing object for API output.
+     * 
+     * @param object $v The voicing object from the DB
+     * @param string|null $contextChordName The chord_name from the context (after numeral upgrade)
      */
-    private function formatVoicing(object $v): array
+    private function formatVoicing(object $v, ?string $contextChordName = null): array
     {
         $dd = $v->diagram_data;
         if (is_string($dd)) {
@@ -1809,13 +2086,18 @@ class ProgressionBuilder
         $quality = $v->quality ?? '';
         $ext     = $v->extensions ?? '';
 
-        // Build a human-readable chord name for the UI
-        $chordName = $root;
-        if ($quality && !in_array($quality, ['maj', ''], true)) {
-            $chordName .= $quality === 'dom7' ? '7' : $quality;
-        }
-        if ($ext) {
-            $chordName .= '(' . $ext . ')';
+        // Use context chord_name if provided (preserves numeral upgrade), otherwise build from voicing quality
+        if ($contextChordName !== null) {
+            $chordName = $contextChordName;
+        } else {
+            // Build a human-readable chord name for the UI
+            $chordName = $root;
+            if ($quality && !in_array($quality, ['maj', ''], true)) {
+                $chordName .= $quality === 'dom7' ? '7' : $quality;
+            }
+            if ($ext) {
+                $chordName .= '(' . $ext . ')';
+            }
         }
 
         return [

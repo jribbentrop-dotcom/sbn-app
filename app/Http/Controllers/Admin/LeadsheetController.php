@@ -16,6 +16,7 @@ use App\Services\HarmonicContext;
 use Illuminate\Http\Request;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Services\VoicingMaterializer;
 use Illuminate\Support\Str;
 
@@ -354,7 +355,7 @@ class LeadsheetController extends Controller
         \App\Services\MidiTranscriptionService $transcriber,
         \App\Services\VoicingCrossref $crossref
     ) {
-        set_time_limit(120);
+        set_time_limit(600);
 
         $validated = $request->validate([
             'title'         => 'required|string|max:255',
@@ -366,6 +367,7 @@ class LeadsheetController extends Controller
             'rhythm_override' => 'nullable|string|max:50',
             'mode'          => 'nullable|string|in:quick,assistant,audio',
             'youtube_id'    => 'nullable|string',
+            'ai_cleanup'    => 'nullable|boolean',
         ]);
 
         if (($validated['mode'] ?? '') === 'audio') {
@@ -390,14 +392,28 @@ class LeadsheetController extends Controller
                 'tempo'         => (int)round($rawResult['tempo'] ?? 120),
                 'timeSignature' => '4/4',
                 'source_note'   => 'AI Audio Transcription from YouTube (ID: ' . $validated['youtube_id'] . ')',
-                'sections'      => []
+                'sections'      => [],
+                'videoSync'     => [
+                    'videoId'     => $validated['youtube_id'],
+                    'videoType'   => 'youtube',
+                    'audioSource' => 'video',
+                    'mappings'    => []
+                ]
             ];
 
             $currentSection = ['label' => 'A', 'bars' => []];
             $beatsPerBar = 4;
             $tempBar = ['chords' => []];
+            $mappings = [];
 
             foreach ($rawResult['beats'] as $i => $beat) {
+                if ($i % $beatsPerBar === 0) {
+                    $mappings[] = [
+                        'measureIndex' => (int)($i / $beatsPerBar),
+                        'videoTime'    => (float)$beat['start']
+                    ];
+                }
+
                 $pitches = $beat['notes'];
                 if (!empty($pitches)) {
                     $idResult = $crossref->identifyFromMidi($pitches);
@@ -425,6 +441,52 @@ class LeadsheetController extends Controller
                 $currentSection['bars'][] = ['chords' => [['label' => '/', 'beat' => 1]]];
             }
             $analysis['sections'][] = $currentSection;
+            $analysis['videoSync']['mappings'] = $mappings;
+
+            // Reconstruct melody from raw MIDI notes
+            $melody = [];
+            if (!empty($rawResult['notes']) && !empty($rawResult['beat_times'])) {
+                foreach ($rawResult['notes'] as $note) {
+                    $startTick = $this->timeToTicks($note['start'], $rawResult['beat_times']);
+                    $endTick   = $this->timeToTicks($note['end'],   $rawResult['beat_times']);
+                    
+                    // Quantize to nearest 16th note (120 ticks)
+                    $startTick = (int)round($startTick / 120) * 120;
+                    $endTick   = (int)round($endTick / 120) * 120;
+                    $ticks     = max(120, $endTick - $startTick);
+
+                    $noteInfo = $this->midiToNote($note['pitch']);
+                    $tabInfo  = $this->midiToTab($note['pitch']);
+
+                    $melody[] = [
+                        'tick'         => $startTick,
+                        'pitch'        => $noteInfo['pitch'],
+                        'octave'       => $noteInfo['octave'],
+                        'duration'     => $this->ticksToDuration($ticks),
+                        'ticks'        => $ticks,
+                        'string'       => $tabInfo['string'],
+                        'fret'         => $tabInfo['fret'],
+                        'isRest'       => false,
+                        'voice'        => 1,
+                        'tieStart'     => false,
+                        'tieStop'      => false,
+                        'isChordNote'  => false,
+                    ];
+                }
+                // Sort by tick
+                usort($melody, fn($a, $b) => $a['tick'] <=> $b['tick']);
+            }
+            $analysis['melody_data'] = $melody;
+
+            // Optional: AI Refinement (Musicology Pass)
+            if (!empty($validated['ai_cleanup'])) {
+                try {
+                    $analysis = $this->musicalizeTranscription($analysis, $lookup);
+                } catch (\Exception $e) {
+                    \Log::error('[LeadsheetController] AI Cleanup failed: ' . $e->getMessage());
+                    // Fallback to raw transcription on failure
+                }
+            }
         } else {
             try {
                 $analysis = $lookup->lookup($validated);
@@ -464,9 +526,14 @@ class LeadsheetController extends Controller
 
                 if (!empty($clean)) {
                     $materialized = $materializer->materialize($clean, $analysis['timeSignature'], $rhythmModel);
-                    $tabXml = $materialized['tab_xml'];
                     $jsonDataArray['chordVoicings'] = $materialized['voicings'];
-                    $jsonDataArray['melody'] = $materialized['melody'];
+                    
+                    // In audio mode, prioritize the transcribed melody over auto-generated comping.
+                    if (($validated['mode'] ?? '') !== 'audio' || empty($jsonDataArray['melody'])) {
+                        $tabXml = $materialized['tab_xml'];
+                        $jsonDataArray['melody'] = $materialized['melody'];
+                    }
+
                     if ($rhythmModel) {
                         $jsonDataArray['rhythmPattern'] = $rhythmModel->toPlayerData();
                     }
@@ -497,7 +564,8 @@ class LeadsheetController extends Controller
             ->route('admin.leadsheets.edit', $leadsheet)
             ->with('success', 'Leadsheet drafted from lookup. Source: ' . ($analysis['source_note'] ?? 'unknown'))
             ->with('lookup_confidence', $analysis['confidence'] ?? 'medium')
-            ->with('lookup_alternatives', $analysis['alternatives'] ?? []);
+            ->with('lookup_alternatives', $analysis['alternatives'] ?? [])
+            ->with('open_video_sidebar', !empty($validated['youtube_id']));
     }
 
 
@@ -988,6 +1056,152 @@ class LeadsheetController extends Controller
         ]);
     }
 
+    protected function timeToTicks($time, $beatTimes)
+    {
+        $ppq = 480;
+        $numBeats = count($beatTimes);
+        if ($time <= $beatTimes[0]) return 0;
+        
+        $lo = 0; $hi = $numBeats - 1;
+        while ($lo < $hi - 1) {
+            $mid = (int)(($lo + $hi) / 2);
+            if ($beatTimes[$mid] <= $time) $lo = $mid;
+            else $hi = $mid;
+        }
+        
+        $aTime = $beatTimes[$lo];
+        $bTime = $lo + 1 < $numBeats ? $beatTimes[$lo + 1] : $aTime + 0.5;
+        
+        $t = ($time - $aTime) / max(0.01, $bTime - $aTime);
+        return (int)round(($lo + $t) * $ppq);
+    }
 
+    protected function midiToNote($midi)
+    {
+        $names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        return [
+            'pitch' => $names[$midi % 12],
+            'octave' => (int)floor($midi / 12) - 1
+        ];
+    }
+
+    protected function midiToTab($midi)
+    {
+        $stringPitches = [64, 59, 55, 50, 45, 40]; // 1(e) to 6(E)
+        foreach ($stringPitches as $i => $base) {
+            $fret = $midi - $base;
+            if ($fret >= 0 && $fret <= 15) {
+                return ['string' => $i + 1, 'fret' => $fret];
+            }
+        }
+        return ['string' => 6, 'fret' => max(0, $midi - 40)];
+    }
+
+    protected function ticksToDuration($ticks)
+    {
+        if ($ticks >= 1920) return 'w';
+        if ($ticks >= 960)  return 'h';
+        if ($ticks >= 480)  return 'q';
+        if ($ticks >= 240)  return 'e';
+        return 's';
+    }
+
+    /**
+     * Refine a raw audio transcription using Gemini.
+     * Fixes misidentified chords, identifies song structure, and simplifies rhythms.
+     */
+    protected function musicalizeTranscription(array $rawAnalysis, SongLookup $lookup): array
+    {
+        $client = app(LLM\LookupClient::class);
+        
+        $systemPrompt = <<<PROMPT
+You are a master music transcriber and theorist. I have a raw AI transcription of a song. 
+The rhythmic timing is slightly 'noisy' and some chords might be misidentified. 
+Please 'musicalize' this data into a standard leadsheet format.
+
+## RULES:
+1. **STRUCTURALIZATION**: Identify the logical song sections (Intro, Verse, Chorus, Bridge, Solo, Outro, etc.) based on the chord/melody patterns.
+2. **HARMONIC CORRECTION**: Correct any obvious misidentifications (e.g. accidental chords, wrong extensions). Prefer standard functional harmony unless it's a jazz standard with specific substitutions.
+3. **RHYTHMIC SIMPLIFICATION**: The provided 'tick' values for melody notes are raw. Please 'quantize' them in your mind to standard musical phrases. Return a CLEAN melody array where notes fall on standard 8th/16th note grids.
+4. **FORMAT**: You MUST return the data in the exact same IntermediateAnalysis schema as the input.
+
+PROMPT;
+
+        $userPrompt = "Raw Transcription Data for '{$rawAnalysis['title']}':\n\n";
+        $userPrompt .= json_encode($rawAnalysis, JSON_PRETTY_PRINT);
+
+        // We use the same schema as SongLookup
+        $schema = [
+            'type' => 'OBJECT',
+            'properties' => [
+                'title' => ['type' => 'STRING'],
+                'composer' => ['type' => 'STRING', 'nullable' => true],
+                'key' => ['type' => 'STRING'],
+                'tempo' => ['type' => 'INTEGER'],
+                'timeSignature' => ['type' => 'STRING'],
+                'sections' => [
+                    'type' => 'ARRAY',
+                    'items' => [
+                        'type' => 'OBJECT',
+                        'properties' => [
+                            'name' => ['type' => 'STRING'],
+                            'bars' => [
+                                'type' => 'ARRAY',
+                                'items' => [
+                                    'type' => 'OBJECT',
+                                    'properties' => [
+                                        'chords' => [
+                                            'type' => 'ARRAY',
+                                            'items' => [
+                                                'type' => 'OBJECT',
+                                                'properties' => [
+                                                    'label' => ['type' => 'STRING'],
+                                                    'beats' => ['type' => 'INTEGER'],
+                                                ],
+                                                'required' => ['label', 'beats']
+                                            ]
+                                        ]
+                                    ],
+                                    'required' => ['chords']
+                                ]
+                            ]
+                        ],
+                        'required' => ['name', 'bars']
+                    ]
+                ],
+                'melody_data' => [
+                    'type' => 'ARRAY',
+                    'items' => [
+                        'type' => 'OBJECT',
+                        'properties' => [
+                            'tick' => ['type' => 'INTEGER'],
+                            'pitch' => ['type' => 'STRING'],
+                            'octave' => ['type' => 'INTEGER'],
+                            'duration' => ['type' => 'STRING'],
+                            'ticks' => ['type' => 'INTEGER'],
+                            'string' => ['type' => 'INTEGER'],
+                            'fret' => ['type' => 'INTEGER'],
+                            'isRest' => ['type' => 'BOOLEAN'],
+                        ]
+                    ]
+                ],
+                'source_note' => ['type' => 'STRING']
+            ],
+            'required' => ['title', 'key', 'timeSignature', 'sections', 'source_note']
+        ];
+
+        $response = $client->complete($systemPrompt, $userPrompt, $schema, [
+            'timeoutSeconds' => 60
+        ]);
+
+        $refined = $response['data'];
+        
+        // Preserve videoSync if it was stripped
+        if (!isset($refined['videoSync']) && isset($rawAnalysis['videoSync'])) {
+            $refined['videoSync'] = $rawAnalysis['videoSync'];
+        }
+
+        return $refined;
+    }
 }
 

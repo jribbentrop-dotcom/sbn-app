@@ -221,26 +221,32 @@ class AuditProgressions extends Command
         }
 
         // Flag 3: over-extended triads
-        $numerals = preg_split('/\s*,\s*/', $prog->numerals);
-        foreach ($selections as $i => $s) {
-            $numeral = $numerals[$i] ?? '';
-            $isPlainTriad = in_array($numeral, self::PLAIN_TRIAD_NUMERALS, true);
-            if (!$isPlainTriad) continue;
+        // Skip for jazz/latin categories where plain numerals are intentionally upgraded to 7-chords
+        $category = $result['diagnostics']['category_normalized'] ?? $result['options']['category'] ?? null;
+        $skipOverExtended = in_array($category, ['jazz', 'latin'], true);
+        
+        if (!$skipOverExtended) {
+            $numerals = preg_split('/\s*,\s*/', $prog->numerals);
+            foreach ($selections as $i => $s) {
+                $numeral = $numerals[$i] ?? '';
+                $isPlainTriad = in_array($numeral, self::PLAIN_TRIAD_NUMERALS, true);
+                if (!$isPlainTriad) continue;
 
-            $v = $s['voicing'] ?? null;
-            if (!$v) continue;
-            $frets = $v['frets'] ?? '';
-            $soundingCount = strlen(str_replace('x', '', strtolower($frets)));
-            $ext = trim($v['extensions'] ?? '');
-            $hasRichExt = false;
-            foreach (self::EXTENSION_LABELS_RICH as $label) {
-                if (str_contains($ext, $label)) { $hasRichExt = true; break; }
-            }
-            if ($soundingCount >= 4 && $hasRichExt) {
-                $flags[] = [
-                    'kind' => 'over_extended_triad',
-                    'detail' => "Numeral '$numeral' (plain triad) at index $i got voicing {$v['chord_name']} with extensions '$ext' ($soundingCount sounding notes)",
-                ];
+                $v = $s['voicing'] ?? null;
+                if (!$v) continue;
+                $frets = $v['frets'] ?? '';
+                $soundingCount = strlen(str_replace('x', '', strtolower($frets)));
+                $ext = trim($v['extensions'] ?? '');
+                $hasRichExt = false;
+                foreach (self::EXTENSION_LABELS_RICH as $label) {
+                    if (str_contains($ext, $label)) { $hasRichExt = true; break; }
+                }
+                if ($soundingCount >= 4 && $hasRichExt) {
+                    $flags[] = [
+                        'kind' => 'over_extended_triad',
+                        'detail' => "Numeral '$numeral' (plain triad) at index $i got voicing {$v['chord_name']} with extensions '$ext' ($soundingCount sounding notes)",
+                    ];
+                }
             }
         }
 
