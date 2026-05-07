@@ -529,4 +529,21 @@ class SongLibraryController extends Controller
             'eduChordQualities' => $edu->allChordQualities(), // NEW: edu blurbs
         ]);
     }
+
+    public function cinema(Leadsheet $leadsheet)
+    {
+        return Inertia::render('Leadsheet/Cinema', [
+            'leadsheet' => [
+                'id'            => $leadsheet->id,
+                'slug'          => $leadsheet->slug,
+                'title'         => $leadsheet->title,
+                'composer'      => $leadsheet->composer,
+                'songKey'       => $leadsheet->song_key,
+                'tempo'         => $leadsheet->tempo,
+                'timeSignature' => $leadsheet->time_signature,
+                'jsonData'      => $leadsheet->parsed_data,
+            ],
+            'classicUrl' => route('library.songs.viewer', ['leadsheet' => $leadsheet->slug]),
+        ]);
+    }
 }

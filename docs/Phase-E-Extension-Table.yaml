@@ -1,0 +1,603 @@
+# Phase E — Extension & Functional Voice-Leading Table
+#
+# Companion to SBN-Builder-Reference.md §5.2 and §8.
+#
+# This file is the COMPLETE reference for the *functional* voice-leading
+# layer — the tension-and-resolution logic that fires only on Pass 2
+# (option-tone upgrade). It does NOT replace:
+#   - §8.5 c_voice_leading (generic per-voice semitone distance)
+#   - §8.4 c_common_tone (shared-pitch retention)
+#   - §8.2 c_position    (fretboard hand-position locality)
+#   - §8.3 c_bass_motion (bass-line motion)
+#   - §8.7 c_register    (absolute fretboard register pull)
+#
+# Three sections:
+#   1. recommended_extensions — per functional context, ordered by preference
+#   2. avoid_tones            — hard filters at candidate-pool level
+#   3. named_resolutions      — guide-tone resolutions with stable IDs and bonuses
+#
+# Every entry that fires during Viterbi is logged by ID so that audit can
+# answer "why did Pass 2 win on slot N."
+
+version: 1
+schema_owner: builder-refactor-spec-§6.2
+
+# --------------------------------------------------------------------------
+# 1. Recommended extensions
+# --------------------------------------------------------------------------
+# Keys:
+#   role        — functional role of THIS chord
+#   target_role — functional role of the NEXT chord (null = terminal / N/A)
+#   key_mode    — major | minor | any
+#   extensions  — ordered list; first is most preferred
+#                 each entry: { tones: [..], priority: 1..5, notes: ".." }
+#
+# Priority semantics (consumed by the cost function as a soft bonus):
+#   5 = idiomatic / strongly recommended
+#   4 = common
+#   3 = acceptable
+#   2 = situational
+#   1 = rare / colorist
+#
+# Roles use the spec's Roman-numeral conventions. "dom_secondary" =
+# applied dominant resolving down a 5th to a non-tonic target.
+
+recommended_extensions:
+
+  # ---- Dominant family ---------------------------------------------------
+  - role: V7
+    target_role: Im        # V7 → minor tonic (Days of Wine and Roses, Autumn Leaves)
+    key_mode: minor
+    extensions:
+      - { tones: [b9, b13],     priority: 5, notes: "altered-dominant idiom into minor" }
+      - { tones: [b9],          priority: 5 }
+      - { tones: [b13],         priority: 4 }
+      - { tones: [b9, "#9"],    priority: 3, notes: "fully altered, jazz-modern" }
+      - { tones: ["#9", b13],   priority: 3 }
+    forbid: [9, 13]            # naturals imply major resolution
+
+  - role: V7
+    target_role: Imaj7      # V7 → major tonic (most jazz standards)
+    key_mode: major
+    extensions:
+      - { tones: [9, 13],       priority: 5, notes: "default jazz dominant" }
+      - { tones: [13],          priority: 4 }
+      - { tones: [9],           priority: 4 }
+      - { tones: [9, "#11"],    priority: 2, notes: "Lydian dominant color, rare" }
+    forbid: [b9, b13]          # avoid minor-resolution tensions
+
+  - role: V7
+    target_role: V7         # II7 → V7 cycle, or V7/V → V7
+    key_mode: any
+    extensions:
+      - { tones: [9, 13],       priority: 5 }
+      - { tones: ["#9"],        priority: 3, notes: "Rhythm-Changes bridge style" }
+      - { tones: [b13],         priority: 2 }
+
+  - role: V7
+    target_role: bVImaj7    # backdoor / deceptive resolution
+    key_mode: major
+    extensions:
+      - { tones: [b9],          priority: 4 }
+      - { tones: [b9, b13],     priority: 4 }
+
+  - role: bII7              # tritone substitute (e.g. bII7 → I)
+    target_role: Imaj7
+    key_mode: any
+    extensions:
+      - { tones: [9, "#11"],    priority: 5, notes: "Lydian-dominant idiom for tritone sub" }
+      - { tones: ["#11"],       priority: 4 }
+    forbid: [b9, b13]          # the tritone is already doing the work
+
+  - role: bVII7             # backdoor dominant (Lady Bird, Take the A Train coda)
+    target_role: Imaj7
+    key_mode: major
+    extensions:
+      - { tones: [9, 13],       priority: 5 }
+      - { tones: [9],           priority: 4 }
+      - { tones: ["#11"],       priority: 3 }
+
+      
+  - role: bVI7             # minor blues dominant
+    target_role: V7
+    key_mode: minor
+    extensions:
+      - { tones: [9, 13],       priority: 5 }
+      - { tones: [9],           priority: 4 }
+      - { tones: ["#11"],       priority: 3 }
+    forbid: [b9, b13]          
+
+
+  # Secondary dominants (V7/ii, V7/iii, V7/IV, V7/vi, etc.) are NOT
+  # listed individually. Their extension choice is determined by the
+  # quality of the *target* chord — see `secondary_dominant_routing`
+  # below the recommended_extensions list. Routing resolves a secondary
+  # dominant to one of the V7 entries above by inspecting target
+  # quality at numeral-upgrade time.
+
+  # ---- Tonic family ------------------------------------------------------
+  - role: Imaj7
+    target_role: any
+    key_mode: major
+    extensions:
+      - { tones: [9],           priority: 5 }
+      - { tones: [9, 13],       priority: 4 }
+      - { tones: ["#11"],       priority: 1, notes: "Lydian-flavored contexts only" }
+    forbid: [b9, 11]           # 11 clashes with the major 3rd
+
+  - role: Im7               # tonic minor (Aeolian / Dorian)
+    target_role: any
+    key_mode: minor
+    extensions:
+      - { tones: [9],           priority: 5 }
+      - { tones: [11],          priority: 1, notes: "Dorian color when target supports it" }
+    forbid: [b9]
+
+  - role: ImMaj7            # tonic minor with major 7 (melodic-minor tonic)
+    target_role: any
+    key_mode: minor
+    extensions:
+      - { tones: [9],           priority: 4 }
+    forbid: [b9, 11]
+
+  - role: I6                # major-tonic 6 chord (NO 7th sounded — distinct from Imaj7+13)
+    target_role: any        # pop / Brazilian / swing-era tonic
+    key_mode: major
+    extensions:
+      - { tones: [9],           priority: 5, notes: "6/9 — the idiomatic upgrade; voicing R-3-5-6-9, no 7" }
+      - { tones: [],            priority: 4, notes: "plain 6 — R-3-5-6, swing-era close" }
+    forbid: [b9, 11, 7, b7]   # explicit: no 7 of any kind on a 6-chord
+
+  - role: Im6               # minor-tonic 6 (Dorian-flavored — Wave, Black Orpheus)
+    target_role: any
+    key_mode: minor
+    extensions:
+      - { tones: [9],           priority: 5, notes: "m6/9 — the idiomatic Dorian-tonic voicing" }
+      - { tones: [],            priority: 4, notes: "plain m6 — R-b3-5-6" }
+    forbid: [b9, 11, 7, b7]   # m6 implies Dorian; b7 would push it to m7
+
+  # ---- Subdominant family -----------------------------------------------
+  - role: IVmaj7
+    target_role: any
+    key_mode: major
+    extensions:
+      - { tones: [9],           priority: 5 }
+      - { tones: ["#11"],       priority: 4, notes: "Lydian IV — very idiomatic" }
+      - { tones: [9, "#11"],    priority: 4 }
+    forbid: [11]               # natural 11 clashes with the major 3rd
+
+  - role: IVm7              # modal-interchange minor IV
+    target_role: any
+    key_mode: major
+    extensions:
+      - { tones: [9],           priority: 4 }
+      - { tones: [11],          priority: 3 }
+    forbid: [b9]
+
+  - role: IIm7
+    target_role: V7         # the canonical ii–V
+    key_mode: major
+    extensions:
+      - { tones: [9],           priority: 5 }
+      - { tones: [9, 11],       priority: 3, notes: "11 OK on m7 but clutters voicing" }
+    forbid: [b9]
+
+  - role: IIm7b5            # half-diminished (minor-key ii)
+    target_role: V7
+    key_mode: minor
+    extensions:
+      - { tones: [11],          priority: 4, notes: "the m7b5 idiomatic tone" }
+      - { tones: [b13],         priority: 2, notes: "Locrian #2/natural-13 distinction handled at numeral level" }
+    forbid: [9]                # natural 9 is the classic m7b5 avoid tone
+
+  # ---- Diminished --------------------------------------------------------
+  - role: dim7              # any o7 (passing #ivo7, vii°7, etc.)
+    target_role: any
+    key_mode: any
+    extensions:
+      - { tones: [],            priority: 4, notes: "default — dim7 is already saturated" }
+      - { tones: [b13],         priority: 3, notes: "nice option on dim7 (the natural-13 / m6 over the lower triad)" }
+    forbid: [9, b9, "#9", 11, "#11", 13]
+
+
+# --------------------------------------------------------------------------
+# 1b. Secondary-dominant routing
+# --------------------------------------------------------------------------
+# Any applied dominant (V7/ii, V7/iii, V7/IV, V7/V, V7/vi, V7/bVI, etc.)
+# resolves to one of the V7 entries above by inspecting the QUALITY of
+# the target chord. The degree of the secondary dominant doesn't matter
+# for tension choice; only what it resolves to does.
+#
+# Resolution algorithm at numeral-upgrade time:
+#   1. Detect that source.role is a dominant 7 not on scale-degree V.
+#   2. Look up the next chord's quality (after Pass 1 numeral upgrade).
+#   3. Route to the matching V7 entry below.
+#
+# If the target chord is not yet known (last slot, or the next slot
+# hasn't been resolved yet), fall back to `default_when_target_unknown`.
+
+secondary_dominant_routing:
+  rules:
+    - { target_quality: minor7,    route_to: "V7 → Im (minor-target rules)" }
+    - { target_quality: minor7b5,  route_to: "V7 → Im (minor-target rules)" }
+    - { target_quality: minor6,    route_to: "V7 → Im (minor-target rules)" }
+    - { target_quality: minor,     route_to: "V7 → Im (minor-target rules)" }
+    - { target_quality: maj7,      route_to: "V7 → Imaj7 (major-target rules)" }
+    - { target_quality: "6",       route_to: "V7 → Imaj7 (major-target rules)" }
+    - { target_quality: "6/9",     route_to: "V7 → Imaj7 (major-target rules)" }
+    - { target_quality: major,     route_to: "V7 → Imaj7 (major-target rules)" }
+    - { target_quality: dom7,      route_to: "V7 → V7 (dominant-chain rules)" }
+    - { target_quality: dim7,      route_to: "V7 → Im (minor-target rules)" }
+  default_when_target_unknown:
+    route_to: "V7 → Imaj7 (major-target rules)"
+    reason: "Most secondary dominants in the corpus resolve to a major-quality target; safest default."
+
+
+# --------------------------------------------------------------------------
+# 2. Avoid tones
+# --------------------------------------------------------------------------
+# Hard candidate-pool filter (NOT a cost penalty). If a Pass-2 candidate's
+# extension list contains a tone forbidden for its (role, target_role,
+# key_mode), the voicing is removed from the pool entirely.
+#
+# Rationale: keeping these as hard filters prevents the cost function
+# from ever weighing "wrong tension" against "great voice leading" —
+# the tone simply isn't in scope. Mirrors the existing harmony filter's
+# deny-list approach.
+#
+# This section is the consolidated index for tooling; the per-context
+# `forbid:` lists above are authoritative.
+
+avoid_tones_index:
+  - { context: "Imaj7",          forbid: [b9, 11] }
+  - { context: "I6",             forbid: [b9, 11, 7, b7] }
+  - { context: "IVmaj7",         forbid: [11] }
+  - { context: "Im7",            forbid: [b9] }
+  - { context: "Im6",            forbid: [b9, 11, 7, b7] }
+  - { context: "ImMaj7",         forbid: [b9, 11] }
+  - { context: "IIm7",           forbid: [b9] }
+  - { context: "II7",            forbid: [b9, b13] }
+  - { context: "IVm7",           forbid: [b9] }
+  - { context: "IIm7b5",         forbid: [9] }
+  - { context: "V7 → Imaj7",     forbid: [b9, b13] }
+  - { context: "V7 → Im",        forbid: [9, 13] }
+  - { context: "bII7 → Imaj7",   forbid: [b9, b13] }
+  - { context: "dim7",           forbid: [9, b9, "#9", 11, "#11", 13] }
+ 
+
+# --------------------------------------------------------------------------
+# 3. Named voice-leading resolutions
+# --------------------------------------------------------------------------
+# Each entry is a guide-tone resolution that earns an EXTRA bonus during
+# Pass 2 cost evaluation, ON TOP OF §8.5 c_voice_leading. Composes
+# additively — a single transition can fire multiple resolutions
+# (e.g. b9→5 AND b7→3 on a V7→I both fire).
+#
+# Bonus weights are negative costs (smaller total = better); tuning
+# happens in Phase E.3 alongside the 10% Pass-2-vs-Pass-1 threshold.
+#
+# Each fire is logged by `id` so audit can answer "what made Pass 2 win."
+#
+# Required structure per entry:
+#   id                 — stable identifier, used in logs
+#   description        — human-readable
+#   source.role        — chord at slot N
+#   source.tone        — interval from source root that must be present
+#                        (must also exist in source voicing as an actual
+#                        sounded note, not just nominal chord tone)
+#   target.role        — chord at slot N+1
+#   target.tone        — interval from target root that must be present
+#                        in target voicing as an actual sounded note
+#   motion.semitones   — signed; negative = downward
+#   motion.same_voice  — true: must be the same voice (string) in both
+#                        voicings; false: any voice pair is fine
+#   bonus              — negative number; magnitude = strength of the bonus
+
+named_resolutions:
+
+  # ---- Dominant resolutions ---------------------------------------------
+  - id: vl.dom.b7_to_3
+    description: "V7 b7 falls to I 3 (the bedrock dominant resolution)"
+    source: { role: V7, tone: b7 }
+    target: { role: any_tonic, tone: 3 }    # 3 of major or b3 of minor
+    motion: { semitones: -1, same_voice: true }
+    bonus: -0.40
+
+  - id: vl.dom.3_to_root
+    description: "V7 3 rises to I root (leading-tone resolution)"
+    source: { role: V7, tone: 3 }
+    target: { role: any_tonic, tone: 1 }
+    motion: { semitones: +1, same_voice: true }
+    bonus: -0.30
+
+  - id: vl.dom.b13_to_5
+    description: "V7 b13 falls to I 9 (the reason to add b13 into minor)"
+    source: { role: V7, tone: b13 }
+    target: { role: Im, tone: 9 }
+    motion: { semitones: -1, same_voice: true }
+    bonus: -0.35
+
+  - id: vl.dom.b9_to_5
+    description: "V7 b9 falls to I 5 (alt-dom into minor)"
+    source: { role: V7, tone: b9 }
+    target: { role: Im, tone: 5 }
+    motion: { semitones: -1, same_voice: true }
+    bonus: -0.30
+
+  - id: vl.dom.13_to_9
+    description: "V7 13 falls to Imaj 9 (smooth natural-tension resolution)"
+    source: { role: V7, tone: 13 }
+    target: { role: Imaj7, tone: 9 }
+    motion: { semitones: -2, same_voice: true }
+    bonus: -0.20
+
+  - id: vl.dom.9_to_5
+    description: "V7 9 falls to Imaj 5"
+    source: { role: V7, tone: 9 }
+    target: { role: Imaj7, tone: 5 }
+    motion: { semitones: -2, same_voice: true }
+    bonus: -0.20
+
+  # ---- Tritone-sub resolution -------------------------------------------
+  - id: vl.tritone.sharp11_to_5
+    description: "bII7 #11 falls to I 5 (the Lydian-dom tritone-sub move)"
+    source: { role: bII7, tone: "#11" }
+    target: { role: Imaj7, tone: 5 }
+    motion: { semitones: 0, same_voice: true }
+    bonus: -0.35
+
+  - id: vl.tritone.b7_to_3
+    description: "bII7 b7 falls to I 3 (tritone-sub equivalent of the bedrock resolution)"
+    source: { role: bII7, tone: b7 }
+    target: { role: Imaj7, tone: 7 }
+    motion: { semitones: 0, same_voice: true }
+    bonus: -0.40
+
+  # ---- ii–V guide-tone chain --------------------------------------------
+  - id: vl.iiV.b7_to_3
+    description: "iim7 b7 falls to V7 3 (ii–V guide-tone descent)"
+    source: { role: IIm7, tone: b7 }
+    target: { role: V7, tone: 3 }
+    motion: { semitones: -1, same_voice: true }
+    bonus: -0.25
+
+  - id: vl.iiV.3_to_b7
+    description: "iim7 b3 stays as V7 b7 (common-tone bridge — already partly credited by §8.4)"
+    source: { role: IIm7, tone: b3 }
+    target: { role: V7, tone: b7 }
+    motion: { semitones: 0, same_voice: true }
+    bonus: -0.10        # small because §8.4 already rewards common tones
+
+    # ---- ii–V extension-tone resolution --------------------------------------------
+  - id: vl.iiV.9_to_b13
+    description: "iim7 9 falls to V7 b13 (ii–V ext-tone descent)"
+    source: { role: IIm7, tone: 9 }
+    target: { role: V7, tone: b13 }
+    motion: { semitones: -1, same_voice: true }
+    bonus: -0.25
+
+  - id: vl.iiV.5_to_b9
+    description: "iim7 5 falls as V7 b9 (ii–V ext-tone descent)"
+    source: { role: IIm7, tone: 5 }
+    target: { role: V7, tone: b9 }
+    motion: { semitones: -1, same_voice: true }
+    bonus: -0.25        
+
+  # ---- m7b5 specific ----------------------------------------------------
+  - id: vl.m7b5.11_to_b7
+    description: "iim7b5 11 to V7b9 (minor ii–V color)"
+    source: { role: IIm7b5, tone: 11 }
+    target: { role: V7, tone: b9 }
+    motion: { semitones: +1, same_voice: true }
+    bonus: -0.20
+
+  # ---- Tonic-side options ----------------------------------------------
+  - id: vl.tonic.maj7_to_3
+    description: "Imaj7 7 to IVmaj7 5 (smooth I→IV)"
+    source: { role: Imaj7, tone: 7 }
+    target: { role: IVmaj7, tone: 5 }
+    motion: { semitones: +1, same_voice: true }
+    bonus: -0.15
+
+  # ---- Backdoor --------------------------------------------------------
+  - id: vl.backdoor.b7_to_3
+    description: "bVII7 b7  Imaj 5 (backdoor cadence guide tone)"
+    source: { role: bVII7, tone: b7 }
+    target: { role: Imaj7, tone: 5 }
+    motion: { semitones: -1, same_voice: true }
+    bonus: -0.30
+
+  # ---- 6-chord resolutions ---------------------------------------------
+  - id: vl.tonic6.6_to_5
+    description: "I6 6 falls to V7 root via 5 (tonic 6 leading into dominant — e.g. C6 → G7)"
+    source: { role: I6, tone: 6 }
+    target: { role: V7, tone: 9 }      # I6's 6 = V7's 9 (same pitch class)
+    motion: { semitones: 0, same_voice: true }
+    bonus: -0.15
+
+  - id: vl.tonic6.6_to_b7
+    description: "Im6 6 falls to V7 b7 in minor-key turnaround (Im6 → V7 → Im)"
+    source: { role: Im6, tone: 6 }
+    target: { role: V7, tone: b7 }     # Im6's 6 = V7's b7 (cycle of 5ths)
+    motion: { semitones: 0, same_voice: true }
+    bonus: -0.20
+
+  - id: vl.tonic6.9_to_root
+    description: "I6/9 9 falls to IV root (Brazilian / bossa I6/9 → IV move)"
+    source: { role: I6, tone: 9 }
+    target: { role: IVmaj7, tone: 1 }
+    motion: { semitones: -2, same_voice: true }
+    bonus: -0.10
+
+
+# --------------------------------------------------------------------------
+# Audit hooks
+# --------------------------------------------------------------------------
+# When Viterbi selects Pass 2's path, the per-edge log records:
+#   - which named_resolutions[*].id fired on that edge
+#   - which recommended_extensions entry the chosen voicing matched
+#   - the per-component cost breakdown (§8 components + Phase E bonuses)
+#
+# This is what the §11 audit needs to verify "Pass 2 won for the right
+# reason," not just "Pass 2 won."
+
+
+# --------------------------------------------------------------------------
+# Implementation notes (for Windsurf)
+# --------------------------------------------------------------------------
+# This section answers the questions an implementer will hit on first
+# contact with the table. Spec authority belongs to SBN-Builder-Reference.md
+# §5.2, §7.5, §8; this section is operational.
+
+implementation_notes:
+
+  service_location:
+    namespace: "App\\Services\\Builder\\Phase E"
+    primary_class: "App\\Services\\Builder\\Phase E\\ExtensionTable"
+    loader: "Loads this YAML at container boot, caches the parsed result
+             in-memory for the request lifecycle. No DB persistence — the
+             YAML is the source of truth."
+    consumers:
+      - "App\\Services\\Builder\\NumeralUpgrader (§6.2 — Pass 2 numeral upgrade)"
+      - "App\\Services\\Builder\\CandidatePool (§7 / §5 — applies avoid_tones_index as filter)"
+      - "App\\Services\\Builder\\CostEvaluator (§8 — fires named_resolutions on each edge)"
+
+  # ------------------------------------------------------------------------
+  # Tone string → semitone offset
+  # ------------------------------------------------------------------------
+  # Every `tone` field in this YAML is a string drawn from this canonical
+  # alphabet. The integer value is the semitone offset above the chord root
+  # (NOT above the bass — chord root, mod 12).
+  #
+  # Implementer should expose this as `App\Services\Builder\Phase E\Interval`
+  # with `Interval::offset(string $tone): int`.
+  tone_to_semitone:
+    "1":     0     # root
+    "b3":    3
+    "3":     4
+    "5":     7
+    "b5":    6
+    "#5":    8
+    "6":     9     # = m7's b13 enharmonically; context determines meaning
+    "b7":    10
+    "7":     11
+    "b9":    13    # i.e. 1 semitone above the root, octave-displaced
+    "9":     14    # = root + 2, octave-displaced
+    "#9":    15
+    "11":    17
+    "#11":   18
+    "b13":   20
+    "13":    21
+  notes:
+    octave_displacement: |
+      For the purpose of "tone is sounded in voicing," octave doesn't
+      matter — match by pitch class (semitone offset mod 12). A b9 in the
+      voicing one octave above the root counts the same as a b9 a tenth
+      above the root.
+
+  # ------------------------------------------------------------------------
+  # "Tone is sounded in voicing" — the membership check
+  # ------------------------------------------------------------------------
+  # Both `recommended_extensions[*].tones` matching and `named_resolutions`
+  # firing depend on this check.
+  tone_membership_check:
+    algorithm: |
+      Given a voicing V (list of MIDI notes) and a chord with root R
+      (pitch class 0–11) and a tone string T:
+        1. offset = Interval::offset(T)             # 0–24
+        2. target_pc = (R + offset) mod 12
+        3. voicing_pcs = { note mod 12 for note in V where note != muted }
+        4. return target_pc ∈ voicing_pcs
+    do_not:
+      - "Do NOT derive tone presence from the chord NAME (e.g. 'G7b13').
+         Always derive from the actual MIDI notes — the voicing's
+         displayed name may not match what's sounded."
+      - "Do NOT count muted strings (Voicing::isMuted at that string)
+         as containing any pitch."
+
+  # ------------------------------------------------------------------------
+  # `same_voice: true` semantics
+  # ------------------------------------------------------------------------
+  # This was the most ambiguous part of the table. Pick the SECOND
+  # interpretation; the first was considered and rejected.
+  same_voice_definition:
+    chosen: "by_pitch_rank"
+    description: |
+      "Same voice" means same RANK in the pitch-sorted note list of each
+      voicing — bass-up. To check `vl.dom.b7_to_3` (V7 b7 → I 3) on the
+      transition from voicing V_n to V_{n+1}:
+        1. Sort V_n's sounded MIDI notes ascending → [b1, b2, ..., bk].
+        2. Sort V_{n+1}'s sounded MIDI notes ascending → [a1, a2, ..., am].
+        3. For some index i, b_i must be the b7 of V_n's chord AND
+           a_i must be the 3 of V_{n+1}'s chord.
+        4. The motion check (a_i - b_i == motion.semitones) must hold.
+      If the two voicings have different note counts, only indices in
+      range [0, min(k,m)) are tested.
+    rejected_alternative: |
+      "Same string" was rejected because drop2 vs drop3 voicings span
+      different string sets — a 'voice' that exists on string 6 in V_n
+      may have no counterpart on string 6 in V_{n+1}. Pitch-rank is
+      voicing-shape-agnostic and matches how voice leading is taught.
+    when_same_voice_is_false: |
+      For named_resolutions with `same_voice: false` (none currently —
+      reserved for future entries), the bonus fires if ANY voice pair
+      (i, j) satisfies the tone + motion constraints. Pitch-rank
+      indexing is irrelevant.
+
+  # ------------------------------------------------------------------------
+  # Recommended-extension matching (Pass 2 candidate scoring)
+  # ------------------------------------------------------------------------
+  extension_match_scoring: |
+    For a Pass-2 candidate voicing of role R into target T (key mode K):
+      1. Look up entries where role==R, target_role matches T or 'any',
+         key_mode matches K or 'any'. (Ranking: exact target_role beats
+         'any'; exact key_mode beats 'any'.)
+      2. Compute the sounded extension set E from the voicing
+         (intersection of voicing pitch classes with the canonical
+         extension tone set { b9, 9, #9, 11, #11, b13, 13 }).
+      3. Match E against the entries' `tones` lists. Best match = entry
+         whose `tones` set equals E exactly. Partial matches OK if no
+         exact match exists; score by overlap.
+      4. Bonus contribution to cost: -0.05 * priority. (priority 5 →
+         -0.25 bonus, priority 1 → -0.05 bonus. Tunable in E.1.6.)
+      5. If E contains any tone in the entry's `forbid` list, the
+         candidate is REMOVED from the pool (the avoid_tones_index
+         filter, applied earlier).
+
+  # ------------------------------------------------------------------------
+  # Bonus tuning regime (resolves E.1.6)
+  # ------------------------------------------------------------------------
+  bonus_tuning_regime:
+    method: "regression on existing admin-annotated progressions"
+    procedure: |
+      1. Collect 30–50 admin-annotated progressions across jazz/latin
+         categories that have known 'good' Pass-2 outputs (verified by
+         admin sign-off).
+      2. Run Phase E with the YAML's default bonus values. Record:
+         (a) does Pass 2 win on each, (b) which named_resolutions fire,
+         (c) does the chosen voicing's extension set match what admin
+         annotated.
+      3. For each progression where Pass 2 lost when it should have
+         won (or vice versa), inspect the cost breakdown. Adjust:
+           - bonus magnitudes on the named_resolutions involved
+           - priority * 0.05 multiplier in extension_match_scoring
+           - the §9.2 Pass-2-wins gate (already requires a fired
+             resolution; consider also requiring net cost improvement
+             above a small epsilon to avoid noise wins)
+      4. Re-run; iterate until the suite passes ≥ 90%.
+    do_not: |
+      Do NOT tune individual bonuses to win specific progressions
+      ('overfitting'). If a tweak helps one progression and hurts
+      another, prefer the one that's more representative of the
+      category. Document trade-offs in the audit log.
+
+  pre_implementation_checklist:
+    - "Confirm `Phase E\\Interval::offset()` agrees with the
+       tone_to_semitone table for every tone used in this YAML."
+    - "Confirm voicing → MIDI note conversion handles muted strings
+       and capo offsets correctly (existing utility — reuse, don't
+       reinvent)."
+    - "Confirm `Builder\\Pass1Output` exposes the resolved chord root
+       per slot in pitch-class form (0–11), not just chord name."
+    - "Confirm Viterbi's per-edge cost callback can accept and store
+       the list of fired resolution IDs (audit hook)."

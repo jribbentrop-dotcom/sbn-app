@@ -27,10 +27,16 @@
           >♫</button>
         </div>
 
-        <!-- Cinema view toggle placeholder (Step 8) -->
+        <!-- Cinema view toggle -->
         <div class="sbn-leadsheet-view-toggle">
           <button class="is-active" disabled>Classic</button>
-          <button disabled title="Cinema view — coming in Phase 10">Cinema</button>
+          <a
+            v-if="cinemaUrl"
+            :href="cinemaUrl"
+            class="sbn-leadsheet-view-toggle-link"
+            title="Cinema view"
+          >Cinema</a>
+          <button v-else disabled title="Cinema view">Cinema</button>
         </div>
       </div>
     </div>
@@ -174,6 +180,11 @@ const props = defineProps({
   embedded: {
     type: Boolean,
     default: false,
+  },
+  /** URL to the cinema view for this leadsheet (Phase 10). */
+  cinemaUrl: {
+    type: String,
+    default: null,
   },
 });
 
@@ -752,6 +763,23 @@ provide('globalIndexOf', (si, mi) => {
   background: var(--clr-accent-bg);
   color: var(--clr-accent);
   opacity: 1;
+}
+
+.sbn-leadsheet-view-toggle-link {
+  padding: 6px 12px;
+  border: 0;
+  border-left: 1px solid var(--clr-border);
+  background: var(--clr-surface);
+  cursor: pointer;
+  transition: background 0.15s;
+  text-decoration: none;
+  color: inherit;
+  font: inherit;
+  display: inline-block;
+}
+
+.sbn-leadsheet-view-toggle-link:hover {
+  background: var(--clr-surface-2);
 }
 
 /* Two-column layout - match library structure */

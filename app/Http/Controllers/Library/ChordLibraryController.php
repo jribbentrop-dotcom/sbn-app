@@ -97,6 +97,10 @@ class ChordLibraryController extends Controller
             $displayRoot = null; // ignore invalid values
         }
 
+        // Test switch — ?pass=2 runs the builder with extensions=true.
+        $pass = (int) $request->query('pass', 1);
+        $usePass2 = $pass === 2;
+
         $siblings = ChordDiagram::where('quality', $chord->quality)
             ->where('id', '!=', $chord->id)
             ->orderByDesc('popularity')
@@ -150,13 +154,18 @@ class ChordLibraryController extends Controller
         // tile shows the correct frets.
         $pinnedRoot = $displayRoot ?? ($chord->root_note ?? 'C');
 
-        if ($pinnedRoot !== ($chord->root_note ?? 'C')) {
-            $transposed = $this->shapeCalculator->calculateFrets($chord, $pinnedRoot);
-            $diagData       = $transposed['diagram_data'] ?? null;
-            $startFret      = $transposed['start_fret']   ?? ($chord->start_fret ?? 1);
-            $intervalLabels = $transposed['interval_labels'] ?? ($chord->interval_labels ?? '');
-            $notesField     = $transposed['notes'] ?? ($chord->notes ?? '');
-        } else {
+        // Always transpose — even when pinnedRoot matches the stored root_note.
+        // Legacy rows store diagram_data at arbitrary low frets but label the row
+        // root='C', so the raw start_fret is unreliable. The calculator is
+        // root-agnostic and re-derives start_fret from the bass interval, so
+        // round-tripping through it self-heals the label/data mismatch.
+        $transposed = $this->shapeCalculator->calculateFrets($chord, $pinnedRoot);
+        $diagData       = $transposed['diagram_data'] ?? null;
+        $startFret      = $transposed['start_fret']   ?? ($chord->start_fret ?? 1);
+        $intervalLabels = $transposed['interval_labels'] ?? ($chord->interval_labels ?? '');
+        $notesField     = $transposed['notes'] ?? ($chord->notes ?? '');
+
+        if (empty($diagData) || (empty($diagData['positions']) && empty($diagData['open']))) {
             $diagData = is_string($chord->diagram_data)
                 ? json_decode($chord->diagram_data, true)
                 : ($chord->diagram_data ?? []);
@@ -185,7 +194,7 @@ class ChordLibraryController extends Controller
         $candidateKeys = ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
 
         $progressions = $progressions
-            ->map(function ($p) use ($pinnedVoicing, $pinnedRoot, $chordQuality, $candidateKeys) {
+            ->map(function ($p) use ($pinnedVoicing, $pinnedRoot, $chordQuality, $candidateKeys, $usePass2) {
                 // Find the key in which this progression places a chord matching our
                 // pinned root + quality. This makes the surrounding chords harmonically
                 // related to the chord the user is looking at, instead of always C-based.
@@ -216,6 +225,7 @@ class ChordLibraryController extends Controller
 
                 $built = $this->progressionBuilder->buildVoicings($context, [
                     'category'      => $p->category,
+                    'extensions'    => $usePass2,
                     'pinnedSlot'    => $pinnedSlot,
                     'pinnedVoicing' => $pinnedSlot !== null ? $pinnedVoicing : null,
                 ]);
@@ -245,6 +255,7 @@ class ChordLibraryController extends Controller
             'siblings'     => $siblings,
             'songs'        => $songs,
             'progressions' => $progressions,
+            'builderPass'  => $usePass2 ? 2 : 1,
         ]);
     }
 

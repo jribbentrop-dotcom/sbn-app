@@ -61,32 +61,32 @@
                         <option value="original">Original Recording</option>
                     </select>
                 </div>
-
                 <div class="sbn-form-group">
                     <label>Lookup Mode</label>
                     <div style="display: flex; gap: 20px; margin-top: 8px;">
                         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                            <input type="radio" name="mode" value="quick" x-model="mode" :disabled="loading">
+                            <input type="radio" name="mode_display" value="search" x-model="modeDisplay" :disabled="loading" @change="mode = useResearch ? 'assistant' : 'quick'">
                             <div>
-                                <div style="font-weight: 600;">Quick Draft</div>
-                                <div style="font-size: 11px; color: #6b7280;">Fast, basic grid. (Free tier)</div>
+                                <div style="font-weight: 600;">AI Song Search</div>
+                                <div style="font-size: 11px; color: #6b7280;">Finds changes via LLM.</div>
                             </div>
                         </label>
                         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                            <input type="radio" name="mode" value="assistant" x-model="mode" :disabled="loading">
-                            <div>
-                                <div style="font-weight: 600;">Transcribing Assistant</div>
-                                <div style="font-size: 11px; color: #6b7280;">Deep research, videos, hints.</div>
-                            </div>
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                            <input type="radio" name="mode" value="audio" x-model="mode" :disabled="loading">
+                            <input type="radio" name="mode_display" value="audio" x-model="modeDisplay" :disabled="loading" @change="mode = 'audio'">
                             <div>
                                 <div style="font-weight: 600;">Audio Transcription</div>
                                 <div style="font-size: 11px; color: #6b7280;">High-precision via YouTube.</div>
                             </div>
                         </label>
                     </div>
+                    <input type="hidden" name="mode" :value="mode">
+                </div>
+
+                <div class="sbn-form-group" x-show="modeDisplay === 'search'" style="margin-left: 24px; margin-top: 4px;">
+                    <label class="sbn-checkbox" style="font-size: 12px;">
+                        <input type="checkbox" x-model="useResearch" @change="mode = useResearch ? 'assistant' : 'quick'" :disabled="loading">
+                        <span>Include Deep Research (videos, historical notes, suggested versions)</span>
+                    </label>
                 </div>
 
                 <div x-show="mode === 'audio'" style="margin-top: 15px; border-top: 1px solid #e5e7eb; padding-top: 15px;">
@@ -189,8 +189,9 @@
             title: '',
             artistHint: '',
             preferredKey: '',
-            version: 'most_common',
             mode: 'quick',
+            modeDisplay: 'search',
+            useResearch: false,
             buildVoicings: true,
             voicingStyle: 'popular',
             loading: false,
@@ -213,8 +214,9 @@
                 this.title = '';
                 this.artistHint = '';
                 this.preferredKey = '';
-                this.version = 'most_common';
                 this.mode = 'quick';
+                this.modeDisplay = 'search';
+                this.useResearch = false;
                 this.buildVoicings = true;
                 this.voicingStyle = 'popular';
                 this.loading = false;

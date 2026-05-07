@@ -51,10 +51,16 @@ class ProgressionLibraryController extends Controller
         ]);
     }
 
-    public function show(string $slug)
+    public function show(Request $request, string $slug)
     {
         $progression = ChordProgression::where('slug', $slug)
             ->firstOrFail();
+
+        // Test switch — ?pass=2 runs the builder with extensions=true so the
+        // tiles reflect Phase E option-tone upgrades. Default (pass=1) is the
+        // public-facing plain-voicing output.
+        $pass = (int) $request->query('pass', 1);
+        $usePass2 = $pass === 2;
 
         // Get songs featuring this progression
         $songs = Leadsheet::query()
@@ -82,7 +88,8 @@ class ProgressionLibraryController extends Controller
         // Resolve chord diagram tiles via the proper voice-leading path
         $context = $this->harmonicContext->buildFromNumerals('C', $progression->numerals);
         $built   = $this->progressionBuilder->buildVoicings($context, [
-            'category' => $progression->category,
+            'category'   => $progression->category,
+            'extensions' => $usePass2,
         ]);
         $tiles   = array_map(function ($sel) {
             $v = $sel['voicing'] ?? null;
@@ -98,6 +105,7 @@ class ProgressionLibraryController extends Controller
             'songs'       => $songs,
             'siblings'    => $siblings,
             'tiles'       => $tiles,
+            'builderPass' => $usePass2 ? 2 : 1,
         ]);
     }
 

@@ -121,8 +121,12 @@ class ChordSequenceParser
     /**
      * Resolve Roman numerals in a parsed sequence to concrete chord names.
      */
-    public function resolveNumerals(array $parsedSequence, string $key): array
+    public function resolveNumerals(array $parsedSequence, ?string $key): array
     {
+        if (!$key) {
+            return $parsedSequence;
+        }
+
         $parsedSequence['items'] = $this->resolver->resolveSequenceItems(
             $parsedSequence['items'],
             $key,

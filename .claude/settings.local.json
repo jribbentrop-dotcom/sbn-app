@@ -16,7 +16,17 @@
       "Bash(sqlite3 database/sbn.db \"SELECT name, diagram_data FROM sbn_chord_diagrams WHERE name='Dmaj7' LIMIT 3;\")",
       "PowerShell($env:Path = \"C:\\\\Program Files\\\\sqlite\\\\;\" + $env:Path; if \\(Get-Command sqlite3 -ErrorAction SilentlyContinue\\) { sqlite3 database/sbn.db \"SELECT name, diagram_data FROM sbn_chord_diagrams WHERE name='Dmaj7' LIMIT 2;\" } else { Write-Output \"no sqlite3\" })",
       "Bash('/c/Users/info/.config/herd/bin/php84/php.exe' -r 'echo \"ok\\\\n\";')",
-      "Bash(/c/Users/info/.config/herd/bin/php84/php.exe artisan tinker '--execute= *)"
+      "Bash(/c/Users/info/.config/herd/bin/php84/php.exe artisan tinker '--execute= *)",
+      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\(r'c:\\\\Users\\\\info\\\\sbn-app\\\\docs\\\\Phase-E-Extension-Table.yaml', encoding='utf-8'\\)\\); print\\('YAML parses OK'\\)\")",
+      "Bash(python -m pip install pyyaml -q)",
+      "Bash(python -c \"import yaml; d=yaml.safe_load\\(open\\(r'c:\\\\Users\\\\info\\\\sbn-app\\\\docs\\\\Phase-E-Extension-Table.yaml', encoding='utf-8'\\)\\); print\\('OK keys:', list\\(d.keys\\(\\)\\)\\)\")",
+      "Bash(python -c \"import yaml; d=yaml.safe_load\\(open\\(r'c:\\\\Users\\\\info\\\\sbn-app\\\\docs\\\\Phase-E-Extension-Table.yaml', encoding='utf-8'\\)\\); print\\('OK top keys:', list\\(d.keys\\(\\)\\)\\); print\\('impl notes keys:', list\\(d['implementation_notes'].keys\\(\\)\\)\\)\")",
+      "Bash(./vendor/bin/phpunit tests/Feature/PhaseECategoryGateTest.php)",
+      "PowerShell(php vendor/phpunit/phpunit/phpunit tests/Feature/PhaseECategoryGateTest.php 2>&1)",
+      "PowerShell(php vendor/phpunit/phpunit/phpunit --filter test_pop tests/Feature/PhaseECategoryGateTest.php 2>&1)",
+      "Bash(mkdir -p docs/cinema-design)",
+      "Bash(unzip -o \"SBN Teaching Hub Design System-handoff.zip\" -d docs/cinema-design/)",
+      "Bash(npx vite *)"
     ]
   }
 }

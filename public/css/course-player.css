@@ -1,0 +1,620 @@
+/* ==========================================================================
+   Course Player — public/css/course-player.css
+   Variation C: collapsible left nav + practice companion panel.
+   No hex literals — all colours via design-system tokens.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Archive / Overview pages (unchanged)
+   -------------------------------------------------------------------------- */
+
+.sbn-course-library-main,
+.sbn-course-show-main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+}
+
+.sbn-courses-grid,
+.sbn-courses-carousel {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+}
+@media (max-width: 1200px) { .sbn-courses-grid, .sbn-courses-carousel { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 900px)  { .sbn-courses-grid, .sbn-courses-carousel { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px)  { .sbn-courses-grid, .sbn-courses-carousel { grid-template-columns: 1fr; } }
+
+.sbn-course-genre-section { margin-bottom: 40px; }
+.sbn-course-genre-section h2 {
+    margin: 0 0 16px;
+    font-size: 1.15em; font-weight: 700;
+    color: var(--clr-text);
+    text-transform: capitalize;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--clr-border);
+}
+
+.sbn-course-show-hero {
+    background: var(--clr-white); border: 1px solid var(--clr-border);
+    border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
+}
+.sbn-course-show-hero h1 { margin: 6px 0 8px; }
+.sbn-course-show-cta { display: flex; gap: 10px; margin-top: 16px; }
+.sbn-course-lesson-list {
+    background: var(--clr-white); border: 1px solid var(--clr-border);
+    border-radius: var(--radius); padding: 18px;
+}
+.sbn-course-lesson-list ol { margin: 0; padding-left: 20px; }
+.sbn-course-lesson-list li { margin-bottom: 8px; color: var(--clr-text); }
+
+/* --------------------------------------------------------------------------
+   2. Player shell — 3-column grid
+   -------------------------------------------------------------------------- */
+
+.vC-grid {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr) 320px;
+    gap: 20px;
+    padding: 16px 24px 40px;
+    min-height: calc(100vh - var(--site-header-h, 96px));
+    transition: grid-template-columns 0.25s ease;
+}
+
+.vC-grid.is-collapsed {
+    grid-template-columns: 64px minmax(0, 1fr) 320px;
+}
+
+/* --------------------------------------------------------------------------
+   3. Left nav — EXPANDED state
+   -------------------------------------------------------------------------- */
+
+.vC-nav {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: calc(var(--site-header-h, 96px) + 16px);
+    max-height: calc(100vh - var(--site-header-h, 96px) - 32px);
+    overflow: hidden;
+    align-self: start;
+}
+
+.vC-nav-hero {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--clr-border);
+    flex-shrink: 0;
+}
+
+.vC-nav-hero-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.vC-nav-hero h3 {
+    margin: 0 0 10px;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--clr-text);
+}
+
+.vC-nav-collapse {
+    width: 26px; height: 26px;
+    border-radius: 999px;
+    border: 1px solid var(--clr-border);
+    background: var(--clr-white);
+    cursor: pointer;
+    color: var(--clr-text-muted);
+    display: grid; place-items: center;
+    flex-shrink: 0;
+    transition: all 0.12s;
+}
+.vC-nav-collapse:hover { color: var(--clr-accent-dim); border-color: var(--clr-accent-border); }
+
+.vC-nav-progress-bar {
+    height: 5px;
+    background: var(--clr-surface-3);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.vC-nav-progress-bar span {
+    display: block; height: 100%;
+    background: var(--clr-gradient);
+    border-radius: 999px;
+    transition: width 0.3s ease;
+}
+.vC-nav-progress-text {
+    display: block;
+    margin-top: 5px;
+    font-size: 11px;
+    color: var(--clr-text-muted);
+}
+
+.vC-nav-list {
+    overflow-y: auto;
+    padding: 6px 0 12px;
+    flex: 1;
+    min-height: 0;
+}
+
+.vC-nav-section { padding: 6px 0; }
+
+.vC-nav-label {
+    font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--clr-text-muted);
+    padding: 6px 16px;
+}
+
+.vC-nav-item {
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    padding: 8px 14px;
+    text-align: left;
+    font-size: 13px;
+    color: var(--clr-text-dim);
+    border-left: 2px solid transparent;
+    text-decoration: none;
+    transition: background 0.12s;
+}
+.vC-nav-item:hover { background: var(--clr-surface-2); color: var(--clr-text); }
+.vC-nav-item.is-current {
+    background: var(--clr-accent-bg);
+    color: var(--clr-text);
+    font-weight: 600;
+    border-left-color: var(--clr-accent);
+}
+
+.vC-nav-num {
+    display: grid; place-items: center;
+    width: 22px; height: 22px;
+    border-radius: 999px;
+    background: var(--clr-surface-3);
+    font-size: 11px; font-weight: 700;
+    color: var(--clr-text-muted);
+    flex-shrink: 0;
+}
+.vC-nav-item.is-current .vC-nav-num { background: var(--clr-accent); color: var(--clr-white); }
+
+.vC-nav-title { line-height: 1.3; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.vC-nav-lock { font-size: 11px; opacity: 0.7; }
+
+.vC-nav-preview {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--clr-accent-dim);
+    background: var(--clr-accent-bg);
+    border: 1px solid var(--clr-accent-border);
+    padding: 2px 6px; border-radius: 999px;
+}
+
+/* Subsection indented items */
+.vC-nav-subs { padding: 0 0 4px 50px; }
+
+.vC-nav-sub-btn {
+    display: block; width: 100%;
+    border: 0; background: transparent; cursor: pointer;
+    text-align: left;
+    font-size: 12.5px;
+    color: var(--clr-text-muted);
+    padding: 5px 8px;
+    border-radius: var(--radius-sm);
+    transition: color 0.12s, background 0.12s;
+}
+.vC-nav-sub-btn::before { content: '›'; margin-right: 6px; opacity: 0.5; }
+.vC-nav-sub-btn:hover { color: var(--clr-text-dim); background: var(--clr-surface-2); }
+.vC-nav-sub-btn.is-active { color: var(--clr-accent-dim); font-weight: 600; background: var(--clr-accent-bg); }
+
+/* --------------------------------------------------------------------------
+   4. Left nav — COLLAPSED rail (B-style)
+   -------------------------------------------------------------------------- */
+
+.vC-rail {
+    position: sticky;
+    top: calc(var(--site-header-h, 96px) + 16px);
+    align-self: start;
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: 999px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 0;
+    width: 56px;
+    margin: 0 auto;
+}
+
+.vC-rail-toggle {
+    width: 32px; height: 32px;
+    border-radius: 999px;
+    border: 1px solid var(--clr-border);
+    background: var(--clr-white);
+    cursor: pointer;
+    color: var(--clr-text-muted);
+    display: grid; place-items: center;
+    transition: all 0.12s;
+}
+.vC-rail-toggle:hover { color: var(--clr-accent-dim); border-color: var(--clr-accent-border); }
+
+.vC-rail-progress { padding: 2px 0; }
+
+.vC-rail-divider { width: 24px; height: 1px; background: var(--clr-border); }
+
+.vC-rail-lessons {
+    list-style: none; padding: 0; margin: 0;
+    display: grid; gap: 6px;
+}
+
+.vC-rail-lessons li a {
+    display: grid; place-items: center;
+    width: 32px; height: 32px;
+    border-radius: 999px;
+    border: 1.5px solid var(--clr-border-strong);
+    background: var(--clr-white);
+    font-size: 12px; font-weight: 700;
+    color: var(--clr-text-muted);
+    text-decoration: none;
+    transition: all 0.12s;
+}
+.vC-rail-lessons li.is-current a {
+    background: var(--clr-gradient);
+    border-color: transparent;
+    color: var(--clr-white);
+    box-shadow: 0 0 0 4px rgba(243, 156, 18, 0.18);
+}
+.vC-rail-lessons li.is-upcoming a:hover { border-color: var(--clr-accent-border); color: var(--clr-accent-dim); }
+
+/* --------------------------------------------------------------------------
+   5. Middle content column
+   -------------------------------------------------------------------------- */
+
+.vC-content-wrap {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    padding: 28px 36px 24px;
+    min-height: 720px;
+    display: flex;
+    flex-direction: column;
+}
+
+.vC-head {
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--clr-border);
+    margin-bottom: 22px;
+    flex-shrink: 0;
+}
+
+.vC-head-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--clr-text-muted);
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.vC-mobile-menu-btn {
+    display: none;
+    width: 28px; height: 28px;
+    border: 1px solid var(--clr-border);
+    background: var(--clr-white);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--clr-text-muted);
+    place-items: center;
+}
+
+.vC-title {
+    font-size: 28px; font-weight: 700;
+    margin: 0 0 14px;
+    letter-spacing: -0.015em;
+    color: var(--clr-text);
+    line-height: 1.2;
+}
+
+.vC-head-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.vC-tab {
+    border: 0;
+    background: var(--clr-surface-3);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12.5px; font-weight: 600;
+    color: var(--clr-text-dim);
+    cursor: pointer;
+    transition: all 0.12s;
+}
+.vC-tab:hover { background: var(--clr-surface-3); color: var(--clr-text); }
+.vC-tab.is-active { background: var(--clr-text); color: var(--clr-white); }
+
+.vC-prose { flex: 1; }
+
+/* Subsection chunk visibility — controlled via JS */
+.sbn-subsection-chunk { display: none; }
+.sbn-subsection-chunk.is-active { display: block; }
+
+/* Lesson HTML content styles */
+.vC-lesson-html { color: var(--clr-text); font-size: 16px; line-height: 1.65; }
+.vC-lesson-html p { margin: 0 0 16px; }
+.vC-lesson-html h2 { font-size: 22px; font-weight: 700; margin: 32px 0 12px; color: var(--clr-text); letter-spacing: -0.01em; }
+.vC-lesson-html h3 { font-size: 17px; font-weight: 700; margin: 24px 0 10px; color: var(--clr-text); }
+.vC-lesson-html strong { font-weight: 600; color: var(--clr-text); }
+.vC-lesson-html em { font-style: italic; color: var(--clr-accent-dim); }
+.vC-lesson-html ul { padding-left: 22px; margin: 0 0 18px; }
+.vC-lesson-html ul li { margin-bottom: 8px; }
+
+/* Locked lesson CTA */
+.vC-lock-cta {
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center;
+    padding: 60px 32px;
+    gap: 12px;
+    color: var(--clr-text-dim);
+}
+.vC-lock-icon { font-size: 40px; }
+.vC-lock-cta h3 { margin: 0; font-size: 20px; color: var(--clr-text); }
+.vC-lock-cta p { margin: 0; color: var(--clr-text-muted); }
+
+.vC-empty { color: var(--clr-text-muted); font-style: italic; padding: 32px; text-align: center; }
+
+.vC-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 22px;
+    margin-top: 16px;
+    border-top: 1px solid var(--clr-border);
+    flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   6. Right — Practice companion panel
+   -------------------------------------------------------------------------- */
+
+.vC-practice {
+    position: sticky;
+    top: calc(var(--site-header-h, 96px) + 16px);
+    align-self: start;
+    background: linear-gradient(180deg, var(--clr-accent-bg) 0%, var(--clr-white) 60%);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: calc(100vh - var(--site-header-h, 96px) - 32px);
+    overflow-y: auto;
+}
+
+.vC-practice-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--clr-accent-dim);
+}
+
+.vC-practice-dot {
+    width: 7px; height: 7px;
+    border-radius: 999px;
+    background: var(--clr-success);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+    flex-shrink: 0;
+}
+
+/* Shared card container */
+.vC-card {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    padding: 14px;
+}
+
+.vC-card-eyebrow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--clr-text-muted);
+    margin-bottom: 10px;
+}
+
+.vC-card-meta {
+    font-weight: 600;
+    color: var(--clr-text-muted);
+    letter-spacing: 0;
+    text-transform: none;
+    font-size: 12px;
+}
+
+.vC-card-cta {
+    width: 100%;
+    margin-top: 8px;
+    justify-content: center;
+}
+
+/* Chord list rows */
+.vC-chord-list { display: flex; flex-direction: column; gap: 2px; }
+
+.vC-chord-row {
+    display: grid;
+    grid-template-columns: 44px 1fr 16px;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    padding: 7px 6px;
+    text-align: left;
+    border-radius: var(--radius-sm);
+    transition: background 0.12s;
+}
+.vC-chord-row:hover { background: var(--clr-surface-2); }
+
+.vC-chord-row-diagram { width: 44px; flex-shrink: 0; }
+.vC-chord-canvas { display: block; width: 44px; height: 56px; }
+
+.vC-chord-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vC-chord-row-name { font-size: 16px; line-height: 1; }
+.vC-chord-row-sub {
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    font-family: var(--font-mono, monospace);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.vC-chord-row-arrow { color: var(--clr-text-muted); font-size: 16px; line-height: 1; }
+
+/* Rhythm selector */
+.vC-rhythm-row {
+    display: flex; gap: 4px; margin-top: 10px; flex-wrap: wrap;
+}
+.vC-rhythm-pill {
+    border: 1px solid var(--clr-border);
+    background: var(--clr-white);
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 11.5px; cursor: pointer;
+    color: var(--clr-text-dim);
+    transition: all 0.12s;
+}
+.vC-rhythm-pill.is-active { background: var(--clr-text); color: var(--clr-white); border-color: var(--clr-text); }
+
+/* Transport */
+.vC-transport {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 10px;
+    align-items: center;
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    padding: 12px;
+}
+
+.vC-play {
+    width: 56px; height: 56px;
+    border-radius: 999px;
+    background: var(--clr-gradient);
+    border: 0; cursor: pointer;
+    display: grid; place-items: center;
+    box-shadow: var(--shadow);
+    transition: transform 0.15s;
+    grid-row: span 2;
+}
+.vC-play:hover { transform: scale(1.05); }
+
+.vC-bpm {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 6px;
+}
+
+.vC-bpm-step {
+    width: 28px; height: 28px; border-radius: 999px;
+    border: 1px solid var(--clr-border);
+    background: var(--clr-white); cursor: pointer;
+    font-size: 16px; line-height: 1; color: var(--clr-text-dim);
+    display: grid; place-items: center;
+    transition: all 0.12s;
+}
+.vC-bpm-step:hover { border-color: var(--clr-accent-border); color: var(--clr-accent-dim); }
+
+.vC-bpm-val { display: flex; align-items: baseline; gap: 4px; }
+.vC-bpm-num { font-family: var(--font-chord, serif); font-size: 26px; font-weight: 600; color: var(--clr-text); line-height: 1; }
+.vC-bpm-lbl { font-size: 11px; color: var(--clr-text-muted); }
+
+.vC-bpm-presets { display: flex; gap: 4px; grid-column: 2; }
+.vC-bpm-preset {
+    flex: 1;
+    border: 1px solid var(--clr-border);
+    background: var(--clr-white);
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    font-size: 11px; cursor: pointer;
+    color: var(--clr-text-dim);
+    transition: all 0.12s;
+}
+.vC-bpm-preset.is-active {
+    background: var(--clr-accent-bg);
+    color: var(--clr-accent-dim);
+    border-color: var(--clr-accent-border);
+    font-weight: 700;
+}
+
+/* --------------------------------------------------------------------------
+   7. Shared sbn-btn overrides (player context)
+   -------------------------------------------------------------------------- */
+
+.vC-foot .sbn-btn { min-width: 120px; justify-content: center; }
+
+/* --------------------------------------------------------------------------
+   8. Mobile
+   -------------------------------------------------------------------------- */
+
+.vC-mobile-overlay {
+    display: none;
+}
+
+@media (max-width: 900px) {
+    .vC-grid {
+        grid-template-columns: 1fr !important;
+        grid-template-rows: auto;
+        padding: 12px 16px 40px;
+        gap: 0;
+    }
+
+    .vC-grid.mobile-sidebar-open .vC-nav {
+        position: fixed;
+        top: 0; left: 0; bottom: 0;
+        width: 280px;
+        z-index: 200;
+        border-radius: 0;
+        max-height: 100vh;
+    }
+
+    .vC-grid.mobile-sidebar-open .vC-mobile-overlay {
+        display: block;
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.35);
+        z-index: 199;
+        border: 0;
+        cursor: pointer;
+    }
+
+    /* Rail hidden on mobile; the mobile-menu-btn inside content header replaces it */
+    .vC-rail { display: none; }
+
+    .vC-mobile-menu-btn { display: grid; }
+
+    .vC-content-wrap {
+        padding: 20px 18px;
+        min-height: auto;
+        border-radius: var(--radius) var(--radius) 0 0;
+    }
+
+    .vC-practice {
+        position: static;
+        max-height: none;
+        border-radius: 0 0 var(--radius) var(--radius);
+        border-top: 0;
+    }
+}

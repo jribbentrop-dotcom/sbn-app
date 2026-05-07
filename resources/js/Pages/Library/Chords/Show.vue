@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordDiagram from '@/Components/Library/ChordDiagram.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
@@ -37,10 +37,21 @@ interface Props {
     siblings: ChordDiagramData[];
     songs: SongRef[];
     progressions: ProgressionRef[];
+    builderPass?: 1 | 2;
 }
 
 const props = defineProps<Props>();
 defineOptions({ layout: PublicLayout });
+
+// Test switch — Pass 1 (plain voicings) vs Pass 2 (option-tone upgrades).
+const currentPass = computed(() => props.builderPass ?? 1);
+function setBuilderPass(pass: 1 | 2) {
+    if (currentPass.value === pass) return;
+    const url = new URL(window.location.href);
+    if (pass === 2) url.searchParams.set('pass', '2');
+    else url.searchParams.delete('pass');
+    router.visit(url.pathname + url.search, { preserveScroll: true });
+}
 
 // ── Theory data (mirrors legacy sbn_chord_detail_theory) ─────────────────────
 const theoryMap: Record<string, { intervals: string; function: string; typical_context: string; related: string[]; tension: number }> = {
@@ -270,6 +281,21 @@ function getChords(prog: ProgressionRef): ProgressionChord[] {
         <!-- ════ PROGRESSIONS ════ -->
         <div v-if="progressions.length" class="sbn-chord-detail-section">
             <h2 class="sbn-chord-detail-section-heading">Chord Progression Examples</h2>
+            <div class="sbn-builder-pass-toggle">
+                <span class="sbn-builder-pass-toggle-label">Builder pass</span>
+                <button
+                    type="button"
+                    class="sbn-builder-pass-toggle-btn"
+                    :class="{ 'is-active': currentPass === 1 }"
+                    @click="setBuilderPass(1)"
+                >Pass 1 — Plain</button>
+                <button
+                    type="button"
+                    class="sbn-builder-pass-toggle-btn"
+                    :class="{ 'is-active': currentPass === 2 }"
+                    @click="setBuilderPass(2)"
+                >Pass 2 — Extensions</button>
+            </div>
             <div class="sbn-chord-detail-progressions">
                 <div
                     v-for="prog in progressions"
@@ -325,6 +351,35 @@ function getChords(prog: ProgressionRef): ProgressionChord[] {
 </template>
 
 <style scoped>
+/* Builder pass test switch (Pass 1 = plain, Pass 2 = option-tone upgrades). */
+.sbn-builder-pass-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 16px;
+    font-size: 12px;
+}
+.sbn-builder-pass-toggle-label {
+    color: var(--clr-text-muted, #888);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+.sbn-builder-pass-toggle-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--clr-border, #d0d0d0);
+    background: transparent;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--clr-text-muted, #888);
+}
+.sbn-builder-pass-toggle-btn.is-active {
+    background: var(--clr-text, #222);
+    color: var(--clr-bg, #fff);
+    border-color: var(--clr-text, #222);
+}
+
 /* ── Page wrapper ── */
 .sbn-chord-detail {
     max-width: 1100px;

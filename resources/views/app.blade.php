@@ -17,6 +17,7 @@
         <link rel="stylesheet" href="{{ asset('css/rhythm-library.css') }}">
         <link rel="stylesheet" href="{{ asset('css/progression-library.css') }}">
         <link rel="stylesheet" href="{{ asset('css/song-library.css') }}">
+        <link rel="stylesheet" href="{{ asset('css/course-player.css') }}">
         <script src="{{ asset('js/chords.js') }}"></script>
 
         <!-- Scripts & Styles -->

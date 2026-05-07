@@ -206,6 +206,65 @@ export function useNoteInput(cursor, model, wrapCommand = null, repositionMeasur
         }
     }
 
+    // ── String shift (Ctrl+Up / Ctrl+Down) ────────────────
+    // Cursor string numbering: 1 = high e (top of tab), 6 = low E (bottom).
+    // Tuning intervals between adjacent strings (semitones), ordered by string number:
+    //   1(e)↔2(B)  = major 3rd  (4 st)  ← the e→B exception
+    //   2(B)↔3(G)  = perfect 4th (5 st)
+    //   3(G)↔4(D)  = perfect 4th (5 st)
+    //   4(D)↔5(A)  = perfect 4th (5 st)
+    //   5(A)↔6(E)  = perfect 4th (5 st)
+    //
+    // Ctrl+ArrowUp   → lower string number (higher pitch, toward high e), fret -= interval
+    // Ctrl+ArrowDown → higher string number (lower pitch, toward low E),  fret += interval
+
+    function intervalBetween(fromStr, toStr) {
+        const lo = Math.min(fromStr, toStr);
+        const hi = Math.max(fromStr, toStr);
+        // B(2)↔G(3) crossing is a major 3rd (4 st); all others are perfect 4ths (5 st).
+        return (lo === 2 && hi === 3) ? 4 : 5;
+    }
+
+    function shiftNoteToString(direction) {
+        // direction: -1 = ArrowUp (lower str#, higher pitch), +1 = ArrowDown (higher str#, lower pitch)
+        const ev = getCursorEvent();
+        if (!ev || ev.isRest) return false;
+
+        const currentStr = cursor.value.stringIndex;
+        const targetStr  = currentStr + direction;
+
+        if (targetStr < 1 || targetStr > 6) return false; // boundary → no-op
+
+        const noteIdx = ev.notes.findIndex(n => n.string === currentStr);
+        if (noteIdx === -1) return false; // no note on cursor string → no-op
+
+        const interval  = intervalBetween(currentStr, targetStr);
+        // Moving up (lower str#, higher-pitched open string) → same pitch needs lower fret.
+        // Moving down (higher str#, lower-pitched open string) → same pitch needs higher fret.
+        const fretDelta = direction * interval;
+        const newFret   = ev.notes[noteIdx].fret + fretDelta;
+
+        if (newFret < MIN_FRET || newFret > MAX_FRET) return false; // clamp → no-op
+
+        const doShift = () => {
+            const existingIdx = ev.notes.findIndex(n => n.string === targetStr);
+            if (existingIdx !== -1) ev.notes.splice(existingIdx, 1);
+            const idx = ev.notes.findIndex(n => n.string === currentStr);
+            if (idx === -1) return;
+            ev.notes[idx].string = targetStr;
+            ev.notes[idx].fret   = newFret;
+            ev.notes.sort((a, b) => a.string - b.string);
+        };
+
+        if (wrapCommand) {
+            wrapCommand('shift-string', [ev.measureIdx], doShift);
+        } else {
+            doShift();
+        }
+
+        return targetStr; // caller must move cursor to this string
+    }
+
     // ── Keyboard handler ───────────────────────────────────
 
     function handleKeydown(e) {
@@ -256,6 +315,7 @@ export function useNoteInput(cursor, model, wrapCommand = null, repositionMeasur
         handleKeydown,
         deleteNoteAtCursor,
         commitFret,
+        shiftNoteToString,
         dispose,
     };
 }

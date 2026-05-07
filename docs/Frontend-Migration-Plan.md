@@ -1453,54 +1453,615 @@ Field notes:
 
 ### Phase 10 — Leadsheet Cinema View
 
-**Deliverable:** Alternate leadsheet layout optimized for video-sync learning. Full reload on toggle between classic and cinema is acceptable.
+**Deliverable:** Alternate leadsheet layout optimized for video-sync learning ("Stage View"). Full reload on toggle between classic and cinema is acceptable.
 
-**Spec:** **[PLACEHOLDER — fetch from Claude design app before starting this phase]**. Export the design and reference it here before handoff.
+**Spec:** Stage View, from the Claude Design handoff bundle at [`docs/cinema-design/sbn-teaching-hub-design-system/project/Option 2 - Stage View.html`](cinema-design/sbn-teaching-hub-design-system/project/Option%202%20-%20Stage%20View.html). Read that file end-to-end before implementing — it is the single source of truth for layout, sizing, and palette. Shared assets in `cinema-design/.../shared/` (`song.js`, `diagrams.js`) are illustrative; do **not** port their `sbnFormatChord` (we already have `sbn-chord-name.js`) or their toy `setInterval` clock (drive from video time — see ground rules).
 
-**Component inventory (to be finalized from design):**
-- **[NEW]** `Pages/Leadsheet/Cinema.vue` — alternate layout
-- **[REUSE/CONVERT]** `VideoPlayer.vue`, `VideoSyncEditor.vue` (viewer mode only), `SyncPointBadge.vue`
-- **[REUSE]** `useVideoSync` composable
-- **[NEW]** Any additional layout components required by the exported design (e.g. `SyncedChordStrip`)
+**Layout (top-to-bottom):**
+1. **Top bar** — italic-serif song title, composer/year, divider, three meta chips (key / time-sig / bar-count), spacer, three icon buttons (transpose, metronome, settings).
+2. **Hero row** — 1.55fr / 1fr split:
+   - **Left:** 16:9 video card with animated "live" border glow, top-left "Lesson · Synced" badge, bottom sync strip showing `currentTime / duration` and bar-sync indicator.
+   - **Right:** "Now Playing" plinth — pulsing accent dot, bar/section label, **128px chord glyph** (orange glow), Roman-numeral sub-line, dashed-rule "Next →" row with chord + beat countdown, 180px neon chord diagram, 4-beat pulse row pinned to bottom.
+3. **Transport deck** — prev / play (orange) / next, position counter, section-tinted clickable progress track, three toggles (Count / Loop / Click). **No BPM input** (see ground rule 1).
+4. **Sections grid** — 4 columns, one per song section. Section letter chip + italic name + vertical bar list. Active bar = accent gradient + left border; past bars dim to 0.4. Multi-chord bars render side by side. Each row has a tiny neon chord diagram.
+
+**Ground rules (locked):**
+1. **Beat clock = video time.** Bar/beat position is derived from the video's `currentTime` via `useVideoSync` and the leadsheet's `tempo` field. The prototype's `setInterval` driver is for the toy demo only. **Drop the BPM input** from the deck.
+2. **Dark theme only for Phase 10.** The prototype ships 4 themes (dark / light / noir / ivory). Implement dark only; keep the CSS variable structure (`--bg`, `--accent`, etc.) so additional themes can be added later without refactor, but do not expose a theme picker.
+3. **Drop the tweaks panel entirely** — it's design-tool plumbing, not a product feature. No `[data-theme]` switching UI; no `localStorage` theme persistence; no `postMessage` host integration.
+4. **Chord names use the existing system.** `sbn-chord-name.js` + `chord-symbols.css` are authoritative. Do not reimplement `sbnFormatChord`.
+5. **Roman numerals / function labels come from `HarmonicContext`** when available; fall back to `—`. Do not hardcode the prototype's tiny `ROMAN` / `FN` lookup tables.
+
+**Component inventory (final):**
+- **[NEW]** `Pages/Leadsheet/Cinema.vue` — page-level orchestration; owns video-time state and derives current bar/beat
+- **[NEW]** `Components/Cinema/StageTopBar.vue` — title, meta chips, icon buttons
+- **[NEW]** `Components/Cinema/StageHeroNow.vue` — now/next plinth (chord glyph, Roman, next-up countdown, beat row, diagram)
+- **[NEW]** `Components/Cinema/StageTransportDeck.vue` — transport buttons, position counter, section-tinted progress track, Count/Loop/Click toggles
+- **[NEW]** `Components/Cinema/StageSectionsGrid.vue` — 4-column section browser with active/past bar states
+- **[NEW]** `Components/ChordDiagram/NeonChordDiagram.vue` — neon SVG variant (or add a `variant="neon"` prop to the existing chord diagram component, whichever fits the existing API)
+- **[REUSE]** `VideoPlayer.vue`, `useVideoSync` composable, `SyncPointBadge.vue` (from Phase D)
+- **[REUSE]** existing chord-name component / `sbn-chord-name.js` formatter
+- **[NEW CSS]** Stage palette tokens (`--bg`, `--bg-1..3`, `--line`, `--line-2`, `--text-dim`, `--text-mute`, `--accent`, `--accent-2`, `--accent-rgb`, `--scrim-1/2`, `--primary-ink`) added to `sbn-design-system.css`, scoped under a `.leadsheet-stage` (or equivalent) selector so they don't leak into the rest of the app
 
 **Legacy references:**
 - No direct WP equivalent — cinema view is a new design. Reuse Phase 9 leadsheet components; video sync machinery comes from the Laravel Phase D work, not from the legacy theme.
 
+**Implementation notes:**
+- `Cinema.vue` normalizes raw `parsed_data` measure format (`chords[].name`) into `chordNames[]` + sequential `globalIndex` before passing to child components. Both the flat bar list and the sections prop go through `normalizeMeasure()`.
+- Stage palette tokens (`--stage-bg`, `--stage-accent`, etc.) are scoped under `.leadsheet-stage` — no leakage.
+- Video sync wiring is structural but not yet tested end-to-end (deferred — wire when a synced lesson video exists). The fallback interval clock runs when no video is attached.
+- `VideoPlayer.vue` and `useVideoSync` are imported but video-master playback (video drives bar position) is pending real sync data. Current toggle just flips `playing` state.
+
 **Done:**
-- Cinema view renders with video primary, chord/melody secondary.
-- Toggle from classic view works (reload accepted).
-- Video sync carries over from Phase D authoring work.
+- **[DONE]** Route `/library/songs/{slug}/cinema` → `SongLibraryController::cinema()` → `Leadsheet/Cinema.vue`.
+- **[DONE]** Cinema view renders: top bar, hero (video placeholder + Now Playing plinth), transport deck, sections grid.
+- **[DONE]** Toggle from classic view works (Cinema link in LeadsheetViewer header).
+- **[DONE]** Chord names display in hero and sections grid via `sbn-chord-name.js` / `formatChordHtml`.
+- **[DONE]** Sections grid: active bar highlighted, past bars dimmed, click-to-seek works.
+- **[DONE]** Transport: prev/play/next, progress track scrub, Count/Loop/Click toggles, keyboard (space / ←/→).
+- **[DONE]** Dark theme only; no tweaks panel; no theme picker; no BPM input.
+- **[DONE]** Roman numerals from `HarmonicContext` when available, fall back to `—`.
+- **[DONE]** Neon chord diagrams in sections grid and Now Playing plinth (180px) via `NeonChordDiagram.vue`.
+- **[TODO]** Video-master sync: wire VideoPlayer `timeupdate` → `onVideoTimeUpdate` → bar/beat position when a song has `jsonData.videoSync` mappings. Deferred until a synced lesson is available to test against.
 
 ---
 
 ### Phase 11 — Course Player
 
-**Deliverable:** Course viewer with lesson navigation, video lessons, embedded leadsheets, progress tracking.
+**Status:** Part A (data) ✅ DONE (2026-05-07). Part B (UI) NEXT.
 
-**Component inventory:**
-- **[NEW]** `Pages/Courses/Index.vue` (catalog)
-- **[NEW]** `Pages/Courses/Show.vue` (course overview)
-- **[NEW]** `Pages/Courses/Lesson.vue` (single lesson player)
-- **[NEW]** `Components/Course/LessonSidebar.vue`
-- **[NEW]** `Components/Course/ProgressBar.vue`
-- **[REUSE]** leadsheet classic + cinema views (from 9, 10)
-- **[REUSE]** full audio/video machinery
-- **[CONVERT]** by end of this phase, all remaining JS components should be TS
+---
 
-**Legacy references:**
-- `sbn-course-player(legacywp)/sbn-course-player.php` — plugin entry point (wiring reference)
-- `sbn-course-player(legacywp)/inc/course-player.php` — course player template + logic
-- `sbn-course-player(legacywp)/inc/course-archive.php` — course catalog
-- `sbn-course-player(legacywp)/flavor-starter/flavor-starter/inc/course-archive.php` — theme-side catalog template
-- `sbn-course-player(legacywp)/assets/css/course-player.css` — player styles
-- `sbn-course-player(legacywp)/assets/js/course-player.js` — player interactions
-- `sbn-course-player(legacywp)/inc/admin-and-helpers.php` — helper functions (review for anything frontend needs)
+#### Part A — Data Import ✅ DONE (2026-05-07)
 
-**Done:**
-- Full course flow: catalog → course → lesson → next lesson.
-- Progress persists per user.
-- Embedded leadsheets render inside lessons.
-- Auth-gated (redirects guests to signup) — stubbed gate acceptable if Phase 12 not done yet.
+**What was built:**
+
+- Migration `2026_05_07_000001_create_course_tables` — creates `sbn_courses` and `sbn_lessons` tables.
+- `app/Models/Course.php` — `hasMany(Lesson)`, `belongsTo(Product)`, scopes `published()` / `byGenre()` / `byLevel()`, accessors `primaryGenre`, `primaryLevel`, `lessonCount`, `isGated`.
+- `app/Models/Lesson.php` — `belongsTo(Course)`, scope `published()`, accessor `subsections` (parses H2 headings from content — replicates legacy `sbn_parse_subsections()`).
+- `app/Console/Commands/ImportCourses.php` (`sbn:import-courses`) — idempotent WXR import with `--dry-run`. Dual lesson lookup: `_sbn_course_id` (WP post ID) then `_sbn_course_slug` fallback. Strips Gutenberg block comment wrappers from content. Supports `--courses` and `--lessons` flags to override default file paths.
+
+**Result:** 12 courses, 68 lessons imported, 0 unlinked. Command is re-runnable.
+
+**sbn_courses schema:**
+```
+id, wp_id (unique, for import idempotency), slug (unique), title,
+excerpt, description (longText), genres (json array of slugs),
+levels (json array of slugs), style (nullable string fallback),
+level (nullable string fallback), topics (json array),
+is_free (bool), product_id (FK → sbn_products, nullable),
+featured_image_path (nullable), sort_order, status, timestamps
+```
+
+**sbn_lessons schema:**
+```
+id, wp_id (unique), course_id (FK → sbn_courses),
+slug (unique within course), title, content (longText),
+section_title (nullable — groups lessons in sidebar),
+is_preview (bool), sort_order, status, timestamps
+```
+
+---
+
+#### Part B — UI
+
+**Deliverable:** Three public pages: course archive (`/learn`), course overview (`/learn/{slug}`), and course player (`/learn/{slug}/play` + `/learn/{slug}/play/{lesson}`). All built with Inertia + Vue 3 + TS, following existing library page conventions.
+
+---
+
+##### Routes to add (web.php)
+
+```php
+use App\Http\Controllers\CourseController;
+
+Route::get('/learn', [CourseController::class, 'index'])->name('courses.index');
+Route::get('/learn/{course:slug}', [CourseController::class, 'show'])->name('courses.show');
+Route::get('/learn/{course:slug}/play', [CourseController::class, 'player'])->name('courses.player');
+Route::get('/learn/{course:slug}/play/{lesson:slug}', [CourseController::class, 'player'])->name('courses.lesson');
+```
+
+---
+
+##### Controller — `app/Http/Controllers/CourseController.php`
+
+```php
+namespace App\Http\Controllers;
+
+use App\Models\Course;
+use App\Models\Lesson;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+
+class CourseController extends Controller
+{
+    public function index()
+    {
+        // All published courses, grouped by primary genre for carousel display
+        $courses = Course::published()
+            ->with('product')
+            ->orderBy('sort_order')
+            ->get()
+            ->map(fn ($c) => $this->serializeCourse($c));
+
+        $genres = $courses->pluck('primaryGenre')->unique()->filter()->values();
+        $levels = ['basic', 'early-intermediate', 'intermediate', 'late-intermediate', 'advanced'];
+
+        return Inertia::render('Courses/Index', [
+            'courses' => $courses,
+            'genres'  => $genres,
+            'levels'  => $levels,
+        ]);
+    }
+
+    public function show(Course $course)
+    {
+        // Course overview: metadata + lesson list (no content, just nav structure)
+        $lessons = $course->lessons()
+            ->published()
+            ->orderBy('sort_order')
+            ->get()
+            ->map(fn ($l) => $this->serializeLessonStub($l));
+
+        return Inertia::render('Courses/Show', [
+            'course'  => $this->serializeCourse($course),
+            'lessons' => $lessons,
+        ]);
+    }
+
+    public function player(Request $request, Course $course, ?Lesson $lesson = null)
+    {
+        // Load all lessons for sidebar nav (stubs only — no full content)
+        $allLessons = $course->lessons()
+            ->published()
+            ->orderBy('sort_order')
+            ->get()
+            ->map(fn ($l) => $this->serializeLessonStub($l));
+
+        // Default to first lesson if none specified
+        $activeLesson = $lesson ?? $course->lessons()->published()->orderBy('sort_order')->first();
+
+        $hasAccess = $this->checkAccess($request, $course);
+
+        // Gate content: non-preview lesson on a gated course — return null content
+        $lessonData = null;
+        if ($activeLesson) {
+            $canView = $hasAccess || $activeLesson->is_preview;
+            $lessonData = $this->serializeLesson($activeLesson, withContent: $canView);
+        }
+
+        return Inertia::render('Courses/Player', [
+            'course'      => $this->serializeCourse($course),
+            'lessons'     => $allLessons,   // all lessons for sidebar (no content)
+            'lesson'      => $lessonData,   // active lesson (content null if locked)
+            'hasAccess'   => $hasAccess,
+        ]);
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    private function checkAccess(Request $request, Course $course): bool
+    {
+        if ($course->is_free || !$course->product_id) {
+            return true;
+        }
+        // Phase 12 will wire real purchase check here.
+        // For now: auth users on free courses only; all paid = locked.
+        return false;
+    }
+
+    private function serializeCourse(Course $course): array
+    {
+        return [
+            'id'           => $course->id,
+            'slug'         => $course->slug,
+            'title'        => $course->title,
+            'excerpt'      => $course->excerpt,
+            'genres'       => $course->genres ?? [],
+            'levels'       => $course->levels ?? [],
+            'primaryGenre' => $course->primary_genre,
+            'primaryLevel' => $course->primary_level,
+            'topics'       => $course->topics ?? [],
+            'isFree'       => $course->is_free,
+            'isGated'      => $course->is_gated,
+            'lessonCount'  => $course->lesson_count,
+            'featuredImagePath' => $course->featured_image_path,
+            'productSlug'  => $course->product?->slug,
+        ];
+    }
+
+    private function serializeLessonStub(Lesson $lesson): array
+    {
+        return [
+            'id'           => $lesson->id,
+            'slug'         => $lesson->slug,
+            'title'        => $lesson->title,
+            'sectionTitle' => $lesson->section_title,
+            'isPreview'    => $lesson->is_preview,
+            'sortOrder'    => $lesson->sort_order,
+            'subsections'  => $lesson->subsections, // H2-parsed [{ title, slug }]
+        ];
+    }
+
+    private function serializeLesson(Lesson $lesson, bool $withContent): array
+    {
+        return [
+            ...$this->serializeLessonStub($lesson),
+            'content' => $withContent ? $lesson->content : null,
+        ];
+    }
+}
+```
+
+---
+
+##### Component inventory
+
+| Component | Tag | Notes |
+|---|---|---|
+| `Pages/Courses/Index.vue` | **[NEW]** | Archive: sidebar genre/level filter pills + genre-grouped carousels; flat grid when filter active |
+| `Pages/Courses/Show.vue` | **[NEW]** | Course overview: hero, lesson list preview, buy/start CTA |
+| `Pages/Courses/Player.vue` | **[NEW]** | Full app-shell player (see layout spec below) |
+| `Components/Course/CourseCard.vue` | **[NEW]** | Card for archive: featured image or genre-gradient fallback, title, genre badge, level stars, lesson count, excerpt |
+| `Components/Course/LessonSidebar.vue` | **[NEW]** | Fixed left panel: hero badge, lesson list grouped by `sectionTitle`, subsection expanders, progress bar |
+| `Components/Course/LessonContent.vue` | **[NEW]** | Right panel: `v-html` rendered content + subsection switcher + prev/next nav footer |
+| `Components/Course/BottomBar.vue` | **[NEW]** | Fixed bottom overlay with 4 tabs — see spec below |
+| `TransportBar.vue` | **[REUSE]** | Already exists; wire for audio playback in lesson content |
+| `LeadsheetViewer.vue` | **[REUSE]** | From Phase 9; embed inside lesson content when `[sbn_leadsheet slug="..."]` shortcode found |
+
+---
+
+##### Player layout spec
+
+The player is a **fixed-height app shell** (100vh minus the site header). Three zones:
+
+```
+┌────────────────────────────────────────────────────┐
+│ SIDEBAR (300px, fixed left, full height)           │
+│  ┌──────────────────────────────────────────────┐  │
+│  │ Hero: genre badge + level stars + title      │  │
+│  │ lesson count                                 │  │
+│  ├──────────────────────────────────────────────┤  │
+│  │ Lesson nav (scrollable)                      │  │
+│  │  [Section label]                             │  │
+│  │  ● Lesson 1 (active)                         │  │
+│  │    › Subsection A                            │  │
+│  │    › Subsection B                            │  │
+│  │  ○ Lesson 2                                  │  │
+│  │  🔒 Lesson 3 (locked)                        │  │
+│  ├──────────────────────────────────────────────┤  │
+│  │ Progress bar (% complete, published lessons) │  │
+│  └──────────────────────────────────────────────┘  │
+├────────────────────────────────────────────────────┤
+│ CONTENT AREA (fills right, scrollable)             │
+│  Active lesson content (v-html, only active        │
+│  subsection visible)                               │
+│                                                    │
+│  [← Prev lesson]              [Next lesson →]      │
+├────────────────────────────────────────────────────┤
+│ BOTTOM BAR (fixed, 60px collapsed / expands up)    │
+│  [🎸 Chords] [🥁 Rhythms] [🎵 Songs] [⚙ Tools]   │
+└────────────────────────────────────────────────────┘
+```
+
+Mobile (<768px): sidebar collapses below content, toggled by hamburger. Bottom bar stays fixed.
+
+---
+
+##### LessonContent subsection switching
+
+`LessonContent.vue` receives the full lesson `content` HTML as a prop. On `onMounted`, it:
+
+1. Queries all `h2[id^="section-"]` inside the rendered content.
+2. Wraps the content between consecutive h2s in `<div class="sbn-subsection-chunk" data-section="...">`.
+3. Shows only the active chunk (`.is-active`), hides the rest.
+4. Exposes `activeSubsection` ref — parent `Player.vue` syncs this to `LessonSidebar` for highlight state.
+5. Updates the URL hash (`#section-slug`) on subsection change.
+
+The h2-parse/split logic replicates legacy `CoursePlayer.splitIntoSubsections()` from `assets/js/course-player.js`.
+
+---
+
+##### BottomBar tabs
+
+| Tab | Icon | Content |
+|---|---|---|
+| Chords | 🎸 | Common chords in this lesson's key (static list, no audio required in Phase 11) |
+| Rhythms | 🥁 | Rhythm patterns relevant to the course genre — reuse `RhythmPatternPlayer` component |
+| Songs | 🎵 | Stub: "Practice songs coming soon" |
+| Tools | ⚙ | Stub: "Metronome + tuner coming soon" |
+
+Panel expands **upward** over the content area. Only one open at a time. Click same tab to collapse.
+
+---
+
+##### Access / gating
+
+- Lesson items in sidebar show `🔒` if `!hasAccess && !isPreview`.
+- Clicking a locked lesson shows an inline unlock CTA inside `LessonContent` (not a redirect).
+- CTA links to `/shop/product/{productSlug}` if the course has a linked product, otherwise to `/shop`.
+- `is_preview` lessons are always accessible regardless of `hasAccess`.
+- Free courses (`isFree: true`): `hasAccess` is always `true` from the controller.
+
+---
+
+##### Genre → style color mapping
+
+Courses use the same `useCategoryColors` composable as the libraries. Genre slug → CSS var:
+
+| Genre slug | Token |
+|---|---|
+| `bossa-nova` | `var(--clr-style-bossa)` |
+| `jazz` | `var(--clr-style-jazz)` |
+| `classical` | `var(--clr-style-classical)` |
+| `latin` | `var(--clr-style-latin)` |
+| `samba` | `var(--clr-style-samba)` |
+
+Add these mappings to `SLUG_TO_TOKEN` in `useCategoryColors.ts` if not already present (check before adding).
+
+---
+
+##### Level → stars display
+
+| Level slug | Stars | Label |
+|---|---|---|
+| `basic` | ★☆☆☆☆ | Beginner |
+| `early-intermediate` | ★★☆☆☆ | Early Intermediate |
+| `intermediate` | ★★★☆☆ | Intermediate |
+| `late-intermediate` | ★★★★☆ | Late Intermediate |
+| `advanced` | ★★★★★ | Advanced |
+
+Use the existing `difficultyLabel()` from `useCategoryColors.ts` for the label string. The star count maps 1–5 to the 5 level slugs in the order above.
+
+---
+
+##### CSS
+
+New file `public/css/course-player.css`. Follow the exact conventions of `public/css/chord-library.css` (no hex literals; use design-system tokens; Tailwind for layout utilities only). Load it in `app.blade.php` alongside the other library CSS files.
+
+---
+
+##### Legacy files to read before coding
+
+Read these **in full** before writing any Vue or CSS code:
+
+- `sbn-course-player(legacywp)/inc/course-player.php` — shortcode handler, config shape, sidebar HTML
+- `sbn-course-player(legacywp)/inc/course-archive.php` — archive template, carousel rendering, filter logic
+- `sbn-course-player(legacywp)/flavor-starter/flavor-starter/inc/course-archive.php` — `flavor_render_course_card()` function
+- `sbn-course-player(legacywp)/assets/css/course-player.css` — all player styles (2000+ lines; port selectively)
+- `sbn-course-player(legacywp)/assets/js/course-player.js` — `CoursePlayer` class (read for intent; rewrite in Vue)
+
+---
+
+##### Definition of done
+
+- `GET /learn` renders all 12 courses, genre-grouped carousels, sidebar filters work client-side.
+- `GET /learn/{slug}` renders the course overview: title, excerpt, level/genre badges, lesson list, start/buy CTA.
+- `GET /learn/{slug}/play` renders the player; lesson sidebar shows all lessons with section groupings.
+- Lesson switching works without page reload; active lesson highlighted in sidebar.
+- Subsection switching works: only active subsection content visible; URL hash updates.
+- `is_preview` lessons are viewable without access; locked lessons show inline unlock CTA.
+- Free courses (`is_free = true`) are fully playable: `hasAccess = true` from controller.
+- Bottom bar opens/closes; Chords and Rhythms tabs render content; Songs and Tools are stubs.
+- `useCategoryColors` extended with course genre slugs (check before adding; no duplicates).
+- `npm run build` passes. Admin untouched. No Pinia introduced.
+- This Phase 11 section updated with a "What was built" subsection (same structure as earlier phases).
+
+---
+
+### Phase 11b — Course Backend Editor
+
+**Status:** PLANNED (2026-05-07).
+
+**Goal:** Admin CRUD for courses + lessons, with a Vue-mounted rich-text editor that inserts reusable SBN components (chord diagrams, rhythm patterns, progressions, leadsheets) inline alongside text, images, and YouTube embeds.
+
+**Why:** Imported lessons contain literal placeholders like `[CHORD DIAGRAMS MISSING]` and `[VIDEO EMBED: …]`. Admins need a first-class editor to replace those with real interactive components, and to author new lessons. Custom Blade-admin (matches existing `app/Http/Controllers/Admin/*` convention).
+
+**Non-goals:** course pricing/product linkage UI (lives in Shop admin), media library overhaul, multi-author workflow, real-time collab.
+
+---
+
+#### 11b.1 — Routes & controllers
+
+Add to `routes/web.php` under the existing admin group:
+
+```php
+Route::prefix('admin')->name('admin.')->group(function () {
+    Route::resource('courses', Admin\CourseController::class);
+    Route::resource('courses.lessons', Admin\LessonController::class)
+        ->scoped(['lesson' => 'id'])
+        ->shallow();
+    Route::post('courses/{course}/lessons/reorder', [Admin\LessonController::class, 'reorder'])
+        ->name('courses.lessons.reorder');
+    Route::post('lessons/{lesson}/upload-image', [Admin\LessonController::class, 'uploadImage'])
+        ->name('lessons.upload-image');
+});
+```
+
+New files (mirror [LeadsheetController.php](app/Http/Controllers/Admin/LeadsheetController.php) conventions):
+
+- [app/Http/Controllers/Admin/CourseController.php](app/Http/Controllers/Admin/CourseController.php) — index/create/store/edit/update/destroy
+- [app/Http/Controllers/Admin/LessonController.php](app/Http/Controllers/Admin/LessonController.php) — same + `reorder()` (accepts `[{id, sort_order}]`) + `uploadImage()`
+- [app/Http/Requests/Admin/CourseRequest.php](app/Http/Requests/Admin/CourseRequest.php), `LessonRequest.php` — FormRequests for validation
+
+---
+
+#### 11b.2 — Blade views
+
+```
+resources/views/admin/courses/
+  index.blade.php       — list, filter by status/genre, link to lessons
+  create.blade.php
+  edit.blade.php        — course meta form + drag-reorderable lesson list
+  _form.blade.php       — shared meta fields
+resources/views/admin/lessons/
+  edit.blade.php        — meta fields (title, slug, section_title, is_preview, status) + <div id="lesson-editor">
+```
+
+`lessons/edit.blade.php` mounts one Vue component (`LessonEditor.vue`) that owns the editor + side panel. The form's hidden `<input name="content">` is updated on every editor change so the standard Laravel POST works — no separate save endpoint needed.
+
+---
+
+#### 11b.3 — Editor: tech choice
+
+**TipTap (ProseMirror)**. Reasons:
+
+- First-class custom Node support — exactly what we need for `<sbn-chord>`, `<sbn-rhythm>`, etc. Each component becomes a TipTap NodeView that renders a live Vue preview inline in the editor.
+- Already Vue 3 + TS native (matches stack).
+- Slash-command extension is officially supported.
+- Output is HTML — same string we already store in `sbn_lessons.content`, so no migration.
+
+Install: `@tiptap/vue-3 @tiptap/starter-kit @tiptap/extension-placeholder @tiptap/suggestion @tiptap/extension-image @tiptap/extension-link`.
+
+---
+
+#### 11b.4 — Component model: 4 SBN custom nodes
+
+Define one TipTap Node per insertable type. All are **atom** (single unit, not editable internally) and **block** or **inline** as appropriate:
+
+| Node | HTML tag (stored) | Atom? | Attrs | Public renderer |
+|---|---|---|---|---|
+| Chord diagram | `<sbn-chord slug="cmaj7" voicing-id="123" />` | inline atom | `slug`, `voicingId?` | `ChordDiagram.vue` |
+| Rhythm pattern | `<sbn-rhythm slug="bossa-basic" />` | block atom | `slug` | `RhythmPatternPlayer.vue` |
+| Progression | `<sbn-progression slug="ii-v-i-major" key="C" />` | block atom | `slug`, `key?` | `ProgressionCard.vue` |
+| Leadsheet | `<sbn-leadsheet slug="garota-de-ipanema" />` | block atom | `slug` | `LeadsheetViewer.vue` |
+
+**Why custom tags, not `[shortcodes]`:** the Phase 11 player already renders `v-html` content. Add a tiny mount step — after `v-html`, querySelectorAll the `sbn-*` tags and `createApp(Component, props).mount(el)` for each. This is ~30 LOC and replaces ever needing a server-side shortcode parser. The editor preview uses the same components.
+
+---
+
+#### 11b.5 — Insertion UX
+
+Three coordinated entry points, all inserting the same Node:
+
+**A. Slash command (power users)**
+Type `/` in the editor → inline menu with: `chord`, `rhythm`, `progression`, `leadsheet`, `image`, `youtube`. Pick one → opens the **right panel** scoped to that type with focus already in its search box. Picking a result inserts the node at the cursor and closes the panel.
+
+**B. Right-side palette (default surface)**
+Permanently visible right rail in the lesson editor (toggle to collapse). Tabs: **Chords | Rhythms | Progressions | Leadsheets | Media**. Each library tab is a search + filter list using the same `/library/*` JSON endpoints the public libraries already use — no new APIs needed for browsing.
+
+Two interactions per result row:
+- **Click** → inserts at current cursor position
+- **Drag** → drop anywhere in the editor (uses ProseMirror's drop handler)
+
+This makes the panel both a *browser* (admins explore what exists) and an *inserter*. Same "right side context panel" idea, repurposed for editing.
+
+**C. Keyboard shortcuts (after first use)**
+- `Ctrl+Shift+C` — opens palette on Chords tab
+- `Ctrl+Shift+R` — Rhythms
+- `Ctrl+Shift+P` — Progressions
+- `Ctrl+Shift+L` — Leadsheets
+- `Ctrl+Shift+M` — Media
+
+**Rejected: modal selector.** A modal per insert would block the editor and feel heavier than the persistent panel.
+
+---
+
+#### 11b.6 — NodeView rendering
+
+Each custom Node's NodeView in the editor shows:
+- A **compact live preview** of the actual public component (so admins see what the lesson reader will see)
+- A **chip** in the top-right with the slug + a small ✕ to delete and a ✎ to edit attrs (e.g., transpose key for progression, voicing pick for chord)
+- Outline highlight on hover; selected state on click
+
+Implementation: `addNodeView()` returns a Vue component that renders `<{tagName} v-bind="attrs" />` inside a wrapper div. Reuses public components verbatim.
+
+---
+
+#### 11b.7 — Image + YouTube nodes (supporting content)
+
+Two more Nodes, deliberately simple — secondary to the SBN components:
+
+| Node | HTML tag (stored) | Atom? | Attrs | Insertion |
+|---|---|---|---|---|
+| Image | `<img src="..." alt="..." />` (native) | block | `src`, `alt`, `width?` | Media tab + slash `/image` + paste/drop file |
+| YouTube | `<sbn-youtube id="dQw4w9WgXcQ" start="0" />` | block atom | `id`, `start?` | Slash `/youtube` + paste-URL auto-detect |
+
+**Image upload**
+
+- Endpoint: `POST /admin/lessons/{lesson}/upload-image` → stores under `public/images/lessons/{lesson_id}/{uuid}.{ext}`, returns `{ url }`.
+- Editor wires three triggers to the same endpoint: drag-drop file, paste image from clipboard, Media tab upload button.
+- Standard `<img>` tag in stored HTML — browser handles rendering. Editor wraps in a NodeView only for resize handle + inline alt-text editor.
+- Validation: max 5MB, mime-type whitelist (jpeg/png/webp/gif), strip EXIF on upload.
+
+**YouTube**
+
+- Custom node for consistent player wrapper (16:9 aspect, lazy-load, optional start time) and forward-compat with Phase D video sync — same `<sbn-youtube>` tag can later carry sync data without breaking stored content.
+- Slash command `/youtube` → prompts for URL → parses ID → inserts.
+- Paste handler: if pasted text matches `youtube.com/watch?v=` or `youtu.be/`, auto-convert to node.
+- Public renderer: `YouTubeEmbed.vue` (~30 LOC, `<iframe>` with `youtube-nocookie.com` for GDPR).
+- Add to `mountSbnNodes.ts` REGISTRY.
+
+**Media tab in palette** is per-lesson scoped (only shows uploads for the current lesson) plus an "Upload" button — keeps things tidy and prevents cross-lesson image reuse confusion.
+
+---
+
+#### 11b.8 — Public-side runtime hook
+
+Single new file: `resources/js/lib/mountSbnNodes.ts`
+
+```ts
+// Walks a container, finds <sbn-*> tags rendered by v-html,
+// mounts the matching Vue component on each, returns an
+// unmount fn for the caller to call on lesson change.
+export function mountSbnNodes(root: HTMLElement): () => void { ... }
+```
+
+Called from `LessonContent.vue` after `v-html` updates (in `onMounted` and on lesson change). One registry maps tag name → component:
+
+```ts
+const REGISTRY = {
+  'sbn-chord': ChordDiagram,
+  'sbn-rhythm': RhythmPatternPlayer,
+  'sbn-progression': ProgressionCard,
+  'sbn-leadsheet': LeadsheetViewer,
+  'sbn-youtube': YouTubeEmbed,
+};
+```
+
+Each component fetches its own data by slug from existing endpoints — no need to pre-serialize embedded items in `CourseController::serializeLesson()`.
+
+---
+
+#### 11b.9 — Migration / data fixes
+
+Existing imported lessons contain literal placeholders like `[CHORD DIAGRAMS MISSING]` and `[VIDEO EMBED: …]`. Don't auto-convert — leave these as visible text so admins know to replace them. Add a one-off command later if needed:
+
+```
+php artisan sbn:scan-lesson-placeholders
+```
+
+…that lists lessons with bracket-placeholder counts so the editor work can be prioritized.
+
+No DB migration needed — `content` already `longText`.
+
+---
+
+#### 11b.10 — Definition of done
+
+- Admin can list, create, edit, reorder, soft-publish/unpublish courses and lessons
+- Lesson editor renders existing imported HTML round-trip (open → save → diff is identity)
+- All 4 SBN component types insert via slash, palette click, drag, and keyboard shortcut
+- Image upload works via drag, paste, and Media palette
+- YouTube paste auto-converts; slash `/youtube` prompt works
+- Public player ([Pages/Courses/Player.vue](resources/js/Pages/Courses/Player.vue)) renders embedded `<sbn-*>` tags as live components via `mountSbnNodes`
+- Lesson preview button in admin opens `/learn/{course}/play/{lesson}?preview=1` in a new tab (bypasses gating for admin user)
+- `npm run build` passes; admin Blade pattern preserved (no Inertia in admin)
+
+---
+
+#### 11b.11 — Suggested order of attack
+
+1. CourseController + LessonController + Blade index/edit forms (no editor yet — plain `<textarea>`) — gets CRUD working
+2. `mountSbnNodes.ts` + register on public Player — proves the runtime works with hand-edited HTML
+3. TipTap shell with the 4 SBN custom Nodes — replace the textarea
+4. Right-side palette wired to existing library JSON endpoints
+5. Slash command + keyboard shortcuts
+6. Image + YouTube nodes + upload endpoint
+7. Drag-reorder lessons, preview button, polish
+
+Each step is independently shippable.
 
 ---
 

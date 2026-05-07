@@ -41,6 +41,7 @@ class ProgressionController extends Controller
                 'match_mode'       => $p->match_mode ?? 'strict',
                 'featured'         => (bool) $p->featured,
                 'song_count'       => (int) $p->song_count,
+                'alt_count'        => is_array($p->alt_numerals) ? count($p->alt_numerals) : 0,
                 'desc'             => $p->description ? Str::words($p->description, 18) : '',
                 'edit_url'         => route('admin.progressions.edit', $p->id),
             ];
@@ -155,6 +156,32 @@ class ProgressionController extends Controller
     }
 
     /**
+     * Rebuild the harmonic-fragments constant file from the DB (AJAX).
+     *
+     * Runs the sbn:reseed-fragments command. The generated file at
+     * storage/app/harmonic-fragments.generated.php is what the Phase 2
+     * HarmonicPatternMatcher loads at runtime.
+     */
+    public function reseedFragments(Request $request)
+    {
+        \Illuminate\Support\Facades\Artisan::call('sbn:reseed-fragments');
+        $output = trim(\Illuminate\Support\Facades\Artisan::output());
+
+        $progressions = 0;
+        $fragments = 0;
+        if (preg_match('/Flattened (\d+) progressions \xE2\x86\x92 (\d+) fragments/u', $output, $m)) {
+            $progressions = (int) $m[1];
+            $fragments = (int) $m[2];
+        }
+
+        return response()->json([
+            'success'      => true,
+            'progressions' => $progressions,
+            'fragments'    => $fragments,
+        ]);
+    }
+
+    /**
      * Toggle featured status (AJAX).
      */
     public function toggleFeatured(ChordProgression $progression)
@@ -182,6 +209,9 @@ class ProgressionController extends Controller
             'match_mode'     => 'required|string|in:strict,degree',
             'sort_order'     => 'nullable|integer',
             'featured'       => 'nullable|boolean',
+            'alt_numerals'   => 'nullable|array',
+            'alt_numerals.*.label'    => 'required|string|max:100',
+            'alt_numerals.*.numerals' => 'required|string|max:255',
         ]);
 
         // Normalize

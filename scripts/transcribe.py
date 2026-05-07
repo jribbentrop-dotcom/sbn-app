@@ -43,6 +43,11 @@ def transcribe(audio_path):
         if os.path.exists(temp_clip_path):
             os.remove(temp_clip_path)
 
+        # Minimum note duration to qualify for harmonic bucketing.
+        # Eliminates transients, basic-pitch false-positives, and melody grace notes
+        # that would otherwise generate spurious chord labels.
+        MIN_NOTE_DURATION = 0.05  # seconds (50 ms)
+
         # 4. Bin MIDI notes into beats
         # We want to group notes by which beat interval they start in.
         beats_json = []
@@ -50,18 +55,28 @@ def transcribe(audio_path):
             start_t = beat_times[i]
             end_t = beat_times[i+1] if i+1 < len(beat_times) else duration
             
-            # Find notes that start within this beat
+            # Find notes that START within this beat and meet the minimum duration.
             # note_events is a list of (start_sec, end_sec, pitch, velocity, amplitude)
-            current_beat_notes = []
+            current_beat_notes = []   # list of (pitch, duration) tuples
             for note in note_events:
                 n_start, n_end, n_pitch, n_vel, n_amp = note
-                if n_start >= start_t and n_start < end_t:
-                    current_beat_notes.append(int(n_pitch))
-            
+                note_dur = n_end - n_start
+                if n_start >= start_t and n_start < end_t and note_dur >= MIN_NOTE_DURATION:
+                    current_beat_notes.append((int(n_pitch), float(note_dur)))
+
+            # Deduplicate by pitch (keep longest duration for each pitch class)
+            pitch_dur_map = {}
+            for pitch, dur in current_beat_notes:
+                if pitch not in pitch_dur_map or dur > pitch_dur_map[pitch]:
+                    pitch_dur_map[pitch] = dur
+
             beats_json.append({
                 "start": float(start_t),
                 "end": float(end_t),
-                "notes": list(set(current_beat_notes)) # Unique pitches in this beat
+                # Legacy key: unique pitches (backward compatible with existing PHP code)
+                "notes": list(pitch_dur_map.keys()),
+                # New key: per-pitch durations for PHP-side weighting
+                "note_durations": pitch_dur_map
             })
 
         notes_json = []

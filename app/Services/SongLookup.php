@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\LookupCache;
+use App\Models\JazzStandard;
 use App\Services\LLM\LookupClient;
 use App\Services\LLM\LookupClientException;
 use Carbon\Carbon;
@@ -35,6 +36,39 @@ class SongLookup
 
         if ($cached) {
             return $cached->analysis;
+        }
+
+        // 2b. Check Local Jazz Standards DB (Decision: "Local-first")
+        // Only trigger this for non-audio lookups.
+        if (!empty($title)) {
+            $standard = JazzStandard::findByTitle($title);
+            if ($standard) {
+                $standardAnalysis = $standard->toIntermediateAnalysis();
+                
+                // In 'quick' mode, we can return this immediately as the definitive source.
+                if ($mode === 'quick') {
+                    \Log::info('[SongLookup] Local hit (Jazz Standard)', ['title' => $title, 'id' => $standard->id]);
+                    
+                    // Add to cache so we don't even hit the DB next time
+                    LookupCache::updateOrCreate(
+                        ['cache_key' => $cacheKey],
+                        [
+                            'title' => $title,
+                            'mode' => $mode,
+                            'analysis' => $standardAnalysis,
+                            'expires_at' => Carbon::now()->addDays(30),
+                        ]
+                    );
+
+                    return $standardAnalysis;
+                }
+                
+                // In 'assistant' mode, we might still want the LLM to provide research/videos,
+                // but we could pass the standard's changes as a hint to "anchor" the LLM.
+                // For now, we just log it and proceed (L3 decision "skip LLM for known songs" 
+                // applies primarily to the data-fetching part, but assistant mode is 
+                // explicitly about research).
+            }
         }
 
         // 3. Build prompts

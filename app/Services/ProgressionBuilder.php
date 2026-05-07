@@ -4,6 +4,9 @@ namespace App\Services;
 
 use App\Models\ChordDiagram;
 use App\Services\ChordShapeCalculator;
+use App\Services\HarmonicContext;
+use App\Services\Builder\PhaseE\ExtensionTable;
+use App\Services\Builder\PhaseE\Interval;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -29,6 +32,7 @@ class ProgressionBuilder
     public function __construct(ChordShapeCalculator $calculator)
     {
         $this->calculator = $calculator;
+        ExtensionTable::initialize();
     }
 
     // =========================================================================
@@ -46,8 +50,8 @@ class ProgressionBuilder
 
     // Category-mode voicing pools (priority order per §5)
     private const CATEGORY_VOICING_POOLS = [
-        'jazz' => ['drop2', 'drop3', 'shell', 'closed'],
-        'blues' => ['archetype'], // Basic blues; advanced selected by style/extension trigger
+        'jazz' => ['drop2', 'drop3', 'shell'],
+        'blues' => ['shell'], // Basic blues; advanced selected by style/extension trigger
         'pop' => ['archetype'],
         'classical' => ['closed_triads', 'spread_triads'],
         'modal' => ['quartal', 'shell', 'drop3'],
@@ -113,6 +117,68 @@ class ProgressionBuilder
         'voice_leading' => 0.25,
         'group_continuity' => 0.10,
         'register' => 0.10,
+        'named_resolutions' => 1.0,
+        'style' => 0.25,
+    ];
+
+    private const VOICING_STYLE_PRESETS = [
+        'auto' => null,
+        'drop2_high' => [
+            'prefer_category' => 'drop2',
+            'bass_string_min' => 2,
+            'bass_string_max' => 4,
+            'register_target' => 7,
+            'prefer_root' => false,
+        ],
+        'drop2_mid' => [
+            'prefer_category' => 'drop2',
+            'bass_string_min' => 3,
+            'bass_string_max' => 5,
+            'register_target' => 5,
+            'prefer_root' => false,
+        ],
+        'drop3_low' => [
+            'prefer_category' => 'drop3',
+            'bass_string_min' => 4,
+            'bass_string_max' => 6,
+            'register_target' => 3,
+            'prefer_root' => false,
+        ],
+        'drop3_mid' => [
+            'prefer_category' => 'drop3',
+            'bass_string_min' => 3,
+            'bass_string_max' => 5,
+            'register_target' => 5,
+            'prefer_root' => false,
+        ],
+        'roote' => [
+            'prefer_category' => 'drop3',
+            'bass_string_min' => 6,
+            'bass_string_max' => 6,
+            'register_target' => 7,
+            'prefer_root' => true,
+        ],
+        'roota' => [
+            'prefer_category' => null,
+            'bass_string_min' => 4,
+            'bass_string_max' => 5,
+            'register_target' => 5,
+            'prefer_root' => true,
+        ],
+        'shell_low' => [
+            'prefer_category' => 'shell',
+            'bass_string_min' => 4,
+            'bass_string_max' => 6,
+            'register_target' => 3,
+            'prefer_root' => false,
+        ],
+        'mixed' => [
+            'prefer_category' => null,
+            'bass_string_min' => 2,
+            'bass_string_max' => 6,
+            'register_target' => 5,
+            'prefer_root' => false,
+        ],
     ];
 
     // =========================================================================
@@ -152,6 +218,7 @@ class ProgressionBuilder
         $style      = $options['style'] ?? '';
         $extensions = $options['extensions'] ?? false;
         $rootOnly   = $options['rootOnly'] ?? false;
+        $voicingStyle = $options['voicing_style'] ?? 'auto';
         $vlLevel    = $extensions ? 2 : 1;
 
         // Diagnostics container
@@ -207,6 +274,22 @@ class ProgressionBuilder
         // Apply numeral upgrade (§6.1) for category-aware progressions
         $context = $this->applyCategoryNumeralUpgrade($context, $category);
 
+        // Apply Phase E extension upgrade (§6.2) — jazz/latin only per §9.1.
+        // Pop, blues, classical, modal don't take jazz tensions even when
+        // extensions=true (blues uses extensions for sub-mode routing, not chord upgrades).
+        $pass2EligibleCategories = ['jazz', 'latin'];
+        $applyExtensionUpgrade = $extensions && in_array($category, $pass2EligibleCategories, true);
+        $context = $this->applyPhaseEExtensionUpgrade($context, $applyExtensionUpgrade);
+
+        // Ensure all chords have extension field set (fallback for non-PhaseE categories)
+        foreach ($context['sections'] as $secIdx => $section) {
+            foreach ($section['chords'] as $chordIdx => $chord) {
+                if (!isset($chord['extension'])) {
+                    $context['sections'][$secIdx]['chords'][$chordIdx]['extension'] = '';
+                }
+            }
+        }
+
         // Re-flatten chords after upgrade (allChords was flattened before upgrade)
         $allChords = [];
         if (isset($context['sections'])) {
@@ -222,6 +305,7 @@ class ProgressionBuilder
         // Fetch voicings for each chord from the database
         $chordVoicings = [];
         foreach ($allChords as $i => $chord) {
+            $functionalRole = $this->determineFunctionalRole($chord);
             $chordVoicings[$i] = $this->fetchVoicingsForChord(
                 $chord['root'],
                 $chord['quality'],
@@ -231,7 +315,8 @@ class ProgressionBuilder
                 $category,
                 $extensions,
                 $i,
-                $diagnostics
+                $diagnostics,
+                $functionalRole
             );
         }
         $lattice = $this->buildAnchorFreeLattice($chordVoicings, $style, $rootOnly, $category);
@@ -248,40 +333,97 @@ class ProgressionBuilder
             $lattice[$pinnedSlot] = [(object) $pinnedVoicing];
         }
 
-        // Handle repeated-chord reuse
-        for ($i = 1; $i < $n; $i++) {
-            if ($this->shouldReusePreviousVoicing(
-                $allChords[$i]['chord_name'] ?? '',
-                $allChords[$i - 1]['chord_name'] ?? null,
-                $i,
-                true,
-                $options
-            )) {
-                if (!empty($lattice[$i - 1])) {
-                    $lattice[$i] = [$lattice[$i - 1][0]];
-                }
+        // Repeated-chord reuse is applied AFTER Viterbi finishes (see
+        // applyRepeatedChordReuse below). Pinning a repeated slot to
+        // pool[i-1][0] before search would force the preceding free slot to
+        // harmonize with an arbitrary first-pool element rather than
+        // letting Viterbi pick its true optimum.
+
+        // Phase E: Run Pass 1 and Pass 2, then apply decision rule
+        $pass1Selections = null;
+        $pass1Cost = null;
+        $pass2Selections = null;
+        $pass2Cost = null;
+        $pass2FiredResolutions = [];
+
+        // Pass 2 is jazz/latin only per spec §6.2 / §9.1.
+        // Pop, blues, classical, modal stay on Pass 1 even when the user
+        // requests extensions — those idioms don't take jazz tensions.
+        $pass2EligibleCategories = ['jazz', 'latin'];
+        $runPass2 = $extensions && in_array($category, $pass2EligibleCategories, true);
+
+        if ($runPass2) {
+            // Run Pass 1 (vlLevel = 1, no extensions)
+            $pass1Context = [
+                'category' => $category,
+                'vlLevel' => 1,
+                'voicing_style' => $voicingStyle,
+                'weight_overrides' => $options['weight_overrides'] ?? [],
+            ];
+            $pass1Selections = $this->viterbiSearchWithRelaxation($lattice, $pass1Context, $style, $diagnostics, $allChords);
+            $pass1Cost = $this->calculatePathCost($pass1Selections, $allChords, $pass1Context);
+
+            // Run Pass 2 (vlLevel = 2, with extensions and named resolutions)
+            $pass2Context = [
+                'category' => $category,
+                'vlLevel' => 2,
+                'voicing_style' => $voicingStyle,
+                'weight_overrides' => $options['weight_overrides'] ?? [],
+            ];
+            $pass2Selections = $this->viterbiSearchWithRelaxation($lattice, $pass2Context, $style, $diagnostics, $allChords);
+            $pass2Result = $this->calculatePathCostWithResolutions($pass2Selections, $allChords, $pass2Context);
+            $pass2Cost = $pass2Result['cost'];
+            $pass2FiredResolutions = $pass2Result['fired_resolutions'];
+
+            // Apply Pass 2 vs Pass 1 decision rule (E.1.5)
+            $pass2Won = $this->applyPass2DecisionRule(
+                $pass1Selections, $pass1Cost,
+                $pass2Selections, $pass2Cost, $pass2FiredResolutions
+            );
+            
+            $selections = $pass2Won ? $pass2Selections : $pass1Selections;
+            if (empty($selections)) {
+                $selections = array_fill(0, $n, null);
             }
+            $selections = $this->applyRepeatedChordReuse($selections, $allChords, $options);
+
+            $diagnostics['phase_e'] = [
+                'pass1_cost' => $pass1Cost,
+                'pass2_cost' => $pass2Cost,
+                'pass2_fired_resolutions' => $pass2FiredResolutions,
+                'pass2_won' => $pass2Won,
+            ];
+        } else {
+            // Extensions disabled, run Pass 1 only
+            $context = [
+                'category' => $category,
+                'vlLevel' => $vlLevel,
+                'voicing_style' => $voicingStyle,
+                'weight_overrides' => $options['weight_overrides'] ?? [],
+            ];
+            $selections = $this->viterbiSearchWithRelaxation($lattice, $context, $style, $diagnostics, $allChords);
+            if (empty($selections)) {
+                $selections = array_fill(0, $n, null);
+            }
+            $selections = $this->applyRepeatedChordReuse($selections, $allChords, $options);
         }
-
-        $context = [
-            'category' => $category,
-            'vlLevel' => $vlLevel,
-            'weight_overrides' => $options['weight_overrides'] ?? [],
-        ];
-
-        $selections = $this->viterbiSearchWithRelaxation($lattice, $context, $style, $diagnostics);
 
         // Compute VL scores between adjacent selections
         $vlScores = [];
         $pathCost = 0.0;
+        $actualVlLevel = ($runPass2 && $selections === $pass2Selections) ? 2 : 1;
         for ($i = 0; $i < $n - 1; $i++) {
-            if ($selections[$i] && $selections[$i + 1]) {
-                $rawScore = $this->scoreVL($selections[$i], $selections[$i + 1], $vlLevel);
+            $sel1 = $selections[$i] ?? null;
+            $sel2 = $selections[$i + 1] ?? null;
+            if ($sel1 && $sel2) {
+                $rawScore = $this->scoreVL($sel1, $sel2, $actualVlLevel);
                 $vlScores[] = $rawScore;
-                $breakdown = $this->costBreakdown($selections[$i], $selections[$i + 1], [
-                    'vlLevel' => $vlLevel,
+                $breakdown = $this->costBreakdown($sel1, $sel2, [
+                    'vlLevel' => $actualVlLevel,
                     'category' => $category,
                     'weight_overrides' => $options['weight_overrides'] ?? [],
+                    'source_chord' => $allChords[$i] ?? null,
+                    'target_chord' => $allChords[$i + 1] ?? null,
                 ]);
                 $diagnostics['cost_breakdown'][] = array_merge([
                     'from' => $i,
@@ -351,7 +493,8 @@ class ProgressionBuilder
         string $category = self::CATEGORY_DEFAULT,
         bool $extensions = false,
         int $slotIndex = 0,
-        array &$diagnostics = null
+        array &$diagnostics = null,
+        ?string $functionalRole = null
     ): array {
         if (!$root) return [];
 
@@ -359,7 +502,12 @@ class ProgressionBuilder
         $dbQuality = $quality;
         if ($dbQuality === '7') $dbQuality = 'dom7';
 
-        $qualityAliases = $this->getQualityAliases($dbQuality);
+        $qualityAliases = $this->expandTonicFamilyAliases(
+            $this->getQualityAliases($dbQuality),
+            $dbQuality,
+            $category,
+            $functionalRole
+        );
 
         // Determine pool based on category and blues sub-mode trigger
         $pool = $this->getCategoryPool($category, $styleFilter, $extensions);
@@ -383,8 +531,39 @@ class ProgressionBuilder
             ->whereRaw("(bass_note = '' OR bass_note IS NULL)")
             ->orderByDesc('popularity');
 
+        // Pass 1 (extensions=false): restrict to plain voicings (no option tones).
+        // The DB seeds extension-carrying rows under the same quality (e.g. m7+11,
+        // dom7+9), which leaked color tones into Pass 1 output. Pass 2 keeps the
+        // full pool so Phase E can upgrade to tension voicings.
+        if (!$extensions) {
+            $query->where(function ($q) {
+                $q->whereNull('extensions')->orWhere('extensions', '');
+            });
+        }
+
+        // When specific extensions are requested (Phase E), filter for voicings
+        // that carry those extension tones. DB stores comma-separated values
+        // (e.g. "9,13", "b9, #11"). Wrap in commas for exact tone matching so
+        // "9" doesn't accidentally match "b9" or "#9".
+        if ($extension !== '') {
+            $requestedTones = array_map('trim', explode(',', $extension));
+            $query->where(function ($q) use ($requestedTones) {
+                foreach ($requestedTones as $tone) {
+                    $q->orWhereRaw("(',' || extensions || ',') LIKE ?", ['%,' . $tone . ',%']);
+                }
+            });
+        }
+
         // Apply category pool filter
         $shapes = $this->queryWithCategoryPool($query, $pool, $styleFilter, $rootOnly, $slotIndex, $diagnostics);
+
+        // Alias voicings: a shape stored under one identity that re-spells under
+        // another (e.g. Cmaj7 xx5557 = Em7/G). Fetched as shape objects with the
+        // alias's identity (alt_root, alt_quality, alt_extensions, alt_bass) but
+        // the parent's diagram_data. Same Pass-1/Pass-2 extension gating as the
+        // parent table. Honors the category pool via the parent's voicing_category.
+        $aliasShapes = $this->fetchAliasShapes($qualityAliases, $extensions, $rootOnly, $pool, $extension);
+        $shapes = $shapes->concat($aliasShapes);
 
         if ($shapes->isEmpty()) return [];
 
@@ -394,7 +573,16 @@ class ProgressionBuilder
             if (!empty($shape->is_fixed_position) && strtolower($shape->root_note ?? '') !== strtolower($root)) {
                 continue;
             }
-            $calculated = $this->calculator->calculateFrets($shape, $root);
+            // True-slash aliases (foreign bass) need transposition relative to the
+            // bass note, not the root. Re-spell the alias's foreign bass into the
+            // target key so the parent shape lands at the right fret.
+            if (!empty($shape->_alias_true_slash) && !empty($shape->bass_note)) {
+                $targetBass = $this->transposeBassNote($shape->root_note, $shape->bass_note, $root);
+                if ($targetBass === null) continue;
+                $calculated = $this->calculator->calculateFretsWithBass($shape, $root, $targetBass);
+            } else {
+                $calculated = $this->calculator->calculateFrets($shape, $root);
+            }
 
             if (empty($calculated['diagram_data']) ||
                 (empty($calculated['diagram_data']['positions']) && empty($calculated['diagram_data']['open']))) {
@@ -427,6 +615,118 @@ class ProgressionBuilder
         }
 
         return $results;
+    }
+
+    /**
+     * Fetch alias-table shapes that re-spell a parent diagram under a different
+     * identity (root/quality/bass). Returns shape objects matching the shape
+     * produced by the parent-table query, so the existing transposition loop
+     * accepts them unchanged. The alias's alt_root_note becomes shape->root_note;
+     * the parent's diagram_data is preserved verbatim.
+     */
+    private function fetchAliasShapes(array $qualityAliases, bool $extensions, bool $rootOnly, array $pool, string $extension = ''): \Illuminate\Support\Collection
+    {
+        $query = DB::table('sbn_chord_diagram_aliases as a')
+            ->join('sbn_chord_diagrams as d', 'a.diagram_id', '=', 'd.id')
+            ->whereIn('a.alt_quality', $qualityAliases)
+            ->whereIn('d.voicing_category', $pool)
+            ->select(
+                'd.id',
+                'd.voicing_category',
+                'd.root_string',
+                'd.diagram_data',
+                'd.start_fret',
+                'd.is_fixed_position',
+                'd.popularity',
+                'a.alt_root_note',
+                'a.alt_quality',
+                'a.alt_extensions',
+                'a.alt_bass_note',
+                'a.interval_labels as alt_interval_labels',
+                'a.notes as alt_notes'
+            );
+
+        // Pass 1: only plain aliases. Mirrors the parent-table extension filter.
+        if (!$extensions) {
+            $query->where(function ($q) {
+                $q->whereNull('a.alt_extensions')->orWhere('a.alt_extensions', '');
+            });
+        }
+
+        // When specific extensions are requested (Phase E), filter aliases
+        // whose alt_extensions contain the requested tones.
+        if ($extension !== '') {
+            $requestedTones = array_map('trim', explode(',', $extension));
+            $query->where(function ($q) use ($requestedTones) {
+                foreach ($requestedTones as $tone) {
+                    $q->orWhereRaw("(',' || a.alt_extensions || ',') LIKE ?", ['%,' . $tone . ',%']);
+                }
+            });
+        }
+
+        // rootOnly: alias is "root position" iff alt_bass_note is empty.
+        if ($rootOnly) {
+            $query->where(function ($q) {
+                $q->whereNull('a.alt_bass_note')->orWhere('a.alt_bass_note', '');
+            });
+        }
+
+        $rows = $query->orderByDesc('d.popularity')->get();
+
+        return $rows->map(function ($r) {
+            $shape = new \stdClass();
+            $shape->id               = $r->id;
+            $shape->root_note        = $r->alt_root_note;
+            $shape->quality          = $r->alt_quality;
+            $shape->extensions       = $r->alt_extensions ?? '';
+            $shape->voicing_category = $r->voicing_category;
+            $shape->root_string      = $r->root_string;
+            $shape->bass_note        = $r->alt_bass_note ?? '';
+            $shape->diagram_data     = $r->diagram_data;
+            $shape->start_fret       = $r->start_fret;
+            $shape->is_fixed_position = $r->is_fixed_position;
+            $shape->popularity       = $r->popularity ?? 0;
+            $shape->interval_labels  = $r->alt_interval_labels ?? '';
+            $shape->notes            = $r->alt_notes ?? '';
+
+            // Resolve inversion vs. true-slash. ChordShapeCalculator::calculateFrets
+            // needs a known inversion label ('root', 'inv1', 'inv2', 'inv3'); a true
+            // slash (foreign bass) takes the calculateFretsWithBass path instead.
+            if (!empty($shape->bass_note)) {
+                $info = $this->calculator->analyzeSlashChord(
+                    $shape->root_note, $shape->quality, $shape->bass_note
+                );
+                if ($info['type'] === 'inversion' && !empty($info['inversion'])) {
+                    $shape->inversion = $info['inversion'];
+                } else {
+                    $shape->inversion = 'root';
+                    $shape->_alias_true_slash = true;
+                }
+            } else {
+                $shape->inversion = 'root';
+            }
+
+            return $shape;
+        });
+    }
+
+    /**
+     * Transpose an alias's foreign bass note from its source root to a target root.
+     * Returns null if either note is unrecognized.
+     */
+    private function transposeBassNote(string $sourceRoot, string $sourceBass, string $targetRoot): ?string
+    {
+        static $semi = [
+            'C'=>0,'B#'=>0,'C#'=>1,'Db'=>1,'D'=>2,'D#'=>3,'Eb'=>3,
+            'E'=>4,'Fb'=>4,'F'=>5,'E#'=>5,'F#'=>6,'Gb'=>6,'G'=>7,
+            'G#'=>8,'Ab'=>8,'A'=>9,'A#'=>10,'Bb'=>10,'B'=>11,'Cb'=>11,
+        ];
+        static $names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+        if (!isset($semi[$sourceRoot], $semi[$sourceBass], $semi[$targetRoot])) {
+            return null;
+        }
+        $interval = ($semi[$sourceBass] - $semi[$sourceRoot] + 12) % 12;
+        return $names[($semi[$targetRoot] + $interval) % 12];
     }
 
     /**
@@ -464,17 +764,16 @@ class ProgressionBuilder
     private function queryWithCategoryPool($query, array $pool, string $styleFilter, bool $rootOnly, int $slotIndex, ?array &$diagnostics)
     {
         $originalPool = $pool;
+        $allShapes = collect();
 
         foreach ($pool as $poolIdx => $category) {
             $queryClone = clone $query;
-            $queryClone->whereIn('voicing_category', [$category, '', null]); // Include empty/null as archetype
+            $queryClone->whereIn('voicing_category', [$category, '', null]);
 
-            // Apply style filter if within pool
             if ($styleFilter && $styleFilter !== 'drop' && in_array($styleFilter, $pool, true)) {
                 $queryClone->where('voicing_category', $styleFilter);
             }
 
-            // Root only
             if ($rootOnly) {
                 $queryClone->where(function ($q) {
                     $q->where('inversion', 'root')
@@ -483,7 +782,6 @@ class ProgressionBuilder
                 });
             }
 
-            // Exclude open voicings
             $queryClone->where(function ($q) {
                 $q->where('voicing_category', '!=', 'open')
                   ->orWhereNull('voicing_category')
@@ -493,15 +791,13 @@ class ProgressionBuilder
             $shapes = $queryClone->limit(80)->get();
 
             if (!$shapes->isEmpty()) {
-                // Apply non-barré priority for archetype pool
                 if (in_array($category, ['archetype', '', null], true)) {
                     $shapes = $this->applyArchetypePriority($shapes);
                 }
-                return $shapes;
+                $allShapes = $allShapes->concat($shapes);
             }
 
-            // Log fallback
-            if ($diagnostics !== null && $poolIdx < count($pool) - 1) {
+            if ($diagnostics !== null && $shapes->isEmpty() && $poolIdx < count($pool) - 1) {
                 $nextCategory = $pool[$poolIdx + 1] ?? 'unrestricted';
                 $diagnostics['category_pool_fallbacks'][] = [
                     'slot' => $slotIndex,
@@ -510,6 +806,10 @@ class ProgressionBuilder
                     'reason' => 'no candidates',
                 ];
             }
+        }
+
+        if ($allShapes->isNotEmpty()) {
+            return $allShapes;
         }
 
         // Final fallback: unrestricted query
@@ -596,6 +896,34 @@ class ProgressionBuilder
         return $slotIdx > 0
             && $prevChord === $currentChord
             && $prevSelectionExists;
+    }
+
+    /**
+     * Post-Viterbi: copy each chosen voicing forward into immediately-following
+     * slots whose chord_name is identical. Lets Viterbi optimize the "free"
+     * slots first, then propagates the chosen voicing through the repeats.
+     *
+     * Why post-Viterbi: pinning the repeat slot to pool[i-1][0] before search
+     * forces the preceding free slot to harmonize with an arbitrary first-pool
+     * element. The cheap self-edge from that pin then drags the free slot's
+     * choice toward the pinned voicing — the opposite of what we want.
+     */
+    private function applyRepeatedChordReuse(array $selections, array $allChords, array $options): array
+    {
+        $n = count($selections);
+        for ($i = 1; $i < $n; $i++) {
+            $reuse = $this->shouldReusePreviousVoicing(
+                $allChords[$i]['chord_name'] ?? '',
+                $allChords[$i - 1]['chord_name'] ?? null,
+                $i,
+                $selections[$i - 1] !== null,
+                $options
+            );
+            if ($reuse && $selections[$i - 1] !== null) {
+                $selections[$i] = $selections[$i - 1];
+            }
+        }
+        return $selections;
     }
 
     /**
@@ -982,10 +1310,11 @@ class ProgressionBuilder
 
     private function upgradeJazzLatin(string $fullNumeral, int $degree, bool $isMinor, string $tonality): string
     {
-        // Tonic family (I, IV) uppercase plain → maj7
-        // Non-tonic uppercase plain (II, III, VI, VII, bII, bIII, bVI, bVII) → dom7
+        // Tonic family (I, IV) → maj7
+        // bVI (minor subdominant) → maj7
+        // II, III, VI → m7 (diatonic minor chords in major)
+        // V, VII, bII, bIII, bVII → dom7
         // Uppercase + m (IIm, IIIm, IVm, VIm, VIIm) → m7
-        // Lowercase (ii, iii, vi) → m7
         // VIIm → m7b5 in major
         if ($isMinor) {
             if ($degree === 7) { // VIIm
@@ -996,12 +1325,22 @@ class ProgressionBuilder
 
         // Check if this is a tonic numeral (I or IV) - case-sensitive
         $isTonic = ($fullNumeral === 'I' || $fullNumeral === 'IV');
-        
+
         if ($isTonic) {
             return 'maj7';
         }
 
-        // All other uppercase plain → dom7 (V, II, III, VI, VII, bII, bIII, bVI, bVII)
+        // bVI → maj7 (minor subdominant, not dominant)
+        if ($fullNumeral === 'bVI') {
+            return 'maj7';
+        }
+
+        // II, III, VI → m7 (diatonic minor chords)
+        if ($degree === 2 || $degree === 3 || $degree === 6) {
+            return 'm7';
+        }
+
+        // V, VII, bII, bIII, bVII → dom7
         return 'dom7';
     }
 
@@ -1040,7 +1379,9 @@ class ProgressionBuilder
     private function romanToDegree(string $numeral): int
     {
         $romanMap = ['I' => 1, 'II' => 2, 'III' => 3, 'IV' => 4, 'V' => 5, 'VI' => 6, 'VII' => 7];
-        $base = strtoupper(preg_replace('/^[b#]/', '', $numeral));
+        
+        // Remove quality suffixes (m, m7, m7b5, maj7, 7, etc.) and accidentals
+        $base = strtoupper(preg_replace('/^[b#]|[mM]7(b5)?$|maj7?|7$|dim$|aug$/', '', $numeral));
         $degree = $romanMap[$base] ?? 1;
 
         // Handle accidentals
@@ -1145,6 +1486,224 @@ class ProgressionBuilder
     }
 
     /**
+     * Apply Phase E extension-based numeral upgrade (§6.2 and §9.2).
+     * 
+     * This implements Pass 2 numeral upgrade using the ExtensionTable:
+     * - For each chord, look up recommended extensions based on role, target_role, and key_mode
+     * - Apply top-priority extension set as the upgraded numeral
+     * - Handle secondary dominant routing
+     * - Store extension data for Pass 2 candidate generation
+     * 
+     * @param array $context The harmonic context
+     * @param bool $extensionsEnabled Whether extensions are enabled in options
+     * @return array Modified context with Phase E upgrades applied
+     */
+    private function applyPhaseEExtensionUpgrade(array $context, bool $extensionsEnabled): array
+    {
+        if (!$extensionsEnabled) {
+            return $context;
+        }
+
+        if (!isset($context['sections'])) {
+            return $context;
+        }
+
+        $pinnedSlot = $context['pinnedSlot'] ?? null;
+
+        // First pass: collect all chords and determine functional roles
+        $chordRoles = [];
+        foreach ($context['sections'] as $secIdx => $section) {
+            foreach ($section['chords'] as $chordIdx => $chord) {
+                $globalIdx = $this->globalChordIndex($context, $secIdx, $chordIdx);
+                $chordRoles[$globalIdx] = $this->determineFunctionalRole($chord);
+            }
+        }
+
+        // Second pass: apply extensions based on functional context
+        foreach ($context['sections'] as $secIdx => $section) {
+            foreach ($section['chords'] as $chordIdx => $chord) {
+                $globalIdx = $this->globalChordIndex($context, $secIdx, $chordIdx);
+                if ($globalIdx === $pinnedSlot) {
+                    continue; // Never upgrade pinned slots
+                }
+
+                $currentRole = $chordRoles[$globalIdx];
+                $nextRole = $chordRoles[$globalIdx + 1] ?? null;
+                $keyMode = $chord['tonality'] ?? 'major';
+
+                // Handle secondary dominant routing
+                if ($this->isSecondaryDominant($currentRole, $chord)) {
+                    $targetQuality = $this->getTargetChordQuality($context, $globalIdx + 1);
+                    $routing = ExtensionTable::routeSecondaryDominant($targetQuality);
+                    // Map routing to appropriate target role for extension lookup
+                    $nextRole = $this->mapRoutingToTargetRole($routing);
+                }
+
+                // Get recommended extensions
+                $extensions = ExtensionTable::getTopExtensions($currentRole, $nextRole, $keyMode);
+                
+                if ($extensions !== null) {
+                    $topExtension = $extensions['extensions'][0] ?? null;
+                    if ($topExtension !== null) {
+                        // Apply the top-priority extension set, filtering out forbidden tones
+                        $extensionTones = $topExtension['tones'] ?? [];
+                        $forbid = $extensions['forbid'] ?? [];
+                        if (!empty($forbid)) {
+                            $extensionTones = array_values(array_diff($extensionTones, $forbid));
+                        }
+                        $context['sections'][$secIdx]['chords'][$chordIdx]['phase_e_extensions'] = $extensionTones;
+                        
+                        // Update chord name to include extensions
+                        $root = $chord['root'] ?? '';
+                        $quality = $chord['quality'] ?? '';
+                        $extensionString = $this->formatExtensionString($extensionTones);
+                        $newChordName = $this->composeChordName($root, $quality, $extensionString);
+                        $context['sections'][$secIdx]['chords'][$chordIdx]['chord_name'] = $newChordName;
+                        $context['sections'][$secIdx]['chords'][$chordIdx]['extension'] = $extensionString;
+                    } else {
+                        // No extensions available - set empty extension field
+                        $context['sections'][$secIdx]['chords'][$chordIdx]['extension'] = '';
+                    }
+                } else {
+                    // No extensions found - set empty extension field
+                    $context['sections'][$secIdx]['chords'][$chordIdx]['extension'] = '';
+                }
+            }
+        }
+
+        return $context;
+    }
+
+    /**
+     * Determine the functional role of a chord based on its quality and position
+     */
+    private function determineFunctionalRole(array $chord): string
+    {
+        $quality = $chord['quality'] ?? '';
+        $romanNumeral = $chord['roman_numeral'] ?? '';
+        
+        // Map quality to functional role
+        if (in_array($quality, ['dom7', '7', '7alt', '7#11', '7b9', '7#9', '7b13', '7b9b13', '9', '13'])) {
+            // Check if it's a secondary dominant (not on scale degree V)
+            $degree = $this->romanToDegree($romanNumeral);
+            if ($degree === 5) {
+                return 'V7';
+            } elseif (str_contains($romanNumeral, 'bII')) {
+                return 'bII7'; // tritone substitute
+            } elseif (str_contains($romanNumeral, 'bVI')) {
+                return 'bVI7'; // minor blues dominant
+            } elseif (str_contains($romanNumeral, 'bVII')) {
+                return 'bVII7'; // backdoor dominant
+            } else {
+                return 'V7'; // secondary dominant - will be routed later
+            }
+        }
+        
+        if (in_array($quality, ['maj7', 'maj6', 'maj9', 'maj13', '6', '69', 'maj'])) {
+            $degree = $this->romanToDegree($romanNumeral);
+            if ($degree === 1) {
+                return $quality === '6' || $quality === '69' ? 'I6' : 'Imaj7';
+            } elseif ($degree === 4) {
+                return 'IVmaj7';
+            }
+            return 'Imaj7';
+        }
+        
+        if (in_array($quality, ['m7', 'm6', 'm7b5', 'mMaj7', 'min', 'mMin7'])) {
+            $degree = $this->romanToDegree($romanNumeral);
+            if ($degree === 1) {
+                return $quality === 'm6' ? 'Im6' : ($quality === 'mMaj7' ? 'ImMaj7' : 'Im7');
+            } elseif ($degree === 2) {
+                return $quality === 'm7b5' ? 'IIm7b5' : 'IIm7';
+            } elseif ($degree === 3) {
+                return $quality === 'm7b5' ? 'IIIm7b5' : 'IIIm7';
+            } elseif ($degree === 6) {
+                return $quality === 'm7b5' ? 'VIm7b5' : 'VIm7';
+            }
+            return 'Im7';
+        }
+        
+        if (in_array($quality, ['dim7', 'dim', 'o7'])) {
+            return 'dim7';
+        }
+        
+        // Default fallback
+        return 'Imaj7';
+    }
+
+    /**
+     * Check if a chord is a secondary dominant
+     */
+    private function isSecondaryDominant(string $role, array $chord): bool
+    {
+        if ($role !== 'V7') {
+            return false;
+        }
+        
+        $romanNumeral = $chord['roman_numeral'] ?? '';
+        $degree = $this->romanToDegree($romanNumeral);
+        
+        // V7 is primary, others are secondary
+        return $degree !== 5;
+    }
+
+    /**
+     * Get target chord quality for secondary dominant routing
+     */
+    private function getTargetChordQuality(array $context, int $targetIndex): string
+    {
+        // Find the target chord by global index
+        $currentIndex = 0;
+        foreach ($context['sections'] as $section) {
+            foreach ($section['chords'] as $chord) {
+                if ($currentIndex === $targetIndex) {
+                    return $chord['quality'] ?? 'maj7';
+                }
+                $currentIndex++;
+            }
+        }
+        
+        return 'maj7'; // default fallback
+    }
+
+    /**
+     * Map routing description to target role for extension lookup
+     */
+    private function mapRoutingToTargetRole(string $routing): string
+    {
+        if (str_contains($routing, 'Im (minor-target rules)')) {
+            return 'Im';
+        } elseif (str_contains($routing, 'Imaj7 (major-target rules)')) {
+            return 'Imaj7';
+        } elseif (str_contains($routing, 'V7 (dominant-chain rules)')) {
+            return 'V7';
+        }
+        
+        return 'Imaj7'; // default fallback
+    }
+
+    /**
+     * Format extension tones as a string for chord names
+     */
+    private function formatExtensionString(array $tones): string
+    {
+        if (empty($tones)) {
+            return '';
+        }
+        
+        // Sort tones according to conventional order
+        $order = ['b9', '9', '#9', '11', '#11', 'b13', '13'];
+        $sorted = [];
+        foreach ($order as $tone) {
+            if (in_array($tone, $tones)) {
+                $sorted[] = $tone;
+            }
+        }
+        
+        return implode(',', $sorted);
+    }
+
+    /**
      * Build a display fret string from diagram_data.
      * e.g. "x57565" — 6 chars, one per string, 'x' for muted.
      */
@@ -1206,6 +1765,43 @@ class ProgressionBuilder
     }
 
     /**
+     * Widen the tonic-family quality aliases for jazz/latin tonic slots.
+     *
+     * In jazz/latin practice, a tonic-major chord can be voiced as maj7, 6,
+     * 6/9 or maj6 interchangeably; a tonic-minor chord can be voiced as m7
+     * or m6. Letting Viterbi see all of these in the candidate pool produces
+     * idiomatic substitutions without requiring the upgrade table to enumerate
+     * every quality. The widening is gated on functional role so that
+     * predominant minor (IIm7, VIm7, etc.) does NOT pull m6 — m6 implies
+     * tonic-minor and would change the function.
+     */
+    private function expandTonicFamilyAliases(
+        array $aliases,
+        string $dbQuality,
+        string $category,
+        ?string $functionalRole
+    ): array {
+        if (!in_array($category, ['jazz', 'latin'], true) || $functionalRole === null) {
+            return $aliases;
+        }
+
+        $tonicMajorRoles = ['Imaj7', 'I6'];
+        $tonicMinorRoles = ['Im7', 'Im6', 'ImMaj7'];
+
+        if (in_array($functionalRole, $tonicMajorRoles, true)
+            && in_array($dbQuality, ['maj7', 'maj6', '6'], true)) {
+            return array_values(array_unique(array_merge($aliases, ['maj7', 'maj6', '6'])));
+        }
+
+        if (in_array($functionalRole, $tonicMinorRoles, true)
+            && in_array($dbQuality, ['m7', 'm6'], true)) {
+            return array_values(array_unique(array_merge($aliases, ['m7', 'm6'])));
+        }
+
+        return $aliases;
+    }
+
+    /**
      * Apply harmonic suitability filter for a chord slot.
      * Removes voicings with harmonically inappropriate extensions.
      */
@@ -1219,7 +1815,7 @@ class ProgressionBuilder
         $nextQuality = $nextChord ? $this->resolveQuality($nextChord) : '';
         $nextIsMinor = $this->isMinorQuality($nextQuality);
 
-        $filtered = array_filter($pool, function ($v) use ($quality, $nextIsMinor) {
+        $filtered = array_filter($pool, function ($v) use ($quality, $nextIsMinor, $chord, $nextChord, $index, $allChords) {
             $labels = array_map('trim', explode(',', $v->interval_labels ?? ''));
             $ext = trim($v->extensions ?? '');
 
@@ -1241,10 +1837,56 @@ class ProgressionBuilder
                 if (str_contains($ext, '#11')) return false;
             }
 
+            // Phase E avoid tones filter (E.1.3)
+            if ($this->hasPhaseEExtensions($chord)) {
+                // Determine functional context for avoid tones checking
+                $currentRole = $this->determineFunctionalRole($chord);
+                $nextRole = $nextChord ? $this->determineFunctionalRole($nextChord) : null;
+                $keyMode = $chord['tonality'] ?? 'major';
+                
+                // Create context string for avoid tones lookup
+                $contextString = $this->createAvoidTonesContext($currentRole, $nextRole, $keyMode);
+                
+                // Check each extension tone against avoid tones index
+                foreach ($labels as $tone) {
+                    if (ExtensionTable::isToneForbidden($contextString, $tone)) {
+                        return false;
+                    }
+                }
+            }
+
             return true;
         });
 
         return !empty($filtered) ? array_values($filtered) : $pool;
+    }
+
+    /**
+     * Check if a chord has Phase E extensions applied
+     */
+    private function hasPhaseEExtensions(array $chord): bool
+    {
+        return isset($chord['phase_e_extensions']) && !empty($chord['phase_e_extensions']);
+    }
+
+    /**
+     * Create context string for avoid tones lookup
+     */
+    private function createAvoidTonesContext(string $currentRole, ?string $nextRole, string $keyMode): string
+    {
+        // Map to the context strings used in avoid_tones_index
+        if ($currentRole === 'V7' && $nextRole) {
+            if ($nextRole === 'Imaj7') {
+                return 'V7 → Imaj7';
+            } elseif ($nextRole === 'Im') {
+                return 'V7 → Im';
+            }
+        } elseif ($currentRole === 'bII7' && $nextRole === 'Imaj7') {
+            return 'bII7 → Imaj7';
+        }
+        
+        // For other contexts, use the role directly
+        return $currentRole;
     }
 
     // =========================================================================
@@ -1299,83 +1941,23 @@ class ProgressionBuilder
      */
     public function selectVoicingsForSequence(array $chordNames, string $key, array $options = []): array
     {
-        $preferCategory = $options['category'] ?? '';
-        $results        = [];
+        $category = $options['category'] ?? '';
+        if ($category === '') $category = 'pop';
 
-        foreach ($chordNames as $name) {
-            $parsed  = $this->parseChordNameSimple($name);
-            $root    = $parsed['root']      ?? null;
-            $quality = $parsed['quality']   ?? 'maj';
-            $ext     = $parsed['extension'] ?? '';
+        $hc = app(HarmonicContext::class)->buildFromChordSequence($key, $chordNames);
+        $result = $this->buildVoicings($hc, ['category' => $category, 'extensions' => false]);
 
-            $pool = $this->fetchVoicingsForChord($root, $quality, $ext, '', false);
-
-            if (empty($pool)) {
-                $results[] = ['chord_name' => $name, 'frets' => null, 'position' => 1, 'diagram_id' => null];
-                continue;
-            }
-
-            if ($preferCategory !== '') {
-                $preferred = array_filter($pool, fn($v) =>
-                    strcasecmp($v->voicing_category ?? '', $preferCategory) === 0
-                );
-                $pick = !empty($preferred) ? array_values($preferred)[0] : $pool[0];
-            } else {
-                $pick = $pool[0];
-            }
-
-
-            $results[] = [
-                'chord_name' => $name,
-                'frets'      => $pick->frets,
-                'position'   => $pick->start_fret ?? 1,
-                'diagram_id' => $pick->id ?? null,
+        $out = [];
+        foreach ($result['selections'] ?? [] as $sel) {
+            $voicing = $sel['voicing'] ?? null;
+            $out[] = [
+                'chord_name' => $sel['chord_name'] ?? '?',
+                'frets'      => $voicing['frets'] ?? null,
+                'position'   => $voicing['start_fret'] ?? 1,
+                'diagram_id' => $voicing['id'] ?? null,
             ];
         }
-
-        return $results;
-    }
-
-    /**
-     * Minimal chord name parser for selectVoicingsForSequence.
-     * Splits 'Dm7', 'G7', 'Cmaj7', 'F#m7b5' into root/quality/extension.
-     */
-    private function parseChordNameSimple(string $name): array
-    {
-        if (!preg_match('/^([A-G][#b]?)(.*)$/', trim($name), $m)) {
-            return ['root' => null, 'quality' => 'maj', 'extension' => ''];
-        }
-        $root   = $m[1];
-        $suffix = $m[2];
-
-        $ext = '';
-        if (preg_match('/\(([^)]+)\)/', $suffix, $em)) {
-            $ext    = $em[1];
-            $suffix = str_replace($em[0], '', $suffix);
-        }
-
-        $qualityMap = [
-            'maj7' => 'maj7', 'Maj7' => 'maj7', 'M7'    => 'maj7',
-            'maj9' => 'maj9', 'maj'  => 'maj',
-            'm7b5' => 'm7b5', 'mMaj7'=> 'mMaj7',
-            'm7'   => 'm7',   'min7' => 'm7',
-            'm9'   => 'm9',   'm6'   => 'm6',
-            'm'    => 'min',  'min'  => 'min',
-            'dim7' => 'dim7', 'dim'  => 'dim',
-            'aug7' => 'aug7', 'aug'  => 'aug',
-            '13'   => 'dom7', '11'   => 'dom7',
-            '9'    => 'dom7', '7'    => 'dom7',
-            'sus4' => 'sus4', 'sus2' => 'sus2',
-            '6'    => 'maj6',
-        ];
-
-        foreach ($qualityMap as $token => $q) {
-            if ($token !== '' && str_starts_with($suffix, $token)) {
-                return ['root' => $root, 'quality' => $q, 'extension' => $ext];
-            }
-        }
-
-        return ['root' => $root, 'quality' => 'maj', 'extension' => $ext];
+        return $out;
     }
 
     public function scoreVL(object $a, object $b, int $level = 1): float
@@ -1575,7 +2157,19 @@ class ProgressionBuilder
             'voice_leading' => $this->boundedCost($rawVoiceLeading / self::SCORE_VL_NORMALIZER),
             'group_continuity' => $this->costGroupContinuity($v1, $v2),
             'register' => $this->costRegister($v2, $context),
+            'style' => $this->costStyle($v2, $context),
         ];
+
+        // Phase E named resolutions (E.1.4)
+        $namedResolutionBonus = 0.0;
+        $firedResolutions = [];
+        if (($context['vlLevel'] ?? 1) >= 2) {
+            $resolutionResult = $this->evaluateNamedResolutions($v1, $v2, $context);
+            $namedResolutionBonus = $resolutionResult['total_bonus'];
+            $firedResolutions = $resolutionResult['fired_ids'];
+        }
+
+        $terms['named_resolutions'] = $namedResolutionBonus;
 
         $weighted = [];
         $total = 0.0;
@@ -1589,6 +2183,7 @@ class ProgressionBuilder
             'weighted' => $weighted,
             'weighted_total' => round($total, 4),
             'total' => round($total, 4),
+            'fired_named_resolutions' => $firedResolutions,
         ]);
     }
 
@@ -1601,6 +2196,331 @@ class ProgressionBuilder
         return array_merge($weights, array_intersect_key($overrides, $weights));
     }
 
+    /**
+     * Evaluate Phase E named resolutions for a voicing transition
+     * 
+     * @param object $v1 Source voicing
+     * @param object $v2 Target voicing
+     * @param array $context Context including chord information
+     * @return array ['total_bonus' => float, 'fired_ids' => array]
+     */
+    private function evaluateNamedResolutions(object $v1, object $v2, array $context): array
+    {
+        $totalBonus = 0.0;
+        $firedIds = [];
+
+        // Get chord information from context
+        $sourceChord = $context['source_chord'] ?? null;
+        $targetChord = $context['target_chord'] ?? null;
+        
+        if (!$sourceChord || !$targetChord) {
+            return ['total_bonus' => 0.0, 'fired_ids' => []];
+        }
+
+        // Get MIDI notes from both voicings
+        $sourceNotes = $this->getVoicingMidiNotes($v1);
+        $targetNotes = $this->getVoicingMidiNotes($v2);
+
+        // Get pitch classes (0-11) for root notes
+        $sourceRootPc = $this->noteNameToPitchClass($sourceChord['root'] ?? 'C');
+        $targetRootPc = $this->noteNameToPitchClass($targetChord['root'] ?? 'C');
+
+        // Determine functional roles
+        $sourceRole = $this->determineFunctionalRole($sourceChord);
+        $targetRole = $this->determineFunctionalRole($targetChord);
+
+        // Get all named resolutions and test each one
+        $resolutions = ExtensionTable::getNamedResolutions();
+        foreach ($resolutions as $resolution) {
+            if ($this->testNamedResolution($resolution, $sourceNotes, $targetNotes, 
+                                        $sourceRootPc, $targetRootPc, $sourceRole, $targetRole)) {
+                $totalBonus += $resolution['bonus'];
+                $firedIds[] = $resolution['id'];
+            }
+        }
+
+        return [
+            'total_bonus' => $totalBonus,
+            'fired_ids' => $firedIds
+        ];
+    }
+
+    /**
+     * Test if a specific named resolution fires on this transition
+     */
+    private function testNamedResolution(array $resolution, array $sourceNotes, array $targetNotes,
+                                       int $sourceRootPc, int $targetRootPc, 
+                                       string $sourceRole, string $targetRole): bool
+    {
+        $result = $this->testNamedResolutionWithDebug($resolution, $sourceNotes, $targetNotes,
+                                                     $sourceRootPc, $targetRootPc, $sourceRole, $targetRole);
+        return $result['fired'];
+    }
+
+    private function testNamedResolutionWithDebug(array $resolution, array $sourceNotes, array $targetNotes,
+                                                 int $sourceRootPc, int $targetRootPc, 
+                                                 string $sourceRole, string $targetRole): array
+    {
+        // Check role matching (support 'any_tonic' wildcard)
+        $sourceMatch = $resolution['source']['role'] === $sourceRole;
+        $targetMatch = $resolution['target']['role'] === $targetRole || 
+                      $resolution['target']['role'] === 'any_tonic';
+
+        if (!$sourceMatch || !$targetMatch) {
+            $reason = "role_mismatch";
+            if (!$sourceMatch) $reason .= " (source: {$resolution['source']['role']} != $sourceRole)";
+            if (!$targetMatch) $reason .= " (target: {$resolution['target']['role']} != $targetRole)";
+            return ['fired' => false, 'reason' => $reason];
+        }
+
+        // Check if source tone is present in source voicing
+        $sourceTone = $resolution['source']['tone'];
+        if (!ExtensionTable::isToneInVoicing($sourceNotes, $sourceRootPc, $sourceTone)) {
+            return ['fired' => false, 'reason' => "tone_not_present (source: $sourceTone)"];
+        }
+
+        // Check if target tone is present in target voicing
+        $targetTone = $resolution['target']['tone'];
+        if (!ExtensionTable::isToneInVoicing($targetNotes, $targetRootPc, $targetTone)) {
+            return ['fired' => false, 'reason' => "tone_not_present (target: $targetTone)"];
+        }
+
+        // Check motion constraint
+        $expectedSemitones = $resolution['motion']['semitones'];
+        $sameVoice = $resolution['motion']['same_voice'];
+
+        if ($sameVoice) {
+            // Same voice constraint: same pitch rank in both voicings
+            $motionResult = $this->testSameVoiceMotion($sourceNotes, $targetNotes, 
+                                                      $sourceRootPc, $targetRootPc,
+                                                      $sourceTone, $targetTone, $expectedSemitones);
+            return ['fired' => $motionResult, 'reason' => $motionResult ? "fired" : "same_voice_mismatch"];
+        } else {
+            // Any voice pair constraint (not currently used in YAML)
+            $motionResult = $this->testAnyVoiceMotion($sourceNotes, $targetNotes,
+                                                     $sourceRootPc, $targetRootPc,
+                                                     $sourceTone, $targetTone, $expectedSemitones);
+            return ['fired' => $motionResult, 'reason' => $motionResult ? "fired" : "motion_mismatch"];
+        }
+    }
+
+    /**
+     * Test same_voice motion constraint
+     */
+    private function testSameVoiceMotion(array $sourceNotes, array $targetNotes,
+                                       int $sourceRootPc, int $targetRootPc,
+                                       string $sourceTone, string $targetTone, int $expectedSemitones): bool
+    {
+        // Get sounded notes (non-muted) and sort by pitch
+        $soundedSource = array_filter($sourceNotes, fn($note) => $note !== -1);
+        $soundedTarget = array_filter($targetNotes, fn($note) => $note !== -1);
+        
+        sort($soundedSource);
+        sort($soundedTarget);
+
+        // Get target pitch classes for the tones
+        $sourceOffset = Interval::offset($sourceTone);
+        $targetOffset = Interval::offset($targetTone);
+        $sourceTargetPc = ($sourceRootPc + $sourceOffset) % 12;
+        $targetTargetPc = ($targetRootPc + $targetOffset) % 12;
+
+        // Check each voice position
+        $maxIndex = min(count($soundedSource), count($soundedTarget));
+        for ($i = 0; $i < $maxIndex; $i++) {
+            $sourceNote = $soundedSource[$i];
+            $targetNote = $soundedTarget[$i];
+
+            // Check if this voice position contains both required tones
+            if (($sourceNote % 12) === $sourceTargetPc && ($targetNote % 12) === $targetTargetPc) {
+                // Check semitone motion
+                $actualSemitones = $targetNote - $sourceNote;
+                if ($actualSemitones === $expectedSemitones) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Test any voice motion constraint (not currently used)
+     */
+    private function testAnyVoiceMotion(array $sourceNotes, array $targetNotes,
+                                      int $sourceRootPc, int $targetRootPc,
+                                      string $sourceTone, string $targetTone, int $expectedSemitones): bool
+    {
+        // Get target pitch classes for the tones
+        $sourceOffset = Interval::offset($sourceTone);
+        $targetOffset = Interval::offset($targetTone);
+        $sourceTargetPc = ($sourceRootPc + $sourceOffset) % 12;
+        $targetTargetPc = ($targetRootPc + $targetOffset) % 12;
+
+        // Find all instances of each tone in each voicing
+        $sourceInstances = [];
+        $targetInstances = [];
+
+        foreach ($sourceNotes as $note) {
+            if ($note !== -1 && ($note % 12) === $sourceTargetPc) {
+                $sourceInstances[] = $note;
+            }
+        }
+
+        foreach ($targetNotes as $note) {
+            if ($note !== -1 && ($note % 12) === $targetTargetPc) {
+                $targetInstances[] = $note;
+            }
+        }
+
+        // Check any pair for correct motion
+        foreach ($sourceInstances as $sourceNote) {
+            foreach ($targetInstances as $targetNote) {
+                if (($targetNote - $sourceNote) === $expectedSemitones) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Get MIDI notes from a voicing object
+     */
+    private function getVoicingMidiNotes(object $voicing): array
+    {
+        $notes = [];
+        
+        // Handle different voicing data formats
+        if (isset($voicing->midi_notes)) {
+            $notes = $voicing->midi_notes;
+        } elseif (isset($voicing->diagram_data)) {
+            // Extract from diagram data
+            $diagram = $voicing->diagram_data;
+            $frets = $diagram->frets ?? [];
+            
+            // If diagram_data frets is empty, try the direct frets property
+            if (empty($frets) && isset($voicing->frets)) {
+                $frets = $voicing->frets;
+            }
+            
+            for ($string = 0; $string < 6; $string++) {
+                $fret = $frets[$string] ?? 'x';
+                if ($fret === 'x' || $fret === -1) {
+                    $notes[] = -1; // muted
+                } else {
+                    $openMidi = self::OPEN_MIDI[$string + 1];
+                    $notes[] = $openMidi + (int)$fret;
+                }
+            }
+        }
+        
+        return $notes;
+    }
+
+    /**
+     * Convert note name to pitch class (0-11)
+     */
+    private function noteNameToPitchClass(string $noteName): int
+    {
+        $noteMap = [
+            'C' => 0, 'C#' => 1, 'Db' => 1, 'D' => 2, 'D#' => 3, 'Eb' => 3,
+            'E' => 4, 'F' => 5, 'F#' => 6, 'Gb' => 6, 'G' => 7, 'G#' => 8, 'Ab' => 8,
+            'A' => 9, 'A#' => 10, 'Bb' => 10, 'B' => 11,
+        ];
+        
+        return $noteMap[$noteName] ?? 0;
+    }
+
+    /**
+     * Calculate total path cost for a selection path
+     */
+    private function calculatePathCost(array $selections, array $allChords, array $context): float
+    {
+        $totalCost = 0.0;
+        $n = count($selections);
+        
+        for ($i = 0; $i < $n - 1; $i++) {
+            if ($selections[$i] && $selections[$i + 1]) {
+                $edgeContext = array_merge($context, [
+                    'source_chord' => $allChords[$i] ?? null,
+                    'target_chord' => $allChords[$i + 1] ?? null,
+                ]);
+                $totalCost += $this->costBetween($selections[$i], $selections[$i + 1], $edgeContext);
+            }
+        }
+        
+        return $totalCost;
+    }
+
+    /**
+     * Calculate path cost and collect fired named resolutions
+     */
+    private function calculatePathCostWithResolutions(array $selections, array $allChords, array $context): array
+    {
+        $totalCost = 0.0;
+        $allFiredResolutions = [];
+        $n = count($selections);
+        
+        for ($i = 0; $i < $n - 1; $i++) {
+            if ($selections[$i] && $selections[$i + 1]) {
+                $edgeContext = array_merge($context, [
+                    'source_chord' => $allChords[$i] ?? null,
+                    'target_chord' => $allChords[$i + 1] ?? null,
+                ]);
+                $breakdown = $this->costBreakdown($selections[$i], $selections[$i + 1], $edgeContext);
+                $totalCost += $breakdown['total'];
+                
+                // Collect fired named resolutions
+                if (isset($breakdown['fired_named_resolutions'])) {
+                    $allFiredResolutions = array_merge($allFiredResolutions, $breakdown['fired_named_resolutions']);
+                }
+            }
+        }
+        
+        return [
+            'cost' => $totalCost,
+            'fired_resolutions' => array_unique($allFiredResolutions),
+        ];
+    }
+
+    /**
+     * Apply Pass 2 vs Pass 1 decision rule (E.1.5)
+     * 
+     * @param array $pass1Selections Pass 1 voicing selections
+     * @param ?float $pass1Cost Pass 1 total path cost
+     * @param array $pass2Selections Pass 2 voicing selections  
+     * @param ?float $pass2Cost Pass 2 total path cost
+     * @param array $pass2FiredResolutions Named resolutions fired in Pass 2
+     * @return bool True if Pass 2 wins, false if Pass 1 wins
+     */
+    private function applyPass2DecisionRule(
+        array $pass1Selections, ?float $pass1Cost,
+        array $pass2Selections, ?float $pass2Cost, array $pass2FiredResolutions
+    ): bool {
+        // Guard against failed searches
+        if (empty($pass2Selections)) {
+            return false; // Pass 1 wins
+        }
+        if (empty($pass1Selections)) {
+            return true; // Pass 2 wins
+        }
+
+        // Condition (a): at least one named resolution must fire
+        $hasNamedResolutions = !empty($pass2FiredResolutions);
+        
+        // Condition (b): Pass 2 cost must be ≤ Pass 1 cost
+        $costCondition = ($pass2Cost !== null && $pass1Cost !== null) && ($pass2Cost <= $pass1Cost);
+        
+        // Pass 2 wins only if BOTH conditions are met
+        if ($hasNamedResolutions && $costCondition) {
+            return true;
+        }
+        
+        // Fall back to Pass 1
+        return false;
+    }
+
     private function costRegister(object $voicing, array $context): float
     {
         $category = $context['category'] ?? self::CATEGORY_DEFAULT;
@@ -1608,6 +2528,65 @@ class ProgressionBuilder
         $pos = $voicing->start_fret ?? $voicing->position ?? null;
         if ($pos === null) return 0.0;
         return $this->boundedCost(abs($pos - $target) / 12.0);
+    }
+
+    /**
+     * Phase G — soft style preference cost.
+     * Penalizes voicings that don't match the requested voicing_style preset.
+     * Returns 0.0 for 'auto' (no preference).
+     */
+    private function costStyle(object $voicing, array $context): float
+    {
+        $styleKey = $context['voicing_style'] ?? 'auto';
+        if ($styleKey === 'auto' || $styleKey === '') return 0.0;
+
+        $preset = self::VOICING_STYLE_PRESETS[$styleKey] ?? null;
+        if ($preset === null) return 0.0;
+
+        $cost = 0.0;
+
+        // Penalize wrong voicing category
+        if ($preset['prefer_category'] !== null) {
+            $vc = $voicing->voicing_category ?? '';
+            if ($vc !== $preset['prefer_category']) {
+                $cost += 0.6;
+            }
+        }
+
+        // Penalize bass string outside preferred range
+        $bassString = $voicing->bass_string ?? $this->inferBassString($voicing);
+        if ($bassString !== null) {
+            if ($bassString < ($preset['bass_string_min'] ?? 0)) {
+                $cost += 0.3;
+            } elseif ($bassString > ($preset['bass_string_max'] ?? 6)) {
+                $cost += 0.3;
+            }
+        }
+
+        // Penalize non-root position when root is preferred
+        if ($preset['prefer_root'] ?? false) {
+            $inv = $voicing->inversion ?? '';
+            if ($inv !== '' && $inv !== 'root') {
+                $cost += 0.5;
+            }
+        }
+
+        return $this->boundedCost($cost);
+    }
+
+    private function inferBassString(object $voicing): ?int
+    {
+        $frets = (string) ($voicing->frets ?? '');
+        if ($frets === '') return null;
+        // Fret string is low-E to high-e (left to right). Find the first
+        // (lowest) sounding string.
+        for ($s = 0; $s < min(6, strlen($frets)); $s++) {
+            $c = $frets[$s];
+            if ($c !== 'x' && $c !== 'X' && $c !== '-') {
+                return 6 - $s; // string 6 (low E) = index 0, string 1 (high e) = index 5
+            }
+        }
+        return null;
     }
 
     private function costSimplicity(object $voicing, array $context): float
@@ -1712,13 +2691,28 @@ class ProgressionBuilder
         return round(max(0.0, min(1.0, $value)), 4);
     }
 
-    private function seedCost(object $candidate, string $category): float
+    private function seedCost(object $candidate, string $category, array $context = []): float
     {
         $bias = self::CATEGORY_SEED_BIAS[$category] ?? self::CATEGORY_SEED_BIAS['jazz'];
         $target = $bias['target_fret'];
         $range = $bias['range'];
+
+        // Phase G: override seed target from voicing style preset
+        $styleKey = $context['voicing_style'] ?? 'auto';
+        if ($styleKey !== 'auto' && $styleKey !== '') {
+            $preset = self::VOICING_STYLE_PRESETS[$styleKey] ?? null;
+            if ($preset && isset($preset['register_target'])) {
+                $target = $preset['register_target'];
+            }
+        }
+
         $pos = $candidate->start_fret ?? $candidate->position ?? 5;
-        return $this->boundedCost(abs($pos - $target) / $range);
+        $cost = $this->boundedCost(abs($pos - $target) / $range);
+
+        // Phase G: add style penalty to seed cost
+        $cost += $this->costStyle($candidate, $context);
+
+        return $this->boundedCost($cost);
     }
 
     private function isEdgeAdmissible(object $from, object $to, ?int $positionLimit = 3): bool
@@ -1741,7 +2735,7 @@ class ProgressionBuilder
         return true;
     }
 
-    private function viterbiSearch(array $pools, array $context, ?int $positionLimit = 3): array
+    private function viterbiSearch(array $pools, array $context, ?int $positionLimit = 3, array $allChords = []): array
     {
         $n = count($pools);
         if ($n === 0) return [];
@@ -1749,9 +2743,9 @@ class ProgressionBuilder
             if (empty($pools[0])) return [];
             $category = $context['category'] ?? self::CATEGORY_DEFAULT;
             $best = $pools[0][0];
-            $bestCost = $this->seedCost($best, $category);
+            $bestCost = $this->seedCost($best, $category, $context);
             foreach ($pools[0] as $c) {
-                $cost = $this->seedCost($c, $category);
+                $cost = $this->seedCost($c, $category, $context);
                 if ($cost < $bestCost) {
                     $bestCost = $cost;
                     $best = $c;
@@ -1766,7 +2760,7 @@ class ProgressionBuilder
         $cost = [];
         $prev = [];
 
-        $cost[0] = array_map(fn($c) => $this->seedCost($c, $category), $pools[0]);
+        $cost[0] = array_map(fn($c) => $this->seedCost($c, $category, $context), $pools[0]);
         $prev[0] = array_fill(0, count($pools[0]), null);
 
         for ($i = 1; $i < $n; $i++) {
@@ -1779,7 +2773,14 @@ class ProgressionBuilder
                     if (!$this->isEdgeAdmissible($cPrev, $cCurr, $positionLimit)) {
                         continue;
                     }
-                    $edgeCost = $this->costBetween($cPrev, $cCurr, $context);
+                    
+                    // Add chord context for Phase E named resolutions
+                    $edgeContext = array_merge($context, [
+                        'source_chord' => $allChords[$i - 1] ?? null,
+                        'target_chord' => $allChords[$i] ?? null,
+                    ]);
+                    
+                    $edgeCost = $this->costBetween($cPrev, $cCurr, $edgeContext);
                     $total = $cost[$i - 1][$j] + $edgeCost;
                     if ($total < $best) {
                         $best = $total;
@@ -1806,6 +2807,9 @@ class ProgressionBuilder
         }
 
         for ($i = $n - 1; $i >= 0; $i--) {
+            if ($idx === null || !isset($pools[$i][$idx])) {
+                return [];
+            }
             $path[$i] = $pools[$i][$idx];
             $idx = $prev[$i][$idx];
         }
@@ -1813,7 +2817,7 @@ class ProgressionBuilder
         return array_reverse($path);
     }
 
-    private function viterbiSearchWithRelaxation(array $lattice, array $context, ?string $group, ?array &$diagnostics = null): array
+    private function viterbiSearchWithRelaxation(array $lattice, array $context, ?string $group, ?array &$diagnostics = null, array $allChords = []): array
     {
         $relaxations = [];
         $diagnostics['slot_constraints'] = [];
@@ -1842,7 +2846,7 @@ class ProgressionBuilder
                 $filteredLattice[$slotIdx] = array_values($slotPool);
             }
 
-            $path = $this->viterbiSearch($filteredLattice, $context, $positionLimit);
+            $path = $this->viterbiSearch($filteredLattice, $context, $positionLimit, $allChords);
 
             if (!empty($path)) {
                 $relaxations[] = [

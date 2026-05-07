@@ -205,6 +205,7 @@
                             <div class="sbn-tab-shortcut-group-title">Note Entry</div>
                             <div class="sbn-tab-shortcut-row"><kbd>0 – 9</kbd><span>Enter fret number</span></div>
                             <div class="sbn-tab-shortcut-row"><kbd>Del / ⌫</kbd><span>Remove note on string</span></div>
+                            <div class="sbn-tab-shortcut-row"><kbd>Ctrl+↑ ↓</kbd><span>Shift note to adjacent string (transposes fret)</span></div>
                             <div class="sbn-tab-shortcut-row"><kbd>A</kbd><span>Append rest at end</span></div>
                             <div class="sbn-tab-shortcut-row"><kbd>→ (at end)</kbd><span>Fill measure with rest</span></div>
                         </div>
@@ -993,6 +994,7 @@ const {
 const {
     pendingDigit,
     handleKeydown: noteInputKeydown,
+    shiftNoteToString,
     dispose: disposeNoteInput,
 } = useNoteInput(cursor, model, wrapCommand, repositionMeasure);
 
@@ -1424,6 +1426,16 @@ function onKeydown(e) {
 
     // 0. ArrowRight: fill with rests when at end of incomplete measure (Phase 7d)
     if (e.key === 'ArrowRight' && !e.shiftKey && handleArrowRight(e)) return;
+
+    // Ctrl+Up / Ctrl+Down: shift note to adjacent string (transposes fret accordingly).
+    // Up → lower str# (higher pitch, toward high e); Down → higher str# (toward low E).
+    if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey
+        && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+        const targetStr = shiftNoteToString(e.key === 'ArrowUp' ? -1 : 1);
+        if (targetStr) moveTo(cursor.value.measureIndex, cursor.value.eventIndex, targetStr);
+        return;
+    }
 
     // 1. Cursor navigation — plain move always clears note selection
     const cursorConsumed = cursorKeydown(e);

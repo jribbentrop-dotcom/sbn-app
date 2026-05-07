@@ -80,7 +80,8 @@ class VoicingDraft extends Model
             } elseif ($char === '0') {
                 $open[] = $string;
             } else {
-                $fret   = intval($char);
+                // Fret strings are stored as single-char hex (a=10 ... f=15) for high positions.
+                $fret = ctype_xdigit((string) $char) ? hexdec((string) $char) : intval($char);
                 $finger = isset($fingerChars[$i]) ? intval($fingerChars[$i]) : null;
                 if ($finger === 0) $finger = null;
 

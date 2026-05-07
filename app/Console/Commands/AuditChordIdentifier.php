@@ -123,6 +123,7 @@ class AuditChordIdentifier extends Command
                     'bass_note' => $iso['bass_note'] ?? null,
                     'inversion' => $iso['inversion'] ?? null,
                     'confidence' => $iso['confidence'] ?? null,
+                    'candidates' => $iso['candidates'] ?? [],
                 ],
                 'context' => $ctx ? [
                     'name' => $ctx['name'] ?? null,

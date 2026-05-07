@@ -25,8 +25,9 @@ class AnalysisToLeadsheet
                 $measureChords = [];
 
                 foreach ($bar['chords'] as $chord) {
+                    $name = $chord['label'] ?? '?';
                     $measureChords[] = [
-                        'name' => $chord['label'] ?? '?',
+                        'name'  => $this->normalizeChordName($name),
                         'beats' => (int) ($chord['beats'] ?? 1),
                     ];
                 }
@@ -129,5 +130,19 @@ class AnalysisToLeadsheet
         $lines[] = '[/sbn_leadsheet]';
 
         return implode("\n", $lines);
+    }
+
+    protected function normalizeChordName(string $name): string
+    {
+        if (!$name || $name === '?') return $name;
+        
+        // Basic jazz shorthand normalization
+        $name = str_replace(
+            ['-', '^', 'h', 'o'], 
+            ['m', 'maj', 'm7b5', 'dim'], 
+            $name
+        );
+
+        return $name;
     }
 }

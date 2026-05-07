@@ -15,6 +15,7 @@ class ChordProgression extends Model
         'name',
         'category',
         'numerals',
+        'alt_numerals',
         'description',
         'typical_genres',
         'tags',
@@ -25,8 +26,9 @@ class ChordProgression extends Model
     ];
 
     protected $casts = [
-        'sort_order' => 'integer',
-        'featured'   => 'boolean',
+        'sort_order'   => 'integer',
+        'featured'     => 'boolean',
+        'alt_numerals' => 'array',
     ];
 
     /* ── Categories ─────────────────────────────────────────── */

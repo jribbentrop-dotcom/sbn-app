@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Leadsheet;
 use App\Models\RhythmPattern;
+use App\Models\JazzStandard;
+use App\Models\ChordProgression;
 use App\Services\ChordShapeCalculator;
 use App\Services\ChordVoicingSearch;
 use App\Services\LeadsheetParser;
@@ -18,6 +20,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Services\VoicingMaterializer;
+use App\Services\SongLookup;
+use App\Services\AnalysisToLeadsheet;
+use App\Services\RhythmHintMapper;
+use App\Services\MidiTranscriptionService;
 use Illuminate\Support\Str;
 
 
@@ -61,9 +67,10 @@ class LeadsheetController extends Controller
         $rhythms    = RhythmPattern::orderBy('category')->orderBy('name')->get();
         $cloneSources = Leadsheet::orderBy('title')->get(['id', 'title', 'composer']);
         $progressions = \App\Models\ChordProgression::orderBy('category')->orderBy('name')->get(['id', 'name', 'category', 'numerals', 'tonality']);
+        $jazzStandards = \App\Models\JazzStandard::orderBy('title')->get(['id', 'title', 'composer', 'song_key', 'slug']);
 
         return view('admin.leadsheets.index', compact(
-            'leadsheets', 'stats', 'keys', 'composers', 'rhythms', 'cloneSources', 'progressions'
+            'leadsheets', 'stats', 'keys', 'composers', 'rhythms', 'cloneSources', 'progressions', 'jazzStandards'
         ));
 
 
@@ -195,7 +202,8 @@ class LeadsheetController extends Controller
         ChordSequenceParser $parser, 
         HarmonicContext $context, 
         VoicingMaterializer $materializer,
-        ProgressionBuilder $builder
+        ProgressionBuilder $builder,
+        AnalysisToLeadsheet $converter
     ) {
         $validated = $request->validate([
             'title'          => 'required|string|max:255',
@@ -204,11 +212,12 @@ class LeadsheetController extends Controller
             'tempo'          => 'required|integer|min:20|max:300',
             'time_signature' => 'required|string|max:10',
             'rhythm'         => 'nullable|string|max:50',
-            'bars_per_chord' => 'required|integer|min:1|max:16',
-            'source_type'    => 'required|in:free,chordpro,bars,clone,progression',
+            'bars_per_chord' => 'nullable|integer|min:1|max:16',
+            'source_type'    => 'required|in:free,chordpro,bars,clone,progression,jazz_standard,standard',
             'sequence_text'  => 'nullable|string',
             'clone_source_id'=> 'nullable|integer|exists:sbn_leadsheets,id',
             'progression_id' => 'nullable|integer|exists:sbn_chord_progressions,id',
+            'jazz_standard_id' => 'nullable|integer|exists:sbn_jazz_standards,id',
             'build_voicings' => 'nullable|boolean',
 
             'voicing_style'  => 'nullable|string|in:popular,shell,drop2,drop3,closed,archetype,quartal,custom,closed_triads,spread_triads,slash',
@@ -218,13 +227,29 @@ class LeadsheetController extends Controller
         $sequenceText = $validated['sequence_text'] ?? '';
         
         if ($validated['source_type'] === 'progression' && !empty($validated['progression_id'])) {
-            $progression = \App\Models\ChordProgression::findOrFail($validated['progression_id']);
+            $progression = ChordProgression::findOrFail($validated['progression_id']);
             $numerals = array_values(array_filter(array_map('trim', explode(',', $progression->numerals))));
             $parsedSequence = [
                 'mode' => 'sequence',
                 'items' => $numerals,
                 'invalid_count' => 0,
             ];
+        } elseif (in_array($validated['source_type'], ['jazz_standard', 'standard']) && !empty($validated['jazz_standard_id'])) {
+            $standard = JazzStandard::findOrFail($validated['jazz_standard_id']);
+            $analysis = $standard->toIntermediateAnalysis();
+            
+            // Use the converter to preserve sections and bar structures
+            $scaffold = $converter->convert($analysis);
+            
+            // Override some opts from the standard
+            $validated['title'] = $analysis['title'];
+            $validated['composer'] = $analysis['composer'];
+            $validated['song_key'] = $analysis['key'] ?? 'C';
+            $validated['time_signature'] = $analysis['timeSignature'] ?? '4/4';
+            $validated['tempo'] = $analysis['tempo'] ?? 120;
+            
+            // We set parsedSequence to a dummy to satisfy downstream logic
+            $parsedSequence = ['mode' => 'analysis', 'items' => [], 'analysis' => $analysis];
         } elseif ($validated['source_type'] === 'clone' && !empty($validated['clone_source_id'])) {
             $cloneSheet = Leadsheet::findOrFail($validated['clone_source_id']);
             $rawJson = json_decode($cloneSheet->json_data, true);
@@ -250,18 +275,24 @@ class LeadsheetController extends Controller
             $parsedSequence = $parser->parse($sequenceText);
         }
 
-        $key = $validated['song_key'];
-        $parsedSequence = $parser->resolveNumerals($parsedSequence, $key);
+        $key = $validated['song_key'] ?? 'C';
+        
+        // Only resolve numerals if we are in a sequence-based mode
+        if ($parsedSequence['mode'] !== 'analysis') {
+            $parsedSequence = $parser->resolveNumerals($parsedSequence, $key);
+        }
 
 
-        $scaffold = $scaffolder->scaffoldFromSequence([
-            'title'          => $validated['title'],
-            'composer'       => $validated['composer'] ?? '',
-            'song_key'       => $validated['song_key'],
-            'tempo'          => $validated['tempo'],
-            'time_signature' => $validated['time_signature'],
-            'rhythm'         => $validated['rhythm'] ?? '',
-        ], $parsedSequence, $validated['bars_per_chord']);
+        if (!in_array($validated['source_type'], ['jazz_standard', 'standard'])) {
+            $scaffold = $scaffolder->scaffoldFromSequence([
+                'title'          => $validated['title'],
+                'composer'       => $validated['composer'] ?? '',
+                'song_key'       => $validated['song_key'],
+                'tempo'          => $validated['tempo'],
+                'time_signature' => $validated['time_signature'],
+                'rhythm'         => $validated['rhythm'] ?? '',
+            ], $parsedSequence, $validated['bars_per_chord']);
+        }
 
         $slug = Leadsheet::generateUniqueSlug($validated['title']);
 
@@ -271,33 +302,85 @@ class LeadsheetController extends Controller
 
         if (!empty($validated['build_voicings'])) {
             $chordsList = [];
-            if ($parsedSequence['mode'] === 'bars') {
-                foreach ($parsedSequence['items'] as $barChords) {
+            if ($parsedSequence['mode'] === 'analysis') {
+                $mIdx = 0;
+                foreach ($parsedSequence['analysis']['sections'] as $sec) {
+                    foreach ($sec['bars'] as $bar) {
+                        foreach ($bar['chords'] as $c) {
+                            if (!empty($c['label']) && $c['label'] !== '/') {
+                                $chordsList[] = [
+                                    'chord_name'    => $c['label'],
+                                    'measure_index' => $mIdx,
+                                ];
+                            }
+                        }
+                        $mIdx++;
+                    }
+                }
+            } elseif ($parsedSequence['mode'] === 'bars') {
+                foreach ($parsedSequence['items'] as $mIdx => $barChords) {
                     foreach ($barChords as $c) {
-                        if ($c !== '?' && !empty($c)) $chordsList[] = $c;
+                        if ($c !== '?' && !empty($c)) {
+                            $chordsList[] = [
+                                'chord_name'    => $c,
+                                'measure_index' => $mIdx,
+                            ];
+                        }
                     }
                 }
             } else {
-                foreach ($parsedSequence['items'] as $c) {
-                    if ($c !== '?' && !empty($c)) $chordsList[] = $c;
+                foreach ($parsedSequence['items'] as $i => $c) {
+                    if ($c !== '?' && !empty($c)) {
+                        $chordsList[] = [
+                            'chord_name'    => $c,
+                            'measure_index' => $i,
+                        ];
+                    }
                 }
             }
 
             if (!empty($chordsList)) {
                 $style = $validated['voicing_style'] ?? 'popular';
-
-                $category = $style === 'popular' ? '' : $style;
-                $selections = $builder->selectVoicingsForSequence($chordsList, $key, ['category' => $category]);
-
                 
-                // Clean up selections for materializer (it needs 'chord_name', 'frets', 'position')
+                // Determine the correct category for the builder
+                if (in_array($validated['source_type'], ['jazz_standard', 'standard'])) {
+                    $category = ($style === 'popular' || empty($style)) ? 'jazz' : $style;
+                } else {
+                    $category = ($style === 'popular' || empty($style)) ? 'pop' : $style;
+                }
+
+                // Call the full algorithm directly to enable extensions (Pass 2)
+                $hc = $context->buildFromChordSequence($key, $chordsList);
+                $res = $builder->buildVoicings($hc, [
+                    'category'      => $category,
+                    'extensions'    => (bool) ($validated['build_voicings'] ?? true),
+                    'voicing_style' => ($style === 'popular') ? 'auto' : $style,
+                ]);
+
+                // Map algorithm output to the internal selections format
+                $selections = [];
+                foreach ($res['selections'] as $sel) {
+                    $v = $sel['voicing'];
+                    if (!$v) continue;
+                    
+                    $selections[] = [
+                        'chord_name'    => $sel['chord_name'],
+                        'measure_index' => $sel['measure_index'] ?? 0,
+                        'frets'         => $v['frets'] ?? null,
+                        'position'      => $v['start_fret'] ?? 1,
+                        'diagram_id'    => $v['id'] ?? null,
+                    ];
+                }
+
+                // Clean up selections for materializer (it needs 'chord_name', 'frets', 'position', 'measure_index')
                 $selectionsClean = [];
                 foreach ($selections as $sel) {
-                    if ($sel['frets']) {
+                    if (!empty($sel['frets'])) {
                         $selectionsClean[] = [
-                            'chord_name' => $sel['chord_name'],
-                            'frets'      => $sel['frets'],
-                            'position'   => $sel['position'] ?? 1,
+                            'chord_name'    => $sel['chord_name'],
+                            'measure_index' => $sel['measure_index'],
+                            'frets'         => $sel['frets'],
+                            'position'      => $sel['position'] ?? 1,
                         ];
                     }
                 }
@@ -311,12 +394,26 @@ class LeadsheetController extends Controller
                     $materialized = $materializer->materialize($selectionsClean, $validated['time_signature'], $rhythmModel);
                     $tabXml = $materialized['tab_xml'];
                     $jsonDataArray['chordVoicings'] = $materialized['voicings'];
+                    
+                    // Re-apply enhanced names from the builder back to the structural JSON
+                    $selIdx = 0;
+                    foreach ($jsonDataArray['sections'] as &$sec) {
+                        foreach ($sec['measures'] as &$m) {
+                            foreach ($m['chords'] as &$c) {
+                                if (!empty($c['name']) && $c['name'] !== '?' && isset($selections[$selIdx])) {
+                                    $c['name'] = $selections[$selIdx]['chord_name'];
+                                    $selIdx++;
+                                }
+                            }
+                        }
+                    }
+                    unset($sec, $m, $c);
+
                     $jsonDataArray['melody'] = $materialized['melody'];
                     if ($rhythmModel) {
                         $jsonDataArray['rhythmPattern'] = $rhythmModel->toPlayerData();
                     }
                 }
-
             }
         }
 
@@ -347,13 +444,14 @@ class LeadsheetController extends Controller
 
     public function createFromLookup(
         Request $request,
-        \App\Services\SongLookup $lookup,
+        SongLookup $lookup,
         \App\Services\RhythmHintMapper $rhythmMapper,
-        \App\Services\AnalysisToLeadsheet $converter,
-        \App\Services\VoicingMaterializer $materializer,
-        \App\Services\ProgressionBuilder $builder,
+        AnalysisToLeadsheet $converter,
+        VoicingMaterializer $materializer,
+        ProgressionBuilder $builder,
         \App\Services\MidiTranscriptionService $transcriber,
-        \App\Services\VoicingCrossref $crossref
+        VoicingCrossref $crossref,
+        HarmonicContext $context
     ) {
         set_time_limit(600);
 
@@ -402,29 +500,103 @@ class LeadsheetController extends Controller
             ];
 
             $currentSection = ['label' => 'A', 'bars' => []];
-            $beatsPerBar = 4;
-            $tempBar = ['chords' => []];
-            $mappings = [];
+            $beatsPerBar    = 4;
+            $tempBar        = ['chords' => []];
+            $mappings       = [];
+            $aiCleanup      = !empty($validated['ai_cleanup']);
 
-            foreach ($rawResult['beats'] as $i => $beat) {
+            // Remove leading silence by finding the first bar with musical content (P1 fix)
+            $firstBusyBeatIdx = 0;
+            foreach ($rawResult['beats'] as $idx => $beat) {
+                if (!empty($beat['notes']) || !empty($beat['note_durations'])) {
+                    $firstBusyBeatIdx = $idx;
+                    break;
+                }
+            }
+            $skipBars = (int)floor($firstBusyBeatIdx / $beatsPerBar);
+            $startBeatIdx = $skipBars * $beatsPerBar;
+            $tickOffset = $skipBars * $beatsPerBar * 480;
+
+            // ── Non-AI path state: harmonic region grouping (Phase 2c) ──────────
+            // Consecutive beats with Jaccard similarity >= threshold merge into
+            // a single chord slot so identifyFromMidi() is called once per region.
+            $regionPitches    = [];   // accumulated unique MIDI pitches for current region
+            $regionStartBeat  = 1;    // bar-relative beat number where region started
+
+            for ($i = $startBeatIdx; $i < count($rawResult['beats']); $i++) {
+                $beat = $rawResult['beats'][$i];
                 if ($i % $beatsPerBar === 0) {
                     $mappings[] = [
-                        'measureIndex' => (int)($i / $beatsPerBar),
+                        'measureIndex' => (int)(($i - $startBeatIdx) / $beatsPerBar),
                         'videoTime'    => (float)$beat['start']
                     ];
                 }
 
-                $pitches = $beat['notes'];
-                if (!empty($pitches)) {
-                    $idResult = $crossref->identifyFromMidi($pitches);
-                    $tempBar['chords'][] = [
-                        'label' => $idResult['name'] ?: '?',
-                        'beat'  => ($i % $beatsPerBar) + 1
-                    ];
+                // Duration-weighted pitch selection (P1 fix)
+                $rawPitches = [];
+                foreach ($beat['note_durations'] ?? [] as $pitch => $dur) {
+                    if ($dur >= 0.1) $rawPitches[] = (int)$pitch;
+                }
+                if (empty($rawPitches)) $rawPitches = $beat['notes'] ?? [];
+
+                $beatNum = ($i % $beatsPerBar) + 1;
+
+                if ($aiCleanup) {
+                    // ── AI path (Phase 2b) ────────────────────────────────────
+                    // Store raw pitch classes + '?' placeholder; Gemini fills labels.
+                    if (!empty($rawPitches)) {
+                        $pcSet = array_values(array_unique(array_map(fn($p) => $p % 12, $rawPitches)));
+                        $tempBar['chords'][] = [
+                            'label'   => '?',
+                            'beat'    => $beatNum,
+                            'pitches' => $pcSet,   // read by Gemini; stripped after AI pass
+                        ];
+                    }
+                } else {
+                    // ── Non-AI path (Phase 2c): Jaccard region grouping ──────
+                    if (empty($rawPitches)) {
+                        // Silent beat — flush any open region
+                        if (!empty($regionPitches)) {
+                            $idResult = $crossref->identifyFromMidi($regionPitches);
+                            if ($idResult['name']) {
+                                $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
+                            }
+                            $regionPitches = [];
+                        }
+                    } else {
+                        if (empty($regionPitches)) {
+                            // Start a new region
+                            $regionPitches   = $rawPitches;
+                            $regionStartBeat = $beatNum;
+                        } else {
+                            $sim = $this->jaccardSimilarity($regionPitches, $rawPitches);
+                            if ($sim >= 0.5) {
+                                // Harmonically similar — extend region, keep all pitches
+                                $regionPitches = array_values(array_unique(array_merge($regionPitches, $rawPitches)));
+                            } else {
+                                // New harmonic region — flush previous
+                                $idResult = $crossref->identifyFromMidi($regionPitches);
+                                if ($idResult['name']) {
+                                    $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
+                                }
+                                $regionPitches   = $rawPitches;
+                                $regionStartBeat = $beatNum;
+                            }
+                        }
+                    }
                 }
 
-                // If end of bar
+                // ── End of bar ────────────────────────────────────────────────
                 if (($i + 1) % $beatsPerBar === 0) {
+                    // Non-AI: flush the final open region before closing the bar
+                    if (!$aiCleanup && !empty($regionPitches)) {
+                        $idResult = $crossref->identifyFromMidi($regionPitches);
+                        if ($idResult['name']) {
+                            $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
+                        }
+                        $regionPitches = [];
+                    }
+
                     if (empty($tempBar['chords'])) {
                         $tempBar['chords'][] = ['label' => '/', 'beat' => 1];
                     }
@@ -433,6 +605,13 @@ class LeadsheetController extends Controller
                 }
             }
 
+            // Flush any trailing partial bar
+            if (!$aiCleanup && !empty($regionPitches)) {
+                $idResult = $crossref->identifyFromMidi($regionPitches);
+                if ($idResult['name']) {
+                    $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
+                }
+            }
             if (!empty($tempBar['chords'])) {
                 $currentSection['bars'][] = $tempBar;
             }
@@ -443,49 +622,225 @@ class LeadsheetController extends Controller
             $analysis['sections'][] = $currentSection;
             $analysis['videoSync']['mappings'] = $mappings;
 
-            // Reconstruct melody from raw MIDI notes
+            // AI path: attach raw beats so Gemini can read pitch context
+            if ($aiCleanup) {
+                $analysis['raw_beats'] = $rawResult['beats'];
+            }
+
+            // Reconstruct melody from raw MIDI notes (P0 & P1 fixes)
             $melody = [];
             if (!empty($rawResult['notes']) && !empty($rawResult['beat_times'])) {
+                $ticksPerBar = $beatsPerBar * 480;
+
+                // 1. Filter by guitar range and group by quantized tick (P0)
+                $tickGroups = [];
                 foreach ($rawResult['notes'] as $note) {
-                    $startTick = $this->timeToTicks($note['start'], $rawResult['beat_times']);
-                    $endTick   = $this->timeToTicks($note['end'],   $rawResult['beat_times']);
+                    // P0: Guitar range filter (MIDI 40-88)
+                    if ($note['pitch'] < 40 || $note['pitch'] > 88) continue;
+
+                    $rawStart = $this->timeToTicks($note['start'], $rawResult['beat_times']);
+                    // Bias start toward 8th note grid (240 ticks) to avoid unwanted 16th-note jitter
+                    $startTick = (int)round($rawStart / 240) * 240;
+                    if (abs($rawStart - $startTick) > 60) {
+                        // If it's clearly a 16th off-beat, keep it
+                        $startTick = (int)round($rawStart / 120) * 120;
+                    }
                     
-                    // Quantize to nearest 16th note (120 ticks)
-                    $startTick = (int)round($startTick / 120) * 120;
-                    $endTick   = (int)round($endTick / 120) * 120;
-                    $ticks     = max(120, $endTick - $startTick);
-
-                    $noteInfo = $this->midiToNote($note['pitch']);
-                    $tabInfo  = $this->midiToTab($note['pitch']);
-
-                    $melody[] = [
-                        'tick'         => $startTick,
-                        'pitch'        => $noteInfo['pitch'],
-                        'octave'       => $noteInfo['octave'],
-                        'duration'     => $this->ticksToDuration($ticks),
-                        'ticks'        => $ticks,
-                        'string'       => $tabInfo['string'],
-                        'fret'         => $tabInfo['fret'],
-                        'isRest'       => false,
-                        'voice'        => 1,
-                        'tieStart'     => false,
-                        'tieStop'      => false,
-                        'isChordNote'  => false,
-                    ];
+                    $startTick -= $tickOffset;
+                    if ($startTick >= 0) {
+                        $tickGroups[$startTick][] = $note;
+                    }
                 }
-                // Sort by tick
-                usort($melody, fn($a, $b) => $a['tick'] <=> $b['tick']);
+
+                // 2. Process all notes per tick (Restoring polyphony) and build melody events
+                $sortedTicks = array_keys($tickGroups);
+                sort($sortedTicks);
+                
+                $tempMelody = [];
+                for ($i = 0; $i < count($sortedTicks); $i++) {
+                    $tick = $sortedTicks[$i];
+                    $notes = $tickGroups[$tick];
+                    $nextTick = ($i + 1 < count($sortedTicks)) ? $sortedTicks[$i+1] : null;
+                    
+                    $barIdx  = (int)floor($tick / $ticksPerBar);
+                    $barEnd  = ($barIdx + 1) * $ticksPerBar;
+                    $beatEnd = ((int)floor($tick / 480) + 1) * 480;
+
+                    // NEW: Beat-boundary clamping. Notes cannot cross beat boundaries (P1 fix)
+                    $limit = min($barEnd, $beatEnd);
+                    
+                    $availableSpace = $limit - $tick;
+                    if ($nextTick !== null && $nextTick < $limit) {
+                        $availableSpace = $nextTick - $tick;
+                    }
+
+                    foreach ($notes as $note) {
+                        $endTick = $this->timeToTicks($note['end'], $rawResult['beat_times']);
+                        $endTick = (int)round($endTick / 120) * 120;
+                        
+                        $rawDuration = max(120, $endTick - $tick);
+                        
+                        // Clamping duration to avoid "overfilled bars" and ensure beat-sync
+                        $clampedDuration = min($availableSpace, $rawDuration);
+                        $quantizedTicks = $this->quantizeToStandard($clampedDuration);
+                        
+                        // Final safety check
+                        if ($quantizedTicks > $availableSpace) $quantizedTicks = $availableSpace;
+                        if ($quantizedTicks < 120 && $availableSpace >= 120) $quantizedTicks = 120;
+                        if ($quantizedTicks < 120) continue;
+
+                        $noteInfo = $this->midiToNote($note['pitch']);
+                        $tabInfo  = $this->midiToTab($note['pitch']);
+
+                        $tempMelody[] = [
+                            'tick'         => $tick,
+                            'pitch'        => $noteInfo['pitch'],
+                            'octave'       => $noteInfo['octave'],
+                            'duration'     => $this->ticksToDuration($quantizedTicks),
+                            'ticks'        => $quantizedTicks,
+                            'string'       => $tabInfo['string'],
+                            'fret'         => $tabInfo['fret'],
+                            'isRest'       => false,
+                            'voice'        => 1,
+                            'tieStart'     => false,
+                            'tieStop'      => false,
+                            'isChordNote'  => false,
+                        ];
+                    }
+                }
+                
+                // 3. Rest insertion pass (P1)
+                $melodyWithRests = [];
+                $lastEnd = 0;
+                usort($tempMelody, fn($a, $b) => $a['tick'] <=> $b['tick']);
+                
+                foreach ($tempMelody as $m) {
+                    if ($m['tick'] > $lastEnd) {
+                        $gap = $m['tick'] - $lastEnd;
+                        
+                        // NEW: Gap Closing logic. If the gap is just a 16th note (120 ticks), 
+                        // extend the previous note(s) to fill it instead of inserting a rest.
+                        if ($gap <= 120 && !empty($melodyWithRests)) {
+                            $extended = false;
+                            foreach ($melodyWithRests as &$prev) {
+                                if (!($prev['isRest'] ?? false) && ($prev['tick'] + $prev['ticks'] == $lastEnd)) {
+                                    // Only extend if it results in a standard duration and stays within beat
+                                    $newTicks = $prev['ticks'] + $gap;
+                                    $quantized = $this->quantizeToStandard($newTicks);
+                                    
+                                    $pBeatEnd = ((int)floor($prev['tick'] / 480) + 1) * 480;
+                                    if ($quantized > $prev['ticks'] && ($prev['tick'] + $quantized <= $pBeatEnd)) {
+                                        $prev['ticks'] = $quantized;
+                                        $prev['duration'] = $this->ticksToDuration($prev['ticks']);
+                                        $extended = true;
+                                    }
+                                }
+                            }
+                            if ($extended) {
+                                $lastEnd = $m['tick'];
+                                $gap = 0;
+                            }
+                        }
+
+                        while ($gap >= 120) {
+                            $barIdx = (int)floor($lastEnd / $ticksPerBar);
+                            $barEnd = ($barIdx + 1) * $ticksPerBar;
+                            
+                            $restTicks = 120;
+                            foreach ([1920, 960, 480, 240, 120] as $s) {
+                                if ($s <= $gap && ($lastEnd + $s <= $barEnd)) {
+                                    $restTicks = $s;
+                                    break;
+                                }
+                            }
+                            
+                            if ($lastEnd + $restTicks > $barEnd) $restTicks = $barEnd - $lastEnd;
+                            if ($restTicks < 120) {
+                                $lastEnd = $barEnd;
+                                $gap = $m['tick'] - $lastEnd;
+                                continue;
+                            }
+
+                            $melodyWithRests[] = [
+                                'tick'     => $lastEnd,
+                                'ticks'    => $restTicks,
+                                'duration' => $this->ticksToDuration($restTicks),
+                                'isRest'   => true,
+                                'voice'    => 1,
+                                'pitch'    => 'R',
+                                'octave'   => 0,
+                            ];
+                            $lastEnd += $restTicks;
+                            $gap -= $restTicks;
+                        }
+                    }
+                    $melodyWithRests[] = $m;
+                    $lastEnd = max($lastEnd, $m['tick'] + $m['ticks']);
+                }
+                
+                // Fill up to the end of the last measure
+                $totalBeats = count($rawResult['beats']) - $startBeatIdx;
+                $totalTicks = $totalBeats * 480;
+                $gap = $totalTicks - $lastEnd;
+
+                // Final gap closing: if the very end has a tiny gap, absorb it into the last notes
+                if ($gap > 0 && $gap <= 120 && !empty($melodyWithRests)) {
+                    foreach ($melodyWithRests as &$prev) {
+                        if (!($prev['isRest'] ?? false) && ($prev['tick'] + $prev['ticks'] == $lastEnd)) {
+                            $prev['ticks'] += $gap;
+                            $prev['duration'] = $this->ticksToDuration($prev['ticks']);
+                        }
+                    }
+                    $lastEnd = $totalTicks;
+                    $gap = 0;
+                }
+
+                while ($gap >= 120) {
+                    $barIdx = (int)floor($lastEnd / $ticksPerBar);
+                    $barEnd = ($barIdx + 1) * $ticksPerBar;
+                    $restTicks = 120;
+                    foreach ([1920, 960, 480, 240, 120] as $s) {
+                        if ($s <= $gap && ($lastEnd + $s <= $barEnd)) {
+                            $restTicks = $s;
+                            break;
+                        }
+                    }
+                    if ($lastEnd + $restTicks > $barEnd) $restTicks = $barEnd - $lastEnd;
+                    if ($restTicks >= 120) {
+                        $melodyWithRests[] = [
+                            'tick'     => $lastEnd,
+                            'ticks'    => $restTicks,
+                            'duration' => $this->ticksToDuration($restTicks),
+                            'isRest'   => true,
+                            'voice'    => 1,
+                            'pitch'    => 'R',
+                            'octave'   => 0,
+                        ];
+                    }
+                    $lastEnd += $restTicks;
+                    $gap = $totalTicks - $lastEnd;
+                }
+                
+                $melody = $melodyWithRests;
             }
             $analysis['melody_data'] = $melody;
 
-            // Optional: AI Refinement (Musicology Pass)
-            if (!empty($validated['ai_cleanup'])) {
+            // ── Optional: AI Refinement (Musicology Pass) ────────────────────
+            // Phase 2b: Gemini receives raw pitch arrays per chord slot and
+            // returns proper chord names. Post-AI pass resolves any remaining
+            // '?' labels via identifyFromMidi() as a fallback.
+            if ($aiCleanup) {
                 try {
                     $analysis = $this->musicalizeTranscription($analysis, $lookup);
+                    // Post-AI fallback: identify any slots Gemini left unresolved
+                    $analysis = $this->resolveUnidentifiedChords($analysis, $crossref);
                 } catch (\Exception $e) {
                     \Log::error('[LeadsheetController] AI Cleanup failed: ' . $e->getMessage());
-                    // Fallback to raw transcription on failure
+                    // Fallback: resolve '?' labels from the pitch arrays we already built
+                    $analysis = $this->resolveUnidentifiedChords($analysis, $crossref);
                 }
+                // Strip the raw_beats payload before assembly (not needed downstream)
+                unset($analysis['raw_beats']);
             }
         } else {
             try {
@@ -504,29 +859,83 @@ class LeadsheetController extends Controller
         $tabXml = null;
 
         if (!empty($validated['build_voicings'])) {
-            // Flatten chords for selectVoicingsForSequence
-            $chordList = [];
+            // Build full chord objects for the algorithm, preserving measure boundaries
+            $allChords = [];
+            $mIdx = 0;
             foreach ($analysis['sections'] as $sec) {
                 foreach ($sec['bars'] as $bar) {
                     foreach ($bar['chords'] as $c) {
-                        if (!empty($c['label']) && $c['label'] !== '?') $chordList[] = $c['label'];
+                        if (!empty($c['label']) && $c['label'] !== '?') {
+                            $allChords[] = [
+                                'chord_name'    => $c['label'],
+                                'measure_index' => $mIdx,
+                            ];
+                        }
                     }
+                    $mIdx++;
                 }
             }
-            if (!empty($chordList)) {
-                $style = $validated['voicing_style'] ?? 'popular';
-                $category = $style === 'popular' ? '' : $style;
-                $selections = $builder->selectVoicingsForSequence($chordList, $analysis['key'], ['category' => $category]);
 
-                $clean = array_values(array_filter(array_map(fn($s) => !empty($s['frets']) ? [
-                    'chord_name' => $s['chord_name'],
-                    'frets'      => $s['frets'],
-                    'position'   => $s['position'] ?? 1,
-                ] : null, $selections)));
+            if (!empty($allChords)) {
+                $style      = $validated['voicing_style'] ?? 'popular';
+                $sourceType = $validated['source_type'] ?? 'progression';
+                $isStandard = in_array($sourceType, ['jazz_standard', 'standard']);
+                $category   = $isStandard ? 'jazz' : (($style === 'popular' || empty($style)) ? 'jazz' : $style);
 
-                if (!empty($clean)) {
-                    $materialized = $materializer->materialize($clean, $analysis['timeSignature'], $rhythmModel);
+                // Build context and run algorithm
+                $hc = $context->buildFromChordSequence($analysis['key'], $allChords);
+                $res = $builder->buildVoicings($hc, [
+                    'category'       => $category,
+                    'extensions'     => true, 
+                    'voicing_style'  => ($style === 'popular') ? 'auto' : $style,
+                    'bars_per_chord' => $isStandard ? 1 : ($validated['bars_per_chord'] ?? 1),
+                ]);
+
+                // Map algorithm output to the internal selections format
+                $selections = [];
+                foreach ($res['selections'] as $sel) {
+                    $v = $sel['voicing'];
+                    if (!$v) continue;
+
+                    $selections[] = [
+                        'chord_name'    => $sel['chord_name'],
+                        'measure_index' => $sel['measure_index'] ?? 0,
+                        'frets'         => $v['frets'] ?? null,
+                        'position'      => $v['start_fret'] ?? 1,
+                        'diagram_id'    => $v['id'] ?? null,
+                    ];
+                }
+
+                // Clean up selections for materializer
+                $selectionsClean = [];
+                foreach ($selections as $sel) {
+                    if (!empty($sel['frets'])) {
+                        $selectionsClean[] = [
+                            'chord_name'    => $sel['chord_name'],
+                            'measure_index' => $sel['measure_index'],
+                            'frets'         => $sel['frets'],
+                            'position'      => $sel['position'] ?? 1,
+                        ];
+                    }
+                }
+
+                if (!empty($selectionsClean)) {
+                    $materialized = $materializer->materialize($selectionsClean, $analysis['timeSignature'], $rhythmModel);
                     $jsonDataArray['chordVoicings'] = $materialized['voicings'];
+                    
+                    // Re-apply enhanced names from the builder back to the structural JSON
+                    $selIdx = 0;
+                    foreach ($jsonDataArray['sections'] as &$sec) {
+                        foreach ($sec['measures'] as &$m) {
+                            foreach ($m['chords'] as &$c) {
+                                if (!empty($c['name']) && $c['name'] !== '?' && isset($selections[$selIdx])) {
+                                    $c['name'] = $selections[$selIdx]['chord_name'];
+                                    $selIdx++;
+                                }
+                            }
+                        }
+                    }
+                    unset($sec, $m, $c); // Clean up references
                     
                     // In audio mode, prioritize the transcribed melody over auto-generated comping.
                     if (($validated['mode'] ?? '') !== 'audio' || empty($jsonDataArray['melody'])) {
@@ -697,7 +1106,10 @@ class LeadsheetController extends Controller
             return response()->json(['success' => true, 'results' => []]);
         }
 
-        $results = $crossref->identifyVoicingsBatch($voicings);
+        $songKey = $request->input('songKey');
+        $harmonicContext = $songKey !== null ? ['song_key' => $songKey] : null;
+
+        $results = $crossref->identifyVoicingsBatch($voicings, $harmonicContext);
 
         return response()->json(['success' => true, 'results' => $results]);
     }
@@ -1106,102 +1518,200 @@ class LeadsheetController extends Controller
         return 's';
     }
 
+    protected function quantizeToStandard(int $ticks): int
+    {
+        // Restricted to regular subdivisions (no dotted notes)
+        $standards = [1920, 960, 480, 240, 120];
+        $best = 120;
+        $bestDiff = PHP_INT_MAX;
+        foreach ($standards as $s) {
+            $diff = abs($ticks - $s);
+            // Bias: favor larger duration to fill gaps and align with beat boundaries
+            if ($diff < $bestDiff || ($diff === $bestDiff && $s > $best)) {
+                $bestDiff = $diff;
+                $best = $s;
+            }
+        }
+        return $best;
+    }
+
     /**
      * Refine a raw audio transcription using Gemini.
-     * Fixes misidentified chords, identifies song structure, and simplifies rhythms.
+     *
+     * Phase 2b: The input analysis now contains raw MIDI pitch arrays per chord
+     * slot (from basic-pitch) instead of pre-identified chord names. Gemini
+     * reads the 'pitches' field on each chord object, applies its harmonic
+     * knowledge plus the raw_beats context, and returns proper chord labels.
+     * It also quantizes melody, identifies song sections, and determines the key.
+     *
+     * Any chord slot Gemini cannot confidently identify is returned as '?' and
+     * resolved by the post-AI resolveUnidentifiedChords() fallback pass.
      */
     protected function musicalizeTranscription(array $rawAnalysis, SongLookup $lookup): array
     {
         $client = app(LLM\LookupClient::class);
-        
-        $systemPrompt = <<<PROMPT
-You are a master music transcriber and theorist. I have a raw AI transcription of a song. 
-The rhythmic timing is slightly 'noisy' and some chords might be misidentified. 
-Please 'musicalize' this data into a standard leadsheet format.
 
-## RULES:
-1. **STRUCTURALIZATION**: Identify the logical song sections (Intro, Verse, Chorus, Bridge, Solo, Outro, etc.) based on the chord/melody patterns.
-2. **HARMONIC CORRECTION**: Correct any obvious misidentifications (e.g. accidental chords, wrong extensions). Prefer standard functional harmony unless it's a jazz standard with specific substitutions.
-3. **RHYTHMIC SIMPLIFICATION**: The provided 'tick' values for melody notes are raw. Please 'quantize' them in your mind to standard musical phrases. Return a CLEAN melody array where notes fall on standard 8th/16th note grids.
-4. **FORMAT**: You MUST return the data in the exact same IntermediateAnalysis schema as the input.
+        $systemPrompt = <<<PROMPT
+You are a master music transcriber and theorist. I have a raw AI audio transcription of a song.
+Each chord slot in the 'sections' data contains a 'pitches' array: a set of MIDI pitch classes
+(integers 0–11, where 0=C, 1=C#/Db, 2=D … 11=B) detected at that moment in the audio.
+You also have a 'raw_beats' array with the same pitch data at beat-level granularity.
+
+## YOUR TASKS:
+1. **CHORD IDENTIFICATION**: For each chord slot, read its 'pitches' array and use your music
+   theory knowledge to determine the correct chord name. Write it in the 'label' field.
+   - Use standard leadsheet notation: C, Dm, G7, Fmaj7, Am7/G, etc.
+   - If fewer than 3 distinct pitch classes are present, or you cannot determine a chord,
+     return '/' (repeat sign) or '?' — the system will handle it.
+   - Consider functional harmony and the surrounding chord context when disambiguating.
+2. **KEY DETECTION**: Determine the song's key from the overall harmonic content.
+3. **STRUCTURALIZATION**: Group bars into logical sections (Intro, Verse, Chorus, Bridge, Outro).
+   Rename the 'label' field on each section accordingly.
+4. **RHYTHMIC SIMPLIFICATION**: Quantize melody note tick values to standard 8th/16th note grids.
+   DO NOT use dotted notes. Use only regular whole, half, quarter, 8th, and 16th notes. 
+   Every note MUST fit within a single beat boundary (1, 2, 3, or 4). If a note sounds 
+   across a boundary, split it into two notes or truncate it. Ensure every beat 
+   is filled with a combination of notes and rests that sum to exactly one quarter note.
+5. **FORMAT**: Return data in the exact IntermediateAnalysis schema. Do NOT include the
+   'pitches' or 'raw_beats' fields in your output — only 'label' and 'beat' per chord.
 
 PROMPT;
 
         $userPrompt = "Raw Transcription Data for '{$rawAnalysis['title']}':\n\n";
         $userPrompt .= json_encode($rawAnalysis, JSON_PRETTY_PRINT);
 
-        // We use the same schema as SongLookup
         $schema = [
-            'type' => 'OBJECT',
+            'type'       => 'OBJECT',
             'properties' => [
-                'title' => ['type' => 'STRING'],
-                'composer' => ['type' => 'STRING', 'nullable' => true],
-                'key' => ['type' => 'STRING'],
-                'tempo' => ['type' => 'INTEGER'],
+                'title'         => ['type' => 'STRING'],
+                'composer'      => ['type' => 'STRING', 'nullable' => true],
+                'key'           => ['type' => 'STRING'],
+                'tempo'         => ['type' => 'INTEGER'],
                 'timeSignature' => ['type' => 'STRING'],
-                'sections' => [
-                    'type' => 'ARRAY',
+                'sections'      => [
+                    'type'  => 'ARRAY',
                     'items' => [
-                        'type' => 'OBJECT',
+                        'type'       => 'OBJECT',
                         'properties' => [
                             'name' => ['type' => 'STRING'],
                             'bars' => [
-                                'type' => 'ARRAY',
+                                'type'  => 'ARRAY',
                                 'items' => [
-                                    'type' => 'OBJECT',
+                                    'type'       => 'OBJECT',
                                     'properties' => [
                                         'chords' => [
-                                            'type' => 'ARRAY',
+                                            'type'  => 'ARRAY',
                                             'items' => [
-                                                'type' => 'OBJECT',
+                                                'type'       => 'OBJECT',
                                                 'properties' => [
                                                     'label' => ['type' => 'STRING'],
-                                                    'beats' => ['type' => 'INTEGER'],
+                                                    'beat'  => ['type' => 'INTEGER'],
                                                 ],
-                                                'required' => ['label', 'beats']
-                                            ]
-                                        ]
+                                                'required' => ['label', 'beat'],
+                                            ],
+                                        ],
                                     ],
-                                    'required' => ['chords']
-                                ]
-                            ]
+                                    'required' => ['chords'],
+                                ],
+                            ],
                         ],
-                        'required' => ['name', 'bars']
-                    ]
+                        'required' => ['name', 'bars'],
+                    ],
                 ],
                 'melody_data' => [
-                    'type' => 'ARRAY',
+                    'type'  => 'ARRAY',
                     'items' => [
-                        'type' => 'OBJECT',
+                        'type'       => 'OBJECT',
                         'properties' => [
-                            'tick' => ['type' => 'INTEGER'],
-                            'pitch' => ['type' => 'STRING'],
-                            'octave' => ['type' => 'INTEGER'],
+                            'tick'     => ['type' => 'INTEGER'],
+                            'pitch'    => ['type' => 'STRING'],
+                            'octave'   => ['type' => 'INTEGER'],
                             'duration' => ['type' => 'STRING'],
-                            'ticks' => ['type' => 'INTEGER'],
-                            'string' => ['type' => 'INTEGER'],
-                            'fret' => ['type' => 'INTEGER'],
-                            'isRest' => ['type' => 'BOOLEAN'],
-                        ]
-                    ]
+                            'ticks'    => ['type' => 'INTEGER'],
+                            'string'   => ['type' => 'INTEGER'],
+                            'fret'     => ['type' => 'INTEGER'],
+                            'isRest'   => ['type' => 'BOOLEAN'],
+                        ],
+                    ],
                 ],
-                'source_note' => ['type' => 'STRING']
+                'source_note' => ['type' => 'STRING'],
             ],
-            'required' => ['title', 'key', 'timeSignature', 'sections', 'source_note']
+            'required' => ['title', 'key', 'timeSignature', 'sections', 'source_note'],
         ];
 
         $response = $client->complete($systemPrompt, $userPrompt, $schema, [
-            'timeoutSeconds' => 60
+            'timeoutSeconds' => 60,
         ]);
 
         $refined = $response['data'];
-        
-        // Preserve videoSync if it was stripped
+
+        // Preserve videoSync (Gemini does not return it)
         if (!isset($refined['videoSync']) && isset($rawAnalysis['videoSync'])) {
             $refined['videoSync'] = $rawAnalysis['videoSync'];
         }
 
         return $refined;
+    }
+
+    /**
+     * Post-AI fallback: iterate the returned analysis and resolve any chord
+     * slot where the label is still '?' or null.
+     *
+     * Each such slot carries a 'pitches' array (pitch classes 0–11) that was
+     * embedded by the pre-AI beat loop. identifyFromMidi() is called on those
+     * pitches using the full Phase-1 algorithm. The 'pitches' key is stripped
+     * from all slots before returning so it does not leak into assembly.
+     *
+     * Called both on AI-success and AI-failure paths (fail-safe).
+     */
+    private function resolveUnidentifiedChords(array $analysis, VoicingCrossref $crossref): array
+    {
+        foreach ($analysis['sections'] as &$section) {
+            foreach ($section['bars'] as &$bar) {
+                foreach ($bar['chords'] as &$chord) {
+                    $label   = $chord['label'] ?? null;
+                    $pitches = $chord['pitches'] ?? null;
+
+                    // Resolve slots the AI could not identify
+                    if (($label === '?' || $label === null) && !empty($pitches)) {
+                        // pitches are already pitch classes (0–11) from the pre-AI loop;
+                        // identifyFromMidi() expects absolute MIDI pitches but operates
+                        // mod-12 internally, so pitch classes work correctly here.
+                        $idResult = $crossref->identifyFromMidi($pitches);
+                        $chord['label'] = $idResult['name'] ?: '/';
+                    }
+
+                    // Always strip the pitches key — not part of the leadsheet schema
+                    unset($chord['pitches']);
+                }
+                unset($chord);
+            }
+            unset($bar);
+        }
+        unset($section);
+
+        return $analysis;
+    }
+
+    /**
+     * Jaccard similarity between two sets of MIDI pitches.
+     * Used by the non-AI harmonic region grouping pass (Phase 2c).
+     *
+     * Returns 1.0 for identical sets, 0.0 for completely disjoint sets.
+     * Threshold >= 0.5 means at least half the combined notes are shared.
+     */
+    private function jaccardSimilarity(array $setA, array $setB): float
+    {
+        $a = array_unique($setA);
+        $b = array_unique($setB);
+
+        if (empty($a) && empty($b)) return 1.0;
+        if (empty($a) || empty($b)) return 0.0;
+
+        $intersection = count(array_intersect($a, $b));
+        $union        = count(array_unique(array_merge($a, $b)));
+
+        return $union > 0 ? $intersection / $union : 0.0;
     }
 }
 

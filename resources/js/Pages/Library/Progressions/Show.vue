@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
 import type { ProgressionChord } from '@/Components/Library/ChordProgressionViewer.vue';
@@ -42,6 +42,7 @@ interface Props {
     songs: SongData[];
     siblings: ProgressionData[];
     tiles: ProgressionTile[];
+    builderPass?: 1 | 2;
 }
 
 const props = defineProps<Props>();
@@ -72,6 +73,17 @@ const hasSiblings = computed(() => props.siblings.length > 0);
 const hasDescription = computed(() => props.progression.description && props.progression.description.trim());
 const hasGenres = computed(() => props.progression.typicalGenres && props.progression.typicalGenres.trim());
 const hasTags = computed(() => props.progression.tags.length > 0);
+
+// Test switch — Pass 1 (plain voicings) vs Pass 2 (option-tone upgrades).
+// Reloads the page so the controller re-runs the builder with extensions=true.
+const currentPass = computed(() => props.builderPass ?? 1);
+function setBuilderPass(pass: 1 | 2) {
+    if (currentPass.value === pass) return;
+    const url = new URL(window.location.href);
+    if (pass === 2) url.searchParams.set('pass', '2');
+    else url.searchParams.delete('pass');
+    router.visit(url.pathname + url.search, { preserveScroll: true });
+}
 
 // Convert tiles to chords for the viewer
 const chords = computed((): ProgressionChord[] => {
@@ -132,6 +144,21 @@ function getTonalityClass(tonality: string): string {
                 <div class="sbn-prog-detail-main">
                     <!-- Chord Progression Viewer -->
                     <section v-if="tiles.length" class="sbn-prog-detail-section">
+                        <div class="sbn-builder-pass-toggle">
+                            <span class="sbn-builder-pass-toggle-label">Builder pass</span>
+                            <button
+                                type="button"
+                                class="sbn-builder-pass-toggle-btn"
+                                :class="{ 'is-active': currentPass === 1 }"
+                                @click="setBuilderPass(1)"
+                            >Pass 1 — Plain</button>
+                            <button
+                                type="button"
+                                class="sbn-builder-pass-toggle-btn"
+                                :class="{ 'is-active': currentPass === 2 }"
+                                @click="setBuilderPass(2)"
+                            >Pass 2 — Extensions</button>
+                        </div>
                         <ChordProgressionViewer
                             :chords="chords"
                             :interactive="true"
@@ -234,6 +261,35 @@ function getTonalityClass(tonality: string): string {
 </template>
 
 <style scoped>
+/* Builder pass test switch (Pass 1 = plain, Pass 2 = option-tone upgrades). */
+.sbn-builder-pass-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-size: 12px;
+}
+.sbn-builder-pass-toggle-label {
+    color: var(--clr-text-muted, #888);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+.sbn-builder-pass-toggle-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--clr-border, #d0d0d0);
+    background: transparent;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--clr-text-muted, #888);
+}
+.sbn-builder-pass-toggle-btn.is-active {
+    background: var(--clr-text, #222);
+    color: var(--clr-bg, #fff);
+    border-color: var(--clr-text, #222);
+}
+
 /* Layout matching rhythm show page */
 .sbn-prog-detail-page {
     max-width: 1400px;

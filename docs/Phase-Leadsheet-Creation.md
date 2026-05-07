@@ -1,6 +1,6 @@
 # Phase L — Leadsheet Creation (Admin)
 
-**Status:** 📋 PLANNING
+**Status:** 🔄 ACTIVE — L1/L2/L2.5/L3 shipped; consolidating toward Jazz Standards DB
 **Owner:** Admin / Leadsheet Editor
 **Related:** [Phase-9-Leadsheet-Viewer.md](Phase-9-Leadsheet-Viewer.md), Progression Builder
 
@@ -13,13 +13,15 @@ Today the admin can **import** leadsheets (via shortcode/JSON paste) and **edit*
 The work is split into three layers. Each ships independently.
 
 ```
-L1  Manual blank-sheet creation     ──►  ships first, smallest surface
-L2  Builder-assisted draft          ──►  reuses ProgressionBuilder
-L3  Lookup-assisted draft (LLM)     ──►  flagship AI feature; replaces what was L3a–L3e
-L4  Source-driven extractors        ──►  add-ons on standby (audio/PDF/scan)
+L1   Manual blank-sheet creation     ──►  ✅ SHIPPED
+L2   Progression-based draft         ──►  ✅ SHIPPED (simplifying to DB-stored sources only)
+L2.5 Rhythm-aware materialization    ──►  ✅ SHIPPED
+L3   Song Lookup (LLM)               ──►  ✅ SHIPPED (maintenance mode — not primary path forward)
+L3a  Audio Transcription             ──►  ⚠️ EXPERIMENTAL (embedded in L3 modal)
+L4   Source-driven extractors        ──►  ❄️ ON STANDBY
 ```
 
-**Design principle that emerged from scoping:** for the songs the admin actually teaches (jazz standards + pop/rock for students), the chord changes are already documented somewhere on the web. The bottleneck is *transcribing what's already known*, not *analyzing audio from scratch*. L3 attacks that bottleneck directly with an LLM + web search lookup, which covers ~90% of real workflow needs at a fraction of the engineering cost of audio/OCR pipelines. L4 is kept as a deferred add-on track for the remaining cases.
+**Design principle (revised 2026-05-04):** for jazz standards, the canonical changes are *already known* — they belong in a local database, not behind an LLM API call. A **Jazz Standards DB** (~1400 songs) eliminates API cost, latency, and hallucination risk for the majority of the admin's workflow. The LLM lookup path (L3) remains operational for pop/rock songs not in the DB, but is in maintenance mode — not the focus of new investment. Audio transcription (L3a) is experimental and interesting but difficult to perfect; the Jazz Standards DB serves as structural anchoring for transcription quality improvements.
 
 ---
 
@@ -82,20 +84,17 @@ A self-contained spec for a coding AI is in **§8 below**.
 
 ## 3. L2 — Builder-assisted draft
 
-**Status:** ✅ SHIPPED (with cleanup tasks — see §3.7) | L2.5 rhythm extension is NEXT (§3.6)
+**Status:** ✅ SHIPPED | L2.5 ✅ SHIPPED | Simplifying to DB-stored sources only
 
-**Goal:** start a new sheet pre-populated from a saved progression, a copy of an existing leadsheet, or a typed chord/numeral sequence.
+**Goal:** start a new sheet pre-populated from a saved progression or a Jazz Standards DB entry.
 
-### 3.1 Sources
-1. **Saved `ChordProgression`** — same dropdown the Progression Builder uses; numerals + tonality already in DB.
-2. **Existing leadsheet (clone)** — `replicate()` + new slug, title prefixed `Copy of …`. All rows are pulled (only `id`, `title`, `composer` columns), sorted by `title` ASC, and rendered via searchable `<datalist>` or Choices.js selection UI.
-3. **Free input** — paste numerals (`IIm7 V7 Imaj7`) or concrete chords (`Dm7 G7 Cmaj7`) + key + bars-per-chord.
-4. **(L2/L3 bridge) Text Paste** — chord-pro / `[chord]lyric` text paste. Resolved by a new dedicated `ChordSequenceParser` service using automatic mode detection:
-   - **Whitespace-separated sequence**: `Am7 Dm7 G7 Cmaj7` (any whitespace or newlines).
-   - **Pipe-separated bars**: `| Am7 | Dm7 G7 | Cmaj7 |` (each `|` segment is a bar; multiple chords split bar evenly).
-   - **Inline [chord]lyric**: `[Am7]some lyric [Dm7]more [G7]words`. Strips text, keeps chord order.
-   - *Exclusions*: full ChordPro directives (`{title:}`), section markers (`[Verse]`), mixed numeral/chord formats.
-   - *Validation*: runs against existing validator; failing tokens map to `?` placeholders with a clear warning prompt.
+> **Direction change (2026-05-04):** L2 originally shipped with 4 free-text source tabs (Free Input, ChordPro, Pipe Bars, Clone). These are being removed. The admin's real workflow is picking from a curated library — not parsing arbitrary chord text. L2 will expose only: (1) Saved `ChordProgression` entries, and (2) Jazz Standards DB entries (when built). The `ChordSequenceParser` service remains in the codebase as shipped code but is no longer exposed in the modal UI.
+
+### 3.1 Sources (simplified)
+1. **Saved `ChordProgression`** — dropdown from the Progression Builder's library; numerals + tonality already in DB. Resolves numerals to chord names via `NumeralResolver` in the selected key.
+2. **Jazz Standards DB** *(future — see §5.1)* — when the Jazz Standards database is seeded, its entries appear as a second source category. Pick a standard → instant structure + chords with correct bar count, sections, and form labels. Zero API cost, zero hallucination.
+
+> **Removed from scope:** Free Input, ChordPro paste, Pipe Bars, Clone Source. The shipped `ChordSequenceParser` and clone logic remain in the codebase but are no longer surfaced in the modal. Clone functionality may return as a standalone "Duplicate" action on the index page (see §11.1).
 
 ### 3.2 Flow
 - "+ New" → "From progression" triggers a 2-step wizard modal (`resources/views/admin/leadsheets/_progression-modal.blade.php`):
@@ -464,21 +463,21 @@ public function test_separates_thumb_strings_4_to_6_from_finger_strings_1_to_3()
 - Numeral resolution preview — server roundtrip via `POST /admin/progressions/resolve-numerals`.
 - No chord-diagram previews in the wizard.
 
-**Cleanup tasks (open, do as one tidy commit):**
+**Cleanup tasks:**
 
-1. **Remove unused constructor parameter.** `LeadsheetController::__construct` accepts `LeadsheetScaffolder $scaffolder` but never assigns it; `createBlank` and `createFromSequence` re-inject as method-level params. Drop the constructor parameter.
+1. ~~**Remove unused constructor parameter.**~~ ✅ DONE — constructor no longer accepts `LeadsheetScaffolder`.
 
-2. **Consolidate numeral detection.** The "is numeral" regex is duplicated in `ChordSequenceParser::isNumeral` and twice in `LeadsheetController::createFromSequence` (bars branch + sequence branch). Move resolution into a single `NumeralResolver` service (or a method on `ChordSequenceParser`) so the controller calls one method. Defensive fix while in there: if `numeralToChordName` returns falsy, leave the original numeral in place rather than silently writing an empty string into the scaffold.
+2. ~~**Consolidate numeral detection.**~~ ✅ DONE — `NumeralResolver` service created; controller calls one method.
 
-3. **Deduplicate slug generation.** Same `Str::slug` + uniqueness loop appears in `createBlank` and `createFromSequence`. Extract to a private helper or a model boot observer; otherwise L3 will paste it a third time.
+3. ~~**Deduplicate slug generation.**~~ ✅ DONE — `Leadsheet::generateUniqueSlug()` extracted; both controller methods use it.
 
-4. **Verify empty-`chordVoicings` cast in `scaffoldFromSequence`.** L1's `scaffoldBlank` casts empty `chordVoicings` to `(object)[]` to dodge the JS Vue/Alpine empty-array bug (see §10). Confirm `scaffoldFromSequence` does the same on the no-voicings path; if not, add it.
+4. ~~**Verify empty-`chordVoicings` cast.**~~ ✅ DONE — both scaffolder paths cast to `(object)[]`.
 
-5. **Voicing-style selector (replaces "shell-only" default).** Currently `createFromSequence` hardcodes `['category' => 'shell']`. Shell voicings are sparse for jazz extensions, so users get inconsistent results: rich chords fall through to `$pool[0]` (popular fallback), but the chords that *do* have shell entries always come back as 3-note shells regardless of context. Replace with a user-facing select. See §3.8 for the spec.
+5. ~~**Voicing-style selector.**~~ ✅ DONE — modal exposes popular/shell/drop2/archetype select; default is `popular`.
 
-6. **Saved Progression source — missing from shipped modal.** §3.1 #1 specified "Saved `ChordProgression`" as the first source pathway. The shipped modal only has 4 source tabs (Free Input, ChordPro, Pipe Bars, Clone Source). The `ChordProgression` model exists and is already loaded by `ProgressionBuilderController`. See §3.8 for the spec.
+6. **Saved Progression source — DIRECTION CHANGED.** The original spec asked for a 5th tab. New direction (2026-05-04): remove the 4 free-text tabs entirely, make Saved Progression the *primary* (and initially only) source. Jazz Standards DB entries become the second source when built. See revised §3.1.
 
-**Deferred from L2 (see §11):** clone-source redesign and key transposition for concrete chords. Both are real improvements but lower-priority than L2.5 and L3, so they're parked.
+**Deferred from L2 (see §11):** clone-source redesign (may become standalone "Duplicate" button on index) and key transposition for concrete chords.
 
 ---
 
@@ -876,16 +875,22 @@ Decisions made after the L2.5 polish PR landed; minor cleanup, not blocking L3.
 
 ---
 
-## 4. L3 — Lookup-assisted draft (flagship)
+## 4. L3 — Song Lookup (LLM)
 
-**Goal:** admin types a song title (+ optional artist/version hint) and lands in the editor with a structurally-correct draft — key, tempo, time-sig, sections, chords per bar — pulled from the LLM's training data and verified via web search.
+**Status:** ✅ SHIPPED | ⚠️ MAINTENANCE MODE — functional, not primary path forward
 
-### 4.1 Why this works
+**Goal:** admin types a song title (+ optional artist/version hint) and lands in the editor with a structurally-correct draft — key, tempo, time-sig, sections, chords per bar — pulled from the LLM's training data.
+
+> **Honest assessment (2026-05-04):** L3 works for generating chord grids but results require manual verification. For jazz standards (~90% of the admin's real workflow), a **local Jazz Standards DB** would produce the same output instantly, for free, with zero hallucination. For pop/rock, the LLM path is the only automated option but is used infrequently. Quick Draft and Transcribing Assistant modes are merged into a single lookup — the distinction was artificial and added UI complexity without proportional value. Audio transcription (mode=audio) remains embedded in the same modal as an experimental feature.
+>
+> This path is kept operational but is **not the focus of new investment.** The Jazz Standards DB is the better answer for the core use case.
+
+### 4.1 Why this works (and where it doesn't)
 For the actual songs the admin teaches:
-- **Jazz/bossa standards** ("Alone Together", "Summertime", "Wave"): canonical changes are documented in fake books, jazzstandards.com, iReal Pro libraries, forum threads. LLMs are reliable on these because training data is saturated.
-- **Pop/rock for students** ("Shape of You", "Wonderwall"): Ultimate Guitar's top-voted tabs converge on a shared "what people teach" version. LLMs can summarize across the top 3 tabs more robustly than any scraper hitting one site.
+- **Jazz/bossa standards** ("Alone Together", "Summertime", "Wave"): LLMs are reliable because training data is saturated. **However, a local DB is better** — same data, zero cost, zero latency, zero hallucination risk.
+- **Pop/rock for students** ("Shape of You", "Wonderwall"): This is where L3 still has genuine value — these songs aren't in standard jazz databases.
 
-This collapses what was a 5-sub-feature L3 (audio/OCR/crawl/paste/AI-refine) into one well-scoped feature that covers ~90% of real demand. Audio/OCR/scan are kept on standby as L4 add-ons.
+The original Quick Draft / Transcribing Assistant split is collapsed into one mode. The "assistant" research features (notable versions, voicing hints, suggested videos) remain specced in §4.9.21 but are not prioritized — they can be revisited if the LLM path proves more valuable than expected.
 
 ### 4.2 Entry UX
 - "+ New" → "From song lookup" opens a modal:
@@ -1571,11 +1576,11 @@ Groq is OpenAI-compatible, so the existing `openai-php/client` SDK works unchang
 
 #### 4.9.21 Transcribing Assistant (v1)
 
-**Status:** 📋 PLANNING. Replaces the original "L3 quality polish" sketch — same effort budget (~3–4 days), substantially higher value.
+**Status:** ❄️ DEFERRED — merged conceptually into L3 single-mode lookup. Research features (notable versions, voicing hints, videos) are parked until the LLM path proves its value beyond the Jazz Standards DB.
 
-##### Why this exists
+> **Decision (2026-05-04):** The Quick Draft / Transcribing Assistant split was artificial. The assistant-mode research bundle (notable versions, voicing hints with attribution, transcription notes, suggested videos) is interesting but represents significant investment in a path whose future is uncertain. If the Jazz Standards DB covers the admin's core workflow, the research features may never be needed. Keeping the spec below as reference if this direction is revisited.
 
-L3 today produces "best-guess canonical changes." Real workflow ("I'm working out the Ellis/Peterson version of *Alone Together*") is closer to research assistance than draft generation. Goal: turn L3's modal into a transcribing assistant that returns structure + chord grid + a **research bundle** the user studies *while* transcribing the recording themselves.
+##### Why this existed (historical context)
 
 The chord grid is one piece. The research bundle is what makes this worth shipping: notable versions to study, voicing hints with attribution, transcription notes, and suggested videos that can be wired straight into the existing **Phase D video panel**.
 
@@ -1731,7 +1736,11 @@ The data shape locked in v1 (`research` as a structured object, suggested videos
 
 ## 5. L4 — Source-driven extractors (add-on track, on standby)
 
-Kept as a future track. Each is independently shippable but **not roadmapped** until L3 demonstrates value and reveals which gaps remain. The `IntermediateAnalysis` contract from L3 is what every L4 extractor would target — so L3 lays the architectural groundwork for free.
+**Status:** ❄️ ON STANDBY — except L4a (audio) which is partially implemented as L3a experimental.
+
+> **Note (2026-05-04):** Audio transcription (L4a) has been partially built and embedded in the L3 modal as an experimental mode (`mode=audio`). It works end-to-end but quality is inconsistent. The **Jazz Standards DB** would significantly improve audio transcription accuracy by providing structural anchoring (force correct bar count, harmonic bias). Other L4 tracks remain theoretical.
+
+Kept as a future track. The `IntermediateAnalysis` contract from L3 is what every L4 extractor would target — so L3 lays the architectural groundwork for free.
 
 | Track | Source | Sketch | Standby trigger |
 |---|---|---|---|
@@ -1771,24 +1780,30 @@ This implies a **shared editor feature worth designing now, building later: low-
 
 ---
 
-## 6. Sequencing recommendation
+## 6. Sequencing recommendation (revised 2026-05-04)
 
-1. **L1 — done.** Manual blank sheets shipped.
-2. **Refactor `applyProgression` → `VoicingMaterializer`.** Pure cleanup, no user-visible change. Required by L2, L2.5, and L3. Ship as its own PR with no behavior change so it's easy to review.
-3. **Ship L2 base** (sources + sequence → measures + whole-note voicings via `VoicingMaterializer` with `rhythm = null`).
-4. **Ship L2.5** (`RhythmMaterializer` + wizard rhythm selector). The new musical logic lives here.
-5. **Ship L3** (lookup-assisted draft). Reuses everything above; adds `AnalysisToLeadsheet` + `RhythmHintMapper` + the LLM call.
-6. **Stop and evaluate.** Most workflows should be covered. Only revisit L4 when a real workflow gap appears.
+1. ~~**L1 — done.**~~ ✅ Manual blank sheets shipped.
+2. ~~**Refactor `applyProgression` → `VoicingMaterializer`.**~~ ✅ Extracted.
+3. ~~**Ship L2 base.**~~ ✅ Shipped.
+4. ~~**Ship L2.5.**~~ ✅ `RhythmMaterializer` + wizard rhythm selector shipped.
+5. ~~**Ship L3.**~~ ✅ LLM lookup + audio transcription shipped.
+6. ~~**Jazz Standards DB**~~ ✅ Shipped. Seeded ~1400 standards. Local-first lookup in L3 (skip LLM).
+7. ~~**L2 modal simplification.**~~ ✅ Shipped. Only Progressions + Jazz Standards sources remain.
+8. ~~**L3 modal simplification.**~~ ✅ Shipped. Merged AI modes.
+9. **Audio transcription improvements.** Reference anchoring from Jazz Standards DB (force correct bar count, harmonic bias during chord ID). Extract audio pipeline from `createFromLookup` into dedicated service.
+10. **Evaluate.** Decide whether L3 (LLM) path is worth further investment based on usage patterns.
 
 ---
 
-## 7. Open questions
+## 7. Open questions (resolved / remaining)
 
-- **Slugging:** does `Leadsheet` have a slug observer/trait? Check before L1 ships.
-- **Voicing defaults for L2/L3:** match user's last-used Progression Builder setting? Or always default to "no voicings, decide per-sheet"?
-- **Rhythm pattern in L1:** default to "none" (recommended) vs. last-used.
-- **L3 LLM provider:** Claude (consistent with rest of stack) — assumed yes; needs `ANTHROPIC_API_KEY` + budget guardrails.
-- **L3 caching:** identical lookups (same title + hint) should hit a cache to save API cost and stabilize results. New table `sbn_lookup_cache` or just a keyed JSON file? Decide during L3 build.
+- ~~**Slugging:** does `Leadsheet` have a slug observer/trait?~~ ✅ RESOLVED — `Leadsheet::generateUniqueSlug()` static helper.
+- ~~**Voicing defaults for L2/L3:**~~ ✅ RESOLVED — default to `popular` (most-popular voicing), user can switch.
+- ~~**Rhythm pattern in L1:**~~ ✅ RESOLVED — defaults to "none".
+- ~~**L3 LLM provider:**~~ ✅ RESOLVED — Gemini primary, DeepSeek/Groq/Cohere as alternatives via `LLMServiceProvider`.
+- ~~**L3 caching:**~~ ✅ RESOLVED — `sbn_lookup_cache` table with 30-day TTL.
+- ~~**Jazz Standards DB source:**~~ ✅ RESOLVED — Mike Oliphant's JazzStandards JSON repo is the authoritative source.
+- ~~**L2 modal redesign scope:**~~ ✅ RESOLVED — Stripped to Progressions + Jazz Standards.
 
 ---
 

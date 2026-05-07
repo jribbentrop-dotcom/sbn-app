@@ -29,6 +29,8 @@ const props = defineProps({
   },
 });
 
+const cinemaUrl = computed(() => `/library/songs/${props.leadsheet.slug}/cinema`);
+
 // SEO metadata
 const metaDescription = computed(() => {
   const parts = ['Lead sheet'];
@@ -54,5 +56,6 @@ const metaDescription = computed(() => {
     :chord-cards="chordCards"
     :quality-by-key="qualityByKey"
     :edu-chord-qualities="eduChordQualities"
+    :cinema-url="cinemaUrl"
   />
 </template>

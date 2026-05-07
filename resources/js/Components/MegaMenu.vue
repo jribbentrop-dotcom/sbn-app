@@ -75,21 +75,21 @@ onUnmounted(() => {
                     <li class="menu-item-has-children mega-col-nav">
                         <a href="#">Browse by Level</a>
                         <ul class="sub-menu">
-                            <li><Link href="#" @click="closeAllMenus">Basic</Link></li><!-- TODO: Phase 3 routes -->
-                            <li><Link href="#" @click="closeAllMenus">Early Intermediate</Link></li>
-                            <li><Link href="#" @click="closeAllMenus">Intermediate</Link></li>
-                            <li><Link href="#" @click="closeAllMenus">Late Intermediate</Link></li>
-                            <li><Link href="#" @click="closeAllMenus">Advanced</Link></li>
+                            <li><Link href="/learn?level=basic" @click="closeAllMenus">Basic</Link></li>
+                            <li><Link href="/learn?level=early-intermediate" @click="closeAllMenus">Early Intermediate</Link></li>
+                            <li><Link href="/learn?level=intermediate" @click="closeAllMenus">Intermediate</Link></li>
+                            <li><Link href="/learn?level=late-intermediate" @click="closeAllMenus">Late Intermediate</Link></li>
+                            <li><Link href="/learn?level=advanced" @click="closeAllMenus">Advanced</Link></li>
                         </ul>
                     </li>
                     <!-- Col 1b: Browse by Style -->
                     <li class="menu-item-has-children mega-col-nav">
                         <a href="#">Browse by Style</a>
                         <ul class="sub-menu">
-                            <li><Link href="#" @click="closeAllMenus">Bossa Nova</Link></li>
-                            <li><Link href="#" @click="closeAllMenus">Classical</Link></li>
-                            <li><Link href="#" @click="closeAllMenus">Jazz</Link></li>
-                            <li><Link href="#" @click="closeAllMenus">All Courses</Link></li>
+                            <li><Link href="/learn?genre=bossa-nova" @click="closeAllMenus">Bossa Nova</Link></li>
+                            <li><Link href="/learn?genre=classical" @click="closeAllMenus">Classical</Link></li>
+                            <li><Link href="/learn?genre=jazz" @click="closeAllMenus">Jazz</Link></li>
+                            <li><Link href="/learn" @click="closeAllMenus">All Courses</Link></li>
                         </ul>
                     </li>
                     <!-- Col 2: Featured Course thumbnail -->
@@ -97,7 +97,7 @@ onUnmounted(() => {
                         <a href="#">Featured Course</a>
                         <p class="mega-featured-desc">Bossa Nova Basics — the foundation</p>
                         <div class="mega-featured-image">
-                            <Link href="#" @click="closeAllMenus"><!-- TODO: course route -->
+                            <Link href="/learn/bossa-nova-basics" @click="closeAllMenus">
                                 <img src="/images/mega-menu/courses-featured.webp" alt="Bossa Nova Basics">
                                 <span class="mega-featured-button">Start Course</span>
                             </Link>
@@ -107,11 +107,11 @@ onUnmounted(() => {
                     <li class="menu-item-has-children mega-col-cta">
                         <a href="#">New Course</a>
                         <ul class="sub-menu">
-                            <li><a href="#">Clave 101</a></li>
-                            <li><Link href="#" @click="closeAllMenus">Son Clave</Link></li>
-                            <li><Link href="#" @click="closeAllMenus">Rhumba Clave</Link></li>
-                            <li><Link href="#" @click="closeAllMenus">Bossa Nova Clave</Link></li>
-                            <li><Link href="#" @click="closeAllMenus">Basic Patterns &amp; Exercises</Link></li>
+                            <li><Link href="/learn/the-clave" @click="closeAllMenus">Clave 101</Link></li>
+                            <li><Link href="/learn/the-clave/play/the-son-clave-the-square-beat" @click="closeAllMenus">Son Clave</Link></li>
+                            <li><Link href="/learn/the-clave/play/the-rumba-clave-the-swung-beat" @click="closeAllMenus">Rumba Clave</Link></li>
+                            <li><Link href="/learn/the-clave/play/the-bossa-nova-clave-in-jazz" @click="closeAllMenus">Bossa Nova Clave</Link></li>
+                            <li><Link href="/learn/the-clave/play" @click="closeAllMenus">All Lessons</Link></li>
                         </ul>
                     </li>
                 </ul>
@@ -126,7 +126,7 @@ onUnmounted(() => {
                     <li class="menu-item-has-children mega-col-nav">
                         <a href="#">TOP10 Lists</a>
                         <ul class="sub-menu">
-                            <li><Link href="/top10/bossa-nova-chords" @click="closeAllMenus">Bossa Nova Chords</Link></li><!-- TODO: top10 routes -->
+                            <li><Link href="/top10/bossa-nova-chords" @click="closeAllMenus">Bossa Nova Chords</Link></li>
                             <li><Link href="/top10/latin-jazz-standards" @click="closeAllMenus">Latin Jazz Standards</Link></li>
                             <li><Link href="/top10/bossa-nova-songs" @click="closeAllMenus">Bossa Nova Songs</Link></li>
                             <li><Link href="#" @click="closeAllMenus">All TOP10 Lists</Link></li>
@@ -147,7 +147,7 @@ onUnmounted(() => {
                         <a href="#">Featured Content</a>
                         <p class="mega-featured-desc">Free Music Theory Course</p>
                         <div class="mega-featured-image">
-                            <Link href="#" @click="closeAllMenus"><!-- TODO: theory course route -->
+                            <Link href="/learn/music-theory-basics" @click="closeAllMenus">
                                 <img src="/images/mega-menu/explore-featured.webp" alt="Featured Chord">
                                 <span class="mega-featured-button">Explore</span>
                             </Link>
@@ -157,10 +157,10 @@ onUnmounted(() => {
                     <li class="menu-item-has-children mega-col-cta">
                         <a href="#">Free Resources</a>
                         <ul class="sub-menu">
-                            <li><a href="#">Music Theory Course</a></li>
-                            <li><Link href="#" @click="closeAllMenus">Music Notation &amp; Tablature</Link></li>
-                            <li><Link href="#" @click="closeAllMenus">Rhythm Grids and Durations</Link></li>
-                            <li><Link href="#" @click="closeAllMenus">Scales and Fingerings</Link></li>
+                            <li><Link href="/learn/music-theory-basics" @click="closeAllMenus">Music Theory Course</Link></li>
+                            <li><Link href="/learn/music-theory-basics/play/basics-of-notation" @click="closeAllMenus">Music Notation &amp; Tablature</Link></li>
+                            <li><Link href="/learn/bossa-nova-rhythm" @click="closeAllMenus">Rhythm Grids and Durations</Link></li>
+                            <li><Link href="/learn/melody-playing-nylon-guitar" @click="closeAllMenus">Scales and Fingerings</Link></li>
                         </ul>
                     </li>
                 </ul>

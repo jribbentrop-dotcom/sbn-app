@@ -5,6 +5,7 @@ namespace App\Providers;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use App\Services\HarmonicContext\DiminishedAsDominantResolver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -13,7 +14,34 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Register PedalDetector with callable for Phase 1 identification
+        $this->app->singleton(\App\Services\HarmonicContext\PedalDetector::class, function ($app) {
+            return new \App\Services\HarmonicContext\PedalDetector(
+                fn(...$args) => $app->make(\App\Services\VoicingCrossref::class)->identifyPhase1Only(...$args)
+            );
+        });
+
+        // Register HarmonicPatternMatcher with ProgressionDetector dependency
+        $this->app->singleton(\App\Services\HarmonicContext\HarmonicPatternMatcher::class, function ($app) {
+            return new \App\Services\HarmonicContext\HarmonicPatternMatcher(
+                $app->make(\App\Services\ProgressionDetector::class)
+            );
+        });
+
+        // Register DiminishedAsDominantResolver
+        $this->app->singleton(\App\Services\HarmonicContext\DiminishedAsDominantResolver::class, function ($app) {
+            return new \App\Services\HarmonicContext\DiminishedAsDominantResolver();
+        });
+
+        // Register ContextualReranker as a singleton that resolves VoicingCrossref lazily
+        $this->app->singleton(\App\Services\HarmonicContext\ContextualReranker::class, function ($app) {
+            return new \App\Services\HarmonicContext\ContextualReranker(
+                $app->make(\App\Services\HarmonicContext\DiminishedResolver::class),
+                $app->make(\App\Services\HarmonicContext\PedalDetector::class),
+                $app->make(\App\Services\HarmonicContext\HarmonicPatternMatcher::class),
+                $app->make(\App\Services\HarmonicContext\DiminishedAsDominantResolver::class)
+            );
+        });
     }
 
     /**

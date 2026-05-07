@@ -338,9 +338,9 @@ class ProgressionDetector
     /**
      * Convert a chord name + key to a Roman numeral token.
      *
-     * @param  string $chordName  e.g. "Dm7", "G7", "Bb7"
+     * @param  string $chordName  e.g. "Dm7", "G7", "Bb7", "E7/A"
      * @param  string $key        e.g. "C", "F", "Bb"
-     * @return string|null        e.g. "IIm7", "V7", "bVII7"
+     * @return string|null        e.g. "IIm7", "V7", "bVII7", "VII7/III"
      */
     public function chordToNumeral(string $chordName, string $key): ?string
     {
@@ -362,18 +362,36 @@ class ProgressionDetector
         // Exact diatonic degree
         $degreeIdx = array_search($interval, self::MAJOR_SCALE_SEMITONES, true);
         if ($degreeIdx !== false) {
-            return $this->degreeToNumeral($degreeIdx, $parsed['quality']);
-        }
-
-        // Chromatic alteration
-        if (isset(self::CHROMATIC_MAP[$interval])) {
+            $numeral = $this->degreeToNumeral($degreeIdx, $parsed['quality']);
+        } elseif (isset(self::CHROMATIC_MAP[$interval])) {
+            // Chromatic alteration
             $romanBase = self::CHROMATIC_MAP[$interval];
             $suffix    = $this->qualityToSuffix($parsed['quality']);
-            return $romanBase . $suffix;
+            $numeral = $romanBase . $suffix;
+        } else {
+            // Unknown chromatic degree
+            $numeral = 'chr' . $interval;
         }
 
-        // Unknown chromatic degree
-        return 'chr' . $interval;
+        // Handle slash chords: translate bass note and append
+        if (!empty($parsed['bass_note'])) {
+            $bassSemi = self::NOTE_TO_SEMI[$parsed['bass_note']] ?? null;
+            if ($bassSemi !== null) {
+                $bassInterval = ($bassSemi - $keySemi + 12) % 12;
+                $bassDegreeIdx = array_search($bassInterval, self::MAJOR_SCALE_SEMITONES, true);
+                if ($bassDegreeIdx !== false) {
+                    $bassNumeral = self::ROMAN[$bassDegreeIdx];
+                    $numeral .= '/' . $bassNumeral;
+                } elseif (isset(self::CHROMATIC_MAP[$bassInterval])) {
+                    $numeral .= '/' . self::CHROMATIC_MAP[$bassInterval];
+                } else {
+                    // Unknown bass degree - just use the note name
+                    $numeral .= '/' . $parsed['bass_note'];
+                }
+            }
+        }
+
+        return $numeral;
     }
 
     // =========================================================================
@@ -518,6 +536,52 @@ class ProgressionDetector
     // =========================================================================
 
     /**
+     * Flatten progression rows into canonical + variant entries for matching.
+     *
+     * Each entry is an array with: id, numerals, tonality, match_mode,
+     * variant_index (null = canonical), variant_label (null = canonical).
+     */
+    private function flattenProgressions(array $progressions): array
+    {
+        $flat = [];
+
+        foreach ($progressions as $prog) {
+            // Canonical entry
+            $flat[] = [
+                'id'            => (int) $prog->id,
+                'numerals'      => $prog->numerals,
+                'tonality'      => $prog->tonality ?? 'both',
+                'match_mode'    => $prog->match_mode ?? 'strict',
+                'variant_index' => null,
+                'variant_label' => null,
+            ];
+
+            // Variant entries
+            $altNumerals = $prog->alt_numerals ?? null;
+            if ($altNumerals) {
+                $variants = is_string($altNumerals)
+                    ? json_decode($altNumerals, true)
+                    : $altNumerals;
+
+                if (is_array($variants)) {
+                    foreach ($variants as $vi => $variant) {
+                        $flat[] = [
+                            'id'            => (int) $prog->id,
+                            'numerals'      => $variant['numerals'] ?? '',
+                            'tonality'      => $prog->tonality ?? 'both',
+                            'match_mode'    => $prog->match_mode ?? 'strict',
+                            'variant_index' => $vi,
+                            'variant_label' => $variant['label'] ?? null,
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $flat;
+    }
+
+    /**
      * Parse a stored numeral sequence string into tokens.
      * Normalizes dim7 suffix variants (dim7 → o7, °7 → o7).
      */
@@ -652,10 +716,10 @@ class ProgressionDetector
         $dedupTotal = count($deduped);
 
         foreach ($progressions as $prog) {
-            $pattern = $this->parseNumeralSequence($prog->numerals);
+            $pattern = $this->parseNumeralSequence($prog['numerals']);
 
-            $degreeOnly = (($prog->match_mode ?? 'strict') === 'degree');
-            $flexTonic  = (($prog->tonality ?? 'both') === 'both');
+            $degreeOnly = (($prog['match_mode'] ?? 'strict') === 'degree');
+            $flexTonic  = (($prog['tonality'] ?? 'both') === 'both');
 
             // Deduplicate pattern too
             $patternDeduped = [];
@@ -709,7 +773,9 @@ class ProgressionDetector
                     $origLength = $origEnd - $origStart + 1;
 
                     $matches[] = [
-                        'progression_id' => (int) $prog->id,
+                        'progression_id' => (int) $prog['id'],
+                        'variant_index'  => $prog['variant_index'] ?? null,
+                        'variant_label'  => $prog['variant_label'] ?? null,
                         'start_idx'      => $origStart,
                         'length'         => $origLength,
                         'confidence'     => round($confidence, 3),
@@ -847,9 +913,9 @@ class ProgressionDetector
             return ['occurrences' => 0, 'sections_analysed' => 0];
         }
 
-        // Load all progressions
+        // Load all progressions (with variant data)
         $progressions = DB::table('sbn_chord_progressions')
-            ->select('id', 'numerals', 'tonality', 'match_mode')
+            ->select('id', 'numerals', 'alt_numerals', 'tonality', 'match_mode')
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get()
@@ -858,6 +924,9 @@ class ProgressionDetector
         if (empty($progressions)) {
             return ['occurrences' => 0, 'sections_analysed' => count($song['sections'])];
         }
+
+        // Flatten into canonical + variant entries for matching
+        $flatProgs = $this->flattenProgressions($progressions);
 
         // Build per-section key map (section tonality overrides song key)
         $sectionKeys = [];
@@ -869,7 +938,7 @@ class ProgressionDetector
         $totalInserted  = 0;
 
         DB::transaction(function () use (
-            $song, $leadsheet, $progressions, $sectionKeys, $sectionCount, &$totalInserted
+            $song, $leadsheet, $progressions, $flatProgs, $sectionKeys, $sectionCount, &$totalInserted
         ) {
             foreach ($song['sections'] as $si => $section) {
                 $secKey     = $sectionKeys[$si];
@@ -952,7 +1021,16 @@ class ProgressionDetector
                     continue;
                 }
 
-                $matches = $this->detectMatches($numerals, array_values($filteredProgs));
+                // Filter flat progressions by tonality
+                $filteredFlat = array_filter($flatProgs, function ($p) use ($secIsMinor) {
+                    $ton = $p['tonality'] ?? 'both';
+                    if ($ton === 'both') return true;
+                    if ($ton === 'minor' && $secIsMinor) return true;
+                    if ($ton === 'major' && !$secIsMinor) return true;
+                    return false;
+                });
+
+                $matches = $this->detectMatches($numerals, array_values($filteredFlat));
 
                 foreach ($matches as $m) {
                     // Adjust for prepended cross-section chords
@@ -992,6 +1070,8 @@ class ProgressionDetector
 
                     DB::table('sbn_progression_occurrences')->insert([
                         'progression_id'  => $m['progression_id'],
+                        'variant_index'   => $m['variant_index'] ?? null,
+                        'variant_label'   => $m['variant_label'] ?? null,
                         'leadsheet_id'    => $leadsheet->id,
                         'section_id'      => $section['id'],
                         'start_measure'   => $startMeasure,
@@ -1132,11 +1212,13 @@ class ProgressionDetector
         $key  = $song['key'] ?? 'C';
 
         $progressions = DB::table('sbn_chord_progressions')
-            ->select('id', 'name', 'category', 'numerals', 'tonality', 'match_mode')
+            ->select('id', 'name', 'category', 'numerals', 'alt_numerals', 'tonality', 'match_mode')
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get()
             ->all();
+
+        $flatProgs = $this->flattenProgressions($progressions);
 
         // Build per-section key map
         $sectionKeys = [];
@@ -1152,8 +1234,8 @@ class ProgressionDetector
             $secKey     = $sectionKeys[$si];
             $secIsMinor = (bool) preg_match('/m$/i', trim($secKey));
 
-            $filteredProgs = array_filter($progressions, function ($p) use ($secIsMinor) {
-                $ton = $p->tonality ?? 'both';
+            $filteredFlat = array_filter($flatProgs, function ($p) use ($secIsMinor) {
+                $ton = $p['tonality'] ?? 'both';
                 if ($ton === 'both') return true;
                 if ($ton === 'minor' && $secIsMinor) return true;
                 if ($ton === 'major' && !$secIsMinor) return true;
@@ -1229,8 +1311,8 @@ class ProgressionDetector
 
             // Detect matches
             $sectionMatches = [];
-            if (count($detectNumerals) >= 2 && !empty($filteredProgs)) {
-                $rawMatches = $this->detectMatches($detectNumerals, array_values($filteredProgs));
+            if (count($detectNumerals) >= 2 && !empty($filteredFlat)) {
+                $rawMatches = $this->detectMatches($detectNumerals, array_values($filteredFlat));
 
                 foreach ($rawMatches as $m) {
                     $adjStart = $m['start_idx'] - $prependLen;

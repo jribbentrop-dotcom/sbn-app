@@ -1600,7 +1600,7 @@ function leadsheetEditor() {
                 const resp = await fetch('/api/admin/leadsheets/identify-voicings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
-                    body: JSON.stringify({ voicings: tabVoicings })
+                    body: JSON.stringify({ voicings: tabVoicings, songKey: this.parsed.key || null })
                 });
                 const data = await resp.json();
                 if (data.success && data.results) {

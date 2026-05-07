@@ -80,6 +80,149 @@ ALPINE (edit.blade.php — thin page shell)
 
 ---
 
+## CHORD DIAGRAM STORAGE & TRANSPOSITION
+
+The chord-diagram subsystem has a few non-obvious properties that
+shape every consumer (builder, chord-detail page, leadsheet
+voicing engine, transposition search). Read this once before
+touching any code that reads from `sbn_chord_diagrams` or
+`sbn_chord_diagram_aliases`.
+
+### Storage convention
+
+`sbn_chord_diagrams` rows store **a fingering (positions + bass
+string + inversion + quality)** plus an identity label
+(`root_note`). The fingering is what's musically real; the
+identity is just a label.
+
+- **`diagram_data`** — JSON: `{positions, barres, muted, open}`.
+  String numbers are 1=low E, 6=high E (legacy WordPress
+  numbering, do not renumber).
+- **`root_string`** — which string carries the bass:
+  `roote / roota / rootd / rootg / rootb / roothighe`.
+- **`quality`** — chord quality (`maj7`, `m7`, `dom7`, `m7b5`, …).
+- **`inversion`** — `root | inv1 | inv2 | inv3` (or empty for `root`).
+- **`extensions`** — option tones present in the fingering as a
+  comma string (`9`, `b9,#11`, `9,13`, …). Empty string = no
+  option tones beyond the basic chord quality.
+- **`root_note`** — the **label** the row goes by. Stored at C for
+  most rows by editor default. The row's actual fingering may not
+  match this label — it's just the canonical root the rest of the
+  app should *display* for the row.
+- **`start_fret`** — display offset for diagram rendering. Often
+  unreliable on legacy rows (stored at `1` regardless of where
+  the diagram actually draws).
+
+The legacy WordPress importer stored shapes at arbitrary low
+positions then auto-defaulted `root_note='C'` and
+`start_fret=1`. That created widespread label-vs-fingering
+drift: the row says C but the fingering is in some other key.
+The transposition layer treats this as a non-issue (see below);
+the chord-detail page used to render raw stored data and
+inherited the drift.
+
+### Transposition is root-agnostic
+
+`App\Services\ChordShapeCalculator::calculateFrets($shape, $rootNote)`
+ignores the row's `root_note` field for math. It works by:
+
+1. Find the lowest sounding position (`findLowestPosition`).
+2. Compute where that bass interval *should* land on its string
+   for the target root (`calculateTargetFret`, mod 12).
+3. Shift all positions by `targetBassFret - storedFret`.
+4. Re-derive `start_fret` from the minimum fret of the
+   transposed positions (`calculateStartFret`).
+
+What this means: as long as `root_string`, `quality`, and
+`inversion` are correct on the row, the calculator produces
+correct fingerings for any target root, regardless of what
+`root_note` claims. The math is interval-based, not label-based.
+
+**Implication: storage convention has no algorithmic
+significance.** Whether shapes are stored at iconic positions
+(Wes's Dmaj7 in DOWAR), at fret 1, or at fret 8 — the math
+doesn't care. Re-storing at iconic positions is a curatorial
+choice for the chord-detail hero diagram, not a correctness
+fix.
+
+### Self-heal pattern (always run through the calculator)
+
+Three consumers used to fall back to raw stored
+`diagram_data + start_fret` when no `?root=` override was
+supplied. All three were fixed in 2026-05-04 to always call
+`calculateFrets` with the row's own `root_note` as target. The
+calculator round-trip self-heals the label/data drift.
+
+- **`ChordSerializer::serialize`** (chord-detail hero diagram).
+- **`ChordLibraryController::show`** pinned-voicing block (the
+  chord on the chord-detail page that gets pinned into surrounding
+  progression tiles).
+- **`ProgressionBuilder::fetchVoicingsForChord`** — already used
+  the calculator on every candidate, so the audit-quality output
+  was correct all along; only the chord-detail consumers were
+  affected.
+
+77 of 169 rows in the corpus had their displayed `start_fret`
+corrected by the always-transpose change. Net result: the public-
+facing pages now render at the right fret regardless of how
+sloppily the row was stored.
+
+### Alias table
+
+`sbn_chord_diagram_aliases` stores re-spellings of parent
+diagrams. Same fingering, different harmonic identity. The
+canonical example: `Cmaj7 xx5557 = Em7/G` — same notes, different
+chord name. Less obvious cases: the four `o7` rotations
+(diminished symmetry), `Em7b5/G = Gm6` rotations, drop2 chords
+that become extension voicings of a different root.
+
+Schema:
+
+```
+diagram_id       → parent row in sbn_chord_diagrams
+alt_root_note    → alias root
+alt_quality      → alias quality
+alt_extensions   → option tones (empty for plain re-spellings)
+alt_bass_note    → optional slash bass
+interval_labels  → recomputed from alias context
+notes            → recomputed from alias context
+```
+
+Three consumers materialize aliases as fake shape objects with
+the alias's identity but the parent's `diagram_data`:
+
+- **`VoicingCrossref::findAliasShapes`** — leadsheet voicing engine.
+- **`ChordVoicingSearch`** — transposition search (UI search box).
+- **`ProgressionBuilder::fetchAliasShapes`** — added 2026-05-04;
+  same pattern. Honors Pass 1 / Pass 2 extension gating, the
+  category pool, `rootOnly`, and `is_fixed_position`. Inversion
+  resolved via `analyzeSlashChord` (chord-tone bass → `inv1/inv2/inv3`,
+  foreign bass → `calculateFretsWithBass` with the bass note
+  transposed alongside the root).
+
+When adding a new consumer that selects voicings, **check both
+tables**. Querying only `sbn_chord_diagrams` silently misses
+re-spellings — your candidate pool will be smaller than it
+should be and Viterbi won't see the free-lunch alias options.
+
+### Editor caveats
+
+- The chord-shape editor does **not** validate that
+  `root_note` matches the lowest-fingered position.
+- Saving a shape doesn't recompute `start_fret` from the
+  positions (it accepts whatever the form submits).
+- Aliases must be hand-curated; no auto-suggestion of
+  re-spellings exists.
+
+The validator/auto-derive workflow is queued for a later cleanup
+phase. Until then, when adding new shapes, manually verify that
+`root_note` matches the lowest position's pitch and that
+`start_fret` reflects the actual minimum fret. The
+`ChordSerializer` self-heal mitigates display issues but doesn't
+fix the underlying data.
+
+---
+
 ## LEADSHEET EDITOR
 
 `resources/views/admin/leadsheets/edit.blade.php` (~1,980 lines) — the central admin component.
@@ -287,6 +430,7 @@ Right-clicking a chord slot in tab view or the measure background dispatches to 
 | Home / End | First/last event in measure |
 | 0–9 | Enter fret number (two-digit with 600ms timeout) |
 | Delete / Backspace | Remove note on cursor string |
+| Ctrl+↑ / Ctrl+↓ | Shift note to adjacent string, transposing fret (±5; ±4 across the B↔G boundary). No-op at string 1/6 boundary or if new fret would be out of 0–24 range. |
 | Ctrl+1–6 | Set duration (whole→32nd) |
 | + / = / - | Shorter / longer duration |
 | . | Toggle dotted |

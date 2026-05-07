@@ -160,16 +160,20 @@ class HarmonicContext
      * @param  array  $chordNames  e.g. ['Dm7', 'G7', 'Cmaj7']
      * @return array  Same structure as buildFromLeadsheet but with one section
      */
-    public function buildFromChordSequence(string $key, array $chordNames): array
+    public function buildFromChordSequence(string $key, array $chordData): array
     {
         $chords = [];
-        foreach ($chordNames as $i => $name) {
+        foreach ($chordData as $i => $item) {
+            $name = is_array($item) ? ($item['chord_name'] ?? $item['name'] ?? '?') : $item;
+            $mIdx = is_array($item) ? ($item['measure_index'] ?? $i) : $i;
+            $cIdx = is_array($item) ? ($item['chord_index'] ?? 0) : 0;
+
             $parsed  = $this->detector->parseChordName($name);
             $numeral = $this->detector->chordToNumeral($name, $key);
 
             $chords[] = [
-                'measure_index'          => $i,
-                'chord_index'            => 0,
+                'measure_index'          => $mIdx,
+                'chord_index'            => $cIdx,
                 'beat_position'          => 0,
                 'chord_name'             => $name,
                 'root'                   => $parsed['root'] ?? null,
@@ -180,7 +184,7 @@ class HarmonicContext
                 'beats'                  => null,
                 'detected_progressions'  => [],
                 'prev_index'             => $i > 0 ? $i - 1 : null,
-                'next_index'             => $i < count($chordNames) - 1 ? $i + 1 : null,
+                'next_index'             => $i < count($chordData) - 1 ? $i + 1 : null,
             ];
         }
 

@@ -19,6 +19,7 @@ use App\Http\Controllers\Library\ChordLibraryController;
 use App\Http\Controllers\Library\RhythmLibraryController;
 use App\Http\Controllers\Library\ProgressionLibraryController;
 use App\Http\Controllers\Library\SongLibraryController;
+use App\Http\Controllers\CourseController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -110,6 +111,7 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
 
     // Chord Progressions
     Route::post('/progressions/reprocess', [ProgressionController::class, 'reprocess'])->name('progressions.reprocess');
+    Route::post('/progressions/reseed-fragments', [ProgressionController::class, 'reseedFragments'])->name('progressions.reseedFragments');
     Route::post('/progressions/{progression}/toggle-featured', [ProgressionController::class, 'toggleFeatured'])->name('progressions.toggleFeatured');
     Route::post('/progressions/resolve-numerals', [LeadsheetController::class, 'resolveNumerals'])->name('progressions.resolveNumerals');
 
@@ -153,9 +155,20 @@ Route::get('/library/progressions/{slug}', [ProgressionLibraryController::class,
 Route::get('/library/songs', [SongLibraryController::class, 'index'])->name('library.songs.index');
 Route::get('/library/songs/{leadsheet:slug}', [SongLibraryController::class, 'show'])->name('library.songs.show');
 Route::get('/library/songs/{leadsheet:slug}/viewer', [SongLibraryController::class, 'viewer'])->name('library.songs.viewer');
+Route::get('/library/songs/{leadsheet:slug}/cinema', [SongLibraryController::class, 'cinema'])->name('library.songs.cinema');
 
 Route::get('/top10/bossa-nova-chords', [\App\Http\Controllers\Top10Controller::class, 'bossaNovaChords'])
     ->name('top10.bossa-nova-chords');
+
+Route::get('/top10/latin-jazz-standards', [\App\Http\Controllers\Top10Controller::class, 'latinJazzStandards'])
+    ->name('top10.latin-jazz-standards');
+Route::get('/top10/bossa-nova-songs', [\App\Http\Controllers\Top10Controller::class, 'bossaNovaSongs'])
+    ->name('top10.bossa-nova-songs');
+
+Route::get('/learn', [CourseController::class, 'index'])->name('courses.index');
+Route::get('/learn/{course:slug}', [CourseController::class, 'show'])->name('courses.show');
+Route::get('/learn/{course:slug}/play', [CourseController::class, 'player'])->name('courses.player');
+Route::get('/learn/{course:slug}/play/{lesson:slug}', [CourseController::class, 'player'])->name('courses.lesson');
 
 Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
 Route::get('/shop/category/{slug}', [ShopController::class, 'category'])->name('shop.category');

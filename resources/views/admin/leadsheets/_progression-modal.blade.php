@@ -25,33 +25,28 @@
                 <div class="sbn-form-group">
                     <label>Source Pathway <span class="required">*</span></label>
                     <div class="sbn-source-tabs">
-                        <button type="button" class="sbn-tab-btn" :class="{ 'active': sourceType === 'free' }" @click="setSourceType('free')">Free Input</button>
-                        <button type="button" class="sbn-tab-btn" :class="{ 'active': sourceType === 'chordpro' }" @click="setSourceType('chordpro')">ChordPro Extract</button>
-                        <button type="button" class="sbn-tab-btn" :class="{ 'active': sourceType === 'bars' }" @click="setSourceType('bars')">Pipe Bars</button>
-                        <button type="button" class="sbn-tab-btn" :class="{ 'active': sourceType === 'clone' }" @click="setSourceType('clone')">Clone Source</button>
                         <button type="button" class="sbn-tab-btn" :class="{ 'active': sourceType === 'progression' }" @click="setSourceType('progression')">Saved Progression</button>
-
+                        <button type="button" class="sbn-tab-btn" :class="{ 'active': sourceType === 'jazz_standard' }" @click="setSourceType('jazz_standard')">Jazz Standard</button>
                     </div>
                     <input type="hidden" name="source_type" :value="sourceType">
                 </div>
 
-                <!-- FREE / CHORDPRO / BARS INPUT -->
-                <div class="sbn-form-group" x-show="sourceType !== 'clone' && sourceType !== 'progression'">
-                    <label for="sequence_text" x-text="textareaLabel"></label>
-                    <textarea id="sequence_text" name="sequence_text" class="sbn-input" rows="5" x-model="sequenceText" :placeholder="textareaPlaceholder" @input="calculatePreview"></textarea>
-                </div>
+                <!-- REMOVED: Free / ChordPro / Bars input -->
 
 
-                <!-- CLONE SOURCE SEARCH -->
-                <div class="sbn-form-group" x-show="sourceType === 'clone'">
-                    <label for="clone_source_input">Select Existing Leadsheet <span class="required">*</span></label>
-                    <input list="clone-leadsheets" id="clone_source_input" class="sbn-input" placeholder="Type to search leadsheets..." x-model="cloneSearch" @input="updateCloneId">
-                    <datalist id="clone-leadsheets">
-                        @foreach($cloneSources as $cs)
-                            <option value="{{ $cs->title }} ({{ $cs->composer ?? 'Unknown' }})" data-id="{{ $cs->id }}"></option>
+                <!-- JAZZ STANDARD SEARCH -->
+                <div class="sbn-form-group" x-show="sourceType === 'jazz_standard'">
+                    <label for="standard_source_input">Select Jazz Standard <span class="required">*</span></label>
+                    <input list="standard-list" id="standard_source_input" class="sbn-input" placeholder="Type to search standards..." x-model="standardSearch" @input="updateStandardId">
+                    <datalist id="standard-list">
+                        @foreach($jazzStandards as $js)
+                            <option value="{{ $js->title }} ({{ $js->composer ?? 'Unknown' }})" data-id="{{ $js->id }}" data-key="{{ $js->song_key }}"></option>
                         @endforeach
                     </datalist>
-                    <input type="hidden" name="clone_source_id" :value="cloneSourceId">
+                    <input type="hidden" name="jazz_standard_id" :value="standardId">
+                    <div class="sbn-preview-box" x-show="standardPreview" style="margin-top: 8px;">
+                        <strong>Key:</strong> <span x-text="standardPreview"></span>
+                    </div>
                 </div>
 
                 <!-- SAVED PROGRESSION INPUT -->
@@ -74,20 +69,21 @@
                 </div>
 
 
-                <!-- LIVE PREVIEW FOOTER -->
-                <div class="sbn-preview-box" x-show="sourceType !== 'clone' && sequenceText.trim().length > 0">
-                    <div class="sbn-preview-stat"><strong>Chords Parsed:</strong> <span x-text="preview.count"></span></div>
-                    <div class="sbn-preview-stat"><strong>Suggested Measures:</strong> <span x-text="preview.measures"></span></div>
-                    <div class="sbn-preview-stat" x-show="preview.invalid_count > 0" style="color: #dc2626;">
-                        <strong>Warnings:</strong> <span x-text="preview.invalid_count"></span> unknown tokens
-                    </div>
+                <!-- PREVIEW FOOTER -->
+                <div class="sbn-preview-box" x-show="sourceType === 'progression' && progressionPreview">
+                    <div class="sbn-preview-stat"><strong>Type:</strong> Saved Progression</div>
+                    <div class="sbn-preview-stat"><strong>Numerals:</strong> <span x-text="progressionPreview"></span></div>
+                </div>
+                <div class="sbn-preview-box" x-show="sourceType === 'jazz_standard' && standardId">
+                    <div class="sbn-preview-stat"><strong>Type:</strong> Jazz Standard</div>
+                    <div class="sbn-preview-stat"><strong>Title:</strong> <span x-text="standardSearch"></span></div>
                 </div>
             </div>
 
             <!-- STEP 2: LAYOUT -->
             <div class="sbn-modal-body" x-show="step === 2">
                 <div class="sbn-form-row">
-                    <div class="sbn-form-group">
+                    <div class="sbn-form-group" x-show="sourceType !== 'jazz_standard'">
                         <label for="bars_per_chord">Bars per Chord <span class="required">*</span></label>
                         <input type="number" id="bars_per_chord" name="bars_per_chord" class="sbn-input" min="1" max="16" x-model="barsPerChord">
                     </div>
@@ -203,12 +199,13 @@
 window.progressionModal = function() {
     return {
         step: 1,
-        sourceType: 'free',
+        sourceType: 'progression',
         title: '',
         composer: '',
         sequenceText: '',
-        cloneSearch: '',
-        cloneSourceId: '',
+        standardSearch: '',
+        standardId: '',
+        standardPreview: '',
         barsPerChord: 1,
         songKey: 'C',
         tempo: 120,
@@ -274,9 +271,38 @@ window.progressionModal = function() {
 
         get canProceed() {
             if (!this.title.trim()) return false;
-            if (this.sourceType === 'clone') return !!this.cloneSourceId;
+            if (this.sourceType === 'jazz_standard') return !!this.standardId;
             if (this.sourceType === 'progression') return !!this.progressionId;
-            return this.sequenceText.trim().length > 0;
+            return false;
+        },
+
+        updateStandardId() {
+            let options = document.querySelectorAll('#standard-list option');
+            this.standardId = '';
+            this.standardPreview = '';
+            options.forEach(opt => {
+                if (opt.value === this.standardSearch) {
+                    this.standardId = opt.getAttribute('data-id');
+                    this.standardPreview = opt.getAttribute('data-key') || 'Unknown';
+                    
+                    // Auto-fill title/composer if empty
+                    if (!this.title.trim()) {
+                        this.title = this.standardSearch.split(' (')[0];
+                    }
+                    if (!this.composer.trim()) {
+                        let comp = this.standardSearch.match(/\(([^)]+)\)/);
+                        if (comp) this.composer = comp[1];
+                    }
+                    
+                    // Set key if standard has one
+                    if (this.standardPreview && this.standardPreview !== 'Unknown') {
+                        // iReal Pro keys like "Dmin" need to map to our select "Dm"
+                        let k = this.standardPreview;
+                        if (k.endsWith('min')) k = k.replace('min', 'm');
+                        this.songKey = k;
+                    }
+                }
+            });
         },
 
 

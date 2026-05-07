@@ -3,6 +3,13 @@
 @section('title', 'Chord Progressions')
 
 @section('actions')
+    <button class="sbn-btn sbn-btn-secondary" id="sbn-reseed-fragments-btn"
+            onclick="sbnReseedFragments()" title="Rebuild the Phase 2 fragment index after editing progressions">
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" style="flex-shrink:0">
+            <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z"/>
+        </svg>
+        Rebuild Fragment Index
+    </button>
     <button class="sbn-btn sbn-btn-secondary" id="sbn-reprocess-btn"
             onclick="sbnReprocess()" title="Re-scan all leadsheets for progression matches">
         <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" style="flex-shrink:0">
@@ -320,6 +327,12 @@
                             </td>
                             <td>
                                 <code class="sbn-prog-numerals" x-text="prog.numerals_display"></code>
+                                <template x-if="prog.alt_count > 0">
+                                    <span class="sbn-badge" style="margin-left: 4px; font-size: 10px; background: var(--clr-surface-3); color: var(--clr-text-muted);"
+                                          :title="prog.alt_count + ' alternative sequence' + (prog.alt_count > 1 ? 's' : '')">
+                                        +<span x-text="prog.alt_count"></span>
+                                    </span>
+                                </template>
                             </td>
                             <td style="text-align: center;">
                                 <template x-if="prog.song_count > 0">
@@ -730,6 +743,37 @@ async function sbnReprocess() {
 
     btn.disabled = false;
     btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" style="flex-shrink:0"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg> Reprocess';
+}
+
+/* ── Rebuild Fragment Index (AJAX) ───────────────────────── */
+async function sbnReseedFragments() {
+    const btn = document.getElementById('sbn-reseed-fragments-btn');
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    const originalHtml = btn.innerHTML;
+
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="sbn-spin" width="14" height="14" viewBox="0 0 20 20" fill="currentColor" style="flex-shrink:0"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg> Rebuilding…';
+
+    try {
+        const resp = await fetch('/api/admin/progressions/reseed-fragments', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json',
+            },
+        });
+        const data = await resp.json();
+        if (data.success) {
+            sbnToast(`Fragment index rebuilt: ${data.fragments} fragments from ${data.progressions} progressions.`, 'success');
+        } else {
+            sbnToast('Error rebuilding fragment index.', 'error');
+        }
+    } catch (e) {
+        sbnToast('Network error.', 'error');
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
 }
 
 /* ── Toast ────────────────────────────────────────────────── */

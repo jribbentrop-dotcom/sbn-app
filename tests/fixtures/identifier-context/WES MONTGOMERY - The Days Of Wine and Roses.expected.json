@@ -1,0 +1,33 @@
+{
+  "fixture": "WES MONTGOMERY - The Days Of Wine and Roses.musicxml",
+  "song_key": "F",
+  "expected": [
+    {
+      "stack_index": 6,
+      "frets": "xx799a",
+      "phase1_label": "E7(11)/A",
+      "phase2_label": "D7(9#11)/A",
+      "reinterpret_reason": "pedal",
+      "matched_progression_id": null,
+      "matched_variant_index": null
+    },
+    {
+      "stack_index": 7,
+      "frets": "xx7898",
+      "phase1_label": "F7(#9)/A",
+      "phase2_label": "D7(b9#11)/A",
+      "reinterpret_reason": "pedal",
+      "matched_progression_id": null,
+      "matched_variant_index": null
+    },
+    {
+      "stack_index": 8,
+      "frets": "xx7978",
+      "phase1_label": "Am6",
+      "phase2_label": "D7(13)/A",
+      "reinterpret_reason": "pedal",
+      "matched_progression_id": null,
+      "matched_variant_index": null
+    }
+  ]
+}

@@ -127,13 +127,20 @@
          SETTINGS BAR
     ══════════════════════════════════════════════════════════════════ --}}
     <div class="sbn-pb-settings">
-        <span class="sbn-pb-settings-label">Style</span>
+        <span class="sbn-pb-settings-label">Pool</span>
         <div class="sbn-pb-seg" role="group">
             <template x-for="opt in styleOpts" :key="opt.val">
                 <button class="sbn-pb-seg-btn" :class="settings.style === opt.val && 'is-active'"
                         @click="settings.style = opt.val" x-text="opt.label"></button>
             </template>
         </div>
+        <div class="sbn-pb-divider"></div>
+        <span class="sbn-pb-settings-label">Voicing</span>
+        <select class="sbn-select" x-model="settings.voicingStyle" style="width:140px;">
+            <template x-for="opt in voicingStyleOpts" :key="opt.val">
+                <option :value="opt.val" x-text="opt.label"></option>
+            </template>
+        </select>
         <div class="sbn-pb-divider"></div>
         <button class="sbn-pb-toggle" :class="settings.extensions && 'is-active'"
                 @click="settings.extensions = !settings.extensions" title="Include 9ths, 11ths, 13ths">Extensions</button>
@@ -510,7 +517,19 @@ document.addEventListener('alpine:init', () => {
             { val:'closed', label:'Closed' },
         ],
 
-        settings: { style:'', extensions:false, rootOnly:false },
+        voicingStyleOpts: [
+            { val:'auto',        label:'Auto'        },
+            { val:'drop2_high',  label:'Drop 2 High'  },
+            { val:'drop2_mid',   label:'Drop 2 Mid'   },
+            { val:'drop3_low',   label:'Drop 3 Low'   },
+            { val:'drop3_mid',   label:'Drop 3 Mid'   },
+            { val:'roote',       label:'Root E'       },
+            { val:'roota',       label:'Root A'       },
+            { val:'shell_low',   label:'Shell Low'    },
+            { val:'mixed',       label:'Mixed'        },
+        ],
+
+        settings: { style:'', extensions:false, rootOnly:false, voicingStyle:'auto' },
 
         // Store shortcuts
         get chords()      { return this.$store.pb.chords; },
@@ -538,7 +557,7 @@ document.addEventListener('alpine:init', () => {
 
             this.loading = this.$store.pb.loading = true;
             try {
-                const body = { style: this.settings.style, extensions: this.settings.extensions, root_only: this.settings.rootOnly, key: this.key };
+                const body = { style: this.settings.style, extensions: this.settings.extensions, root_only: this.settings.rootOnly, voicing_style: this.settings.voicingStyle, key: this.key };
                 if      (this.inputMode === 'manual')      body.chords   = this.manualChords;
                 else if (this.inputMode === 'numerals')    body.numerals = this.numeralValue;
                 else if (this.inputMode === 'leadsheet')   { body.leadsheet_id = this.selectedLeadsheetId; delete body.key; }

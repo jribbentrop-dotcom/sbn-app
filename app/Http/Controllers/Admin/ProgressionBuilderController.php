@@ -51,12 +51,14 @@ class ProgressionBuilderController extends Controller
         $style      = $request->get('style') ?? '';
         $extensions = (bool) ($request->get('extensions') ?? false);
         $rootOnly   = (bool) ($request->get('root_only') ?? false);
+        $voicingStyle = $request->get('voicing_style') ?? 'auto';
         $progressionId = $request->get('progression_id');
 
         $options = [
             'style'      => $style,
             'extensions' => $extensions,
             'rootOnly'   => $rootOnly,
+            'voicing_style' => $voicingStyle,
         ];
 
         // Pass category if progression_id is supplied

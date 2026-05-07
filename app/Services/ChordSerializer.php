@@ -35,18 +35,20 @@ class ChordSerializer
             ? ($root . $chord->quality . ($chord->extensions ?? ''))
             : $chord->name;
 
-        // If a root override is supplied and differs from the stored root,
-        // transpose the diagram to that root (matches the index page's
-        // search-result voicing). Without this, the hero diagram on the
-        // detail page falls back to the raw DB shape and "loses" its frets.
-        $storedRoot = $chord->root_note ?? null;
-        if ($rootOverride && $storedRoot && $rootOverride !== $storedRoot) {
-            $t = $this->shapeCalculator->calculateFrets($chord, $rootOverride);
-            $diagramData = $t['diagram_data'] ?? null;
-            $startFret = $t['start_fret'] ?? ($chord->start_fret ?? 1);
-            $intervalLabels = $t['interval_labels'] ?? ($chord->interval_labels ?? '');
-            $notes = $t['notes'] ?? ($chord->notes ?? '');
-        } else {
+        // Always run through the calculator. Stored diagram_data/start_fret can
+        // be inconsistent with the row's root_note label (legacy "store at any
+        // low position" rows + auto-defaulted root_note='C' in the editor).
+        // The calculator is root-agnostic — it derives positions from the bass
+        // interval — so transposing to the row's own root self-heals the label
+        // mismatch. The other public pages already go through this path.
+        $effectiveRoot = $root ?? 'C';
+        $t = $this->shapeCalculator->calculateFrets($chord, $effectiveRoot);
+        $diagramData = $t['diagram_data'] ?? null;
+        $startFret = $t['start_fret'] ?? ($chord->start_fret ?? 1);
+        $intervalLabels = $t['interval_labels'] ?? ($chord->interval_labels ?? '');
+        $notes = $t['notes'] ?? ($chord->notes ?? '');
+
+        if (empty($diagramData) || (empty($diagramData['positions']) && empty($diagramData['open']))) {
             $diagramData = json_decode($chord->diagram_data ?? '{}', true)
                 ?: ['positions' => [], 'barres' => [], 'muted' => [], 'open' => []];
             $startFret = $chord->start_fret ?? 1;

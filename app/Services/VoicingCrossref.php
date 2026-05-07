@@ -1262,56 +1262,24 @@ class VoicingCrossref
             $results[$placeholderName] = $identified;
         }
 
-        // Pass 2: context-aware re-scoring (if context is available)
-        if ($harmonicContext !== null && !empty($harmonicContext['song_key'])) {
-            $songKey = $harmonicContext['song_key'];
+        // Pass 2: Phase 2 contextual re-ranking (always run; sub-passes skip key-dependent logic when songKey is null)
+        $songKey = $harmonicContext['song_key'] ?? null;
 
-            // Build ordered list of placeholder names for neighbor lookup
+        // Resolve ContextualReranker lazily from app container to avoid circular dependency
+        $reranker = app(\App\Services\HarmonicContext\ContextualReranker::class);
+
+        if ($reranker !== null) {
+            // Convert to indexed array for ContextualReranker (requires sequential slots)
             $orderedNames = array_keys($results);
+            $phase1Results = array_values($results);
 
+            // Apply Phase 2 re-ranking
+            $rerankedResults = $reranker->rerank($phase1Results, $songKey);
+
+            // Convert back to associative array by placeholder name
             foreach ($orderedNames as $idx => $name) {
-                $voicing = $voicings[$name] ?? null;
-                if (!$voicing) continue;
-
-                $frets    = $voicing['frets'] ?? '';
-                $position = (int)($voicing['position'] ?? 1);
-
-                // Gather neighbor chord names (from already-identified results)
-                $prevChords = [];
-                $nextChords = [];
-
-                for ($back = 1; $back <= 2; $back++) {
-                    $ni = $idx - $back;
-                    if ($ni >= 0 && isset($results[$orderedNames[$ni]]['name'])) {
-                        array_unshift($prevChords, $results[$orderedNames[$ni]]['name']);
-                    }
-                }
-                for ($fwd = 1; $fwd <= 2; $fwd++) {
-                    $ni = $idx + $fwd;
-                    if ($ni < count($orderedNames) && isset($results[$orderedNames[$ni]]['name'])) {
-                        $nextChords[] = $results[$orderedNames[$ni]]['name'];
-                    }
-                }
-
-                // Also check harmonicContext sections for chord names at this position
-                // (these are from the chord grid — more authoritative than pitch-class guesses)
-                $gridContext = $this->extractGridContext($harmonicContext, $idx);
-                if (!empty($gridContext['prev'])) {
-                    $prevChords = $gridContext['prev']; // prefer grid data
-                }
-                if (!empty($gridContext['next'])) {
-                    $nextChords = $gridContext['next'];
-                }
-
-                $context = [
-                    'song_key'    => $songKey,
-                    'prev_chords' => $prevChords,
-                    'next_chords' => $nextChords,
-                ];
-
-                $contextResult = $this->identifyFromFretsWithContext($frets, $position, $context);
-                if ($contextResult !== null) {
-                    $results[$name] = $contextResult;
+                if (isset($rerankedResults[$idx])) {
+                    $results[$name] = $rerankedResults[$idx];
                 }
             }
         }
@@ -1361,20 +1329,13 @@ class VoicingCrossref
     /**
      * Identify the chord name from a fret string.
      *
-     * Pass 1 — Score every (root, quality) pair using pitch-class analysis.
-     *   Bass note gets a strong priority bonus (×4).
-     *   Exact 7th-chord matches get an extra bonus (×3) to beat partial matches.
-     *
-     * Pass 2 — Extension detection: leftover pitch classes → b9/9/#9/11/#11/b13/13.
-     *
-     * Pass 3 — Rootless upgrade: plain triads from 3 PCs are checked against
-     *   rootless templates to prefer jazz interpretations (e.g. Cm7 over Eb).
+     * Thin wrapper: extracts pitch classes from the fret string and delegates
+     * to the shared identifyFromPcSetFull() core.
      *
      * @return array { name, root, quality, extensions, bass_note, inversion, diagram_id, confidence }
      */
     public function identifyFromFrets(string $frets, int $position = 1): array
     {
-        // ── Step 1: Compute pitch classes ──
         $pitchClasses = [];
         $bassPc       = null;
 
@@ -1391,17 +1352,52 @@ class VoicingCrossref
             return $this->noResult();
         }
 
-        $pcSet = array_values(array_unique($pitchClasses));
+        $pcSet      = array_values(array_unique($pitchClasses));
+        $noteCount  = strlen(str_replace('x', '', strtolower($frets)));
 
-        // ── Step 2: Score (root, quality) pairs — Pass 1 ──
-        $bassBoost  = 4;
-        $exactBonus = 3;
-        $slashBonus7th = 3.5;
+        return $this->identifyFromPcSetFull($pcSet, $bassPc, $noteCount, $frets, $position);
+    }
+
+    // ── Shared core algorithm ─────────────────────────────────────────────────
+
+    /**
+     * Core identification algorithm (all passes).
+     *
+     * This is the main identification routine. It runs the full multi-pass
+     * algorithm:
+     *
+     *   Pass 1  — score (root, quality) pairs against the pitch-class set
+     *   Pass 2  — rootless detection / upgrade
+     *   Pass 3a — rootless upgrade (when bass is present)
+     *   Pass 3b — rootless upgrade (when bass is absent)
+     *   Pass 3c — tritone-dominant upgrade
+     *   Pass 4  — extension detection
+     *   Pass 5  — inversion / slash detection
+     *   Pass 6  — DB diagram lookup (skipped when $frets is null)
+     *
+     * @param array    $pcSet      Unique pitch classes (0–11)
+     * @param int|null $bassPc     Pitch class of the lowest note
+     * @param int      $noteCount  Number of sounding voices (strings fretted, or unique MIDI pitches)
+     * @param string|null $frets   6-char fret string for diagram lookup; null when called from MIDI path
+     * @param int      $position   Fret position (for diagram lookup)
+     */
+    protected function identifyFromPcSetFull(
+        array $pcSet,
+        ?int $bassPc,
+        int $noteCount,
+        ?string $frets,
+        int $position = 1
+    ): array {
+        // ── Pass 1: Score (root, quality) pairs ──
+        $bassBoost       = 4;
+        $exactBonus      = 3;
+        $slashBonus7th   = 3.5;
         $slashBonusTriad = 2.5;
 
-        $bestScore   = -1;
-        $bestRootPc  = null;
-        $bestQuality = null;
+        $bestScore    = -1;
+        $bestRootPc   = null;
+        $bestQuality  = null;
+        $allCandidates = [];
 
         // Sort qualities longest-first (more specific wins ties)
         $qualities = self::IDENTIFY_QUALITY_INTERVALS;
@@ -1457,6 +1453,10 @@ class VoicingCrossref
                     $score *= $slashBonus;
                 }
 
+                if ($score > 0) {
+                    $allCandidates[] = [$rootPc, $quality, $score, $matched, $total];
+                }
+
                 if ($score > $bestScore) {
                     $bestScore   = $score;
                     $bestRootPc  = $rootPc;
@@ -1469,18 +1469,18 @@ class VoicingCrossref
         if ($bestRootPc === null) {
             $rootless = $this->identifyRootless($pcSet, $bassPc);
             if ($rootless) {
-                return $this->buildRootlessResult($rootless, $frets, $position, $bassPc);
+                return $this->buildRootlessResult($rootless, $frets ?? '', $position, $bassPc);
             }
             return $this->noResult();
         }
 
         // ── Pass 3b: Rootless upgrade — plain triad from 3 PCs ──
-        $isPlainTriad  = in_array($bestQuality, ['maj','min','m','aug'], true);
-        $frettedCount  = strlen(str_replace('x', '', strtolower($frets)));
-        if ($isPlainTriad && count($pcSet) <= 3 && $frettedCount <= 3) {
+        // $noteCount replaces frettedCount so this pass works for both fret and MIDI paths.
+        $isPlainTriad = in_array($bestQuality, ['maj','min','m','aug'], true);
+        if ($isPlainTriad && count($pcSet) <= 3 && $noteCount <= 3) {
             $rootless = $this->identifyRootless($pcSet, $bassPc);
             if ($rootless) {
-                return $this->buildRootlessResult($rootless, $frets, $position, $bassPc);
+                return $this->buildRootlessResult($rootless, $frets ?? '', $position, $bassPc);
             }
         }
 
@@ -1557,6 +1557,10 @@ class VoicingCrossref
 
                             $score = ($isBass ? $raw * $bassBoost : $raw) * $tritoneBonus;
 
+                            if ($score > 0) {
+                                $allCandidates[] = [$rootPc, $quality, $score, $matched, $total];
+                            }
+
                             if ($score > $bestScore) {
                                 $bestScore   = $score;
                                 $bestRootPc  = $rootPc;
@@ -1567,6 +1571,9 @@ class VoicingCrossref
                 }
             }
         }
+
+        // ── Build top-K candidates list ──
+        $candidates = $this->buildCandidateList($allCandidates, $pcSet, $bassPc, $frets, $position);
 
         // ── Step 3: Extension detection — Pass 2 ──
         $basePcs = array_map(
@@ -1592,17 +1599,19 @@ class VoicingCrossref
         $bassNoteName = null;
         $inversion    = '';
 
-        if ($bassPc !== null && $bassPc !== $bestRootPc) {
+        if ($bassPc !== null) {
             $bassNoteName  = $this->pcToNoteName($bassPc, $bestQuality);
-            $slashSuffix   = '/' . $bassNoteName;
-            $bassInterval  = ($bassPc - $bestRootPc + 12) % 12;
-            $qualityIvs    = self::IDENTIFY_QUALITY_INTERVALS[$bestQuality];
-            $isChordTone   = in_array($bassInterval, $qualityIvs, true);
+            if ($bassPc !== $bestRootPc) {
+                $slashSuffix   = '/' . $bassNoteName;
+                $bassInterval  = ($bassPc - $bestRootPc + 12) % 12;
+                $qualityIvs    = self::IDENTIFY_QUALITY_INTERVALS[$bestQuality];
+                $isChordTone   = in_array($bassInterval, $qualityIvs, true);
 
-            if ($isChordTone) {
-                if ($bassInterval === 3 || $bassInterval === 4)          $inversion = 'inv1';
-                elseif ($bassInterval === 6 || $bassInterval === 7)      $inversion = 'inv2';
-                elseif ($bassInterval >= 9 && $bassInterval <= 11)       $inversion = 'inv3';
+                if ($isChordTone) {
+                    if ($bassInterval === 3 || $bassInterval === 4)          $inversion = 'inv1';
+                    elseif ($bassInterval === 6 || $bassInterval === 7)      $inversion = 'inv2';
+                    elseif ($bassInterval >= 9 && $bassInterval <= 11)       $inversion = 'inv3';
+                }
             }
         }
 
@@ -1620,8 +1629,10 @@ class VoicingCrossref
         $baseMatched = count(array_intersect($basePcs, $pcSet));
         $confidence  = ($baseMatched === count($basePcs)) ? 'exact' : 'partial';
 
-        // ── Step 6: DB diagram lookup ──
-        $diagramId = $this->findDiagramByFrets($frets, $position, $rootName, $bestQuality, $inversion, $bassNoteName ?? '');
+        // ── Pass 6: DB diagram lookup (skipped for MIDI path — no real fret string) ──
+        $diagramId = ($frets !== null)
+            ? $this->findDiagramByFrets($frets, $position, $rootName, $bestQuality, $inversion, $bassNoteName ?? '')
+            : null;
 
         return [
             'name'       => $chordName,
@@ -1633,7 +1644,175 @@ class VoicingCrossref
             'diagram_id' => $diagramId,
             'confidence' => $confidence,
             'rootless'   => false,
+            'candidates' => $candidates,
+            'pcs'        => $pcSet,
         ];
+    }
+
+    /**
+     * Run Phase 1 only: score (root, quality) pairs and return best match.
+     *
+     * This is used by contextual analyzers (e.g., PedalDetector) to re-identify
+     * chords with modified constraints (e.g., no bass-boost, no slash-bonus).
+     *
+     * @param array    $pcSet      Unique pitch classes (0–11)
+     * @param int|null $bassPc     Pitch class of the lowest note (null to disable bass-boost)
+     * @param int      $noteCount  Number of sounding voices
+     */
+    public function identifyPhase1Only(array $pcSet, ?int $bassPc, int $noteCount): array
+    {
+        $bassBoost       = $bassPc !== null ? 4 : 0;
+        $exactBonus      = 3;
+        $slashBonus7th   = 0; // Disabled for Phase 1 re-identification
+        $slashBonusTriad = 0; // Disabled for Phase 1 re-identification
+
+        $bestScore    = -1;
+        $bestRootPc   = null;
+        $bestQuality  = null;
+
+        // Sort qualities longest-first (more specific wins ties)
+        $qualities = self::IDENTIFY_QUALITY_INTERVALS;
+        uasort($qualities, fn($a, $b) => count($b) - count($a));
+
+        // Candidate roots: bass first, then voicing PCs, then chromatic fill
+        $candidateRoots = array_values(array_unique(array_merge(
+            $bassPc !== null ? [$bassPc] : [],
+            $pcSet,
+            range(0, 11)
+        )));
+
+        foreach ($candidateRoots as $rootPc) {
+            $isBass = ($rootPc === $bassPc);
+
+            foreach ($qualities as $quality => $intervals) {
+                $expectedPcs = array_map(fn($iv) => ($rootPc + $iv) % 12, $intervals);
+                $matched     = count(array_intersect($expectedPcs, $pcSet));
+                $total       = count($expectedPcs);
+
+                // Count unexplained leftovers
+                $leftover    = array_diff($pcSet, $expectedPcs);
+                $unexplained = 0;
+                foreach ($leftover as $lpc) {
+                    $ivLeft = ($lpc - $rootPc + 12) % 12;
+                    if (!isset(self::IDENTIFY_EXTENSION_INTERVALS[$ivLeft])) {
+                        $unexplained++;
+                    }
+                }
+
+                if ($matched === $total) {
+                    $raw = $total * 100 - $unexplained * 50;
+                    $score = $raw;
+
+                    if ($isBass) {
+                        $score += $bassBoost;
+                    }
+
+                    if ($score > $bestScore) {
+                        $bestScore   = $score;
+                        $bestRootPc  = $rootPc;
+                        $bestQuality = $quality;
+                    }
+                }
+            }
+        }
+
+        if ($bestRootPc === null) {
+            return $this->noResult();
+        }
+
+        // Build chord name from root + quality
+        $rootName = self::IDENTIFY_NOTE_SHARP[$bestRootPc];
+        $chordName = $rootName . $bestQuality;
+
+        return [
+            'name' => $chordName,
+            'root' => $rootName,
+            'quality' => $bestQuality,
+            'extensions' => '',
+            'bass_note' => $bassPc !== null ? self::IDENTIFY_NOTE_SHARP[$bassPc] : null,
+            'inversion' => null,
+            'diagram_id' => null,
+            'confidence' => $bestScore,
+            'rootless' => false,
+            'candidates' => [],
+        ];
+    }
+
+    /**
+     * Build a top-K candidate list from raw scored (rootPc, quality) pairs.
+     *
+     * Sorts by score descending, deduplicates by (rootPc, quality), takes top K=5,
+     * and assembles full result entries (name, root, quality, extensions, bass_note, score).
+     */
+    private function buildCandidateList(array $rawCandidates, array $pcSet, ?int $bassPc, ?string $frets, int $position): array
+    {
+        // Sort by score descending
+        usort($rawCandidates, fn($a, $b) => $b[2] <=> $a[2]);
+
+        // Deduplicate by (rootPc, quality) — keep highest score
+        $seen = [];
+        $deduped = [];
+        foreach ($rawCandidates as $c) {
+            $key = $c[0] . '|' . $c[1];
+            if (!isset($seen[$key])) {
+                $seen[$key] = true;
+                $deduped[] = $c;
+            }
+        }
+
+        // Take top K=5
+        $top = array_slice($deduped, 0, 5);
+
+        $candidates = [];
+        foreach ($top as [$rootPc, $quality, $score, $matched, $total]) {
+            $rootName = $this->pcToNoteName($rootPc, $quality);
+
+            // Extension detection for this candidate
+            $basePcs = array_map(
+                fn($iv) => ($rootPc + $iv) % 12,
+                self::IDENTIFY_QUALITY_INTERVALS[$quality]
+            );
+            $leftoverPcs     = array_diff($pcSet, $basePcs);
+            $extensionLabels = [];
+            foreach ($leftoverPcs as $lpc) {
+                $iv = ($lpc - $rootPc + 12) % 12;
+                if (isset(self::IDENTIFY_EXTENSION_INTERVALS[$iv])) {
+                    $extensionLabels[$iv] = self::IDENTIFY_EXTENSION_INTERVALS[$iv];
+                }
+            }
+            ksort($extensionLabels);
+            $extensionsStr = !empty($extensionLabels)
+                ? '(' . implode(',', $extensionLabels) . ')'
+                : '';
+
+            // Inversion / slash detection
+            $bassNoteName = null;
+            $slashSuffix  = '';
+            if ($bassPc !== null && $bassPc !== $rootPc) {
+                $bassNoteName = $this->pcToNoteName($bassPc, $quality);
+                $slashSuffix  = '/' . $bassNoteName;
+            }
+
+            // Assemble name
+            $displayQuality = match($quality) {
+                'dom7' => '7',
+                'min', 'm' => 'm',
+                'maj' => '',
+                default => $quality
+            };
+            $chordName = $rootName . $displayQuality . $extensionsStr . $slashSuffix;
+
+            $candidates[] = [
+                'name'       => $chordName,
+                'root'       => $rootName,
+                'quality'    => $quality,
+                'extensions' => $extensionsStr ? trim($extensionsStr, '()') : '',
+                'bass_note'  => $bassNoteName,
+                'score'      => $score,
+            ];
+        }
+
+        return $candidates;
     }
 
     // ── Context-aware identification ────────────────────────────────────────
@@ -2179,7 +2358,13 @@ class VoicingCrossref
 
     /**
      * Identify a chord from a set of MIDI pitch numbers.
-     * Uses the lowest note as the bass note.
+     *
+     * Uses the full identification engine (all passes — rootless detection,
+     * tritone-dominant upgrade, extension detection, inversion/slash detection).
+     * Requires at least 3 unique pitch classes; returns noResult() for dyads
+     * and single notes that would otherwise generate false chord labels.
+     *
+     * Note: diagram_id is always null (no guitar fret string to look up).
      */
     public function identifyFromMidi(array $midiPitches): array
     {
@@ -2189,103 +2374,19 @@ class VoicingCrossref
 
         sort($midiPitches);
         $pitchClasses = array_map(fn($p) => $p % 12, $midiPitches);
-        $bassPc = $pitchClasses[0];
-        $pcSet = array_values(array_unique($pitchClasses));
+        $bassPc       = $pitchClasses[0];
+        $pcSet        = array_values(array_unique($pitchClasses));
 
-        return $this->identifyFromPcSet($pcSet, $bassPc);
-    }
-
-    /**
-     * Core identification logic from a unique set of pitch classes.
-     */
-    private function identifyFromPcSet(array $pcSet, ?int $bassPc = null): array
-    {
-        // ── Step 2: Score (root, quality) pairs — Pass 1 ──
-        $bassBoost  = 4;
-        $exactBonus = 3;
-        
-        $bestScore   = -1;
-        $bestRootPc  = null;
-        $bestQuality = null;
-
-        $qualities = self::IDENTIFY_QUALITY_INTERVALS;
-        uasort($qualities, fn($a, $b) => count($b) - count($a));
-
-        $candidateRoots = array_values(array_unique(array_merge(
-            $bassPc !== null ? [$bassPc] : [],
-            $pcSet,
-            range(0, 11)
-        )));
-
-        foreach ($candidateRoots as $rootPc) {
-            $isBass = ($rootPc === $bassPc);
-
-            foreach ($qualities as $quality => $intervals) {
-                $expectedPcs = array_map(fn($iv) => ($rootPc + $iv) % 12, $intervals);
-                $matched     = count(array_intersect($expectedPcs, $pcSet));
-                $total       = count($expectedPcs);
-
-                $leftover    = array_diff($pcSet, $expectedPcs);
-                $unexplained = 0;
-                foreach ($leftover as $lpc) {
-                    $ivLeft = ($lpc - $rootPc + 12) % 12;
-                    if (!isset(self::IDENTIFY_EXTENSION_INTERVALS[$ivLeft])) {
-                        $unexplained++;
-                    }
-                }
-
-                if ($matched === $total) {
-                    $raw = $total * 100 - $unexplained * 50;
-                    if ($total >= 4) $raw *= $exactBonus;
-                } elseif ($matched >= 2 && $matched >= $total - 1) {
-                    $raw = $matched * 100 - 50 - $unexplained * 50;
-                } else {
-                    continue;
-                }
-
-                $score = $isBass ? $raw * $bassBoost : $raw;
-                if ($score > $bestScore) {
-                    $bestScore   = $score;
-                    $bestRootPc  = $rootPc;
-                    $bestQuality = $quality;
-                }
-            }
+        // Minimum-note guard: a single note or dyad is not a chord.
+        // This prevents melody transients from generating spurious chord labels.
+        if (count($pcSet) < 3) {
+            return $this->noResult();
         }
 
-        if ($bestRootPc === null) return $this->noResult();
+        // Note count for the Pass 3b rootless-upgrade guard.
+        // Use unique pitch class count (analogous to fretted string count).
+        $noteCount = count($pcSet);
 
-        // ── Extension detection ──
-        $basePcs = array_map(
-            fn($iv) => ($bestRootPc + $iv) % 12,
-            self::IDENTIFY_QUALITY_INTERVALS[$bestQuality]
-        );
-        $leftoverPcs = array_diff($pcSet, $basePcs);
-        $extensionLabels = [];
-        foreach ($leftoverPcs as $lpc) {
-            $iv = ($lpc - $bestRootPc + 12) % 12;
-            if (isset(self::IDENTIFY_EXTENSION_INTERVALS[$iv])) {
-                $extensionLabels[$iv] = self::IDENTIFY_EXTENSION_INTERVALS[$iv];
-            }
-        }
-        ksort($extensionLabels);
-        $extensionsStr = !empty($extensionLabels) ? '(' . implode(',', $extensionLabels) . ')' : '';
-
-        // ── Inversion / slash detection ──
-        $slashSuffix = '';
-        if ($bassPc !== null && $bassPc !== $bestRootPc) {
-            $bassNoteName = $this->pcToNoteName($bassPc, $bestQuality);
-            $slashSuffix = '/' . $bassNoteName;
-        }
-
-        $rootName = $this->pcToNoteName($bestRootPc, $bestQuality);
-        $qualityDisplay = $this->getQualityDisplayName($bestQuality);
-
-        return [
-            'name'       => $rootName . $qualityDisplay . $extensionsStr . $slashSuffix,
-            'confidence' => $bestScore > 500 ? 'high' : ($bestScore > 200 ? 'medium' : 'low'),
-            'root'       => $rootName,
-            'quality'    => $bestQuality,
-            'bass'       => $bassPc !== null ? $this->pcToNoteName($bassPc) : null,
-        ];
+        return $this->identifyFromPcSetFull($pcSet, $bassPc, $noteCount, null, 1);
     }
 }

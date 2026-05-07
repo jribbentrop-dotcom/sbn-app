@@ -99,6 +99,27 @@
     .sbn-analysis-match-confidence { font-size: 10px; color: var(--clr-text-dim); }
     .sbn-analysis-match-root { font-size: 10px; color: var(--clr-text-muted); font-style: italic; }
     .sbn-analysis-measure.is-highlighted { background: var(--clr-accent-bg); }
+
+    /* Alt Numerals */
+    .sbn-alt-numerals { margin-top: 24px; border-top: 1px solid var(--clr-border); padding-top: 20px; }
+    .sbn-alt-variants { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+    .sbn-alt-variant {
+        background: var(--clr-surface);
+        border: 1px solid var(--clr-border);
+        border-radius: 8px;
+        padding: 16px;
+        position: relative;
+    }
+    .sbn-alt-variant-header { display: flex; gap: 12px; margin-bottom: 12px; }
+    .sbn-alt-variant-num { width: 100%; }
+    .sbn-alt-variant-actions { margin-top: 8px; display: flex; justify-content: flex-end; }
+    .sbn-section-subtitle { font-size: 14px; font-weight: 700; color: var(--clr-text); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .sbn-btn-remove-alt {
+        color: var(--clr-text-muted);
+        background: none; border: none; cursor: pointer;
+        font-size: 11px; font-weight: 600;
+    }
+    .sbn-btn-remove-alt:hover { color: var(--clr-accent); }
     </style>
 @endpush
 
@@ -175,6 +196,42 @@
                 </p>
                 <div class="sbn-numeral-preview" x-html="previewHtml"></div>
                 @error('numerals') <span class="sbn-field-error">{{ $message }}</span> @enderror
+            </div>
+
+            {{-- ── Alternative Sequences ──────────────────────────── --}}
+            <div class="sbn-alt-numerals">
+                <h3 class="sbn-section-subtitle">Alternative Sequences</h3>
+                <p class="sbn-field-hint">Add variations of this progression (e.g. simplified versions or different resolutions) that should also be detected.</p>
+
+                <div class="sbn-alt-variants">
+                    <template x-for="(variant, index) in alt_numerals" :key="index">
+                        <div class="sbn-alt-variant">
+                            <div class="sbn-alt-variant-header">
+                                <div style="flex: 0 0 180px;">
+                                    <label class="sbn-label" :for="'alt_label_' + index">Label</label>
+                                    <input type="text" :id="'alt_label_' + index" :name="'alt_numerals[' + index + '][label]'"
+                                           class="sbn-input" placeholder="e.g. Simplified" x-model="variant.label">
+                                </div>
+                                <div class="sbn-alt-variant-num">
+                                    <label class="sbn-label" :for="'alt_num_' + index">Numeral Sequence</label>
+                                    <input type="text" :id="'alt_num_' + index" :name="'alt_numerals[' + index + '][numerals]'"
+                                           class="sbn-input sbn-input-mono" placeholder="e.g. V7,Imaj7"
+                                           x-model="variant.numerals" @input="renderAltPreview(index)">
+                                </div>
+                            </div>
+                            <div class="sbn-numeral-preview" x-html="variant.previewHtml"></div>
+                            <div class="sbn-alt-variant-actions">
+                                <button type="button" class="sbn-btn-remove-alt" @click="removeVariant(index)">
+                                    Remove Variant
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <button type="button" class="sbn-btn sbn-btn-secondary" style="margin-top: 12px; font-size: 12px;" @click="addVariant()">
+                    + Add Alternative Sequence
+                </button>
             </div>
 
             {{-- ── Description ───────────────────────────────────── --}}
@@ -428,10 +485,12 @@ function progressionForm() {
     return {
         numerals: '{{ old('numerals', $progression->numerals ?? '') }}',
         previewHtml: '',
+        alt_numerals: @json(old('alt_numerals', $progression->alt_numerals ?? [])),
         tags: savedTags ? savedTags.split(',').map(t => t.trim()).filter(Boolean) : [],
 
         init() {
             this.renderPreview();
+            this.alt_numerals.forEach((v, i) => this.renderAltPreview(i));
         },
 
         renderPreview() {
@@ -457,6 +516,29 @@ function progressionForm() {
                 html += '<div class="sbn-numeral-warning">⚠ Looks like tokens are missing commas — separate each numeral with a comma, e.g. <code>IIm7,V7,Imaj7</code></div>';
             }
             this.previewHtml = html;
+        },
+
+        renderAltPreview(index) {
+            const v = this.alt_numerals[index];
+            if (!v) return;
+
+            const tokens = (v.numerals || '').split(',').map(t => t.trim()).filter(Boolean);
+            if (tokens.length === 0) {
+                v.previewHtml = '';
+                return;
+            }
+
+            v.previewHtml = tokens.map(t =>
+                '<span class="sbn-numeral-chip">' + this.escHtml(t) + '</span>'
+            ).join('');
+        },
+
+        addVariant() {
+            this.alt_numerals.push({ label: '', numerals: '', previewHtml: '' });
+        },
+
+        removeVariant(index) {
+            this.alt_numerals.splice(index, 1);
         },
 
         toggleTag(tag) {
