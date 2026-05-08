@@ -477,7 +477,7 @@ and annotated with `// TODO(harmonic-scorer)`.
 
 ---
 
-## Part 2 — The Machine Room
+## Part 2 — The Machine Room — ✅ SHIPPED 2026-05-08
 
 > Replaces the current `admin/progressions/builder` page (which served
 > the original WP→Laravel migration only). The Machine Room is the
@@ -966,3 +966,6 @@ Key dates from the refactor:
   pipeline fixes.
 - 2026-05-05: Phase G (voicing style switch), Phase E.5 (regression
   suite), repeated-chord post-Viterbi fix, Machine Room spec.
+- 2026-05-08: Part 2 (The Machine Room) shipped. Config moved to DB via
+  `BuilderSettings` service, Machine Room AlpineJS UI built at
+  `admin/progressions/builder`, and archetype saving/loading implemented.

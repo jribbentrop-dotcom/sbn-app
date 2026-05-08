@@ -7,6 +7,7 @@ use App\Services\ChordShapeCalculator;
 use App\Services\HarmonicContext;
 use App\Services\Builder\PhaseE\ExtensionTable;
 use App\Services\Builder\PhaseE\Interval;
+use App\Services\BuilderSettings;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -28,10 +29,12 @@ use Illuminate\Support\Facades\DB;
 class ProgressionBuilder
 {
     protected ChordShapeCalculator $calculator;
+    protected BuilderSettings $settings;
 
-    public function __construct(ChordShapeCalculator $calculator)
+    public function __construct(ChordShapeCalculator $calculator, BuilderSettings $settings)
     {
         $this->calculator = $calculator;
+        $this->settings = $settings;
         ExtensionTable::initialize();
     }
 
@@ -217,8 +220,11 @@ class ProgressionBuilder
         $category   = $options['category'] ?? self::CATEGORY_DEFAULT;
         $style      = $options['style'] ?? '';
         $extensions = $options['extensions'] ?? false;
-        $rootOnly   = $options['rootOnly'] ?? false;
-        $voicingStyle = $options['voicing_style'] ?? 'auto';
+        $rootOnly   = $options['rootOnly'] ?? $this->settings->getRootOnlyDefault($category);
+        $voicingStyle = $options['voicing_style'] ?? $this->settings->getDefaultVoicingStyle($category);
+        if ($voicingStyle === 'auto' || $voicingStyle === '') {
+            $voicingStyle = $this->settings->getDefaultVoicingStyle($category);
+        }
         $vlLevel    = $extensions ? 2 : 1;
 
         // Diagnostics container
@@ -234,7 +240,8 @@ class ProgressionBuilder
         ];
 
         // Normalize category (treat unrecognized as jazz)
-        if (!array_key_exists($category, self::CATEGORY_VOICING_POOLS)) {
+        $pools = $this->settings->get('category_pools');
+        if (!array_key_exists($category, $pools)) {
             $diagnostics['category_normalized'] = self::CATEGORY_DEFAULT;
             $category = self::CATEGORY_DEFAULT;
         }
@@ -274,11 +281,8 @@ class ProgressionBuilder
         // Apply numeral upgrade (§6.1) for category-aware progressions
         $context = $this->applyCategoryNumeralUpgrade($context, $category);
 
-        // Apply Phase E extension upgrade (§6.2) — jazz/latin only per §9.1.
-        // Pop, blues, classical, modal don't take jazz tensions even when
-        // extensions=true (blues uses extensions for sub-mode routing, not chord upgrades).
-        $pass2EligibleCategories = ['jazz', 'latin'];
-        $applyExtensionUpgrade = $extensions && in_array($category, $pass2EligibleCategories, true);
+        // Apply Phase E extension upgrade (§6.2)
+        $applyExtensionUpgrade = $extensions && $this->settings->isPass2Eligible($category);
         $context = $this->applyPhaseEExtensionUpgrade($context, $applyExtensionUpgrade);
 
         // Ensure all chords have extension field set (fallback for non-PhaseE categories)
@@ -346,11 +350,7 @@ class ProgressionBuilder
         $pass2Cost = null;
         $pass2FiredResolutions = [];
 
-        // Pass 2 is jazz/latin only per spec §6.2 / §9.1.
-        // Pop, blues, classical, modal stay on Pass 1 even when the user
-        // requests extensions — those idioms don't take jazz tensions.
-        $pass2EligibleCategories = ['jazz', 'latin'];
-        $runPass2 = $extensions && in_array($category, $pass2EligibleCategories, true);
+        $runPass2 = $extensions && $this->settings->isPass2Eligible($category);
 
         if ($runPass2) {
             // Run Pass 1 (vlLevel = 1, no extensions)
@@ -535,7 +535,7 @@ class ProgressionBuilder
         // The DB seeds extension-carrying rows under the same quality (e.g. m7+11,
         // dom7+9), which leaked color tones into Pass 1 output. Pass 2 keeps the
         // full pool so Phase E can upgrade to tension voicings.
-        if (!$extensions) {
+        if (!$extensions && !$this->settings->isPass1ExtensionsAllowed($category)) {
             $query->where(function ($q) {
                 $q->whereNull('extensions')->orWhere('extensions', '');
             });
@@ -562,7 +562,7 @@ class ProgressionBuilder
         // alias's identity (alt_root, alt_quality, alt_extensions, alt_bass) but
         // the parent's diagram_data. Same Pass-1/Pass-2 extension gating as the
         // parent table. Honors the category pool via the parent's voicing_category.
-        $aliasShapes = $this->fetchAliasShapes($qualityAliases, $extensions, $rootOnly, $pool, $extension);
+        $aliasShapes = $this->fetchAliasShapes($qualityAliases, $extensions, $rootOnly, $pool, $extension, $category);
         $shapes = $shapes->concat($aliasShapes);
 
         if ($shapes->isEmpty()) return [];
@@ -624,7 +624,7 @@ class ProgressionBuilder
      * accepts them unchanged. The alias's alt_root_note becomes shape->root_note;
      * the parent's diagram_data is preserved verbatim.
      */
-    private function fetchAliasShapes(array $qualityAliases, bool $extensions, bool $rootOnly, array $pool, string $extension = ''): \Illuminate\Support\Collection
+    private function fetchAliasShapes(array $qualityAliases, bool $extensions, bool $rootOnly, array $pool, string $extension = '', string $category = self::CATEGORY_DEFAULT): \Illuminate\Support\Collection
     {
         $query = DB::table('sbn_chord_diagram_aliases as a')
             ->join('sbn_chord_diagrams as d', 'a.diagram_id', '=', 'd.id')
@@ -647,7 +647,7 @@ class ProgressionBuilder
             );
 
         // Pass 1: only plain aliases. Mirrors the parent-table extension filter.
-        if (!$extensions) {
+        if (!$extensions && !$this->settings->isPass1ExtensionsAllowed($category)) {
             $query->where(function ($q) {
                 $q->whereNull('a.alt_extensions')->orWhere('a.alt_extensions', '');
             });
@@ -737,7 +737,7 @@ class ProgressionBuilder
      */
     private function getCategoryPool(string $category, string $style, bool $extensions): array
     {
-        $basePool = self::CATEGORY_VOICING_POOLS[$category] ?? self::CATEGORY_VOICING_POOLS[self::CATEGORY_DEFAULT];
+        $basePool = $this->settings->getCategoryPool($category);
 
         // Blues sub-mode trigger (per user answer Q1)
         if ($category === 'blues') {
@@ -748,7 +748,7 @@ class ProgressionBuilder
                 $advancedBlues = false;
             }
             if ($advancedBlues) {
-                return self::BLUES_ADVANCED_POOL;
+                return $this->settings->getBluesAdvancedPool();
             }
         }
 
@@ -910,6 +910,10 @@ class ProgressionBuilder
      */
     private function applyRepeatedChordReuse(array $selections, array $allChords, array $options): array
     {
+        if (!$this->settings->isRepeatedChordReuseEnabled()) {
+            return $selections;
+        }
+
         $n = count($selections);
         for ($i = 1; $i < $n; $i++) {
             $reuse = $this->shouldReusePreviousVoicing(
@@ -1781,7 +1785,7 @@ class ProgressionBuilder
         string $category,
         ?string $functionalRole
     ): array {
-        if (!in_array($category, ['jazz', 'latin'], true) || $functionalRole === null) {
+        if (!$this->settings->isTonicWidenEnabled($category) || $functionalRole === null) {
             return $aliases;
         }
 
@@ -2189,10 +2193,8 @@ class ProgressionBuilder
 
     private function costWeights(array $overrides, string $category = self::CATEGORY_DEFAULT): array
     {
-        $weights = self::COST_WEIGHTS;
-        if (isset(self::CATEGORY_REGISTER_WEIGHT[$category])) {
-            $weights['register'] = self::CATEGORY_REGISTER_WEIGHT[$category];
-        }
+        $weights = $this->settings->getCostWeights();
+        $weights['register'] = $this->settings->getCategoryRegisterWeight($category);
         return array_merge($weights, array_intersect_key($overrides, $weights));
     }
 
@@ -2524,7 +2526,7 @@ class ProgressionBuilder
     private function costRegister(object $voicing, array $context): float
     {
         $category = $context['category'] ?? self::CATEGORY_DEFAULT;
-        $target = self::CATEGORY_REGISTER_TARGET[$category] ?? 5;
+        $target = $this->settings->getCategoryRegisterTarget($category);
         $pos = $voicing->start_fret ?? $voicing->position ?? null;
         if ($pos === null) return 0.0;
         return $this->boundedCost(abs($pos - $target) / 12.0);

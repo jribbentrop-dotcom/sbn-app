@@ -7,6 +7,7 @@ use App\Models\ChordProgression;
 use App\Models\Leadsheet;
 use App\Services\HarmonicContext;
 use App\Services\ProgressionBuilder;
+use App\Services\BuilderSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -14,11 +15,13 @@ class ProgressionBuilderController extends Controller
 {
     protected HarmonicContext $context;
     protected ProgressionBuilder $builder;
+    protected BuilderSettings $settings;
 
-    public function __construct(HarmonicContext $context, ProgressionBuilder $builder)
+    public function __construct(HarmonicContext $context, ProgressionBuilder $builder, BuilderSettings $settings)
     {
         $this->context = $context;
         $this->builder = $builder;
+        $this->settings = $settings;
     }
 
     /**
@@ -28,23 +31,119 @@ class ProgressionBuilderController extends Controller
      */
     public function index(): \Illuminate\View\View
     {
-        $leadsheets = Leadsheet::orderBy('title')->get(['id', 'title', 'key']);
+        return view('admin.progressions.builder');
+    }
 
-        $progressions = ChordProgression::orderBy('category')->orderBy('name')
-            ->get(['id', 'name', 'category', 'numerals', 'tonality']);
+    public function getSettings(): JsonResponse
+    {
+        return response()->json([
+            'settings' => $this->settings->all(),
+        ]);
+    }
 
-        return view('admin.progressions.builder', compact('leadsheets', 'progressions'));
+    public function updateSetting(Request $request): JsonResponse
+    {
+        $key = $request->input('key');
+        $value = $request->input('value');
+        if (!$key) {
+            return response()->json(['error' => 'Key is required'], 400);
+        }
+        
+        $this->settings->set($key, $value);
+        
+        return response()->json(['success' => true]);
+    }
+
+    public function getArchetypes(): JsonResponse
+    {
+        $archetypes = \Illuminate\Support\Facades\DB::table('sbn_builder_archetypes')
+            ->orderBy('name')
+            ->get(['slug', 'name', 'description']);
+            
+        return response()->json(['archetypes' => $archetypes]);
+    }
+
+    public function saveArchetype(Request $request): JsonResponse
+    {
+        $name = $request->input('name');
+        if (!$name) return response()->json(['error' => 'Name is required'], 400);
+        
+        $slug = \Illuminate\Support\Str::slug($name);
+        $description = $request->input('description');
+        
+        $this->settings->saveArchetype($slug, $name, $description);
+        
+        return response()->json(['success' => true, 'slug' => $slug]);
+    }
+
+    public function loadArchetype(Request $request): JsonResponse
+    {
+        $slug = $request->input('slug');
+        $archetypeSettings = $this->settings->loadArchetype($slug);
+        
+        if (!$archetypeSettings) {
+            return response()->json(['error' => 'Archetype not found'], 404);
+        }
+        
+        foreach ($archetypeSettings as $key => $value) {
+            $this->settings->set($key, $value);
+        }
+        
+        return response()->json(['success' => true, 'settings' => $this->settings->all()]);
+    }
+
+    public function restoreDefaults(): JsonResponse
+    {
+        $this->settings->restoreDefaults();
+        return response()->json(['success' => true, 'settings' => $this->settings->all()]);
+    }
+
+    public function previewCorpus(Request $request): JsonResponse
+    {
+        $corpus = [
+            ['category' => 'jazz', 'key' => 'C', 'numerals' => 'IIm7,V7,Imaj7', 'name' => 'Jazz II-V-I'],
+            ['category' => 'blues', 'key' => 'C', 'numerals' => 'I7,I7,I7,I7,IV7,IV7,I7,I7,V7,IV7,I7,I7', 'name' => '12-Bar Blues'],
+            ['category' => 'pop', 'key' => 'G', 'numerals' => 'I,V,VIm,IV', 'name' => 'Pop Axis'],
+            ['category' => 'classical', 'key' => 'D', 'numerals' => 'I,V,VIm,IIIm,IV,I,IV,V', 'name' => 'Pachelbel'],
+            ['category' => 'modal', 'key' => 'A', 'numerals' => 'Im7,bVII,IV', 'name' => 'Dorian Vamp'],
+            ['category' => 'latin', 'key' => 'F', 'numerals' => 'Imaj7,II7,IIm7,V7', 'name' => 'Bossa Turnaround'],
+        ];
+
+        $results = [];
+
+        foreach ($corpus as $item) {
+            $harmonicContext = $this->context->buildFromNumerals($item['key'], $item['numerals']);
+            $options = [
+                'category' => $item['category'],
+                'extensions' => $this->settings->isPass2Eligible($item['category']),
+                'rootOnly' => $this->settings->getRootOnlyDefault($item['category']),
+                'voicing_style' => $this->settings->getDefaultVoicingStyle($item['category']),
+            ];
+
+            try {
+                $buildResult = $this->builder->buildVoicings($harmonicContext, $options);
+                $results[] = [
+                    'name' => $item['name'],
+                    'category' => $item['category'],
+                    'key' => $item['key'],
+                    'chords' => $buildResult['selections'],
+                    'diagnostics' => $buildResult['diagnostics'],
+                ];
+            } catch (\Exception $e) {
+                $results[] = [
+                    'name' => $item['name'],
+                    'category' => $item['category'],
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+
+        return response()->json(['corpus' => $results]);
     }
 
     /**
      * Build voice-led voicings for a chord sequence.
-     *
-     * Accepts either:
-     *   - leadsheet_id: build from an existing leadsheet
-     *   - numerals + key: build from a numeral string (e.g. "IIm7,V7,Imaj7")
-     *   - chords + key: build from concrete chord names (e.g. ["Dm7","G7","Cmaj7"])
-     *
-     * POST /api/admin/progressions/build-voicings
+     * (Retained for legacy UI/leadsheet support)
      */
     public function buildVoicings(Request $request): JsonResponse
     {

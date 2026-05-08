@@ -20,6 +20,8 @@ use App\Http\Controllers\Library\RhythmLibraryController;
 use App\Http\Controllers\Library\ProgressionLibraryController;
 use App\Http\Controllers\Library\SongLibraryController;
 use App\Http\Controllers\CourseController;
+use App\Http\Controllers\Admin\CourseController as AdminCourseController;
+use App\Http\Controllers\Admin\LessonController as AdminLessonController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -75,6 +77,22 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::put('/rhythms/{rhythm}', [RhythmPatternController::class, 'update'])->name('rhythms.update');
     Route::delete('/rhythms/{rhythm}', [RhythmPatternController::class, 'destroy'])->name('rhythms.destroy');
 
+    // Phase 11b — Courses + Lessons (admin CRUD)
+    Route::get('/courses', [AdminCourseController::class, 'index'])->name('courses.index');
+    Route::get('/courses/create', [AdminCourseController::class, 'create'])->name('courses.create');
+    Route::post('/courses', [AdminCourseController::class, 'store'])->name('courses.store');
+    Route::get('/courses/{course}/edit', [AdminCourseController::class, 'edit'])->name('courses.edit');
+    Route::put('/courses/{course}', [AdminCourseController::class, 'update'])->name('courses.update');
+    Route::delete('/courses/{course}', [AdminCourseController::class, 'destroy'])->name('courses.destroy');
+
+    Route::get('/courses/{course}/lessons/create', [AdminLessonController::class, 'create'])->name('courses.lessons.create');
+    Route::post('/courses/{course}/lessons', [AdminLessonController::class, 'store'])->name('courses.lessons.store');
+    Route::get('/lessons/{lesson}/edit', [AdminLessonController::class, 'edit'])->name('lessons.edit');
+    Route::put('/lessons/{lesson}', [AdminLessonController::class, 'update'])->name('lessons.update');
+    Route::delete('/lessons/{lesson}', [AdminLessonController::class, 'destroy'])->name('lessons.destroy');
+    Route::post('/courses/{course}/lessons/reorder', [AdminLessonController::class, 'reorder'])->name('courses.lessons.reorder');
+    Route::post('/lessons/{lesson}/upload-image', [AdminLessonController::class, 'uploadImage'])->name('lessons.upload-image');
+
     // Shop Orders (admin view)
     Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
 });
@@ -118,6 +136,15 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
 
     // Phase 6d — Progression Builder API
     Route::post('/progressions/build-voicings', [ProgressionBuilderController::class, 'buildVoicings'])->name('progressions.buildVoicings');
+    
+    // Machine Room APIs
+    Route::get('/progressions/builder/settings', [ProgressionBuilderController::class, 'getSettings'])->name('progressions.builder.settings');
+    Route::post('/progressions/builder/settings', [ProgressionBuilderController::class, 'updateSetting'])->name('progressions.builder.updateSetting');
+    Route::get('/progressions/builder/archetypes', [ProgressionBuilderController::class, 'getArchetypes'])->name('progressions.builder.archetypes');
+    Route::post('/progressions/builder/archetypes', [ProgressionBuilderController::class, 'saveArchetype'])->name('progressions.builder.saveArchetype');
+    Route::post('/progressions/builder/archetypes/load', [ProgressionBuilderController::class, 'loadArchetype'])->name('progressions.builder.loadArchetype');
+    Route::post('/progressions/builder/restore-defaults', [ProgressionBuilderController::class, 'restoreDefaults'])->name('progressions.builder.restoreDefaults');
+    Route::get('/progressions/builder/preview', [ProgressionBuilderController::class, 'previewCorpus'])->name('progressions.builder.preview');
 
     // Chord Diagrams
     Route::delete('/chords/{chord}', [ChordController::class, 'destroy'])->name('chords.destroy');
@@ -156,6 +183,21 @@ Route::get('/library/songs', [SongLibraryController::class, 'index'])->name('lib
 Route::get('/library/songs/{leadsheet:slug}', [SongLibraryController::class, 'show'])->name('library.songs.show');
 Route::get('/library/songs/{leadsheet:slug}/viewer', [SongLibraryController::class, 'viewer'])->name('library.songs.viewer');
 Route::get('/library/songs/{leadsheet:slug}/cinema', [SongLibraryController::class, 'cinema'])->name('library.songs.cinema');
+
+// Phase 11b — JSON endpoints for mountSbnNodes.ts + palette search (public, no auth)
+Route::prefix('api/sbn')->name('api.sbn.')->group(function () {
+    // Show (used by mountSbnNodes)
+    Route::get('/chords/{slug}',       [ChordLibraryController::class,       'apiShow'])->name('chords.show');
+    Route::get('/rhythms/{slug}',      [RhythmLibraryController::class,      'apiShow'])->name('rhythms.show');
+    Route::get('/progressions/{slug}', [ProgressionLibraryController::class, 'apiShow'])->name('progressions.show');
+    Route::get('/songs/{leadsheet:slug}/viewer-data', [SongLibraryController::class, 'apiViewerData'])->name('songs.viewer-data');
+
+    // Search (used by admin palette — must be before /{slug} wildcards)
+    Route::get('/chords',       [ChordLibraryController::class,       'search'])->name('chords.search');
+    Route::get('/rhythms',      [RhythmLibraryController::class,      'apiSearch'])->name('rhythms.search');
+    Route::get('/progressions', [ProgressionLibraryController::class, 'apiSearch'])->name('progressions.search');
+    Route::get('/songs',        [SongLibraryController::class,        'apiSearch'])->name('songs.search');
+});
 
 Route::get('/top10/bossa-nova-chords', [\App\Http\Controllers\Top10Controller::class, 'bossaNovaChords'])
     ->name('top10.bossa-nova-chords');
