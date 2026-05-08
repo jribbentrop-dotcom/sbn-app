@@ -40,6 +40,10 @@ Thumbs.db
 # audit JSON/MD pairs are reproducible build output and should not be committed.
 /storage/audits/progressions-*.json
 /storage/audits/progressions-*.md
+/storage/audits/identifier-context-*.json
+/storage/audits/identifier-context-*.md
+/storage/audits/identifier-*.json
+/storage/audits/identifier-*.md
 !/storage/audits/progressions-20260430-193353.json
 !/storage/audits/progressions-20260430-193353.md
 !/storage/audits/progressions-20260502-173647.json
