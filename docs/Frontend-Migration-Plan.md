@@ -1704,9 +1704,9 @@ class CourseController extends Controller
 | `Pages/Courses/Show.vue` | **[NEW]** | Course overview: hero, lesson list preview, buy/start CTA |
 | `Pages/Courses/Player.vue` | **[NEW]** | Full app-shell player (see layout spec below) |
 | `Components/Course/CourseCard.vue` | **[NEW]** | Card for archive: featured image or genre-gradient fallback, title, genre badge, level stars, lesson count, excerpt |
-| `Components/Course/LessonSidebar.vue` | **[NEW]** | Fixed left panel: hero badge, lesson list grouped by `sectionTitle`, subsection expanders, progress bar |
-| `Components/Course/LessonContent.vue` | **[NEW]** | Right panel: `v-html` rendered content + subsection switcher + prev/next nav footer |
-| `Components/Course/BottomBar.vue` | **[NEW]** | Fixed bottom overlay with 4 tabs — see spec below |
+| `Components/Course/LessonSidebar.vue` | **[NEW]** | Collapsible left nav: hero badge + progress bar (expanded) / slim numbered rail (collapsed); lesson list grouped by `sectionTitle`; subsection jump buttons under active lesson |
+| `Components/Course/LessonContent.vue` | **[NEW]** | Centre column: lesson title + subsection tab bar + `v-html` body + prev/next footer; mobile hamburger to open sidebar |
+| `Components/Course/PracticePanel.vue` | **[NEW]** | Right practice companion: chord list rows with mini diagrams + rhythm strip with pill selector + BPM transport — see spec below |
 | `TransportBar.vue` | **[REUSE]** | Already exists; wire for audio playback in lesson content |
 | `LeadsheetViewer.vue` | **[REUSE]** | From Phase 9; embed inside lesson content when `[sbn_leadsheet slug="..."]` shortcode found |
 
@@ -1714,38 +1714,33 @@ class CourseController extends Controller
 
 ##### Player layout spec
 
-The player is a **fixed-height app shell** (100vh minus the site header). Three zones:
+**Implemented design: Variation C — Practice First** (from `design-handoff/…/course-player/`). The player is a **full-viewport three-column grid** (`vC-grid`). Three columns:
 
 ```
-┌────────────────────────────────────────────────────┐
-│ SIDEBAR (300px, fixed left, full height)           │
-│  ┌──────────────────────────────────────────────┐  │
-│  │ Hero: genre badge + level stars + title      │  │
-│  │ lesson count                                 │  │
-│  ├──────────────────────────────────────────────┤  │
-│  │ Lesson nav (scrollable)                      │  │
-│  │  [Section label]                             │  │
-│  │  ● Lesson 1 (active)                         │  │
-│  │    › Subsection A                            │  │
-│  │    › Subsection B                            │  │
-│  │  ○ Lesson 2                                  │  │
-│  │  🔒 Lesson 3 (locked)                        │  │
-│  ├──────────────────────────────────────────────┤  │
-│  │ Progress bar (% complete, published lessons) │  │
-│  └──────────────────────────────────────────────┘  │
-├────────────────────────────────────────────────────┤
-│ CONTENT AREA (fills right, scrollable)             │
-│  Active lesson content (v-html, only active        │
-│  subsection visible)                               │
-│                                                    │
-│  [← Prev lesson]              [Next lesson →]      │
-├────────────────────────────────────────────────────┤
-│ BOTTOM BAR (fixed, 60px collapsed / expands up)    │
-│  [🎸 Chords] [🥁 Rhythms] [🎵 Songs] [⚙ Tools]   │
-└────────────────────────────────────────────────────┘
+┌───────────────┬─────────────────────────────┬──────────────────┐
+│ LEFT NAV      │ CONTENT (centre, scrollable) │ PRACTICE PANEL   │
+│ (expanded)    │                              │ (right, fixed)   │
+│               │ eyebrow: hamburger + title   │                  │
+│ genre badge   │ h1: lesson title             │ "Practice        │
+│ course title  │ subsection tab bar           │  companion"      │
+│ progress bar  │                              │                  │
+│ ─────────     │ v-html lesson body           │ Chord list rows  │
+│ [Section lbl] │ (active chunk only)          │ (mini diagram +  │
+│ 1. Lesson     │                              │  name + fret)    │
+│ ► 2. Lesson   │ [← Prev]      [Next →]       │                  │
+│   › Sub A     │                              │ Rhythm card      │
+│   › Sub B     │                              │ (RhythmStrip +   │
+│ 3. Lesson 🔒  │                              │  pill selector)  │
+│               │                              │                  │
+│ [collapse ←]  │                              │ BPM transport    │
+│               │                              │ (▶ + −/bpm/+     │
+│               │                              │  + preset pills) │
+└───────────────┴─────────────────────────────┴──────────────────┘
 ```
 
-Mobile (<768px): sidebar collapses below content, toggled by hamburger. Bottom bar stays fixed.
+**Collapsed left nav** (`is-collapsed` on `vC-grid`): left column becomes a slim numbered rail (`vC-rail`) — progress ring at top, then numbered lesson chips (current highlighted), expand toggle at bottom. Same pattern as Variation B from the design handoff.
+
+Mobile (<768px): left nav hidden by default; hamburger button in content eyebrow opens it as an overlay (`mobileSidebarOpen`). Practice panel stacks below content.
 
 ---
 
@@ -1763,16 +1758,26 @@ The h2-parse/split logic replicates legacy `CoursePlayer.splitIntoSubsections()`
 
 ---
 
-##### BottomBar tabs
+##### PracticePanel content
 
-| Tab | Icon | Content |
-|---|---|---|
-| Chords | 🎸 | Common chords in this lesson's key (static list, no audio required in Phase 11) |
-| Rhythms | 🥁 | Rhythm patterns relevant to the course genre — reuse `RhythmPatternPlayer` component |
-| Songs | 🎵 | Stub: "Practice songs coming soon" |
-| Tools | ⚙ | Stub: "Metronome + tuner coming soon" |
+`PracticePanel.vue` is the right-column practice companion. Three stacked cards:
 
-Panel expands **upward** over the content area. Only one open at a time. Click same tab to collapse.
+**Chord list**
+- Eyebrow: "Chords in this lesson" + count badge.
+- Each chord = a clickable row (`vC-chord-row`): mini fret diagram (rendered via `sbnRenderMiniDiagramSVG`), chord name (`sbn-chord` class), fret note subtitle (e.g., `5fr · ×57565`), right arrow.
+- "See all chords →" ghost button at the bottom.
+- Phase 12 will source chords from real lesson metadata; Phase 11 uses a hardcoded demo set (Dm7 / G7 / Cmaj7 / Am7).
+
+**Rhythm card**
+- Eyebrow: "Rhythm" + time sig/bar count.
+- `RhythmStrip` component (playable) showing the selected pattern at current BPM.
+- Pill selector below the strip to switch between patterns (e.g., "Bossa pulse" / "Partido alto").
+
+**BPM transport**
+- Large play/pause button (`vC-play`, toggles `is-playing`).
+- BPM stepper: `−` / numeric display + "bpm" label / `+` (step 2, clamped 40–240).
+- Preset pills: `72`, `100`, `132` — highlight when BPM matches.
+- No audio engine in Phase 11; transport is visual state only. Phase D wires real playback.
 
 ---
 
@@ -1843,7 +1848,7 @@ Read these **in full** before writing any Vue or CSS code:
 - Subsection switching works: only active subsection content visible; URL hash updates.
 - `is_preview` lessons are viewable without access; locked lessons show inline unlock CTA.
 - Free courses (`is_free = true`) are fully playable: `hasAccess = true` from controller.
-- Bottom bar opens/closes; Chords and Rhythms tabs render content; Songs and Tools are stubs.
+- Practice panel renders chord list rows with mini diagrams, RhythmStrip with pill selector, and BPM transport.
 - `useCategoryColors` extended with course genre slugs (check before adding; no duplicates).
 - `npm run build` passes. Admin untouched. No Pinia introduced.
 - This Phase 11 section updated with a "What was built" subsection (same structure as earlier phases).
@@ -1852,7 +1857,7 @@ Read these **in full** before writing any Vue or CSS code:
 
 ### Phase 11b — Course Backend Editor
 
-**Status:** PLANNED (2026-05-07).
+**Status:** IN PROGRESS (2026-05-08). Steps 1–5 ✅ shipped. Steps 6–7 pending.
 
 **Goal:** Admin CRUD for courses + lessons, with a Vue-mounted rich-text editor that inserts reusable SBN components (chord diagrams, rhythm patterns, progressions, leadsheets) inline alongside text, images, and YouTube embeds.
 
@@ -1912,60 +1917,70 @@ resources/views/admin/lessons/
 - Slash-command extension is officially supported.
 - Output is HTML — same string we already store in `sbn_lessons.content`, so no migration.
 
-Install: `@tiptap/vue-3 @tiptap/starter-kit @tiptap/extension-placeholder @tiptap/suggestion @tiptap/extension-image @tiptap/extension-link`.
+Install (step-by-step to keep bundle honest):
+- Step 3: `@tiptap/vue-3 @tiptap/pm @tiptap/starter-kit @tiptap/extension-placeholder`
+- Step 5: `@tiptap/suggestion`
+- Step 6: `@tiptap/extension-image @tiptap/extension-link` (not yet installed)
+
+Vite alias `vue → vue/dist/vue.esm-bundler.js` is required for TipTap NodeView template compilation — do not change to `vue.runtime.esm-bundler.js`.
 
 ---
 
-#### 11b.4 — Component model: 4 SBN custom nodes
+#### 11b.4 — Component model: 4 SBN custom nodes ✅
 
-Define one TipTap Node per insertable type. All are **atom** (single unit, not editable internally) and **block** or **inline** as appropriate:
+✅ All 4 nodes shipped as inline atom TipTap nodes. All serialise to/from their custom HTML tags. NodeViews render as colour-coded dumb chips in the editor.
 
-| Node | HTML tag (stored) | Atom? | Attrs | Public renderer |
-|---|---|---|---|---|
-| Chord diagram | `<sbn-chord slug="cmaj7" voicing-id="123" />` | inline atom | `slug`, `voicingId?` | `ChordDiagram.vue` |
-| Rhythm pattern | `<sbn-rhythm slug="bossa-basic" />` | block atom | `slug` | `RhythmPatternPlayer.vue` |
-| Progression | `<sbn-progression slug="ii-v-i-major" key="C" />` | block atom | `slug`, `key?` | `ProgressionCard.vue` |
-| Leadsheet | `<sbn-leadsheet slug="garota-de-ipanema" />` | block atom | `slug` | `LeadsheetViewer.vue` |
+| Node | HTML tag (stored) | Chip colour | Public renderer |
+|---|---|---|---|
+| Chord diagram | `<sbn-chord slug="…">` | blue | `ChordCard.vue` |
+| Rhythm pattern | `<sbn-rhythm slug="…">` | amber | `RhythmCard.vue` |
+| Progression | `<sbn-progression slug="…">` | green | `ChordProgressionViewer.vue` |
+| Song / leadsheet | `<sbn-song slug="…">` | purple | `Pages/Library/Songs/Show.vue` |
 
-**Why custom tags, not `[shortcodes]`:** the Phase 11 player already renders `v-html` content. Add a tiny mount step — after `v-html`, querySelectorAll the `sbn-*` tags and `createApp(Component, props).mount(el)` for each. This is ~30 LOC and replaces ever needing a server-side shortcode parser. The editor preview uses the same components.
-
----
-
-#### 11b.5 — Insertion UX
-
-Three coordinated entry points, all inserting the same Node:
-
-**A. Slash command (power users)**
-Type `/` in the editor → inline menu with: `chord`, `rhythm`, `progression`, `leadsheet`, `image`, `youtube`. Pick one → opens the **right panel** scoped to that type with focus already in its search box. Picking a result inserts the node at the cursor and closes the panel.
-
-**B. Right-side palette (default surface)**
-Permanently visible right rail in the lesson editor (toggle to collapse). Tabs: **Chords | Rhythms | Progressions | Leadsheets | Media**. Each library tab is a search + filter list using the same `/library/*` JSON endpoints the public libraries already use — no new APIs needed for browsing.
-
-Two interactions per result row:
-- **Click** → inserts at current cursor position
-- **Drag** → drop anywhere in the editor (uses ProseMirror's drop handler)
-
-This makes the panel both a *browser* (admins explore what exists) and an *inserter*. Same "right side context panel" idea, repurposed for editing.
-
-**C. Keyboard shortcuts (after first use)**
-- `Ctrl+Shift+C` — opens palette on Chords tab
-- `Ctrl+Shift+R` — Rhythms
-- `Ctrl+Shift+P` — Progressions
-- `Ctrl+Shift+L` — Leadsheets
-- `Ctrl+Shift+M` — Media
-
-**Rejected: modal selector.** A modal per insert would block the editor and feel heavier than the persistent panel.
+**Why custom tags, not `[shortcodes]`:** the Phase 11 player renders `v-html`, then `mountSbnNodes.ts` walks the container, fetches data per unique slug (cached), and mounts Vue components on each `<sbn-*>` element. ~100 LOC, no server-side shortcode parser needed.
 
 ---
 
-#### 11b.6 — NodeView rendering
+#### 11b.5 — Insertion UX ✅
 
-Each custom Node's NodeView in the editor shows:
-- A **compact live preview** of the actual public component (so admins see what the lesson reader will see)
-- A **chip** in the top-right with the slug + a small ✕ to delete and a ✎ to edit attrs (e.g., transpose key for progression, voicing pick for chord)
-- Outline highlight on hover; selected state on click
+Three coordinated entry points, all inserting the same Node. All three call `window.__sbnInsert(type, slug)` → `editor.chain().insertContent(...)`.
 
-Implementation: `addNodeView()` returns a Vue component that renders `<{tagName} v-bind="attrs" />` inside a wrapper div. Reuses public components verbatim.
+**A. Slash command ✅**
+Type `/` → inline popup (colour dot + label + `Ctrl⇧X` hint). ↑/↓/Enter/Escape keyboard nav. Selecting a type deletes the `/` and calls `window.__sbnPalette(type)` — switches the palette to that tab and focuses its search input. Implemented via `@tiptap/suggestion` in [slashCommands.ts](resources/js/admin/slashCommands.ts).
+
+**B. Right-side palette ✅**
+Card below Organisation in the lesson edit sidebar. Tabs: **Chord | Rhythm | Progression | Song**. Search input with 250ms debounce. Empty query returns first 20 results on tab open. Click any result → inserts at cursor. Colour-coded tab accent + left-border stripe per type. Implemented in [LessonPalette.vue](resources/js/admin/LessonPalette.vue), mounted as a second Vue island on `#lesson-palette`.
+
+**C. Keyboard shortcuts ✅**
+- `Ctrl+Shift+C` — palette → Chord tab
+- `Ctrl+Shift+R` — Rhythm tab
+- `Ctrl+Shift+P` — Progression tab
+- `Ctrl+Shift+L` — Song tab
+
+Registered in `LessonEditor.vue` via `document.addEventListener('keydown', ...)`, cleaned up `onBeforeUnmount`.
+
+**Bridges:**
+- `window.__sbnInsert(type, slug)` — exposed by `LessonEditor.vue`; called by palette on click
+- `window.__sbnPalette(type)` — exposed by `LessonPalette.vue`; called by slash command + keyboard shortcuts
+
+**Drag-and-drop** (palette row → editor) — not yet implemented (step 7).
+
+**Pending:** Media tab (`Ctrl+Shift+M`) — step 6.
+
+---
+
+#### 11b.6 — NodeView rendering ✅
+
+Each custom Node renders as a colour-coded **chip** in the editor: `[type: slug ✕]`. Implemented as pure DOM NodeViews (no Vue inside the editor — avoids pulling the full component stack into the admin bundle).
+
+- ✅ Type label + slug text
+- ✅ ✕ delete button — calls `deleteRange` at node position
+- ⬜ ✎ attr-edit (e.g. slug rename) — not yet implemented
+- ⬜ Hover outline / selected state via ProseMirror decoration — not yet implemented
+
+Chip colours: chord=blue, rhythm=amber, progression=green, song=purple. Defined in [public/css/lesson-editor.css](public/css/lesson-editor.css).
+
+**No live component rendering in the editor.** The public player is the source of truth for visual rendering — admins use Preview ↗ to see the lesson as readers will.
 
 ---
 
@@ -1997,30 +2012,30 @@ Two more Nodes, deliberately simple — secondary to the SBN components:
 
 ---
 
-#### 11b.8 — Public-side runtime hook
+#### 11b.8 — Public-side runtime hook ✅
 
-Single new file: `resources/js/lib/mountSbnNodes.ts`
+##### JSON endpoints ✅
 
-```ts
-// Walks a container, finds <sbn-*> tags rendered by v-html,
-// mounts the matching Vue component on each, returns an
-// unmount fn for the caller to call on lesson change.
-export function mountSbnNodes(root: HTMLElement): () => void { ... }
-```
+`LeadsheetViewerService` extracted from `SongLibraryController` so both the Inertia `viewer()` and the JSON `apiViewerData()` call the same `enrich()` method. Four show endpoints + four palette search endpoints shipped under `/api/sbn/`:
 
-Called from `LessonContent.vue` after `v-html` updates (in `onMounted` and on lesson change). One registry maps tag name → component:
+| Route | Controller method | Status |
+|---|---|---|
+| `GET /api/sbn/chords/{slug}` | `ChordLibraryController::apiShow()` | ✅ |
+| `GET /api/sbn/rhythms/{slug}` | `RhythmLibraryController::apiShow()` | ✅ |
+| `GET /api/sbn/progressions/{slug}` | `ProgressionLibraryController::apiShow()` | ✅ |
+| `GET /api/sbn/songs/{slug}/viewer-data` | `SongLibraryController::apiViewerData()` | ✅ |
+| `GET /api/sbn/chords?q=` | `ChordLibraryController::search()` | ✅ (palette) |
+| `GET /api/sbn/rhythms?q=` | `RhythmLibraryController::apiSearch()` | ✅ (palette) |
+| `GET /api/sbn/progressions?q=` | `ProgressionLibraryController::apiSearch()` | ✅ (palette) |
+| `GET /api/sbn/songs?q=` | `SongLibraryController::apiSearch()` | ✅ (palette) |
 
-```ts
-const REGISTRY = {
-  'sbn-chord': ChordDiagram,
-  'sbn-rhythm': RhythmPatternPlayer,
-  'sbn-progression': ProgressionCard,
-  'sbn-leadsheet': LeadsheetViewer,
-  'sbn-youtube': YouTubeEmbed,
-};
-```
+All public, no auth required.
 
-Each component fetches its own data by slug from existing endpoints — no need to pre-serialize embedded items in `CourseController::serializeLesson()`.
+##### `mountSbnNodes.ts` ✅
+
+[resources/js/lib/mountSbnNodes.ts](resources/js/lib/mountSbnNodes.ts) — walks a container for `<sbn-chord>`, `<sbn-rhythm>`, `<sbn-progression>`, `<sbn-song>` (fetch → mount) and `<sbn-youtube>` (attrs only, inline iframe). Per-type slug cache. Returns unmount function.
+
+Wired into `LessonContent.vue`: called after `refreshChunks()` on `onMounted` + `lesson.slug` watch; torn down `onBeforeUnmount`.
 
 ---
 
@@ -2043,25 +2058,32 @@ No DB migration needed — `content` already `longText`.
 - Admin can list, create, edit, reorder, soft-publish/unpublish courses and lessons
 - Lesson editor renders existing imported HTML round-trip (open → save → diff is identity)
 - All 4 SBN component types insert via slash, palette click, drag, and keyboard shortcut
+- Editor chips correctly identify type + slug; ✕ deletion and ✎ attr-edit work
 - Image upload works via drag, paste, and Media palette
 - YouTube paste auto-converts; slash `/youtube` prompt works
 - Public player ([Pages/Courses/Player.vue](resources/js/Pages/Courses/Player.vue)) renders embedded `<sbn-*>` tags as live components via `mountSbnNodes`
-- Lesson preview button in admin opens `/learn/{course}/play/{lesson}?preview=1` in a new tab (bypasses gating for admin user)
+- Lesson preview button in admin opens `/learn/{course}/play/{lesson}` in a new tab
 - `npm run build` passes; admin Blade pattern preserved (no Inertia in admin)
 
 ---
 
 #### 11b.11 — Suggested order of attack
 
-1. CourseController + LessonController + Blade index/edit forms (no editor yet — plain `<textarea>`) — gets CRUD working
-2. `mountSbnNodes.ts` + register on public Player — proves the runtime works with hand-edited HTML
-3. TipTap shell with the 4 SBN custom Nodes — replace the textarea
-4. Right-side palette wired to existing library JSON endpoints
-5. Slash command + keyboard shortcuts
-6. Image + YouTube nodes + upload endpoint
-7. Drag-reorder lessons, preview button, polish
+Two independent tracks. Build the public-player track first to prove the round-trip, then the editor track.
 
-Each step is independently shippable.
+**Public-player track**
+1. ✅ CourseController + LessonController + Blade CRUD — hand-edited HTML round-trips
+2a. ✅ 4 JSON show endpoints + 4 search endpoints under `/api/sbn/` — `LeadsheetViewerService` extracted
+2b. ✅ `mountSbnNodes.ts` + wired into `LessonContent.vue`
+
+**Editor track**
+3. ✅ TipTap shell — StarterKit + Placeholder + 4 SBN chip nodes + toolbar (B/I/H1-3/lists/blockquote/HR/undo/redo) + hidden textarea sync
+4. ✅ Right-side palette — 4-tab search panel, `window.__sbnInsert` bridge
+5. ✅ Slash command (`/`) + keyboard shortcuts (`Ctrl+Shift+C/R/P/L`)
+6. ⬜ Image + YouTube nodes + upload endpoint
+7. ⬜ Drag-reorder palette rows, ✎ attr-edit on chips, polish
+
+**The two tracks are decoupled.** Admins can paste hand-written `<sbn-*>` HTML and confirm CRUD round-trips even before 2a/2b are done. The editor track (steps 3–7) has no dependency on the public-player runtime — TipTap chip NodeViews don't render public components. Each step in both tracks is independently shippable.
 
 ---
 

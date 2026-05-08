@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Library;
 use App\Http\Controllers\Controller;
 use App\Models\Leadsheet;
 use App\Models\RhythmPattern;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class RhythmLibraryController extends Controller
@@ -81,7 +82,7 @@ class RhythmLibraryController extends Controller
         ]);
     }
 
-    private function serializePattern(RhythmPattern $pattern): array
+    public function serializePattern(RhythmPattern $pattern): array
     {
         $styleSlug = self::CATEGORY_TO_STYLE[strtolower($pattern->category ?? '')] ?? 'pop';
 
@@ -102,5 +103,36 @@ class RhythmLibraryController extends Controller
             'percBass' => $pattern->perc_bass,
             'demoUrl' => $pattern->mp3_file ? '/audio/rhythm-demos/' . $pattern->mp3_file : null,
         ];
+    }
+
+    // ── Phase 11b: JSON endpoints for mountSbnNodes.ts + palette search ───────
+
+    public function apiShow(string $slug): \Illuminate\Http\JsonResponse
+    {
+        $pattern = RhythmPattern::where('slug', $slug)->firstOrFail();
+
+        return response()->json($this->serializePattern($pattern));
+    }
+
+    public function apiSearch(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $q = trim((string) $request->get('q', ''));
+
+        $query = RhythmPattern::ordered();
+        if ($q !== '') {
+            $query->where(function ($qb) use ($q) {
+                $qb->where('name', 'like', "%{$q}%")
+                   ->orWhere('slug', 'like', "%{$q}%")
+                   ->orWhere('category', 'like', "%{$q}%");
+            });
+        }
+
+        $results = $query->limit(20)->get()->map(fn ($p) => [
+            'slug'  => $p->slug,
+            'label' => $p->name,
+            'meta'  => $p->category,
+        ]);
+
+        return response()->json(['results' => $results]);
     }
 }

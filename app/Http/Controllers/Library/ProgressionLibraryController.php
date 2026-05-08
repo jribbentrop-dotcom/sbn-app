@@ -137,7 +137,7 @@ class ProgressionLibraryController extends Controller
         ];
     }
 
-    private function serializeProgression(ChordProgression $progression): array
+    public function serializeProgression(ChordProgression $progression): array
     {
         // Map progression categories to style slugs for colors
         $styleSlug = $this->mapCategoryToStyleSlug($progression->category);
@@ -188,5 +188,37 @@ class ProgressionLibraryController extends Controller
             ->toArray();
 
         return $tags;
+    }
+
+    // ── Phase 11b: JSON endpoints for mountSbnNodes.ts + palette search ───────
+
+    public function apiShow(Request $request, string $slug): \Illuminate\Http\JsonResponse
+    {
+        $progression = ChordProgression::where('slug', $slug)->firstOrFail();
+
+        return response()->json($this->serializeProgression($progression));
+    }
+
+    public function apiSearch(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $q = trim((string) $request->get('q', ''));
+
+        $query = ChordProgression::query();
+        if ($q !== '') {
+            $query->where(function ($qb) use ($q) {
+                $qb->where('name', 'like', "%{$q}%")
+                   ->orWhere('slug', 'like', "%{$q}%")
+                   ->orWhere('category', 'like', "%{$q}%")
+                   ->orWhere('numerals', 'like', "%{$q}%");
+            });
+        }
+
+        $results = $query->orderBy('name')->limit(20)->get()->map(fn ($p) => [
+            'slug'  => $p->slug,
+            'label' => $p->name,
+            'meta'  => $p->category,
+        ]);
+
+        return response()->json(['results' => $results]);
     }
 }

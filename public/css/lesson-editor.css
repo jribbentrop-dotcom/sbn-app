@@ -1,0 +1,280 @@
+/* ── Phase 11b: TipTap lesson editor ──────────────────────────────────────── */
+
+/* Toolbar */
+.sbn-tiptap-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--clr-border);
+    background: var(--clr-surface-3);
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.sbn-tiptap-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: var(--font-body);
+    font-weight: 600;
+    color: var(--clr-text-dim);
+    transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.sbn-tiptap-btn:hover    { background: var(--clr-surface-2); color: var(--clr-text); border-color: var(--clr-border); }
+.sbn-tiptap-btn.is-active { background: var(--clr-white); color: var(--clr-primary); border-color: var(--clr-border); }
+
+.sbn-tiptap-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--clr-border);
+    margin: 4px 4px;
+    align-self: center;
+}
+
+/* Editor body */
+.sbn-tiptap-wrap {
+    padding: 14px 16px;
+    background: var(--clr-white);
+}
+
+.sbn-tiptap-wrap .tiptap {
+    min-height: 400px;
+    outline: none;
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--clr-text);
+}
+
+.sbn-tiptap-wrap .tiptap p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    color: var(--clr-text-muted);
+    pointer-events: none;
+    float: left;
+    height: 0;
+}
+
+.sbn-tiptap-wrap .tiptap h1 { font-size: 1.5em; margin: 1.1em 0 0.4em; font-weight: 700; }
+.sbn-tiptap-wrap .tiptap h2 { font-size: 1.25em; margin: 1em 0 0.35em; font-weight: 700; }
+.sbn-tiptap-wrap .tiptap h3 { font-size: 1.1em; margin: 0.9em 0 0.3em; font-weight: 600; }
+
+.sbn-tiptap-wrap .tiptap ul,
+.sbn-tiptap-wrap .tiptap ol  { padding-left: 1.5em; margin: 0.5em 0; }
+.sbn-tiptap-wrap .tiptap li  { margin: 0.2em 0; }
+
+.sbn-tiptap-wrap .tiptap strong { font-weight: 700; }
+.sbn-tiptap-wrap .tiptap em     { font-style: italic; }
+.sbn-tiptap-wrap .tiptap code   {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--clr-surface-3);
+    border: 1px solid var(--clr-border);
+    border-radius: 3px;
+    padding: 0 4px;
+}
+
+.sbn-tiptap-wrap .tiptap blockquote {
+    border-left: 3px solid var(--clr-border);
+    padding-left: 1em;
+    color: var(--clr-text-muted);
+    margin: 0.6em 0;
+}
+
+.sbn-tiptap-wrap .tiptap hr {
+    border: none;
+    border-top: 1px solid var(--clr-border);
+    margin: 1.2em 0;
+}
+
+/* SBN inline chip */
+.sbn-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 6px 2px 8px;
+    border-radius: 4px;
+    background: var(--clr-surface-2);
+    border: 1px solid var(--clr-border);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    color: var(--clr-text);
+    vertical-align: middle;
+    user-select: none;
+    white-space: nowrap;
+    line-height: 1.5;
+}
+
+.sbn-chip[data-type="chord"]       { background: #e8f4fd; border-color: #b3d4f5; }
+.sbn-chip[data-type="rhythm"]      { background: #fef3e2; border-color: #f5d28c; }
+.sbn-chip[data-type="progression"] { background: #eaf4ea; border-color: #9fcf9f; }
+.sbn-chip[data-type="song"]        { background: #f4eafd; border-color: #c89fdf; }
+
+.sbn-chip-label { pointer-events: none; }
+
+.sbn-chip-delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 0;
+    width: 16px;
+    height: 16px;
+    line-height: 1;
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    cursor: pointer;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+.sbn-chip-delete:hover { color: var(--clr-danger); background: rgba(0,0,0,.06); }
+
+/* ── Phase 11b: Lesson palette ───────────────────────────────────────────── */
+
+.sbn-palette {
+    display: flex;
+    flex-direction: column;
+}
+
+.sbn-palette-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--clr-border);
+}
+
+.sbn-palette-tab {
+    flex: 1;
+    padding: 7px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    color: var(--clr-text-muted);
+    transition: color 0.15s, border-color 0.15s;
+}
+.sbn-palette-tab:hover { color: var(--clr-text-dim); }
+.sbn-palette-tab.is-active                { color: var(--clr-text); border-bottom-color: var(--clr-primary); }
+.sbn-palette-tab--chord.is-active         { border-bottom-color: #3b82f6; color: #3b82f6; }
+.sbn-palette-tab--rhythm.is-active        { border-bottom-color: #f59e0b; color: #b45309; }
+.sbn-palette-tab--progression.is-active   { border-bottom-color: #22c55e; color: #15803d; }
+.sbn-palette-tab--song.is-active          { border-bottom-color: #a855f7; color: #7e22ce; }
+
+.sbn-palette-search {
+    padding: 8px;
+    border-bottom: 1px solid var(--clr-border);
+    background: var(--clr-surface-3);
+}
+
+.sbn-palette-results {
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.sbn-palette-empty {
+    padding: 14px 12px;
+    font-size: 12px;
+    color: var(--clr-text-muted);
+    text-align: center;
+}
+
+.sbn-palette-error { color: var(--clr-danger); }
+
+.sbn-palette-item {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding: 7px 10px 7px 13px;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--clr-border-dim);
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.1s;
+}
+.sbn-palette-item:hover   { background: var(--clr-surface-2); }
+.sbn-palette-item:last-child { border-bottom: none; }
+
+.sbn-palette-item-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--clr-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sbn-palette-item-meta {
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    margin-top: 1px;
+}
+
+/* left accent stripe per type */
+.sbn-palette-item--chord       { border-left: 3px solid #3b82f6; }
+.sbn-palette-item--rhythm      { border-left: 3px solid #f59e0b; }
+.sbn-palette-item--progression { border-left: 3px solid #22c55e; }
+.sbn-palette-item--song        { border-left: 3px solid #a855f7; }
+
+/* ── Phase 11b: Slash command popup ─────────────────────────────────────── */
+
+.sbn-slash-popup {
+    z-index: 1000;
+    min-width: 230px;
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--clr-shadow);
+    overflow: hidden;
+}
+
+.sbn-slash-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 14px;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--clr-border-dim);
+    cursor: pointer;
+    text-align: left;
+    font-size: 13px;
+    color: var(--clr-text);
+    transition: background 0.1s;
+}
+.sbn-slash-item:last-child { border-bottom: none; }
+.sbn-slash-item:hover,
+.sbn-slash-item.is-active { background: var(--clr-surface-3); }
+
+.sbn-slash-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.sbn-slash-dot--chord       { background: #3b82f6; }
+.sbn-slash-dot--rhythm      { background: #f59e0b; }
+.sbn-slash-dot--progression { background: #22c55e; }
+.sbn-slash-dot--song        { background: #a855f7; }
+
+.sbn-slash-label { flex: 1; font-weight: 600; }
+
+.sbn-slash-kbd {
+    font-size: 10px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: var(--clr-surface-3);
+    color: var(--clr-text-muted);
+    font-family: var(--font-mono);
+    border: 1px solid var(--clr-border);
+    letter-spacing: 0.02em;
+}

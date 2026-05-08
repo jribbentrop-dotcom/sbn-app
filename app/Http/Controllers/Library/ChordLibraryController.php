@@ -328,4 +328,13 @@ class ChordLibraryController extends Controller
 
         return response()->json(['query' => $q, 'results' => $results]);
     }
+
+    // ── Phase 11b: JSON endpoint for mountSbnNodes.ts ──────────────────────
+
+    public function apiShow(string $slug): \Illuminate\Http\JsonResponse
+    {
+        $chord = ChordDiagram::where('slug', $slug)->firstOrFail();
+
+        return response()->json($this->chordSerializer->serialize($chord));
+    }
 }

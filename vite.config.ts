@@ -8,7 +8,8 @@ export default defineConfig({
             input: [
                 'resources/css/app.css',
                 'resources/js/app.ts',
-                'resources/js/tab-editor/tab-editor.js'
+                'resources/js/tab-editor/tab-editor.js',
+                'resources/js/admin/lesson-editor.ts',
             ],
             refresh: true,
         }),

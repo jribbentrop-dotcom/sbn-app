@@ -56,7 +56,12 @@
     --clr-warning: #f39c12;
     /* same as accent intentionally */
     --clr-error: #ef4444;
+    --clr-danger: #ef4444;       /* alias — use either name */
+    --clr-primary: #3b82f6;      /* blue — same as mod-leadsheet */
     --clr-star: #ffc107;
+
+    /* ── Surface variants ──────────────────────────────── */
+    --clr-bg-inset: #f0f2f5;     /* slightly darker inset background (editors, textareas) */
 
     /* ── Borders & Shadows ─────────────────────────────── */
     --clr-border: #e2e8f0;

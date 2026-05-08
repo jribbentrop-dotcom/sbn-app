@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { mountSbnNodes } from '../../lib/mountSbnNodes';
 
 interface Subsection { title: string; slug: string }
 interface LessonData {
@@ -30,6 +31,7 @@ const emit = defineEmits<{
 const contentRef = ref<HTMLElement | null>(null);
 const activeSubsection = ref<string | null>(null);
 const chunkIds = ref<string[]>([]);
+let unmountSbnNodes: (() => void) | null = null;
 
 const isLocked = computed(() => !!props.lesson && !props.hasAccess && !props.lesson.isPreview);
 const unlockHref = computed(() => (props.productSlug ? `/shop/product/${props.productSlug}` : '/shop'));
@@ -92,12 +94,26 @@ function setActiveChunk(slug: string | null): void {
 function goSubsection(slug: string): void { setActiveChunk(slug); }
 defineExpose({ goSubsection });
 
+async function mountNodes(): Promise<void> {
+  if (unmountSbnNodes) { unmountSbnNodes(); unmountSbnNodes = null; }
+  if (!contentRef.value) return;
+  unmountSbnNodes = await mountSbnNodes(contentRef.value);
+}
+
 watch(() => props.lesson?.slug, async () => {
   await nextTick();
   refreshChunks();
+  await mountNodes();
 });
 
-onMounted(() => { refreshChunks(); });
+onMounted(async () => {
+  refreshChunks();
+  await mountNodes();
+});
+
+onBeforeUnmount(() => {
+  if (unmountSbnNodes) { unmountSbnNodes(); unmountSbnNodes = null; }
+});
 
 function subLabel(slug: string): string {
   const sub = props.lesson?.subsections.find(s => s.slug === slug);
