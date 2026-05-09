@@ -2,8 +2,9 @@
 import { ref, computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
-import RhythmCard from '@/Components/Library/RhythmCard.vue';
+import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import type { RhythmPatternWithMeta } from '@/Components/Library/RhythmPattern.vue';
+import { getCategoryColor } from '@/composables/useCategoryColors';
 
 defineOptions({ layout: PublicLayout });
 
@@ -126,18 +127,32 @@ const filteredGrouped = computed(() => {
             :key="category"
             class="sbn-category-section"
           >
-            <h2 class="sbn-category-header">
-              <span class="sbn-cat-dot" :class="`sbn-cat-dot--${patterns[0]?.styleSlug || 'pop'}`"></span>
+            <h2
+              class="sbn-category-header"
+              :class="`sbn-category-header--${patterns[0]?.styleSlug || 'pop'}`"
+            >
               {{ category }}
-              <span class="sbn-category-count">({{ patterns.length }})</span>
+              <span class="sbn-category-count">{{ patterns.length }}</span>
             </h2>
-            <div class="sbn-patterns-grid">
-              <RhythmCard
+            <div class="sbn-patterns-list">
+              <Link
                 v-for="pattern in patterns"
                 :key="pattern.id"
-                :pattern="pattern"
-                :mini="false"
-              />
+                :href="`/library/rhythms/${pattern.slug}`"
+                class="sbn-pattern-row"
+                :class="`sbn-pattern-row--${patterns[0]?.styleSlug || 'pop'}`"
+              >
+                <div class="sbn-pattern-row-head">
+                  <span class="sbn-pattern-row-name">{{ pattern.name }}</span>
+                  <span class="sbn-pattern-row-badges">
+                    <span class="sbn-badge sbn-badge-muted">{{ pattern.timeSignature }}</span>
+                    <span class="sbn-badge sbn-badge-muted">{{ pattern.bpm }} BPM</span>
+                    <span v-if="pattern.gridType !== 'sixteenth'" class="sbn-badge" :class="`sbn-badge-${pattern.gridType}`">{{ pattern.gridType }}</span>
+                  </span>
+                </div>
+                <p v-if="pattern.description" class="sbn-pattern-row-desc">{{ pattern.description }}</p>
+                <RhythmStrip :pattern="pattern" :show-meta="false" :color="getCategoryColor(pattern.styleSlug)" />
+              </Link>
             </div>
           </div>
         </div>
@@ -231,43 +246,132 @@ const filteredGrouped = computed(() => {
 .sbn-category-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--clr-text-muted);
-  margin: 0 0 16px;
-  padding-bottom: 8px;
-  border-bottom: 2px solid var(--clr-border);
+  letter-spacing: 0.07em;
+  color: #fff;
+  margin: 0 0 14px;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  background: var(--cat-color, var(--clr-style-default));
 }
 
-.sbn-cat-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.sbn-cat-dot--samba { background: var(--clr-style-samba); }
-.sbn-cat-dot--jazz { background: var(--clr-style-jazz); }
-.sbn-cat-dot--latin { background: var(--clr-style-latin); }
-.sbn-cat-dot--pop { background: var(--clr-style-pop); }
-.sbn-cat-dot--bossa { background: var(--clr-style-bossa); }
-.sbn-cat-dot--blues { background: var(--clr-style-blues); }
-.sbn-cat-dot--classical { background: var(--clr-style-classical); }
-.sbn-cat-dot--gold { background: var(--clr-style-gold); }
+.sbn-category-header--bossa    { --cat-color: linear-gradient(100deg, var(--clr-style-bossa), color-mix(in srgb, var(--clr-style-bossa) 40%, white)); }
+.sbn-category-header--jazz     { --cat-color: linear-gradient(100deg, var(--clr-style-jazz), color-mix(in srgb, var(--clr-style-jazz) 40%, white)); }
+.sbn-category-header--samba    { --cat-color: linear-gradient(100deg, var(--clr-style-samba), color-mix(in srgb, var(--clr-style-samba) 40%, white)); }
+.sbn-category-header--latin    { --cat-color: linear-gradient(100deg, var(--clr-style-latin), color-mix(in srgb, var(--clr-style-latin) 40%, white)); }
+.sbn-category-header--blues    { --cat-color: linear-gradient(100deg, var(--clr-style-blues), color-mix(in srgb, var(--clr-style-blues) 40%, white)); }
+.sbn-category-header--pop      { --cat-color: linear-gradient(100deg, var(--clr-style-pop), color-mix(in srgb, var(--clr-style-pop) 40%, white)); }
+.sbn-category-header--classical{ --cat-color: linear-gradient(100deg, var(--clr-style-classical), color-mix(in srgb, var(--clr-style-classical) 40%, white)); }
+.sbn-category-header--gold     { --cat-color: linear-gradient(100deg, var(--clr-style-gold), color-mix(in srgb, var(--clr-style-gold) 40%, white)); }
 
 .sbn-category-count {
-  color: var(--clr-text-muted);
-  font-weight: 400;
+  font-weight: 500;
   font-size: 12px;
+  opacity: 0.8;
+  background: rgba(255,255,255,0.2);
+  padding: 1px 7px;
+  border-radius: 999px;
 }
 
-/* Patterns grid */
-.sbn-patterns-grid {
+/* Patterns list */
+.sbn-patterns-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.sbn-pattern-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--clr-white);
+  border: 1px solid var(--clr-border);
+  border-right: 3px solid var(--row-color, var(--clr-border));
+  border-bottom: 3px solid var(--row-color, var(--clr-border));
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.sbn-pattern-row:hover {
+  box-shadow: 3px 3px 0 var(--row-color, var(--clr-border));
+  transform: translate(-1px, -1px);
+}
+
+.sbn-pattern-row--bossa     { --row-color: var(--clr-style-bossa); }
+.sbn-pattern-row--jazz      { --row-color: var(--clr-style-jazz); }
+.sbn-pattern-row--samba     { --row-color: var(--clr-style-samba); }
+.sbn-pattern-row--latin     { --row-color: var(--clr-style-latin); }
+.sbn-pattern-row--blues     { --row-color: var(--clr-style-blues); }
+.sbn-pattern-row--pop       { --row-color: var(--clr-style-pop); }
+.sbn-pattern-row--classical { --row-color: var(--clr-style-classical); }
+.sbn-pattern-row--gold      { --row-color: var(--clr-style-gold); }
+
+.sbn-pattern-row-desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--clr-text-dim);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sbn-badge {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sbn-pattern-row-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sbn-pattern-row-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--clr-text);
+  flex: 1;
+}
+
+.sbn-pattern-row-badges {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.sbn-badge {
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--clr-surface-2);
+  color: var(--clr-text-muted);
+}
+
+.sbn-badge-muted {
+  background: var(--clr-surface-3);
+}
+
+.sbn-badge-eighth {
+  background: #ebf8ff;
+  color: var(--clr-style-jazz);
+}
+
+.sbn-badge-triplet {
+  background: #f0fdf4;
+  color: var(--clr-style-samba);
 }
 
 /* No results */
@@ -291,7 +395,7 @@ const filteredGrouped = computed(() => {
 
 /* Responsive */
 @media (max-width: 768px) {
-  .sbn-patterns-grid {
+  .sbn-patterns-list {
     grid-template-columns: 1fr;
   }
 

@@ -1,0 +1,183 @@
+# SBN Course System — Reference
+
+Living reference for the course system as it works **today**. Update this doc when behavior changes; do not append phase narratives. For phase-by-phase migration history see [Frontend-Migration-Plan.md](Frontend-Migration-Plan.md).
+
+For visual tokens, brand colors, fonts, and design-system load order see [SBN-Design-Reference.md](SBN-Design-Reference.md). This doc does not redocument those.
+
+---
+
+## 1. Overview
+
+Two surfaces sharing one data model and one HTML contract:
+
+- **Public player** — Inertia/Vue page lessons render to. Reader-facing.
+- **Admin editor** — Blade page hosting a Vue island (TipTap + palette). Author-facing.
+
+A lesson is HTML stored as a string. Inside that HTML, custom `<sbn-*>` tags act as placeholders for live components. The public runtime walks the rendered DOM, fetches data per tag, and mounts the matching Vue component on each tag element. The admin editor inserts the same `<sbn-*>` tags via TipTap atom nodes; what's stored is the same HTML the player reads.
+
+One contract — the `<sbn-*>` tag set in §3 — binds editor, runtime, and JSON API. All three must agree on attrs.
+
+---
+
+## 2. Data model
+
+Two tables: `sbn_courses` and `sbn_lessons`.
+
+- [`Course`](../app/Models/Course.php) — `Course extends Model`. Casts `genres`/`levels`/`topics` as array, `is_free` as bool. `hasMany` lessons (ordered by `sort_order`). `belongsTo` `Product` for paid courses. Scopes: `published()`, `byGenre()`, `byLevel()`. Accessors: `primaryGenre`, `primaryLevel`, `lessonCount`, `isGated`.
+- [`Lesson`](../app/Models/Lesson.php) — `Lesson extends Model`. `belongsTo` Course. `content` is `longText` containing the lesson HTML. Scope: `published()`. Accessor: `subsections` parses `<h2 id="section-…">` headings out of `content` for sidebar nav.
+
+No DB migration is required to add new `<sbn-*>` types — they live inside `content` HTML.
+
+---
+
+## 3. The `<sbn-*>` tag family
+
+Stored in `content` as plain HTML. Always require explicit closing tags (`<sbn-foo></sbn-foo>`) — the HTML parser does not honor self-closing on unknown elements.
+
+| Tag | Mounted? | Attrs | Public renderer |
+|---|---|---|---|
+| `<sbn-chord>` | yes | `slug` (required), `root` (optional, e.g. `F`) | [`ChordCard.vue`](../resources/js/Components/Library/ChordCard.vue) |
+| `<sbn-rhythm>` | yes | `slug` (required) | [`RhythmStrip.vue`](../resources/js/Components/Library/RhythmStrip.vue) — TODO: migrate embed in `mountSbnNodes.ts` from `RhythmCard` (see `SBN-Rhythm-Reference.md §11`) |
+| `<sbn-progression>` | yes | `slug` (required), `key` (optional, default `C`) | [`ChordProgressionViewer.vue`](../resources/js/Components/Library/ChordProgressionViewer.vue) |
+| `<sbn-song>` | no — link only | `slug` (required), `label` (optional, default = slug) | none — see §5.2 |
+| `<sbn-youtube>` | yes (no fetch) | `id` (required), `start` (optional, seconds) | inline `<iframe>` to `youtube-nocookie.com` |
+
+**Attr semantics:**
+
+- `<sbn-chord root="F">` — server-side fret-shifts the stored shape to the requested root. See §7.2.
+- `<sbn-progression key="Bb">` — runs the progression builder in that key, returns voiced tiles.
+- `<sbn-song label="…">` — text shown in the link. If absent, slug is shown.
+
+---
+
+## 4. JSON API
+
+Public, no auth. Defined in [`routes/web.php`](../routes/web.php) under `Route::prefix('api/sbn')`.
+
+| Method | Path | Purpose | Returns |
+|---|---|---|---|
+| GET | `/api/sbn/chords/{slug}?root=F` | Mount payload for `<sbn-chord>` | `ChordSerializer::serialize()` shape, with `root_note` / `diagram_data` / `start_fret` / `interval_labels` / `notes` shifted when `root` is given |
+| GET | `/api/sbn/rhythms/{slug}` | Mount payload for `<sbn-rhythm>` | Pattern object — `RhythmCard`'s `pattern` prop |
+| GET | `/api/sbn/progressions/{slug}?key=Bb&pass2=1` | Mount payload for `<sbn-progression>` | `{ progression, key, chords: [{chordName, diagramData, beats, slug}] }` |
+| GET | `/api/sbn/songs/{slug}/viewer-data` | Used by future leadsheet embed (not by `<sbn-song>` link) | Full leadsheet viewer payload via `LeadsheetViewerService` |
+| GET | `/api/sbn/{type}` | Palette search (admin) | `{ results: […] }` |
+
+Controllers: [`ChordLibraryController::apiShow`](../app/Http/Controllers/Library/ChordLibraryController.php), [`ProgressionLibraryController::apiShow`](../app/Http/Controllers/Library/ProgressionLibraryController.php), [`RhythmLibraryController::apiShow`](../app/Http/Controllers/Library/RhythmLibraryController.php), [`SongLibraryController::apiViewerData`](../app/Http/Controllers/Library/SongLibraryController.php).
+
+---
+
+## 5. Public player
+
+### 5.1 Components
+
+- [`Pages/Courses/Player.vue`](../resources/js/Pages/Courses/Player.vue) — top-level page (sidebar + content + bottom bar). Inertia entry.
+- [`Components/Course/LessonContent.vue`](../resources/js/Components/Course/LessonContent.vue) — renders one lesson. Owns the `v-html` mount and the chunking logic.
+- [`Components/Course/LessonSidebar.vue`](../resources/js/Components/Course/LessonSidebar.vue) — lesson list, grouped by `section_title`.
+- [`Components/Course/BottomBar.vue`](../resources/js/Components/Course/BottomBar.vue) — prev/next, related songs, practice.
+- [`lib/mountSbnNodes.ts`](../resources/js/lib/mountSbnNodes.ts) — mount runtime (§5.3).
+
+### 5.2 LessonContent — render + chunking
+
+`v-html` injects `lesson.content` into a `<article>`. After the DOM updates, two things happen in order:
+
+1. **Chunking** (`refreshChunks`): if the lesson has `<h2 id="section-…">` headings, the body is split into subsection chunks wrapped in `<div class="sbn-subsection-chunk">`. Tabs at the top switch chunks via `display:none`. Lessons without those headings render flat.
+2. **Mount** (`mountNodes`): walks the article DOM, runs `mountSbnNodes()` to attach Vue apps to every `<sbn-*>` tag.
+
+`<sbn-song>` is rendered inline in this step as a styled link — no Vue component, no fetch. Its element gets `innerHTML = '<a class="sbn-song-link" href="/library/songs/{slug}/viewer">{label} ↗</a>'`. See §7.4 for why.
+
+On lesson change, `unmountSbnNodes()` is called before re-running. On `onBeforeUnmount`, same.
+
+### 5.3 mountSbnNodes — runtime contract
+
+The mount runtime in [`mountSbnNodes.ts`](../resources/js/lib/mountSbnNodes.ts) has three concerns: **fetch**, **adapt**, **mount**.
+
+- **Component registry** (`components`) — type → dynamic import. Add new mountable types here.
+- **Endpoint map** (`apiUrl`) — type → URL builder. Query string is appended via `queryStringFor`.
+- **Per-type adapter** (`propsFor`) — `(apiPayload) => propBag`. Each component has its own prop convention; the registry reconciles. See §7.1 for why per-type, not generic spread.
+- **Per-type query builder** (`queryStringFor`) — reads attrs off the element (e.g. `root` on `<sbn-chord>`) and builds the query string. New attrs go here.
+- **Fetch cache** — keyed by `${type}:${url}` so `?root=F` and `?root=G` cache separately. Cleared on full unmount.
+
+Returns an unmount function the caller invokes on lesson change or component teardown.
+
+---
+
+## 6. Admin editor
+
+Blade page hosting a Vue island. Lives in [`resources/views/admin/lessons/edit.blade.php`](../resources/views/admin/lessons/edit.blade.php). Form posts to standard Laravel routes — no separate save endpoint. The editor syncs HTML to a hidden `<textarea id="content-sync" name="content">` on every change; submit picks it up.
+
+### 6.1 Routes
+
+Defined in [`routes/web.php`](../routes/web.php) under `Route::middleware('auth')->prefix('admin')`:
+
+- `admin.courses.{index,create,store,edit,update,destroy}` — [`Admin\CourseController`](../app/Http/Controllers/Admin/CourseController.php)
+- `admin.courses.lessons.{create,store}` — nested
+- `admin.lessons.{edit,update,destroy}` — shallow, [`Admin\LessonController`](../app/Http/Controllers/Admin/LessonController.php)
+- `admin.lessons.reorder` — POST array of `{id, sort_order}`
+- `admin.lessons.upload-image` — multipart, returns `{ url }`
+
+### 6.2 LessonEditor.vue — TipTap + chips + bridge
+
+[`resources/js/admin/LessonEditor.vue`](../resources/js/admin/LessonEditor.vue)
+
+- **TipTap** with `StarterKit`, `Placeholder`, `Image`, `SlashCommands`, plus the SBN custom nodes.
+- **Chip nodes** — one per type via `makeSbnNode(type)`. Each is `inline + atom` (or `block + atom` for youtube). Attrs per type are declared in the `ATTRS` map. `parseHTML` matches the tag; `renderHTML` round-trips with `mergeAttributes`. NodeView renders a `<span class="sbn-chip">` with type label, slug suffix, ✎ edit, ✕ delete.
+- **`__sbnInsert(type, slug, extras)`** — bridge function on `window` that the palette calls. Inserts `{ type: 'sbn-{type}', attrs: { slug, ...extras } }` at the cursor. `image`/`media` go through TipTap's image node instead.
+- **`__sbnPalette(type)`** — bridge function on `window` that switches the palette to a tab and focuses its search input. Called by slash commands and Ctrl+Shift keyboard shortcuts.
+- **Hidden textarea sync** — every TipTap update writes `editor.getHTML()` into `#content-sync`. Form submit picks it up unchanged.
+
+### 6.3 LessonPalette.vue — search + insert
+
+[`resources/js/admin/LessonPalette.vue`](../resources/js/admin/LessonPalette.vue)
+
+- Tabs: Chord | Rhythm | Progression | Song | Media.
+- Search hits `/api/sbn/{type}` (see §4 search row). Debounced 250ms.
+- Click row → for chord/progression/song, expands an inline config row (root selector / key selector / label input) before insert. For rhythm/media, inserts immediately.
+- Insert calls `window.__sbnInsert(type, slug, extras)`.
+- Drag-drop emits the type+slug as JSON; **drag insertion does not carry extras** (chord drops as `root=""`, progression as `key="C"`). Documented limitation.
+- Media tab is per-lesson scoped; uploads via `/admin/lessons/{id}/upload-image`.
+
+### 6.4 slashCommands.ts
+
+[`resources/js/admin/slashCommands.ts`](../resources/js/admin/slashCommands.ts)
+
+Typing `/` opens an inline popup with the SBN types, image, and youtube. Picking a type calls `window.__sbnPalette(type)` — which switches the palette and focuses search. Insertion happens through the normal palette path, not the slash menu. One code path. YouTube is the exception: it prompts for a URL and inserts directly.
+
+---
+
+## 7. Conventions
+
+### 7.1 Per-type prop adapter (not generic spread)
+
+`mountSbnNodes` does **not** spread the API payload as flat props. Each component has a different prop shape — `ChordCard` takes a single `chord` prop, `RhythmCard` takes `pattern`, `ChordProgressionViewer` takes a top-level `chords` array. A generic spread would break two of three. Instead, `propsFor[type](data)` returns the exact prop bag for that type. New types add an entry; no universal convention is enforced.
+
+### 7.2 Server-side chord transposition
+
+When `<sbn-chord root="F">` is mounted, transposition happens in `ChordLibraryController::apiShow` via the existing `shapeCalculator->calculateFrets($chord, $root)` helper (the same path the library page uses). The client receives a payload with `start_fret`, `diagram_data`, `interval_labels`, `notes`, and `root_note` already shifted. `ChordCard` is unchanged and unaware of transposition. Consequence: each unique `root` is a separate fetch and a separate cache entry; this is fine because the per-shape variant set is small.
+
+### 7.3 Server-side progression tile-building
+
+`<sbn-progression key="Bb">` triggers the same `harmonicContext->buildFromNumerals('Bb', $progression->numerals)` + `progressionBuilder->buildVoicings()` pipeline the library page uses. `apiShow` returns `{ chords: [...] }` in the exact shape `ChordProgressionViewer` accepts. No service factoring beyond what already exists in the library controller.
+
+### 7.4 `<sbn-song>` is a link, not an embed
+
+The leadsheet viewer is a full Inertia page with its own layout, related-songs section, and audio engine. Embedding it inline in a lesson would be wrong on principle, not just technically. So `<sbn-song>` renders as a styled link to `/library/songs/{slug}/viewer`. No component, no fetch, no payload. If a future need arises for a richer in-lesson preview, build a dedicated `LeadsheetEmbed.vue` then — don't reuse the page component.
+
+### 7.5 HTML normalization
+
+Custom elements in HTML do not honor self-closing syntax (`<sbn-chord />` is parsed as an open tag swallowing the rest of the document). Stored content must use explicit closing tags. TipTap's `renderHTML` already produces compliant output via `mergeAttributes`. If pasted or hand-edited content uses self-closing form, it will break — consider a server-side normalization in `LessonRequest` if this becomes a recurring author error.
+
+### 7.6 Standard Laravel POST, hidden textarea sync
+
+Editor state is synced into a hidden `<textarea name="content">` on every TipTap update. Form submit picks up the value. No autosave, no separate save endpoint, no JSON-vs-HTML mismatch. Server-side validation errors round-trip via `old('content')` on re-render — TipTap reads its initial HTML from the same source on next mount.
+
+---
+
+## 8. Open work
+
+Tracked here to prevent future agents from re-deriving the gaps.
+
+- **Mini tab viewer** — small vertical tab display for short examples (≤8 bars). New `<sbn-tab>` node type. Separate spec; not yet drafted.
+- **Drag-drop with extras** — palette drag currently inserts with default attrs only. Reaching feature parity with click-insert needs the drag payload to carry extras.
+- **Chip editing for non-slug attrs** — the chip ✎ button uses `window.prompt` for slug only. Editing root/key/label requires a small modal. Workaround today: delete chip, re-insert from palette.
+- **Self-closing tag normalization** — see §7.5. Server-side `LessonRequest` normalization not yet implemented.
+- **Placeholder cleanup** — imported lessons contain literal `[CHORD DIAGRAMS MISSING]` and `[VIDEO EMBED: …]` strings. Left as visible text intentionally; admins replace them via the palette. Optional `php artisan sbn:scan-lesson-placeholders` command to enumerate progress is not yet built.

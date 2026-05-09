@@ -134,6 +134,95 @@ Do not add this override anywhere else — it is scoped to the chord grid contai
 
 ---
 
+## VINTAGE OFFSET CARD STYLE
+
+**Established 2026-05-09.** A tactile, music-forward card variant used in library listings.
+
+The key idea: a bold right + bottom border in the category colour, with a matching
+box-shadow offset on hover. The card appears to lift off the page diagonally — a nod to
+vintage music print design.
+
+### CSS recipe
+
+```css
+.my-card {
+  border: 1px solid var(--clr-border);
+  border-right:  3px solid var(--row-color, var(--clr-border));
+  border-bottom: 3px solid var(--row-color, var(--clr-border));
+  border-radius: var(--radius);
+  background: var(--clr-white);
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.my-card:hover {
+  box-shadow: 3px 3px 0 var(--row-color, var(--clr-border));
+  transform: translate(-1px, -1px);
+}
+
+/* One modifier per styleSlug sets --row-color */
+.my-card--bossa  { --row-color: var(--clr-style-bossa); }
+.my-card--jazz   { --row-color: var(--clr-style-jazz); }
+.my-card--samba  { --row-color: var(--clr-style-samba); }
+.my-card--latin  { --row-color: var(--clr-style-latin); }
+.my-card--blues  { --row-color: var(--clr-style-blues); }
+.my-card--pop    { --row-color: var(--clr-style-pop); }
+.my-card--classical { --row-color: var(--clr-style-classical); }
+.my-card--gold   { --row-color: var(--clr-style-gold); }
+```
+
+### Rules
+- Only the **right and bottom** edges are bold — not all four sides.
+- The hover `box-shadow` colour must match the border colour exactly (no blur, no spread).
+- `transform: translate(-1px, -1px)` keeps the visual "stamp" effect tight — do not increase.
+- Use `--row-color` (or any CSS custom property) to avoid repeating the colour value.
+- Currently used in: `Pages/Library/Rhythms/Index.vue` (`.sbn-pattern-row`).
+
+---
+
+## CATEGORY GRADIENT HEADER
+
+**Established 2026-05-09.** Full-colour gradient pill for section headings in library listings.
+
+```css
+.sbn-category-header {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  background: var(--cat-color, var(--clr-style-default));
+}
+
+/* Gradient: full colour left → 40% tint right */
+.sbn-category-header--bossa {
+  --cat-color: linear-gradient(100deg,
+    var(--clr-style-bossa),
+    color-mix(in srgb, var(--clr-style-bossa) 40%, white));
+}
+/* repeat for each styleSlug */
+```
+
+Count badge inside the header:
+```html
+<span class="sbn-category-count">12</span>
+```
+```css
+.sbn-category-count {
+  font-weight: 500;
+  font-size: 12px;
+  opacity: 0.8;
+  background: rgba(255,255,255,0.2);
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+```
+
+Currently used in: `Pages/Library/Rhythms/Index.vue`.
+
+---
+
 ## CHORD DIAGRAM CARD SYSTEM
 
 **Established 2026-04-08.** All chord diagram cards across the entire app share one visual system.

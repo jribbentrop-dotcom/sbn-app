@@ -13,6 +13,8 @@ interface Props {
   label?: string | null;
   /** Show meter / bpm meta on the right of the eyebrow. */
   showMeta?: boolean;
+  /** Tint colour for hit/accent cells. Defaults to var(--clr-accent). */
+  color?: string | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -20,6 +22,7 @@ const props = withDefaults(defineProps<Props>(), {
   playable: true,
   label: null,
   showMeta: false,
+  color: null,
 });
 
 const isPlaying = ref(false);
@@ -150,6 +153,7 @@ defineExpose({ play, stop, toggle });
   <div
     class="sbn-rhythm-strip"
     :class="{ 'is-playing': isPlaying }"
+    :style="color ? { '--strip-color': color, '--strip-color-accent': color } : {}"
     role="img"
     :aria-label="`${pattern.name}: ${pattern.timeSignature} pattern`"
   >
@@ -295,10 +299,12 @@ defineExpose({ play, stop, toggle });
   background: var(--clr-surface-3);
 }
 .sbn-rhythm-strip-cell.is-hit {
-  background: var(--clr-accent);
+  background: var(--strip-color, var(--clr-accent));
+  opacity: 0.75;
 }
 .sbn-rhythm-strip-cell.is-accent {
-  background: var(--clr-red);
+  background: var(--strip-color-accent, var(--clr-red));
+  opacity: 1;
 }
 
 /* Thumb row — slimmer cells */
@@ -316,10 +322,12 @@ defineExpose({ play, stop, toggle });
   background: var(--clr-border);
 }
 .sbn-rhythm-strip-cell-thumb.is-hit {
-  background: var(--clr-text-dim);
+  background: var(--strip-color, var(--clr-text-dim));
+  opacity: 0.5;
 }
 .sbn-rhythm-strip-cell-thumb.is-accent {
-  background: var(--clr-text);
+  background: var(--strip-color-accent, var(--clr-text));
+  opacity: 0.8;
 }
 
 /* Current step highlight */
