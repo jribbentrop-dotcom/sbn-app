@@ -17,6 +17,26 @@ class Lesson extends Model
         'sort_order'  => 'integer',
     ];
 
+    protected static function booted()
+    {
+        static::saving(function ($lesson) {
+            if ($lesson->content) {
+                $lesson->content = preg_replace_callback('/<h2([^>]*)>(.*?)<\/h2>/is', function($matches) {
+                    $attrs = $matches[1];
+                    $title = strip_tags($matches[2]);
+                    $slug = 'section-' . \Illuminate\Support\Str::slug($title);
+                    
+                    if (str_contains($attrs, "id=\"$slug\"") || str_contains($attrs, "id='$slug'")) {
+                        return $matches[0];
+                    }
+                    
+                    $attrs = preg_replace('/ id=["\'][^"\']*["\']/', '', $attrs);
+                    return "<h2{$attrs} id=\"{$slug}\">{$matches[2]}</h2>";
+                }, $lesson->content);
+            }
+        });
+    }
+
     // =========================================================================
     // RELATIONS
     // =========================================================================

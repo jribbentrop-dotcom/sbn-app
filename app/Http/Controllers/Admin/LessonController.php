@@ -61,6 +61,18 @@ class LessonController extends Controller
             ->with('success', 'Lesson deleted.');
     }
 
+    public function updateField(Request $request, Lesson $lesson): JsonResponse
+    {
+        $validated = $request->validate([
+            'field' => ['required', 'string', \Illuminate\Validation\Rule::in(['section_title', 'title', 'status'])],
+            'value' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $lesson->update([$validated['field'] => $validated['value']]);
+
+        return response()->json(['ok' => true]);
+    }
+
     public function reorder(Request $request, Course $course): JsonResponse
     {
         $validated = $request->validate([
@@ -90,5 +102,24 @@ class LessonController extends Controller
         $file->move(public_path("images/lessons/{$lesson->id}"), "{$uuid}.{$ext}");
 
         return response()->json(['url' => asset($path)]);
+    }
+
+    public function getImages(Lesson $lesson): JsonResponse
+    {
+        $dir = public_path("images/lessons/{$lesson->id}");
+        if (!\Illuminate\Support\Facades\File::exists($dir)) {
+            return response()->json(['images' => []]);
+        }
+
+        $files = \Illuminate\Support\Facades\File::files($dir);
+        $images = array_map(function ($f) use ($lesson) {
+            $filename = $f->getFilename();
+            return [
+                'url' => asset("images/lessons/{$lesson->id}/{$filename}"),
+                'name' => $filename,
+            ];
+        }, $files);
+
+        return response()->json(['images' => $images]);
     }
 }

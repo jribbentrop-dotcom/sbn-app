@@ -21,6 +21,7 @@ const props = defineProps<{
   courseSlug: string;
   prevLesson: LessonNav | null;
   nextLesson: LessonNav | null;
+  onChordSelect?: ((slug: string, root: string) => void) | null;
 }>();
 
 const emit = defineEmits<{
@@ -68,7 +69,15 @@ function refreshChunks(): void {
     const wrapper = document.createElement('div');
     wrapper.className = 'sbn-subsection-chunk';
     wrapper.dataset.section = chunk.slug;
-    for (const node of chunk.nodes) wrapper.appendChild(node);
+    
+    for (const node of chunk.nodes) {
+      // Remove ID from the heading so browser doesn't scroll to it natively
+      if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).id === chunk.slug) {
+        (node as HTMLElement).removeAttribute('id');
+      }
+      wrapper.appendChild(node);
+    }
+    
     root.appendChild(wrapper);
     chunkIds.value.push(chunk.slug);
   }
@@ -97,7 +106,7 @@ defineExpose({ goSubsection });
 async function mountNodes(): Promise<void> {
   if (unmountSbnNodes) { unmountSbnNodes(); unmountSbnNodes = null; }
   if (!contentRef.value) return;
-  unmountSbnNodes = await mountSbnNodes(contentRef.value);
+  unmountSbnNodes = await mountSbnNodes(contentRef.value, { onChordSelect: props.onChordSelect ?? null });
 }
 
 watch(() => props.lesson?.slug, async () => {
@@ -132,7 +141,6 @@ function subLabel(slug: string): string {
             <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
         </button>
-        {{ lesson.title }}
       </div>
       <h1 class="vC-title">{{ lesson.title }}</h1>
       <div v-if="chunkIds.length" class="vC-head-tabs">

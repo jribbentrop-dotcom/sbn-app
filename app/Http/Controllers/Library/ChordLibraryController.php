@@ -331,10 +331,21 @@ class ChordLibraryController extends Controller
 
     // ── Phase 11b: JSON endpoint for mountSbnNodes.ts ──────────────────────
 
-    public function apiShow(string $slug): \Illuminate\Http\JsonResponse
+    public function apiShow(Request $request, string $slug): \Illuminate\Http\JsonResponse
     {
-        $chord = ChordDiagram::where('slug', $slug)->firstOrFail();
+        $chord   = ChordDiagram::where('slug', $slug)->firstOrFail();
+        $payload = $this->chordSerializer->serialize($chord);
 
-        return response()->json($this->chordSerializer->serialize($chord));
+        $root = trim((string) $request->get('root', ''));
+        if ($root !== '') {
+            $transposed = $this->shapeCalculator->calculateFrets($chord, $root);
+            $payload['root_note']       = $root;
+            $payload['diagram_data']    = $transposed['diagram_data']    ?? $payload['diagram_data']    ?? null;
+            $payload['start_fret']      = $transposed['start_fret']      ?? $payload['start_fret']      ?? 1;
+            $payload['interval_labels'] = $transposed['interval_labels'] ?? $payload['interval_labels'] ?? '';
+            $payload['notes']           = $transposed['notes']           ?? $payload['notes']           ?? '';
+        }
+
+        return response()->json($payload);
     }
 }

@@ -7,6 +7,7 @@ const SLUG_TO_TOKEN: Record<string, string> = {
     'pop':        '--clr-style-pop',
     'classical':  '--clr-style-classical',
     'iconic':     '--clr-style-gold',
+    'general':    '--clr-style-general',
     // Progression category mappings
     'modal':      '--clr-style-pop',      // Modal uses pop colors
     'other':      '--clr-style-bossa',    // Other uses default bossa color

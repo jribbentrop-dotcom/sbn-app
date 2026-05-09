@@ -94,12 +94,15 @@ onUnmounted(() => {
                     </li>
                     <!-- Col 2: Featured Course thumbnail -->
                     <li class="mega-col-featured">
-                        <a href="#">Featured Course</a>
-                        <p class="mega-featured-desc">Bossa Nova Basics — the foundation</p>
                         <div class="mega-featured-image">
-                            <Link href="/learn/bossa-nova-basics" @click="closeAllMenus">
-                                <img src="/images/mega-menu/courses-featured.webp" alt="Bossa Nova Basics">
-                                <span class="mega-featured-button">Start Course</span>
+                            <Link href="/learn/gilberto-plays-jobim" @click="closeAllMenus">
+                                <img src="/images/courses/gilbertoplaysobim.jpg" alt="Gilberto plays Jobim">
+                                <div class="mega-featured-title-top">
+                                    <p class="mega-featured-desc">Gilberto plays Jobim — Masterclass</p>
+                                </div>
+                                <div class="mega-featured-overlay">
+                                    <span class="mega-featured-button">Start Course</span>
+                                </div>
                             </Link>
                         </div>
                     </li>
@@ -144,12 +147,15 @@ onUnmounted(() => {
                     </li>
                     <!-- Col 2: Featured Chord thumbnail -->
                     <li class="mega-col-featured">
-                        <a href="#">Featured Content</a>
-                        <p class="mega-featured-desc">Free Music Theory Course</p>
                         <div class="mega-featured-image">
                             <Link href="/learn/music-theory-basics" @click="closeAllMenus">
-                                <img src="/images/mega-menu/explore-featured.webp" alt="Featured Chord">
-                                <span class="mega-featured-button">Explore</span>
+                                <img src="/images/mega-menu/explore-featured.webp" alt="Featured Content">
+                                <div class="mega-featured-title-top">
+                                    <p class="mega-featured-desc">Free Music Theory Course</p>
+                                </div>
+                                <div class="mega-featured-overlay">
+                                    <span class="mega-featured-button">Explore</span>
+                                </div>
                             </Link>
                         </div>
                     </li>
@@ -191,12 +197,15 @@ onUnmounted(() => {
                     </li>
                     <!-- Col 2: Featured Product thumbnail -->
                     <li class="mega-col-featured">
-                        <a href="#">Featured Product</a>
-                        <p class="mega-featured-desc">Intermediate Bossa Nova Collection</p>
                         <div class="mega-featured-image">
                             <Link href="/shop" @click="closeAllMenus">
                                 <img src="/images/mega-menu/shop-featured.webp" alt="Featured Product">
-                                <span class="mega-featured-button">View Product</span>
+                                <div class="mega-featured-title-top">
+                                    <p class="mega-featured-desc">Intermediate Bossa Nova Collection</p>
+                                </div>
+                                <div class="mega-featured-overlay">
+                                    <span class="mega-featured-button">View Product</span>
+                                </div>
                             </Link>
                         </div>
                     </li>

@@ -59,6 +59,7 @@
                         <textarea id="content-sync" name="content" style="display:none;">{{ old('content', $lesson->content) }}</textarea>
                         <div id="lesson-editor"
                              data-initial="{{ old('content', $lesson->content ?? '') }}"
+                             data-lesson-id="{{ $lesson->id }}"
                              style="border:1px solid var(--clr-border); border-radius:var(--radius-sm); overflow:hidden;">
                         </div>
                     </div>
@@ -122,7 +123,7 @@
             <div class="sbn-editor-card">
                 <div class="sbn-editor-card-header"><h2>Insert component</h2></div>
                 <div class="sbn-editor-card-body" style="padding:0;">
-                    <div id="lesson-palette"></div>
+                    <div id="lesson-palette" data-lesson-id="{{ $lesson->id }}"></div>
                 </div>
             </div>
 

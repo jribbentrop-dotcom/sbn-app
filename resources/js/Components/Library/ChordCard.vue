@@ -9,9 +9,10 @@ interface Props {
     chord: ChordDiagramData;
     mini?: boolean;
     showRoot?: boolean;
+    onChordClick?: (() => void) | null;
 }
 
-const props = withDefaults(defineProps<Props>(), { mini: false, showRoot: false });
+const props = withDefaults(defineProps<Props>(), { mini: false, showRoot: false, onChordClick: null });
 
 const formattedName = computed(() => {
     // Normally cards show quality + extensions only (no root) — the library
@@ -120,7 +121,12 @@ async function playChord() {
 </script>
 
 <template>
-    <div ref="cardRef" class="sbn-chord-card" :class="{ 'sbn-chord-card--mini': mini }">
+    <div
+        ref="cardRef"
+        class="sbn-chord-card"
+        :class="{ 'sbn-chord-card--mini': mini, 'sbn-chord-card--clickable': !!onChordClick }"
+        @click="onChordClick?.()"
+    >
         <!-- Chord name -->
         <div class="sbn-card-chord-name" v-html="formattedName" />
 
@@ -135,7 +141,7 @@ async function playChord() {
                 :class="{ 'is-playing': isPlaying }"
                 title="Play chord"
                 aria-label="Play chord"
-                @click.prevent="playChord"
+                @click.stop.prevent="playChord"
             >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M8 5v14l11-7z"/>

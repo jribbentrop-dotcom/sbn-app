@@ -315,7 +315,7 @@
                                 </template>
                             </td>
                             <td>
-                                <span class="sbn-prog-cat-badge" :style="'--cat-clr:' + prog.cat_color">
+                                <span class="sbn-cat-badge" :style="'--cat-clr:' + prog.cat_color">
                                     <span x-text="prog.category"></span>
                                 </span>
                                 <template x-if="prog.tonality !== 'both'">

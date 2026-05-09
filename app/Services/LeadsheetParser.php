@@ -317,8 +317,10 @@ class LeadsheetParser
             return null;
         }
 
-        // Try database via Eloquent
-        $pattern = RhythmPattern::where('slug', $slug)->first();
+        // Try database via Eloquent (supports numeric ID or legacy slug)
+        $pattern = is_numeric($slug)
+            ? RhythmPattern::find($slug)
+            : RhythmPattern::where('slug', $slug)->first();
 
         if ($pattern) {
             return [

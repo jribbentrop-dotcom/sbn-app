@@ -111,9 +111,14 @@ class CourseController extends Controller
         $hasAccess = $this->checkAccess($request, $course);
 
         $lessonData = null;
+        $chordSlugs = [];
         if ($activeLesson) {
             $canView = $hasAccess || $activeLesson->is_preview;
             $lessonData = $this->serializeLesson($activeLesson, withContent: $canView);
+            if ($canView && $activeLesson->content) {
+                preg_match_all('/<sbn-chord[^>]+slug="([^"]+)"/i', $activeLesson->content, $matches);
+                $chordSlugs = array_values(array_unique($matches[1] ?? []));
+            }
         }
 
         return Inertia::render('Courses/Player', [
@@ -121,6 +126,7 @@ class CourseController extends Controller
             'lessons' => $allLessons->map(fn ($lessonItem) => $this->serializeLessonStub($lessonItem)),
             'lesson' => $lessonData,
             'hasAccess' => $hasAccess,
+            'chordSlugs' => $chordSlugs,
         ]);
     }
 

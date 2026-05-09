@@ -24,23 +24,13 @@
             </div>
             <div class="sbn-editor-card-body">
 
-                {{-- Name + Slug --}}
-                <div class="sbn-form-row sbn-form-row-2">
+                {{-- Name --}}
+                <div class="sbn-form-row">
                     <div class="sbn-form-group">
                         <label for="name">Name</label>
                         <input type="text" id="name" class="sbn-search-input" style="padding-left: 14px;"
                                x-model="form.name"
-                               @input="autoSlug()"
                                placeholder="e.g. Bossa Nova">
-                    </div>
-                    <div class="sbn-form-group">
-                        <label for="slug">Slug</label>
-                        <input type="text" id="slug" class="sbn-search-input" style="padding-left: 14px;"
-                               x-model="form.slug"
-                               @input="manualSlug = true"
-                               placeholder="e.g. bossa-nova"
-                               pattern="[a-z0-9\-]+">
-                        <p class="sbn-form-hint">Lowercase, numbers, hyphens only.</p>
                     </div>
                 </div>
 
@@ -244,17 +234,7 @@
             </div>
         </div>
 
-        {{-- Usage --}}
-        <div class="sbn-editor-card">
-            <div class="sbn-editor-card-header"><h3>Usage</h3></div>
-            <div class="sbn-editor-card-body">
-                <p style="font-size: 13px; font-weight: 600; margin: 0 0 6px; color: var(--clr-text);">In Leadsheets:</p>
-                <code class="usage-code" x-text="'[sbn_leadsheet ... rhythm=&quot;' + (form.slug || 'pattern-slug') + '&quot;]'"></code>
 
-                <p style="font-size: 13px; font-weight: 600; margin: 12px 0 6px; color: var(--clr-text);">Standalone:</p>
-                <code class="usage-code" x-text="'[rhythm pattern=&quot;' + (form.slug || 'pattern-slug') + '&quot;]'"></code>
-            </div>
-        </div>
 
         {{-- Actions --}}
         <div style="display: flex; flex-direction: column; gap: 12px;">
@@ -357,7 +337,6 @@
             },
 
             bars: {{ $isNew ? 1 : 'null' }},
-            manualSlug: {{ $isNew ? 'false' : 'true' }},
             showRaw: false,
             saving: false,
             rhythmArr: [],
@@ -423,10 +402,6 @@
                 this.rhythmArr = this.form.rhythm_pattern.split('');
                 this.thumbArr  = this.form.thumb_pattern.split('');
                 this.updatePreview();
-            },
-
-            autoSlug() {
-                if (!this.manualSlug) this.form.slug = toSlug(this.form.name);
             },
 
             previewHtml: '',
@@ -501,8 +476,8 @@
             },
 
             async save() {
-                if (!this.form.name || !this.form.slug) {
-                    sbnToast('Please enter a name and slug.', 'error');
+                if (!this.form.name) {
+                    sbnToast('Please enter a name.', 'error');
                     return;
                 }
 

@@ -652,11 +652,20 @@ function badgeStyle(genre: string) {
   width: 26px;
   height: 26px;
   border-radius: 999px;
-  background: var(--category-color);
-  color: white;
+  background: var(--clr-white);
+  border: 1.5px solid var(--clr-border);
+  color: var(--clr-text-muted);
   font-size: 11px;
   font-weight: 700;
   flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.sbn-cs-section-header.is-open .sbn-cs-section-num {
+  background: var(--clr-gradient);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 0 0 3px rgba(243, 156, 18, 0.18);
 }
 
 .sbn-cs-section-name {
@@ -706,10 +715,24 @@ function badgeStyle(genre: string) {
 .sbn-cs-lesson-row:hover .sbn-cs-lesson-arrow { color: var(--clr-accent-dim); }
 
 .sbn-cs-lesson-num {
-  font-size: 11px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--clr-white);
+  border: 1.5px solid var(--clr-border-dim);
+  font-size: 10px;
   font-weight: 700;
   color: var(--clr-text-muted);
   text-align: center;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.sbn-cs-lesson-row:hover .sbn-cs-lesson-num {
+  border-color: var(--clr-accent-border);
+  color: var(--clr-accent-dim);
 }
 
 .sbn-cs-lesson-title { font-weight: 500; line-height: 1.35; }

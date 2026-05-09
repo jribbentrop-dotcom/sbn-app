@@ -5,18 +5,28 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { SlashCommands } from './slashCommands';
+import Image from '@tiptap/extension-image';
 
 // ── SBN chip node factory ────────────────────────────────────────────────────
 
-type SbnNodeType = 'chord' | 'rhythm' | 'progression' | 'song';
+type SbnNodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song';
 
-const SBN_TYPES: SbnNodeType[] = ['chord', 'rhythm', 'progression', 'song'];
+const SBN_TYPES: SbnNodeType[] = ['chord', 'rhythm', 'progression', 'sheet', 'song'];
 
 const LABELS: Record<SbnNodeType, string> = {
     chord:       'chord',
     rhythm:      'rhythm',
     progression: 'progression',
+    sheet:       'sheet',
     song:        'song',
+};
+
+const ATTRS: Record<SbnNodeType, Record<string, { default: string }>> = {
+    chord:       { slug: { default: '' }, root:  { default: '' } },
+    rhythm:      { slug: { default: '' } },
+    progression: { slug: { default: '' }, key:   { default: 'C' } },
+    sheet:       { slug: { default: '' }, key:   { default: 'C' } },
+    song:        { slug: { default: '' }, label: { default: '' } },
 };
 
 function makeSbnNode(type: SbnNodeType) {
@@ -27,9 +37,7 @@ function makeSbnNode(type: SbnNodeType) {
         atom: true,   // treat as a single unit — cursor can't enter it
 
         addAttributes() {
-            return {
-                slug: { default: '' },
-            };
+            return ATTRS[type];
         },
 
         parseHTML() {
@@ -49,7 +57,32 @@ function makeSbnNode(type: SbnNodeType) {
 
                 const label = document.createElement('span');
                 label.className = 'sbn-chip-label';
-                label.textContent = `${LABELS[type]}: ${node.attrs.slug}`;
+
+                const extras: string[] = [];
+                if (type === 'chord'       && node.attrs.root)  extras.push(node.attrs.root);
+                if (type === 'progression' && node.attrs.key)   extras.push(`key: ${node.attrs.key}`);
+                if (type === 'sheet'       && node.attrs.key)   extras.push(`key: ${node.attrs.key}`);
+                if (type === 'song'        && node.attrs.label) extras.push(node.attrs.label);
+                const suffix = extras.length ? ` (${extras.join(', ')})` : '';
+
+                label.textContent = `${LABELS[type]}: ${node.attrs.slug}${suffix}`;
+
+                const editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.className = 'sbn-chip-edit';
+                editBtn.setAttribute('aria-label', 'Edit');
+                editBtn.textContent = '✎';
+                editBtn.addEventListener('click', () => {
+                    const newSlug = window.prompt(`Edit ${type} slug:`, node.attrs.slug);
+                    if (newSlug && newSlug !== node.attrs.slug) {
+                        const pos = typeof getPos === 'function' ? getPos() : null;
+                        if (pos == null) return;
+                        ed.chain().focus().command(({ tr }) => {
+                            tr.setNodeMarkup(pos, undefined, { slug: newSlug });
+                            return true;
+                        }).run();
+                    }
+                });
 
                 const deleteBtn = document.createElement('button');
                 deleteBtn.type = 'button';
@@ -63,6 +96,7 @@ function makeSbnNode(type: SbnNodeType) {
                 });
 
                 dom.appendChild(label);
+                dom.appendChild(editBtn);
                 dom.appendChild(deleteBtn);
 
                 return { dom };
@@ -72,6 +106,72 @@ function makeSbnNode(type: SbnNodeType) {
 }
 
 const sbnExtensions = SBN_TYPES.map(makeSbnNode);
+
+const makeYoutubeNode = () => {
+    return Node.create({
+        name: 'sbn-youtube',
+        group: 'block',
+        atom: true,
+        addAttributes() {
+            return {
+                id: { default: '' },
+                start: { default: null },
+            };
+        },
+        parseHTML() {
+            return [{ tag: 'sbn-youtube' }];
+        },
+        renderHTML({ HTMLAttributes }) {
+            return ['sbn-youtube', mergeAttributes(HTMLAttributes)];
+        },
+        addNodeView() {
+            return ({ node, getPos, editor: ed }) => {
+                const dom = document.createElement('div');
+                dom.className = 'sbn-chip'; // reuse chip styling
+                dom.dataset.type = 'youtube';
+                dom.contentEditable = 'false';
+
+                const label = document.createElement('span');
+                label.className = 'sbn-chip-label';
+                label.textContent = `YouTube: ${node.attrs.id}`;
+
+                const editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.className = 'sbn-chip-edit';
+                editBtn.setAttribute('aria-label', 'Edit');
+                editBtn.textContent = '✎';
+                editBtn.addEventListener('click', () => {
+                    const newId = window.prompt(`Edit YouTube ID:`, node.attrs.id);
+                    if (newId && newId !== node.attrs.id) {
+                        const pos = typeof getPos === 'function' ? getPos() : null;
+                        if (pos == null) return;
+                        ed.chain().focus().command(({ tr }) => {
+                            tr.setNodeMarkup(pos, undefined, { id: newId });
+                            return true;
+                        }).run();
+                    }
+                });
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.type = 'button';
+                deleteBtn.className = 'sbn-chip-delete';
+                deleteBtn.setAttribute('aria-label', 'Remove');
+                deleteBtn.textContent = '✕';
+                deleteBtn.addEventListener('click', () => {
+                    const pos = typeof getPos === 'function' ? getPos() : null;
+                    if (pos == null) return;
+                    ed.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run();
+                });
+
+                dom.appendChild(label);
+                dom.appendChild(editBtn);
+                dom.appendChild(deleteBtn);
+
+                return { dom };
+            };
+        },
+    });
+};
 
 // ── Props ────────────────────────────────────────────────────────────────────
 
@@ -124,11 +224,13 @@ function syncToTextarea(html: string) {
     if (ta) ta.value = html;
 }
 
-const SHORTCUT_MAP: Record<string, SbnNodeType> = {
+const SHORTCUT_MAP: Record<string, string> = {
     c: 'chord',
     r: 'rhythm',
     p: 'progression',
+    s: 'sheet',
     l: 'song',
+    m: 'media',
 };
 
 function handleShortcut(e: KeyboardEvent) {
@@ -140,6 +242,114 @@ function handleShortcut(e: KeyboardEvent) {
     if (typeof fn === 'function') fn(type);
 }
 
+function uploadImage(file: File, view: any, pos?: number) {
+    const el = document.getElementById('lesson-editor');
+    const lessonId = el?.dataset.lessonId;
+    if (!lessonId) {
+        alert('Please save the lesson first before uploading images.');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    fetch(`/admin/lessons/${lessonId}/upload-image`, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        },
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.url) {
+            if (pos !== undefined) {
+                view.dispatch(view.state.tr.insert(pos, view.state.schema.nodes.image.create({ src: data.url })));
+            } else {
+                view.dispatch(view.state.tr.replaceSelectionWith(view.state.schema.nodes.image.create({ src: data.url })));
+            }
+        }
+    })
+    .catch(err => {
+        console.error('Upload failed', err);
+        alert('Image upload failed.');
+    });
+}
+
+import { Extension } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+
+const MediaHandlingExtension = Extension.create({
+    name: 'mediaHandling',
+    addProseMirrorPlugins() {
+        return [
+            new Plugin({
+                key: new PluginKey('mediaHandling'),
+                props: {
+                    handlePaste(view, event) {
+                        const items = Array.from(event.clipboardData?.items || []);
+                        const hasImage = items.some(i => i.type.startsWith('image/'));
+                        if (hasImage) {
+                            const file = items.find(i => i.type.startsWith('image/'))?.getAsFile();
+                            if (file) {
+                                uploadImage(file, view);
+                                return true;
+                            }
+                        }
+                        
+                        const text = event.clipboardData?.getData('text/plain');
+                        if (text) {
+                            const idMatch = text.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+                            if (idMatch && idMatch[1]) {
+                                view.dispatch(
+                                    view.state.tr.replaceSelectionWith(
+                                        view.state.schema.nodes['sbn-youtube'].create({ id: idMatch[1] })
+                                    )
+                                );
+                                return true;
+                            }
+                        }
+                        return false;
+                    },
+                    handleDrop(view, event, slice, moved) {
+                        const jsonStr = event.dataTransfer?.getData('application/json');
+                        if (jsonStr) {
+                            try {
+                                const data = JSON.parse(jsonStr);
+                                if (data.type && data.slug) {
+                                    event.preventDefault();
+                                    const coordinates = view.posAtCoords({ left: event.clientX, top: event.clientY });
+                                    const pos = coordinates ? coordinates.pos : view.state.selection.from;
+                                    
+                                    if (data.type === 'media' || data.type === 'image') {
+                                        view.dispatch(view.state.tr.insert(pos, view.state.schema.nodes.image.create({ src: data.slug })));
+                                    } else {
+                                        view.dispatch(view.state.tr.insert(pos, view.state.schema.nodes[`sbn-${data.type}`].create({ slug: data.slug })));
+                                    }
+                                    return true;
+                                }
+                            } catch (e) {
+                                // ignore
+                            }
+                        }
+
+                        if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+                            const file = Array.from(event.dataTransfer.files).find(f => f.type.startsWith('image/'));
+                            if (file) {
+                                event.preventDefault();
+                                const coordinates = view.posAtCoords({ left: event.clientX, top: event.clientY });
+                                uploadImage(file, view, coordinates?.pos);
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+                }
+            })
+        ];
+    }
+});
+
 onMounted(() => {
     editor = new Editor({
         element: document.getElementById('lesson-editor-inner')!,
@@ -147,6 +357,9 @@ onMounted(() => {
             StarterKit,
             Placeholder.configure({ placeholder: 'Start writing… or type / to insert a component' }),
             SlashCommands,
+            Image.configure({ inline: true }),
+            makeYoutubeNode(),
+            MediaHandlingExtension,
             ...sbnExtensions,
         ],
         content: props.initial,
@@ -160,11 +373,18 @@ onMounted(() => {
     syncToTextarea(editor.getHTML());
 
     // Bridge for LessonPalette — inserts a chip at the current cursor position
-    (window as any).__sbnInsert = (type: SbnNodeType, slug: string) => {
+    (window as any).__sbnInsert = (type: string, slug: string, extras: Record<string, string> = {}) => {
         if (!editor) return;
+        if (type === 'image' || type === 'media') {
+            editor.chain().focus().insertContent({
+                type: 'image',
+                attrs: { src: slug },
+            }).run();
+            return;
+        }
         editor.chain().focus().insertContent({
             type: `sbn-${type}`,
-            attrs: { slug },
+            attrs: { slug, ...extras },
         }).run();
     };
 

@@ -196,7 +196,27 @@ class ProgressionLibraryController extends Controller
     {
         $progression = ChordProgression::where('slug', $slug)->firstOrFail();
 
-        return response()->json($this->serializeProgression($progression));
+        $key      = trim((string) $request->get('key', 'C')) ?: 'C';
+        $usePass2 = (bool) $request->boolean('pass2', true);
+
+        $context = $this->harmonicContext->buildFromNumerals($key, $progression->numerals);
+        $built   = $this->progressionBuilder->buildVoicings($context, [
+            'category'   => $progression->category,
+            'extensions' => $usePass2,
+        ]);
+
+        $chords = array_map(fn ($sel) => [
+            'chordName'   => $sel['chord_name'],
+            'diagramData' => $sel['voicing'] ?? null,
+            'beats'       => 4,
+            'slug'        => null,
+        ], $built['selections']);
+
+        return response()->json([
+            'progression' => $this->serializeProgression($progression),
+            'key'         => $key,
+            'chords'      => $chords,
+        ]);
     }
 
     public function apiSearch(Request $request): \Illuminate\Http\JsonResponse

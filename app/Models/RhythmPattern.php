@@ -114,6 +114,7 @@ class RhythmPattern extends Model
             'timeSignature' => $this->time_signature,
             'percTop'       => $this->perc_top,
             'percBass'      => $this->perc_bass,
+            'styleSlug'     => $this->style_slug ?? 'general',
             'demoUrl'       => $this->mp3_file ? asset('audio/rhythm-demos/' . $this->mp3_file) : null,
         ];
     }

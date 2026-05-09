@@ -30,7 +30,7 @@
         <a href="{{ route('admin.courses.create') }}" class="sbn-btn sbn-btn-primary" style="margin-top:8px;">New Course</a>
     </div>
 @else
-    <div class="sbn-editor-card">
+    <div class="sbn-editor-card" style="background:#ffffff;">
         <table class="sbn-table" style="width:100%;">
             <thead>
                 <tr>
@@ -45,8 +45,8 @@
                 @foreach($courses as $course)
                 <tr>
                     <td>
-                        <a href="{{ route('admin.courses.edit', $course) }}" style="font-weight:600;">{{ $course->title }}</a>
-                        <div style="font-size:11px; color:var(--clr-text-muted);">{{ $course->slug }}</div>
+                        <a href="{{ route('admin.courses.edit', $course) }}" class="sbn-table-title">{{ $course->title }}</a>
+                        <div class="sbn-text-muted" style="font-size:11px;">{{ $course->slug }}</div>
                     </td>
                     <td>
                         @foreach($course->genres ?? [] as $genre)
@@ -58,7 +58,7 @@
                             {{ $course->status }}
                         </span>
                     </td>
-                    <td>{{ $course->lessons_count }}</td>
+                    <td class="sbn-text-dim">{{ $course->lessons_count }}</td>
                     <td style="text-align:right; white-space:nowrap;">
                         <a href="{{ route('admin.courses.edit', $course) }}" class="sbn-btn sbn-btn-ghost sbn-btn-sm">Edit</a>
                         <form method="POST" action="{{ route('admin.courses.destroy', $course) }}"

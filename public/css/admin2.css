@@ -337,6 +337,11 @@ code { font-family: var(--font-mono); }
 .sbn-table td strong { color: var(--clr-text); }
 .sbn-table tr:last-child td { border-bottom: none; }
 .sbn-table tr:hover td { background: rgba(243, 156, 18, 0.02); }
+.sbn-table-title { font-weight: 600; color: var(--clr-text); text-decoration: none; transition: color 0.15s; }
+.sbn-table-title:hover { color: var(--clr-accent); }
+
+.sbn-text-dim { color: var(--clr-text-dim); }
+.sbn-text-muted { color: var(--clr-text-muted); }
 
 .sbn-badge {
     display: inline-flex; align-items: center;
@@ -359,12 +364,13 @@ code { font-family: var(--font-mono); }
     width: 16px; height: 16px; color: var(--clr-text-muted); pointer-events: none;
 }
 .sbn-search-input {
-    width: 100%; padding: 9px 14px 9px 36px;
+    width: 100%; padding: 9px 14px;
     background: var(--clr-white); border: 1px solid var(--clr-border);
     border-radius: var(--radius-sm); color: var(--clr-text);
     font-family: var(--font-body); font-size: 13px;
     transition: border-color 0.15s; outline: none;
 }
+.sbn-search-wrap .sbn-search-input { padding-left: 36px; }
 .sbn-search-input:focus {
     border-color: var(--clr-accent);
     box-shadow: 0 0 0 3px var(--clr-accent-bg);

@@ -9,81 +9,101 @@
 
 @section('content')
 
-<form method="POST" action="{{ route('admin.courses.update', $course) }}"
-      x-data="courseForm()"
-      x-init="init()">
-    @csrf @method('PUT')
+<div style="display:grid; grid-template-columns:1.5fr 1fr; gap:20px; align-items:start;">
 
-    <input type="hidden" name="genres"  x-bind:value="JSON.stringify(arrayField('genres_raw'))">
-    <input type="hidden" name="levels"  x-bind:value="JSON.stringify(arrayField('levels_raw'))">
-    <input type="hidden" name="topics"  x-bind:value="JSON.stringify(arrayField('topics_raw'))">
-
-    @include('admin.courses._form')
-
-    <div style="margin-top:16px; display:flex; gap:10px;">
-        <button type="submit" class="sbn-btn sbn-btn-primary">Save Course</button>
+    {{-- Left: Lesson list --}}
+    <div class="sbn-editor-card"
+         x-data="lessonTable('{{ route('admin.courses.lessons.reorder', $course) }}')">
+        <div class="sbn-editor-card-header" style="display:flex; align-items:center; justify-content:space-between;">
+            <h2>Lessons <span style="font-weight:400; color:var(--clr-text-muted);">({{ $course->lessons->count() }})</span></h2>
+            <a href="{{ route('admin.courses.lessons.create', $course) }}" class="sbn-btn sbn-btn-primary sbn-btn-sm">+ Add Lesson</a>
+        </div>
+        <div class="sbn-editor-card-body" style="padding:0; background:#ffffff;">
+            @if($course->lessons->isEmpty())
+                <p style="padding:20px; color:var(--clr-text-muted);">No lessons yet — add one above.</p>
+            @else
+                <table class="sbn-table" style="width:100%;">
+                    <thead>
+                        <tr>
+                            <th style="width:36px;"></th>
+                            <th>#</th>
+                            <th>Title</th>
+                            <th>Section</th>
+                            <th>Status</th>
+                            <th>Preview</th>
+                            <th style="width:120px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="lesson-list">
+                        @foreach($course->lessons->sortBy('sort_order') as $lesson)
+                        <tr data-id="{{ $lesson->id }}" data-sort="{{ $lesson->sort_order }}">
+                            <td style="cursor:grab; color:var(--clr-text-muted); text-align:center;">⠿</td>
+                            <td style="color:var(--clr-text-muted); font-size:12px;">{{ $loop->iteration }}</td>
+                            <td>
+                                <a href="{{ route('admin.lessons.edit', $lesson) }}" style="font-weight:600;">{{ $lesson->title }}</a>
+                                <div style="font-size:11px; color:var(--clr-text-muted);">{{ $lesson->slug }}</div>
+                            </td>
+                            <td x-data="{ editing: false, val: @js($lesson->section_title) }" style="font-size:12px; position:relative;">
+                                <div x-show="!editing" 
+                                     @click="editing = true; $nextTick(() => $refs.input.focus())" 
+                                     style="cursor:pointer; min-height:1.2em; color:var(--clr-text-muted);">
+                                    <span x-text="val || '—'"></span>
+                                </div>
+                                <input x-show="editing"
+                                       x-ref="input"
+                                       type="text"
+                                       x-model="val"
+                                       @keydown.enter="saveField('{{ route('admin.lessons.update-field', $lesson) }}', 'section_title', val); editing = false"
+                                       @blur="saveField('{{ route('admin.lessons.update-field', $lesson) }}', 'section_title', val); editing = false"
+                                       style="width:100%; padding:2px 6px; font-size:12px; border:1.5px solid var(--clr-accent); border-radius:4px; outline:none; background:#fff;">
+                            </td>
+                            <td>
+                                <span class="sbn-badge {{ $lesson->status === 'publish' ? 'sbn-badge-accent' : 'sbn-badge-muted' }}">
+                                    {{ $lesson->status }}
+                                </span>
+                            </td>
+                            <td>
+                                @if($lesson->is_preview)
+                                    <span class="sbn-badge sbn-badge-muted">Preview</span>
+                                @endif
+                            </td>
+                            <td style="text-align:right; white-space:nowrap;">
+                                <a href="{{ route('admin.lessons.edit', $lesson) }}" class="sbn-btn sbn-btn-ghost sbn-btn-sm">Edit</a>
+                                <form method="POST" action="{{ route('admin.lessons.destroy', $lesson) }}"
+                                      style="display:inline;"
+                                      x-data
+                                      @submit.prevent="if(confirm('Delete this lesson?')) $el.submit()">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="sbn-btn sbn-btn-ghost sbn-btn-sm" style="color:var(--clr-danger);">Del</button>
+                                </form>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
+        </div>
     </div>
-</form>
 
-{{-- Lesson list --}}
-<div class="sbn-editor-card" style="margin-top:28px;"
-     x-data="lessonReorder('{{ route('admin.courses.lessons.reorder', $course) }}')">
-    <div class="sbn-editor-card-header" style="display:flex; align-items:center; justify-content:space-between;">
-        <h2>Lessons <span style="font-weight:400; color:var(--clr-text-muted);">({{ $course->lessons->count() }})</span></h2>
-        <a href="{{ route('admin.courses.lessons.create', $course) }}" class="sbn-btn sbn-btn-primary sbn-btn-sm">+ Add Lesson</a>
+    {{-- Right: Meta info --}}
+    <div>
+        <form method="POST" action="{{ route('admin.courses.update', $course) }}"
+              x-data="courseForm()"
+              x-init="init()">
+            @csrf @method('PUT')
+
+            <input type="hidden" name="genres"  x-bind:value="JSON.stringify(arrayField('genres_raw'))">
+            <input type="hidden" name="levels"  x-bind:value="JSON.stringify(arrayField('levels_raw'))">
+            <input type="hidden" name="topics"  x-bind:value="JSON.stringify(arrayField('topics_raw'))">
+
+            @include('admin.courses._form')
+
+            <div style="margin-top:16px; display:flex; gap:10px;">
+                <button type="submit" class="sbn-btn sbn-btn-primary">Save Course</button>
+            </div>
+        </form>
     </div>
-    <div class="sbn-editor-card-body" style="padding:0;">
-        @if($course->lessons->isEmpty())
-            <p style="padding:20px; color:var(--clr-text-muted);">No lessons yet — add one above.</p>
-        @else
-            <table class="sbn-table" style="width:100%;">
-                <thead>
-                    <tr>
-                        <th style="width:36px;"></th>
-                        <th>#</th>
-                        <th>Title</th>
-                        <th>Section</th>
-                        <th>Status</th>
-                        <th>Preview</th>
-                        <th style="width:120px;"></th>
-                    </tr>
-                </thead>
-                <tbody id="lesson-list">
-                    @foreach($course->lessons->sortBy('sort_order') as $lesson)
-                    <tr data-id="{{ $lesson->id }}" data-sort="{{ $lesson->sort_order }}">
-                        <td style="cursor:grab; color:var(--clr-text-muted); text-align:center;">⠿</td>
-                        <td style="color:var(--clr-text-muted); font-size:12px;">{{ $loop->iteration }}</td>
-                        <td>
-                            <a href="{{ route('admin.lessons.edit', $lesson) }}" style="font-weight:600;">{{ $lesson->title }}</a>
-                            <div style="font-size:11px; color:var(--clr-text-muted);">{{ $lesson->slug }}</div>
-                        </td>
-                        <td style="font-size:12px; color:var(--clr-text-muted);">{{ $lesson->section_title ?? '—' }}</td>
-                        <td>
-                            <span class="sbn-badge {{ $lesson->status === 'publish' ? 'sbn-badge-accent' : 'sbn-badge-muted' }}">
-                                {{ $lesson->status }}
-                            </span>
-                        </td>
-                        <td>
-                            @if($lesson->is_preview)
-                                <span class="sbn-badge sbn-badge-muted">Preview</span>
-                            @endif
-                        </td>
-                        <td style="text-align:right; white-space:nowrap;">
-                            <a href="{{ route('admin.lessons.edit', $lesson) }}" class="sbn-btn sbn-btn-ghost sbn-btn-sm">Edit</a>
-                            <form method="POST" action="{{ route('admin.lessons.destroy', $lesson) }}"
-                                  style="display:inline;"
-                                  x-data
-                                  @submit.prevent="if(confirm('Delete this lesson?')) $el.submit()">
-                                @csrf @method('DELETE')
-                                <button type="submit" class="sbn-btn sbn-btn-ghost sbn-btn-sm" style="color:var(--clr-danger);">Del</button>
-                            </form>
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        @endif
-    </div>
+
 </div>
 
 @push('scripts')
@@ -113,7 +133,7 @@ function courseForm() {
     };
 }
 
-function lessonReorder(reorderUrl) {
+function lessonTable(reorderUrl) {
     return {
         init() {
             // Simple drag-reorder using the HTML5 drag API.
@@ -146,6 +166,13 @@ function lessonReorder(reorderUrl) {
                 body: JSON.stringify({ items }),
             });
         },
+        saveField(url, field, value) {
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+                body: JSON.stringify({ field, value }),
+            });
+        }
     };
 }
 </script>

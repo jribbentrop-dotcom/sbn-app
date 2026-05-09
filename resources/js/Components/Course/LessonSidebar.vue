@@ -108,7 +108,15 @@ function lessonIndex(slug: string): number {
         }"
         :title="`${i + 1}. ${lesson.title}`"
       >
-        <Link :href="`/learn/${course.slug}/play/${lesson.slug}`">
+        <button
+          v-if="activeLessonSlug === lesson.slug"
+          type="button"
+          class="vC-rail-node"
+          @click="emit('expand')"
+        >
+          <span>{{ i + 1 }}</span>
+        </button>
+        <Link v-else :href="`/learn/${course.slug}/play/${lesson.slug}`" class="vC-rail-node">
           <span>{{ i + 1 }}</span>
         </Link>
       </li>
@@ -145,25 +153,24 @@ function lessonIndex(slug: string): number {
     <div class="vC-nav-list">
       <div v-for="group in grouped" :key="group.title" class="vC-nav-section">
         <div class="vC-nav-label">{{ group.title }}</div>
-        <Link
-          v-for="item in group.items"
-          :key="item.id"
-          :href="`/learn/${course.slug}/play/${item.slug}`"
-          class="vC-nav-item"
-          :class="{
-            'is-current': activeLessonSlug === item.slug,
-          }"
-        >
-          <span class="vC-nav-num">{{ lessonIndex(item.slug) }}</span>
-          <span class="vC-nav-title">
-            {{ item.title }}
-            <span v-if="!hasAccess && !item.isPreview" class="vC-nav-lock">🔒</span>
-            <span v-else-if="item.isPreview" class="vC-nav-preview">Preview</span>
-          </span>
-        </Link>
+        
+        <template v-for="item in group.items" :key="item.id">
+          <Link
+            :href="`/learn/${course.slug}/play/${item.slug}`"
+            class="vC-nav-item"
+            :class="{
+              'is-current': activeLessonSlug === item.slug,
+            }"
+          >
+            <span class="vC-nav-num">{{ lessonIndex(item.slug) }}</span>
+            <span class="vC-nav-title">
+              {{ item.title }}
+              <span v-if="!hasAccess && !item.isPreview" class="vC-nav-lock">🔒</span>
+              <span v-else-if="item.isPreview" class="vC-nav-preview">Preview</span>
+            </span>
+          </Link>
 
-        <!-- Subsections for active lesson -->
-        <template v-for="item in group.items" :key="`subs-${item.id}`">
+          <!-- Subsections for active lesson -->
           <div
             v-if="activeLessonSlug === item.slug && item.subsections.length"
             class="vC-nav-subs"
