@@ -39,6 +39,7 @@ Stored in `content` as plain HTML. Always require explicit closing tags (`<sbn-f
 | `<sbn-chord>` | yes | `slug` (required), `root` (optional, e.g. `F`) | [`ChordCard.vue`](../resources/js/Components/Library/ChordCard.vue) |
 | `<sbn-rhythm>` | yes | `slug` (required) | [`RhythmStrip.vue`](../resources/js/Components/Library/RhythmStrip.vue) — TODO: migrate embed in `mountSbnNodes.ts` from `RhythmCard` (see `SBN-Rhythm-Reference.md §11`) |
 | `<sbn-progression>` | yes | `slug` (required), `key` (optional, default `C`) | [`ChordProgressionViewer.vue`](../resources/js/Components/Library/ChordProgressionViewer.vue) |
+| `<sbn-sheet>` | yes | `slug` (required), `key` (optional, default `C`) | [`SheetMiniPlayer.vue`](../resources/js/Components/Course/SheetMiniPlayer.vue) — see §9 |
 | `<sbn-song>` | no — link only | `slug` (required), `label` (optional, default = slug) | none — see §5.2 |
 | `<sbn-youtube>` | yes (no fetch) | `id` (required), `start` (optional, seconds) | inline `<iframe>` to `youtube-nocookie.com` |
 
@@ -46,6 +47,7 @@ Stored in `content` as plain HTML. Always require explicit closing tags (`<sbn-f
 
 - `<sbn-chord root="F">` — server-side fret-shifts the stored shape to the requested root. See §7.2.
 - `<sbn-progression key="Bb">` — runs the progression builder in that key, returns voiced tiles.
+- `<sbn-sheet key="G">` — fetches from `/api/sbn/exercises/{slug}?key=G`; key is advisory (transposition). See §9.
 - `<sbn-song label="…">` — text shown in the link. If absent, slug is shown.
 
 ---
@@ -176,8 +178,66 @@ Editor state is synced into a hidden `<textarea name="content">` on every TipTap
 
 Tracked here to prevent future agents from re-deriving the gaps.
 
-- **Mini tab viewer** — small vertical tab display for short examples (≤8 bars). New `<sbn-tab>` node type. Separate spec; not yet drafted.
 - **Drag-drop with extras** — palette drag currently inserts with default attrs only. Reaching feature parity with click-insert needs the drag payload to carry extras.
 - **Chip editing for non-slug attrs** — the chip ✎ button uses `window.prompt` for slug only. Editing root/key/label requires a small modal. Workaround today: delete chip, re-insert from palette.
 - **Self-closing tag normalization** — see §7.5. Server-side `LessonRequest` normalization not yet implemented.
 - **Placeholder cleanup** — imported lessons contain literal `[CHORD DIAGRAMS MISSING]` and `[VIDEO EMBED: …]` strings. Left as visible text intentionally; admins replace them via the palette. Optional `php artisan sbn:scan-lesson-placeholders` command to enumerate progress is not yet built.
+
+---
+
+## 9. Sheet Mini Player (`<sbn-sheet>`)
+
+Shipped 2026-05-09. Horizontal, scrollable tab+chord exercise strip embedded in lesson content.
+
+### 9.1 Data model
+
+Table `sbn_exercises`. Key columns: `slug`, `title`, `key_center`, `time_sig`, `bpm_default`, `type` (`tab_exercise` | `chord_etude`), `content_json`.
+
+`content_json` is `LeadsheetJson` format — same schema as `sbn_leadsheets.json_data`. `useTabModel` and `TabMeasure` consume it directly with no conversion. No new TypeScript types.
+
+**Creating exercises:** use the leadsheet editor (full visual editor, voicing builder, all creation modals) then click **"→ Save as Exercise"** on the edit page. This copies the leadsheet into `sbn_exercises` via `Admin\ExerciseController::createFromLeadsheet()`. Admin CRUD at `/admin/exercises`.
+
+### 9.2 API
+
+`GET /api/sbn/exercises/{slug}?key=G` → [`Library\ExerciseController::apiShow`](../app/Http/Controllers/Library/ExerciseController.php)
+
+Returns `content_json` fields at top level plus a `meta` object:
+```json
+{ "meta": { "slug", "title", "key_center", "time_sig", "bpm_default", "type" }, "sections": [...], "melody": ..., "chordVoicings": {...} }
+```
+
+Palette search: `GET /api/sbn/exercises?q=…`
+
+### 9.3 Component
+
+[`SheetMiniPlayer.vue`](../resources/js/Components/Course/SheetMiniPlayer.vue) — feeds `content_json` through `useTabModel`, renders with `TabMeasure` (`readOnly=true`, `allowChordClick=true`). All measures in one horizontal scrolling row. Transport: play/stop toggle + BPM range slider. Uses the AudioEngine singleton; tags its `engine.play('sheet')` call so `PracticePanel` can detect the conflict.
+
+Provides the full inject contract required by `TabMeasure` (model, beatsPerMeasureRef, playingMeasureIndex, transportBeat, transportPlaying, readOnly, seekToMeasure, gridSelection, globalIndexOf, inlineRenameTarget).
+
+### 9.4 Chord click → PracticePanel
+
+Chord clicks in `SheetMiniPlayer` emit `@chord-click` from `TabMeasure`, which calls `props.onChordSelect(chordName, root, voicingData)`. `voicingData` is looked up from `exercise.chordVoicings` keyed by `"chordName@gi.ci"` — the exact stored voicing, not a DB lookup.
+
+`onChordSelect` is threaded from `Player.vue` → `LessonContent.vue` → `mountSbnNodes.ts` via `el.__onChordSelect` DOM side-channel (isolated Vue app instances cannot receive function props through normal prop passing).
+
+`sbn-chord` inline tags also fire `onChordSelect` through the same channel.
+
+### 9.5 PracticePanel states
+
+Three display states driven by `selectedChord` ref in `Player.vue`:
+
+| State | Condition | Display |
+|---|---|---|
+| Chord list | `selectedChord === null` | All `chordSlugs` from lesson as mini `ChordCard` — slugs parsed server-side in `CourseController::player()` |
+| Hero chord | `selectedChord` set, from `sbn-chord` click | Fetches `/api/sbn/chords/{slug}?root=` — DB voicing |
+| Hero chord | `selectedChord` set, from `sbn-sheet` click | `fretStringToChordDiagram()` converts stored fret string to `diagram_data` shape — exact exercise voicing, no fetch |
+
+`ChordCard` gains optional `onChordClick` prop and `size` prop (`mini` / `default` / `hero`).
+
+### 9.6 Admin editor integration
+
+- LessonPalette: "Exercise" tab — search + key selector + insert as `<sbn-sheet slug="…" key="C">`
+- LessonEditor: `sbn-sheet` TipTap chip node (attrs: `slug`, `key`)
+- Slash command: `/sheet` → `window.__sbnPalette('sheet')`
+- Leadsheets index: "Exercises →" cross-link; Exercises index: "← Songs" cross-link
+- Exercise edit page uses the full `TabEditor.vue` visual editor via `exerciseEditor()` Alpine function — loads data from `GET /admin/exercises/{id}/data`, dispatches `sbn-tab-init`, syncs back on save via hidden `content_json` field

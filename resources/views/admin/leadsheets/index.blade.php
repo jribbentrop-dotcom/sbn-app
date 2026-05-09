@@ -16,6 +16,7 @@
         </div>
     </div>
     <a href="{{ route('admin.leadsheets.create') }}" class="sbn-btn">Import XML</a>
+    <a href="{{ route('admin.exercises.index') }}" class="sbn-btn sbn-btn-secondary">Exercises →</a>
 @endsection
 
 @push('styles')

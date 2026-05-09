@@ -142,7 +142,7 @@ export class AudioEngine {
         this._scheduler?.clear();
     }
 
-    async play() {
+    async play(sourceTag = null) {
         this._ensureInited();
         this._scheduler.stop();
         this._stopDemo();
@@ -152,7 +152,7 @@ export class AudioEngine {
             this._clock.stop();
             this._clock.seek(0);
         }
-        this._emit('playStarted'); // lets sibling composables clear their isPlaying flag
+        this._emit('playStarted', sourceTag); // lets sibling composables clear their isPlaying flag
         await this._clock.start();
         this._emit('unlock');
 
@@ -263,7 +263,7 @@ export class AudioEngine {
     }
 
     /**
-     * @param {'tick'|'sourceActive'|'ended'|'unlock'} event
+     * @param {'tick'|'sourceActive'|'ended'|'unlock'|'playStarted'} event
      * @param {Function} cb
      */
     on(event, cb) {

@@ -7,60 +7,88 @@
  *   <sbn-chord       slug="…">
  *   <sbn-rhythm      slug="…">
  *   <sbn-progression slug="…">
+ *   <sbn-sheet       slug="…" key="C">
  *   <sbn-song        slug="…">
  *   <sbn-youtube     video-id="…" start="…">  ← attrs only, no fetch
  */
 
 import { createApp, type App } from 'vue';
+import { getCategoryColor } from '../composables/useCategoryColors';
 
 // ── Component registry ──────────────────────────────────────────────────────
 
+// Components mounted with fetched data. <sbn-song> is handled separately
+// (renders as a styled link, no fetch, no component).
 const components = {
   chord:       () => import('../Components/Library/ChordCard.vue'),
-  rhythm:      () => import('../Components/Library/RhythmCard.vue'),
+  rhythm:      () => import('../Components/Library/RhythmStrip.vue'),
   progression: () => import('../Components/Library/ChordProgressionViewer.vue'),
-  song:        () => import('../Pages/Library/Songs/Show.vue'),
+  sheet:       () => import('../Components/Course/SheetMiniPlayer.vue'),
 } as const;
 
 type NodeType = keyof typeof components;
 
 // ── API endpoint map ────────────────────────────────────────────────────────
+// Query string is built from the element's attrs so e.g. <sbn-chord root="F">
+// produces /api/sbn/chords/{slug}?root=F.
 
-function apiUrl(type: NodeType, slug: string): string {
+function apiUrl(type: NodeType, slug: string, qs: string): string {
   const paths: Record<NodeType, string> = {
     chord:       `/api/sbn/chords/${slug}`,
     rhythm:      `/api/sbn/rhythms/${slug}`,
     progression: `/api/sbn/progressions/${slug}`,
-    song:        `/api/sbn/songs/${slug}/viewer-data`,
+    sheet:       `/api/sbn/exercises/${slug}`,
   };
-  return paths[type];
+  return qs ? `${paths[type]}?${qs}` : paths[type];
 }
 
-// ── Prop key per type ───────────────────────────────────────────────────────
-// Each component accepts a single top-level prop wrapping its data object.
+// ── Per-type props adapter ──────────────────────────────────────────────────
+// Each component has its own prop convention; the registry maps API payload
+// → the exact prop bag that component expects. Add new types here.
 
-function propKey(type: NodeType): string {
-  const keys: Record<NodeType, string> = {
-    chord:       'chord',
-    rhythm:      'pattern',
-    progression: 'progression',
-    song:        'song',
-  };
-  return keys[type];
+const propsFor: Record<NodeType, (data: any, el: HTMLElement) => Record<string, any>> = {
+  chord:       (d, el) => ({
+    chord: d,
+    showRoot: true,
+    onChordClick: (el as any).__onChordSelect
+      ? () => (el as any).__onChordSelect(d.slug, d.root_note ?? 'C')
+      : undefined,
+  }),
+  rhythm:      (d) => ({ pattern: d, color: getCategoryColor(d.styleSlug) }),
+  progression: (d) => ({ chords: d.chords ?? [] }),
+  sheet:       (d, el) => ({ exercise: d, onChordSelect: (el as any).__onChordSelect ?? null }),
+};
+
+// ── Per-type query string from element attrs ────────────────────────────────
+
+function queryStringFor(type: NodeType, el: HTMLElement): string {
+  const params = new URLSearchParams();
+  if (type === 'chord') {
+    const root = el.getAttribute('root');
+    if (root) params.set('root', root);
+  } else if (type === 'progression') {
+    const key = el.getAttribute('key');
+    if (key) params.set('key', key);
+  } else if (type === 'sheet') {
+    const key = el.getAttribute('key');
+    if (key) params.set('key', key);
+  }
+  return params.toString();
 }
 
 // ── Fetch cache ─────────────────────────────────────────────────────────────
 
 const cache = new Map<string, Promise<unknown>>();
 
-function fetchData(type: NodeType, slug: string): Promise<unknown> {
-  const key = `${type}:${slug}`;
+function fetchData(type: NodeType, slug: string, qs: string): Promise<unknown> {
+  const url = apiUrl(type, slug, qs);
+  const key = `${type}:${url}`;
   if (!cache.has(key)) {
     cache.set(
       key,
-      fetch(apiUrl(type, slug), { headers: { Accept: 'application/json' } })
+      fetch(url, { headers: { Accept: 'application/json' } })
         .then((r) => {
-          if (!r.ok) throw new Error(`SBN node fetch failed: ${r.status} ${apiUrl(type, slug)}`);
+          if (!r.ok) throw new Error(`SBN node fetch failed: ${r.status} ${url}`);
           return r.json();
         }),
     );
@@ -70,13 +98,16 @@ function fetchData(type: NodeType, slug: string): Promise<unknown> {
 
 // ── Mount ───────────────────────────────────────────────────────────────────
 
-export async function mountSbnNodes(container: HTMLElement): Promise<() => void> {
+export async function mountSbnNodes(
+  container: HTMLElement,
+  options: { onChordSelect?: ((slug: string, root: string) => void) | null } = {},
+): Promise<() => void> {
   const apps: App[] = [];
   const tasks: Promise<void>[] = [];
 
   // ── <sbn-youtube> — attrs only, no fetch ──────────────────────────────────
   container.querySelectorAll<HTMLElement>('sbn-youtube').forEach((el) => {
-    const videoId = el.getAttribute('video-id') ?? el.getAttribute('videoid') ?? '';
+    const videoId = el.getAttribute('id') ?? el.getAttribute('video-id') ?? el.getAttribute('videoid') ?? '';
     const start   = Number(el.getAttribute('start') ?? '0');
     if (!videoId) return;
 
@@ -99,20 +130,55 @@ export async function mountSbnNodes(container: HTMLElement): Promise<() => void>
     apps.push(app);
   });
 
-  // ── <sbn-chord|rhythm|progression|song> — fetch then mount ─────────────────
+  // ── <sbn-song> — render as styled link to leadsheet viewer (no fetch) ─────
+  container.querySelectorAll<HTMLElement>('sbn-song').forEach((el) => {
+    const slug = el.getAttribute('slug') ?? '';
+    if (!slug) return;
+    const label = el.getAttribute('label') ?? slug;
+    el.innerHTML = `<a class="sbn-song-link" href="/library/songs/${slug}/viewer">${label} ↗</a>`;
+  });
+
+  // ── <sbn-chord|rhythm|progression|sheet> — fetch then mount ───────────────
   for (const type of Object.keys(components) as NodeType[]) {
     container.querySelectorAll<HTMLElement>(`sbn-${type}`).forEach((el) => {
       const slug = el.getAttribute('slug') ?? '';
       if (!slug) return;
+      if (options.onChordSelect) {
+        (el as any).__onChordSelect = options.onChordSelect;
+      }
 
-      const task = fetchData(type, slug)
-        .then(async (data) => {
+      const qs = queryStringFor(type, el);
+      const task = fetchData(type, slug, qs)
+        .then(async (data: any) => {
           const mod = await components[type]();
           const Component = (mod as any).default ?? mod;
 
-          const app = createApp(Component, { [propKey(type)]: data });
-          app.mount(el);
-          apps.push(app);
+          if (type === 'rhythm') {
+            // Special polished wrapper for rhythm embeds
+            el.classList.add('sbn-rhythm-embed-wrap');
+            el.innerHTML = `
+              <div class="sbn-pattern-row sbn-pattern-row--${data.styleSlug}" style="cursor: default;">
+                <div class="sbn-pattern-row-head">
+                  <span class="sbn-pattern-row-name">${data.name}</span>
+                  <div class="sbn-pattern-row-badges">
+                    <span class="sbn-badge sbn-badge-muted">${data.timeSignature}</span>
+                    <span class="sbn-badge sbn-badge-muted">${data.bpm} BPM</span>
+                  </div>
+                </div>
+                <div class="sbn-rhythm-mount-point"></div>
+              </div>
+            `;
+            const mountPoint = el.querySelector('.sbn-rhythm-mount-point');
+            if (mountPoint) {
+              const app = createApp(Component, propsFor[type](data, el));
+              app.mount(mountPoint);
+              apps.push(app);
+            }
+          } else {
+            const app = createApp(Component, propsFor[type](data, el));
+            app.mount(el);
+            apps.push(app);
+          }
         })
         .catch((err) => {
           console.warn(`[mountSbnNodes] Failed to mount <sbn-${type} slug="${slug}">:`, err);

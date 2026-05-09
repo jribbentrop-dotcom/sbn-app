@@ -22,6 +22,8 @@ use App\Http\Controllers\Library\SongLibraryController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\Admin\CourseController as AdminCourseController;
 use App\Http\Controllers\Admin\LessonController as AdminLessonController;
+use App\Http\Controllers\Admin\ExerciseController as AdminExerciseController;
+use App\Http\Controllers\Library\ExerciseController as ExerciseLibraryController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -91,7 +93,19 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::put('/lessons/{lesson}', [AdminLessonController::class, 'update'])->name('lessons.update');
     Route::delete('/lessons/{lesson}', [AdminLessonController::class, 'destroy'])->name('lessons.destroy');
     Route::post('/courses/{course}/lessons/reorder', [AdminLessonController::class, 'reorder'])->name('courses.lessons.reorder');
+    Route::post('/lessons/{lesson}/update-field', [AdminLessonController::class, 'updateField'])->name('lessons.update-field');
     Route::post('/lessons/{lesson}/upload-image', [AdminLessonController::class, 'uploadImage'])->name('lessons.upload-image');
+    Route::get('/lessons/{lesson}/images', [AdminLessonController::class, 'getImages'])->name('lessons.get-images');
+
+    // Phase 8.1-A - Exercises
+    Route::get('/exercises', [AdminExerciseController::class, 'index'])->name('exercises.index');
+    Route::get('/exercises/create', [AdminExerciseController::class, 'create'])->name('exercises.create');
+    Route::post('/exercises', [AdminExerciseController::class, 'store'])->name('exercises.store');
+    Route::get('/exercises/{exercise}/edit', [AdminExerciseController::class, 'edit'])->name('exercises.edit');
+    Route::put('/exercises/{exercise}', [AdminExerciseController::class, 'update'])->name('exercises.update');
+    Route::delete('/exercises/{exercise}', [AdminExerciseController::class, 'destroy'])->name('exercises.destroy');
+    Route::get('/exercises/{exercise}/data', [AdminExerciseController::class, 'apiData'])->name('exercises.data');
+    Route::post('/exercises/from-leadsheet/{leadsheet}', [AdminExerciseController::class, 'createFromLeadsheet'])->name('exercises.from-leadsheet');
 
     // Shop Orders (admin view)
     Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
@@ -190,12 +204,14 @@ Route::prefix('api/sbn')->name('api.sbn.')->group(function () {
     Route::get('/chords/{slug}',       [ChordLibraryController::class,       'apiShow'])->name('chords.show');
     Route::get('/rhythms/{slug}',      [RhythmLibraryController::class,      'apiShow'])->name('rhythms.show');
     Route::get('/progressions/{slug}', [ProgressionLibraryController::class, 'apiShow'])->name('progressions.show');
+    Route::get('/exercises/{slug}',    [ExerciseLibraryController::class,    'apiShow'])->name('exercises.show');
     Route::get('/songs/{leadsheet:slug}/viewer-data', [SongLibraryController::class, 'apiViewerData'])->name('songs.viewer-data');
 
     // Search (used by admin palette — must be before /{slug} wildcards)
     Route::get('/chords',       [ChordLibraryController::class,       'search'])->name('chords.search');
     Route::get('/rhythms',      [RhythmLibraryController::class,      'apiSearch'])->name('rhythms.search');
     Route::get('/progressions', [ProgressionLibraryController::class, 'apiSearch'])->name('progressions.search');
+    Route::get('/exercises',    [ExerciseLibraryController::class,    'apiSearch'])->name('exercises.search');
     Route::get('/songs',        [SongLibraryController::class,        'apiSearch'])->name('songs.search');
 });
 
