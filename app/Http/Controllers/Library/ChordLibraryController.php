@@ -323,6 +323,7 @@ class ChordLibraryController extends Controller
                 'difficulty'       => $r['difficulty'] ?? $parent->difficulty,
                 'description'      => $parent->description,
                 'transposed_from'  => $r['original_root'] ?? null,
+                'alias_match'      => $r['alias_match'] ?? false,
             ];
         }
 

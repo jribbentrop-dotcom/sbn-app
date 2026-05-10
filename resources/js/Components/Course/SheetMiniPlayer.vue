@@ -28,7 +28,7 @@ interface ExercisePayload {
 
 const props = defineProps<{
   exercise: ExercisePayload;
-  onChordSelect?: ((slug: string, root: string) => void) | null;
+  onChordSelect?: ((slug: string, root: string, voicingData?: any) => void) | null;
 }>();
 
 // ── Tab model — mirrors LeadsheetViewer setup exactly ────────────────────────
@@ -216,25 +216,22 @@ provide('inlineRenameTarget', ref(null));
 <template>
   <div class="sbn-sheet-player">
 
-    <!-- Transport: play/stop + BPM slider -->
-    <div class="sbn-sheet-transport">
-      <button
-        type="button"
-        class="sbn-sheet-play"
-        :class="{ 'is-playing': isPlaying }"
-        @click="togglePlayback"
-        :title="isPlaying ? 'Stop' : 'Play'"
-      >
-        {{ isPlaying ? '■' : '▶' }}
-      </button>
-      <div class="sbn-sheet-bpm">{{ bpm }} bpm</div>
-      <input
-        v-model.number="bpm"
-        type="range" min="40" max="240" step="1"
-        class="sbn-sheet-bpm-slider"
-        @change="onBpmChange"
-      />
-    </div>
+    <!-- Play/Pause button -->
+    <button
+      type="button"
+      class="sbn-sheet-play"
+      :class="{ 'is-playing': isPlaying }"
+      :title="isPlaying ? 'Pause' : 'Play'"
+      @click="togglePlayback"
+    >
+      <svg v-if="isPlaying" width="22" height="22" viewBox="0 0 22 22">
+        <rect x="6" y="5" width="4" height="12" fill="white" />
+        <rect x="12" y="5" width="4" height="12" fill="white" />
+      </svg>
+      <svg v-else width="22" height="22" viewBox="0 0 22 22">
+        <path d="M7 5l11 6-11 6z" fill="white" />
+      </svg>
+    </button>
 
     <!-- Measures: horizontal scroll, one row, TabMeasure for each -->
     <div class="sbn-sheet-measures" v-if="model">
@@ -267,43 +264,42 @@ provide('inlineRenameTarget', ref(null));
 </template>
 
 <style scoped>
+/* ── Container ────────────────────────────────────────────────────────────── */
 .sbn-sheet-player {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--clr-border);
-  border-radius: 8px;
-  background: var(--clr-bg-subtle, #fafafa);
+  padding: 12px 0;
+  background: #ffffff;
   overflow: hidden;
 }
-.sbn-sheet-transport {
-  flex: 0 0 86px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
-}
+
+/* ── Play/Pause button ──────────────────────────────── */
 .sbn-sheet-play {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
-  border: 1px solid var(--clr-border);
-  background: var(--clr-accent);
-  color: #fff;
+  border: none;
+  background: var(--clr-gradient, linear-gradient(135deg, #f39c12 0%, #e74c3c 100%));
+  color: #ffffff;
   cursor: pointer;
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
 }
-.sbn-sheet-play.is-playing {
-  background: var(--clr-danger, #e74c3c);
+
+.sbn-sheet-play:hover {
+  transform: scale(1.05);
 }
-.sbn-sheet-bpm {
-  font-size: 11px;
-  color: var(--clr-text-muted);
+
+.sbn-sheet-play svg {
+  width: 18px;
+  height: 18px;
 }
-.sbn-sheet-bpm-slider {
-  width: 74px;
-}
+
+/* ── Measures ──────────────────────────────────────────────────────────────── */
 .sbn-sheet-measures {
   display: flex;
   flex-direction: row;
@@ -312,8 +308,9 @@ provide('inlineRenameTarget', ref(null));
   flex: 1 1 auto;
   min-width: 0;
 }
+
 .sbn-sheet-empty {
-  color: var(--clr-text-muted);
+  color: var(--clr-text-muted, #6b7280);
   font-size: 13px;
   padding: 8px;
 }

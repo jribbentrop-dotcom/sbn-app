@@ -21,7 +21,7 @@ const props = defineProps<{
   courseSlug: string;
   prevLesson: LessonNav | null;
   nextLesson: LessonNav | null;
-  onChordSelect?: ((slug: string, root: string) => void) | null;
+  onChordSelect?: ((slug: string, root: string, voicingData?: any) => void) | null;
 }>();
 
 const emit = defineEmits<{

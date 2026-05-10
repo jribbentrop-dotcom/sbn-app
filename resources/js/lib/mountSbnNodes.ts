@@ -100,7 +100,7 @@ function fetchData(type: NodeType, slug: string, qs: string): Promise<unknown> {
 
 export async function mountSbnNodes(
   container: HTMLElement,
-  options: { onChordSelect?: ((slug: string, root: string) => void) | null } = {},
+  options: { onChordSelect?: ((slug: string, root: string, voicingData?: any) => void) | null } = {},
 ): Promise<() => void> {
   const apps: App[] = [];
   const tasks: Promise<void>[] = [];

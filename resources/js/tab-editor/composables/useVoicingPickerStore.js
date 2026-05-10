@@ -153,6 +153,24 @@ function _diagramDataToFrets(dd) {
     return result.join('');
 }
 
+function _diagramDataToFingers(dd) {
+    if (!dd) return '000000';
+    const result = ['0','0','0','0','0','0'];
+    if (dd.positions) dd.positions.forEach(p => {
+        if (p.string >= 1 && p.string <= 6 && p.finger > 0)
+            result[p.string-1] = String(p.finger);
+    });
+    if (dd.barres) dd.barres.forEach(b => {
+        const from = Math.min(b.fromString, b.toString);
+        const to   = Math.max(b.fromString, b.toString);
+        const finger = b.finger > 0 ? String(b.finger) : '1';
+        for (let s = from; s <= to; s++) {
+            if (s >= 1 && s <= 6) result[s-1] = finger;
+        }
+    });
+    return result.join('');
+}
+
 // ── API call ──────────────────────────────────────────────────────────────────
 
 async function _fetchVoicings() {
@@ -180,17 +198,19 @@ async function _fetchVoicings() {
         const data = await resp.json();
         if (data.success && Array.isArray(data.results)) {
             store.results = data.results.map(v => {
-                let frets = '', pos = parseInt(v.start_fret) || 1;
+                let frets = '', fingers = '000000', pos = parseInt(v.start_fret) || 1;
                 if (v.diagram_data) {
                     try {
                         const dd = typeof v.diagram_data === 'string'
                             ? JSON.parse(v.diagram_data)
                             : v.diagram_data;
-                        frets = _diagramDataToFrets(dd);
+                        frets   = _diagramDataToFrets(dd);
+                        fingers = _diagramDataToFingers(dd);
                     } catch (_) { /* ignore malformed */ }
                 }
                 return {
                     frets,
+                    fingers,
                     position:         pos,
                     voicing_category: v.voicing_category,
                     inversion:        v.inversion,
@@ -375,7 +395,7 @@ function applyVoicing(v) {
                 }
                 const newKey = `${newName}@${keyMatch[1]}.${keyMatch[2]}`;
                 if (cv[assignKey] !== undefined) delete cv[assignKey];
-                cv[newKey] = { frets: v.frets, position: v.position, fingers: '000000' };
+                cv[newKey] = { frets: v.frets, position: v.position, fingers: v.fingers ?? '000000' };
             } else {
                 // Global rename: update all instances of oldName
                 for (const sec of _model.value.sections) {
@@ -388,11 +408,11 @@ function applyVoicing(v) {
                     }
                 }
                 if (cv[oldName] !== undefined) delete cv[oldName];
-                cv[newName] = { frets: v.frets, position: v.position, fingers: '000000' };
+                cv[newName] = { frets: v.frets, position: v.position, fingers: v.fingers ?? '000000' };
             }
         } else {
             // Name unchanged — straightforward assignment
-            cv[assignKey] = { frets: v.frets, position: v.position, fingers: '000000' };
+            cv[assignKey] = { frets: v.frets, position: v.position, fingers: v.fingers ?? '000000' };
         }
     });
 

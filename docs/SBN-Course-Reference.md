@@ -182,6 +182,7 @@ Tracked here to prevent future agents from re-deriving the gaps.
 - **Chip editing for non-slug attrs** — the chip ✎ button uses `window.prompt` for slug only. Editing root/key/label requires a small modal. Workaround today: delete chip, re-insert from palette.
 - **Self-closing tag normalization** — see §7.5. Server-side `LessonRequest` normalization not yet implemented.
 - **Placeholder cleanup** — imported lessons contain literal `[CHORD DIAGRAMS MISSING]` and `[VIDEO EMBED: …]` strings. Left as visible text intentionally; admins replace them via the palette. Optional `php artisan sbn:scan-lesson-placeholders` command to enumerate progress is not yet built.
+- **Alias chord library link** — when a hero chord is an alias match (`alias_match: true`), the library link is suppressed because the parent diagram's detail page shows the parent name rather than the alias name. Fix: add `?alias=` param support to `/library/chords/{slug}` that overrides the displayed name/root to match the alias. See §9.5.
 
 ---
 
@@ -229,10 +230,20 @@ Three display states driven by `selectedChord` ref in `Player.vue`:
 | State | Condition | Display |
 |---|---|---|
 | Chord list | `selectedChord === null` | All `chordSlugs` from lesson as mini `ChordCard` — slugs parsed server-side in `CourseController::player()` |
-| Hero chord | `selectedChord` set, from `sbn-chord` click | Fetches `/api/sbn/chords/{slug}?root=` — DB voicing |
-| Hero chord | `selectedChord` set, from `sbn-sheet` click | `fretStringToChordDiagram()` converts stored fret string to `diagram_data` shape — exact exercise voicing, no fetch |
+| Hero chord | `selectedChord` set | Always goes through `/api/sbn/chords?q={name}` name search — DB voicing, full `diagram_data` with correct fingers |
 
-`ChordCard` gains optional `onChordClick` prop and `size` prop (`mini` / `default` / `hero`).
+**Voicing resolution in `loadHeroChord`:**
+
+1. Try `GET /api/sbn/chords/{slug}?root=` — succeeds if `sel.slug` is already a library slug (e.g. from `sbn-chord` click).
+2. Otherwise search by name: `GET /api/sbn/chords?q={chordName}`.
+3. From results, pick the entry whose `diagram_data` frets match `voicingData.frets` exactly (stored in `exercise.chordVoicings`). Fall back to first result if no exact match.
+4. Search results contain full `diagram_data` — no second fetch needed.
+
+**Library link:** hero chord wraps `ChordCard` in `<a href="/library/chords/{slug}?root={root}">`. Link is suppressed when the match is `alias_match: true` — alias results map to the parent diagram's slug, whose detail page shows the parent's name (e.g. "Bbm6") rather than the alias name the student sees (e.g. "Eb7(9)/Bb"), which would be confusing.
+
+**Fingers:** `chordVoicings` stores `{frets, position, fingers}`. Historically `fingers` was hardcoded `'000000'` — fixed in `useVoicingPickerStore._diagramDataToFingers()` (2026-05-10). Existing saved content with `'000000'` is harmless because `loadHeroChord` always fetches from the DB (which has correct `diagram_data`). The `fingers` field is still written correctly for audio playback via `chordVoicingsToEvents`.
+
+**Alias chord library feature (not yet built):** the chord library has no detail page for alias names. A future `?alias=` param on `/library/chords/{slug}` could override the displayed chord name and root to match the alias, allowing the hero link to work correctly for alias voicings too. Tracked in §8 open work.
 
 ### 9.6 Admin editor integration
 

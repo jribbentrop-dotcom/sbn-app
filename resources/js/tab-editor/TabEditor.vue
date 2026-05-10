@@ -781,7 +781,7 @@ registerSetChordNameWithVoicing((gi, ci, name, tabData) => {
         model.value.chordVoicings[`${name}@${gi}.${ci}`] = {
             frets:    tabData.frets,
             position: tabData.position,
-            fingers:  '000000',
+            fingers:  tabData.fingers ?? '000000',
         };
     }
 });

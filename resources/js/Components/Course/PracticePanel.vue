@@ -72,33 +72,23 @@ async function loadLessonChords(): Promise<void> {
   lessonChordData.value = rows.filter(Boolean);
 }
 
-// Parse a fret string (e.g. "x32010") into the diagram_data shape ChordDiagram expects.
-function fretStringToChordDiagram(chordName: string, rootNote: string, frets: string, startFret = 1): any {
-  const positions: { string: number; fret: number }[] = [];
-  const muted: number[] = [];
-  const open: number[] = [];
-  const chars = frets.toLowerCase().split('');
-  chars.forEach((ch, i) => {
-    const str = i + 1;
-    if (ch === 'x') { muted.push(str); return; }
-    const fret = parseInt(ch, 16);
-    if (fret === 0) { open.push(str); }
-    else { positions.push({ string: str, fret }); }
+
+function fretsFromDiagramData(dd: any): string {
+  if (!dd) return '';
+  const result = ['x','x','x','x','x','x'];
+  (dd.open ?? []).forEach((s: number) => { if (s >= 1 && s <= 6) result[s-1] = '0'; });
+  (dd.positions ?? []).forEach((p: any) => {
+    if (p.string >= 1 && p.string <= 6 && p.fret > 0)
+      result[p.string-1] = p.fret <= 9 ? String(p.fret) : p.fret.toString(16);
   });
-  return {
-    chord_name:       chordName,
-    root_note:        rootNote,
-    start_fret:       startFret,
-    diagram_data:     { positions, barres: [], muted, open },
-    quality:          '',
-    quality_label:    '',
-    voicing_category: '',
-    category_label:   '',
-    root_string:      '',
-    root_string_label:'',
-    inversion:        '',
-    inversion_label:  '',
-  };
+  (dd.barres ?? []).forEach((b: any) => {
+    const from = Math.min(b.fromString, b.toString);
+    const to   = Math.max(b.fromString, b.toString);
+    for (let s = from; s <= to; s++)
+      if (s >= 1 && s <= 6 && result[s-1] === 'x')
+        result[s-1] = b.fret <= 9 ? String(b.fret) : b.fret.toString(16);
+  });
+  return result.join('');
 }
 
 async function loadHeroChord(sel: SelectedChord | null | undefined): Promise<void> {
@@ -109,32 +99,29 @@ async function loadHeroChord(sel: SelectedChord | null | undefined): Promise<voi
 
   loadingHero.value = true;
   try {
-    // Use exercise voicing directly when available — exact frets, no DB lookup needed
-    if (sel.voicingData?.frets) {
-      heroChord.value = fretStringToChordDiagram(sel.slug, sel.root, sel.voicingData.frets, sel.voicingData.position ?? 1);
-      return;
-    }
-
-    // Otherwise try direct slug lookup
+    // Try direct slug lookup first (sel.slug may already be a chord library slug)
     const res = await fetch(`/api/sbn/chords/${encodeURIComponent(sel.slug)}?root=${encodeURIComponent(sel.root)}`, { headers: { Accept: 'application/json' } });
     if (res.ok) {
       heroChord.value = await res.json();
-    } else {
-      // Slug was a chord name (from exercise click) — search by name
-      const search = await fetch(`/api/sbn/chords?q=${encodeURIComponent(sel.slug)}`, { headers: { Accept: 'application/json' } });
-      if (search.ok) {
-        const data = await search.json();
-        const first = data.results?.[0];
-        if (first?.slug) {
-          const res2 = await fetch(`/api/sbn/chords/${first.slug}?root=${encodeURIComponent(sel.root)}`, { headers: { Accept: 'application/json' } });
-          heroChord.value = res2.ok ? await res2.json() : null;
-        } else {
-          heroChord.value = null;
-        }
-      } else {
-        heroChord.value = null;
-      }
+      return;
     }
+
+    // sel.slug is a chord name (from exercise/sheet click) — search by name
+    const search = await fetch(`/api/sbn/chords?q=${encodeURIComponent(sel.slug)}`, { headers: { Accept: 'application/json' } });
+    if (!search.ok) { heroChord.value = null; return; }
+
+    const data = await search.json();
+    const results: any[] = data.results ?? [];
+    if (!results.length) { heroChord.value = null; return; }
+
+    // Pick the result whose frets match the stored voicing exactly; fall back to first
+    const targetFrets = sel.voicingData?.frets ?? null;
+    const match = targetFrets
+      ? (results.find(r => fretsFromDiagramData(r.diagram_data) === targetFrets) ?? results[0])
+      : results[0];
+
+    // Search results already contain full diagram_data — use directly, no second fetch
+    heroChord.value = match;
   } finally {
     loadingHero.value = false;
   }
@@ -143,6 +130,13 @@ async function loadHeroChord(sel: SelectedChord | null | undefined): Promise<voi
 watch(() => props.lesson?.slug, () => { void loadLessonChords(); }, { immediate: true });
 watch(() => props.chordSlugs, () => { void loadLessonChords(); });
 watch(() => props.selectedChord, (v) => { void loadHeroChord(v ?? null); }, { immediate: true });
+
+const heroChordUrl = computed(() => {
+  if (!heroChord.value?.slug) return null;
+  if (heroChord.value.alias_match) return null; // alias: library page would show wrong name
+  const root = encodeURIComponent(heroChord.value.root_note ?? '');
+  return `/library/chords/${heroChord.value.slug}?root=${root}`;
+});
 
 function decreaseBpm(): void { bpm.value = Math.max(40, bpm.value - 2); }
 function increaseBpm(): void { bpm.value = Math.min(240, bpm.value + 2); }
@@ -163,9 +157,14 @@ function setBpmPreset(val: number): void { bpm.value = val; }
       </div>
 
       <div v-if="selectedChord" style="display:flex; flex-direction:column; gap:10px;">
-        <button type="button" class="sbn-btn sbn-btn-ghost sbn-btn-sm" style="align-self:flex-start;" @click="emit('clearChord')">? Back</button>
-        <div v-if="loadingHero" class="sbn-text-dim">Loading chord�</div>
-        <ChordCard v-else-if="heroChord" :chord="heroChord" :show-root="true" />
+        <button type="button" class="sbn-btn sbn-btn-ghost sbn-btn-sm" style="align-self:flex-start;" @click="emit('clearChord')">← Back</button>
+        <div v-if="loadingHero" class="sbn-text-dim">Loading chord…</div>
+        <template v-else-if="heroChord">
+          <a v-if="heroChordUrl" :href="heroChordUrl" class="vC-hero-chord-link">
+            <ChordCard :chord="heroChord" :show-root="true" :mini="true" />
+          </a>
+          <ChordCard v-else :chord="heroChord" :show-root="true" :mini="true" />
+        </template>
         <div v-else class="sbn-text-dim">Chord unavailable.</div>
       </div>
 
