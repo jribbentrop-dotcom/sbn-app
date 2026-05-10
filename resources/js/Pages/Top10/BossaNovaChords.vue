@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordDiagram from '@/Components/Library/ChordDiagram.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
@@ -103,6 +103,12 @@ function prevChord() {
     const prevIndex = (currentIndex - 1 + chords.value.length) % chords.value.length;
     selectedChord.value = chords.value[prevIndex];
 }
+
+function goToChordLibrary(chord: ChordDiagramData) {
+    if (!chord.slug) return;
+    const url = `/library/chords/${chord.slug}?root=${chord.root_note || 'C'}`;
+    router.visit(url);
+}
 </script>
 
 <template>
@@ -166,7 +172,11 @@ function prevChord() {
                         <div v-if="selectedChord.voicingData" class="sbn-panel">
                             <h3 class="sbn-panel-title">Chord Voicing</h3>
                             <div class="sbn-panel-content">
-                                <ChordCard :chord="selectedChord.voicingData" :show-root="true" />
+                                <ChordCard 
+                                    :chord="selectedChord.voicingData" 
+                                    :show-root="true" 
+                                    :on-chord-click="() => goToChordLibrary(selectedChord!.voicingData!)"
+                                />
                                 <p class="sbn-panel-caption">{{ selectedChord.voicingCaption }}</p>
                             </div>
                         </div>

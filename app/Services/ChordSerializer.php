@@ -43,6 +43,24 @@ class ChordSerializer
         // mismatch. The other public pages already go through this path.
         $effectiveRoot = $root ?? 'C';
         $t = $this->shapeCalculator->calculateFrets($chord, $effectiveRoot);
+        return $this->buildSerializedArray($chord, $t, $root, $displayName);
+    }
+
+    /**
+     * Serialize a chord diagram with an explicit bass note (true slash chord).
+     */
+    public function serializeWithBass(ChordDiagram $chord, string $root, string $bass): array
+    {
+        $displayName = $root . $chord->quality . ($chord->extensions ?? '') . '/' . $bass;
+        $t = $this->shapeCalculator->calculateFretsWithBass($chord, $root, $bass);
+        return $this->buildSerializedArray($chord, $t, $root, $displayName);
+    }
+
+    /**
+     * Internal helper to build the serialized array from calculator output.
+     */
+    private function buildSerializedArray(ChordDiagram $chord, array $t, ?string $root, string $displayName): array
+    {
         $diagramData = $t['diagram_data'] ?? null;
         $startFret = $t['start_fret'] ?? ($chord->start_fret ?? 1);
         $intervalLabels = $t['interval_labels'] ?? ($chord->interval_labels ?? '');

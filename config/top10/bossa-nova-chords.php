@@ -1,16 +1,23 @@
 <?php
 
 return [
-    'maj6-custom-roote-inv2-9-overAb' => [
+    'maj6-custom-roote-inv2-9' => [
         'title' => 'The Major 6/9 Chord',
         'shortTitle' => 'Major 6/9',
         'chordName' => 'Db6/9/Ab',
+        'rootOverride' => 'Db',
         'image' => '/images/top10/bossa-chords/1.jpg',
         'description' => "Play the first chord of 'The Girl from Ipanema' and many other classic pieces. The added sixth and ninth apply extra warmth to the major chord and make it sound even smoother than a pure major seventh chord.",
         'voicingCaption' => "This is the quintessential bossa nova chord, as heard in the beginning of \"The Girl from Ipanema\" on the famous Getz/Gilberto recording.",
         'progressionName' => 'Trademark Progression',
         'progressionCaption' => 'It is a real Swiss Army knife: it translates well into other shapes as you can see in the first four chords of "The Girl from Ipanema".',
-        'progressionSlugs' => ['maj6-custom-roote-inv2-9-overAb', 'eb7-9-slash-bb', 'ebm7-9-slash-bb', 'ab7b9-13'],
+        'progressionSlugs' => [
+            'maj6-custom-roote-inv2-9',
+            'dom7-shell-roote-inv2',
+            'm7-shell-roote-inv2',
+            'dom7-shell-roota-b9'
+        ],
+        'progressionRoots' => ['Db', 'Eb', 'Eb', 'Ab'],
         'relatedProducts' => [
             [
                 'title' => 'The Girl from Ipanema',
@@ -20,16 +27,18 @@ return [
             ],
         ],
     ],
-    'm7-shell-roota-9' => [
+    'm7-drop3-roote-inv2-9' => [
         'title' => 'Minor Seventh with 9',
         'shortTitle' => 'm7(9)',
         'chordName' => 'Ebm7(9)/Bb',
+        'rootOverride' => 'Eb',
         'image' => '/images/top10/bossa-chords/2.jpg',
         'description' => 'The little sister of the Major 9 chord — a bit more mellow and at least as beautiful. Essential for the smooth Bossa Nova sound.',
         'voicingCaption' => 'A lush minor chord with the 9th on top, perfect for the smooth "Blue Bossa" sound.',
         'progressionName' => 'Trademark Progression',
         'progressionCaption' => 'A minor ii-V-i progression resolving to Cm7(9).',
-        'progressionSlugs' => ['m7-shell-roota-9', 'fm7-9', 'dm7b5', 'g7b13'],
+        'progressionSlugs' => ['m7-drop3-roote-inv2-9', 'm7-shell-roota-9', 'm7b5-drop2-roota', 'dom7-drop3-roote-b13'],
+        'progressionRoots' => ['Eb', 'F', 'D', 'G'],
         'relatedProducts' => [
             [
                 'title' => 'Blue Bossa',
@@ -42,13 +51,15 @@ return [
     'm6-drop3-roote' => [
         'title' => 'The Minor Sixth Chord',
         'shortTitle' => 'm6',
-        'chordName' => 'Cm6',
+        'chordName' => 'Am6',
+        'rootOverride' => 'A',
         'image' => '/images/top10/bossa-chords/3.jpg',
         'description' => "The minor 6th chord is the darker, more mysterious alternative to the minor 7th chord. Perfect as a tonic chord for Jazz and Bossa Nova ballads like 'Corcovado'.",
         'voicingCaption' => 'A dark tonic chord that provides the signature resolution for "Corcovado."',
         'progressionName' => 'Trademark Progression',
         'progressionCaption' => 'A moody minor cadence with a deceptive resolution.',
-        'progressionSlugs' => ['m6-drop3-roote', 'ab-dim7'],
+        'progressionSlugs' => ['m6-drop3-roote', 'o7-drop3-roote'],
+        'progressionRoots' => ['A', 'Ab'],
         'relatedProducts' => [
             [
                 'title' => 'Corcovado',
@@ -62,12 +73,14 @@ return [
         'title' => 'Dominant Seventh with 13',
         'shortTitle' => '7(13)',
         'chordName' => 'G7(13)',
+        'rootOverride' => 'G',
         'image' => '/images/top10/bossa-chords/4.jpg',
         'description' => "A complicated name for a simple, elegant sound. Often used in typical chord progressions for Latin tunes like Jobim's 'Wave'.",
         'voicingCaption' => 'A colorful dominant seventh chord used extensively in Jobim\'s "Wave."',
         'progressionName' => 'Trademark Progression',
         'progressionCaption' => 'This is a classic chord progression: the G7(13) chord is paired with its best friend, the m7(9) chord.',
-        'progressionSlugs' => ['dm7-9', 'dom7-drop3-roote-13'],
+        'progressionSlugs' => ['m7-shell-roota-9', 'dom7-drop3-roote-13'],
+        'progressionRoots' => ['D', 'G'],
         'relatedProducts' => [
             [
                 'title' => 'Wave',
@@ -81,12 +94,14 @@ return [
         'title' => 'The Half Diminished Chord',
         'shortTitle' => 'm7b5',
         'chordName' => 'Bm7b5',
+        'rootOverride' => 'B',
         'image' => '/images/top10/bossa-chords/5.jpg',
         'description' => "As part of a II-V-I cadence in minor, the half-diminished chord (m7b5) is an essential building block of Jazz and Bossa Nova songs.",
         'voicingCaption' => 'The vital "ii" chord for minor cadences in classics like "Manha de Carnaval."',
         'progressionName' => 'Trademark Progression',
         'progressionCaption' => 'The fundamental minor ii-V-i cycle.',
-        'progressionSlugs' => ['m7b5-drop2-roota', 'e7', 'am7'],
+        'progressionSlugs' => ['m7b5-drop2-roota', 'dom7-shell-roota-b9', 'm7-shell-roota-9'],
+        'progressionRoots' => ['B', 'E', 'A'],
         'relatedProducts' => [
             [
                 'title' => 'The Gentle Rain',
@@ -100,12 +115,14 @@ return [
         'title' => 'Dominant Seventh with 9',
         'shortTitle' => '7(9)',
         'chordName' => 'C7(9)',
+        'rootOverride' => 'C',
         'image' => '/images/top10/bossa-chords/8.jpg',
         'description' => "Dominant Seventh chords are vital to any music genre. The Dom7(9) version is common in Latin-song intros like 'Oye Como Va'.",
         'voicingCaption' => 'A versatile, open-sounding dominant often used in both Bossa and Latin Blues.',
         'progressionName' => 'Trademark Progression',
         'progressionCaption' => 'A groovy cycle-of-fourths progression.',
-        'progressionSlugs' => ['gm7', 'dom7-shell-roota-9'],
+        'progressionSlugs' => ['m7-shell-roota-9', 'dom7-shell-roota-9'],
+        'progressionRoots' => ['G', 'C'],
         'relatedProducts' => [
             [
                 'title' => 'TOP10 Bossa Nova Chords',
@@ -119,12 +136,14 @@ return [
         'title' => 'Dominant Seventh with b9',
         'shortTitle' => '7(b9)',
         'chordName' => 'E7(b9)',
+        'rootOverride' => 'E',
         'image' => '/images/top10/bossa-chords/6.jpg',
         'description' => "Along with the half-diminished chord, the Dom7b9 forms the 'minor cadence' team. Adds dramatic tension and release.",
         'voicingCaption' => 'Adds a beautiful tension that resolves perfectly to a minor tonic.',
         'progressionName' => 'Trademark Progression',
         'progressionCaption' => 'A high-tension minor turnaround.',
-        'progressionSlugs' => ['bm7', 'e7-9', 'dom7-shell-roota-b9', 'a6-9'],
+        'progressionSlugs' => ['m7-drop2-roota', 'dom7-shell-roota-b9', 'maj6-shell-roota-9'],
+        'progressionRoots' => ['B', 'E', 'A'],
         'relatedProducts' => [
             [
                 'title' => 'TOP10 Bossa Nova Chords',
@@ -138,12 +157,14 @@ return [
         'title' => 'The Diminished Seventh Chord',
         'shortTitle' => 'dim7',
         'chordName' => 'C#dim7',
+        'rootOverride' => 'C#',
         'image' => '/images/top10/bossa-chords/7.jpg',
         'description' => "The 'Secret Weapon' of Bossa Nova! Tom Jobim used diminished chords in numerous songs as smooth passing harmonies.",
         'voicingCaption' => "Jobim's secret weapon for chromatic passing chords between major and minor.",
         'progressionName' => 'Symmetrical Progression',
         'progressionCaption' => 'Moving the same shape up by 3 frets creates a symmetrical inversion.',
-        'progressionSlugs' => ['o7-drop2-roota', 'e-dim7', 'dm7'],
+        'progressionSlugs' => ['o7-drop2-roota', 'o7-drop2-roota', 'm7-drop2-roota'],
+        'progressionRoots' => ['C#', 'E', 'D'],
         'relatedProducts' => [
             [
                 'title' => 'How Insensitive',
@@ -153,16 +174,18 @@ return [
             ],
         ],
     ],
-    'gsharp-dim7b13' => [
+    'o7-drop3-roote-b13' => [
         'title' => 'Diminished with Flat 13',
         'shortTitle' => 'o7(b13)',
         'chordName' => 'G#dim7(b13)',
+        'rootOverride' => 'G#',
         'image' => '/images/top10/bossa-chords/9.jpg',
         'description' => "To make a diminished chord softer, add a b13. This voicing was a favorite of Joao Gilberto, used in his treatment of 'Corcovado'.",
         'voicingCaption' => 'The signature "João Gilberto" voicing that softens the diminished sound.',
         'progressionName' => 'Trademark Progression',
         'progressionCaption' => 'Modern bossa harmonic texture.',
-        'progressionSlugs' => ['b-dim7b13', 'gsharp-dim7b13', 'am6'],
+        'progressionSlugs' => ['o7-drop3-roote-b13', 'o7-drop3-roote-b13', 'm6-drop3-roote'],
+        'progressionRoots' => ['B', 'G#', 'A'],
         'relatedProducts' => [
             [
                 'title' => 'TOP10 Bossa Nova Chords',
@@ -172,16 +195,18 @@ return [
             ],
         ],
     ],
-    'g7b13' => [
+    'dom7-drop3-roote-b13' => [
         'title' => 'Dominant Seventh with b13',
         'shortTitle' => '7(b13)',
         'chordName' => 'G7(b13)',
+        'rootOverride' => 'G',
         'image' => '/images/top10/bossa-chords/10.jpg',
         'description' => "Used to create a strong tension effect that typically resolves to a major chord, as heard in the beautiful 'How Insensitive'.",
         'voicingCaption' => 'High tension dominant voicing, ideal for moving toward a major resolution.',
         'progressionName' => 'Trademark Progression',
         'progressionCaption' => 'A dramatic and elegant cadence.',
-        'progressionSlugs' => ['dm7-9', 'g7b13', 'c6-9'],
+        'progressionSlugs' => ['m7-shell-roota-9', 'dom7-drop3-roote-b13', 'maj6-shell-roota-9'],
+        'progressionRoots' => ['D', 'G', 'C'],
         'relatedProducts' => [
             [
                 'title' => 'TOP10 Bossa Nova Chords',

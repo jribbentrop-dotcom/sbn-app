@@ -55,7 +55,6 @@ class Top10Controller extends Controller
 
         $chords = \App\Models\ChordDiagram::whereIn('slug', $allRequiredChordSlugs)
             ->get()
-            ->map(fn ($c) => $this->chordSerializer->serialize($c))
             ->keyBy('slug');
 
         $rhythms = \App\Models\RhythmPattern::whereIn('slug', $allRhythmSlugs)
@@ -64,8 +63,29 @@ class Top10Controller extends Controller
             ->toArray();
 
         return collect($chordConfig)->map(function ($config, $slug) use ($chords, $rhythms) {
-            $progressionTiles = collect($config['progressionSlugs'] ?? [])->map(function ($progressionSlug) use ($chords) {
-                $tileData = $chords[$progressionSlug] ?? null;
+            $rootOverride = $config['rootOverride'] ?? null;
+            $bassOverride = $config['bassOverride'] ?? null;
+            $mainChordModel = $chords[$slug] ?? null;
+            
+            $voicingData = null;
+            if ($mainChordModel) {
+                $voicingData = ($bassOverride) 
+                    ? $this->chordSerializer->serializeWithBass($mainChordModel, $rootOverride ?? $mainChordModel->root_note ?? 'C', $bassOverride)
+                    : $this->chordSerializer->serialize($mainChordModel, $rootOverride);
+            }
+
+            $progressionTiles = collect($config['progressionSlugs'] ?? [])->map(function ($progressionSlug, $index) use ($chords, $config) {
+                $chordModel = $chords[$progressionSlug] ?? null;
+                $rootOverride = $config['progressionRoots'][$index] ?? null;
+                $bassOverride = $config['progressionBass'][$index] ?? null;
+                
+                $tileData = null;
+                if ($chordModel) {
+                    $tileData = ($bassOverride)
+                        ? $this->chordSerializer->serializeWithBass($chordModel, $rootOverride ?? $chordModel->root_note ?? 'C', $bassOverride)
+                        : $this->chordSerializer->serialize($chordModel, $rootOverride);
+                }
+                
                 return [
                     'chordName' => $tileData['name'] ?? $progressionSlug,
                     'diagramData' => $tileData,
@@ -74,7 +94,7 @@ class Top10Controller extends Controller
 
             return array_merge($config, [
                 'slug' => $slug,
-                'voicingData' => $chords[$slug] ?? null,
+                'voicingData' => $voicingData,
                 'progressionTiles' => $progressionTiles,
                 'rhythmData' => $rhythms[$config['rhythmSlug'] ?? ''] ?? null,
                 'relatedProducts' => $config['relatedProducts'] ?? [],
