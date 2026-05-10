@@ -8,7 +8,7 @@ class GeminiLookupClient implements LookupClient
 {
     public function __construct(
         protected string $apiKey,
-        protected string $model = 'gemini-2.5-flash'
+        protected string $model = 'gemini-1.5-flash'
     ) {}
 
     public function complete(string $systemPrompt, string $userPrompt, array $jsonSchema, array $opts = []): array
@@ -77,7 +77,7 @@ class GeminiLookupClient implements LookupClient
             $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '{}';
             
             \Log::info('[GeminiLookupClient] response keys', [
-                'mode' => $opts['useWebSearch'] ? 'assistant' : 'quick',
+                'mode' => !empty($opts['useWebSearch']) ? 'assistant' : 'quick',
                 'has_grounding' => isset($data['candidates'][0]['groundingMetadata']),
                 'citation_count' => isset($data['candidates'][0]['citationMetadata']['citationSources']) 
                     ? count($data['candidates'][0]['citationMetadata']['citationSources']) 

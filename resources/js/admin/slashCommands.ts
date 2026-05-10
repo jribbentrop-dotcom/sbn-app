@@ -15,7 +15,7 @@ import { Extension } from '@tiptap/core';
 import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion';
 import { type Editor }  from '@tiptap/core';
 
-type NodeType = 'chord' | 'rhythm' | 'progression' | 'song';
+type NodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'image' | 'youtube';
 
 interface SlashItem { label: string; type: NodeType; shortcut: string }
 
@@ -23,7 +23,12 @@ const ITEMS: SlashItem[] = [
     { label: 'Chord',       type: 'chord',       shortcut: '⇧C' },
     { label: 'Rhythm',      type: 'rhythm',       shortcut: '⇧R' },
     { label: 'Progression', type: 'progression',  shortcut: '⇧P' },
+    { label: 'Sheet',       type: 'sheet',        shortcut: '⇧S' },
     { label: 'Song',        type: 'song',         shortcut: '⇧L' },
+    { label: 'Image',       type: 'image',        shortcut: '⇧M' },
+    { label: 'YouTube',     type: 'youtube',      shortcut: '' },
+    { label: 'AI Proofread', type: 'image',       shortcut: '' }, // Reusing 'image' type for icon color or similar, or just add new
+    { label: 'AI Generate',  type: 'song',        shortcut: '' },
 ];
 
 // ── Popup DOM ─────────────────────────────────────────────────────────────────
@@ -158,9 +163,36 @@ export const SlashCommands = Extension.create({
                 command({ editor, range, props }: { editor: Editor; range: any; props: SlashItem }) {
                     // Delete the "/" trigger text
                     editor.chain().focus().deleteRange(range).run();
+                    
+                    if (props.type === 'youtube') {
+                        const url = window.prompt('Enter YouTube URL:');
+                        if (!url) return;
+                        
+                        const idMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
+                        if (idMatch && idMatch[1]) {
+                            editor.chain().focus().insertContent({
+                                type: 'sbn-youtube',
+                                attrs: { id: idMatch[1] },
+                            }).run();
+                        } else {
+                            alert('Invalid YouTube URL');
+                        }
+                        return;
+                    }
+
+                    // AI Commands
+                    if (props.label === 'AI Proofread') {
+                        (window as any).__sbnAI('proofread');
+                        return;
+                    }
+                    if (props.label === 'AI Generate') {
+                        (window as any).__sbnAI('generate');
+                        return;
+                    }
+
                     // Delegate to palette
                     const fn = (window as any).__sbnPalette;
-                    if (typeof fn === 'function') fn(props.type);
+                    if (typeof fn === 'function') fn(props.type === 'image' ? 'media' : props.type);
                 },
             } satisfies Partial<SuggestionOptions>,
         };

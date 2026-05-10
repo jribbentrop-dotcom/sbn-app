@@ -7,6 +7,7 @@ use App\Services\LLM\LookupClient;
 use App\Services\LLM\GeminiLookupClient;
 use App\Services\LLM\DeepSeekLookupClient;
 use App\Services\LLM\FakeLookupClient;
+use App\Services\LLM\OllamaLookupClient;
 
 class LLMServiceProvider extends ServiceProvider
 {
@@ -26,7 +27,7 @@ class LLMServiceProvider extends ServiceProvider
             return match ($provider) {
                 'gemini' => new GeminiLookupClient(
                     apiKey: config('services.llm.gemini.key', ''),
-                    model: config('services.llm.gemini.model', 'gemini-2.5-flash')
+                    model: config('services.llm.gemini.model', 'gemini-1.5-flash')
                 ),
                 'deepseek' => new DeepSeekLookupClient(
                     apiKey: config('services.llm.deepseek.key', ''),
@@ -41,6 +42,10 @@ class LLMServiceProvider extends ServiceProvider
                 'cohere' => new \App\Services\LLM\CohereLookupClient(
                     apiKey: config('services.llm.cohere.key', ''),
                     model: config('services.llm.cohere.model', 'command-r-plus-08-2024')
+                ),
+                'ollama' => new OllamaLookupClient(
+                    model: config('services.llm.ollama.model', 'llama3'),
+                    baseUrl: config('services.llm.ollama.base', 'http://localhost:11434/v1')
                 ),
                 'fake' => new FakeLookupClient(),
                 default => throw new \RuntimeException("Unknown LLM provider: {$provider}"),

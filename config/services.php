@@ -39,7 +39,7 @@ return [
         'provider' => env('LLM_PROVIDER', 'gemini'),  // 'gemini' | 'deepseek'
         'gemini' => [
             'key'   => env('GEMINI_API_KEY'),
-            'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+            'model' => env('GEMINI_MODEL', 'gemini-1.5-flash'),
         ],
         'deepseek' => [
             'key'   => env('DEEPSEEK_API_KEY'),
@@ -54,6 +54,10 @@ return [
         'cohere' => [
             'key'   => env('COHERE_API_KEY'),
             'model' => env('COHERE_MODEL', 'command-r-plus-08-2024'),
+        ],
+        'ollama' => [
+            'model' => env('OLLAMA_MODEL', 'llama3'),
+            'base'  => env('OLLAMA_BASE_URL', 'http://localhost:11434/v1'),
         ],
     ],
 

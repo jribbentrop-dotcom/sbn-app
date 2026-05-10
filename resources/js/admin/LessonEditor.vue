@@ -187,6 +187,69 @@ const fmt = ref({
     ul: false, ol: false, blockquote: false,
 });
 
+const isProcessingAI = ref(false);
+
+async function callAI(action: string, content: string, context: string = '') {
+    isProcessingAI.value = true;
+    try {
+        const response = await fetch('/admin/ai/process', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            },
+            body: JSON.stringify({ action, content, context })
+        });
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        return data;
+    } catch (err) {
+        console.error('AI Error:', err);
+        alert('AI Assistant is currently unavailable.');
+        return null;
+    } finally {
+        isProcessingAI.value = false;
+    }
+}
+
+async function aiProofread() {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    const text = editor.state.doc.textBetween(from, to, ' ');
+    const contentToProcess = text || editor.getHTML();
+    
+    const res = await callAI('proofread', contentToProcess, editor.getText().substring(0, 500));
+    if (res?.improved_text) {
+        if (text) {
+            editor.chain().focus().insertContentAt({ from, to }, res.improved_text).run();
+        } else {
+            editor.chain().focus().setContent(res.improved_text).run();
+        }
+    }
+}
+
+async function aiGenerate() {
+    if (!editor) return;
+    const prompt = window.prompt('What should I write? (e.g. "A brief intro to Bossa Nova")');
+    if (!prompt) return;
+
+    const res = await callAI('generate', prompt, editor.getText().substring(0, 500));
+    if (res?.generated_html) {
+        editor.chain().focus().insertContent(res.generated_html).run();
+    }
+}
+
+async function aiAutocomplete() {
+    if (!editor) return;
+    const { from } = editor.state.selection;
+    const textBefore = editor.state.doc.textBetween(Math.max(0, from - 500), from, ' ');
+    
+    const res = await callAI('autocomplete', textBefore, editor.getText().substring(0, 500));
+    if (res?.suggestion) {
+        editor.chain().focus().insertContent(res.suggestion).run();
+    }
+}
+
 function updateFmt() {
     if (!editor) return;
     fmt.value = {
@@ -388,13 +451,27 @@ onMounted(() => {
         }).run();
     };
 
+    // Bridge for SlashCommands
+    (window as any).__sbnAI = (action: string) => {
+        if (action === 'proofread') aiProofread();
+        if (action === 'generate') aiGenerate();
+    };
+
     // Keyboard shortcuts — open palette to the right tab
-    document.addEventListener('keydown', handleShortcut);
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.code === 'Space') {
+            e.preventDefault();
+            aiAutocomplete();
+        } else {
+            handleShortcut(e);
+        }
+    });
 });
 
 onBeforeUnmount(() => {
     document.removeEventListener('keydown', handleShortcut);
     delete (window as any).__sbnInsert;
+    delete (window as any).__sbnAI;
     editor?.destroy();
     editor = null;
 });
@@ -418,6 +495,15 @@ onBeforeUnmount(() => {
       <div class="sbn-tiptap-divider" />
       <button type="button" class="sbn-tiptap-btn"                                           title="Undo (Ctrl+Z)"       @click="tb('undo')">↩</button>
       <button type="button" class="sbn-tiptap-btn"                                           title="Redo (Ctrl+Y)"       @click="tb('redo')">↪</button>
+      <div class="sbn-tiptap-divider" />
+      <button type="button" class="sbn-tiptap-btn ai-btn" :disabled="isProcessingAI" title="Proofread selection (or all)" @click="aiProofread">
+        <span v-if="!isProcessingAI">✨ Proof</span>
+        <span v-else class="ai-spinner">...</span>
+      </button>
+      <button type="button" class="sbn-tiptap-btn ai-btn" :disabled="isProcessingAI" title="Generate content" @click="aiGenerate">
+        <span v-if="!isProcessingAI">✍️ Gen</span>
+        <span v-else class="ai-spinner">...</span>
+      </button>
     </div>
     <!-- Editor body -->
     <div class="sbn-tiptap-wrap">

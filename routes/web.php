@@ -109,6 +109,8 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
 
     // Shop Orders (admin view)
     Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
+    // AI Assistant
+    Route::post('/ai/process', [\App\Http\Controllers\Admin\AIController::class, 'process'])->name('ai.process');
 });
 
 /*
@@ -175,6 +177,9 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
     Route::post('/voicings/{draft}/promote', [VoicingController::class, 'promote'])->name('voicings.promote');
     Route::post('/voicings/clear-all', [VoicingController::class, 'clearAll'])->name('voicings.clearAll');
     Route::post('/voicings/reprocess', [VoicingController::class, 'reprocess'])->name('voicings.reprocess');
+
+    // AI Assistant API
+    Route::post('/ai/process', [\App\Http\Controllers\Admin\AIController::class, 'process'])->name('ai.process');
 });
 
 /*
