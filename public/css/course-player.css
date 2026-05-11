@@ -408,6 +408,21 @@
 .sbn-pattern-row--gold      { --row-color: var(--clr-style-gold); }
 .sbn-pattern-row--general   { --row-color: var(--clr-style-general); }
 
+/* --------------------------------------------------------------------------
+   Chord Embed Polish (Library Consistent Style)
+   -------------------------------------------------------------------------- */
+.sbn-chord-embed {
+    display: inline-block;
+    vertical-align: top;
+    width: 140px;
+    margin: 10px 14px 10px 0;
+}
+
+.sbn-chord-embed .sbn-chord-card {
+    width: 100%;
+    max-width: 140px;
+}
+
 .sbn-pattern-row-head {
     display: flex;
     align-items: center;
@@ -508,12 +523,16 @@
     padding: 14px;
 }
 
-.vC-hero-chord-link {
+.vC-hero-chord-link,
+.vC-practice .sbn-chord-card--mini {
     display: block;
     text-decoration: none;
     color: inherit;
     border-radius: var(--radius-sm);
     transition: transform 0.15s ease, box-shadow 0.15s ease;
+    max-width: 160px;
+    margin: 0 auto;
+    width: 100%;
 }
 .vC-hero-chord-link:hover {
     transform: translateY(-2px);

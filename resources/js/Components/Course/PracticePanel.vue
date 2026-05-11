@@ -153,7 +153,7 @@ function setBpmPreset(val: number): void { bpm.value = val; }
     <div class="vC-card">
       <div class="vC-card-eyebrow">
         <span>{{ selectedChord ? 'Selected chord' : 'Chords in this lesson' }}</span>
-        <span class="vC-card-meta">{{ selectedChord ? 'hero' : lessonChordData.length }}</span>
+        <span class="vC-card-meta">{{ selectedChord ? 'active' : lessonChordData.length }}</span>
       </div>
 
       <div v-if="selectedChord" style="display:flex; flex-direction:column; gap:10px;">
@@ -180,7 +180,7 @@ function setBpmPreset(val: number): void { bpm.value = val; }
             <div class="vC-chord-row-name sbn-chord">{{ chord.name || chord.slug }}</div>
             <div class="vC-chord-row-sub">{{ chord.slug }}</div>
           </div>
-          <span class="vC-chord-row-arrow">�</span>
+          <span class="vC-chord-row-arrow">›</span>
         </button>
         <div v-if="!lessonChordData.length" class="sbn-text-dim">No lesson chords found.</div>
       </div>
@@ -189,7 +189,7 @@ function setBpmPreset(val: number): void { bpm.value = val; }
     <div class="vC-card">
       <div class="vC-card-eyebrow">
         <span>Rhythm</span>
-        <span class="vC-card-meta">4/4 � 1 bar</span>
+        <span class="vC-card-meta">4/4 · 1 bar</span>
       </div>
       <RhythmStrip :pattern="rhythmOptions[activeRhythm].pattern" :tempo="bpm" :label="rhythmOptions[activeRhythm].label" playable />
       <div class="vC-rhythm-row">
@@ -219,7 +219,7 @@ function setBpmPreset(val: number): void { bpm.value = val; }
       <div class="vC-bpm-presets">
         <button v-for="preset in [72, 100, 132]" :key="preset" type="button" class="vC-bpm-preset" :class="{ 'is-active': bpm === preset }" @click="setBpmPreset(preset)">{{ preset }}</button>
       </div>
-      <div v-if="transportDisabled" class="vC-transport-note">? playing from exercise</div>
+      <div v-if="transportDisabled" class="vC-transport-note">· playing from exercise</div>
     </div>
   </aside>
 </template>

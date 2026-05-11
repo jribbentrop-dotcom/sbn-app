@@ -106,6 +106,7 @@ class RhythmPattern extends Model
     {
         return [
             'name'          => $this->name,
+            'category'      => $this->category,
             'beats'         => $this->beats,
             'gridType'      => $this->grid_type,
             'thumb'         => $this->thumb_pattern,
@@ -114,7 +115,7 @@ class RhythmPattern extends Model
             'timeSignature' => $this->time_signature,
             'percTop'       => $this->perc_top,
             'percBass'      => $this->perc_bass,
-            'styleSlug'     => $this->style_slug ?? 'general',
+            'styleSlug'     => \Illuminate\Support\Str::slug($this->category) ?: 'general',
             'demoUrl'       => $this->mp3_file ? asset('audio/rhythm-demos/' . $this->mp3_file) : null,
         ];
     }

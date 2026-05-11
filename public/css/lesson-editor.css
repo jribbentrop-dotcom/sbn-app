@@ -110,6 +110,7 @@
     user-select: none;
     white-space: nowrap;
     line-height: 1.5;
+    margin-right: 4px;
 }
 
 .sbn-chip[data-type="chord"]       { background: #e8f4fd; border-color: #b3d4f5; }
