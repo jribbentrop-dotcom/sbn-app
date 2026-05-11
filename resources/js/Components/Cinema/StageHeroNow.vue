@@ -3,12 +3,6 @@
   <section class="stage-hero">
     <!-- Video card (left, 1.55fr) -->
     <div class="stage-video-card" :class="{ 'stage-video-card--live': hasVideo }">
-      <!-- "Lesson · Synced" badge -->
-      <div class="stage-video-meta">
-        <span class="stage-video-meta-dot"></span>
-        <span>{{ hasVideo ? 'Lesson · Synced' : 'No Video' }}</span>
-      </div>
-
       <!-- VideoPlayer or placeholder -->
       <VideoPlayer
         v-if="hasVideo"
@@ -22,14 +16,6 @@
       <div v-else class="stage-video-placeholder">
         <div class="stage-video-placeholder-icon">▶</div>
         <p class="stage-video-placeholder-hint">No video linked — attach a YouTube URL in the admin editor to enable sync.</p>
-      </div>
-
-      <!-- Sync strip (bottom overlay) -->
-      <div class="stage-video-sync-strip">
-        <span><strong>{{ formatTime(videoTime) }}</strong> / {{ formatTime(videoDuration) }}</span>
-        <span :class="hasVideo ? 'stage-sync-on' : 'stage-sync-off'">
-          {{ hasVideo ? '● Bar-sync ON' : '● No sync' }}
-        </span>
       </div>
     </div>
 
@@ -63,13 +49,12 @@
           </div>
         </div>
 
-        <!-- 180px neon diagram -->
+        <!-- Chord card (library card if available, neon fallback) -->
         <div class="stage-hero-diagram">
-          <NeonChordDiagram
-            v-if="currentVoicing"
-            :frets="currentVoicing.frets"
-            :position="currentVoicing.position ?? currentVoicing.pos ?? 1"
-            width="180"
+          <ChordCard
+            v-if="currentChordCard"
+            :chord="currentChordCard"
+            :show-root="true"
           />
         </div>
       </div>
@@ -87,19 +72,18 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { ref } from 'vue';
 import VideoPlayer from '@/tab-editor/components/VideoPlayer.vue';
-import NeonChordDiagram from '@/Components/ChordDiagram/NeonChordDiagram.vue';
+import ChordCard from '@/Components/Library/ChordCard.vue';
 import { formatChordHtml } from '@/tab-editor/utils/chordFormat.js';
+
+const playerRef = ref(null);
 
 const props = defineProps({
   // Video
   hasVideo:      { type: Boolean, default: false },
   videoId:       { type: String, default: '' },
   videoType:     { type: String, default: 'youtube' },
-  videoTime:     { type: Number, default: 0 },
-  videoDuration: { type: Number, default: 0 },
-
   // Now playing
   currentChordName: { type: String, default: '' },
   nextChordName:    { type: String, default: '' },
@@ -107,6 +91,7 @@ const props = defineProps({
   sectionLabel:     { type: String, default: '' },
   romanNumeral:     { type: String, default: '—' },
   currentVoicing:   { type: Object, default: null },
+  currentChordCard: { type: Object, default: null },
   beatsUntilNext:   { type: Number, default: 4 },
 
   // Playback
@@ -116,12 +101,12 @@ const props = defineProps({
 
 defineEmits(['video-timeupdate', 'video-play-state', 'video-ready']);
 
-function formatTime(secs) {
-  const s = Math.floor(secs ?? 0);
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
-}
+defineExpose({
+  play:  () => playerRef.value?.play(),
+  pause: () => playerRef.value?.pause(),
+  seekTo: (s) => playerRef.value?.seekTo(s),
+});
+
 </script>
 
 <style scoped>
@@ -218,7 +203,7 @@ function formatTime(secs) {
   justify-content: center;
   gap: 14px;
   background: radial-gradient(ellipse 400px 200px at 50% 0%, rgba(var(--stage-accent-rgb), 0.12), transparent 70%),
-              linear-gradient(180deg, #0d0d12 0%, #050507 100%);
+              linear-gradient(180deg, var(--stage-bg-2) 0%, var(--stage-bg) 100%);
   color: var(--stage-text);
   text-align: center;
   padding: 32px;

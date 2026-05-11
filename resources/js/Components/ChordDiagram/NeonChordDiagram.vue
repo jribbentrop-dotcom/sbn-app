@@ -40,21 +40,23 @@
     />
 
     <!-- Muted strings (×) -->
-    <text
-      v-for="(f, i) in parsed" :key="`mute-${i}`"
-      v-if="f === 'x'"
-      :x="left + i * strSp" :y="top - 5"
-      font-size="9" font-weight="600" text-anchor="middle"
-      :fill="txt" font-family="JetBrains Mono, monospace"
-    >×</text>
+    <template v-for="(f, i) in parsed" :key="`mute-${i}`">
+      <text
+        v-if="f === 'x'"
+        :x="left + i * strSp" :y="top - 5"
+        font-size="9" font-weight="600" text-anchor="middle"
+        :fill="txt" font-family="JetBrains Mono, monospace"
+      >×</text>
+    </template>
 
     <!-- Open strings (○) -->
-    <circle
-      v-for="(f, i) in parsed" :key="`open-${i}`"
-      v-if="f === 0"
-      :cx="left + i * strSp" :cy="top - 7"
-      r="3" fill="none" :stroke="txt" stroke-width="0.9"
-    />
+    <template v-for="(f, i) in parsed" :key="`open-${i}`">
+      <circle
+        v-if="f === 0"
+        :cx="left + i * strSp" :cy="top - 7"
+        r="3" fill="none" :stroke="txt" stroke-width="0.9"
+      />
+    </template>
 
     <!-- Fretted dots -->
     <template v-for="(f, i) in parsed" :key="`dot-${i}`">
@@ -80,16 +82,16 @@ import { computed } from 'vue';
 const props = defineProps({
   frets:    { type: String, default: '' },
   position: { type: Number, default: 1 },
-  accent:   { type: String, default: '#ff7a1a' },
+  accent:   { type: String, default: 'var(--stage-accent, #ff7a1a)' },
   width:    { type: [String, Number], default: '100%' },
 });
 
 const W = 80, H = 100;
 const strSp = 12, fretSp = 17;
 const left = 14, top = 18, numFrets = 4;
-const grid = 'rgba(255,255,255,0.28)';
-const gridStrong = 'rgba(255,255,255,0.55)';
-const txt = 'rgba(255,255,255,0.7)';
+const grid = 'var(--neon-grid, rgba(255,255,255,0.28))';
+const gridStrong = 'var(--neon-grid-strong, rgba(255,255,255,0.55))';
+const txt = 'var(--neon-txt, rgba(255,255,255,0.7))';
 
 const filterId = `neon-glow-${Math.random().toString(36).slice(2, 7)}`;
 

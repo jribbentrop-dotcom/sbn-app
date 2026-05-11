@@ -92,6 +92,18 @@ onBeforeUnmount(() => {
 
 const cardRef = ref<HTMLElement | null>(null);
 
+function handleCardClick() {
+    if (props.onChordClick) {
+        props.onChordClick();
+        return;
+    }
+    if (props.chord.slug) {
+        const root = (props.chord as any).root_note;
+        const url = `/library/chords/${props.chord.slug}${root ? '?root=' + root : ''}`;
+        window.open(url, '_blank');
+    }
+}
+
 async function playChord() {
     await engine.init({ samplesBaseUrl: '/audio/rhythm-samples/' });
     const events = chordDiagramToEvents(
@@ -124,8 +136,8 @@ async function playChord() {
     <div
         ref="cardRef"
         class="sbn-chord-card"
-        :class="{ 'sbn-chord-card--mini': mini, 'sbn-chord-card--clickable': !!onChordClick }"
-        @click="onChordClick?.()"
+        :class="{ 'sbn-chord-card--mini': mini, 'sbn-chord-card--clickable': !!onChordClick || !!chord.slug }"
+        @click="handleCardClick"
     >
         <!-- Chord name -->
         <div class="sbn-card-chord-name" v-html="formattedName" />

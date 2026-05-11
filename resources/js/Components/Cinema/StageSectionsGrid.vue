@@ -1,61 +1,38 @@
 <template>
   <div>
-    <!-- Strip header -->
-    <div class="stage-strip-head">
-      <div class="stage-strip-title">Leadsheet · full chart</div>
-      <div class="stage-strip-legend">
-        <span v-for="(sec, i) in sections.slice(0, 4)" :key="i">
-          <span class="stage-strip-legend-dot" :style="legendDotStyle(i)"></span>
-          {{ sec.id || sec.name || String.fromCharCode(65 + i) }}
-        </span>
-      </div>
+    <!-- Section tabs -->
+    <div class="stage-sec-tabs">
+      <button
+        v-for="(sec, si) in sections" :key="si"
+        class="stage-sec-tab"
+        :class="{ 'stage-sec-tab--active': si === activeSectionIndex }"
+        :data-sec="si % 4"
+        @click="activeSectionIndex = si"
+      >
+        <span class="stage-sec-tab-letter">{{ sec.id || String.fromCharCode(65 + si) }}</span>
+        <span class="stage-sec-tab-name">{{ sec.name || '' }}</span>
+      </button>
     </div>
 
-    <!-- 4-column section grid -->
-    <div class="stage-sections-grid">
-      <div
-        v-for="(sec, si) in sections" :key="si"
-        class="stage-sec-col"
-        :data-sec="si % 4"
-      >
-        <!-- Section header -->
-        <div class="stage-sec-col-head">
-          <span class="stage-sec-letter">{{ sec.id || String.fromCharCode(65 + si) }}</span>
-          <span class="stage-sec-label">{{ sec.name || '' }}</span>
-        </div>
-
-        <!-- Bar list -->
-        <div class="stage-sec-bars">
-          <div
-            v-for="(measure, mi) in (sec.measures || [])" :key="measure.globalIndex ?? mi"
-            class="stage-sec-bar"
-            :class="{
-              'stage-sec-bar--active':  measure.globalIndex === currentBarIndex,
-              'stage-sec-bar--past':    playing && measure.globalIndex < currentBarIndex,
-              'stage-sec-bar--multi':   (measure.chordNames?.length ?? 0) > 1,
-            }"
-            @click="$emit('seek-measure', measure.globalIndex ?? mi)"
-          >
-            <!-- Bar number -->
-            <div class="stage-sec-bar-num">{{ (measure.globalIndex ?? mi) + 1 }}</div>
-
-            <!-- Chord name(s) -->
-            <div class="stage-sec-bar-chord">
-              <span
-                v-for="(name, ci) in (measure.chordNames || [])" :key="ci"
-                v-html="formatChordHtml(name)"
-              ></span>
-            </div>
-
-            <!-- Tiny neon diagram (first chord) -->
-            <div class="stage-sec-bar-mini">
-              <NeonChordDiagram
-                v-if="getVoicing(measure)"
-                :frets="getVoicing(measure).frets"
-                :position="getVoicing(measure).position ?? getVoicing(measure).pos ?? 1"
-                width="28"
-              />
-            </div>
+    <!-- Single active section — horizontal scroll row, one frame per measure -->
+    <div v-if="activeSection" class="stage-sec-panel" :data-sec="activeSectionIndex % 4">
+      <div class="stage-sec-scroll">
+        <div
+          v-for="(measure, mi) in (activeSection.measures || [])" :key="measure.globalIndex ?? mi"
+          class="stage-sec-measure"
+          :class="{
+            'stage-sec-measure--active': measure.globalIndex === currentBarIndex,
+            'stage-sec-measure--past':   playing && measure.globalIndex < currentBarIndex,
+          }"
+          @click="$emit('seek-measure', measure.globalIndex ?? mi)"
+        >
+          <div class="stage-sec-bar-num">{{ (measure.globalIndex ?? mi) + 1 }}</div>
+          <div class="stage-sec-measure-chords">
+            <ClassicChordCard
+              v-for="(name, ci) in (measure.chordNames || [])" :key="ci"
+              :chord-name="name"
+              :voicing="getVoicingAt(measure, ci)"
+            />
           </div>
         </div>
       </div>
@@ -64,223 +41,163 @@
 </template>
 
 <script setup>
-import NeonChordDiagram from '@/Components/ChordDiagram/NeonChordDiagram.vue';
-import { formatChordHtml } from '@/tab-editor/utils/chordFormat.js';
+import { ref, computed, watch } from 'vue';
+import ClassicChordCard from '@/Components/ChordDiagram/ClassicChordCard.vue';
 
 const props = defineProps({
-  sections:       { type: Array, default: () => [] },
-  currentBarIndex:{ type: Number, default: 0 },
-  playing:        { type: Boolean, default: false },
-  chordVoicings:  { type: Object, default: () => ({}) },
+  sections:        { type: Array, default: () => [] },
+  currentBarIndex: { type: Number, default: 0 },
+  playing:         { type: Boolean, default: false },
+  chordVoicings:   { type: Object, default: () => ({}) },
 });
 
 defineEmits(['seek-measure']);
 
-function getVoicing(measure) {
-  if (!measure.chordNames?.length) return null;
-  const name = measure.chordNames[0];
+const activeSectionIndex = ref(0);
+const activeSection = computed(() => props.sections[activeSectionIndex.value] ?? null);
+
+// Auto-advance section tab when the playing bar enters a new section
+watch(() => props.currentBarIndex, (barIndex) => {
+  const si = props.sections.findIndex(sec =>
+    (sec.measures ?? []).some(m => (m.globalIndex ?? -1) === barIndex)
+  );
+  if (si !== -1 && si !== activeSectionIndex.value) {
+    activeSectionIndex.value = si;
+  }
+});
+
+function getVoicingAt(measure, ci) {
+  const name = measure.chordNames?.[ci];
+  if (!name) return null;
   const gi = measure.globalIndex ?? 0;
-  return props.chordVoicings?.[`${name}@${gi}.0`] ?? props.chordVoicings?.[name] ?? null;
-}
-
-const LEGEND_COLORS = [
-  'var(--stage-accent)',
-  'var(--stage-accent)',
-  '#a88bff',
-  'var(--stage-good)',
-];
-
-function legendDotStyle(i) {
-  return { background: LEGEND_COLORS[i % LEGEND_COLORS.length] };
+  return props.chordVoicings?.[`${name}@${gi}.${ci}`] ?? props.chordVoicings?.[name] ?? null;
 }
 </script>
 
 <style scoped>
-.stage-strip-head {
+/* ── Section tabs ── */
+.stage-sec-tabs {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  gap: 6px;
   margin-bottom: 14px;
+  flex-wrap: wrap;
 }
 
-.stage-strip-title {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  color: var(--stage-text-mute);
-}
-
-.stage-strip-legend {
-  display: flex;
-  gap: 18px;
-  font-size: 11px;
-  color: var(--stage-text-mute);
-}
-
-.stage-strip-legend-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  margin-right: 5px;
-  vertical-align: middle;
-}
-
-.stage-sections-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-}
-
-.stage-sec-col {
-  background: var(--stage-bg-1);
-  border: 1px solid var(--stage-line);
-  border-radius: 10px;
-  padding: 14px 12px 12px;
-}
-
-.stage-sec-col-head {
+.stage-sec-tab {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--stage-line);
+  gap: 7px;
+  padding: 6px 14px 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--stage-line-2);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: var(--stage-text-dim);
 }
 
-.stage-sec-letter {
+.stage-sec-tab:hover {
+  background: var(--stage-bg-2);
+  color: var(--stage-text);
+}
+
+.stage-sec-tab--active {
+  background: var(--stage-bg-2);
+  border-color: rgba(var(--stage-accent-rgb), 0.4);
+  color: var(--stage-text);
+}
+
+.stage-sec-tab-letter {
   font-family: var(--stage-font-mono);
   font-size: 11px;
   font-weight: 700;
-  width: 22px;
-  height: 22px;
-  background: var(--stage-bg-3);
-  border-radius: 5px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
   display: grid;
   place-items: center;
+  background: var(--stage-bg-3);
   color: var(--stage-text-dim);
   flex-shrink: 0;
 }
 
-.stage-sec-col[data-sec="0"] .stage-sec-letter,
-.stage-sec-col[data-sec="1"] .stage-sec-letter {
+.stage-sec-tab--active .stage-sec-tab-letter,
+.stage-sec-tab[data-sec="0"] .stage-sec-tab-letter,
+.stage-sec-tab[data-sec="1"] .stage-sec-tab-letter {
   background: rgba(var(--stage-accent-rgb), 0.15);
   color: var(--stage-accent-2);
 }
 
-.stage-sec-col[data-sec="2"] .stage-sec-letter {
-  background: rgba(107, 70, 246, 0.15);
-  color: #a88bff;
-}
+.stage-sec-tab[data-sec="2"] .stage-sec-tab-letter { background: rgba(107,70,246,0.15); color: #a88bff; }
+.stage-sec-tab[data-sec="3"] .stage-sec-tab-letter { background: rgba(74,222,128,0.15); color: var(--stage-good); }
 
-.stage-sec-col[data-sec="3"] .stage-sec-letter {
-  background: rgba(74, 222, 128, 0.15);
-  color: var(--stage-good);
-}
-
-.stage-sec-label {
+.stage-sec-tab-name {
   font-family: var(--stage-font-chord);
   font-style: italic;
   font-size: 13px;
-  color: var(--stage-text-dim);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.stage-sec-bars {
+/* ── Full-width section panel ── */
+.stage-sec-panel {
+  background: var(--stage-bg-1);
+  border: 1px solid var(--stage-line);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.stage-sec-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--stage-line-2) transparent;
+}
+
+.stage-sec-scroll::-webkit-scrollbar { height: 4px; }
+.stage-sec-scroll::-webkit-scrollbar-track { background: transparent; }
+.stage-sec-scroll::-webkit-scrollbar-thumb { background: var(--stage-line-2); border-radius: 2px; }
+
+.stage-sec-measure {
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.stage-sec-bar {
-  display: grid;
-  grid-template-columns: 20px 1fr auto;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: transparent;
+  flex-shrink: 0;
   cursor: pointer;
-  transition: background 0.15s ease;
-  border-left: 2px solid transparent;
-}
-
-.stage-sec-bar:hover {
+  padding: 8px 10px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--stage-line);
   background: var(--stage-bg-2);
+  transition: border-color 0.15s ease, opacity 0.15s ease;
+  min-width: 80px;
 }
 
-.stage-sec-bar--active {
-  background: linear-gradient(90deg, rgba(var(--stage-accent-rgb), 0.12), rgba(var(--stage-accent-rgb), 0.02));
-  border-left-color: var(--stage-accent);
+.stage-sec-measure:hover {
+  border-color: var(--stage-line-2);
 }
 
-.stage-sec-bar--past {
-  opacity: 0.4;
+.stage-sec-measure--active {
+  border-color: var(--stage-accent);
+  background: rgba(var(--stage-accent-rgb), 0.04);
+}
+
+.stage-sec-measure--past {
+  opacity: 0.35;
 }
 
 .stage-sec-bar-num {
   font-family: var(--stage-font-mono);
-  font-size: 10px;
+  font-size: 9px;
   color: var(--stage-text-mute);
   font-weight: 500;
 }
 
-.stage-sec-bar--active .stage-sec-bar-num {
+.stage-sec-measure--active .stage-sec-bar-num {
   color: var(--stage-accent);
 }
 
-.stage-sec-bar-chord {
-  font-family: var(--stage-font-chord);
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--stage-text);
-  line-height: 1;
-}
-
-.stage-sec-bar--multi .stage-sec-bar-chord {
-  font-size: 14px;
+.stage-sec-measure-chords {
   display: flex;
   gap: 8px;
-  align-items: baseline;
-  flex-wrap: wrap;
-}
-
-.stage-sec-bar-chord :deep(.sbn-chord-accidental) {
-  font-size: 0.8em;
-  vertical-align: 0.1em;
-}
-
-.stage-sec-bar-chord :deep(.sbn-chord-ext) {
-  font-size: 0.55em;
-  vertical-align: 0.7em;
-  font-weight: 600;
-  color: var(--stage-accent);
-  margin-left: 1px;
-}
-
-.stage-sec-bar-chord :deep(.sbn-chord-quality) {
-  font-size: 0.6em;
-  font-style: italic;
-  font-weight: 400;
-}
-
-.stage-sec-bar-mini {
-  width: 28px;
-  opacity: 0.7;
-  flex-shrink: 0;
-}
-
-.stage-sec-bar--active .stage-sec-bar-mini {
-  opacity: 1;
-}
-
-@media (max-width: 960px) {
-  .stage-sections-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 </style>

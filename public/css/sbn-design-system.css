@@ -414,6 +414,11 @@
     outline-offset: 2px;
 }
 
+/* Clickable variant */
+.sbn-chord-card--clickable {
+    cursor: pointer;
+}
+
 /* Detail variant */
 .sbn-chord-card--detail {
     padding: 20px;
@@ -504,6 +509,7 @@
     display: flex;
     align-items: center;
 }
+
 
 /* Popularity pill */
 .sbn-card-pop {

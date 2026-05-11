@@ -94,9 +94,11 @@ async function initYTPlayer() {
         height: '100%',
         playerVars: {
             playsinline: 1,
-            controls: 1,
+            controls: 0,
             rel: 0,
             modestbranding: 1,
+            iv_load_policy: 3,
+            disablekb: 1,
         },
         events: {
             onReady: onYTReady,
@@ -117,7 +119,7 @@ function onYTReady() {
 }
 
 function onYTStateChange(event) {
-    const YT_PLAYING = 1, YT_PAUSED = 2, YT_ENDED = 0;
+    const YT_PLAYING = 1;
     const playing = event.data === YT_PLAYING;
     emit('play-state-change', playing);
     if (!playing) stopPolling();
