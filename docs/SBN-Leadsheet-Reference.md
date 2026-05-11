@@ -428,7 +428,66 @@ Quality slugs: `maj`, `min`, `aug`, `dim`, `5`, `sus4`, `sus2`, `add9`, `maj7`, 
 
 ---
 
-## 14. Open items
+## 14. Traps and invariants
+
+Things that are non-obvious, have already caused bugs, or will silently misbehave if violated.
+
+### Audio events must be loaded before play
+
+`useChordAudio.play()` and `useAudioEngine` both call `engine.play()` on the singleton. The engine plays whatever events are currently queued — if you haven't called `engine.load()` first, it silently does nothing. Always call `loadAllEvents()` (or `ensureEventsLoaded()`) before the first play. Pattern:
+
+```js
+async function onTransportToggle() {
+  if (!_eventsLoaded) await loadAllEvents();
+  // then play
+}
+```
+
+`loadAllEvents()` is idempotent via `_eventsLoaded` flag. Do not rely on `engine.isInited` — that only tracks `AudioContext` init, not whether events are queued.
+
+### `useTabModel` falls through on chord-only songs
+
+`buildModel()` originally early-returned `model.value = null` when `melody` was empty. The fix makes it fall through when `sections` has measures:
+
+```js
+// Correct guard — do not revert to the simpler `if (!mel) return`
+const hasSections = (sections.value || []).some(s => (s.measures || []).length > 0);
+if ((!mel || !mel.length) && !hasSections) { model.value = null; return; }
+```
+
+Most public songs are chord-only (no MusicXML melody). Reverting this guard makes the entire viewer render nothing for those songs with no error.
+
+### `sbn_progression_occurrences` has no `section_id` column
+
+`ProgressionRef.sectionId` is always `null`. The DB table does not track which section a progression occurrence belongs to — it was deferred and never added. EduPanel handles this by showing all song progressions when all `sectionId` values are null. Do not add section-filtering logic against this field without first adding and backfilling the column.
+
+### Read-only guards must be in JS, not template ternaries
+
+```vue
+<!-- WRONG — Vue 3 evaluates the ternary and passes null as the listener value -->
+<div @contextmenu="readOnly ? null : onContextMenu">
+
+<!-- CORRECT -->
+<div @contextmenu="onContextMenu">
+// inside onContextMenu:
+if (props.readOnly) return;
+```
+
+This was a real regression during Phase 9 Step 1. The template ternary compiles to a listener that is always attached (just pointing at `null`), so the browser's default context menu fires instead of being suppressed.
+
+### `TabMeasure` `bars-per-row` must be `row._intendedCount`, not `row.length`
+
+`TabMeasure` computes `baseWidth` as `(LAYOUT.measureWidth * 4) / barsPerRow`. Passing `row.length` on a partial last row (e.g. 3 bars when the song ends) produces oversized SVGs — the last row's tab numbers and note positions render larger than every other row. Always pass `row._intendedCount` (the full intended row width, set by `tabMeasureRows()`).
+
+### Every `inject()` in shared chord-grid components needs a `null` default
+
+`ChordGridView`, `ChordSection`, `ChordMeasure`, and `ChordCard` all use `inject()` for editor services (`chordPicker`, `voicingPicker`, `chordClipboard`, etc.). The viewer does not provide these. Without a default, `inject()` returns `undefined` and any `?.` call silently no-ops while any direct call throws.
+
+Rule: whenever you add a new `inject()` to a component that is also used in the viewer, add `inject('key', null)` and guard usage with `?.`. Audit the full inject list in §6.1 "Not provided" before adding new injects to shared components.
+
+---
+
+## 15. Open items
 
 - **Density rework (compact mode):** `sbn-ve-measure-content` `min-height` in compact mode still keeps measures tall. Real fix: shrink min-height, ignore `lineBreaks`, tighten measure padding. Deferred.
 - **Cinema video controls:** YouTube title overlay fades naturally but cannot be suppressed via API.
