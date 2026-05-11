@@ -50,6 +50,7 @@ const propsFor: Record<NodeType, (data: any, el: HTMLElement) => Record<string, 
   chord:       (d, el) => ({
     chord: d,
     showRoot: true,
+    mini: true,
     onChordClick: (el as any).__onChordSelect
       ? () => (el as any).__onChordSelect(d.slug, d.root_note ?? 'C')
       : undefined,
@@ -175,6 +176,9 @@ export async function mountSbnNodes(
               apps.push(app);
             }
           } else {
+            if (type === 'chord') {
+              el.classList.add('sbn-chord-embed');
+            }
             const app = createApp(Component, propsFor[type](data, el));
             app.mount(el);
             apps.push(app);

@@ -5,7 +5,7 @@ import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmPattern from '@/Components/Library/RhythmPattern.vue';
 import RhythmCard from '@/Components/Library/RhythmCard.vue';
 import type { RhythmPatternWithMeta } from '@/Components/Library/RhythmPattern.vue';
-import { getCategoryStyle } from '@/composables/useCategoryColors';
+import { getCategoryStyle, getCategoryColor } from '@/composables/useCategoryColors';
 import { getAudioEngine } from '../../../audio/engine/AudioEngine.js';
 
 defineOptions({ layout: PublicLayout });
@@ -54,8 +54,6 @@ watch(() => props.pattern.slug, () => {
         <h1 class="sbn-rhythm-show-title">{{ pattern.name }}</h1>
         <div class="sbn-rhythm-show-meta">
           <span class="sbn-category-badge">{{ pattern.category }}</span>
-          <span class="sbn-meta-badge">{{ pattern.timeSignature }}</span>
-          <span class="sbn-meta-badge">{{ pattern.bpm }} BPM</span>
           <span class="sbn-meta-badge">{{ pattern.gridType }}</span>
         </div>
       </header>
@@ -64,14 +62,16 @@ watch(() => props.pattern.slug, () => {
       <div class="sbn-rhythm-show-content">
         <!-- Full pattern display -->
         <div class="sbn-rhythm-show-main">
-          <div class="sbn-pattern-display">
+          <div class="sbn-rhythm-pattern-section">
             <RhythmPattern
               :pattern="pattern"
               :playable="true"
               :mini="false"
+              :vintage-card="true"
               :demo-url="pattern.demoUrl"
+              :color="getCategoryColor(pattern.styleSlug)"
             >
-              <template v-if="hasDemo" #transport-extra>
+              <template v-if="pattern.demoUrl" #transport-extra>
                 <div class="sbn-blend-control">
                   <span class="sbn-blend-label" :class="{ 'is-active': blend < 0.5 }">Samples</span>
                   <input
@@ -191,37 +191,12 @@ watch(() => props.pattern.slug, () => {
   gap: 32px;
 }
 
-/* Main pattern display */
-.sbn-pattern-display {
-  background: var(--clr-surface-2);
-  border-radius: var(--radius);
-  padding: 24px;
-  margin-bottom: 24px;
+/* Rhythm Pattern Section — Container for the RhythmPattern card */
+.sbn-rhythm-pattern-section {
+  margin-bottom: 32px;
 }
 
-/* Blend slider — inline next to play button */
-.sbn-blend-control {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.sbn-blend-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--clr-text-muted);
-  white-space: nowrap;
-  transition: color 0.15s;
-}
-
-.sbn-blend-label.is-active {
-  color: var(--category-color, var(--clr-red));
-}
-
-.sbn-blend-slider {
-  width: 160px;
-  accent-color: var(--category-color, var(--clr-red));
-}
+/* Blend slider — handled by RhythmPattern :deep styles */
 
 /* Description section */
 .sbn-pattern-description {

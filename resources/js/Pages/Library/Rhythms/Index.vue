@@ -262,10 +262,12 @@ const filteredGrouped = computed(() => {
 .sbn-category-header--jazz     { --cat-color: linear-gradient(100deg, var(--clr-style-jazz), color-mix(in srgb, var(--clr-style-jazz) 40%, white)); }
 .sbn-category-header--samba    { --cat-color: linear-gradient(100deg, var(--clr-style-samba), color-mix(in srgb, var(--clr-style-samba) 40%, white)); }
 .sbn-category-header--latin    { --cat-color: linear-gradient(100deg, var(--clr-style-latin), color-mix(in srgb, var(--clr-style-latin) 40%, white)); }
+.sbn-category-header--cuban    { --cat-color: linear-gradient(100deg, var(--clr-style-latin), color-mix(in srgb, var(--clr-style-latin) 40%, white)); }
 .sbn-category-header--blues    { --cat-color: linear-gradient(100deg, var(--clr-style-blues), color-mix(in srgb, var(--clr-style-blues) 40%, white)); }
 .sbn-category-header--pop      { --cat-color: linear-gradient(100deg, var(--clr-style-pop), color-mix(in srgb, var(--clr-style-pop) 40%, white)); }
 .sbn-category-header--classical{ --cat-color: linear-gradient(100deg, var(--clr-style-classical), color-mix(in srgb, var(--clr-style-classical) 40%, white)); }
 .sbn-category-header--gold     { --cat-color: linear-gradient(100deg, var(--clr-style-gold), color-mix(in srgb, var(--clr-style-gold) 40%, white)); }
+.sbn-category-header--brazilian{ --cat-color: linear-gradient(100deg, var(--clr-style-bossa), color-mix(in srgb, var(--clr-style-bossa) 40%, white)); }
 
 .sbn-category-count {
   font-weight: 500;
@@ -307,10 +309,12 @@ const filteredGrouped = computed(() => {
 .sbn-pattern-row--jazz      { --row-color: var(--clr-style-jazz); }
 .sbn-pattern-row--samba     { --row-color: var(--clr-style-samba); }
 .sbn-pattern-row--latin     { --row-color: var(--clr-style-latin); }
+.sbn-pattern-row--cuban     { --row-color: var(--clr-style-latin); }
 .sbn-pattern-row--blues     { --row-color: var(--clr-style-blues); }
 .sbn-pattern-row--pop       { --row-color: var(--clr-style-pop); }
 .sbn-pattern-row--classical { --row-color: var(--clr-style-classical); }
 .sbn-pattern-row--gold      { --row-color: var(--clr-style-gold); }
+.sbn-pattern-row--brazilian { --row-color: var(--clr-style-bossa); }
 
 .sbn-pattern-row-desc {
   margin: 0;

@@ -361,6 +361,47 @@ Defined in `sbn-design-system.css §2c`. Full public-facing card with name, diag
 
 ---
 
+## CHORD PROGRESSION VIEWER (`ChordProgressionViewer.vue`)
+
+**Established 2026-05-11.** The standard, self-contained component for displaying interactive chord progressions across the entire application.
+
+### Key Features
+- **Integrated Metadata**: Automatically renders Name, Category, Key, and Roman Numerals.
+- **Style-Aware Coloring**: Uses the progression's category (Jazz, Latin, etc.) to apply design-system compliant colors to labels and diagram dots.
+- **Interactive Playback**: Inline global play button and per-chord preview support.
+- **Vintage Card Style**: Supports the premium "Vintage" aesthetic with accented right/bottom borders.
+
+### Component Usage (Vue 3)
+
+```vue
+<ChordProgressionViewer
+    :chords="tiles"          // Array of { chordName, diagramData, numeral? }
+    :name="prog.name"
+    :category="prog.category"
+    :key-label="prog.key"
+    :numerals="prog.numerals"
+    :color="getCategoryColor(prog.category)"
+    :vintage-card="true"
+    :interactive="true"
+    :compact="false"
+/>
+```
+
+### Standard Implementation Locations
+1. **Progression Detail Page**: `resources/js/Pages/Library/Progressions/Show.vue`
+2. **Chord Detail Page**: `resources/js/Pages/Library/Chords/Show.vue`
+3. **Song Detail Page**: `resources/js/Pages/Library/Songs/Show.vue` (for detected progressions)
+
+### Logic Pattern
+Every implementation should use the unified resolution pipeline:
+1. `HarmonicContext::buildFromNumerals($root, $numerals)`
+2. `ProgressionBuilder::buildVoicings($context, $options)`
+3. Map output to tiles: `['chordName' => ..., 'diagramData' => ..., 'numeral' => ...]`
+
+---
+
+---
+
 ## BUTTONS
 
 Base class `.sbn-btn` is always required. Add one color modifier.

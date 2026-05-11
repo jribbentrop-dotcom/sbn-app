@@ -8,6 +8,9 @@ const SLUG_TO_TOKEN: Record<string, string> = {
     'classical':  '--clr-style-classical',
     'iconic':     '--clr-style-gold',
     'general':    '--clr-style-general',
+    // Aliases & extra mappings
+    'cuban':      '--clr-style-latin',
+    'brazilian':  '--clr-style-bossa',
     // Progression category mappings
     'modal':      '--clr-style-pop',      // Modal uses pop colors
     'other':      '--clr-style-bossa',    // Other uses default bossa color
@@ -16,7 +19,11 @@ const SLUG_TO_TOKEN: Record<string, string> = {
 export const STYLE_SLUGS = new Set(Object.keys(SLUG_TO_TOKEN));
 
 export function getCategoryColor(slug: string | undefined): string {
-    const token = (slug && SLUG_TO_TOKEN[slug]) || '--clr-style-default';
+    if (!slug) return 'var(--clr-style-default)';
+    
+    const cleanSlug = slug.toLowerCase().trim();
+    const token = SLUG_TO_TOKEN[cleanSlug] || '--clr-style-default';
+    
     return `var(${token})`;
 }
 

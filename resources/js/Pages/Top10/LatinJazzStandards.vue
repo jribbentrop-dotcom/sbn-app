@@ -4,6 +4,7 @@ import { Link, Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
 import RhythmPattern from '@/Components/Library/RhythmPattern.vue';
+import { getCategoryColor } from '@/composables/useCategoryColors';
 import { getAudioEngine } from '@/audio/engine/AudioEngine';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
 import type { ProgressionChord } from '@/Components/Library/ChordProgressionViewer.vue';
@@ -30,7 +31,14 @@ interface Top10DataItem {
     voicingCaption: string;
     progressionName: string;
     progressionCaption: string;
-    progressionTiles: Array<{ chordName: string; diagramData: ChordDiagramData | null }>;
+    progressionSeedKey?: string;
+    progressionTiles: Array<{ chordName: string; diagramData: ChordDiagramData | null; numeral?: string }>;
+    progressionMeta?: {
+        name: string;
+        numerals: string;
+        slug: string;
+        category?: string;
+    } | null;
     rhythmData: any | null;
     rhythmName: string;
     rhythmCaption: string;
@@ -141,7 +149,6 @@ function prevChord() {
                 <!-- Detail View -->
                 <div v-if="selectedChord" class="sbn-top10-detail">
                     <div class="sbn-detail-header">
-                        <span class="sbn-detail-badge">STANDARD #{{ selectedChord.id }}</span>
                         <h1 class="sbn-detail-title">{{ selectedChord.title }}</h1>
                         <p class="sbn-detail-artist">{{ selectedChord.artist }}</p>
                         <p class="sbn-detail-description" v-html="selectedChord.description"></p>
@@ -150,59 +157,67 @@ function prevChord() {
                     <!-- Panels Grid -->
                     <div class="sbn-panels-grid">
                         <!-- Chords Panel -->
-                        <div class="sbn-panel sbn-panel--chords">
-                            <h3 class="sbn-panel-title">{{ selectedChord.voicingName }}</h3>
-                            <div class="sbn-panel-content">
-                                <div class="sbn-progression-wrapper">
-                                    <ChordProgressionViewer
-                                        :chords="selectedChord.progressionTiles.map((t): ProgressionChord => ({ chordName: t.chordName, diagramData: t.diagramData, beats: 4 }))"
-                                        :interactive="true"
-                                        :show-flow-arrows="selectedChord.progressionTiles.length > 2"
-                                        class="sbn-progression-large"
-                                    />
-                                </div>
-                                <p class="sbn-panel-caption" v-html="selectedChord.voicingCaption"></p>
+                        <div v-if="selectedChord.progressionTiles.length > 0" class="sbn-panel-ghost">
+                            <div class="sbn-progression-wrapper">
+                                <ChordProgressionViewer
+                                    :chords="selectedChord.progressionTiles.map((t): ProgressionChord => ({ 
+                                        chordName: t.chordName, 
+                                        diagramData: t.diagramData, 
+                                        beats: 4,
+                                        numeral: t.numeral 
+                                    }))"
+                                    :interactive="true"
+                                    :show-flow-arrows="selectedChord.progressionTiles.length > 2"
+                                    :vintage-card="true"
+                                    :color="getCategoryColor(selectedChord.progressionMeta?.category || 'latin')"
+                                    :name="selectedChord.progressionName"
+                                    :category="selectedChord.progressionMeta?.category"
+                                    :key-label="`Key: ${selectedChord.progressionSeedKey}`"
+                                    :numerals="selectedChord.progressionMeta?.numerals"
+                                    class="sbn-progression-large"
+                                />
                             </div>
+                            <p class="sbn-panel-caption" v-html="selectedChord.progressionCaption"></p>
                         </div>
 
                         <!-- Rhythm Panel -->
-                        <div v-if="selectedChord.rhythmData" class="sbn-panel sbn-panel--rhythm">
+                        <div v-if="selectedChord.rhythmData" class="sbn-panel-ghost">
                             <h3 class="sbn-panel-title">{{ selectedChord.rhythmName }}</h3>
-                            <div class="sbn-panel-content">
-                                <div class="sbn-rhythm-wrapper">
-                                    <RhythmPattern
-                                        :pattern="selectedChord.rhythmData"
-                                        :playable="true"
-                                        :mini="false"
-                                        :demo-url="selectedChord.rhythmData.demoUrl"
-                                    >
-                                        <template v-if="selectedChord.rhythmData.demoUrl" #transport-extra>
-                                            <div class="sbn-blend-control">
-                                                <span class="sbn-blend-label" :class="{ 'is-active': blend < 0.5 }">Samples</span>
-                                                <input
-                                                    type="range"
-                                                    min="0"
-                                                    max="1"
-                                                    step="0.01"
-                                                    v-model.number="blend"
-                                                    class="sbn-blend-slider"
-                                                    aria-label="Blend between samples and demo audio"
-                                                />
-                                                <span class="sbn-blend-label" :class="{ 'is-active': blend >= 0.5 }">Demo</span>
-                                            </div>
-                                        </template>
-                                    </RhythmPattern>
-                                </div>
-                                <p class="sbn-panel-caption" v-html="selectedChord.rhythmCaption"></p>
-                                <div v-if="selectedChord.rhythmCitation" class="sbn-panel-citation" v-html="selectedChord.rhythmCitation"></div>
+                            <div class="sbn-rhythm-wrapper">
+                                <RhythmPattern
+                                    :pattern="selectedChord.rhythmData"
+                                    :playable="true"
+                                    :mini="false"
+                                    :vintage-card="true"
+                                    :demo-url="selectedChord.rhythmData.demoUrl"
+                                    :color="getCategoryColor(selectedChord.rhythmData.styleSlug || 'latin')"
+                                >
+                                    <template v-if="selectedChord.rhythmData.demoUrl" #transport-extra>
+                                        <div class="sbn-blend-control">
+                                            <span class="sbn-blend-label" :class="{ 'is-active': blend < 0.5 }">Samples</span>
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max="1"
+                                                step="0.01"
+                                                v-model.number="blend"
+                                                class="sbn-blend-slider"
+                                                aria-label="Blend between samples and demo audio"
+                                            />
+                                            <span class="sbn-blend-label" :class="{ 'is-active': blend >= 0.5 }">Demo</span>
+                                        </div>
+                                    </template>
+                                </RhythmPattern>
                             </div>
+                            <p class="sbn-panel-caption" v-html="selectedChord.rhythmCaption"></p>
+                            <div v-if="selectedChord.rhythmCitation" class="sbn-panel-citation" v-html="selectedChord.rhythmCitation"></div>
                         </div>
                     </div>
 
                     <!-- Navigation Buttons -->
                     <div class="sbn-detail-nav">
-                        <button @click="prevChord" class="sbn-nav-btn">← Previous</button>
-                        <button @click="nextChord" class="sbn-nav-btn">Next →</button>
+                        <button @click="prevChord" class="sbn-nav-btn sbn-nav-btn--outline">← Previous</button>
+                        <button @click="nextChord" class="sbn-nav-btn sbn-nav-btn--outline">Next →</button>
                     </div>
 
                     <!-- Related Products -->
@@ -532,14 +547,14 @@ function prevChord() {
 
 @media (min-width: 1024px) {
     .sbn-panels-grid {
-        grid-template-columns: 1fr 1.2fr;
+        grid-template-columns: 0.9fr 1.4fr;
         align-items: stretch;
     }
 }
 
 .sbn-panel {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
     border-radius: 12px;
     padding: 24px;
     display: flex;
@@ -547,10 +562,16 @@ function prevChord() {
     height: 100%;
 }
 
+.sbn-panel--rhythm {
+    border: 1px solid var(--clr-border);
+    background: var(--clr-white);
+    box-shadow: none;
+}
+
 .sbn-panel-title {
     font-size: 14px;
-    font-weight: 600;
-    color: var(--clr-accent);
+    font-weight: 700;
+    color: var(--clr-text);
     margin-bottom: 16px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -560,24 +581,56 @@ function prevChord() {
     flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
 }
 
 .sbn-progression-wrapper, .sbn-rhythm-wrapper {
     width: 100%;
     display: flex;
-    justify-content: center;
-    padding: 10px 0;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px 0 20px;
+}
+
+.sbn-panel-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.sbn-progression-badge {
+    display: flex;
+    align-items: center;
+    background: #f1f5f9;
+    border-radius: 4px;
+    overflow: hidden;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid #e2e8f0;
+}
+
+.sbn-prog-type {
+    background: #64748b;
+    color: white;
+    padding: 2px 6px;
+    font-size: 9px;
+}
+
+.sbn-prog-numerals {
+    padding: 2px 8px;
+    color: #475569;
+    letter-spacing: 0.5px;
 }
 
 .sbn-progression-large {
-    --tile-size: 140px !important;
+    --tile-size: 150px !important;
 }
 
 .sbn-panel-caption {
     font-size: 14px;
-    color: var(--clr-text-muted);
+    color: var(--clr-text);
     line-height: 1.6;
     margin-top: 16px;
     text-align: center;
@@ -589,35 +642,12 @@ function prevChord() {
     border-top: 1px dashed var(--clr-border);
     font-size: 13px;
     color: var(--clr-text-muted);
+    font-style: italic;
     text-align: center;
     width: 100%;
 }
 
-/* Blend slider */
-.sbn-blend-control {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: 16px;
-}
-
-.sbn-blend-label {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--clr-text-muted);
-    white-space: nowrap;
-    transition: color 0.15s;
-    text-transform: uppercase;
-}
-
-.sbn-blend-label.is-active {
-    color: var(--clr-accent);
-}
-
-.sbn-blend-slider {
-    width: 100px;
-    accent-color: var(--clr-accent);
-}
+/* Blend slider — handled by RhythmPattern :deep styles */
 
 /* Navigation Buttons */
 .sbn-detail-nav {
@@ -638,13 +668,23 @@ function prevChord() {
 .sbn-nav-btn {
     background: var(--clr-gradient);
     color: white;
-    padding: 10px 20px;
+    padding: 10px 24px;
     border-radius: var(--radius-sm);
     font-weight: 600;
     font-size: 14px;
     border: none;
     cursor: pointer;
-    transition: transform 0.2s;
+    transition: all 0.2s;
+}
+
+.sbn-nav-btn--outline {
+    background: var(--clr-white);
+    color: var(--clr-text);
+    border: 1.5px solid var(--clr-border);
+}
+
+.sbn-nav-btn--outline:hover {
+    border-color: var(--clr-text);
 }
 
 .sbn-nav-btn:hover {

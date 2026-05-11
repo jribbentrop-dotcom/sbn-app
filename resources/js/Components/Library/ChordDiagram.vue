@@ -19,8 +19,8 @@ export interface ChordDiagramData {
     shape_family?: string | null;
     start_fret: number;
     diagram_data: {
-        positions: Array<{ string: number; fret: number }>;
-        barres: Array<{ fret: number; from: number; to: number }>;
+        positions: Array<{ string: number; fret: number; finger?: number | string }>;
+        barres: Array<{ fret: number; from: number; to: number; finger?: number | string }>;
         muted: number[];
         open: number[];
     };
@@ -33,9 +33,13 @@ export interface ChordDiagramData {
 
 interface Props {
     chord: ChordDiagramData;
+    /** Fill color for chord dots. Defaults to var(--clr-red). */
+    dotColor?: string;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+    dotColor: 'var(--clr-red)',
+});
 const svgHtml = ref('');
 
 function diagramDataToFretString(data: ChordDiagramData['diagram_data']): string {
@@ -53,21 +57,47 @@ function diagramDataToFretString(data: ChordDiagramData['diagram_data']): string
 }
 
 function diagramDataToFingerString(data: ChordDiagramData['diagram_data']): string {
+    if (!data) return '000000';
     const fingers: string[] = ['0', '0', '0', '0', '0', '0'];
-    for (const pos of data.positions ?? []) {
-        if (pos.string >= 1 && pos.string <= 6 && (pos as any).finger) {
-            fingers[pos.string - 1] = String((pos as any).finger);
+    
+    // Check positions for fingers
+    const positions = data.positions || [];
+    for (const pos of positions) {
+        if (pos.string >= 1 && pos.string <= 6 && pos.finger && pos.finger !== '0') {
+            fingers[pos.string - 1] = String(pos.finger);
         }
     }
+    
+    // Check barres for fingers (barred strings might be in positions too, but let's be safe)
+    const barres = data.barres || [];
+    for (const barre of barres) {
+        if (barre.finger && barre.finger !== '0') {
+            const from = Math.min(barre.from, barre.to);
+            const to = Math.max(barre.from, barre.to);
+            for (let s = from; s <= to; s++) {
+                if (s >= 1 && s <= 6) {
+                    fingers[s - 1] = String(barre.finger);
+                }
+            }
+        }
+    }
+    
     return fingers.join('');
 }
 
 watchEffect(() => {
     if (typeof (window as any).sbnRenderDiagramSVG === 'function') {
-        svgHtml.value = (window as any).sbnRenderDiagramSVG({
-            frets:    diagramDataToFretString(props.chord.diagram_data),
-            position: props.chord.start_fret ?? 1,
-            fingers:  diagramDataToFingerString(props.chord.diagram_data),
+        const voicing = {
+            frets:       diagramDataToFretString(props.chord.diagram_data),
+            fret_string: diagramDataToFretString(props.chord.diagram_data),
+            position:    props.chord.start_fret ?? 1,
+            start_fret:  props.chord.start_fret ?? 1,
+            fingers:     diagramDataToFingerString(props.chord.diagram_data),
+        };
+        
+        svgHtml.value = (window as any).sbnRenderDiagramSVG(voicing, { 
+            showFingers: true,
+            dotColor: props.dotColor 
         });
     }
 });

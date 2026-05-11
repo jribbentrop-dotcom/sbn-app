@@ -6,6 +6,8 @@ import { getCategoryStyle } from '@/composables/useCategoryColors';
 
 import ChordCard from '@/Components/Library/ChordCard.vue';
 import RhythmPattern from '@/Components/Library/RhythmPattern.vue';
+import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
+import { getCategoryColor } from '@/composables/useCategoryColors';
 
 defineOptions({ layout: PublicLayout });
 
@@ -36,6 +38,7 @@ interface ProgressionRef {
   name: string;
   category: string;
   numeralsDisplay: string;
+  tiles: any[];
 }
 
 interface Props {
@@ -131,21 +134,26 @@ function chordShowUrl(chord: any): string {
     <!-- Progressions detected -->
     <div v-if="progressions.length" class="sbn-song-show-section">
       <h2 class="sbn-song-show-section-title">Progressions in this song</h2>
-      <ul class="sbn-song-prog-list">
-        <li
+      <div class="sbn-song-progressions-list">
+        <div
           v-for="prog in progressions"
           :key="prog.id"
-          class="sbn-song-prog-item"
+          class="sbn-song-prog-item-viewer"
         >
-          <Link :href="`/library/progressions/${prog.slug}`" class="sbn-song-prog-link">
-            {{ prog.name }}
-          </Link>
-          <span :class="['sbn-prog-row-cat-badge', 'sbn-prog-cat-' + String(prog.category || 'general').toLowerCase()]">
-            {{ categoryLabels[prog.category] || prog.category }}
-          </span>
-          <span class="sbn-song-prog-numerals">{{ prog.numeralsDisplay }}</span>
-        </li>
-      </ul>
+          <ChordProgressionViewer
+            :chords="prog.tiles"
+            :interactive="true"
+            :compact="true"
+            :show-flow-arrows="true"
+            :name="prog.name"
+            :category="prog.category"
+            :key-label="song.songKey || 'C'"
+            :numerals="prog.numeralsDisplay"
+            :color="getCategoryColor(prog.category)"
+            :vintage-card="true"
+          />
+        </div>
+      </div>
     </div>
 
     <!-- Rhythm info -->
@@ -274,13 +282,14 @@ function chordShowUrl(chord: any): string {
 }
 
 /* Progressions list */
-.sbn-song-prog-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.sbn-song-progressions-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 16px;
+}
+.sbn-song-prog-item-viewer {
+  background: var(--clr-white);
+  border-radius: var(--radius);
 }
 
 .sbn-song-prog-item {

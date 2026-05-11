@@ -330,11 +330,19 @@ class ProgressionBuilder
             $lattice[$i] = $this->applyHarmonyFilter($lattice[$i], $allChords, $i);
         }
 
-        // Handle pinned slot
+        // Handle pinned slots (lattice restriction)
         $pinnedSlot = $options['pinnedSlot'] ?? null;
         $pinnedVoicing = $options['pinnedVoicing'] ?? null;
+        $pinnedVoicings = $options['pinnedVoicings'] ?? []; // array of [index => voicing]
+
         if ($pinnedSlot !== null && $pinnedVoicing !== null && $pinnedSlot >= 0 && $pinnedSlot < $n) {
             $lattice[$pinnedSlot] = [(object) $pinnedVoicing];
+        }
+
+        foreach ($pinnedVoicings as $idx => $voicing) {
+            if ($idx >= 0 && $idx < $n && $voicing) {
+                $lattice[$idx] = [(object) $voicing];
+            }
         }
 
         // Repeated-chord reuse is applied AFTER Viterbi finishes (see
@@ -993,6 +1001,7 @@ class ProgressionBuilder
 
         $pinnedSlot = $options['pinnedSlot'] ?? null;
         $pinnedVoicing = $options['pinnedVoicing'] ?? null;
+        $pinnedVoicings = $options['pinnedVoicings'] ?? [];
 
         foreach ($allChords as $i => $chord) {
             $chordVoicings[$i] = $this->fetchSimpleModeVoicingsForChord(
@@ -1000,14 +1009,10 @@ class ProgressionBuilder
                 $chord['quality'] ?? ''
             );
 
-            $isPinnedSlot = $pinnedSlot !== null
-                && $pinnedVoicing !== null
-                && $pinnedSlot >= 0
-                && $pinnedSlot < $n
-                && $pinnedSlot === $i;
+            $isPinnedSlot = ($pinnedSlot !== null && $pinnedSlot === $i) || isset($pinnedVoicings[$i]);
 
             if ($isPinnedSlot) {
-                $selections[$i] = (object) $pinnedVoicing;
+                $selections[$i] = (object) ($pinnedVoicings[$i] ?? $pinnedVoicing);
                 continue;
             }
 

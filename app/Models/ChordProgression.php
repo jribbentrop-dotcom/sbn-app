@@ -38,13 +38,13 @@ class ChordProgression extends Model
     ];
 
     public const CATEGORY_COLORS = [
-        'jazz'      => '#8b5cf6',
-        'blues'     => '#3b82f6',
-        'pop'       => '#ec4899',
-        'modal'     => '#10b981',
-        'classical' => '#f59e0b',
-        'latin'     => '#ef4444',
-        'other'     => '#6b7280',
+        'jazz'      => '#3b82f6', // Blue
+        'blues'     => '#6366f1', // Indigo
+        'pop'       => '#ec4899', // Pink
+        'modal'     => '#ec4899', // Modal uses pop colors
+        'classical' => '#64748b', // Slate
+        'latin'     => '#8b5cf6', // Purple
+        'other'     => '#f39c12', // Orange (Bossa)
     ];
 
     /* ── Preset Tags ────────────────────────────────────────── */

@@ -7,6 +7,7 @@ import ChordCard from '@/Components/Library/ChordCard.vue';
 import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
 import type { ProgressionChord } from '@/Components/Library/ChordProgressionViewer.vue';
+import { getCategoryColor } from '@/composables/useCategoryColors';
 
 interface ProgressionTile {
     chordName: string;
@@ -302,17 +303,17 @@ function getChords(prog: ProgressionRef): ProgressionChord[] {
                     :key="prog.id"
                     class="sbn-chord-detail-prog-item"
                 >
-                    <div class="sbn-chord-detail-prog-header">
-                        <Link :href="`/library/progressions/${prog.slug}`" class="sbn-chord-detail-prog-name">
-                            {{ prog.name }}
-                        </Link>
-                        <span class="sbn-chord-detail-prog-numerals">{{ prog.numeralsDisplay }}</span>
-                    </div>
                     <ChordProgressionViewer
                         :chords="getChords(prog)"
                         :interactive="true"
                         :compact="true"
                         :show-flow-arrows="true"
+                        :name="prog.name"
+                        :category="prog.category"
+                        :key-label="prog.keyLabel"
+                        :numerals="prog.numeralsDisplay"
+                        :color="getCategoryColor(prog.category)"
+                        :vintage-card="true"
                     />
                 </div>
             </div>

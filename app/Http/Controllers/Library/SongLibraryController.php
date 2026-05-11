@@ -7,13 +7,19 @@ use App\Models\ChordProgression;
 use App\Models\Leadsheet;
 use App\Services\ChordVoicingSearch;
 use App\Services\EduContentService;
+use App\Services\HarmonicContext;
 use App\Services\LeadsheetViewerService;
+use App\Services\ProgressionBuilder;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class SongLibraryController extends Controller
 {
-    public function __construct(protected LeadsheetViewerService $viewerService) {}
+    public function __construct(
+        protected LeadsheetViewerService $viewerService,
+        protected ProgressionBuilder $progressionBuilder,
+        protected HarmonicContext $harmonicContext
+    ) {}
 
     /**
      * Map a rhythm slug to a music-style slug for color assignment.
@@ -177,13 +183,33 @@ class SongLibraryController extends Controller
             ->distinct()
             ->orderBy('sbn_chord_progressions.name')
             ->get()
-            ->map(fn ($p) => [
-                'id'             => $p->id,
-                'slug'           => $p->slug,
-                'name'           => $p->name,
-                'category'       => $p->category,
-                'numeralsDisplay'=> $p->numerals_display,
-            ]);
+            ->map(function ($p) use ($leadsheet) {
+                // Resolve chord diagram tiles via the proper voice-leading path
+                $root    = $leadsheet->song_key ?? 'C';
+                $context = $this->harmonicContext->buildFromNumerals($root, $p->numerals);
+                $built   = $this->progressionBuilder->buildVoicings($context, [
+                    'category'   => $p->category,
+                    'extensions' => false,
+                ]);
+
+                $tiles = array_map(function ($sel) {
+                    $v = $sel['voicing'] ?? null;
+                    return [
+                        'chordName'   => $sel['chord_name'],
+                        'diagramData' => $v,
+                        'slug'        => null,
+                    ];
+                }, $built['selections'] ?? []);
+
+                return [
+                    'id'             => $p->id,
+                    'slug'           => $p->slug,
+                    'name'           => $p->name,
+                    'category'       => $p->category,
+                    'numeralsDisplay'=> $p->numerals_display,
+                    'tiles'          => $tiles,
+                ];
+            });
 
         $chordNames = $leadsheet->getChordNames();
 
@@ -288,8 +314,10 @@ class SongLibraryController extends Controller
         ]);
     }
 
-    public function cinema(Leadsheet $leadsheet)
+    public function cinema(Leadsheet $leadsheet, ChordVoicingSearch $search)
     {
+        $enriched = $this->viewerService->enrich($leadsheet, $search);
+
         return Inertia::render('Leadsheet/Cinema', [
             'leadsheet' => [
                 'id'            => $leadsheet->id,
@@ -301,6 +329,7 @@ class SongLibraryController extends Controller
                 'timeSignature' => $leadsheet->time_signature,
                 'jsonData'      => $leadsheet->parsed_data,
             ],
+            'chordCards' => $enriched['chordCards'],
             'classicUrl' => route('library.songs.viewer', ['leadsheet' => $leadsheet->slug]),
         ]);
     }

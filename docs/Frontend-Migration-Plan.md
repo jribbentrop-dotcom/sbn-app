@@ -992,6 +992,24 @@ Several latent issues in adjacent code surfaced as soon as detail pages started 
 
 ---
 
+### Phase 7.5 — Progression UI Standardization ✅ DONE (May 11, 2026)
+
+Refinement pass that standardized the `ChordProgressionViewer` as the single source of truth for progression rendering across Chord, Song, and Progression libraries.
+
+#### What was built
+- **Standardized Component**: `ChordProgressionViewer.vue` was enhanced to include its own header metadata (Name, Category, Key, Numerals). It now manages styling (category colors) and the "Vintage Card" aesthetic internally.
+- **Unified Resolution Pipeline**: Replaced fragmented logic in `SongLibraryController`, `ChordLibraryController`, and `ProgressionLibraryController` with a consistent `HarmonicContext` → `ProgressionBuilder` pipeline. 
+- **Bug Fixes**:
+  - Resolved `Call to undefined method App\Services\ProgressionBuilder::resolve()` by switching to the supported `buildVoicings` pipeline.
+  - Fixed `Undefined array key "chord_name"` by correctly accessing the `selections` nested key in the builder output.
+- **Visual Consistency**: Category colors (e.g., Jazz Blue, Latin Purple) are now enforced through the `useCategoryColors` composable, ensuring the "Vintage" cards look identical across all library modules.
+
+#### Updated Documentation
+- **SBN-Design-Reference.md**: Added full specification for `CHORD PROGRESSION VIEWER` component usage.
+- **SBN-Builder-Reference.md**: Documented the standard implementation pattern for resolving progressions for display.
+
+---
+
 ### Phase 8 — Top10 Pages
 
 **Deliverable:** Top10 landing pages (bossa nova chords, chord progressions, best voicings, etc.) as pure composition of existing components.

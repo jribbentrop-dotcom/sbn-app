@@ -242,29 +242,33 @@ defineExpose({ play, stop, toggle });
   gap: 10px;
 }
 
-/* Play button */
+/* Play button - Circular & Premium */
 .sbn-rhythm-strip-play {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   border: 1px solid var(--clr-border);
   background: var(--clr-white);
   cursor: pointer;
-  color: var(--clr-text-dim);
+  color: var(--strip-color, var(--clr-accent));
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  transition: all 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0;
 }
+
 .sbn-rhythm-strip-play:hover {
-  color: var(--clr-accent-dim);
-  border-color: var(--clr-accent-border);
+  color: var(--strip-color, var(--clr-accent));
+  border-color: var(--strip-color, var(--clr-accent));
+  transform: scale(1.1);
 }
+
 .sbn-rhythm-strip-play.is-playing {
-  background: var(--clr-gradient);
-  border-color: transparent;
+  background: var(--strip-color, var(--clr-accent));
+  border-color: var(--strip-color, var(--clr-accent));
   color: var(--clr-white);
-  box-shadow: 0 0 0 3px rgba(243, 156, 18, 0.18);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--strip-color, var(--clr-accent)) 20%, transparent);
 }
 
 /* Cells container — two stacked rows */
@@ -332,12 +336,14 @@ defineExpose({ play, stop, toggle });
 
 /* Current step highlight */
 .sbn-rhythm-strip-cell.is-current {
-  outline: 2px solid var(--clr-style-jazz);
+  outline: 1.5px solid var(--strip-color, var(--clr-accent));
   outline-offset: 1px;
-  transform: scaleY(1.1);
+  transform: translateY(-1px);
+  z-index: 2;
+  transition: transform 0.1s ease;
 }
 .sbn-rhythm-strip-cell-thumb.is-current {
-  outline: 1.5px solid var(--clr-style-jazz);
+  outline: 1px solid var(--strip-color, var(--clr-accent));
   outline-offset: 1px;
 }
 

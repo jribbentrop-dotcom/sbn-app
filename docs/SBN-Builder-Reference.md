@@ -29,9 +29,10 @@ valuable than showing them something fancy.
 
 The builder is consumed by the leadsheet creation flow, the public
 progression-detail page, the chord-detail page's "progressions of this
-chord" section, and the regression suite. The admin progression-builder
-page exists today as a migration artifact and will be replaced by the
-machine room (Part 2).
+chord" section, and the song-detail page's detected progression analysis.
+All display contexts now use the standardized `ChordProgressionViewer.vue`
+component and follow the unified `HarmonicContext` → `ProgressionBuilder`
+resolution pipeline.
 
 **Not in scope:**
 
@@ -440,6 +441,19 @@ buildVoicings($context, [
 wrapper that delegates to `buildVoicings` via
 `HarmonicContext::buildFromChordSequence`. New code should use
 `buildVoicings` directly.
+
+**Implementation Pattern:**
+The standard pattern for resolving a progression for display is:
+1. Initialize context: `$context = $harmonicContext->buildFromNumerals($root, $numerals);`
+2. Build voicings: `$built = $builder->buildVoicings($context, $options);`
+3. Map tiles for `ChordProgressionViewer`:
+   ```php
+   $tiles = array_map(fn($sel) => [
+       'chordName'   => $sel['chord_name'],
+       'diagramData' => $sel['voicing'],
+       'numeral'     => $sel['numeral'] ?? null,
+   ], $built['selections']);
+   ```
 
 ### §10. Diagnostics
 

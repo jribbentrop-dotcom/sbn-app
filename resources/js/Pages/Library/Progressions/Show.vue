@@ -4,6 +4,7 @@ import { Link, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
 import type { ProgressionChord } from '@/Components/Library/ChordProgressionViewer.vue';
+import { getCategoryColor } from '@/composables/useCategoryColors';
 
 interface ProgressionTile {
     chordName: string;
@@ -163,22 +164,15 @@ function getTonalityClass(tonality: string): string {
                             :chords="chords"
                             :interactive="true"
                             :show-flow-arrows="true"
+                            :name="progression.name"
+                            :category="progression.category"
+                            :key-label="`Standard Root`"
+                            :numerals="progression.numeralsDisplay"
+                            :color="getCategoryColor(progression.category)"
+                            :vintage-card="true"
                         />
                     </section>
 
-                    <!-- Roman Numerals -->
-                    <section class="sbn-prog-detail-section">
-                        <h2 class="sbn-prog-detail-section-title">Roman Numerals</h2>
-                        <div class="sbn-prog-detail-numerals">
-                            <span 
-                                v-for="(numeral, idx) in progression.numeralsDisplay.split('–')"
-                                :key="idx"
-                                class="sbn-prog-numeral-chip"
-                            >
-                                <span class="sbn-chord-symbol">{{ numeral }}</span>
-                            </span>
-                        </div>
-                    </section>
 
                     <!-- Description -->
                     <section v-if="hasDescription" class="sbn-prog-detail-section">

@@ -10,6 +10,7 @@ export interface ProgressionChord {
     diagramData: ChordDiagramData | null;
     beats?: number;    // Duration in beats (default 4)
     slug?: string | null;
+    numeral?: string;
 }
 
 export interface ChordProgressionViewerProps {
@@ -17,12 +18,28 @@ export interface ChordProgressionViewerProps {
     interactive?: boolean;
     compact?: boolean;
     showFlowArrows?: boolean;
+    /** Tint colour for cells and highlights. Defaults to var(--clr-accent). */
+    color?: string | null;
+    /** Apply SBN vintage card styling (background, border-accent). Defaults to false. */
+    vintageCard?: boolean;
+    
+    // Metadata props
+    name?: string;
+    category?: string;
+    numerals?: string;
+    keyLabel?: string;
 }
 
 const props = withDefaults(defineProps<ChordProgressionViewerProps>(), {
     interactive: true,
     compact: false,
     showFlowArrows: true,
+    color: null,
+    vintageCard: false,
+    name: '',
+    category: '',
+    numerals: '',
+    keyLabel: '',
 });
 
 const isPlayingAll = ref(false);
@@ -116,7 +133,32 @@ function canPlayAll(): boolean {
 </script>
 
 <template>
-    <div class="sbn-prog-viewer" :class="{ 'sbn-prog-viewer--compact': compact }">
+    <div 
+        class="sbn-prog-viewer" 
+        :class="{ 
+            'sbn-prog-viewer--compact': compact,
+            'sbn-vintage-card': vintageCard 
+        }"
+        :style="color ? { '--prog-color': color } : {}"
+    >
+        <!-- Metadata Header -->
+        <div v-if="name || category || keyLabel || numerals" class="sbn-prog-viewer-header">
+            <div class="sbn-prog-viewer-info">
+                <h4 v-if="name" class="sbn-prog-viewer-name" v-html="name" />
+                <div v-if="category || keyLabel" class="sbn-prog-viewer-sub">
+                    <span v-if="category" class="sbn-prog-viewer-category" :style="{ color: color || 'var(--clr-accent)' }">
+                        {{ category }}
+                    </span>
+                    <span v-if="category && keyLabel" class="sbn-prog-viewer-sep">•</span>
+                    <span v-if="keyLabel" class="sbn-prog-viewer-key">{{ keyLabel }}</span>
+                </div>
+            </div>
+            <div v-if="numerals" class="sbn-prog-viewer-numerals-badge">
+                <span class="sbn-badge-label">PRO</span>
+                <span class="sbn-badge-text">{{ numerals.replace(/,/g, ' – ') }}</span>
+            </div>
+        </div>
+
         <!-- Chord strip with inline play button -->
         <div class="sbn-prog-viewer-strip">
             <!-- Global play button - chord card style -->
@@ -153,18 +195,25 @@ function canPlayAll(): boolean {
                     :aria-label="`Play ${chord.chordName}`"
                     @click="playChordAtIndex(index)"
                 >
-                    <span class="sbn-prog-viewer-tile-name" v-html="chord.chordName" />
-                    <ChordDiagram :chord="chord.diagramData" size="xs" :showName="false" :showMeta="false" />
+                    <div class="sbn-prog-viewer-tile-header">
+                        <span class="sbn-prog-viewer-tile-name" v-html="chord.chordName" />
+                        <span v-if="chord.numeral" class="sbn-prog-viewer-tile-numeral">{{ chord.numeral }}</span>
+                    </div>
+                    <ChordDiagram :chord="chord.diagramData" size="xs" :showName="false" :showMeta="false" :dot-color="color || 'var(--clr-accent)'" />
                 </button>
 
                 <div v-else class="sbn-prog-viewer-tile-static">
-                    <span class="sbn-prog-viewer-tile-name" v-html="chord.chordName" />
+                    <div class="sbn-prog-viewer-tile-header">
+                        <span class="sbn-prog-viewer-tile-name" v-html="chord.chordName" />
+                        <span v-if="chord.numeral" class="sbn-prog-viewer-tile-numeral">{{ chord.numeral }}</span>
+                    </div>
                     <ChordDiagram
                         v-if="chord.diagramData"
                         :chord="chord.diagramData"
                         size="xs"
                         :showName="false"
                         :showMeta="false"
+                        :dot-color="color || 'var(--clr-accent)'"
                     />
                     <div v-else class="sbn-prog-viewer-placeholder">?</div>
                 </div>
@@ -177,16 +226,103 @@ function canPlayAll(): boolean {
 <style scoped>
 .sbn-prog-viewer {
     --tile-size: 110px;
-    background: var(--clr-surface-2);
+    --prog-color: var(--clr-accent);
+    background: var(--clr-white);
     border: 1px solid var(--clr-border);
     border-radius: var(--radius);
     padding: 16px;
     overflow: visible;
+    transition: all 0.3s ease;
 }
 
 .sbn-prog-viewer--compact {
     --tile-size: 90px;
     padding: 12px;
+}
+
+/* Metadata Header */
+.sbn-prog-viewer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--clr-surface-2);
+}
+
+.sbn-prog-viewer-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sbn-prog-viewer-name {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--clr-text);
+    font-family: var(--font-heading, sans-serif);
+}
+
+.sbn-prog-viewer-sub {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sbn-prog-viewer-category {
+    font-weight: 800;
+}
+
+.sbn-prog-viewer-key {
+    color: var(--clr-text-muted);
+}
+
+.sbn-prog-viewer-sep {
+    color: var(--clr-border);
+    font-weight: 400;
+}
+
+.sbn-prog-viewer-numerals-badge {
+    display: flex;
+    align-items: center;
+    background: var(--clr-surface-2);
+    border-radius: 4px;
+    overflow: hidden;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid var(--clr-border);
+}
+
+.sbn-badge-label {
+    background: var(--clr-text);
+    color: var(--clr-white);
+    padding: 2px 6px;
+}
+
+.sbn-badge-text {
+    padding: 2px 8px;
+    color: var(--clr-text);
+    letter-spacing: 0.5px;
+}
+
+/* Vintage Card Variant */
+.sbn-prog-viewer.sbn-vintage-card {
+  background: var(--clr-white);
+  border: 1px solid var(--clr-border);
+  border-right: 3px solid var(--prog-color);
+  border-bottom: 3px solid var(--prog-color);
+  padding: 20px;
+}
+
+.sbn-prog-viewer.sbn-vintage-card:hover {
+  box-shadow: 3px 3px 0 var(--prog-color);
+  transform: translate(-1px, -1px);
+  border-color: var(--prog-color);
 }
 
 /* Strip layout with inline play button */
@@ -199,36 +335,35 @@ function canPlayAll(): boolean {
     overflow: visible;
 }
 
-/* Global play button - centered circle, slightly bigger, blue theme */
+/* Global play button - Circular & Premium (Matching RhythmPattern) */
 .sbn-prog-viewer-global-play {
-    width: 34px;
-    height: 34px;
+    width: 38px;
+    height: 38px;
     flex-shrink: 0;
     border: 1px solid var(--clr-border);
     background: var(--clr-white);
-    color: var(--clr-text-muted);
+    color: var(--prog-color);
     cursor: pointer;
     border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.15s var(--ease);
+    display: grid;
+    place-items: center;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     padding: 0;
-    margin-right: 8px;
+    margin-right: 12px;
     align-self: center;
 }
 
 .sbn-prog-viewer-global-play:hover {
-    background: #3b82f6;
-    color: #fff;
-    border-color: #3b82f6;
+    color: var(--prog-color);
+    border-color: var(--prog-color);
+    transform: scale(1.1);
 }
 
 .sbn-prog-viewer-global-play.is-playing {
-    background: #3b82f6;
-    color: #fff;
-    border-color: #3b82f6;
-    transform: scale(0.95);
+    background: var(--prog-color);
+    color: var(--clr-white);
+    border-color: var(--prog-color);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--prog-color) 20%, transparent);
 }
 
 /* Individual chord item */
@@ -239,7 +374,7 @@ function canPlayAll(): boolean {
     flex-shrink: 0;
 }
 
-/* Chord tile button - matches chord card style with blue hover */
+/* Chord tile button */
 .sbn-prog-viewer-tile {
     width: var(--tile-size);
     background: var(--clr-white);
@@ -256,23 +391,30 @@ function canPlayAll(): boolean {
 }
 
 .sbn-prog-viewer-tile:hover {
-    border-color: #3b82f6; /* Blue highlight to distinguish from chord cards */
+    border-color: var(--prog-color);
     transform: translateY(-2px);
 }
 
-/* Playing state - blue highlight animation */
+/* Playing state */
 .sbn-prog-viewer-item.is-playing .sbn-prog-viewer-tile {
-    border-color: #3b82f6;
-    background: rgba(59, 130, 246, 0.08);
+    border-color: var(--prog-color);
+    background: color-mix(in srgb, var(--prog-color) 5%, transparent);
     animation: pulse-tile 0.5s ease;
 }
 
 @keyframes pulse-tile {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.2); }
-    50% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2); }
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--prog-color) 20%, transparent); }
+    50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--prog-color) 20%, transparent); }
 }
 
 /* Chord name */
+.sbn-prog-viewer-tile-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
 .sbn-prog-viewer-tile-name {
     font-size: 0.85em;
     font-weight: 600;
@@ -281,6 +423,15 @@ function canPlayAll(): boolean {
     font-family: var(--font-chord, serif);
     line-height: 1.2;
     white-space: nowrap;
+}
+
+.sbn-prog-viewer-tile-numeral {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--clr-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.8;
 }
 
 /* Static tile (non-interactive) */
@@ -319,10 +470,6 @@ function canPlayAll(): boolean {
 
     .sbn-prog-viewer-strip {
         gap: 6px;
-    }
-
-    .sbn-prog-viewer-arrow {
-        display: none;
     }
 }
 </style>
