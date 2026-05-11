@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Leadsheets')
+@section('title', $currentTab === 'exercises' ? 'Exercises' : 'Leadsheets')
 
 @section('actions')
     <div class="sbn-dropdown" x-data="{ open: false }">
@@ -16,7 +16,6 @@
         </div>
     </div>
     <a href="{{ route('admin.leadsheets.create') }}" class="sbn-btn">Import XML</a>
-    <a href="{{ route('admin.exercises.index') }}" class="sbn-btn sbn-btn-secondary">Exercises →</a>
 @endsection
 
 @push('styles')
@@ -60,6 +59,34 @@
         .sbn-dropdown-item-disabled:hover {
             background: none;
         }
+
+        .sbn-tabs {
+            display: flex;
+            gap: 2px;
+            border-bottom: 1px solid #e5e7eb;
+            margin-bottom: 24px;
+        }
+
+        .sbn-tab {
+            padding: 10px 20px;
+            font-weight: 600;
+            font-size: 14px;
+            color: #6b7280;
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            transition: all 0.2s;
+        }
+
+        .sbn-tab:hover {
+            color: #374151;
+            background: #f9fafb;
+        }
+
+        .sbn-tab.active {
+            color: var(--clr-primary, #2563eb);
+            border-bottom-color: var(--clr-primary, #2563eb);
+        }
     </style>
 @endpush
 
@@ -73,6 +100,10 @@
             <span class="sbn-stat-label">Leadsheets</span>
         </div>
         <div class="sbn-stat-card">
+            <span class="sbn-stat-value">{{ $stats['exercises'] }}</span>
+            <span class="sbn-stat-label">Exercises</span>
+        </div>
+        <div class="sbn-stat-card">
             <span class="sbn-stat-value">{{ $stats['composers'] }}</span>
             <span class="sbn-stat-label">Composers</span>
         </div>
@@ -80,15 +111,24 @@
             <span class="sbn-stat-value">{{ $stats['keys'] }}</span>
             <span class="sbn-stat-label">Keys</span>
         </div>
-        <div class="sbn-stat-card">
-            <span class="sbn-stat-value">{{ $stats['withMelody'] }}</span>
-            <span class="sbn-stat-label">With Tab</span>
-        </div>
+    </div>
+
+    {{-- Tab Bar --}}
+    <div class="sbn-tabs" style="margin-bottom: 24px;">
+        <a href="{{ route('admin.leadsheets.index', array_merge(request()->query(), ['tab' => 'leadsheets'])) }}" 
+           class="sbn-tab {{ $currentTab === 'leadsheets' ? 'active' : '' }}">
+           Leadsheets ({{ $stats['total'] }})
+        </a>
+        <a href="{{ route('admin.leadsheets.index', array_merge(request()->query(), ['tab' => 'exercises'])) }}" 
+           class="sbn-tab {{ $currentTab === 'exercises' ? 'active' : '' }}">
+           Exercises ({{ $stats['exercises'] }})
+        </a>
     </div>
 
     {{-- Filter bar --}}
     <div class="sbn-filter-bar">
         <form method="GET" action="{{ route('admin.leadsheets.index') }}" class="sbn-filter-form">
+            <input type="hidden" name="tab" value="{{ $currentTab }}">
             <div class="sbn-search-wrap">
                 <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
                 <input type="text" name="search" class="sbn-search-input" placeholder="Search by title or composer…" value="{{ request('search') }}">
@@ -106,12 +146,12 @@
                 @endforeach
             </select>
             @if(request()->hasAny(['search', 'key', 'composer']))
-                <a href="{{ route('admin.leadsheets.index') }}" class="sbn-filter-clear">Clear</a>
+                <a href="{{ route('admin.leadsheets.index', ['tab' => $currentTab]) }}" class="sbn-filter-clear">Clear</a>
             @endif
         </form>
     </div>
 
-    @if($leadsheets->count())
+    @if($items->count())
         <div class="sbn-table-wrap">
             <table class="sbn-table">
                 <thead>
@@ -127,23 +167,26 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($leadsheets as $ls)
+                    @foreach($items as $ls)
                     <tr x-ref="row{{ $ls->id }}" class="sbn-ls-row">
                         <td class="col-title">
-                            <a href="{{ route('admin.leadsheets.edit', $ls) }}" class="sbn-ls-title">
-                                {{ $ls->title }}
-                            </a>
+                            @if($currentTab === 'leadsheets')
+                                <a href="{{ route('admin.leadsheets.edit', $ls) }}" class="sbn-ls-title">{{ $ls->title }}</a>
+                            @else
+                                <a href="{{ route('admin.exercises.edit', $ls) }}" class="sbn-ls-title">{{ $ls->title }}</a>
+                            @endif
                         </td>
                         <td class="col-composer sbn-text-dim">{{ $ls->composer ?: '—' }}</td>
                         <td class="col-key">
-                            @if($ls->song_key)
-                                <span class="sbn-badge sbn-badge-accent">{{ $ls->song_key }}</span>
+                            @php $keyVal = ($currentTab === 'leadsheets') ? $ls->song_key : $ls->key_center; @endphp
+                            @if($keyVal)
+                                <span class="sbn-badge sbn-badge-accent">{{ $keyVal }}</span>
                             @else
                                 —
                             @endif
                         </td>
-                        <td class="col-tempo sbn-text-muted">{{ $ls->tempo ?: '—' }}</td>
-                        <td class="col-time sbn-text-muted">{{ $ls->time_signature ?: '4/4' }}</td>
+                        <td class="col-tempo sbn-text-muted">{{ ($currentTab === 'leadsheets' ? $ls->tempo : $ls->bpm_default) ?: '—' }}</td>
+                        <td class="col-time sbn-text-muted">{{ ($currentTab === 'leadsheets' ? $ls->time_signature : $ls->time_sig) ?: '4/4' }}</td>
                         <td class="col-measures sbn-text-muted">{{ $ls->measure_count ?: '—' }}</td>
                         <td class="col-description">
                             <div x-data="{ editing: false }">
@@ -164,16 +207,20 @@
                                     >{{ $ls->description ?? '' }}</textarea>
                                     <div class="sbn-ls-desc-actions">
                                         <button class="sbn-btn sbn-btn-xs sbn-btn-primary"
-                                            @click="saveDescription({{ $ls->id }}, $refs['descInput{{ $ls->id }}'].value); editing = false">Save</button>
+                                            @click="saveDescription({{ $ls->id }}, $refs['descInput{{ $ls->id }}'].value, '{{ $currentTab }}'); editing = false">Save</button>
                                         <button class="sbn-btn sbn-btn-xs" @click="editing = false">Cancel</button>
                                     </div>
                                 </div>
                             </div>
                         </td>
                         <td class="col-actions">
-                            <a href="{{ route('admin.leadsheets.edit', $ls) }}" class="sbn-btn sbn-btn-xs" title="Edit">Edit</a>
+                            @if($currentTab === 'leadsheets')
+                                <a href="{{ route('admin.leadsheets.edit', $ls) }}" class="sbn-btn sbn-btn-xs">Edit</a>
+                            @else
+                                <a href="{{ route('admin.exercises.edit', $ls) }}" class="sbn-btn sbn-btn-xs">Edit</a>
+                            @endif
                             <button class="sbn-btn sbn-btn-xs sbn-btn-danger"
-                                @click="deleteLeadsheet({{ $ls->id }}, '{{ addslashes($ls->title) }}')"
+                                @click="deleteItem({{ $ls->id }}, '{{ addslashes($ls->title) }}', '{{ $currentTab }}')"
                                 title="Delete">×</button>
                         </td>
                     </tr>
@@ -182,25 +229,22 @@
             </table>
         </div>
 
-        @if($leadsheets->hasPages())
+        @if($items->hasPages())
             <div class="sbn-pagination">
-                {{ $leadsheets->links() }}
+                {{ $items->links() }}
             </div>
         @endif
     @else
         <div class="sbn-empty-state">
             <div class="sbn-empty-icon">🎸</div>
-            <h3>No leadsheets{{ request()->hasAny(['search', 'key', 'composer']) ? ' matching your filters' : ' yet' }}</h3>
+            <h3>No {{ $currentTab }}{{ request()->hasAny(['search', 'key', 'composer']) ? ' matching your filters' : ' yet' }}</h3>
             <p>
                 @if(request()->hasAny(['search', 'key', 'composer']))
-                    Try adjusting your search or <a href="{{ route('admin.leadsheets.index') }}">clear filters</a>.
+                    Try adjusting your search or <a href="{{ route('admin.leadsheets.index', ['tab' => $currentTab]) }}">clear filters</a>.
                 @else
-                    Import a MusicXML file to create your first interactive leadsheet.
+                    {{ $currentTab === 'leadsheets' ? 'Import a MusicXML file to create your first interactive leadsheet.' : 'Create an exercise from a leadsheet to get started.' }}
                 @endif
             </p>
-            @unless(request()->hasAny(['search', 'key', 'composer']))
-                <a href="{{ route('admin.leadsheets.create') }}" class="sbn-btn sbn-btn-primary" style="margin-top: 12px;">Import MusicXML</a>
-            @endunless
         </div>
     @endif
 
@@ -215,8 +259,12 @@
 <script>
 function leadsheetIndex() {
     return {
-        saveDescription(id, desc) {
-            fetch(`/api/admin/leadsheets/${id}/description`, {
+        saveDescription(id, desc, tab) {
+            const endpoint = tab === 'exercises' 
+                ? `/api/admin/exercises/${id}/description` 
+                : `/api/admin/leadsheets/${id}/description`;
+
+            fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -227,7 +275,6 @@ function leadsheetIndex() {
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    // Update the visible text
                     const textEl = this.$refs['descText' + id];
                     if (textEl) {
                         if (data.description) {
@@ -243,10 +290,14 @@ function leadsheetIndex() {
             .catch(() => sbnToast('Failed to save', 'error'));
         },
 
-        deleteLeadsheet(id, title) {
+        deleteItem(id, title, tab) {
             if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
 
-            fetch(`/api/admin/leadsheets/${id}`, {
+            const endpoint = tab === 'exercises'
+                ? `/api/admin/exercises/${id}`
+                : `/api/admin/leadsheets/${id}`;
+
+            fetch(endpoint, {
                 method: 'DELETE',
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
@@ -262,7 +313,7 @@ function leadsheetIndex() {
                         row.style.transform = 'translateX(20px)';
                         setTimeout(() => row.remove(), 300);
                     }
-                    sbnToast('Leadsheet deleted', 'success');
+                    sbnToast('Deleted successfully', 'success');
                 }
             })
             .catch(() => sbnToast('Failed to delete', 'error'));

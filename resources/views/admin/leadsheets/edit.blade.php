@@ -14,10 +14,10 @@
     @vite('resources/js/tab-editor/tab-editor.js')
 @endpush
 
-@section('title', $leadsheet ? 'Edit: ' . $leadsheet->title : 'New Leadsheet')
+@section('title', (isset($leadsheet) && $leadsheet->id) ? 'Edit: ' . $leadsheet->title : ( (isset($exercise) && $exercise->id) ? 'Edit: ' . $exercise->title : 'New ' . (isset($isExercise) && $isExercise ? 'Exercise' : 'Leadsheet') ))
 
 @section('actions')
-    <a href="{{ route('admin.leadsheets.index') }}" class="sbn-btn sbn-btn-secondary">
+    <a href="{{ isset($isExercise) && $isExercise ? route('admin.leadsheets.index', ['tab' => 'exercises']) : route('admin.leadsheets.index') }}" class="sbn-btn sbn-btn-secondary">
         <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
         Back
     </a>
@@ -232,7 +232,7 @@
             {{-- Row 2: save --}}
             <div class="sbn-vp-save-row">
                 <button class="sbn-btn sbn-btn-primary" style="flex:1" @click="save()" :disabled="saving"
-                        x-text="saving ? 'Saving…' : (leadsheetId ? 'Update Leadsheet' : 'Save Leadsheet')"></button>
+                        x-text="saving ? 'Saving…' : (itemId ? 'Update ' + typeLabel : 'Save ' + typeLabel)"></button>
                 <span class="sbn-vp-dirty-hint" x-show="dirty">Unsaved</span>
             </div>
         </div>
@@ -984,9 +984,12 @@ function leadsheetEditor() {
     return {
         // State
         parsed: null,
-        leadsheetId: {{ $leadsheet ? $leadsheet->id : 'null' }},
-        rhythmSlug: '{{ $leadsheet ? $leadsheet->rhythm : '' }}',
-        description: '{{ $leadsheet ? addslashes($leadsheet->description ?? '') : '' }}',
+        itemId: @json($leadsheet->id ?? $exercise->id ?? null),
+        itemType: @json(isset($isExercise) && $isExercise ? 'exercises' : 'leadsheets'),
+        typeLabel: @json(isset($isExercise) && $isExercise ? 'Exercise' : 'Leadsheet'),
+        leadsheetId: @json($leadsheet->id ?? $exercise->id ?? null),
+        rhythmSlug: '{{ $leadsheet->rhythm ?? $exercise->rhythm ?? '' }}',
+        description: '{{ isset($leadsheet) ? addslashes($leadsheet->description ?? '') : (isset($exercise) ? addslashes($exercise->description ?? '') : '') }}',
         barsPerRow: 4,
         collapsedSections: {},
         analysisCollapsed: {},
@@ -1400,39 +1403,45 @@ function leadsheetEditor() {
         },
 
         async loadExistingData() {
-    try {
-        const resp = await fetch('/api/admin/leadsheets/' + this.leadsheetId + '/data');
-        const data = await resp.json();
-        if (data.success && data.leadsheet) {
-            const ls = data.leadsheet;
-            if (ls.json_data && typeof ls.json_data === 'object' && ls.json_data.sections) {
-                this.parsed = ls.json_data;
-            } else if (ls.shortcode_content) {
-                this.parsed = this.parseShortcodeClient(ls.shortcode_content, ls);
-            }
-            if (this.parsed) {
-                this.parsed.title         = ls.title          || this.parsed.title;
-                this.parsed.composer      = ls.composer       || this.parsed.composer;
-                this.parsed.key           = ls.song_key       || this.parsed.key;
-                this.parsed.tempo         = ls.tempo          || this.parsed.tempo;
-                this.parsed.timeSignature = ls.time_signature || this.parsed.timeSignature;
-            }
-            this.rhythmSlug  = ls.rhythm      || '';
-            this.description = ls.description || '';
-            this.tabXml      = ls.tab_xml     || null;
+            try {
+                const endpoint = this.itemType === 'exercises' 
+                    ? '/admin/exercises/' + this.itemId + '/data' 
+                    : '/api/admin/leadsheets/' + this.itemId + '/data';
+                
+                const resp = await fetch(endpoint);
+                const data = await resp.json();
+                
+                if (data.success && (data.leadsheet || data.exercise)) {
+                    const ls = data.leadsheet || data.exercise;
+                    const rawJson = this.itemType === 'exercises' ? ls.content_json : ls.json_data;
+                    
+                    if (rawJson && typeof rawJson === 'object' && rawJson.sections) {
+                        this.parsed = rawJson;
+                    } else if (ls.shortcode_content) {
+                        this.parsed = this.parseShortcodeClient(ls.shortcode_content, ls);
+                    }
+                    
+                    if (this.parsed) {
+                        this.parsed.title         = ls.title           || this.parsed.title;
+                        this.parsed.composer      = ls.composer        || this.parsed.composer;
+                        this.parsed.key           = (this.itemType === 'exercises' ? ls.key_center : ls.song_key) || this.parsed.key;
+                        this.parsed.tempo         = (this.itemType === 'exercises' ? ls.bpm_default : ls.tempo) || this.parsed.tempo;
+                        this.parsed.timeSignature = (this.itemType === 'exercises' ? ls.time_sig : ls.time_signature) || this.parsed.timeSignature;
+                    }
+                    this.tabXml = ls.tab_xml || null;
+                    this.rhythmSlug = ls.rhythm || '';
+                    this.description = ls.description || '';
+                    this.markDirty();
+                    this.dirty = false;
 
-            // Push data to Vue tab editor once fetch completes.
-            // Vue may already be mounted and waiting — its sbn-tab-request-init
-            // fires before Alpine's init() registers the listener, so the
-            // handshake silently fails. This guarantees data always arrives.
-            // _tabInitDone guards against double-initialization if both paths fire.
-            if (this.parsed) this._dispatchTabInit();
-        }
-    } catch (e) {
-        console.error('[SBN Editor] Load error:', e);
-        sbnToast('Error loading leadsheet data', 'error');
-    }
-},
+                    // Push data to Vue tab editor once fetch completes.
+                    if (this.parsed) this._dispatchTabInit();
+                }
+            } catch (e) {
+                console.error('[SBN Editor] Failed to load data:', e);
+                sbnToast('Failed to load leadsheet data', 'error');
+            }
+        },
 
         // Client-side shortcode parser (minimal, for edit mode)
         parseShortcodeClient(sc, ls) {
@@ -1775,20 +1784,30 @@ function leadsheetEditor() {
             if (videoSyncData) finalJsonData.videoSync = videoSyncData;
 
             const shortcode = this.shortcodeOutput;
-            const url = this.leadsheetId
-                ? '/admin/leadsheets/' + this.leadsheetId
-                : '/admin/leadsheets';
-            const method = this.leadsheetId ? 'PUT' : 'POST';
+            const url = this.itemType === 'exercises'
+                ? (this.itemId ? '/admin/exercises/' + this.itemId : '/admin/exercises')
+                : (this.itemId ? '/admin/leadsheets/' + this.itemId : '/admin/leadsheets');
+            const method = this.itemId ? 'PUT' : 'POST';
 
             try {
-                const resp = await fetch(url, {
-                    method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({
+                const payload = this.itemType === 'exercises' 
+                    ? {
+                        title: this.parsed.title,
+                        composer: this.parsed.composer,
+                        key_center: this.parsed.key,
+                        bpm_default: this.parsed.tempo,
+                        time_sig: this.parsed.timeSignature,
+                        rhythm: this.rhythmSlug,
+                        type: 'tab_exercise',
+                        content_json: JSON.stringify(finalJsonData),
+                        shortcode_content: shortcode,
+                        tab_xml: this.tabXml,
+                        description: this.description,
+                        harmony_notes: '',
+                        form_notes: '',
+                        voicing_notes: ''
+                    }
+                    : {
                         title: this.parsed.title,
                         composer: this.parsed.composer,
                         song_key: this.parsed.key,
@@ -1803,16 +1822,29 @@ function leadsheetEditor() {
                         harmony_notes: '',
                         form_notes: '',
                         voicing_notes: ''
-                    })
+                    };
+
+                const resp = await fetch(url, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
                 });
                 const data = await resp.json();
                 if (data.success || data.id) {
                     this.dirty = false;
                     this._savedMelody = null;
                     this._suppressTabInit = false;
-                    sbnToast('Leadsheet saved!', 'success');
-                    if (!this.leadsheetId && data.id) {
-                        window.history.replaceState({}, '', '/admin/leadsheets/' + data.id + '/edit');
+                    sbnToast(this.typeLabel + ' saved!', 'success');
+                    if (!this.itemId && data.id) {
+                        const newUrl = this.itemType === 'exercises' 
+                            ? '/admin/exercises/' + data.id + '/edit'
+                            : '/admin/leadsheets/' + data.id + '/edit';
+                        window.history.replaceState({}, '', newUrl);
+                        this.itemId = data.id;
                         this.leadsheetId = data.id;
                     }
                 } else {

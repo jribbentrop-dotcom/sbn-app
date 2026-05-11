@@ -48,32 +48,60 @@ class LeadsheetController extends Controller
 
     public function index(Request $request)
     {
-        $query = Leadsheet::query();
+        $currentTab = $request->get('tab', 'leadsheets');
+        $search = $request->get('search');
+        $key = $request->get('key');
+        $composer = $request->get('composer');
 
-        if ($search = $request->get('search')) {
-            $query->search($search);
-        }
-        if ($key = $request->get('key')) {
-            $query->inKey($key);
-        }
-        if ($composer = $request->get('composer')) {
-            $query->where('composer', $composer);
+        if ($currentTab === 'exercises') {
+            $query = \App\Models\Exercise::query();
+            if ($search) {
+                $query->where(fn($q) => $q->where('title', 'like', "%{$search}%")->orWhere('composer', 'like', "%{$search}%"));
+            }
+            if ($key) {
+                $query->where('key_center', $key);
+            }
+            if ($composer) {
+                $query->where('composer', $composer);
+            }
+            $items = $query->orderBy('title')->paginate(25)->withQueryString();
+        } else {
+            $query = Leadsheet::query();
+            if ($search) {
+                $query->search($search);
+            }
+            if ($key) {
+                $query->inKey($key);
+            }
+            if ($composer) {
+                $query->where('composer', $composer);
+            }
+            $items = $query->orderBy('title')->paginate(25)->withQueryString();
         }
 
-        $leadsheets = $query->orderBy('title')->paginate(25)->withQueryString();
-        $stats      = Leadsheet::getStats();
-        $keys       = Leadsheet::getDistinctKeys();
-        $composers  = Leadsheet::getDistinctComposers();
-        $rhythms    = RhythmPattern::orderBy('category')->orderBy('name')->get();
+        $stats = Leadsheet::getStats();
+        // Add exercise count to stats
+        $stats['exercises'] = \App\Models\Exercise::count();
+        
+        $keys = Leadsheet::getDistinctKeys();
+        $composers = Leadsheet::getDistinctComposers();
+        $rhythms = RhythmPattern::orderBy('category')->orderBy('name')->get();
         $cloneSources = Leadsheet::orderBy('title')->get(['id', 'title', 'composer']);
         $progressions = \App\Models\ChordProgression::orderBy('category')->orderBy('name')->get(['id', 'name', 'category', 'numerals', 'tonality']);
         $jazzStandards = \App\Models\JazzStandard::orderBy('title')->get(['id', 'title', 'composer', 'song_key', 'slug']);
 
-        return view('admin.leadsheets.index', compact(
-            'leadsheets', 'stats', 'keys', 'composers', 'rhythms', 'cloneSources', 'progressions', 'jazzStandards'
-        ));
-
-
+        return view('admin.leadsheets.index', [
+            'items'         => $items,
+            'leadsheets'    => ($currentTab === 'leadsheets') ? $items : collect(), // for backward compatibility if needed in modals
+            'stats'         => $stats,
+            'keys'          => $keys,
+            'composers'     => $composers,
+            'rhythms'       => $rhythms,
+            'cloneSources'  => $cloneSources,
+            'progressions'  => $progressions,
+            'jazzStandards' => $jazzStandards,
+            'currentTab'    => $currentTab,
+        ]);
     }
 
     public function create()

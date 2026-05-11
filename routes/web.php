@@ -139,6 +139,10 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
     // YouTube Search
     Route::get('/youtube/search', [LeadsheetController::class, 'youtubeSearch'])->name('youtube.search');
 
+    // Exercises
+    Route::delete('/exercises/{exercise}', [AdminExerciseController::class, 'destroy'])->name('exercises.destroy');
+    Route::post('/exercises/{exercise}/description', [AdminExerciseController::class, 'updateDescription'])->name('exercises.updateDescription');
+
     // Rhythm Patterns
     Route::get('/rhythms', [RhythmPatternController::class, 'apiIndex'])->name('rhythms.index');
     Route::get('/rhythms/songs', [RhythmPatternController::class, 'apiSongs'])->name('rhythms.songs');
