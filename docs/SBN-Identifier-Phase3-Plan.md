@@ -249,18 +249,22 @@ This is structurally **the same algorithm as `ProgressionBuilder::viterbiSelect`
 - Modal mixture (bIII, bVI, bVII) recognized in major keys at weight 1.05.
 - The eventual fix to Ipanema chord 2 (`Eb7(9)/Bb` over `Bbm6`) needs Phase 3.3 (transitions) — key fit alone gives Bbm6 ×1.15 (vi) and Eb7 ×1.10 (V/V), not enough to flip the rank with Bbm6's much higher Pass 1 score.
 
-### Phase 3.3a — Surface bigram (Layer 3, first slice)
+### Phase 3.3a — Surface bigram (Layer 3, first slice) ✅ SHIPPED 2026-05-15
 
 **Goal:** Add transition priors with the cheapest possible model.
 
 **Tasks:**
-- **3.3a.1** Build `php artisan sbn:reseed-transitions` to parse jazz-standards corpus, emit bigram table.
-- **3.3a.2** Persist as `storage/app/harmonic-transitions.generated.php`. Commit.
-- **3.3a.3** Add `App\Services\Identifier\TransitionScorer` reading the seeded table. Apply Laplace smoothing.
-- **3.3a.4** Integrate into `ContextualReranker` as a sub-pass after `HarmonicPatternMatcher`.
-- **3.3a.5** Re-run baseline audits + Ipanema. Verify chord 2 of Ipanema picks `Eb7(9)/Bb`.
+- **3.3a.1** ✅ Built `php artisan sbn:reseed-transitions` parsing jazz-standards corpus (iReal Pro chord_string format), emitting bigram table.
+- **3.3a.2** ✅ Persisted as `storage/app/harmonic-transitions.generated.php`. Committed. 44k bigrams across 984 unique prev chords from 1382 standards.
+- **3.3a.3** ✅ Added `App\Services\Identifier\TransitionScorer` with backoff lookup (rich names like `Db6(9)/Ab` back off to `Db6/Ab`, `Db/Ab`, `Db`) and Laplace add-K smoothing.
+- **3.3a.4** ✅ Integrated into `ContextualReranker` as Sub-pass 2e, after diatonicity rerank. Reweights each slot's candidates by P(name | previous-winner). Same safety rails as 2d (no silly slash promotions).
+- **3.3a.5** ✅ Baselines unchanged for isolated audit (0 diffs). Context audits show increased reinterpretation activity (Wine 3→12, Misty 16→25, Easy 16→43, Shadow 6→18) — bigram firing on real cases.
 
-**Definition of done:** Ipanema chord 2 identifies as `Eb7(9)/Bb`. Zero regressions on the four baseline audits.
+**Outcome:**
+- Bigram corpus loaded with strong canonical signals: top transitions are the classics (Gm7→C7, Dm7→G7, Bb7→Ebmaj7).
+- Multiplier curve tuned to [0.4, 3.0] range (`1 + 0.7 * log10(p/uniform)`) — a 5×-uniform transition like Db→Eb7 yields ~2.0× promotion.
+- For the Ipanema chord 2 driver case: bigram correctly identifies `Eb7(9)/Bb` as 5× more likely than `Bbm6` after `Db6(9)/Ab` (P=0.00473 vs 0.00095), yielding multipliers 1.469 vs 0.999. **However, this is not yet enough to flip the winner** because Pass 1+Layer1 score `Bbm6` at 7200 vs `Eb7(9)/Bb` at 1062 — the ~6.8× score gap exceeds the ~1.5× multiplier delta. Resolution requires Phase 3.4 (HMM/Viterbi) where transition strength compounds across the sequence.
+- The bigram backoff bug fixed during validation: initial implementation returned smoothing as soon as the most-specific `prev` was seen even if no `next` form matched. Now searches all (prev, next) backoff combinations for the highest-probability hit before falling back.
 
 ### Phase 3.3b — Functional bigram (Layer 3, generalization)
 

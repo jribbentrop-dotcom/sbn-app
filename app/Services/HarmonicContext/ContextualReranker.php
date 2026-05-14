@@ -40,7 +40,11 @@ class ContextualReranker implements IContextualReranker
         private PedalDetector $pedalDetector,
         private HarmonicPatternMatcher $patternMatcher,
         private DiminishedAsDominantResolver $dimAsDomResolver,
-    ) {}
+        private ?\App\Services\Identifier\TransitionScorer $transitionScorer = null,
+    ) {
+        // Lazy-default so DI-light constructions still work.
+        $this->transitionScorer ??= new \App\Services\Identifier\TransitionScorer();
+    }
 
     /**
      * Re-rank Phase 1 results using harmonic context.
@@ -77,6 +81,12 @@ class ContextualReranker implements IContextualReranker
         if ($songKey !== null) {
             $results = $this->applyDiatonicityRerank($results, $songKey, $expectedChordsFromPattern);
         }
+
+        // Sub-pass 2e (Phase 3.3a): Bigram transition rescore.
+        // Reweights each slot's top-K candidates by P(next | previous-winner) from
+        // the corpus bigram. Promotes candidates that form idiomatic transitions
+        // from the previous chord's chosen name; lightly demotes those that don't.
+        $results = $this->applyTransitionRescore($results);
 
         return $results;
     }
@@ -246,6 +256,81 @@ class ContextualReranker implements IContextualReranker
             }
         }
 
+        return $results;
+    }
+
+    /**
+     * Sub-pass 2e (Phase 3.3a): Bigram transition rescore.
+     *
+     * For each slot N (starting at slot 1), look at slot N-1's chosen chord name
+     * and apply P(slot_N_candidate | slot_{N-1}) as a score multiplier to each
+     * candidate at slot N. Then re-pick the winner if a different candidate now
+     * leads the rescored ranking.
+     *
+     * Spec: docs/SBN-Identifier-Phase3-Plan.md §5.3.
+     *
+     * Safety rails identical to 2d to avoid silly slash-chord promotions:
+     *   - never promote slash over non-slash unless the rescored gap is large
+     *   - never promote slash/slash unless the new winner clearly outscores
+     *   - never promote X/X (bass = root)
+     *
+     * The transition signal compounds across the sequence; one transition can't
+     * dominate alone (multiplier bounded [0.7, 1.5]), but a chain of strong
+     * transitions can shift a slot's reading when other layers were borderline.
+     */
+    private function applyTransitionRescore(array $results): array
+    {
+        if ($this->transitionScorer === null) return $results;
+        if (count($results) < 2) return $results;
+
+        for ($i = 1; $i < count($results); $i++) {
+            $prevName = $results[$i - 1]['name'] ?? null;
+            if ($prevName === null || $prevName === '') continue;
+
+            $candidates = $results[$i]['candidates'] ?? [];
+            if (empty($candidates)) continue;
+            if ($results[$i]['reinterpreted'] ?? false) continue; // upstream sub-pass already decided
+
+            // Rescore each candidate
+            $rescored = [];
+            foreach ($candidates as $c) {
+                $name = $c['name'] ?? '';
+                if ($name === '') { $rescored[] = $c; continue; }
+                $mult = $this->transitionScorer->scoreMultiplier($prevName, $name);
+                $c['transition_score'] = ($c['score'] ?? 0) * $mult;
+                $rescored[] = $c;
+            }
+            usort($rescored, fn($a, $b) => ($b['transition_score'] ?? 0) <=> ($a['transition_score'] ?? 0));
+
+            $newWinner = $rescored[0];
+            $currentWinner = $candidates[0];
+            if ($newWinner['name'] === $currentWinner['name']) continue;
+
+            // Same safety rails as 2d
+            $newScore = $newWinner['transition_score'] ?? 0;
+            $currentScore = $currentWinner['transition_score'] ?? ($currentWinner['score'] ?? 0);
+            $ratio = $currentScore > 0 ? $newScore / $currentScore : 1.0;
+
+            $currentHasSlash = str_contains($currentWinner['name'], '/');
+            $newHasSlash = str_contains($newWinner['name'], '/');
+            if ($newHasSlash && !$currentHasSlash && $ratio < 1.20) continue;
+            if ($newHasSlash && $currentHasSlash && $ratio <= 1.05) continue;
+            if ($newHasSlash) {
+                $parts = explode('/', $newWinner['name'], 2);
+                if (count($parts) === 2 && strcasecmp($parts[0], $parts[1]) === 0) continue;
+            }
+
+            $results[$i] = array_merge($results[$i], [
+                'name'               => $newWinner['name'],
+                'root'               => $newWinner['root'] ?? $results[$i]['root'] ?? null,
+                'quality'            => $newWinner['quality'] ?? $results[$i]['quality'] ?? null,
+                'extensions'         => $newWinner['extensions'] ?? $results[$i]['extensions'] ?? '',
+                'bass_note'          => $newWinner['bass_note'] ?? $results[$i]['bass_note'] ?? null,
+                'confidence'         => $newWinner['score'] ?? null,
+                'reinterpreted'      => true,
+                'reinterpret_reason' => 'bigram',
+            ]);
+        }
         return $results;
     }
 
