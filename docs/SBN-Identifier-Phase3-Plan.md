@@ -232,17 +232,22 @@ This is structurally **the same algorithm as `ProgressionBuilder::viterbiSelect`
 - Display normalization added: `maj6` → `6` in chord names (mirrors existing `dom7` → `7`).
 - Side fix: `IDENTIFY_QUALITY_INTERVALS[$bestQuality]` lookup now uses `?? []` fallback so a DB-injected winner with an unusual quality doesn't crash the inversion derivation.
 
-### Phase 3.2 — Key-fit weighting (Layer 2)
+### Phase 3.2 — Key-fit weighting (Layer 2) ✅ SHIPPED 2026-05-14
 
 **Goal:** Add soft diatonic preference without breaking chromatic jazz.
 
 **Tasks:**
-- **3.2.1** Add `App\Services\Identifier\KeyFitWeigher` (stateless, returns weight 1.00–1.20).
-- **3.2.2** Integrate into `ContextualReranker` as a sub-pass between key-aware enharmonic re-rank and final selection.
-- **3.2.3** Add 5-progression key-fit regression suite (jazz standards with known chromatic moves — confirm none are downgraded).
-- **3.2.4** Re-run baseline audits.
+- **3.2.1** ✅ Add `App\Services\Identifier\KeyFitWeigher` (stateless, returns weight 1.00–1.20).
+- **3.2.2** ✅ Integrated into `VoicingCrossref::maybeApplyDbEvidence` (alongside Layer 1 reweighting) rather than `ContextualReranker` — same effect, simpler call path. Triggered when `$songKey` is passed to `identifyFromFrets`.
+- **3.2.3** ✅ 11 unit tests in `KeyFitWeigherTest` cover primary/diatonic/secondary-dominant/tritone-sub/mixture roles plus the bedrock invariant (weight ≥ 1.00 across all 12 PCs × 12 qualities × 10 keys = 5781 assertions).
+- **3.2.4** ✅ Baseline audits unchanged (0 diffs) because audit command passes `--key` only to the context pass, not isolation.
 
-**Definition of done:** Diatonic candidates promoted when present; chromatic candidates never penalized; baselines unchanged.
+**Outcome:**
+- Eb7 in key of Db correctly classified as `secondary_dom` (V7/V) at weight 1.10, not as ii at 1.15.
+- Dominant 7 chords whose root happens to be diatonic get the secondary-dominant reading first (functional precedence over interval-degree precedence).
+- Minor keys handled with their own natural-minor diatonic set, no rotation tricks.
+- Modal mixture (bIII, bVI, bVII) recognized in major keys at weight 1.05.
+- The eventual fix to Ipanema chord 2 (`Eb7(9)/Bb` over `Bbm6`) needs Phase 3.3 (transitions) — key fit alone gives Bbm6 ×1.15 (vi) and Eb7 ×1.10 (V/V), not enough to flip the rank with Bbm6's much higher Pass 1 score.
 
 ### Phase 3.3a — Surface bigram (Layer 3, first slice)
 

@@ -37,17 +37,20 @@ class VoicingCrossref
     private array $aliasCache = [];
 
     private ?\App\Services\Identifier\DbVoicingMatcher $dbMatcher;
+    private ?\App\Services\Identifier\KeyFitWeigher $keyFitWeigher;
     private bool $dbEvidenceEnabled;
 
     public function __construct(
         ChordShapeCalculator $calculator,
         \App\Services\Identifier\DbVoicingMatcher $dbMatcher = null,
+        \App\Services\Identifier\KeyFitWeigher $keyFitWeigher = null,
         bool $dbEvidenceEnabled = true
     ) {
         $this->calculator = $calculator;
         // Lazy-default so existing call sites that only pass $calculator still work
         // AND the Laravel container correctly auto-resolves when fully wired.
         $this->dbMatcher = $dbMatcher ?? new \App\Services\Identifier\DbVoicingMatcher();
+        $this->keyFitWeigher = $keyFitWeigher ?? new \App\Services\Identifier\KeyFitWeigher();
         $this->dbEvidenceEnabled = $dbEvidenceEnabled;
     }
 
@@ -1344,7 +1347,7 @@ class VoicingCrossref
      *
      * @return array { name, root, quality, extensions, bass_note, inversion, diagram_id, confidence }
      */
-    public function identifyFromFrets(string $frets, int $position = 1): array
+    public function identifyFromFrets(string $frets, int $position = 1, ?string $songKey = null): array
     {
         $pitchClasses = [];
         $bassPc       = null;
@@ -1365,7 +1368,7 @@ class VoicingCrossref
         $pcSet      = array_values(array_unique($pitchClasses));
         $noteCount  = strlen(str_replace('x', '', strtolower($frets)));
 
-        return $this->identifyFromPcSetFull($pcSet, $bassPc, $noteCount, $frets, $position);
+        return $this->identifyFromPcSetFull($pcSet, $bassPc, $noteCount, $frets, $position, $songKey);
     }
 
     // ── Shared core algorithm ─────────────────────────────────────────────────
@@ -1396,7 +1399,8 @@ class VoicingCrossref
         ?int $bassPc,
         int $noteCount,
         ?string $frets,
-        int $position = 1
+        int $position = 1,
+        ?string $songKey = null
     ): array {
         // ── Pass 1: Score (root, quality) pairs ──
         $bassBoost       = 4;
@@ -1585,14 +1589,16 @@ class VoicingCrossref
         // ── Build top-K candidates list ──
         $candidates = $this->buildCandidateList($allCandidates, $pcSet, $bassPc, $frets, $position);
 
-        // ── Phase 3.1: DB shape evidence layer ──
-        // See docs/SBN-Identifier-Phase3-Plan.md §3.
+        // ── Phase 3.1/3.2: DB shape evidence + key-fit weighting ──
+        // See docs/SBN-Identifier-Phase3-Plan.md §3 (Layer 1) and §4 (Layer 2).
         // If a high-confidence DB hit names a chord that Pass 1 didn't produce,
         // inject it as a candidate and let it compete on the rescored ranking.
+        // Key-fit weight (1.00–1.20) is applied alongside DB multipliers; chromatic
+        // candidates are never penalized — only diatonic/functional readings get a bump.
         $dbInjection = null;
         if ($this->dbEvidenceEnabled && $this->dbMatcher !== null && $frets !== null) {
             $dbInjection = $this->maybeApplyDbEvidence(
-                $candidates, $bestRootPc, $bestQuality, $bestScore, $frets, $bassPc, $pcSet
+                $candidates, $bestRootPc, $bestQuality, $bestScore, $frets, $bassPc, $pcSet, $songKey
             );
             // maybeApplyDbEvidence may have updated $candidates / $bestRootPc / $bestQuality / $bestScore.
             // It returns metadata for the injected DB hit if it became the winner (used to
@@ -2314,14 +2320,37 @@ class VoicingCrossref
         float $bestScore,
         string $frets,
         ?int $bassPc,
-        array $pcSet
+        array $pcSet,
+        ?string $songKey = null
     ): ?array {
         try {
-            $lookup = $this->dbMatcher->lookup($frets);
+            $lookup = $this->dbMatcher->lookup($frets, $songKey);
         } catch (\Throwable $e) {
             // DB unavailable (e.g. unit tests against :memory:). Skip evidence layer.
             return null;
         }
+        if (empty($lookup['hits']) && $songKey === null) {
+            return null;
+        }
+
+        // Phase 3.2: apply key-fit weight to every Pass 1 candidate. Bounded
+        // [1.00, 1.20] — chromatic candidates are never penalized.
+        if ($songKey !== null && $this->keyFitWeigher !== null) {
+            $noteToPcLocal = array_flip(array_filter(
+                self::IDENTIFY_NOTE_SHARP,
+                fn($v, $k) => is_int($k),
+                ARRAY_FILTER_USE_BOTH
+            ));
+            foreach ($candidates as &$c) {
+                $candidateRootPc = array_search($c['root'], self::IDENTIFY_NOTE_SHARP, true);
+                if ($candidateRootPc === false) continue;
+                $w = $this->keyFitWeigher->weight((int)$candidateRootPc, $c['quality'], $songKey);
+                $c['score'] = $c['score'] * $w;
+            }
+            unset($c);
+            usort($candidates, fn($a, $b) => $b['score'] <=> $a['score']);
+        }
+
         if (empty($lookup['hits'])) {
             return null;
         }
@@ -2382,7 +2411,11 @@ class VoicingCrossref
             }
             if ($alreadyInPass1) continue;
 
-            $injectScore = $injectionBaseline * 1.5;
+            // Apply key-fit weight to the injection score as well.
+            $keyFit = ($songKey !== null && $this->keyFitWeigher !== null)
+                ? $this->keyFitWeigher->weight($h['root_pc'], $h['quality'], $songKey)
+                : 1.0;
+            $injectScore = $injectionBaseline * 1.5 * $keyFit;
             if ($injectScore > $bestInjectionScore) {
                 $bestInjectionScore = $injectScore;
                 $bestInjection = [
