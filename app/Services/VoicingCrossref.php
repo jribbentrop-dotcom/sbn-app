@@ -36,9 +36,19 @@ class VoicingCrossref
     /** @var array<string, \Illuminate\Support\Collection> Cached alias shapes by quality key */
     private array $aliasCache = [];
 
-    public function __construct(ChordShapeCalculator $calculator)
-    {
+    private ?\App\Services\Identifier\DbVoicingMatcher $dbMatcher;
+    private bool $dbEvidenceEnabled;
+
+    public function __construct(
+        ChordShapeCalculator $calculator,
+        \App\Services\Identifier\DbVoicingMatcher $dbMatcher = null,
+        bool $dbEvidenceEnabled = true
+    ) {
         $this->calculator = $calculator;
+        // Lazy-default so existing call sites that only pass $calculator still work
+        // AND the Laravel container correctly auto-resolves when fully wired.
+        $this->dbMatcher = $dbMatcher ?? new \App\Services\Identifier\DbVoicingMatcher();
+        $this->dbEvidenceEnabled = $dbEvidenceEnabled;
     }
 
     /**
@@ -1575,24 +1585,70 @@ class VoicingCrossref
         // ── Build top-K candidates list ──
         $candidates = $this->buildCandidateList($allCandidates, $pcSet, $bassPc, $frets, $position);
 
-        // ── Step 3: Extension detection — Pass 2 ──
-        $basePcs = array_map(
-            fn($iv) => ($bestRootPc + $iv) % 12,
-            self::IDENTIFY_QUALITY_INTERVALS[$bestQuality]
-        );
-        $leftoverPcs      = array_diff($pcSet, $basePcs);
-        $extensionLabels  = [];
-
-        foreach ($leftoverPcs as $lpc) {
-            $iv = ($lpc - $bestRootPc + 12) % 12;
-            if (isset(self::IDENTIFY_EXTENSION_INTERVALS[$iv])) {
-                $extensionLabels[$iv] = self::IDENTIFY_EXTENSION_INTERVALS[$iv];
+        // ── Phase 3.1: DB shape evidence layer ──
+        // See docs/SBN-Identifier-Phase3-Plan.md §3.
+        // If a high-confidence DB hit names a chord that Pass 1 didn't produce,
+        // inject it as a candidate and let it compete on the rescored ranking.
+        $dbInjection = null;
+        if ($this->dbEvidenceEnabled && $this->dbMatcher !== null && $frets !== null) {
+            $dbInjection = $this->maybeApplyDbEvidence(
+                $candidates, $bestRootPc, $bestQuality, $bestScore, $frets, $bassPc, $pcSet
+            );
+            // maybeApplyDbEvidence may have updated $candidates / $bestRootPc / $bestQuality / $bestScore.
+            // It returns metadata for the injected DB hit if it became the winner (used to
+            // short-circuit the local extension/inversion logic with DB-provided values).
+            if ($dbInjection !== null) {
+                $bestRootPc = $dbInjection['root_pc'];
+                $bestQuality = $dbInjection['quality'];
+                $bestScore = $dbInjection['score'];
+                // Insert into candidates head if not already present
+                $alreadyPresent = false;
+                foreach ($candidates as $c) {
+                    if ($c['name'] === $dbInjection['name']) { $alreadyPresent = true; break; }
+                }
+                if (!$alreadyPresent) {
+                    array_unshift($candidates, [
+                        'name'       => $dbInjection['name'],
+                        'root'       => self::IDENTIFY_NOTE_SHARP[$dbInjection['root_pc']],
+                        'quality'    => $dbInjection['quality'],
+                        'extensions' => $dbInjection['extensions'],
+                        'bass_note'  => $dbInjection['bass_pc'] !== null
+                            ? self::IDENTIFY_NOTE_SHARP[$dbInjection['bass_pc']]
+                            : null,
+                        'score'      => $dbInjection['score'],
+                    ]);
+                }
             }
         }
-        ksort($extensionLabels);
-        $extensionsStr = !empty($extensionLabels)
-            ? '(' . implode(',', $extensionLabels) . ')'
-            : '';
+
+        // ── Step 3: Extension detection — Pass 2 ──
+        // $basePcs computed in both branches: used below for confidence calculation.
+        $basePcs = array_map(
+            fn($iv) => ($bestRootPc + $iv) % 12,
+            self::IDENTIFY_QUALITY_INTERVALS[$bestQuality] ?? [0, 4, 7]
+        );
+        if ($dbInjection !== null) {
+            // Use DB hit's extensions verbatim. Required because a DB injection's root
+            // may not be present in $pcSet (rootless slash chord case), so deriving
+            // extensions from leftover PCs against the missing root produces wrong labels.
+            $extensionsStr = $dbInjection['extensions'] === ''
+                ? ''
+                : '(' . $dbInjection['extensions'] . ')';
+        } else {
+            $leftoverPcs      = array_diff($pcSet, $basePcs);
+            $extensionLabels  = [];
+
+            foreach ($leftoverPcs as $lpc) {
+                $iv = ($lpc - $bestRootPc + 12) % 12;
+                if (isset(self::IDENTIFY_EXTENSION_INTERVALS[$iv])) {
+                    $extensionLabels[$iv] = self::IDENTIFY_EXTENSION_INTERVALS[$iv];
+                }
+            }
+            ksort($extensionLabels);
+            $extensionsStr = !empty($extensionLabels)
+                ? '(' . implode(',', $extensionLabels) . ')'
+                : '';
+        }
 
         // ── Step 4: Inversion / slash detection ──
         $slashSuffix  = '';
@@ -1604,7 +1660,7 @@ class VoicingCrossref
             if ($bassPc !== $bestRootPc) {
                 $slashSuffix   = '/' . $bassNoteName;
                 $bassInterval  = ($bassPc - $bestRootPc + 12) % 12;
-                $qualityIvs    = self::IDENTIFY_QUALITY_INTERVALS[$bestQuality];
+                $qualityIvs    = self::IDENTIFY_QUALITY_INTERVALS[$bestQuality] ?? [];
                 $isChordTone   = in_array($bassInterval, $qualityIvs, true);
 
                 if ($isChordTone) {
@@ -1622,6 +1678,7 @@ class VoicingCrossref
             'dom7' => '7',
             'min', 'm' => 'm',
             'maj' => '',
+            'maj6' => '6',
             default => $bestQuality
         };
         $chordName   = $rootName . $displayQuality . $extensionsStr . $slashSuffix;
@@ -2231,6 +2288,120 @@ class VoicingCrossref
             'confidence' => 'rootless',
             'rootless'   => true,
         ];
+    }
+
+    /**
+     * Phase 3.1: apply DB shape evidence to Pass 1 candidates.
+     *
+     * Score adjustments (see docs/SBN-Identifier-Phase3-Plan.md §3.3):
+     *   - DB hit with bass_match + (root=bass OR shape is inversion) + pop ≥ 1 → ×1.5
+     *   - DB hit with bass_match only → ×1.15
+     *   - Pass 1 winner not in DB anywhere → ×0.85
+     *
+     * Injection: a strong-tier DB hit that Pass 1 didn't enumerate becomes a
+     * synthetic candidate scored at (median-top-3-Pass-1) × 1.5. This is the
+     * only path that can surface chords like Db6(9)/Ab where the root isn't
+     * in the voicing's pitch class set.
+     *
+     * @param array $candidates  Pass-by-ref so we can reweight in place
+     * @return array|null  ['root_pc','quality','extensions','bass_pc','name','score']
+     *                     when a DB injection became the winner; null otherwise
+     */
+    private function maybeApplyDbEvidence(
+        array &$candidates,
+        int $bestRootPc,
+        string $bestQuality,
+        float $bestScore,
+        string $frets,
+        ?int $bassPc,
+        array $pcSet
+    ): ?array {
+        try {
+            $lookup = $this->dbMatcher->lookup($frets);
+        } catch (\Throwable $e) {
+            // DB unavailable (e.g. unit tests against :memory:). Skip evidence layer.
+            return null;
+        }
+        if (empty($lookup['hits'])) {
+            return null;
+        }
+
+        // Build name→multiplier table for reweighting existing candidates.
+        // Multiple hits may map to the same name; keep the strongest.
+        $dbMultByName = [];
+        $strongHits = [];
+        foreach ($lookup['hits'] as $h) {
+            $mult = 1.0;
+            $isStrongInv = $h['bass_match'] && in_array($h['inversion'], ['inv1','inv2','inv3'], true);
+            $isStrongRP  = $h['bass_match'] && $h['root_bass_aligned'];
+            if (($isStrongInv || $isStrongRP) && $h['popularity'] >= 1) {
+                $mult = 1.5;
+                $strongHits[] = $h;
+            } elseif ($h['bass_match']) {
+                $mult = 1.15;
+            }
+            if ($mult > ($dbMultByName[$h['name']] ?? 0)) {
+                $dbMultByName[$h['name']] = $mult;
+            }
+        }
+
+        // Reweight existing Pass 1 candidates; track if current winner had DB evidence.
+        $currentWinnerHasDb = false;
+        foreach ($candidates as &$c) {
+            $mult = $dbMultByName[$c['name']] ?? null;
+            if ($mult === null) {
+                // Apply mild penalty for names with no DB precedent anywhere.
+                $c['score'] = $c['score'] * 0.85;
+            } else {
+                $c['score'] = $c['score'] * $mult;
+                if ($c['quality'] === $bestQuality
+                    && self::IDENTIFY_NOTE_SHARP[$bestRootPc] === $c['root']) {
+                    $currentWinnerHasDb = true;
+                }
+            }
+        }
+        unset($c);
+
+        // Re-sort candidates by adjusted score
+        usort($candidates, fn($a, $b) => $b['score'] <=> $a['score']);
+
+        // Inject strong hits that Pass 1 didn't enumerate.
+        $injectionBaseline = 0.0;
+        if (count($candidates) >= 2) {
+            $injectionBaseline = $candidates[1]['score'];
+        } elseif (!empty($candidates)) {
+            $injectionBaseline = $candidates[0]['score'];
+        }
+
+        $bestInjection = null;
+        $bestInjectionScore = 0.0;
+        foreach ($strongHits as $h) {
+            $alreadyInPass1 = false;
+            foreach ($candidates as $c) {
+                if ($c['name'] === $h['name']) { $alreadyInPass1 = true; break; }
+            }
+            if ($alreadyInPass1) continue;
+
+            $injectScore = $injectionBaseline * 1.5;
+            if ($injectScore > $bestInjectionScore) {
+                $bestInjectionScore = $injectScore;
+                $bestInjection = [
+                    'root_pc'    => $h['root_pc'],
+                    'quality'    => $h['quality'],
+                    'extensions' => $h['extensions'],
+                    'bass_pc'    => $h['bass_pc'],
+                    'name'       => $h['name'],
+                    'score'      => $injectScore,
+                ];
+            }
+        }
+
+        // Winner: if a strong injection beats the (now-reweighted) Pass 1 winner, return it.
+        $currentBest = $candidates[0]['score'] ?? 0;
+        if ($bestInjection !== null && $bestInjection['score'] > $currentBest) {
+            return $bestInjection;
+        }
+        return null;
     }
 
     /**

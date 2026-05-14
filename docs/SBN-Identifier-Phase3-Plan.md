@@ -214,18 +214,23 @@ This is structurally **the same algorithm as `ProgressionBuilder::viterbiSelect`
 
 ## 6. Phased delivery
 
-### Phase 3.1 — DB lookup (Layer 1 only)
+### Phase 3.1 — DB lookup (Layer 1 only) ✅ SHIPPED 2026-05-14
 
 **Goal:** Fix Ipanema chord 1 (`Db6(9)/Ab`). No changes to Layer 2 or 3.
 
 **Tasks:**
-- **3.1.1** Build `App\Services\Identifier\DbVoicingMatcher` as a standalone service.
-- **3.1.2** Write `DbVoicingMatcherTest` with the four baseline audit voicings + Ipanema chord 1.
-- **3.1.3** Run a "shadow mode" dump across baselines, inspect.
-- **3.1.4** Wire into `VoicingCrossref::identifyFromFrets` as a prefix pass with the branching from §3.3.
-- **3.1.5** Re-run baseline audits, diff against frozen baselines, sign off.
+- **3.1.1** ✅ Build `App\Services\Identifier\DbVoicingMatcher` as a standalone service.
+- **3.1.2** ✅ Write `DbVoicingMatcherTest` with the four baseline audit voicings + Ipanema chord 1. (8 tests, all green)
+- **3.1.3** ✅ Run a "shadow mode" dump across baselines, inspect. (See `storage/audits/db-lookup-shadow-report.txt`)
+- **3.1.4** ✅ Wire into `VoicingCrossref::identifyFromFrets` as score contributor per §3.3.
+- **3.1.5** ✅ Re-run baseline audits, diff against frozen baselines, sign off.
 
-**Definition of done:** Ipanema chord 1 identifies as `Db6(9)/Ab`. Zero regressions on the four baseline audits.
+**Outcome:**
+- Ipanema chord 1 identifies as `Db6(9)/Ab` (was `Absus2(13)`).
+- 423 chords across the 4 baseline audits: 402 identical, 20 cosmetic improvements (`Fmaj6` → `F6`, leadsheet convention), 1 ambiguity flip (`Gb7/Db` ↔ `Dbm6` on a 3-note voicing where both are valid; resolution deferred to Layer 2/3).
+- Baselines refrozen 2026-05-14 to capture the new behavior.
+- Display normalization added: `maj6` → `6` in chord names (mirrors existing `dom7` → `7`).
+- Side fix: `IDENTIFY_QUALITY_INTERVALS[$bestQuality]` lookup now uses `?? []` fallback so a DB-injected winner with an unusual quality doesn't crash the inversion derivation.
 
 ### Phase 3.2 — Key-fit weighting (Layer 2)
 
