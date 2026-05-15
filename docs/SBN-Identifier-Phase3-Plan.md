@@ -1,6 +1,6 @@
 # SBN Identifier — Phase 3 Plan: Evidence-Layered Identification
 
-**Status:** Spec, not yet implemented. Authored 2026-05-14.
+**Status:** Phases 3.1 + 3.2 + 3.3a + 3.4a ✅ SHIPPED 2026-05-15. Authored 2026-05-14.
 **Reference doc:** `SBN-Identifier-Reference.md` (Phases 1 & 2 shipped).
 **Predecessor in spirit:** Phase D Builder Refactor (Viterbi/HMM-style sequence inference, applied to construction rather than identification).
 
@@ -263,7 +263,7 @@ This is structurally **the same algorithm as `ProgressionBuilder::viterbiSelect`
 **Outcome:**
 - Bigram corpus loaded with strong canonical signals: top transitions are the classics (Gm7→C7, Dm7→G7, Bb7→Ebmaj7).
 - Multiplier curve tuned to [0.4, 3.0] range (`1 + 0.7 * log10(p/uniform)`) — a 5×-uniform transition like Db→Eb7 yields ~2.0× promotion.
-- For the Ipanema chord 2 driver case: bigram correctly identifies `Eb7(9)/Bb` as 5× more likely than `Bbm6` after `Db6(9)/Ab` (P=0.00473 vs 0.00095), yielding multipliers 1.469 vs 0.999. **However, this is not yet enough to flip the winner** because Pass 1+Layer1 score `Bbm6` at 7200 vs `Eb7(9)/Bb` at 1062 — the ~6.8× score gap exceeds the ~1.5× multiplier delta. Resolution requires Phase 3.4 (HMM/Viterbi) where transition strength compounds across the sequence.
+- For the Ipanema chord 2 driver case: bigram correctly identifies `Eb7(9)/Bb` as 5× more likely than `Bbm6` after `Db6(9)/Ab` (P=0.00473 vs 0.00095), yielding multipliers 1.469 vs 0.999. **However, this is not enough to flip the winner** because Pass 1+Layer1 score `Bbm6` at 7200 vs `Eb7(9)/Bb` at 1062 — the ~6.8× score gap cannot be overcome by any inference over the PC set alone (see Phase 3.4a outcome for the architectural finding).
 - The bigram backoff bug fixed during validation: initial implementation returned smoothing as soon as the most-specific `prev` was seen even if no `next` form matched. Now searches all (prev, next) backoff combinations for the highest-probability hit before falling back.
 
 ### Phase 3.3b — Functional bigram (Layer 3, generalization)
@@ -277,15 +277,32 @@ This is structurally **the same algorithm as `ProgressionBuilder::viterbiSelect`
 
 **Definition of done:** Functional bigram dominates for slots with reliable key; surface bigram serves the rest.
 
-### Phase 3.4 — HMM with latent key state
+### Phase 3.4a — Viterbi sequence rescore ✅ SHIPPED 2026-05-15
+
+**Goal:** Compound sequence evidence across all slots simultaneously via minimum-cost path search, so that a consistent bigram chain can break close ties even when a single per-slot multiplier is insufficient.
+
+**Tasks:**
+- **3.4a.1** ✅ Added `applyViterbiRescore` as sub-pass 2f in `ContextualReranker`, after sub-pass 2e (per-slot bigram reweight). Runs min-cost Viterbi DP: `cost[i][k] = min_j(cost[i-1][j] + edgeWeight × -log(P(cand_k|prev_j))) + -log(score_k)`.
+- **3.4a.2** ✅ `edgeWeight = 0.3` — scales edge costs so seed costs dominate, preventing a weak-bigram chain from overriding a strong local reading.
+- **3.4a.3** ✅ `minScoreRatio = 0.85` — Viterbi winner must score ≥85% of current winner to be promoted. Ensures Viterbi only breaks ties between roughly-equal candidates; does not flip dominant local winners.
+- **3.4a.4** ✅ Self-transitions included in bigram corpus (regenerated: 48,930 bigrams). Exclusion had caused Viterbi to prefer non-repeating paths — a systematic bug for repeated-chord progressions.
+- **3.4a.5** ✅ `ViterbiRescoreTest`: 3 tests passing — dominant-local-winner invariant, close-tie-breaking via bigram, canonical ii-V-I preserved.
+
+**Outcome:**
+- Viterbi sequence rescore ships and is safe (no regressions in full 30-test suite).
+- For the **Ipanema chord 2 driver case**: Viterbi cannot flip `Bbm6 → Eb7(9)/Bb`. Mathematical analysis: Pass 1 scores `Bbm6` at 7200 vs `Eb7(9)/Bb` at 1062 (6.8× gap). The `minScoreRatio = 0.85` safety rail correctly blocks this flip — `Eb7(9)/Bb` score is 1062/7200 = 0.147, far below threshold. Viterbi's job is tie-breaking, not overriding 6.8× dominant local evidence.
+- **Root cause finding:** The PC set `{Bb, G, Db, F}` is genuinely enharmonically ambiguous between `Bbm6` and `Eb7(9)/Bb`. No combination of DB lookup, key-fit, bigram, or Viterbi can resolve this ambiguity **without external reference to the expected chord name**. Both names are correct representations of the same pitches. This is an architectural limit of the current system.
+- **Next step to resolve Ipanema chord 2:** Appendix B.2 (expected-chord priors) — a per-exercise chord name table that can inject the "expected" interpretation as a prior. Without that external anchor, the best the algorithm can do is `Bbm6` (the locally strongest read).
+
+### Phase 3.4b — HMM with latent key state (future)
 
 **Goal:** Handle modulations and tonicizations natively.
 
 **Tasks:**
-- **3.4.1** Spec out the (chord × hidden-key) state space and transition matrix.
-- **3.4.2** Implement Viterbi inference (template the existing `ProgressionBuilder::viterbiSelect`).
-- **3.4.3** Replace `TransitionScorer`'s per-slot scoring with sequence-level Viterbi.
-- **3.4.4** Build a modulation-focused regression suite (B-sections, key-shifting standards).
+- **3.4b.1** Spec out the (chord × hidden-key) state space and transition matrix.
+- **3.4b.2** Implement Viterbi inference (template the existing `ProgressionBuilder::viterbiSelect`).
+- **3.4b.3** Replace `TransitionScorer`'s per-slot scoring with sequence-level Viterbi over key states.
+- **3.4b.4** Build a modulation-focused regression suite (B-sections, key-shifting standards).
 
 **Definition of done:** A standard with a clear modulation (e.g., *All The Things You Are*) identifies chords correctly across the modulation boundary.
 

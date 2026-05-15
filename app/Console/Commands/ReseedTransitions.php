@@ -72,9 +72,10 @@ class ReseedTransitions extends Command
             for ($i = 0; $i < count($sequence) - 1; $i++) {
                 $prev = $sequence[$i];
                 $next = $sequence[$i + 1];
-                // Skip self-transitions — they reflect held chords across bars,
-                // not actual harmonic motion, and would dominate the bigram table.
-                if ($prev === $next) continue;
+                // Self-transitions ARE included. Held chords across bars are a
+                // real harmonic phenomenon — common in bossa, ballads, vamps.
+                // Excluding them would teach the model "never repeat a chord"
+                // which would hijack any sequence with sustained voicings.
                 $bigrams[$prev][$next] = ($bigrams[$prev][$next] ?? 0) + 1;
                 $totalBigrams++;
             }
@@ -117,7 +118,7 @@ class ReseedTransitions extends Command
         $this->table(['Metric', 'Value'], [
             ['Standards in corpus', $meta['corpus_size']],
             ['Standards used', $meta['corpus_used']],
-            ['Total bigrams (self-transitions excluded)', $meta['total_bigrams']],
+            ['Total bigrams (self-transitions included)', $meta['total_bigrams']],
             ['Unique prev chords', $meta['unique_prev_chords']],
         ]);
 

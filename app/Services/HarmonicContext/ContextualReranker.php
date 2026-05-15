@@ -88,6 +88,13 @@ class ContextualReranker implements IContextualReranker
         // from the previous chord's chosen name; lightly demotes those that don't.
         $results = $this->applyTransitionRescore($results);
 
+        // Sub-pass 2f (Phase 3.4): Viterbi sequence search.
+        // Per-slot multipliers (2e) compound LOCALLY. Viterbi compounds across
+        // the WHOLE sequence — a chain of strong transitions can overcome a
+        // locally-stronger candidate when the alternative produces idiomatic
+        // continuations through multiple slots.
+        $results = $this->applyViterbiRescore($results);
+
         return $results;
     }
 
@@ -332,6 +339,179 @@ class ContextualReranker implements IContextualReranker
             ]);
         }
         return $results;
+    }
+
+    /**
+     * Sub-pass 2f (Phase 3.4): Viterbi sequence search.
+     *
+     * Per-slot multipliers compound locally; Viterbi compounds across the entire
+     * sequence. Each path is scored as the sum of per-slot negative-log-likelihood
+     * costs plus per-edge negative-log-likelihood bigram costs. The minimum-cost
+     * path wins.
+     *
+     * Structurally mirrors ProgressionBuilder::viterbiSearch (Phase D builder).
+     * Spec: docs/SBN-Identifier-Phase3-Plan.md §5.5.
+     *
+     * Safety rails:
+     *   - Only candidates already in each slot's top-K are considered (cannot
+     *     introduce a name no prior layer produced).
+     *   - Per-slot promotion only if the Viterbi winner ALSO scores within ~30%
+     *     of the locally-best score after 2e — prevents catastrophic flips when
+     *     a single dominant Pass 1 reading is forced down by a chain of weak
+     *     bigram transitions.
+     *   - Same slash-chord guard as 2d/2e (no `X/X` bass-equals-root names).
+     */
+    private function applyViterbiRescore(array $results): array
+    {
+        if ($this->transitionScorer === null) return $results;
+        $n = count($results);
+        if ($n < 2) return $results;
+
+        // Weight balancing: seed cost vs edge cost.
+        // Seed cost = -log(local_score). Scores ~10²–10⁴ → costs ~5–10.
+        // Edge cost = -log(P(next|prev)). Probabilities ~10⁻⁴–10⁻¹ → costs ~2–10.
+        // To stop a chain of weak transitions from hijacking a slot whose local
+        // reading is strong, we scale edge costs DOWN so seed costs dominate.
+        $edgeWeight = 0.3;
+        // Promotion threshold: don't replace upstream pick unless the Viterbi
+        // winner's local score is within this fraction of the upstream winner.
+        // Set high (0.85) because Viterbi's job here is to break ties between
+        // ROUGHLY-EQUAL candidates using sequence evidence — NOT to override a
+        // clearly-stronger local reading. Cases where a much weaker local reading
+        // is "correct" require external evidence (expected-chord priors), not
+        // bigram inference, which can't outweigh dominant Pass 1 scores.
+        $minScoreRatio = 0.85;
+
+        // Build per-slot candidate pools, with seed cost = -log(local_score).
+        $pools = [];
+        for ($i = 0; $i < $n; $i++) {
+            $cands = $results[$i]['candidates'] ?? [];
+            if (empty($cands)) {
+                // No candidates anywhere → cannot run Viterbi for this slot;
+                // fall back to whatever the upstream picked.
+                $pools[$i] = [['name' => $results[$i]['name'] ?? '', '_score' => 1.0, '_fallback' => true]];
+                continue;
+            }
+            $pools[$i] = array_map(function ($c) {
+                $s = max(0.001, (float)($c['score'] ?? 1.0));
+                return $c + ['_score' => $s];
+            }, $cands);
+        }
+
+        $INF = 1e18;
+
+        // Per-slot cost arrays + back-pointers
+        $costs = [];
+        $prev  = [];
+        // Slot 0: just seed costs
+        $costs[0] = [];
+        foreach ($pools[0] as $k => $cand) {
+            $costs[0][$k] = -log((float)$cand['_score']);
+        }
+        $prev[0] = array_fill(0, count($pools[0]), null);
+
+        for ($i = 1; $i < $n; $i++) {
+            $costs[$i] = [];
+            $prev[$i]  = [];
+            foreach ($pools[$i] as $k => $cCurr) {
+                $best = $INF;
+                $bestPrev = null;
+                $seedCost = -log((float)$cCurr['_score']);
+                foreach ($pools[$i - 1] as $j => $cPrev) {
+                    $prevName = $cPrev['name'] ?? '';
+                    $currName = $cCurr['name'] ?? '';
+                    if ($prevName === '' || $currName === '') continue;
+                    $p = $this->transitionScorer->probability($prevName, $currName);
+                    // -log(p); guard against 0 with a floor (treat as 1e-6).
+                    $edgeCost = -log(max($p, 1e-6)) * $edgeWeight;
+                    $total = $costs[$i - 1][$j] + $edgeCost + $seedCost;
+                    if ($total < $best) {
+                        $best = $total;
+                        $bestPrev = $j;
+                    }
+                }
+                if ($bestPrev === null) {
+                    // No admissible predecessor — disconnected slot. Use seed-only cost.
+                    $best = $seedCost;
+                }
+                $costs[$i][$k] = $best;
+                $prev[$i][$k]  = $bestPrev;
+            }
+        }
+
+        // Reconstruct best path
+        $idx = null;
+        $bestFinal = $INF;
+        foreach ($costs[$n - 1] as $k => $c) {
+            if ($c < $bestFinal) {
+                $bestFinal = $c;
+                $idx = $k;
+            }
+        }
+        if ($idx === null) return $results;
+        $path = [];
+        for ($i = $n - 1; $i >= 0; $i--) {
+            if (!isset($pools[$i][$idx])) return $results; // safety
+            $path[$i] = $pools[$i][$idx];
+            $idx = $prev[$i][$idx];
+            if ($idx === null && $i > 0) {
+                // Disconnected — preserve upstream picks for the rest
+                for ($j = $i - 1; $j >= 0; $j--) {
+                    $path[$j] = $pools[$j][0]; // first (best) candidate
+                }
+                break;
+            }
+        }
+
+        // Promote winners that differ from upstream, with safety rails.
+        foreach ($path as $i => $pick) {
+            if (!empty($pick['_fallback'])) continue;
+            $currentName = $results[$i]['name'] ?? '';
+            if ($pick['name'] === $currentName) continue;
+
+            // Safety: only promote when Viterbi winner is within reasonable distance
+            // of the current local winner's score. Without this, a sequence of
+            // weak Pass 1 candidates can hijack a slot whose local reading was
+            // strong but happens to have a poor bigram chain.
+            $currentScore = $this->findCandidateScore($results[$i]['candidates'] ?? [], $currentName);
+            $newScore = (float)$pick['_score'];
+            if ($currentScore > 0 && $newScore / $currentScore < $minScoreRatio) continue;
+
+            // Slash-chord guards (same as 2d/2e).
+            $newName = $pick['name'];
+            if (str_contains($newName, '/')) {
+                $parts = explode('/', $newName, 2);
+                if (count($parts) === 2 && strcasecmp($parts[0], $parts[1]) === 0) continue;
+            }
+            $currentHasSlash = str_contains($currentName, '/');
+            $newHasSlash = str_contains($newName, '/');
+            if ($newHasSlash && !$currentHasSlash && ($newScore / max($currentScore, 0.001)) < 0.50) continue;
+
+            $results[$i] = array_merge($results[$i], [
+                'name'               => $pick['name'],
+                'root'               => $pick['root'] ?? $results[$i]['root'] ?? null,
+                'quality'            => $pick['quality'] ?? $results[$i]['quality'] ?? null,
+                'extensions'         => $pick['extensions'] ?? $results[$i]['extensions'] ?? '',
+                'bass_note'          => $pick['bass_note'] ?? $results[$i]['bass_note'] ?? null,
+                'confidence'         => $pick['_score'] ?? null,
+                'reinterpreted'      => true,
+                'reinterpret_reason' => 'viterbi',
+            ]);
+        }
+        return $results;
+    }
+
+    /**
+     * Find the score of a candidate by name. Returns 0 if not found.
+     */
+    private function findCandidateScore(array $candidates, string $name): float
+    {
+        foreach ($candidates as $c) {
+            if (($c['name'] ?? '') === $name) {
+                return (float)($c['score'] ?? 0);
+            }
+        }
+        return 0.0;
     }
 
     /**
