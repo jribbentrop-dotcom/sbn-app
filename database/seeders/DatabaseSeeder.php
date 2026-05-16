@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             AltNumeralsSeeder::class,
+            ScaleExercisesSeeder::class,
         ]);
 
         User::factory()->create([
