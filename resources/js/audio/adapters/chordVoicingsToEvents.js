@@ -6,6 +6,11 @@
  * Multiple chords per measure are distributed evenly across the measure beats.
  * Used for chord-view playback in TabEditor.
  *
+ * Repeat + volta: the measure sequence is expanded via expandMeasureSequence
+ * before building events, so repeats with 1st/2nd endings are reflected in
+ * the event timeline. A measure that appears twice in the sequence gets two
+ * sets of events at different beat offsets.
+ *
  * Voicing lookup key: "{chordName}@{globalMeasureIndex}.{chordSlot}"
  * Frets format: 6-char string, index 0 = string 1 (Low E) … index 5 = string 6 (Hi E).
  *   'x' = muted/not played.  '0' = open.  '1'-'9' = fret.  'a'-'f' = fret 10-15 (hex).
@@ -19,6 +24,8 @@
  * @typedef {import('../types.js').EngineEvent} EngineEvent
  * @typedef {import('../types.js').Beats} Beats
  */
+
+import { expandMeasureSequence } from './expandMeasureSequence.js';
 
 const OPEN_STRING_MIDI = [null, 40, 45, 50, 55, 59, 64]; // 1-indexed
 const TICKS_PER_BEAT = 480;
@@ -49,62 +56,70 @@ export function chordVoicingsToEvents(model, ctx = {}) {
     const voicings      = model.chordVoicings ?? {};
     const beatsPerMeasure = (model.ticksPerMeasure ?? 1920) / TICKS_PER_BEAT;
 
+    // Build flat measure list and a gi → measure lookup
+    const flatMeasures = [];
+    const measureByGi  = new Map();
+    for (const section of model.sections) {
+        for (const measure of section.measures) {
+            flatMeasures.push(measure);
+            measureByGi.set(measure.index ?? flatMeasures.length - 1, measure);
+        }
+    }
+
+    // Expand the sequence respecting repeats and voltas
+    const sequence = expandMeasureSequence(flatMeasures);
+
     /** @type {EngineEvent[]} */
     const out = [];
 
-    let globalMeasureIndex = 0;
+    sequence.forEach((globalIndex, playPosition) => {
+        const measure = measureByGi.get(globalIndex);
+        if (!measure) return;
 
-    for (const section of model.sections) {
-        for (const measure of section.measures) {
-            const chordNames = measure.chordNames ?? [];
-            const chordCount = chordNames.length;
+        const chordNames = measure.chordNames ?? [];
+        const chordCount = chordNames.length;
+        if (chordCount === 0) return;
 
-            if (chordCount > 0) {
-                const measureStartBeat = startBeat + globalMeasureIndex * beatsPerMeasure;
+        const measureStartBeat = startBeat + playPosition * beatsPerMeasure;
 
-                // Use parser-derived offsets/durations when available; fall back to even split.
-                const chordOffsets = measure.chordOffsets;
-                const chordBeats   = measure.chordBeats;
-                const hasOffsets   = Array.isArray(chordOffsets) && chordOffsets.length === chordCount;
-                const hasBeats     = Array.isArray(chordBeats)   && chordBeats.length   === chordCount;
-                const evenBeats    = beatsPerMeasure / chordCount;
+        const chordOffsets = measure.chordOffsets;
+        const chordBeats   = measure.chordBeats;
+        const hasOffsets   = Array.isArray(chordOffsets) && chordOffsets.length === chordCount;
+        const hasBeats     = Array.isArray(chordBeats)   && chordBeats.length   === chordCount;
+        const evenBeats    = beatsPerMeasure / chordCount;
 
-                for (let slotIndex = 0; slotIndex < chordCount; slotIndex++) {
-                    const chordName = chordNames[slotIndex];
-                    if (!chordName) continue;
+        for (let slotIndex = 0; slotIndex < chordCount; slotIndex++) {
+            const chordName = chordNames[slotIndex];
+            if (!chordName) continue;
 
-                    const slotKey  = `${chordName}@${globalMeasureIndex}.${slotIndex}`;
-                    const slot0Key = `${chordName}@${globalMeasureIndex}.0`;
-                    const voicing  = voicings[slotKey] ?? voicings[slot0Key] ?? voicings[chordName];
+            const slotKey  = `${chordName}@${globalIndex}.${slotIndex}`;
+            const slot0Key = `${chordName}@${globalIndex}.0`;
+            const voicing  = voicings[slotKey] ?? voicings[slot0Key] ?? voicings[chordName];
 
-                    if (voicing?.frets?.length) {
-                        const offsetBeats = hasOffsets ? chordOffsets[slotIndex] : slotIndex * evenBeats;
-                        const duration    = hasBeats   ? chordBeats[slotIndex]   : evenBeats;
-                        const chordBeat   = measureStartBeat + offsetBeats;
+            if (voicing?.frets?.length) {
+                const offsetBeats = hasOffsets ? chordOffsets[slotIndex] : slotIndex * evenBeats;
+                const duration    = hasBeats   ? chordBeats[slotIndex]   : evenBeats;
+                const chordBeat   = measureStartBeat + offsetBeats;
 
-                        for (let i = 0; i < 6; i++) {
-                            const fret = parseFretChar(voicing.frets[i]);
-                            if (fret === null) continue;
+                for (let i = 0; i < 6; i++) {
+                    const fret = parseFretChar(voicing.frets[i]);
+                    if (fret === null) continue;
 
-                            const stringNum = i + 1;
-                            const midi = OPEN_STRING_MIDI[stringNum] + fret;
+                    const stringNum = i + 1;
+                    const midi = OPEN_STRING_MIDI[stringNum] + fret;
 
-                            out.push({
-                                time:     chordBeat,
-                                voice:    'pitched',
-                                pitch:    midi,
-                                duration,
-                                velocity: 0.8,
-                                sourceId: `measure-${globalMeasureIndex}-slot-${slotIndex}`,
-                            });
-                        }
-                    }
+                    out.push({
+                        time:     chordBeat,
+                        voice:    'pitched',
+                        pitch:    midi,
+                        duration,
+                        velocity: 0.8,
+                        sourceId: `measure-${globalIndex}-pos-${playPosition}-slot-${slotIndex}`,
+                    });
                 }
             }
-
-            globalMeasureIndex++;
         }
-    }
+    });
 
     out.sort((a, b) => a.time - b.time);
     return out;

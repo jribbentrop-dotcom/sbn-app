@@ -4,17 +4,22 @@
  *
  * Input shape (from useTabModel.js):
  *   model.sections[].measures[].events[] → each event has:
- *     { tick, ticks, voice, isRest, notes: [{ string, fret, pitch, octave, tieStart, tieStop }],
+ *     { tick, tickInMeasure, ticks, voice, isRest, notes: [{ string, fret, pitch, octave, tieStart, tieStop }],
  *       tieStart, tieStop, id }
  *   model.timeSignature — e.g. "4/4"
  *
- * Output: EngineEvent[] sorted by time, per docs/audio-engine-contract.md §3.
+ * Repeat + volta: the measure sequence is expanded via expandMeasureSequence
+ * before building events, so repeats with 1st/2nd endings are reflected in the
+ * event timeline (a bar that plays twice gets two sets of events). This MUST
+ * match what chordVoicingsToEvents does — otherwise the two adapters disagree
+ * on the timeline length and you hear a doubled playhead.
  *
  * @typedef {import('../types.js').EngineEvent} EngineEvent
  * @typedef {import('../types.js').Beats} Beats
  */
 
 import { noteToMidi } from './pitchToMidi.js';
+import { expandMeasureSequence } from './expandMeasureSequence.js';
 
 const TICKS_PER_BEAT = 480; // matches tab-editor/utils/constants.js TICKS.perBeat
 
@@ -29,44 +34,61 @@ const TICKS_PER_BEAT = 480; // matches tab-editor/utils/constants.js TICKS.perBe
 export function tabModelToEvents(model, ctx = {}) {
     if (!model?.sections?.length) return [];
     const startBeat = ctx.startBeat ?? 0;
+    const beatsPerMeasure = (model.ticksPerMeasure ?? 1920) / TICKS_PER_BEAT;
+
+    // Flat measure list + gi → measure lookup.
+    const flatMeasures = [];
+    const measureByGi  = new Map();
+    for (const section of model.sections) {
+        for (const measure of section.measures) {
+            flatMeasures.push(measure);
+            measureByGi.set(measure.index ?? flatMeasures.length - 1, measure);
+        }
+    }
+
+    const sequence = expandMeasureSequence(flatMeasures);
+
     /** @type {EngineEvent[]} */
     const out = [];
 
-    for (const section of model.sections) {
-        for (const measure of section.measures) {
-            for (const ev of measure.events) {
-                if (ev.isRest) continue;
-                if (!ev.notes?.length) continue;
+    sequence.forEach((globalIndex, playPosition) => {
+        const measure = measureByGi.get(globalIndex);
+        if (!measure) return;
 
-                const beatTime = startBeat + ev.tick / TICKS_PER_BEAT;
-                const beatDur  = ev.ticks / TICKS_PER_BEAT;
+        const measureStartBeat = startBeat + playPosition * beatsPerMeasure;
 
-                for (const note of ev.notes) {
-                    // Skip notes that are tie continuations — the original onset
-                    // already covers the full duration via tieNext chaining.
-                    if (note.tieStop && !note.tieStart) continue;
+        for (const ev of measure.events) {
+            if (ev.isRest) continue;
+            if (!ev.notes?.length) continue;
 
-                    const midi = noteToMidi(note);
-                    if (midi == null) continue;
+            // Use the in-measure tick so the event re-times correctly when the
+            // measure appears at a new play position. Fall back to the absolute
+            // tick modulo a measure if tickInMeasure isn't populated.
+            const tpm = model.ticksPerMeasure ?? 1920;
+            const tickInMeasure = ev.tickInMeasure ?? ((ev.tick ?? 0) % tpm);
+            const beatTime = measureStartBeat + tickInMeasure / TICKS_PER_BEAT;
+            const beatDur  = (ev.ticks ?? 0) / TICKS_PER_BEAT;
 
-                    // If this note ties forward, we need the total tied duration.
-                    // For the Phase 7C spike we emit the single-event duration;
-                    // full tie-chain resolution can land iteratively.
-                    const duration = beatDur;
+            for (const note of ev.notes) {
+                // Skip tie-continuation notes — the original onset covers the
+                // full tied duration via tieNext chaining.
+                if (note.tieStop && !note.tieStart) continue;
 
-                    out.push({
-                        time:     beatTime,
-                        voice:    'pitched',
-                        pitch:    midi,
-                        duration,
-                        velocity: 0.8,
-                        tieNext:  note.tieStart || false,
-                        sourceId: ev.id || null,
-                    });
-                }
+                const midi = noteToMidi(note);
+                if (midi == null) continue;
+
+                out.push({
+                    time:     beatTime,
+                    voice:    'pitched',
+                    pitch:    midi,
+                    duration: beatDur,
+                    velocity: 0.8,
+                    tieNext:  note.tieStart || false,
+                    sourceId: ev.id || null,
+                });
             }
         }
-    }
+    });
 
     out.sort((a, b) => a.time - b.time);
     return out;
