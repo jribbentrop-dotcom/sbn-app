@@ -776,39 +776,61 @@ Match Phase 3 chord library's sidebar semantics and class naming so the CSS can 
 
 #### Component contract — `<ChordProgressionViewer>`
 
-**Note:** This component was refined during Phase 7 to include global playback, blue theme, and faster tempo for progression sequencing.
+**Note:** Redesigned in Phase B to replace the old chord-tile strip with a living fretboard + chord diagram card layout. Roman numeral badges replace chord name labels.
 
-The viewer is a compact horizontal strip of chord tiles with a global play button. It supports both individual chord playback and full progression sequencing.
+The viewer shows a sliding fretboard excerpt (7-fret window) centered on the active chord, a chord diagram card on the right, and a badge row of roman numerals below. Supports voice-leading overlays between adjacent chords.
 
 Props (exported TS interface in the component file; import everywhere; do not redefine):
 
 ```ts
 export interface ProgressionChord {
   chordName: string;                // e.g. 'Dm7' — resolved server-side
-  diagramData: ChordDiagramData | null;  // null = unresolvable; render a placeholder tile
-  beats?: number;                   // Duration in beats (default 0.5 for progression playback)
+  diagramData: ChordDiagramData | null;  // null = unresolvable chord
+  beats?: number;                   // Duration in beats (default 0.5)
   slug?: string | null;             // chord slug for optional deep-link
+  numeral?: string;                 // Roman numeral e.g. 'IIm7' — shown as badge
+  functionalRole?: string | null;
 }
 
 export interface ChordProgressionViewerProps {
   chords: ProgressionChord[];
-  interactive?: boolean;            // default true — tiles respond to click-to-play
-  compact?: boolean;                // default false — tighter spacing for sidebars
-  showFlowArrows?: boolean;         // default true — show arrows between chords (currently unused)
+  interactive?: boolean;            // default true
+  compact?: boolean;                // default false
+  showFlowArrows?: boolean;         // deprecated, kept for prop compat
+  color?: string | null;            // accent color (CSS value)
+  vintageCard?: boolean;            // thick right+bottom border
+  name?: string;                    // progression name in header
+  category?: string;
+  numerals?: string;                // deprecated PRO badge display
+  keyLabel?: string;
 }
 ```
 
-Responsibilities:
-- **Visual**: horizontal row of tiles; each tile = chord name + small ChordDiagram. Thin 1px border (matches `.sbn-chord-card`). Blue hover highlights (`#3b82f6`) to distinguish from regular chord cards (which use red). Global play button: 34px circle, centered vertically, blue theme. No meta info header, no roman numerals, no flow arrows.
-- **Audio (when `interactive`)**:
-  - Global play button: plays entire progression sequentially
-  - Individual tile click: plays that single chord (strum)
-  - Progression playback uses faster tempo (180 BPM) and duration (0.5 beats per chord)
-  - Custom stagger via `ctx.staggerBeats: 0.08` for faster chord transitions (progression-only optimization, passed to `chordDiagramToEvents`)
-  - Pre-empts any previous audio (engine is a singleton)
-- **A11y**: global play button has aria-label, each tile has aria-label for individual playback
+**Visual layout (top → bottom):**
+1. **Header** — name, category badge, key badge, optional PRO numerals badge
+2. **Stage** — play button | fretboard excerpt (75%) | chord diagram card (25%)
+   - Fretboard: 7-fret sliding window, centered on active chord, JS lerp animation (speed 0.035)
+   - Dots: black by default; VL-pair resolving dots colored by type (amber/blue/purple), ghost dots for next chord at 35% opacity
+   - Interval function labels (R, 3, b7…) shown inside dots
+   - VL resolving dots pulse with a subtle glow animation
+3. **Badge row** — one button-badge per chord; shows `numeral` if present, falls back to chord name
 
-Resolving Roman numerals → concrete tiles stays server-side via `ProgressionBuilder::selectVoicingsForSequence`. The viewer never parses numerals.
+**Voice-leading overlay** (`guideToneResolution.js`):
+- Uses `findResolutionPairs(mapA, mapB, quality, level=2)` between active and next chord
+- Resolving dots on current chord: colored + subtle glow pulse
+- Ghost dots at next chord's target positions: dimmed, colored by VL type
+- Colors: amber = 7→3, blue = 3→R, purple = 9th ext, green = #11 ext, gray = 5th
+
+**Data contract — numeral field:**
+All controllers that build progression tiles must include `numeral: $sel['roman_numeral']`:
+- `ChordLibraryController` (chord detail page progressions)
+- `ProgressionLibraryController` (progression show page)
+- `SongLibraryController` (song show page)
+- `Top10Controller` (numeral-based progressions only; legacy slug path has no numeral)
+
+**CSS:** chord symbol default color changed to `var(--clr-text)` globally in `public/css/chord-symbols.css` (was `var(--clr-accent-dim)`).
+
+Resolving Roman numerals → concrete tiles stays server-side via `ProgressionBuilder`. The viewer never parses numerals.
 
 #### Cross-link policy (anti-rabbit-hole rule)
 
@@ -1007,6 +1029,98 @@ Refinement pass that standardized the `ChordProgressionViewer` as the single sou
 #### Updated Documentation
 - **SBN-Design-Reference.md**: Added full specification for `CHORD PROGRESSION VIEWER` component usage.
 - **SBN-Builder-Reference.md**: Documented the standard implementation pattern for resolving progressions for display.
+
+---
+
+### Phase 7.6 — Guide Tone Display in ChordProgressionViewer ✅ DONE (May 14, 2026)
+
+Added two permanent guide-tone layers to `ChordProgressionViewer` — interval-colored dots on every chord diagram, and voice-leading resolution arrows between adjacent chords. These are always-on; they are the central design feature of the progression viewer.
+
+#### What was built
+
+**1. Interval-colored dots (`ChordDiagram.vue` + `public/js/chords.js`)**
+
+- Added `showGuideTones?: boolean` prop to `ChordDiagram.vue` (default `false`).
+- When `true`, reads `chord.interval_labels` (comma-separated string like `"x,R,5,b7,b3,x"` — 6 positional entries, one per string, low E→high e) and passes it as `intervalLabels` to `sbnRenderDiagramSVG`.
+- `sbnRenderDiagramSVG` in `public/js/chords.js` was extended with guide-tone coloring:
+  - Added `GT_COLORS` palette: amber `#d97706` = 7ths (`b7`, `7`, `maj7`), blue `#2563eb` = 3rds (`3`, `b3`), `#6b7280` gray = root (`R`) and 5ths, purple `#7c3aed` = 9ths, green `#059669` = 11ths, yellow `#ca8a04` = 13ths/6ths.
+  - Added `sbnGtColorForInterval(label)` helper function.
+  - When `opts.intervalLabels` is provided: fretted dots are filled with the interval color and the interval label is rendered inside the dot (finger numbers suppressed). Open strings with a guide tone get a filled colored circle instead of a plain ring.
+- Both interactive and static `ChordDiagram` instances in `ChordProgressionViewer` pass `:show-guide-tones="true"`.
+
+**2. Voice-leading arrows (`GuideToneArrowBridge.vue` + `guideToneResolution.js`)**
+
+New file `resources/js/Components/Library/GuideToneArrowBridge.vue` — an absolute-positioned SVG overlay rendered inside each `.sbn-prog-viewer-item` (which has `position: relative`) spanning both adjacent chord tiles plus the gap between them.
+
+New file `resources/js/Components/Library/guideToneResolution.js` — mirrors `ProgressionBuilder::scoreVL()` exactly.
+
+**Resolution logic** (`guideToneResolution.js`):
+
+- `buildPitchMap(diagramData)` → `[{string, fret, midi, label, svgX, svgY}]`  
+  Parses `interval_labels`, `diagram_data` (open/positions/muted), and `start_fret`.  
+  SVG coordinates match `sbnRenderDiagramSVG`: viewBox 80×95, `left=14`, `top=12`, `strSp=12`, `fretSp=16`, `numFrets=4`.
+
+- **Level 1 rules** (always applied):
+  - `b7/7/maj7` of A → nearest `3/b3` of B
+  - `3/b3` of A → nearest `R / b7/7/maj7 / 9` of B
+
+- **Level 2 rules** (extensions; enabled when `diagramData.extensions` is truthy):
+  - `9/b9/#9` of A → nearest `13/b13 / 9 / R / 5` of B (b9 only if target is minor)
+  - `#11/11` of A → nearest `5 / 3 / 9` of B
+  - `5` of A → nearest `R / 5` of B
+
+- **Distance metric**: pitch-class distance `min(d%12, 12-d%12)` — octave-equivalent, max 6 semitones. Raw MIDI distance is used only to pick the *nearest* target voicing; the 6-semitone cutoff uses pitch-class distance so cross-octave resolutions (e.g. B→C) are not excluded.
+
+- **Common-tone suppression** (critical invariant): before drawing any arrow, `nearestPairs` checks whether the source voice's pitch class is already present in chord B (`mapBPCs = new Set(mapB.map(p => p.midi % 12))`). If it is, the voice is retained (not resolved) and no arrow is emitted. This prevents false arrows on identical or partially-identical voicings.
+
+- **Deduplication**: `dedupe(pairs)` — when the same source dot appears in multiple pairs, keep only the pair with the smallest pitch-class distance.
+
+**Arrow colors by resolution type:**
+| Type | Color | Meaning |
+|---|---|---|
+| `seventh-to-third` | amber `#d97706` | 7th resolves to 3rd |
+| `third-to-root` | blue `#2563eb` | 3rd resolves to root/7th |
+| `ninth-ext` | purple `#7c3aed` | 9th extension |
+| `eleventh-ext` | green `#059669` | #11 extension |
+| `fifth-ext` | gray `#6b7280` | 5th continuation |
+
+**SVG coordinate model** (`GuideToneArrowBridge.vue`):
+
+- Canvas spans: `canvasW = tileW * 2 + gapW`, positioned at `top: 38px` (below chord-name header), `left: 0`.
+- Scale: `scale = diagW / SVG_W` where `diagW = tileW - tilePadX`.
+- `toPxA(svgX, svgY)`: `cx = padL + svgX * scale` (diagram A).
+- `toPxB(svgX, svgY)`: `cx = tileW + gapW + padL + svgX * scale` (diagram B).
+- Renders per pair: dashed colored line → arrowhead polygon → pulsing ghost circle at target dot → interval label text.
+- `@keyframes gt-ghost-pulse` and `.gt-ghost` are in an **unscoped** `<style>` block (scoped styles don't reach dynamically-rendered SVG elements).
+
+**Backend: `functional_role` in voicing output** (`ProgressionBuilder.php`, `ProgressionLibraryController.php`):
+
+- `formatVoicing(object $v, ?string $contextChordName, ?array $chordContext)` — third param added. When `$chordContext` is provided (with `roman_numeral`), calls `determineFunctionalRole` and emits `functional_role` in the output array.
+- `ProgressionLibraryController::show()` and `apiShow()` pass `functional_role` through to the frontend as `functionalRole` on each chord.
+- The `ProgressionChord` interface in `ChordProgressionViewer.vue` was extended with `functionalRole?: string | null`.
+
+#### Files changed
+| File | Change |
+|---|---|
+| `public/js/chords.js` | Added `GT_COLORS`, `sbnGtColorForInterval`, extended `sbnRenderDiagramSVG` with `intervalLabels` option |
+| `resources/js/Components/Library/ChordDiagram.vue` | Added `showGuideTones` prop; passes `intervalLabels` + `showFingers: false` to render call |
+| `resources/js/Components/Library/ChordProgressionViewer.vue` | Imports `GuideToneArrowBridge`; adds `functionalRole` to `ProgressionChord`; both diagram instances use `:show-guide-tones="true"` |
+| `resources/js/Components/Library/guideToneResolution.js` | **New** — VL resolution logic mirroring `ProgressionBuilder::scoreVL()` |
+| `resources/js/Components/Library/GuideToneArrowBridge.vue` | **New** — SVG arrow overlay between adjacent chord tiles |
+| `app/Services/ProgressionBuilder.php` | Added `$chordContext` param to `formatVoicing`, emits `functional_role` |
+| `app/Http/Controllers/Library/ProgressionLibraryController.php` | Passes `functional_role` through as `functionalRole` in both `show()` and `apiShow()` |
+
+#### Key invariants / traps for future editors
+
+1. **Common-tone suppression is load-bearing** — `nearestPairs` must receive `mapBPCs` and skip sources whose PC is already in chord B. Removing this causes false arrows whenever two adjacent chords share any guide tone (e.g. Cmaj7/E → Cmaj7/E triggers b7→3 and 3→b7 arrows).
+
+2. **Use pitch-class distance, not raw MIDI** — raw MIDI distance of 11 semitones between B (MIDI 59) and C (MIDI 60+octave) would exclude the canonical b7→3 resolution of a V7 chord. `pcDist = min(d%12, 12-d%12)` gives 1 semitone, which is correct.
+
+3. **`scoreVL` is role-agnostic** — the builder's VL scoring is purely proximity-based. The `named_resolutions` YAML provides a Pass 2 bonus cost term only; it does not gate whether a resolution is detected. Do not add role/functional-role checks to the JS resolution logic.
+
+4. **SVG canvas spans both full tiles** — the bridge SVG width is `tileW*2 + gapW`. The diagram origin for chord B is at `tileW + gapW + padL` (not at a narrow midpoint). Earlier "narrow overlap" approach put dots at negative x coordinates for most voicings.
+
+5. **Unscoped `<style>` for SVG animations** — Vue's scoped CSS attribute is not applied to SVG elements rendered inside the component's template. `@keyframes gt-ghost-pulse` and `.gt-ghost` must be in an unscoped `<style>` block.
 
 ---
 

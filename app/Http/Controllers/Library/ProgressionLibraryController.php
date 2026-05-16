@@ -94,9 +94,11 @@ class ProgressionLibraryController extends Controller
         $tiles   = array_map(function ($sel) {
             $v = $sel['voicing'] ?? null;
             return [
-                'chordName'   => $sel['chord_name'],
-                'diagramData' => $v,
-                'slug'        => null,
+                'chordName'      => $sel['chord_name'],
+                'numeral'        => $sel['roman_numeral'] ?? null,
+                'diagramData'    => $v,
+                'functionalRole' => $v['functional_role'] ?? null,
+                'slug'           => null,
             ];
         }, $built['selections']);
 
@@ -206,10 +208,11 @@ class ProgressionLibraryController extends Controller
         ]);
 
         $chords = array_map(fn ($sel) => [
-            'chordName'   => $sel['chord_name'],
-            'diagramData' => $sel['voicing'] ?? null,
-            'beats'       => 4,
-            'slug'        => null,
+            'chordName'      => $sel['chord_name'],
+            'diagramData'    => $sel['voicing'] ?? null,
+            'functionalRole' => $sel['voicing']['functional_role'] ?? null,
+            'beats'          => 4,
+            'slug'           => null,
         ], $built['selections']);
 
         return response()->json([

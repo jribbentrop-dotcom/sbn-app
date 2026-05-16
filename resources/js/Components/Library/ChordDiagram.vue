@@ -35,10 +35,13 @@ interface Props {
     chord: ChordDiagramData;
     /** Fill color for chord dots. Defaults to var(--clr-red). */
     dotColor?: string;
+    /** When true, colorize dots by interval function using chord.interval_labels. */
+    showGuideTones?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
     dotColor: 'var(--clr-red)',
+    showGuideTones: false,
 });
 const svgHtml = ref('');
 
@@ -95,9 +98,11 @@ watchEffect(() => {
             fingers:     diagramDataToFingerString(props.chord.diagram_data),
         };
         
-        svgHtml.value = (window as any).sbnRenderDiagramSVG(voicing, { 
-            showFingers: true,
-            dotColor: props.dotColor 
+        const gtLabels = props.showGuideTones ? (props.chord.interval_labels ?? null) : null;
+        svgHtml.value = (window as any).sbnRenderDiagramSVG(voicing, {
+            showFingers: !gtLabels,
+            dotColor: props.dotColor,
+            intervalLabels: gtLabels || undefined,
         });
     }
 });

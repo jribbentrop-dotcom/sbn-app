@@ -14,7 +14,7 @@
     display: inline-block;
     font-family: var(--font-chord);
     font-size: 1.05em;
-    color: var(--sbn-chord-color, var(--clr-accent-dim));
+    color: var(--sbn-chord-color, var(--clr-text, #2c3e50));
     font-weight: 600;
     white-space: nowrap;
     vertical-align: baseline;
@@ -24,7 +24,8 @@
 .sbn-ve-chord-name,
 .sbn-vp-chord-name,
 .sbn-vp-card-name,
-.sbn-ve-modal-chord-name {
+.sbn-ve-modal-chord-name,
+.sbn-edu-chord-name {
     --sbn-chord-color: var(--clr-text, #2c3e50);
 }
 

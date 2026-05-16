@@ -196,6 +196,7 @@ class SongLibraryController extends Controller
                     $v = $sel['voicing'] ?? null;
                     return [
                         'chordName'   => $sel['chord_name'],
+                        'numeral'     => $sel['roman_numeral'] ?? null,
                         'diagramData' => $v,
                         'slug'        => null,
                     ];

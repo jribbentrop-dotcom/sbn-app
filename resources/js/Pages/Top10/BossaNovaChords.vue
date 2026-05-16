@@ -2,7 +2,6 @@
 import { ref, onMounted } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
-import ChordDiagram from '@/Components/Library/ChordDiagram.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
 import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
@@ -27,10 +26,18 @@ interface ProgressionTile {
 
 interface Top10ChordWithDetail extends Top10Chord {
     voicingData: ChordDiagramData | null;
-    progressionTiles: Array<{ chordName: string; diagramData: ChordDiagramData | null }>;
+    progressionTiles: Array<{ chordName: string; diagramData: ChordDiagramData | null; numeral?: string }>;
     voicingCaption: string;
     progressionName: string;
+    progressionViewerName?: string;
     progressionCaption: string;
+    progressionSeedKey?: string;
+    progressionMeta?: {
+        name: string;
+        numerals: string;
+        slug: string;
+        category?: string;
+    } | null;
     relatedProducts: RelatedProduct[];
 }
 
@@ -52,8 +59,16 @@ interface Top10DataItem {
     voicingData: ChordDiagramData | null;
     voicingCaption: string;
     progressionName: string;
+    progressionViewerName?: string;
     progressionCaption: string;
-    progressionTiles: Array<{ chordName: string; diagramData: ChordDiagramData | null }>;
+    progressionSeedKey?: string;
+    progressionTiles: Array<{ chordName: string; diagramData: ChordDiagramData | null; numeral?: string }>;
+    progressionMeta?: {
+        name: string;
+        numerals: string;
+        slug: string;
+        category?: string;
+    } | null;
     relatedProducts: RelatedProduct[];
 }
 
@@ -82,7 +97,10 @@ function loadChords() {
         progressionTiles: item.progressionTiles,
         voicingCaption: item.voicingCaption,
         progressionName: item.progressionName,
+        progressionViewerName: item.progressionViewerName,
         progressionCaption: item.progressionCaption,
+        progressionSeedKey: item.progressionSeedKey,
+        progressionMeta: item.progressionMeta,
         relatedProducts: item.relatedProducts,
     }));
     selectedChord.value = chords.value[0] || null;
@@ -186,9 +204,13 @@ function goToChordLibrary(chord: ChordDiagramData) {
                             <h3 class="sbn-panel-title">{{ selectedChord.progressionName }}</h3>
                             <div class="sbn-panel-content">
                                 <ChordProgressionViewer
-                                    :chords="selectedChord.progressionTiles.map((t): ProgressionChord => ({ chordName: t.chordName, diagramData: t.diagramData, beats: 4 }))"
+                                    :chords="selectedChord.progressionTiles.map((t): ProgressionChord => ({ chordName: t.chordName, diagramData: t.diagramData, beats: 4, numeral: t.numeral }))"
                                     :interactive="true"
                                     :show-flow-arrows="true"
+                                    :name="selectedChord.progressionViewerName || selectedChord.progressionName"
+                                    :category="selectedChord.progressionMeta?.category"
+                                    :key-label="selectedChord.progressionSeedKey ? `Key: ${selectedChord.progressionSeedKey}` : ''"
+                                    :numerals="selectedChord.progressionMeta?.numerals"
                                 />
                                 <p class="sbn-panel-caption">{{ selectedChord.progressionCaption }}</p>
                             </div>

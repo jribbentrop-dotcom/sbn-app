@@ -10,6 +10,7 @@ interface ProgressionTile {
     chordName: string;
     diagramData: ChordDiagramData | null;
     slug?: string | null;
+    numeral?: string | null;
 }
 
 defineOptions({ layout: PublicLayout });
@@ -93,6 +94,7 @@ const chords = computed((): ProgressionChord[] => {
         diagramData: tile.diagramData,
         beats: 4,
         slug: tile.slug,
+        numeral: tile.numeral ?? undefined,
     }));
 });
 

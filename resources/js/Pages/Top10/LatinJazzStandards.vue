@@ -43,6 +43,7 @@ interface Top10DataItem {
     rhythmName: string;
     rhythmCaption: string;
     rhythmCitation?: string;
+    progressionCitation?: string;
     relatedProducts: RelatedProduct[];
 }
 
@@ -158,6 +159,8 @@ function prevChord() {
                     <div class="sbn-panels-grid">
                         <!-- Chords Panel -->
                         <div v-if="selectedChord.progressionTiles.length > 0" class="sbn-panel-ghost">
+                            <h3 class="sbn-panel-title">Key chord progression</h3>
+                            <p class="sbn-panel-caption" v-html="selectedChord.progressionCaption"></p>
                             <div class="sbn-progression-wrapper">
                                 <ChordProgressionViewer
                                     :chords="selectedChord.progressionTiles.map((t): ProgressionChord => ({ 
@@ -172,17 +175,18 @@ function prevChord() {
                                     :color="getCategoryColor(selectedChord.progressionMeta?.category || 'latin')"
                                     :name="selectedChord.progressionName"
                                     :category="selectedChord.progressionMeta?.category"
-                                    :key-label="`Key: ${selectedChord.progressionSeedKey}`"
+                                    :key-label="selectedChord.progressionSeedKey ? `Key: ${selectedChord.progressionSeedKey}` : ''"
                                     :numerals="selectedChord.progressionMeta?.numerals"
                                     class="sbn-progression-large"
                                 />
                             </div>
-                            <p class="sbn-panel-caption" v-html="selectedChord.progressionCaption"></p>
+                            <div v-if="selectedChord.progressionCitation" class="sbn-panel-citation" v-html="selectedChord.progressionCitation"></div>
                         </div>
 
                         <!-- Rhythm Panel -->
                         <div v-if="selectedChord.rhythmData" class="sbn-panel-ghost">
                             <h3 class="sbn-panel-title">{{ selectedChord.rhythmName }}</h3>
+                            <p class="sbn-panel-caption" v-html="selectedChord.rhythmCaption"></p>
                             <div class="sbn-rhythm-wrapper">
                                 <RhythmPattern
                                     :pattern="selectedChord.rhythmData"
@@ -209,7 +213,6 @@ function prevChord() {
                                     </template>
                                 </RhythmPattern>
                             </div>
-                            <p class="sbn-panel-caption" v-html="selectedChord.rhythmCaption"></p>
                             <div v-if="selectedChord.rhythmCitation" class="sbn-panel-citation" v-html="selectedChord.rhythmCitation"></div>
                         </div>
                     </div>
@@ -547,7 +550,7 @@ function prevChord() {
 
 @media (min-width: 1024px) {
     .sbn-panels-grid {
-        grid-template-columns: 0.9fr 1.4fr;
+        grid-template-columns: 1fr 1fr;
         align-items: stretch;
     }
 }

@@ -13,6 +13,7 @@ interface ProgressionTile {
     chordName: string;
     diagramData: ChordDiagramData | null;
     slug?: string | null;
+    numeral?: string | null;
 }
 
 interface SongRef {
@@ -164,8 +165,11 @@ function getChords(prog: ProgressionRef): ProgressionChord[] {
         diagramData: tile.diagramData,
         beats: 4,
         slug: tile.slug,
+        numeral: tile.numeral ?? undefined,
     }));
 }
+
+const previewProgressions = computed(() => props.progressions.slice(0, 2));
 </script>
 
 <template>
@@ -183,7 +187,7 @@ function getChords(prog: ProgressionRef): ProgressionChord[] {
             <div class="sbn-chord-identity-left">
 
                 <div class="sbn-chord-identity-diagram">
-                    <ChordCard :chord="chord" :showRoot="true" />
+                    <ChordCard :chord="chord" :showRoot="true" :detail="true" />
                 </div>
 
                 <!-- Interval dots -->
@@ -281,41 +285,24 @@ function getChords(prog: ProgressionRef): ProgressionChord[] {
 
         <!-- ════ PROGRESSIONS ════ -->
         <div v-if="progressions.length" class="sbn-chord-detail-section">
-            <h2 class="sbn-chord-detail-section-heading">Chord Progression Examples</h2>
-            <div class="sbn-builder-pass-toggle">
-                <span class="sbn-builder-pass-toggle-label">Builder pass</span>
-                <button
-                    type="button"
-                    class="sbn-builder-pass-toggle-btn"
-                    :class="{ 'is-active': currentPass === 1 }"
-                    @click="setBuilderPass(1)"
-                >Pass 1 — Plain</button>
-                <button
-                    type="button"
-                    class="sbn-builder-pass-toggle-btn"
-                    :class="{ 'is-active': currentPass === 2 }"
-                    @click="setBuilderPass(2)"
-                >Pass 2 — Extensions</button>
+            <div class="sbn-chord-detail-section-heading-row">
+                <h2 class="sbn-chord-detail-section-heading">Chord Progressions</h2>
+                <Link href="/library/progressions" class="sbn-chord-detail-section-link">View all in library →</Link>
             </div>
             <div class="sbn-chord-detail-progressions">
-                <div
-                    v-for="prog in progressions"
+                <ChordProgressionViewer
+                    v-for="prog in previewProgressions"
                     :key="prog.id"
-                    class="sbn-chord-detail-prog-item"
-                >
-                    <ChordProgressionViewer
-                        :chords="getChords(prog)"
-                        :interactive="true"
-                        :compact="true"
-                        :show-flow-arrows="true"
-                        :name="prog.name"
-                        :category="prog.category"
-                        :key-label="prog.keyLabel"
-                        :numerals="prog.numeralsDisplay"
-                        :color="getCategoryColor(prog.category)"
-                        :vintage-card="true"
-                    />
-                </div>
+                    :chords="getChords(prog)"
+                    :interactive="true"
+                    :compact="true"
+                    :show-flow-arrows="true"
+                    :name="prog.name"
+                    :category="prog.category"
+                    :key-label="prog.keyLabel"
+                    :color="getCategoryColor(prog.category)"
+                    :vintage-card="true"
+                />
             </div>
         </div>
 
@@ -598,47 +585,42 @@ function getChords(prog: ProgressionRef): ProgressionChord[] {
     overflow: visible;
 }
 
-.sbn-chord-detail-section-heading {
-    font-size: 1.1em;
-    font-weight: 700;
-    color: var(--clr-text);
-    margin: 0 0 24px;
+.sbn-chord-detail-section-heading-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
     padding-bottom: 12px;
     border-bottom: 2px solid var(--clr-border);
 }
 
+.sbn-chord-detail-section-heading {
+    font-size: 1.1em;
+    font-weight: 700;
+    color: var(--clr-text);
+    margin: 0;
+}
+
+.sbn-chord-detail-section-link {
+    font-size: 0.85em;
+    font-weight: 500;
+    color: var(--clr-text-muted);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color 0.15s;
+}
+.sbn-chord-detail-section-link:hover { color: var(--clr-text); }
+
 /* ── Progressions ── */
 .sbn-chord-detail-progressions {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 16px;
 }
 
-.sbn-chord-detail-prog-item {
-    background: var(--clr-white);
-    border-radius: var(--radius);
-    padding: 16px 20px;
-}
-
-.sbn-chord-detail-prog-header {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-    margin-bottom: 12px;
-}
-
-.sbn-chord-detail-prog-name {
-    font-weight: 600;
-    font-size: 0.95em;
-    color: var(--clr-text);
-    text-decoration: none;
-}
-.sbn-chord-detail-prog-name:hover { color: var(--clr-red); }
-
-.sbn-chord-detail-prog-numerals {
-    font-size: 0.82em;
-    color: var(--clr-text-muted);
-    font-family: Georgia, serif;
+@media (max-width: 720px) {
+    .sbn-chord-detail-progressions { grid-template-columns: 1fr; }
 }
 
 /* ── Sibling voicings ── */
