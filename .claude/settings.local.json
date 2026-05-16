@@ -26,7 +26,25 @@
       "PowerShell(php vendor/phpunit/phpunit/phpunit --filter test_pop tests/Feature/PhaseECategoryGateTest.php 2>&1)",
       "Bash(mkdir -p docs/cinema-design)",
       "Bash(unzip -o \"SBN Teaching Hub Design System-handoff.zip\" -d docs/cinema-design/)",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "PowerShell(php artisan tinker --execute=\"DB::table\\('exercises'\\)->select\\('id','title','created_at'\\)->orderBy\\('created_at','desc'\\)->limit\\(10\\)->get\\(\\)->each\\(function\\(\\\\$r\\){ echo \\\\$r->id.' | '.\\\\$r->title.' | '.\\\\$r->created_at.PHP_EOL; }\\);\")",
+      "PowerShell(php artisan tinker --execute=\"echo json_encode\\(DB::table\\('exercises'\\)->select\\('id','title','created_at'\\)->orderBy\\('created_at','desc'\\)->limit\\(10\\)->get\\(\\)\\);\")",
+      "PowerShell(php artisan tinker --execute=\"echo implode\\(PHP_EOL, array_column\\(DB::select\\(\\\\\"SELECT name FROM sqlite_master WHERE type='table' ORDER BY name\\\\\"\\), 'name'\\)\\);\")",
+      "PowerShell(php artisan db:table --database=sqlite 2>&1)",
+      "PowerShell(head -40)",
+      "PowerShell(& \"C:\\\\Users\\\\info\\\\AppData\\\\Local\\\\Microsoft\\\\WinGet\\\\Packages\\\\SQLite.SQLite_Microsoft.Winget.Source_8wekyb3d8bbwe\\\\sqlite3.exe\" \"C:\\\\Users\\\\info\\\\sbn-app\\\\database\\\\sbn.db\" \".tables\")",
+      "PowerShell(php artisan tinker --execute=\"echo json_encode\\(DB::table\\('sbn_exercises'\\)->where\\('id',10\\)->first\\(\\), JSON_PRETTY_PRINT\\);\")",
+      "PowerShell(php artisan tinker --execute=\"echo json_encode\\(DB::select\\('PRAGMA table_info\\(sbn_chord_diagrams\\)'\\), JSON_PRETTY_PRINT\\);\")",
+      "PowerShell(php c:\\\\Users\\\\info\\\\sbn-app\\\\storage\\\\scratch-pc-match.php)",
+      "PowerShell(php c:\\\\Users\\\\info\\\\sbn-app\\\\storage\\\\scratch-corpus-check.php)",
+      "PowerShell(php artisan test tests/Feature/Identifier/ViterbiRescoreTest.php --no-coverage 2>&1)",
+      "PowerShell(git add docs/SBN-Identifier-Phase3-Plan.md 2>&1)",
+      "Bash(rm -f \"category]\\)\\)\" && echo done)",
+      "Bash(git add *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\info\\.claude\\projects\\c--Users-info-sbn-app\\memory",
+      "C:\\Users\\info\\sbn-app"
     ]
   }
 }

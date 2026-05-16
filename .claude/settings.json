@@ -15,7 +15,10 @@
       "PowerShell(php artisan tinker --execute='echo App\\\\Models\\\\ChordProgression::where\\(\"numerals\",\"like\",DB::raw\\(\"\\\\\"%7%\\\\\"\"\\)\\)->limit\\(8\\)->pluck\\(\"numerals\",\"name\"\\)->toJson\\(\\);')",
       "PowerShell(php -l app\\\\Http\\\\Controllers\\\\Library\\\\ChordLibraryController.php)",
       "PowerShell(php -l app\\\\Http\\\\Controllers\\\\Library\\\\ProgressionLibraryController.php)",
-      "PowerShell(php check_filter.php)"
+      "PowerShell(php check_filter.php)",
+      "Bash(npm i *)",
+      "Bash(awk 'NR==1509,/^### Phase 12/' docs/Frontend-Migration-Plan.md)",
+      "Bash(python -)"
     ]
   }
 }

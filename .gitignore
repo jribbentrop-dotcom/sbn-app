@@ -50,3 +50,11 @@ Thumbs.db
 !/storage/audits/progressions-20260502-173647.md
 !/storage/audits/progressions-20260502-192537.json
 !/storage/audits/progressions-20260502-192537.md
+/storage/audits/db-lookup-shadow-report.txt
+/design_handoff_temp/
+/docs/Audio-Transcription-OPUSAnalysis
+/docs/progressionexamples.txt
+/docs/*.musicxml
+/resources/js/shims-vue.d.ts
+*.zip
+*.png
