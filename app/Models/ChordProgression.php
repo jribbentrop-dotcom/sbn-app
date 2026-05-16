@@ -13,6 +13,7 @@ class ChordProgression extends Model
 
     protected $fillable = [
         'name',
+        'slug',
         'category',
         'numerals',
         'alt_numerals',

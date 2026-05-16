@@ -43,7 +43,7 @@ class ExerciseController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request)
     {
         $data = $this->validatePayload($request);
         if (empty($data['slug'])) {
@@ -51,6 +51,10 @@ class ExerciseController extends Controller
         }
 
         $exercise = Exercise::create($data);
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'id' => $exercise->id, 'message' => 'Exercise created.']);
+        }
 
         return redirect()->route('admin.exercises.edit', $exercise)
             ->with('success', 'Exercise created.');
@@ -70,10 +74,14 @@ class ExerciseController extends Controller
         ]);
     }
 
-    public function update(Request $request, Exercise $exercise): RedirectResponse
+    public function update(Request $request, Exercise $exercise)
     {
         $data = $this->validatePayload($request, $exercise->id);
         $exercise->update($data);
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'id' => $exercise->id, 'message' => 'Exercise updated.']);
+        }
 
         return redirect()->route('admin.exercises.edit', $exercise)
             ->with('success', 'Exercise saved.');

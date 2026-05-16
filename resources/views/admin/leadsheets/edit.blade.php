@@ -22,10 +22,10 @@
         Back
     </a>
     @if($leadsheet)
-    <form method="POST" action="{{ route('admin.exercises.from-leadsheet', $leadsheet) }}" style="display:inline;">
+    <form id="save-as-exercise-form" method="POST" action="{{ route('admin.exercises.from-leadsheet', $leadsheet) }}" style="display:inline;">
         @csrf
-        <button type="submit" class="sbn-btn sbn-btn-secondary"
-                onclick="return confirm('Copy this leadsheet to Exercises?')">
+        <button type="button" class="sbn-btn sbn-btn-secondary"
+                @click="saveAndCopyToExercise($el)">
             → Save as Exercise
         </button>
     </form>
@@ -106,7 +106,7 @@
                                             <div class="sbn-analysis-chord-row">
                                                 <template x-for="(slot, ci) in mChords" :key="ci">
                                                     <div class="sbn-analysis-chord-slot">
-                                                        <div class="sbn-analysis-chord-name" x-text="slot.chord"></div>
+                                                        <div class="sbn-analysis-chord-name" x-html="formatChord(slot.chord)"></div>
                                                         <div class="sbn-analysis-numeral"
                                                              :class="{ 'is-unknown': slot.numeral === '?' || slot.numeral.startsWith('chr') }"
                                                              x-text="formatNumeral(slot.numeral)"></div>
@@ -726,7 +726,7 @@ class MusicXMLParser {
             const kindValueMap = {'major':'','minor':'m','augmented':'aug','diminished':'dim','dominant':'7','major-seventh':'Maj7','minor-seventh':'m7','diminished-seventh':'°7','augmented-seventh':'aug7','half-diminished':'m7b5','major-minor':'mMaj7','major-sixth':'6','minor-sixth':'m6','dominant-ninth':'9','major-ninth':'Maj9','minor-ninth':'m9','dominant-11th':'11','major-11th':'Maj11','minor-11th':'m11','dominant-13th':'13','major-13th':'Maj13','minor-13th':'m13','suspended-second':'sus2','suspended-fourth':'sus4','power':'5'};
             const kindText = kind.getAttribute('text') || '';
             if (kindValue && kindValueMap.hasOwnProperty(kindValue)) chordName += kindValueMap[kindValue];
-            else if (kindText) chordName += kindText;
+            else if (kindText && kindText.toLowerCase() !== 'maj' && kindText.toLowerCase() !== 'major') chordName += kindText;
         }
         const degrees = harmony.querySelectorAll('degree');
         if (degrees.length > 0) {
@@ -1858,6 +1858,15 @@ function leadsheetEditor() {
             this.saving = false;
         },
 
+        async saveAndCopyToExercise(btn) {
+            if (!confirm('Save leadsheet and copy to Exercises?')) return;
+            if (this.dirty || this.itemId) {
+                await this.save();
+                if (this.saving) return; // save still in progress (shouldn't happen)
+            }
+            document.getElementById('save-as-exercise-form').submit();
+        },
+
         _requestTabXml() {
             return new Promise((resolve) => {
                 const timeout = setTimeout(() => {
@@ -1941,6 +1950,13 @@ function leadsheetEditor() {
                 .replace('maj7', '\u25B37')
                 .replace('m7b5', '\u00F87')
                 .replace(/o7$/, '\u00B07');
+        },
+
+        formatChord(name) {
+            if (!name) return '';
+            return typeof window.sbnFormatChord === 'function'
+                ? window.sbnFormatChord(name)
+                : name;
         },
 
         isMeasureInMatch(sectionIdx, measureIdx) {

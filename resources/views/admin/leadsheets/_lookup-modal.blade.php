@@ -150,6 +150,18 @@
                         <option value="archetype">Archetype</option>
                     </select>
                 </div>
+
+                <div class="sbn-form-group" x-show="buildVoicings" style="margin-top: 10px;">
+                    <label>Extension Mode</label>
+                    <label class="sbn-radio" style="display:block; margin-top:4px;">
+                        <input type="radio" name="extension_mode" value="basic" x-model="extensionMode" :disabled="loading">
+                        <span>Basic &mdash; base quality only (clean chord names)</span>
+                    </label>
+                    <label class="sbn-radio" style="display:block; margin-top:4px;">
+                        <input type="radio" name="extension_mode" value="extended" x-model="extensionMode" :disabled="loading">
+                        <span>Extended &mdash; builder adds option tones</span>
+                    </label>
+                </div>
                 
                 <div class="sbn-form-group" x-show="buildVoicings" style="margin-top: 10px;">
                     <label for="lookup_rhythm">Rhythm Override (Optional)</label>
@@ -194,6 +206,7 @@
             useResearch: false,
             buildVoicings: true,
             voicingStyle: 'popular',
+            extensionMode: 'basic',
             loading: false,
 
             // YouTube Search State

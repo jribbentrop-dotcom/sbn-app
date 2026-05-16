@@ -93,6 +93,7 @@ class ProgressionController extends Controller
     public function store(Request $request)
     {
         $validated = $this->validateProgression($request);
+        $validated['slug'] = $this->resolveSlugForSave($validated);
 
         $progression = ChordProgression::create($validated + [
             'created_at' => now(),
@@ -109,6 +110,7 @@ class ProgressionController extends Controller
     public function update(Request $request, ChordProgression $progression)
     {
         $validated = $this->validateProgression($request);
+        $validated['slug'] = $this->resolveSlugForSave($validated, $progression);
 
         $progression->update($validated);
 
@@ -200,6 +202,7 @@ class ProgressionController extends Controller
     {
         $data = $request->validate([
             'name'           => 'required|string|max:120',
+            'slug'           => 'nullable|string|max:180|regex:/^[a-z0-9\\-]+$/',
             'category'       => 'required|string|in:' . implode(',', ChordProgression::CATEGORIES),
             'numerals'       => 'required|string|max:255',
             'description'    => 'nullable|string',
@@ -220,5 +223,58 @@ class ProgressionController extends Controller
         $data['tags']       = $data['tags'] ?? '';
 
         return $data;
+    }
+
+    private function resolveSlugForSave(array $data, ?ChordProgression $existing = null): string
+    {
+        if (array_key_exists('slug', $data)) {
+            $base = trim((string) $data['slug']);
+        } elseif ($existing && !empty($existing->slug)) {
+            $base = (string) $existing->slug;
+        } else {
+            $base = '';
+        }
+
+        if ($base === '') {
+            $base = Str::slug((string) ($data['name'] ?? ''));
+        }
+        if ($base === '') {
+            $base = 'progression';
+        }
+
+        $excludeId = $existing?->id;
+        return $this->ensureUniqueSlug($base, $excludeId);
+    }
+
+    private function ensureUniqueSlug(string $slug, ?int $excludeId = null): string
+    {
+        $slug = strtolower(trim($slug));
+        $slug = preg_replace('/[^a-z0-9\-]+/', '-', $slug) ?? '';
+        $slug = trim($slug, '-');
+
+        if ($slug === '') {
+            $slug = 'progression';
+        }
+
+        $query = ChordProgression::where('slug', $slug);
+        if ($excludeId !== null) {
+            $query->where('id', '!=', $excludeId);
+        }
+        if (!$query->exists()) {
+            return $slug;
+        }
+
+        $counter = 2;
+        do {
+            $candidate = $slug . '-' . $counter;
+            $q = ChordProgression::where('slug', $candidate);
+            if ($excludeId !== null) {
+                $q->where('id', '!=', $excludeId);
+            }
+            $exists = $q->exists();
+            $counter++;
+        } while ($exists);
+
+        return $candidate;
     }
 }

@@ -169,6 +169,18 @@
                     </div>
                 </div>
 
+                <div class="sbn-form-group" x-show="buildVoicings" style="margin-top: 10px;">
+                    <label>Extension Mode</label>
+                    <label class="sbn-radio" style="display:block; margin-top:4px;">
+                        <input type="radio" name="extension_mode" value="basic" x-model="extensionMode">
+                        <span>Basic &mdash; base quality only (clean chord names like &ldquo;EMaj7&rdquo;)</span>
+                    </label>
+                    <label class="sbn-radio" style="display:block; margin-top:4px;">
+                        <input type="radio" name="extension_mode" value="extended" x-model="extensionMode">
+                        <span>Extended &mdash; builder adds option tones (&ldquo;EMaj7(9)&rdquo; etc.)</span>
+                    </label>
+                </div>
+
 
 
 
@@ -214,6 +226,7 @@ window.progressionModal = function() {
         numeralPreview: [],
         buildVoicings: true,
         voicingStyle: 'popular',
+        extensionMode: 'basic',
         progressionId: '',
         progressionPreview: '',
         allProgressions: @json($progressions),

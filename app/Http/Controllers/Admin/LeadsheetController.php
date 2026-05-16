@@ -247,6 +247,7 @@ class LeadsheetController extends Controller
             'progression_id' => 'nullable|integer|exists:sbn_chord_progressions,id',
             'jazz_standard_id' => 'nullable|integer|exists:sbn_jazz_standards,id',
             'build_voicings' => 'nullable|boolean',
+            'extension_mode' => 'nullable|string|in:basic,extended',
 
             'voicing_style'  => 'nullable|string|in:popular,shell,drop2,drop3,closed,archetype,quartal,custom,closed_triads,spread_triads,slash',
         ]);
@@ -377,22 +378,47 @@ class LeadsheetController extends Controller
                     $category = ($style === 'popular' || empty($style)) ? 'pop' : $style;
                 }
 
-                // Call the full algorithm directly to enable extensions (Pass 2)
+                // Call the full algorithm directly. Extensions (Phase E option-tone
+                // upgrade) only fire when the user explicitly chose Extended mode.
+                // Basic mode also forces strict_basic so we never pick voicings
+                // whose `extensions` column carries 9/11/13 (overrides category
+                // pass1_extensions_allowed).
+                $extensionMode = $validated['extension_mode'] ?? 'basic';
                 $hc = $context->buildFromChordSequence($key, $chordsList);
                 $res = $builder->buildVoicings($hc, [
                     'category'      => $category,
-                    'extensions'    => (bool) ($validated['build_voicings'] ?? true),
+                    'extensions'    => $extensionMode === 'extended',
+                    'strict_basic'  => $extensionMode === 'basic',
                     'voicing_style' => ($style === 'popular') ? 'auto' : $style,
                 ]);
 
-                // Map algorithm output to the internal selections format
+                // Map algorithm output to the internal selections format.
+                // In extended mode the picked voicing may carry option tones the
+                // chord name doesn't already reflect (e.g. Eb7 picked as a Lydian-
+                // dominant xx5665 with intervals 9,#11). Append the voicing's
+                // extensions to the stored chord name so downstream voicing
+                // crossref can match the right shape and surface fingerings.
                 $selections = [];
                 foreach ($res['selections'] as $sel) {
                     $v = $sel['voicing'];
                     if (!$v) continue;
-                    
+
+                    $chordName = $sel['chord_name'];
+                    if ($extensionMode === 'extended' && !empty($v['extensions'])) {
+                        $vExt = preg_replace('/\s+/', '', $v['extensions']);
+                        // Skip if chord_name already carries any extension —
+                        // either parenthetical (e.g. Eb7(9,#11)) or appended
+                        // (e.g. A7b9, C7#11, F13). Hardcoded source extensions
+                        // are honored as-authored, so don't tack on more.
+                        $hasExtension = preg_match('/\([^)]+\)/', $chordName)
+                            || preg_match('/(maj?7|7|6)?(b9|#9|b13|#11|11|13|9)/i', $chordName);
+                        if ($vExt !== '' && !$hasExtension) {
+                            $chordName .= '(' . $vExt . ')';
+                        }
+                    }
+
                     $selections[] = [
-                        'chord_name'    => $sel['chord_name'],
+                        'chord_name'    => $chordName,
                         'measure_index' => $sel['measure_index'] ?? 0,
                         'frets'         => $v['frets'] ?? null,
                         'position'      => $v['start_fret'] ?? 1,
@@ -455,7 +481,7 @@ class LeadsheetController extends Controller
             'rhythm'            => $validated['rhythm'] ?? '',
             'measure_count'     => $scaffold['measure_count'],
             'shortcode_content' => $scaffold['shortcode_content'],
-            'json_data'         => json_encode($jsonDataArray, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'json_data'         => $this->normalizeChordNamesInJson(json_encode($jsonDataArray, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
             'tab_xml'           => $tabXml,
             'description'       => '',
             'harmony_notes'     => '',
@@ -489,6 +515,7 @@ class LeadsheetController extends Controller
             'preferred_key' => 'nullable|string|max:10',
             'version'       => 'nullable|string|in:real_book,original,most_common',
             'build_voicings'=> 'nullable|boolean',
+            'extension_mode'=> 'nullable|string|in:basic,extended',
             'voicing_style' => 'nullable|string|in:popular,shell,drop2,archetype',
             'rhythm_override' => 'nullable|string|max:50',
             'mode'          => 'nullable|string|in:quick,assistant,audio',
@@ -910,23 +937,35 @@ class LeadsheetController extends Controller
                 $isStandard = in_array($sourceType, ['jazz_standard', 'standard']);
                 $category   = $isStandard ? 'jazz' : (($style === 'popular' || empty($style)) ? 'jazz' : $style);
 
-                // Build context and run algorithm
+                // Build context and run algorithm. Extensions only on opt-in.
+                $extensionMode = $validated['extension_mode'] ?? 'basic';
                 $hc = $context->buildFromChordSequence($analysis['key'], $allChords);
                 $res = $builder->buildVoicings($hc, [
                     'category'       => $category,
-                    'extensions'     => true, 
+                    'extensions'     => $extensionMode === 'extended',
+                    'strict_basic'   => $extensionMode === 'basic',
                     'voicing_style'  => ($style === 'popular') ? 'auto' : $style,
                     'bars_per_chord' => $isStandard ? 1 : ($validated['bars_per_chord'] ?? 1),
                 ]);
 
-                // Map algorithm output to the internal selections format
+                // Map algorithm output to the internal selections format.
+                // In extended mode, reflect the picked voicing's extensions in
+                // the stored chord name so crossref can resolve fingerings.
                 $selections = [];
                 foreach ($res['selections'] as $sel) {
                     $v = $sel['voicing'];
                     if (!$v) continue;
 
+                    $chordName = $sel['chord_name'];
+                    if ($extensionMode === 'extended' && !empty($v['extensions'])) {
+                        $vExt = preg_replace('/\s+/', '', $v['extensions']);
+                        if ($vExt !== '' && !preg_match('/\([^)]+\)/', $chordName)) {
+                            $chordName .= '(' . $vExt . ')';
+                        }
+                    }
+
                     $selections[] = [
-                        'chord_name'    => $sel['chord_name'],
+                        'chord_name'    => $chordName,
                         'measure_index' => $sel['measure_index'] ?? 0,
                         'frets'         => $v['frets'] ?? null,
                         'position'      => $v['start_fret'] ?? 1,
@@ -988,7 +1027,7 @@ class LeadsheetController extends Controller
             'rhythm'            => $rhythmSlug ?? '',
             'measure_count'     => $scaffold['measure_count'],
             'shortcode_content' => $scaffold['shortcode_content'],
-            'json_data'         => json_encode($jsonDataArray, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'json_data'         => $this->normalizeChordNamesInJson(json_encode($jsonDataArray, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
             'tab_xml'           => $tabXml,
             'description'       => $analysis['source_note'] ?? '',
             'harmony_notes'     => '',
@@ -1017,6 +1056,10 @@ class LeadsheetController extends Controller
 
         $shortcode = $validated['shortcode_content'] ?? '';
         $shortcode = $this->injectInfoBlock($shortcode, $validated);
+
+        if (!empty($validated['json_data'])) {
+            $validated['json_data'] = $this->normalizeChordNamesInJson($validated['json_data']);
+        }
 
         $leadsheet->update([
             'title'             => $validated['title'],
@@ -1111,20 +1154,218 @@ class LeadsheetController extends Controller
     public function apiShow(Leadsheet $leadsheet)
     {
         if (!empty($leadsheet->json_data)) {
+            $parsed = $leadsheet->parsed_data;
+            $parsed = $this->backfillFingersFromCrossref($parsed);
             return response()->json([
                 'success'   => true,
-                'leadsheet' => $this->serializeLeadsheet($leadsheet, $leadsheet->parsed_data),
+                'leadsheet' => $this->serializeLeadsheet($leadsheet, $parsed),
             ]);
         }
 
         $parsed = !empty($leadsheet->shortcode_content)
             ? $this->parser->parse($leadsheet->shortcode_content)
             : null;
+        $parsed = $this->backfillFingersFromCrossref($parsed);
 
         return response()->json([
             'success'   => true,
             'leadsheet' => $this->serializeLeadsheet($leadsheet, $parsed),
         ]);
+    }
+
+    /**
+     * Walk a parsed leadsheet's chordVoicings map and, for any entry whose
+     * fingers default to '000000', look up the canonical sbn_chord_diagrams
+     * shape by name+frets and substitute the real fingerings.
+     *
+     * Pure read-through: never persists, never mutates the source row.
+     */
+    private function backfillFingersFromCrossref($parsed)
+    {
+        if (!is_array($parsed) || empty($parsed['chordVoicings']) || !is_array($parsed['chordVoicings'])) {
+            return $parsed;
+        }
+
+        $cache = [];
+        foreach ($parsed['chordVoicings'] as $key => &$voicing) {
+            if (!is_array($voicing)) continue;
+            $fingers = $voicing['fingers'] ?? '';
+            if ($fingers !== '' && $fingers !== '000000') continue;
+
+            $frets = $voicing['frets'] ?? '';
+            if (strlen($frets) !== 6) continue;
+
+            $name = preg_match('/^(.+)@\d+\.\d+$/', $key, $m) ? $m[1] : $key;
+
+            if (!array_key_exists($name, $cache)) {
+                try {
+                    $cache[$name] = $this->voicingSearch->searchByName($name);
+                } catch (\Throwable $e) {
+                    $cache[$name] = [];
+                }
+            }
+            $matches = $cache[$name];
+            if (empty($matches)) continue;
+
+            $canonical = $this->findCanonicalFingersForFrets($matches, $frets);
+            if ($canonical !== null) {
+                $voicing['fingers'] = $canonical;
+            }
+        }
+        unset($voicing);
+
+        return $parsed;
+    }
+
+    /**
+     * Given a list of canonical matches (each carrying diagram_data) and a
+     * 6-char fret string, return fingerings mapped onto the leadsheet's frets.
+     *
+     * Matching tiers (prefer earlier):
+     *   1. exact     — canonical and leadsheet fret-strings are identical
+     *   2. superset  — leadsheet has every canonical sounding string PLUS
+     *                  one or more doubled notes (extra octaves on open or
+     *                  barred strings). Extra string gets finger 0 if open,
+     *                  or inherits the barre finger if its fret lies under
+     *                  a canonical barre.
+     *   3. subset    — leadsheet omits some canonical sounding strings.
+     */
+    private function findCanonicalFingersForFrets(array $matches, string $frets): ?string
+    {
+        $leadArr = $this->fretStringToArray($frets);
+        $bestTier = 99;
+        $bestFingers = null;
+
+        foreach ($matches as $match) {
+            $dd = $match['diagram_data'] ?? null;
+            if (is_string($dd)) $dd = json_decode($dd, true);
+            if (!is_array($dd)) continue;
+
+            $canonFrets = $this->canonicalFretsFromDiagram($dd);
+            $canonArr   = $this->fretStringToArray($canonFrets);
+
+            $tier = $this->classifyFretMatch($leadArr, $canonArr);
+            if ($tier === null || $tier >= $bestTier) continue;
+
+            $fingers = $this->mapCanonicalFingersToLeadFrets($dd, $leadArr);
+            if ($fingers === null) continue;
+
+            $bestTier    = $tier;
+            $bestFingers = $fingers;
+            if ($tier === 0) break; // exact — can't do better
+        }
+        return $bestFingers;
+    }
+
+    /**
+     * Compare two fret arrays (length 6, each entry 'x' or int 0..n).
+     * Returns 0 (exact), 1 (superset — lead has extras), 2 (subset — lead omits),
+     * or null (mismatch).
+     */
+    private function classifyFretMatch(array $lead, array $canon): ?int
+    {
+        if (count($lead) !== 6 || count($canon) !== 6) return null;
+
+        $leadExtra = 0;
+        $canonExtra = 0;
+        for ($i = 0; $i < 6; $i++) {
+            $l = $lead[$i];
+            $c = $canon[$i];
+            if ($l === 'x' && $c === 'x') continue;
+            if ($l === 'x') { $canonExtra++; continue; }
+            if ($c === 'x') { $leadExtra++; continue; }
+            if (intval($l) !== intval($c)) return null;
+        }
+        if ($leadExtra === 0 && $canonExtra === 0) return 0;
+        if ($leadExtra > 0 && $canonExtra === 0) return 1;
+        if ($leadExtra === 0 && $canonExtra > 0) return 2;
+        return null; // both sides have extras → too different
+    }
+
+    /**
+     * Take the canonical diagram's fingerings and map them onto the leadsheet's
+     * actual sounding strings. For extra leadsheet strings (superset case),
+     * inherit a barre finger if the leadsheet fret lies on that barre, else 0.
+     */
+    private function mapCanonicalFingersToLeadFrets(array $dd, array $leadArr): ?string
+    {
+        $canonFingers = $this->canonicalFingersFromDiagram($dd);
+        if (strlen($canonFingers) !== 6) return null;
+
+        $out = ['0', '0', '0', '0', '0', '0'];
+        for ($i = 0; $i < 6; $i++) {
+            if ($leadArr[$i] === 'x' || $leadArr[$i] === 0 || $leadArr[$i] === '0') {
+                $out[$i] = '0';
+                continue;
+            }
+            $cf = $canonFingers[$i];
+            if ($cf !== '0') { $out[$i] = $cf; continue; }
+
+            // Lead string sounds but canonical was silent — try barre inheritance.
+            $leadFret = intval($leadArr[$i]);
+            foreach ($dd['barres'] ?? [] as $b) {
+                if (($b['fret'] ?? 0) === $leadFret) {
+                    $out[$i] = ($b['finger'] ?? 0) > 0 ? (string) $b['finger'] : '1';
+                    break;
+                }
+            }
+        }
+        return implode('', $out);
+    }
+
+    private function fretStringToArray(string $frets): array
+    {
+        $out = [];
+        for ($i = 0; $i < 6; $i++) {
+            $c = $frets[$i] ?? 'x';
+            if ($c === 'x' || $c === 'X') $out[] = 'x';
+            elseif (ctype_xdigit($c))     $out[] = hexdec($c);
+            else                          $out[] = 'x';
+        }
+        return $out;
+    }
+
+    private function canonicalFretsFromDiagram(array $dd): string
+    {
+        $out = ['x', 'x', 'x', 'x', 'x', 'x'];
+        foreach ($dd['open'] ?? [] as $s) {
+            if ($s >= 1 && $s <= 6) $out[$s - 1] = '0';
+        }
+        foreach ($dd['positions'] ?? [] as $p) {
+            $s = $p['string'] ?? 0; $f = $p['fret'] ?? 0;
+            if ($s >= 1 && $s <= 6 && $f > 0) {
+                $out[$s - 1] = $f <= 9 ? (string) $f : dechex($f);
+            }
+        }
+        foreach ($dd['barres'] ?? [] as $b) {
+            $from = min($b['fromString'] ?? 0, $b['toString'] ?? 0);
+            $to   = max($b['fromString'] ?? 0, $b['toString'] ?? 0);
+            for ($s = $from; $s <= $to; $s++) {
+                if ($s >= 1 && $s <= 6 && $out[$s - 1] === 'x') {
+                    $f = $b['fret'] ?? 0;
+                    $out[$s - 1] = $f <= 9 ? (string) $f : dechex($f);
+                }
+            }
+        }
+        return implode('', $out);
+    }
+
+    private function canonicalFingersFromDiagram(array $dd): string
+    {
+        $out = ['0', '0', '0', '0', '0', '0'];
+        foreach ($dd['positions'] ?? [] as $p) {
+            $s = $p['string'] ?? 0; $f = $p['finger'] ?? 0;
+            if ($s >= 1 && $s <= 6 && $f > 0) $out[$s - 1] = (string) $f;
+        }
+        foreach ($dd['barres'] ?? [] as $b) {
+            $from = min($b['fromString'] ?? 0, $b['toString'] ?? 0);
+            $to   = max($b['fromString'] ?? 0, $b['toString'] ?? 0);
+            $finger = ($b['finger'] ?? 0) > 0 ? (string) $b['finger'] : '1';
+            for ($s = $from; $s <= $to; $s++) {
+                if ($s >= 1 && $s <= 6 && $out[$s - 1] === '0') $out[$s - 1] = $finger;
+            }
+        }
+        return implode('', $out);
     }
 
     public function identifyVoicings(Request $request, VoicingCrossref $crossref)
@@ -1295,6 +1536,62 @@ class LeadsheetController extends Controller
         return $count;
     }
 
+    /**
+     * Normalize chord names embedded in a leadsheet's json_data payload.
+     * Strips bare "maj" (Gmaj → G) and renormalizes any chordVoicings keys
+     * so existing voicings continue to resolve after the rename.
+     */
+    private function normalizeChordNamesInJson(string $json): string
+    {
+        $data = json_decode($json, true);
+        if (!is_array($data)) return $json;
+
+        $walkMeasures = function (array &$measures) {
+            foreach ($measures as &$measure) {
+                if (!isset($measure['chords']) || !is_array($measure['chords'])) continue;
+                foreach ($measure['chords'] as &$chord) {
+                    if (is_array($chord) && isset($chord['name'])) {
+                        $chord['name'] = \App\Helpers\ChordName::normalize($chord['name']);
+                    } elseif (is_string($chord)) {
+                        $chord = \App\Helpers\ChordName::normalize($chord);
+                    }
+                }
+                unset($chord);
+            }
+            unset($measure);
+        };
+
+        if (isset($data['measures']) && is_array($data['measures'])) {
+            $walkMeasures($data['measures']);
+        }
+        if (isset($data['sections']) && is_array($data['sections'])) {
+            foreach ($data['sections'] as &$section) {
+                if (isset($section['measures']) && is_array($section['measures'])) {
+                    $walkMeasures($section['measures']);
+                }
+            }
+            unset($section);
+        }
+
+        if (!empty($data['chordVoicings']) && is_array($data['chordVoicings'])) {
+            $remapped = [];
+            foreach ($data['chordVoicings'] as $key => $voicing) {
+                // Keys may be "Name" or "Name@gi.ci" — normalize the name portion only.
+                $atIdx = strpos($key, '@');
+                if ($atIdx === false) {
+                    $newKey = \App\Helpers\ChordName::normalize($key);
+                } else {
+                    $namePart = substr($key, 0, $atIdx);
+                    $newKey   = \App\Helpers\ChordName::normalize($namePart) . substr($key, $atIdx);
+                }
+                $remapped[$newKey] = $voicing;
+            }
+            $data['chordVoicings'] = $remapped;
+        }
+
+        return json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
     private function injectInfoBlock(string $shortcode, array $data): string
     {
         if (str_contains($shortcode, '[sbn_info]')) {
@@ -1453,7 +1750,7 @@ class LeadsheetController extends Controller
         // Raw DB update — avoids Eloquent double-encoding or stale attribute issues
         DB::table('sbn_leadsheets')->where('id', $leadsheet->id)->update([
             'tab_xml'    => $result['tab_xml'],
-            'json_data'  => json_encode($jsonData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'json_data'  => $this->normalizeChordNamesInJson(json_encode($jsonData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
             'updated_at' => now(),
         ]);
 
