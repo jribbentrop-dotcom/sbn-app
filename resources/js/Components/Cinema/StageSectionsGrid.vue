@@ -23,9 +23,23 @@
           :class="{
             'stage-sec-measure--active': measure.globalIndex === currentBarIndex,
             'stage-sec-measure--past':   playing && measure.globalIndex < currentBarIndex,
+            'stage-sec-measure--has-volta': !!measure.volta,
           }"
           @click="$emit('seek-measure', measure.globalIndex ?? mi)"
         >
+          <!-- Volta bracket -->
+          <div
+            v-if="measure.volta"
+            class="stage-sec-volta"
+            :class="{
+              'stage-sec-volta--start': measure.voltaStart,
+              'stage-sec-volta--end':   measure.voltaEnd,
+            }"
+          >
+            <span v-if="measure.voltaStart" class="stage-sec-volta-label">
+              {{ measure.volta.text || measure.volta.number + '.' }}
+            </span>
+          </div>
           <div class="stage-sec-bar-num">{{ (measure.globalIndex ?? mi) + 1 }}</div>
           <div class="stage-sec-measure-chords">
             <ClassicChordCard
@@ -170,6 +184,41 @@ function getVoicingAt(measure, ci) {
   background: var(--stage-bg-2);
   transition: border-color 0.15s ease, opacity 0.15s ease;
   min-width: 80px;
+  position: relative;
+}
+
+.stage-sec-measure--has-volta {
+  margin-top: 22px;
+}
+
+/* Volta bracket rendered above the measure card */
+.stage-sec-volta {
+  position: absolute;
+  top: -22px;
+  left: -1px;
+  right: -1px;
+  height: 20px;
+  border-top: 2px solid var(--stage-text);
+  pointer-events: none;
+}
+
+.stage-sec-volta--start {
+  border-left: 2px solid var(--stage-text);
+}
+
+.stage-sec-volta--end {
+  border-right: 2px solid var(--stage-text);
+}
+
+.stage-sec-volta-label {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--stage-font-chord);
+  color: var(--stage-text);
+  line-height: 1;
 }
 
 .stage-sec-measure:hover {

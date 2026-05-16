@@ -1,24 +1,43 @@
 <template>
     <div
         class="sbn-sync-badge"
-        :class="`sbn-sync-badge--${context}`"
-        :title="`Sync point ${markerIndex + 1} · ${formatTime(displayTime)} — drag to adjust, click to seek`"
+        :class="[
+            `sbn-sync-badge--${context}`,
+            { 'sbn-sync-badge--multi': passCount > 1 },
+        ]"
+        :title="badgeTitle"
         @pointerdown.stop="onPointerDown"
-    >{{ markerIndex + 1 }}</div>
+    >
+        <span class="sbn-sync-badge-label">{{ measureIndex + 1 }}<span v-if="passCount > 1" class="sbn-sync-badge-pass">·{{ passCount }}</span></span>
+    </div>
 </template>
 
 <script setup>
-import { ref, inject } from 'vue';
+import { computed, ref, inject } from 'vue';
 
 const props = defineProps({
+    // The first/representative mark for this gi (its videoTime drives drag-nudge).
     markerIndex: { type: Number, required: true },
     videoTime:   { type: Number, required: true },
     measureIndex:{ type: Number, required: true },
     context:     { type: String, default: 'chord' }, // 'chord' | 'tab'
+    // All marks attached to this gi (one per pass when the bar repeats).
+    // Shape: Array<{ videoTime, pass, pos, mappingIdx }>
+    marks:       { type: Array, default: () => [] },
 });
 
 const nudgeSyncMapping = inject('nudgeSyncMapping', null);
 const seekToMeasure    = inject('seekToMeasure', null);
+
+const passCount = computed(() => props.marks?.length || 1);
+
+const badgeTitle = computed(() => {
+    if (passCount.value <= 1) {
+        return `Sync point · ${formatTime(displayTime.value)} — drag to adjust, click to seek`;
+    }
+    const times = props.marks.map(m => `pass ${m.pass}: ${formatTime(m.videoTime)}`).join(' · ');
+    return `Bar ${props.measureIndex + 1} — ${passCount.value} marks (${times}). Click to seek; edit individual passes in the sync editor.`;
+});
 
 // Live preview during drag — starts at the committed videoTime.
 const displayTime = ref(props.videoTime);
@@ -47,6 +66,13 @@ let _pointerId = null;
 function onPointerDown(e) {
     if (e.button !== 0) return;
     e.preventDefault();
+    // Multi-pass bar: drag-to-nudge is ambiguous (which pass?) — skip drag and
+    // treat the press as a click → seek to the first pass. Per-pass editing
+    // happens in the sync editor table.
+    if (passCount.value > 1) {
+        seekToMeasure?.(props.measureIndex);
+        return;
+    }
     _startX    = e.clientX;
     _startTime = props.videoTime;
     _pointerId = e.pointerId;
@@ -118,5 +144,20 @@ function onPointerUp(e) {
 
 .sbn-sync-badge:active {
     transform: translateX(-50%) scale(0.92);
+}
+
+/* Multi-pass badge: slightly wider to fit "·N", subtle ring to flag duplicates. */
+.sbn-sync-badge--multi {
+    width: auto;
+    min-width: 22px;
+    padding: 0 5px;
+    border-radius: 11px;
+    box-shadow: 0 0 0 2px rgba(243, 156, 18, 0.25);
+}
+
+.sbn-sync-badge-pass {
+    margin-left: 1px;
+    opacity: 0.85;
+    font-size: 9px;
 }
 </style>

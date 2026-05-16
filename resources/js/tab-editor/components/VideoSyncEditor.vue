@@ -52,18 +52,18 @@
                 <span class="sbn-vsync-tap-hint">Press <kbd>M</kbd> to mark, <kbd>Shift+M</kbd> to undo</span>
             </div>
             <div class="sbn-vsync-controls-row">
-                <span class="sbn-vsync-label">Measure</span>
+                <span class="sbn-vsync-label" :title="'Position in the played sequence (advances each Mark — wraps through repeats and voltas)'">Pos</span>
                 <button class="sbn-btn sbn-btn-xs sbn-btn-secondary" @click="setTapCursor(Math.max(0, localTapCursor - 1))">−</button>
                 <input
                     class="sbn-vsync-measure-input"
                     type="number"
                     :min="0"
                     :value="localTapCursor"
-                    @input="setTapCursor(Math.max(0, parseInt($event.target.value) || 0))"
+                    @input="setTapCursor(clampPos(parseInt($event.target.value) || 0))"
                 />
-                <button class="sbn-btn sbn-btn-xs sbn-btn-secondary" @click="setTapCursor(localTapCursor + 1)">+</button>
+                <button class="sbn-btn sbn-btn-xs sbn-btn-secondary" @click="setTapCursor(clampPos(localTapCursor + 1))">+</button>
                 <button class="sbn-btn sbn-btn-sm sbn-btn-primary" @click="markCurrent">
-                    Mark ({{ localTapCursor + 1 }})
+                    Mark (bar {{ tapCursorGi + 1 }}<span v-if="tapCursorPass > 1"> · pass {{ tapCursorPass }}</span>)
                 </button>
             </div>
         </div>
@@ -81,18 +81,18 @@
                 <span>Bar</span><span>Time</span><span></span>
             </div>
             <div
-                v-for="m in sortedMappings"
-                :key="m.measureIndex"
+                v-for="m in sortedByTime"
+                :key="`${m.measureIndex}@${m.videoTime}`"
                 class="sbn-vsync-table-row"
-                :class="{ 'is-active': m.measureIndex === activeMappingIndex, 'is-tap-target': m.measureIndex === localTapCursor }"
+                :class="{ 'is-active': m.measureIndex === activeMappingIndex && m.videoTime === activeMappingTime, 'is-tap-target': m.measureIndex === tapCursorGi }"
                 @click="seekToMappingRow(m)"
             >
                 <span
                     class="sbn-vsync-bar-num"
                     :class="{ 'has-tempo-warning': hasTempoWarning(m) }"
-                >{{ m.measureIndex + 1 }}</span>
+                >{{ m.measureIndex + 1 }}<span v-if="passLabel(m)" class="sbn-vsync-pass-label"> · {{ passLabel(m) }}</span></span>
                 <span class="sbn-vsync-time-val">{{ formatTime(m.videoTime) }}</span>
-                <button class="sbn-vsync-del-btn" @click.stop="removeMapping(m.measureIndex)" title="Remove">✕</button>
+                <button class="sbn-vsync-del-btn" @click.stop="removeMappingByIdentity(m)" title="Remove">✕</button>
             </div>
         </div>
         <div v-else-if="videoId" class="sbn-vsync-empty-table">
@@ -124,12 +124,25 @@ const props = defineProps({
     sortedMappings: { type: Array,   default: () => [] },
     videoTime:      { type: Number,  default: 0 },
     playerRef:      { type: Object,  default: null },
+    // Total number of play positions in the expanded sequence (so the tap
+    // cursor can advance past the end of the un-repeated bar count when the
+    // song contains repeats).
+    sequenceLength: { type: Number,  default: 0 },
+    // gi the tap cursor currently points at (= sequence[tapCursor]). Used for
+    // display — the Mark button shows "bar N (pass P)" when relevant.
+    tapCursorGi:    { type: Number,  default: 0 },
+    // How many times the current cursor's gi has appeared in the sequence up
+    // to and including the current position (1, 2, …). 1 for non-repeated
+    // bars. Used to show "(pass 2)" in the Mark button label.
+    tapCursorPass:  { type: Number,  default: 1 },
 });
 
 const emit = defineEmits([
     'set-video-id',
     'add-mapping',
     'remove-mapping',
+    'remove-mapping-identity',
+    'seek-to-mapping',
     'clear-mappings',
     'distribute-markers',
     'untap',
@@ -143,7 +156,9 @@ const emit = defineEmits([
 // ── Injected from TabEditor ────────────────────────────────────
 const seekToMeasure = inject('seekToMeasure', null);
 const playingMeasureIndex = inject('playingMeasureIndex', ref(0));
-const injectedTapCursor = inject('tapCursor', computed(() => 0));  // D2: shared tap cursor (computed, read-only)
+// Play-position-based cursor (the editor thinks in play positions; the gi-
+// flavored `tapCursor` inject is only for measure highlighting in the score).
+const injectedTapCursor = inject('tapCursorPos', computed(() => 0));
 
 // ── Local state ───────────────────────────────────────────────
 const rawInput       = ref(props.videoId || '');
@@ -160,31 +175,62 @@ function setTapCursor(mi) {
     emit('tap-cursor-change', mi);
 }
 
+// Clamp a candidate cursor position to [0, sequenceLength]. When no expanded
+// sequence is available (no repeats), allow unbounded values.
+function clampPos(p) {
+    if (props.sequenceLength <= 0) return Math.max(0, p);
+    return Math.max(0, Math.min(props.sequenceLength, p));
+}
+
 // Mirror the playerRef so useVideoSync can call seekTo()
 watch(player, (p) => { emit('player-ref-change', p); }, { immediate: true });
 
-const activeMappingIndex = computed(() => {
-    if (!props.sortedMappings.length) return -1;
-    const t = props.videoTime;
-    // Find the last mapping whose videoTime <= current
-    let best = -1;
-    for (const m of props.sortedMappings) {
-        if (m.videoTime <= t) best = m.measureIndex;
+// Mappings sorted by videoTime — the natural reading order through the song
+// (a repeated bar's two marks appear in the order they're heard).
+const sortedByTime = computed(() =>
+    [...props.sortedMappings].sort((a, b) => a.videoTime - b.videoTime || a.measureIndex - b.measureIndex)
+);
+
+// Active mark — the latest mapping whose videoTime <= current videoTime.
+// Returns both gi and videoTime so the table can distinguish duplicates.
+const activeMark = computed(() => {
+    if (!sortedByTime.value.length) return null;
+    let best = null;
+    for (const m of sortedByTime.value) {
+        if (m.videoTime <= props.videoTime) best = m;
         else break;
     }
     return best;
 });
+const activeMappingIndex = computed(() => activeMark.value?.measureIndex ?? -1);
+const activeMappingTime  = computed(() => activeMark.value?.videoTime  ?? -Infinity);
 
-// D2: Tempo warning detection (unreasonable beat duration between adjacent mappings)
+// Pass label "1/2", "2/2" etc. — only when a gi has multiple marks.
+function passLabel(m) {
+    const sameGi = props.sortedMappings.filter(x => x.measureIndex === m.measureIndex);
+    if (sameGi.length <= 1) return '';
+    sameGi.sort((a, b) => a.videoTime - b.videoTime);
+    const pass = sameGi.findIndex(x => x.videoTime === m.videoTime) + 1;
+    return `${pass}/${sameGi.length}`;
+}
+
+// D2: Tempo warning detection. Compare against the previous mapping in time-
+// order rather than gi-order, so a repeat (which goes backward in gi) doesn't
+// fire a false warning.
 function hasTempoWarning(m) {
-    const idx = props.sortedMappings.findIndex(x => x.measureIndex === m.measureIndex);
+    const tlist = sortedByTime.value;
+    const idx = tlist.findIndex(x => x.measureIndex === m.measureIndex && x.videoTime === m.videoTime);
     if (idx <= 0) return false;
-    const prev = props.sortedMappings[idx - 1];
-    const beats = m.measureIndex - prev.measureIndex;  // measures between markers
+    const prev = tlist[idx - 1];
     const seconds = m.videoTime - prev.videoTime;
+    if (seconds <= 0) return false;
+    const beats = Math.abs(m.measureIndex - prev.measureIndex) || 1;
     const secsPerBeat = seconds / beats;
-    // Flag if < 0.1s or > 5s per measure (roughly < 12 BPM or > 600 BPM at 4/4)
     return secsPerBeat < 0.1 || secsPerBeat > 5;
+}
+
+function removeMappingByIdentity(m) {
+    emit('remove-mapping-identity', { measureIndex: m.measureIndex, videoTime: m.videoTime });
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -234,11 +280,16 @@ function clearVideo() {
     emit('set-video-id', { id: '', type: 'youtube' });
 }
 
-// D2: Tap mark at current cursor position
+// D2: Tap mark at current cursor position. The cursor is a **play position**;
+// the gi to mark is resolved by the parent (props.tapCursorGi). This way a
+// repeated bar (e.g. AABA: A1 bar 1 and A2 bar 1 share gi=0) gets two distinct
+// marks at the two play positions where it sounds.
 function markCurrent() {
-    emit('add-mapping', { measureIndex: localTapCursor.value, videoTime: props.videoTime });
-    // Auto-advance to next measure
-    setTapCursor(localTapCursor.value + 1);
+    emit('add-mapping', { measureIndex: props.tapCursorGi, videoTime: props.videoTime });
+    // Auto-advance one play position. When the song has no expanded sequence
+    // (no repeats) sequenceLength==0 → fall back to unbounded advance.
+    const max = props.sequenceLength > 0 ? props.sequenceLength : localTapCursor.value + 2;
+    setTapCursor(Math.min(max, localTapCursor.value + 1));
 }
 
 // D2: Jump tap cursor to specific measure (for click-to-seek)
@@ -278,10 +329,12 @@ function nudgeVideo(delta) {
 }
 
 function seekToMappingRow(m) {
-    // Seek video to marker time
+    // Seek the video to this specific mark's time.
     if (player.value) player.value.seekTo(m.videoTime);
-    // Seek audio transport to measure
-    if (seekToMeasure) seekToMeasure(m.measureIndex);
+    // Ask the parent to map this videoTime back to its play position so the
+    // synth lands on the same pass (clicking a "2/2" row seeks to pass 2, not
+    // pass 1). The parent owns the sequence + interpolation helpers.
+    emit('seek-to-mapping', { measureIndex: m.measureIndex, videoTime: m.videoTime });
 }
 
 
@@ -316,10 +369,13 @@ function onKeydown(e) {
         return;
     }
 
-    // M: mark sync point at tap cursor, then advance
+    // M: mark sync point at tap cursor, then advance.
+    // Mark by the cursor's GI (resolved by the parent from pos → seq[pos]),
+    // not by the raw cursor position — they differ once the song repeats.
     if (e.key === 'm' || e.key === 'M') {
-        emit('add-mapping', { measureIndex: localTapCursor.value, videoTime: props.videoTime });
-        setTapCursor(localTapCursor.value + 1);
+        emit('add-mapping', { measureIndex: props.tapCursorGi, videoTime: props.videoTime });
+        const max = props.sequenceLength > 0 ? props.sequenceLength : localTapCursor.value + 2;
+        setTapCursor(Math.min(max, localTapCursor.value + 1));
         e.preventDefault();
         return;
     }

@@ -6,6 +6,11 @@ import StageTopBar from '@/Components/Cinema/StageTopBar.vue';
 import StageHeroNow from '@/Components/Cinema/StageHeroNow.vue';
 import StageTransportDeck from '@/Components/Cinema/StageTransportDeck.vue';
 import StageSectionsGrid from '@/Components/Cinema/StageSectionsGrid.vue';
+import {
+  expandMeasureSequence,
+  giAtPosition,
+  firstPositionForGi,
+} from '@/audio/adapters/expandMeasureSequence.js';
 
 // No public layout — cinema view is full-page dark, no nav chrome
 // defineOptions({ layout: null }) is the default when layout is unset
@@ -31,14 +36,60 @@ const rawSections = computed(() => jsonData.value.sections ?? []);
 const chordVoicings = computed(() => jsonData.value.chordVoicings ?? {});
 
 /**
+ * Build a flat volta flag map (gi → { volta, voltaStart, voltaEnd }) from
+ * the top-level voltaEndings object, matching useTabModel's populate pass.
+ * voltaEndings shape: { "5": { type: "start"|"stop", number, text? }, ... }
+ */
+const voltaFlagsByGi = computed(() => {
+  const ve = jsonData.value.voltaEndings ?? {};
+  const result = {};
+  if (!Object.keys(ve).length) return result;
+
+  // Count total measures
+  let total = 0;
+  rawSections.value.forEach(sec => { total += (sec.measures ?? []).length; });
+
+  let activeVolta = null;
+  for (let i = 0; i < total; i++) {
+    const entry = ve[i.toString()];
+    if (entry?.type === 'start') {
+      activeVolta = { number: entry.number, text: entry.text || `${entry.number}.` };
+      result[i] = { volta: { ...activeVolta }, voltaStart: true, voltaEnd: false };
+    } else if (activeVolta) {
+      result[i] = { volta: { ...activeVolta }, voltaStart: false, voltaEnd: false };
+    }
+    if (entry?.type === 'stop' && result[i]) {
+      result[i].voltaEnd = true;
+      activeVolta = null;
+    }
+  }
+  // Auto-close unclosed bracket on last bar carrying it
+  if (activeVolta !== null) {
+    for (let i = total - 1; i >= 0; i--) {
+      if (result[i]?.volta) { result[i].voltaEnd = true; break; }
+    }
+  }
+  return result;
+});
+
+/**
+ * repeatMarkers: { "gi": { start: bool, end: bool } } — top-level json_data
+ * field, populated by the tab editor. Cinema uses these to expand the play
+ * sequence so the video-time → bar interpolation jumps back on repeats.
+ */
+const repeatMarkersByGi = computed(() => jsonData.value.repeatMarkers ?? {});
+
+/**
  * Normalize a raw measure from parsed_data into a shape Cinema can use.
  * Raw: { chords: [{ name, beats, beatInMeasure }] }
- * Out: { chordNames: string[], chords: [...], globalIndex: number, ... }
+ * Out: { chordNames: string[], chords: [...], globalIndex: number, volta + repeat flags }
  */
 function normalizeMeasure(m, globalIndex, si, sec) {
   // Support both raw format (chords[].name) and pre-normalized (chordNames[])
   const chordNames = m.chordNames
     ?? (m.chords ?? []).map(c => c.name).filter(Boolean);
+  const voltaFlags = voltaFlagsByGi.value[globalIndex] ?? {};
+  const rmEntry    = repeatMarkersByGi.value[String(globalIndex)] ?? repeatMarkersByGi.value[globalIndex];
   return {
     ...m,
     chordNames,
@@ -46,6 +97,11 @@ function normalizeMeasure(m, globalIndex, si, sec) {
     sectionIndex: si,
     sectionId: sec.id ?? String.fromCharCode(65 + si),
     sectionName: sec.name ?? '',
+    volta:      voltaFlags.volta      ?? m.volta      ?? null,
+    voltaStart: voltaFlags.voltaStart ?? m.voltaStart ?? false,
+    voltaEnd:   voltaFlags.voltaEnd   ?? m.voltaEnd   ?? false,
+    repeatStart: !!(rmEntry?.start ?? m.repeatStart),
+    repeatEnd:   !!(rmEntry?.end   ?? m.repeatEnd),
   };
 }
 
@@ -104,24 +160,65 @@ const videoId   = computed(() => videoSync.value?.videoId ?? '');
 const videoType = computed(() => videoSync.value?.videoType ?? 'youtube');
 const hasVideo  = computed(() => !!videoId.value);
 
-// Sorted sync mappings: [{ measureIndex, videoTime }]
-const mappings = computed(() => {
-  const raw = videoSync.value?.mappings ?? [];
-  return [...raw].sort((a, b) => a.measureIndex - b.measureIndex);
+// Raw sync mappings: [{ measureIndex, videoTime }] — gi-keyed, may contain
+// multiple entries per gi when a repeated bar has per-pass timestamps.
+const mappings = computed(() => videoSync.value?.mappings ?? []);
+
+// Expanded play sequence (play position → gi). Drives repeat + volta-aware
+// cursor and seeks. Built from flatBars (which now carries repeatStart /
+// repeatEnd / volta flags via normalizeMeasure).
+const expandedSequence = computed(() => expandMeasureSequence(flatBars.value));
+
+// Mappings projected onto play positions. For each gi we sort that gi's marks
+// by videoTime ascending and pair them with that gi's successive play
+// positions in the expanded sequence — so the AABA author who taps once for
+// A1 and once for A2 ends up with one mark at pos 0 and one at pos 8.
+const mappingsByPosition = computed(() => {
+  const seq = expandedSequence.value;
+  if (!seq.length) {
+    return [...mappings.value]
+      .map(m => ({ pos: m.measureIndex, videoTime: m.videoTime }))
+      .sort((a, b) => a.pos - b.pos || a.videoTime - b.videoTime);
+  }
+
+  const byGi = new Map();
+  for (const m of mappings.value) {
+    if (!byGi.has(m.measureIndex)) byGi.set(m.measureIndex, []);
+    byGi.get(m.measureIndex).push(m);
+  }
+  for (const arr of byGi.values()) arr.sort((a, b) => a.videoTime - b.videoTime);
+
+  const positionsByGi = new Map();
+  seq.forEach((gi, pos) => {
+    if (!positionsByGi.has(gi)) positionsByGi.set(gi, []);
+    positionsByGi.get(gi).push(pos);
+  });
+
+  const out = [];
+  for (const [gi, marks] of byGi.entries()) {
+    const positions = positionsByGi.get(gi) ?? [firstPositionForGi(seq, gi)];
+    for (let k = 0; k < marks.length; k++) {
+      const pos = positions[Math.min(k, positions.length - 1)];
+      out.push({ pos, videoTime: marks[k].videoTime });
+    }
+  }
+  return out.sort((a, b) => a.pos - b.pos || a.videoTime - b.videoTime);
 });
 
-// Current video time (updated by VideoPlayer timeupdate via StageHeroNow)
+// Current video time (updated by VideoPlayer timeupdate via StageHeroNow).
 const videoTime = ref(0);
 
 /**
- * Convert video time → fractional measure index via interpolation.
+ * video time → fractional **play position**. The cursor uses this to know
+ * which entry in the expanded sequence we're sitting on; the bar is derived
+ * by giAtPosition() on the parent side.
  * Returns null if no mappings.
  */
-function videoTimeToMeasureIndex(time) {
-  const ms = mappings.value;
+function videoTimeToPlayPosition(time) {
+  const ms = mappingsByPosition.value;
   if (!ms.length) return null;
-  if (time <= ms[0].videoTime) return ms[0].measureIndex;
-  if (time >= ms[ms.length - 1].videoTime) return ms[ms.length - 1].measureIndex;
+  if (time <= ms[0].videoTime) return ms[0].pos;
+  if (time >= ms[ms.length - 1].videoTime) return ms[ms.length - 1].pos;
   let lo = 0, hi = ms.length - 1;
   while (lo < hi - 1) {
     const mid = (lo + hi) >> 1;
@@ -129,22 +226,28 @@ function videoTimeToMeasureIndex(time) {
     else hi = mid;
   }
   const a = ms[lo], b = ms[hi];
-  const t = (time - a.videoTime) / (b.videoTime - a.videoTime);
-  return a.measureIndex + t * (b.measureIndex - a.measureIndex);
+  const t = b.videoTime === a.videoTime ? 0 : (time - a.videoTime) / (b.videoTime - a.videoTime);
+  return a.pos + t * (b.pos - a.pos);
 }
 
 function onVideoTimeUpdate(time) {
   videoTime.value = time;
   if (!hasVideo.value || !playing.value) return;
 
-  const mi = videoTimeToMeasureIndex(time);
-  if (mi === null) return;
+  const pos = videoTimeToPlayPosition(time);
+  if (pos === null) return;
 
-  // Fractional measure index: integer part = bar, fractional part × beatsPerMeasure = beat
-  const bar = Math.min(Math.floor(mi), totalBars.value - 1);
-  const beat = Math.floor((mi - Math.floor(mi)) * beatsPerMeasure.value);
+  // Translate the play position back to a gi for the score-side cursor.
+  // Repeated bars (e.g. AABA pass 2) correctly resolve to the same gi as
+  // their pass-1 counterparts because seq[pos] always returns the score's
+  // bar index, regardless of which pass produced this video time.
+  const seq = expandedSequence.value;
+  const floored = Math.max(0, Math.min(seq.length ? seq.length - 1 : Math.floor(pos), Math.floor(pos)));
+  const bar = seq.length ? giAtPosition(seq, floored) : floored;
+  const fraction = pos - Math.floor(pos);
+  const beat = Math.floor(fraction * beatsPerMeasure.value);
 
-  currentBarIndex.value = Math.max(0, bar);
+  currentBarIndex.value = Math.max(0, Math.min(totalBars.value - 1, bar));
   currentBeat.value = Math.max(0, beat);
 }
 
@@ -218,20 +321,32 @@ function onNext() {
   onSeekBar(currentBarIndex.value + 1);
 }
 
-function measureIndexToVideoTime(measureIndex) {
-  const ms = mappings.value;
+/**
+ * Linear interpolation in pos-space → video time. Used by bar-click seek.
+ */
+function playPositionToVideoTime(pos) {
+  const ms = mappingsByPosition.value;
   if (!ms.length) return null;
-  if (measureIndex <= ms[0].measureIndex) return ms[0].videoTime;
-  if (measureIndex >= ms[ms.length - 1].measureIndex) return ms[ms.length - 1].videoTime;
-  let lo = 0, hi = ms.length - 1;
-  while (lo < hi - 1) {
-    const mid = (lo + hi) >> 1;
-    if (ms[mid].measureIndex <= measureIndex) lo = mid;
-    else hi = mid;
+  if (pos <= ms[0].pos) return ms[0].videoTime;
+  if (pos >= ms[ms.length - 1].pos) return ms[ms.length - 1].videoTime;
+  for (let i = 0; i < ms.length - 1; i++) {
+    const a = ms[i], b = ms[i + 1];
+    if (pos >= a.pos && pos <= b.pos) {
+      const t = b.pos === a.pos ? 0 : (pos - a.pos) / (b.pos - a.pos);
+      return a.videoTime + t * (b.videoTime - a.videoTime);
+    }
   }
-  const a = ms[lo], b = ms[hi];
-  const t = (measureIndex - a.measureIndex) / (b.measureIndex - a.measureIndex);
-  return a.videoTime + t * (b.videoTime - a.videoTime);
+  return null;
+}
+
+/**
+ * gi → video time. Clicking a bar that occurs at multiple play positions
+ * (a repeated bar) seeks to the FIRST pass — the start of its phrase.
+ * Mirrors the tab editor's seekToMeasure semantics.
+ */
+function measureIndexToVideoTime(measureIndex) {
+  const seq = expandedSequence.value;
+  return playPositionToVideoTime(firstPositionForGi(seq, measureIndex));
 }
 
 function onSeekBar(bar) {

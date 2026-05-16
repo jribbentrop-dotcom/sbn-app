@@ -155,9 +155,14 @@
                     :sorted-mappings="videoSync.sortedMappings.value"
                     :video-time="videoSync.videoTime.value"
                     :player-ref="videoSync.playerRef.value"
+                    :sequence-length="_expandedChordSequence.length"
+                    :tap-cursor-gi="videoSync.tapCursorGi.value"
+                    :tap-cursor-pass="tapCursorPass"
                     @set-video-id="({ id, type }) => videoSync.setVideoId(id, type)"
                     @add-mapping="(m) => videoSync.addMapping(m.measureIndex, m.videoTime)"
                     @remove-mapping="(mi) => videoSync.removeMapping(mi)"
+                    @remove-mapping-identity="(m) => removeMappingByIdentity(m)"
+                    @seek-to-mapping="(m) => seekToMapping(m)"
                     @clear-mappings="videoSync.clearMappings()"
                     @distribute-markers="() => { console.log('[TabEditor] distribute-markers received'); videoSync.distributeMarkers(); }"
                     @untap="videoSync.untap()"
@@ -165,7 +170,7 @@
                     @play-state-change="videoSync.onVideoPlayStateChange($event)"
                     @player-ref-change="videoSync.playerRef.value = $event"
                     @toggle-playback="onTransportToggle"
-                    @tap-cursor-change="(mi) => { videoSync.tapCursor.value = mi; }"
+                    @tap-cursor-change="(pos) => { videoSync.tapCursor.value = pos; }"
                 />
             </div>
         </Teleport>
@@ -298,6 +303,7 @@ import { useVideoSync }           from './composables/useVideoSync.js';
 import { getAudioEngine }         from '../audio/engine/AudioEngine.js';
 import { tabModelToEvents }       from '../audio/adapters/tabMeasureToEvents.js';
 import { chordVoicingsToEvents }  from '../audio/adapters/chordVoicingsToEvents.js';
+import { expandMeasureSequence, giAtPosition, firstPositionForGi } from '../audio/adapters/expandMeasureSequence.js';
 import TransportBar               from './components/TransportBar.vue';
 
 const props = defineProps({
@@ -378,8 +384,8 @@ const _videoSyncHolder = { instance: null };
 initTabModelFacade({
     getSections:      () => exportAlpineSections(),
     getChordVoicings: () => cloneChordVoicings(model.value?.chordVoicings ?? {}),
-    getRepeatMarkers: () => model.value?.repeatMarkers ?? null,
-    getVoltaEndings:  () => model.value?.voltaEndings  ?? null,
+    getRepeatMarkers: () => _buildRepeatMarkersFromModel(),
+    getVoltaEndings:  () => _buildVoltaEndingsFromModel(),
     // Phase D: expose videoSync for Alpine save pipeline (populated after undo stack init)
     getVideoSync:     () => _videoSyncHolder.instance?.getVideoSync() ?? null,
     getMeta: () => model.value ? {
@@ -573,13 +579,30 @@ function onTransportSeek(beat) {
 }
 
 /**
+ * Seek to a specific **play position** in the expanded sequence. Use this
+ * when you have an exact pass in mind (e.g. clicking a pass-2 mapping row).
+ * Skips the video seek — caller is expected to handle that separately if
+ * needed, because we don't always know which video timestamp goes with this
+ * position.
+ */
+function seekToPosition(playPos) {
+    if (!model.value || playPos == null) return;
+    const beatStart = playPos * beatsPerMeasure.value;
+    seekTab(beatStart);
+    seekChord(beatStart);
+}
+
+/**
  * Seek to the start of a global measure index.
  * If already playing, jumps immediately. If stopped, updates the resume position
  * without starting playback — so the next Play/Resume starts from there.
  */
 async function seekToMeasure(gi) {
     if (!model.value) return;
-    const beatStart = gi * beatsPerMeasure.value;
+    // The engine clock counts play positions, not gi — a repeated bar plays at
+    // several positions. Seek to its FIRST occurrence (start of its phrase).
+    const playPos = firstPositionForGi(_expandedChordSequence.value, gi);
+    const beatStart = playPos * beatsPerMeasure.value;
 
     if (videoSync.isVideoMaster.value) {
         // Video is master: seek video once (no continuous seeks during playback)
@@ -675,8 +698,18 @@ provide('playingMeasureIndex',  playingMeasureIndex); // unified cursor highligh
 provide('transportBeat',        transportBeat);       // raw beat for sub-measure chord highlighting
 provide('beatsPerMeasureRef',   beatsPerMeasure);     // chord cards need this to compute windows
 provide('seekToMeasure',        seekToMeasure);       // chord-card click → seek + play
+provide('seekToPosition',       seekToPosition);      // sync-row click → exact-pass seek
 provide('transportPlaying',     transportPlaying);    // playback active flag for cursor visibility
-provide('tapCursor',            computed(() => videoSync.sidebarOpen.value ? videoSync.tapCursor.value : -1)); // D2: tap-to-mark cursor for measure highlight
+// D2: tap-to-mark cursor.
+//   - `tapCursor`    → measures use this for the "tap target" highlight; it's
+//                      mapped to a gi via the expanded sequence so a repeated
+//                      bar lights up on whichever pass the cursor is on.
+//   - `tapCursorPos` → the raw play-position cursor (for the sync editor).
+provide('tapCursor', computed(() => {
+    if (!videoSync.sidebarOpen.value) return -1;
+    return videoSync.tapCursorGi.value;
+}));
+provide('tapCursorPos', computed(() => videoSync.tapCursor.value));
 
 // Video sync map — provided after videoSync is created below (patched in post-init block)
 
@@ -685,26 +718,76 @@ provide('tapCursor',            computed(() => videoSync.sidebarOpen.value ? vid
 
 const { canUndo, canRedo, wrapCommand, undo, redo, reset: resetUndo } = useUndo(model);
 
+// Expanded play sequence: play position → gi (repeat + volta aware). The audio
+// engine clock counts play positions; the score / video sync use gi. This is
+// the single source of truth for converting between the two.
+const _expandedChordSequence = computed(() => {
+    if (!model.value) return [];
+    const flat = model.value.sections.flatMap(s => s.measures ?? []);
+    return expandMeasureSequence(flat);
+});
+
 // ── Video Sync (Phase D) ──────────────────────────────────────
 const videoSync = useVideoSync(model, {
     wrapCommand,
     playingMeasureIndex,
     transportPlaying,
     beatsPerMeasure,
+    getSequence: () => _expandedChordSequence.value,
 });
 _videoSyncHolder.instance = videoSync;
 _videoSyncRef = videoSync; // For transportPlaying/transportBeat computed
 
-// Map of measureIndex → { videoTime, markerIndex } — consumed by measure badges.
-// Only populated when video sidebar is open.
+// Map of gi → array of { videoTime, pass, pos, mappingIdx } — consumed by
+// measure badges. A repeated bar carries multiple entries (one per pass), so
+// badges can render a stacked indicator and a per-pass popover.
+// Only populated when the video sidebar is open.
 provide('videoSyncMap', computed(() => {
     if (!videoSidebarOpen.value) return null;
-    const map = new Map();
-    videoSync.sortedMappings.value.forEach((m, i) => {
-        map.set(m.measureIndex, { videoTime: m.videoTime, markerIndex: i });
-    });
-    return map;
+    return videoSync.mappingsByGi.value;
 }));
+
+// How many times the gi at the current tap cursor has appeared in the
+// expanded sequence up to and including that position (1-based). Used by
+// VideoSyncEditor to render "pass N" on the Mark button.
+const tapCursorPass = computed(() => {
+    const seq = _expandedChordSequence.value;
+    const pos = videoSync.tapCursor.value;
+    if (!seq.length || pos < 0) return 1;
+    const gi = seq[Math.min(pos, seq.length - 1)];
+    let count = 0;
+    for (let i = 0; i <= Math.min(pos, seq.length - 1); i++) {
+        if (seq[i] === gi) count++;
+    }
+    return Math.max(1, count);
+});
+
+function removeMappingByIdentity({ measureIndex, videoTime }) {
+    const idx = videoSync.mappings.value.findIndex(
+        m => m.measureIndex === measureIndex && m.videoTime === videoTime
+    );
+    if (idx >= 0) videoSync.removeMappingAt(idx);
+}
+
+/**
+ * Seek the synth transport to the exact play position of a specific mapping
+ * (so clicking a "pass 2" row lands on pass 2, not pass 1).
+ * The video player is seeked by the editor itself; here we only handle the
+ * audio side.
+ */
+function seekToMapping({ measureIndex, videoTime }) {
+    // Find this mark's pos via mappingsByGi (already groups marks by gi and
+    // tags each with its play position).
+    const marks = videoSync.mappingsByGi.value.get(measureIndex);
+    const mark  = marks?.find(m => m.videoTime === videoTime);
+    if (mark) {
+        seekToPosition(mark.pos);
+    } else {
+        // Fallback — shouldn't happen, but if the mapping vanished, just seek
+        // by gi to the first pass.
+        seekToMeasure(measureIndex);
+    }
+}
 
 // Nudge a mapping time by delta seconds (drag handler in measure badges → undoable).
 provide('nudgeSyncMapping', (measureIndex, delta) => {
@@ -731,15 +814,19 @@ watch(bridgeOpenVideoSidebar, (val) => {
 }, { immediate: true });
 
 // Keep playingMeasureIndex in sync with transportBeat.
-// When video is master, videoBeat (via transportBeat) drives this at 60fps.
-// When synth is master, synth transportBeat drives it.
+// transportBeat is a **play-position** beat (engine clock when synth is master,
+// videoBeat when video is master — both play-position based). We map the play
+// position back to a gi via the expanded sequence so repeat + volta bars
+// highlight the correct bar on each pass.
 watch(
     [transportBeat, beatsPerMeasure],
     ([beat, bpm]) => {
-        playingMeasureIndex.value = Math.floor((beat ?? 0) / bpm);
+        const pos = Math.floor((beat ?? 0) / bpm);
+        playingMeasureIndex.value = giAtPosition(_expandedChordSequence.value, pos);
     },
     { immediate: true }
 );
+
 
 // ── Mode switch handling ─────────────────────────────────
 // When switching audio sources, pause the outgoing source and seed position.
@@ -757,9 +844,12 @@ watch(
             if (videoSync.videoPlaying.value) {
                 videoSync.playerRef.value?.pause();
             }
-            // Seed synth to current visual position for continuity
-            const gi = playingMeasureIndex.value;
-            const beatStart = gi * beatsPerMeasure.value;
+            // Seed synth to the video's current play position (preserves which
+            // pass of a repeat we're on). Fall back to the highlighted bar's
+            // first play position when the video never started.
+            const pos = videoSync.videoPlayPosition.value
+                ?? firstPositionForGi(_expandedChordSequence.value, playingMeasureIndex.value ?? 0);
+            const beatStart = pos * beatsPerMeasure.value;
             seekTab(beatStart);
             seekChord(beatStart);
         }
@@ -890,6 +980,53 @@ function captureVoicingDeletesByGlobalIndices(indices) {
         }
         return { gi, names };
     });
+}
+
+/**
+ * Rebuild repeatMarkers map from live measure flags.
+ * Shape: { "gi": { start: bool, end: bool }, ... }
+ */
+function _buildRepeatMarkersFromModel() {
+    if (!model.value) return null;
+    const out = {};
+    let gi = 0;
+    for (const sec of model.value.sections) {
+        for (const m of sec.measures) {
+            if (m.repeatStart || m.repeatEnd) {
+                out[gi] = { start: !!m.repeatStart, end: !!m.repeatEnd };
+            }
+            gi++;
+        }
+    }
+    return Object.keys(out).length ? out : null;
+}
+
+/**
+ * Rebuild voltaEndings map from live measure flags.
+ * Shape: { "gi": { type: "start"|"stop", number, text? }, ... }
+ *
+ * Rules:
+ *  - voltaStart → emit { type: "start", number, text }
+ *  - voltaEnd but NOT voltaStart → emit { type: "stop", number }
+ *  - Single-bar bracket (voltaStart AND voltaEnd on same measure): only emit
+ *    the "start" entry. The populate pass in useTabModel auto-closes the last
+ *    measure carrying a volta that was never explicitly stopped.
+ */
+function _buildVoltaEndingsFromModel() {
+    if (!model.value) return null;
+    const out = {};
+    let gi = 0;
+    for (const sec of model.value.sections) {
+        for (const m of sec.measures) {
+            if (m.voltaStart && m.volta) {
+                out[String(gi)] = { type: 'start', number: m.volta.number, text: m.volta.text || `${m.volta.number}.` };
+            } else if (m.voltaEnd && m.volta) {
+                out[String(gi)] = { type: 'stop', number: m.volta.number };
+            }
+            gi++;
+        }
+    }
+    return Object.keys(out).length ? out : null;
 }
 
 function syncTabSectionsToAlpine(detail = {}) {
@@ -1165,7 +1302,19 @@ function onSidebarToggleDotted() {
     cmdToggleDotted(ev);
 }
 
+function _onStructuralSync() {
+    // Repeat/volta ops dispatch sbn-tab-sections-sync on window via _dispatchSync().
+    // If the transport is stopped, mark events stale so next play() rebuilds them
+    // from the updated expanded sequence. Never reload mid-playback — engine.load()
+    // resets the scheduler's _nextIdx to 0 while WebAudio nodes are already in
+    // flight, causing a double audio stream.
+    if (!isChordPlaying.value && !isPlaying.value) {
+        _eventsLoaded = false;
+    }
+}
+
 onMounted(() => {
+    window.addEventListener('sbn-tab-sections-sync', _onStructuralSync);
     document.addEventListener('sbn-sidebar-set-duration', onSidebarSetDuration);
     document.addEventListener('sbn-sidebar-toggle-tie', onSidebarToggleTie);
     document.addEventListener('sbn-sidebar-toggle-dotted', onSidebarToggleDotted);
@@ -1240,6 +1389,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+    window.removeEventListener('sbn-tab-sections-sync', _onStructuralSync);
     disposeNoteInput();
     document.removeEventListener('sbn-sidebar-set-duration', onSidebarSetDuration);
     document.removeEventListener('sbn-sidebar-toggle-tie', onSidebarToggleTie);
@@ -1338,11 +1488,14 @@ function onKeydown(e) {
         }
     }
 
-    // M key: create video sync point at current position (always works when video loaded)
+    // M key: create video sync point at the currently-playing measure.
+    // ONLY active when the video sidebar is CLOSED — when it's open, the
+    // VideoSyncEditor handles M itself (using the tap cursor, which is the
+    // correct AABA-aware behavior). Without this guard both handlers fire and
+    // every press creates two duplicate mappings.
     if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (videoSync.hasVideo.value) {
+        if (videoSync.hasVideo.value && !videoSidebarOpen.value) {
             e.preventDefault();
-            // Use current playback measure or cursor position
             const mi = playingMeasureIndex.value ?? cursor.value.measureIndex ?? 0;
             videoSync.addMapping(mi, videoSync.videoTime.value);
             return;
