@@ -259,3 +259,24 @@ Route::get('/', function () {
 Route::get('/hello', function () {
     return \Inertia\Inertia::render('Hello');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Edu Content System — dev harness (local + testing only)
+|--------------------------------------------------------------------------
+| Renders an edu topic's body_html through mountSbnNodes so the <sbn-widget>
+| pipeline can be verified end to end. Not a product surface — real
+| consumption (EduPanel, Course Practice Panel) is wired in a later task.
+| Registered in local + testing only (testing so the Feature test can reach
+| it); never in production.
+*/
+if (app()->environment(['local', 'testing'])) {
+    Route::get('/dev/edu/{type}/{slug}', function (string $type, string $slug, \App\Services\EduContentService $edu) {
+        $topic = $edu->topic($type, $slug);
+        abort_if($topic === null, 404, "No edu topic {$type}/{$slug}");
+
+        return \Inertia\Inertia::render('Dev/EduHarness', [
+            'topic' => $topic->toArray(),
+        ]);
+    })->name('dev.edu.harness');
+}

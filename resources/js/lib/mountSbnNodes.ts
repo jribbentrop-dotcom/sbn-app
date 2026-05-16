@@ -10,10 +10,12 @@
  *   <sbn-sheet       slug="…" key="C">
  *   <sbn-song        slug="…">
  *   <sbn-youtube     video-id="…" start="…">  ← attrs only, no fetch
+ *   <sbn-widget      slug="…" …attrs>        ← edu interactive, no fetch
  */
 
 import { createApp, type App } from 'vue';
 import { getCategoryColor } from '../composables/useCategoryColors';
+import { eduWidgets, isEduWidget } from '../edu/widgets/registry';
 
 // ── Component registry ──────────────────────────────────────────────────────
 
@@ -77,6 +79,24 @@ function queryStringFor(type: NodeType, el: HTMLElement): string {
   return params.toString();
 }
 
+// ── Edu widget props ────────────────────────────────────────────────────────
+// Every attribute except `slug` becomes a prop. Values are JSON-decoded when
+// they parse as JSON (numbers, booleans, arrays, objects), otherwise kept as
+// the raw string — so `highlight="C"` stays "C" while `start="4"` becomes 4.
+
+function widgetPropsFromAttrs(el: HTMLElement): Record<string, unknown> {
+  const props: Record<string, unknown> = {};
+  for (const attr of Array.from(el.attributes)) {
+    if (attr.name === 'slug') continue;
+    try {
+      props[attr.name] = JSON.parse(attr.value);
+    } catch {
+      props[attr.name] = attr.value;
+    }
+  }
+  return props;
+}
+
 // ── Fetch cache ─────────────────────────────────────────────────────────────
 
 const cache = new Map<string, Promise<unknown>>();
@@ -137,6 +157,37 @@ export async function mountSbnNodes(
     if (!slug) return;
     const label = el.getAttribute('label') ?? slug;
     el.innerHTML = `<a class="sbn-song-link" href="/library/songs/${slug}/viewer">${label} ↗</a>`;
+  });
+
+  // ── <sbn-widget> — edu interactive from the widget registry, no fetch ─────
+  // Unknown slug renders a visible placeholder and warns; it must never blank
+  // a page. Any attribute other than `slug` is passed to the widget as a prop,
+  // JSON-decoded when it parses as JSON (so `highlight="C"` → string "C",
+  // `count="3"` → number 3, `flags="[1,2]"` → array).
+  container.querySelectorAll<HTMLElement>('sbn-widget').forEach((el) => {
+    const slug = el.getAttribute('slug') ?? '';
+
+    if (!isEduWidget(slug)) {
+      console.warn(`[mountSbnNodes] Unknown edu widget slug="${slug}"`);
+      el.innerHTML = `<span class="sbn-node-error">Unknown widget: ${slug || '(no slug)'}</span>`;
+      return;
+    }
+
+    const props = widgetPropsFromAttrs(el);
+    const task = eduWidgets[slug]()
+      .then((mod: any) => {
+        const Component = mod.default ?? mod;
+        el.classList.add('sbn-widget-embed');
+        const app = createApp(Component, props);
+        app.mount(el);
+        apps.push(app);
+      })
+      .catch((err) => {
+        console.warn(`[mountSbnNodes] Failed to mount <sbn-widget slug="${slug}">:`, err);
+        el.innerHTML = `<span class="sbn-node-error">widget: ${slug}</span>`;
+      });
+
+    tasks.push(task);
   });
 
   // ── <sbn-chord|rhythm|progression|sheet> — fetch then mount ───────────────
