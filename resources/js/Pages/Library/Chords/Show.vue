@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
+import { mountSbnNodes } from '@/lib/mountSbnNodes';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordDiagram from '@/Components/Library/ChordDiagram.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
@@ -34,12 +35,25 @@ interface ProgressionRef {
     tiles: ProgressionTile[];
 }
 
+// Edu content for the chord's quality (EduContentService::qualityTopic).
+// null when the quality has no qualities/*.md file.
+interface QualityTopic {
+    slug: string;
+    title: string;
+    summary: string;
+    description: string | null;
+    usage: string | null;
+    body_html: string;
+    has_widgets: boolean;
+}
+
 interface Props {
     chord: ChordDiagramData;
     siblings: ChordDiagramData[];
     songs: SongRef[];
     progressions: ProgressionRef[];
     builderPass?: 1 | 2;
+    qualityTopic?: QualityTopic | null;
 }
 
 const props = defineProps<Props>();
@@ -70,26 +84,10 @@ const theoryMap: Record<string, { intervals: string; function: string; typical_c
     aug7:  { intervals: 'Root, Major 3rd, Augmented 5th, Minor 7th',      function: 'Augmented dominant — tension with an upward pull.',        typical_context: 'V7#5, bVII+7. Common in jazz and gospel.',                                                     related: ['dom7'],                   tension: 5 },
 };
 
-// ── Edu data (mirrors legacy sbn_chord_detail_edu) ───────────────────────────
-const qualityEdu: Record<string, { description: string; usage: string }> = {
-    maj:   { description: 'The foundation of Western harmony. Three notes — root, major third, perfect fifth — producing a bright, stable, resolved sound.',                                                                                                                            usage: 'The home base. Appears as the I, IV, and V chord in major keys.' },
-    min:   { description: 'Lower the third by a half step and the entire character shifts. The minor triad sounds darker, more introspective — but equally stable.',                                                                                                                    usage: 'The ii, iii, and vi chords in major keys. Dominates minor keys as the i chord.' },
-    maj7:  { description: 'Add the major seventh to a major triad and you get a lush, sophisticated sound. The interval between root and seventh is just a half step shy of an octave, creating a gentle tension that floats rather than pushes.',                                      usage: 'The signature sound of bossa nova and smooth jazz. Functions as I and IV in major keys. Think Jobim, think "Girl from Ipanema."' },
-    m7:    { description: 'The workhorse of jazz harmony. A minor triad plus a flatted seventh creates a mellow, warm sound that sits comfortably in almost any context.',                                                                                                              usage: 'The ii chord in major II-V-I progressions. The i chord in minor keys. Everywhere in jazz, R&B, neo-soul, and bossa nova.' },
-    dom7:  { description: 'Major triad plus a flatted seventh. The tritone between the third and seventh creates tension that wants to resolve — this is the engine of harmonic motion.',                                                                                               usage: 'The V chord that pulls you home to I. The backbone of blues (I7, IV7, V7). In jazz, dominant chords appear everywhere.' },
-    m7b5:  { description: 'A minor seventh chord with a flatted fifth. Less tense than fully diminished — the minor seventh softens the sound, giving it a melancholy, yearning quality.',                                                                                              usage: 'The ii chord in minor key ii-V-i progressions. Essential for minor jazz harmony.' },
-    o7:    { description: 'Three stacked minor thirds dividing the octave into four equal parts. Symmetrical and mysterious — every note can function as the root.',                                                                                                                    usage: 'The classic dramatic chord. Used as a passing chord, a dominant substitute, or for chromatic voice leading.' },
-    maj6:  { description: 'A major triad with an added sixth. Warmer and more relaxed than maj7 — less "pretty," more grounded.',                                                                                                                                                       usage: 'Common tonic chord in swing and early jazz. Often used instead of maj7 for a vintage feel. The classic "jazz ending" chord.' },
-    m6:    { description: 'A minor triad with an added major sixth. The sixth adds a bittersweet brightness to the minor quality — tense but beautiful.',                                                                                                                               usage: 'Classic minor tonic chord in jazz. Often interchangeable with m7. Characteristic sound of gypsy jazz.' },
-    mMaj7: { description: 'Minor triad plus a major seventh. The clash between the minor third and major seventh gives it a mysterious, cinematic quality.',                                                                                                                            usage: 'Im(maj7) — most famous as the first chord of a minor line cliché. Stunning in the right context.' },
-    aug7:  { description: 'Major triad plus augmented fifth and minor seventh. The raised fifth adds an upward, striving quality to the dominant tension.',                                                                                                                             usage: 'V7#5, used when resolving to a major tonic. Common in jazz and gospel.' },
-    aug:   { description: 'Two stacked major thirds. Like diminished, it\'s symmetrical — but where diminished contracts, augmented expands. An unsettled, reaching sound.',                                                                                                           usage: 'Often used as a passing chord or dominant variation (V+). Common in Beatles progressions and film scores.' },
-    dim:   { description: 'Two stacked minor thirds create an unstable, tense sound. The diminished fifth (tritone from root) gives this chord its restless character.',                                                                                                                usage: 'Appears naturally as vii° in major keys. Often used as a passing chord between two more stable chords.' },
-    sus4:  { description: 'The third is replaced by a perfect fourth, removing the major/minor identity. The result is open, ambiguous, and full of potential.',                                                                                                                        usage: 'Creates tension that typically resolves to a major or minor chord. Widely used in pop, rock, and gospel.' },
-    sus2:  { description: 'The third is replaced by a major second. Even more open than sus4 — airy, modern, and neither major nor minor.',                                                                                                                                             usage: 'Common in pop and modern worship music. Creates space and ambiguity.' },
-    add9:  { description: 'A major triad with an added ninth — no seventh. The ninth adds sparkle and openness without the sophistication of a full ninth chord.',                                                                                                                      usage: 'A staple of pop, folk, and acoustic guitar. Cadd9 (x32030) is one of the most iconic guitar shapes ever.' },
-    '5':   { description: 'Just root and fifth — no third means no major or minor identity. Raw, ambiguous, and powerful under distortion.',                                                                                                                                            usage: 'The foundation of rock, punk, and metal guitar.' },
-};
+// ── Edu data ─────────────────────────────────────────────────────────────────
+// Quality description/usage now comes from resources/edu/qualities/*.md via the
+// `qualityTopic` prop (EduContentService). The former inline `qualityEdu` map
+// was removed in Task 3 (8.1).
 
 const voicingEdu: Record<string, { name: string; detail: string; tip: string }> = {
     archetype:     { name: 'Archetypes',       detail: 'The fundamental open-position guitar chords (E, Em, A, Am, D, Dm, C, G) and their 7th-chord siblings. These are transposable shapes that form barré chords when moved up the neck.',                                            tip: 'Master all 8 basic archetypes first, then learn their 7th-chord variants. Once comfortable, practice barré versions starting with the E and A shapes.' },
@@ -111,7 +109,34 @@ const inversionEdu: Record<string, { desc: string; context: string }> = {
 
 // ── Computed ──────────────────────────────────────────────────────────────────
 const theory   = computed(() => theoryMap[props.chord.quality]   ?? null);
-const eduQ     = computed(() => qualityEdu[props.chord.quality]  ?? null);
+// eduQ: the quality's description/usage prose, or null when the quality has no
+// topic or no description — in which case the identity section falls back to
+// `theory.typical_context`, exactly as before.
+const eduQ = computed(() => {
+    const t = props.qualityTopic;
+    if (!t || !t.description) return null;
+    return { description: t.description, usage: t.usage ?? '' };
+});
+
+// Quality body_html is rendered through mountSbnNodes ONLY when the body
+// carries an <sbn-widget> (has_widgets, decided at the parse layer). No
+// quality body has one today, so this is dormant until one does — the
+// auto-light-up seam, not dead code. Prose-only bodies are never shown here
+// because they would just restate `description`.
+const showQualityBody = computed(() => props.qualityTopic?.has_widgets === true);
+const qualityBodyRef = ref<HTMLElement | null>(null);
+let unmountQualityBody: (() => void) | null = null;
+
+async function mountQualityBody(): Promise<void> {
+    if (unmountQualityBody) { unmountQualityBody(); unmountQualityBody = null; }
+    if (!showQualityBody.value || !qualityBodyRef.value) return;
+    unmountQualityBody = await mountSbnNodes(qualityBodyRef.value);
+}
+
+onMounted(mountQualityBody);
+watch(() => props.qualityTopic?.slug, mountQualityBody);
+onBeforeUnmount(() => { unmountQualityBody?.(); unmountQualityBody = null; });
+
 const eduV     = computed(() => voicingEdu[props.chord.voicing_category] ?? null);
 const eduInv   = computed(() => props.chord.inversion && props.chord.inversion !== 'root' ? (inversionEdu[props.chord.inversion] ?? null) : null);
 
@@ -232,6 +257,15 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
                 <template v-else-if="theory">
                     <p class="sbn-chord-identity-description">{{ theory.typical_context }}</p>
                 </template>
+
+                <!-- Quality body — rendered only when it embeds an <sbn-widget>;
+                     mountSbnNodes turns the tag into a live component. -->
+                <div
+                    v-if="showQualityBody"
+                    ref="qualityBodyRef"
+                    class="sbn-chord-identity-body"
+                    v-html="qualityTopic!.body_html"
+                ></div>
 
                 <!-- Voicing type accordion -->
                 <details v-if="eduV" class="sbn-accordion">

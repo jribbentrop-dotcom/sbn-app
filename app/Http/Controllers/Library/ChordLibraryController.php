@@ -9,8 +9,10 @@ use App\Models\Leadsheet;
 use App\Services\ChordSerializer;
 use App\Services\ChordShapeCalculator;
 use App\Services\ChordVoicingSearch;
+use App\Services\EduContentService;
 use App\Services\HarmonicContext;
 use App\Services\ProgressionBuilder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -23,20 +25,19 @@ class ChordLibraryController extends Controller
         protected HarmonicContext $harmonicContext,
         protected ChordShapeCalculator $shapeCalculator,
         protected ChordSerializer $chordSerializer,
-    ) {
-    }
+    ) {}
 
     public function index()
     {
         $familyLabels = [
-            'archetype-e'  => 'E Shape',
+            'archetype-e' => 'E Shape',
             'archetype-em' => 'Em Shape',
-            'archetype-a'  => 'A Shape',
+            'archetype-a' => 'A Shape',
             'archetype-am' => 'Am Shape',
-            'archetype-d'  => 'D Shape',
+            'archetype-d' => 'D Shape',
             'archetype-dm' => 'Dm Shape',
-            'archetype-c'  => 'C Shape',
-            'archetype-g'  => 'G Shape',
+            'archetype-c' => 'C Shape',
+            'archetype-g' => 'G Shape',
         ];
 
         // Archetypes: grouped by shape family, ordered within each family by sort_order
@@ -50,7 +51,7 @@ class ChordLibraryController extends Controller
 
         $archetypeFamilies = [];
         foreach ($archetypeRows as $chord) {
-            if (!empty($chord['shape_family'])) {
+            if (! empty($chord['shape_family'])) {
                 $archetypeFamilies[$chord['shape_family']][] = $chord;
             }
         }
@@ -70,8 +71,8 @@ class ChordLibraryController extends Controller
         foreach ($familyLabels as $key => $label) {
             if (isset($archetypeFamilies[$key])) {
                 $families[] = [
-                    'key'    => $key,
-                    'label'  => $label,
+                    'key' => $key,
+                    'label' => $label,
                     'chords' => $archetypeFamilies[$key],
                 ];
             }
@@ -79,21 +80,21 @@ class ChordLibraryController extends Controller
 
         return Inertia::render('Library/Chords/Index', [
             'archetypeFamilies' => $families,
-            'otherChords'       => $otherChords,
+            'otherChords' => $otherChords,
             'voicingCategories' => ChordDiagram::VOICING_CATEGORIES,
-            'chordQualities'    => ChordDiagram::CHORD_QUALITIES,
-            'totalCount'        => $archetypeRows->count() + count($otherChords),
+            'chordQualities' => ChordDiagram::CHORD_QUALITIES,
+            'totalCount' => $archetypeRows->count() + count($otherChords),
         ]);
     }
 
-    public function show(Request $request, string $slug)
+    public function show(Request $request, string $slug, EduContentService $edu)
     {
         $chord = ChordDiagram::where('slug', $slug)->firstOrFail();
 
         // Optional ?root= param lets callers (search results, sibling links) carry
         // the specific root note through to the detail page without changing the slug.
         $displayRoot = $request->query('root', null);
-        if ($displayRoot && !in_array($displayRoot, ChordDiagram::ROOT_NOTES)) {
+        if ($displayRoot && ! in_array($displayRoot, ChordDiagram::ROOT_NOTES)) {
             $displayRoot = null; // ignore invalid values
         }
 
@@ -118,12 +119,12 @@ class ChordLibraryController extends Controller
             ->limit(8)
             ->get()
             ->map(fn ($s) => [
-                'id'       => $s->id,
-                'slug'     => $s->slug,
-                'title'    => $s->title,
+                'id' => $s->id,
+                'slug' => $s->slug,
+                'title' => $s->title,
                 'composer' => $s->composer,
-                'songKey'  => $s->song_key,
-                'rhythm'   => $s->rhythm,
+                'songKey' => $s->song_key,
+                'rhythm' => $s->rhythm,
             ]);
 
         // Find progressions that contain a chord with this quality.
@@ -137,10 +138,13 @@ class ChordLibraryController extends Controller
             ->get()
             ->filter(function ($p) use ($chordQuality) {
                 $context = $this->harmonicContext->buildFromNumerals('C', $p->numerals);
-                $chords  = $context['sections'][0]['chords'] ?? [];
+                $chords = $context['sections'][0]['chords'] ?? [];
                 foreach ($chords as $c) {
-                    if (($c['quality'] ?? null) === $chordQuality) return true;
+                    if (($c['quality'] ?? null) === $chordQuality) {
+                        return true;
+                    }
                 }
+
                 return false;
             })
             ->take(4)
@@ -160,38 +164,38 @@ class ChordLibraryController extends Controller
         // root-agnostic and re-derives start_fret from the bass interval, so
         // round-tripping through it self-heals the label/data mismatch.
         $transposed = $this->shapeCalculator->calculateFrets($chord, $pinnedRoot);
-        $diagData       = $transposed['diagram_data'] ?? null;
-        $startFret      = $transposed['start_fret']   ?? ($chord->start_fret ?? 1);
+        $diagData = $transposed['diagram_data'] ?? null;
+        $startFret = $transposed['start_fret'] ?? ($chord->start_fret ?? 1);
         $intervalLabels = $transposed['interval_labels'] ?? ($chord->interval_labels ?? '');
-        $notesField     = $transposed['notes'] ?? ($chord->notes ?? '');
+        $notesField = $transposed['notes'] ?? ($chord->notes ?? '');
 
         if (empty($diagData) || (empty($diagData['positions']) && empty($diagData['open']))) {
             $diagData = is_string($chord->diagram_data)
                 ? json_decode($chord->diagram_data, true)
                 : ($chord->diagram_data ?? []);
-            $startFret      = $chord->start_fret ?? 1;
+            $startFret = $chord->start_fret ?? 1;
             $intervalLabels = $chord->interval_labels ?? '';
-            $notesField     = $chord->notes ?? '';
+            $notesField = $chord->notes ?? '';
         }
 
         $pinnedVoicing = [
-            'id'               => $chord->id,
-            'root_note'        => $pinnedRoot,
-            'quality'          => $chordQuality,
-            'extensions'       => $chord->extensions ?? '',
+            'id' => $chord->id,
+            'root_note' => $pinnedRoot,
+            'quality' => $chordQuality,
+            'extensions' => $chord->extensions ?? '',
             'voicing_category' => $chord->voicing_category,
-            'root_string'      => $chord->root_string,
-            'inversion'        => $chord->inversion ?? 'root',
-            'start_fret'       => $startFret,
-            'diagram_data'     => $diagData,
-            'interval_labels'  => $intervalLabels,
-            'notes'            => $notesField,
-            'popularity'       => $chord->popularity ?? 0,
-            'frets'            => null,
+            'root_string' => $chord->root_string,
+            'inversion' => $chord->inversion ?? 'root',
+            'start_fret' => $startFret,
+            'diagram_data' => $diagData,
+            'interval_labels' => $intervalLabels,
+            'notes' => $notesField,
+            'popularity' => $chord->popularity ?? 0,
+            'frets' => null,
         ];
 
         // The 12 keys we'll try when locating the right transposition for a progression.
-        $candidateKeys = ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+        $candidateKeys = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 
         $progressions = $progressions
             ->map(function ($p) use ($pinnedVoicing, $pinnedRoot, $chordQuality, $candidateKeys, $usePass2) {
@@ -199,15 +203,15 @@ class ChordLibraryController extends Controller
                 // pinned root + quality. This makes the surrounding chords harmonically
                 // related to the chord the user is looking at, instead of always C-based.
                 // Example: viewing Ebm7 in "IIm7 - V7 - Imaj7" → key Db → Ebm7, Ab7, Dbmaj7.
-                $chosenKey  = null;
+                $chosenKey = null;
                 $pinnedSlot = null;
                 foreach ($candidateKeys as $candidate) {
                     $context = $this->harmonicContext->buildFromNumerals($candidate, $p->numerals);
-                    $chords  = $context['sections'][0]['chords'] ?? [];
+                    $chords = $context['sections'][0]['chords'] ?? [];
                     foreach ($chords as $i => $c) {
                         if (($c['quality'] ?? null) === $chordQuality
                             && $this->rootsEqual($c['root'] ?? null, $pinnedRoot)) {
-                            $chosenKey  = $candidate;
+                            $chosenKey = $candidate;
                             $pinnedSlot = $i;
                             break 2;
                         }
@@ -224,39 +228,46 @@ class ChordLibraryController extends Controller
                 $context = $this->harmonicContext->buildFromNumerals($chosenKey, $p->numerals);
 
                 $built = $this->progressionBuilder->buildVoicings($context, [
-                    'category'      => $p->category,
-                    'extensions'    => $usePass2,
-                    'pinnedSlot'    => $pinnedSlot,
+                    'category' => $p->category,
+                    'extensions' => $usePass2,
+                    'pinnedSlot' => $pinnedSlot,
                     'pinnedVoicing' => $pinnedSlot !== null ? $pinnedVoicing : null,
                 ]);
 
                 $tiles = array_map(function ($sel) {
                     $v = $sel['voicing'] ?? null;
+
                     return [
-                        'chordName'   => $sel['chord_name'],
-                        'numeral'     => $sel['roman_numeral'] ?? null,
+                        'chordName' => $sel['chord_name'],
+                        'numeral' => $sel['roman_numeral'] ?? null,
                         'diagramData' => $v,
-                        'slug'        => null,
+                        'slug' => null,
                     ];
                 }, $built['selections']);
 
                 return [
-                    'id'             => $p->id,
-                    'slug'           => $p->slug,
-                    'name'           => $p->name,
-                    'category'       => $p->category,
-                    'numeralsDisplay'=> $p->numerals_display,
-                    'keyLabel'       => $chosenKey,
-                    'tiles'          => $tiles,
+                    'id' => $p->id,
+                    'slug' => $p->slug,
+                    'name' => $p->name,
+                    'category' => $p->category,
+                    'numeralsDisplay' => $p->numerals_display,
+                    'keyLabel' => $chosenKey,
+                    'tiles' => $tiles,
                 ];
             });
 
+        // Edu content for this chord's quality — description/usage prose for
+        // the identity section, plus body_html + has_widgets so the page can
+        // light up an embedded <sbn-widget> if a quality body ever gains one.
+        $qualityTopic = $edu->qualityTopic($chord->quality);
+
         return Inertia::render('Library/Chords/Show', [
-            'chord'        => $this->chordSerializer->serialize($chord, $displayRoot),
-            'siblings'     => $siblings,
-            'songs'        => $songs,
+            'chord' => $this->chordSerializer->serialize($chord, $displayRoot),
+            'siblings' => $siblings,
+            'songs' => $songs,
             'progressions' => $progressions,
-            'builderPass'  => $usePass2 ? 2 : 1,
+            'builderPass' => $usePass2 ? 2 : 1,
+            'qualityTopic' => $qualityTopic?->toArray(),
         ]);
     }
 
@@ -266,14 +277,17 @@ class ChordLibraryController extends Controller
      */
     private function rootsEqual(?string $a, ?string $b): bool
     {
-        if (!$a || !$b) return false;
+        if (! $a || ! $b) {
+            return false;
+        }
         static $semi = [
-            'C'=>0,'B#'=>0,'C#'=>1,'Db'=>1,'D'=>2,'D#'=>3,'Eb'=>3,
-            'E'=>4,'Fb'=>4,'F'=>5,'E#'=>5,'F#'=>6,'Gb'=>6,'G'=>7,
-            'G#'=>8,'Ab'=>8,'A'=>9,'A#'=>10,'Bb'=>10,'B'=>11,'Cb'=>11,
+            'C' => 0, 'B#' => 0, 'C#' => 1, 'Db' => 1, 'D' => 2, 'D#' => 3, 'Eb' => 3,
+            'E' => 4, 'Fb' => 4, 'F' => 5, 'E#' => 5, 'F#' => 6, 'Gb' => 6, 'G' => 7,
+            'G#' => 8, 'Ab' => 8, 'A' => 9, 'A#' => 10, 'Bb' => 10, 'B' => 11, 'Cb' => 11,
         ];
         $sa = $semi[$a] ?? null;
         $sb = $semi[$b] ?? null;
+
         return $sa !== null && $sa === $sb;
     }
 
@@ -298,33 +312,35 @@ class ChordLibraryController extends Controller
         $results = [];
         foreach ($raw as $r) {
             $parent = $parents->get($r['id']);
-            if (!$parent) continue;
+            if (! $parent) {
+                continue;
+            }
 
             $results[] = [
-                'id'               => $r['id'],
-                'slug'             => $parent->slug,
-                'name'             => $r['name'],
-                'root_note'        => $r['root_note'],
-                'quality'          => $r['quality'],
-                'quality_label'    => $parent->quality_label,
-                'extensions'       => $r['extensions'] ?? '',
+                'id' => $r['id'],
+                'slug' => $parent->slug,
+                'name' => $r['name'],
+                'root_note' => $r['root_note'],
+                'quality' => $r['quality'],
+                'quality_label' => $parent->quality_label,
+                'extensions' => $r['extensions'] ?? '',
                 'voicing_category' => $r['voicing_category'] ?? '',
-                'category_label'   => $parent->category_label,
-                'root_string'      => $r['root_string'] ?? '',
-                'root_string_label'=> $parent->root_string_label,
-                'inversion'        => $r['inversion'] ?? 'root',
-                'inversion_label'  => $parent->inversion_label,
-                'bass_note'        => $r['bass_note'] ?? '',
-                'shape_family'     => $parent->shape_family,
-                'start_fret'       => $r['start_fret'] ?? 1,
-                'diagram_data'     => $r['diagram_data'],
-                'interval_labels'  => $r['interval_labels'] ?? '',
-                'notes'            => $r['notes'] ?? '',
-                'popularity'       => $r['popularity'] ?? ($parent->popularity ?? 0),
-                'difficulty'       => $r['difficulty'] ?? $parent->difficulty,
-                'description'      => $parent->description,
-                'transposed_from'  => $r['original_root'] ?? null,
-                'alias_match'      => $r['alias_match'] ?? false,
+                'category_label' => $parent->category_label,
+                'root_string' => $r['root_string'] ?? '',
+                'root_string_label' => $parent->root_string_label,
+                'inversion' => $r['inversion'] ?? 'root',
+                'inversion_label' => $parent->inversion_label,
+                'bass_note' => $r['bass_note'] ?? '',
+                'shape_family' => $parent->shape_family,
+                'start_fret' => $r['start_fret'] ?? 1,
+                'diagram_data' => $r['diagram_data'],
+                'interval_labels' => $r['interval_labels'] ?? '',
+                'notes' => $r['notes'] ?? '',
+                'popularity' => $r['popularity'] ?? ($parent->popularity ?? 0),
+                'difficulty' => $r['difficulty'] ?? $parent->difficulty,
+                'description' => $parent->description,
+                'transposed_from' => $r['original_root'] ?? null,
+                'alias_match' => $r['alias_match'] ?? false,
             ];
         }
 
@@ -333,19 +349,19 @@ class ChordLibraryController extends Controller
 
     // ── Phase 11b: JSON endpoint for mountSbnNodes.ts ──────────────────────
 
-    public function apiShow(Request $request, string $slug): \Illuminate\Http\JsonResponse
+    public function apiShow(Request $request, string $slug): JsonResponse
     {
-        $chord   = ChordDiagram::where('slug', $slug)->firstOrFail();
+        $chord = ChordDiagram::where('slug', $slug)->firstOrFail();
         $payload = $this->chordSerializer->serialize($chord);
 
         $root = trim((string) $request->get('root', ''));
         if ($root !== '') {
             $transposed = $this->shapeCalculator->calculateFrets($chord, $root);
-            $payload['root_note']       = $root;
-            $payload['diagram_data']    = $transposed['diagram_data']    ?? $payload['diagram_data']    ?? null;
-            $payload['start_fret']      = $transposed['start_fret']      ?? $payload['start_fret']      ?? 1;
+            $payload['root_note'] = $root;
+            $payload['diagram_data'] = $transposed['diagram_data'] ?? $payload['diagram_data'] ?? null;
+            $payload['start_fret'] = $transposed['start_fret'] ?? $payload['start_fret'] ?? 1;
             $payload['interval_labels'] = $transposed['interval_labels'] ?? $payload['interval_labels'] ?? '';
-            $payload['notes']           = $transposed['notes']           ?? $payload['notes']           ?? '';
+            $payload['notes'] = $transposed['notes'] ?? $payload['notes'] ?? '';
         }
 
         return response()->json($payload);

@@ -22,6 +22,10 @@ final class EduTopic
      *                                    span on Chords/Show.vue. Null otherwise.
      * @param  string|null  $usage  Quality-only: the "where it's used" prose
      *                              span on Chords/Show.vue. Null otherwise.
+     * @param  bool  $hasWidgets  True when $bodyHtml embeds at least one
+     *                            <sbn-widget> element. Computed at parse time;
+     *                            consumers render the body through mountSbnNodes
+     *                            only when this is true. See bodyHasWidgets().
      */
     public function __construct(
         public readonly string $slug,
@@ -33,12 +37,28 @@ final class EduTopic
         public readonly array $seeAlso = [],
         public readonly ?string $description = null,
         public readonly ?string $usage = null,
+        public readonly bool $hasWidgets = false,
     ) {}
+
+    /**
+     * Whether a rendered Markdown body embeds at least one <sbn-widget>.
+     *
+     * Matches an actual element opening — `<sbn-widget` followed by
+     * whitespace, `/`, or `>` — not a bare substring, so a body that merely
+     * mentions the words "sbn-widget" in prose or a code fence does not trip
+     * it. The single definition of "carries an interactive"; the parser uses
+     * it to populate $hasWidgets, and all consumers read that flag rather
+     * than re-deriving.
+     */
+    public static function bodyHasWidgets(string $bodyHtml): bool
+    {
+        return preg_match('/<sbn-widget[\s\/>]/', $bodyHtml) === 1;
+    }
 
     /**
      * Plain associative form for Inertia / JSON payloads.
      *
-     * @return array{slug:string,type:string,title:string,summary:string,body_html:string,related:string[],see_also:string[],description:string|null,usage:string|null}
+     * @return array{slug:string,type:string,title:string,summary:string,body_html:string,related:string[],see_also:string[],description:string|null,usage:string|null,has_widgets:bool}
      */
     public function toArray(): array
     {
@@ -52,6 +72,7 @@ final class EduTopic
             'see_also' => $this->seeAlso,
             'description' => $this->description,
             'usage' => $this->usage,
+            'has_widgets' => $this->hasWidgets,
         ];
     }
 
@@ -70,6 +91,7 @@ final class EduTopic
             seeAlso: $data['see_also'] ?? [],
             description: $data['description'] ?? null,
             usage: $data['usage'] ?? null,
+            hasWidgets: $data['has_widgets'] ?? false,
         );
     }
 }

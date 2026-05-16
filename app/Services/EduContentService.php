@@ -253,16 +253,19 @@ class EduContentService
         $usage = isset($meta['usage']) && is_scalar($meta['usage'])
             ? (string) $meta['usage'] : null;
 
+        $bodyHtml = $this->renderMarkdown($body);
+
         return new EduTopic(
             slug: $slug,
             type: $type,
             title: $title,
             summary: $summary,
-            bodyHtml: $this->renderMarkdown($body),
+            bodyHtml: $bodyHtml,
             related: array_map('strval', (array) ($meta['related'] ?? [])),
             seeAlso: array_map('strval', (array) ($meta['see_also'] ?? [])),
             description: $description,
             usage: $usage,
+            hasWidgets: EduTopic::bodyHasWidgets($bodyHtml),
         );
     }
 

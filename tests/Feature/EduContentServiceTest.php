@@ -151,6 +151,45 @@ class EduContentServiceTest extends TestCase
         $this->assertEquals($original, $rehydrated);
     }
 
+    // ── Task 3 (8.1): hasWidgets parse-time flag ─────────────────────────────
+
+    public function test_body_has_widgets_matches_an_element_not_a_substring(): void
+    {
+        // The positive case: an actual <sbn-widget> element opening.
+        $this->assertTrue(EduTopic::bodyHasWidgets('<p>x</p><sbn-widget slug="triad-builder" />'));
+        $this->assertTrue(EduTopic::bodyHasWidgets('<sbn-widget slug="x"></sbn-widget>'));
+        $this->assertTrue(EduTopic::bodyHasWidgets('<sbn-widget/>'));
+
+        // The negative case: prose or code that merely mentions the words
+        // "sbn-widget" must NOT trip the flag.
+        $this->assertFalse(EduTopic::bodyHasWidgets('<p>Use the sbn-widget tag here.</p>'));
+        $this->assertFalse(EduTopic::bodyHasWidgets('<code>sbn-widget</code>'));
+        $this->assertFalse(EduTopic::bodyHasWidgets('<p>no widgets at all</p>'));
+    }
+
+    public function test_parse_sets_has_widgets_from_the_body(): void
+    {
+        // concepts/triad.md embeds a real <sbn-widget> — parsing must flag it.
+        $triad = $this->edu->topic('concept', 'triad');
+        $this->assertTrue($triad->hasWidgets);
+
+        // No quality body has a widget today — all 18 report false. This is the
+        // expected dormant state (plan §5.3): body_html parsed and carried, but
+        // Chords/Show.vue renders it only when has_widgets is true.
+        foreach ($this->edu->topics('quality') as $topic) {
+            $this->assertFalse($topic->hasWidgets, "Quality '{$topic->slug}' unexpectedly reports hasWidgets");
+        }
+    }
+
+    public function test_has_widgets_survives_the_cache_round_trip(): void
+    {
+        $widgetTopic = $this->edu->topic('concept', 'triad');       // hasWidgets true
+        $plainTopic = $this->edu->qualityTopic('maj7');             // hasWidgets false
+
+        $this->assertTrue(EduTopic::fromArray($widgetTopic->toArray())->hasWidgets);
+        $this->assertFalse(EduTopic::fromArray($plainTopic->toArray())->hasWidgets);
+    }
+
     public function test_every_canonical_chord_quality_has_a_topic(): void
     {
         // De-risks 8.1: Chords/Show.vue looks up qualityTopic($chord->quality),
