@@ -3,6 +3,7 @@ import { ref, computed, provide, onMounted, onBeforeUnmount } from 'vue';
 import { getAudioEngine } from '@/audio/engine/AudioEngine.js';
 import { tabModelToEvents } from '@/audio/adapters/tabMeasureToEvents.js';
 import { chordVoicingsToEvents } from '@/audio/adapters/chordVoicingsToEvents.js';
+import { expandMeasureSequence } from '@/audio/adapters/expandMeasureSequence.js';
 import { useTabModel } from '@/tab-editor/composables/useTabModel.js';
 import TabMeasure from '@/tab-editor/components/TabMeasure.vue';
 
@@ -53,6 +54,13 @@ const isPlaying = ref(false);
 const playingMeasureIndex = ref(0);
 const transportBeat = ref(0);
 
+// Expanded playback sequence (repeat + volta aware) — cached per model build.
+const expandedSequence = computed(() => {
+  if (!model.value) return [];
+  const flat = model.value.sections.flatMap((s: any) => s.measures ?? []);
+  return expandMeasureSequence(flat);
+});
+
 const beatsPerMeasure = computed(() => {
   const tpm = model.value?.ticksPerMeasure;
   if (tpm) return tpm / 480;
@@ -101,7 +109,8 @@ onMounted(() => {
     engine.on('tick', (beat: number) => {
       if (!isPlaying.value) return;
       transportBeat.value = beat;
-      playingMeasureIndex.value = Math.floor(beat / beatsPerMeasure.value);
+      const pos = Math.floor(beat / beatsPerMeasure.value);
+      playingMeasureIndex.value = expandedSequence.value[pos] ?? pos;
     }),
     engine.on('ended', () => {
       isPlaying.value = false;

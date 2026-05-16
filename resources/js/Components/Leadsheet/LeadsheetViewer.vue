@@ -149,6 +149,7 @@ import { useAudioEngine } from '@/tab-editor/composables/useAudioEngine.js';
 import { getAudioEngine } from '@/audio/engine/AudioEngine.js';
 import { tabModelToEvents } from '@/audio/adapters/tabMeasureToEvents.js';
 import { chordVoicingsToEvents } from '@/audio/adapters/chordVoicingsToEvents.js';
+import { expandMeasureSequence } from '@/audio/adapters/expandMeasureSequence.js';
 
 const props = defineProps({
   /** Leadsheet payload from controller — see resources/js/types/leadsheet.ts */
@@ -501,7 +502,10 @@ async function seekToMeasure(gi, ci = 0) {
   }
   const bpm = beatsPerMeasure.value;
   const beatOffset = offset != null ? offset : ci * (bpm / total);
-  const beatStart = gi * bpm + beatOffset;
+  // Use the first play-position beat for this globalIndex (repeat-aware).
+  // Falls back to linear gi * bpm if the sequence hasn't been computed yet.
+  const measureBeat = firstBeatForGi.value.get(gi) ?? gi * bpm;
+  const beatStart = measureBeat + beatOffset;
 
   if (!_eventsLoaded) await loadAllEvents();
   // Seek both paths
@@ -511,15 +515,39 @@ async function seekToMeasure(gi, ci = 0) {
   // If stopped/paused, just seek without starting playback
 }
 
+// ── Expanded playback sequence (repeat + volta aware) ────────────────────────
+// Maps play-position index → globalIndex of the bar that plays at that position.
+// Used to derive which bar is highlighted during playback and where to seek.
+const expandedSequence = computed(() => {
+  if (!model.value) return [];
+  const flat = model.value.sections.flatMap(s => s.measures ?? []);
+  return expandMeasureSequence(flat);
+});
+
+// Inverse map: globalIndex → first play-position beat (for seek).
+// When a bar repeats, points to its FIRST occurrence so clicking it
+// seeks to the beginning of the phrase containing that bar.
+const firstBeatForGi = computed(() => {
+  const bpm = beatsPerMeasure.value;
+  const map = new Map();
+  expandedSequence.value.forEach((gi, pos) => {
+    if (!map.has(gi)) map.set(gi, pos * bpm);
+  });
+  return map;
+});
+
 // ── Active-measure highlight (drives the beat-tick sweep across the grid) ────
 const playingMeasureIndex = ref(0);
 watch(
   [transportBeat, beatsPerMeasure],
   ([beat, bpm]) => {
-    playingMeasureIndex.value = Math.floor((beat ?? 0) / (bpm || 4));
+    // Convert play-position to globalIndex using the expanded sequence.
+    const pos = Math.floor((beat ?? 0) / (bpm || 4));
+    playingMeasureIndex.value = expandedSequence.value[pos] ?? pos;
   },
   { immediate: true }
 );
+
 
 // ── EduPanel current-chord derivation (selection uses { gi, ci }) ────────────
 function _findInModel(gi) {
