@@ -8,11 +8,12 @@ import { chordDiagramToEvents } from '../../audio/adapters/chordDiagramToEvents.
 interface Props {
     chord: ChordDiagramData;
     mini?: boolean;
+    detail?: boolean;
     showRoot?: boolean;
     onChordClick?: (() => void) | null;
 }
 
-const props = withDefaults(defineProps<Props>(), { mini: false, showRoot: false, onChordClick: null });
+const props = withDefaults(defineProps<Props>(), { mini: false, detail: false, showRoot: false, onChordClick: null });
 
 const formattedName = computed(() => {
     // Normally cards show quality + extensions only (no root) — the library
@@ -27,8 +28,8 @@ const formattedName = computed(() => {
 
     // Mapping: DB quality key → [displayed quality, displayed core extension]
     const qualityMap: Record<string, [string, string]> = {
-        'maj':   ['',    'major'],
-        'min':   ['m',   ''],
+        'maj':   ['major', ''],
+        'min':   ['minor', ''],
         'aug':   ['aug', ''],
         'dim':   ['°',   ''],
         '5':     ['',    '5'],
@@ -136,14 +137,11 @@ async function playChord() {
     <div
         ref="cardRef"
         class="sbn-chord-card"
-        :class="{ 'sbn-chord-card--mini': mini, 'sbn-chord-card--clickable': !!onChordClick || !!chord.slug }"
+        :class="{ 'sbn-chord-card--mini': mini, 'sbn-chord-card--detail': detail, 'sbn-chord-card--clickable': !!onChordClick || !!chord.slug }"
         @click="handleCardClick"
     >
         <!-- Chord name -->
         <div class="sbn-card-chord-name" v-html="formattedName" />
-
-        <!-- Inversion label (hidden for root position) -->
-        <div class="sbn-card-inversion">{{ inversionLabel }}</div>
 
         <!-- Diagram -->
         <div class="sbn-card-diagram">

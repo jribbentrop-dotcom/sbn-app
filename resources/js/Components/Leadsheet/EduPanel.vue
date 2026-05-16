@@ -49,9 +49,7 @@
       <div v-else-if="currentChord" class="sbn-edu-chord-detail">
         <!-- Fallback when no voicing data available -->
         <a :href="chordDetailUrl" class="sbn-edu-chord-card-link">
-          <div class="sbn-edu-chord-name">
-            <span class="sbn-chord-symbol" v-html="formatChordHtml(currentChord)"></span>
-          </div>
+          <div class="sbn-edu-chord-name" v-html="formatChordHtml(currentChord)"></div>
         </a>
         <div v-if="chordQualityInfo" class="sbn-edu-chord-blurb">
           <p>{{ chordQualityInfo.blurb }}</p>

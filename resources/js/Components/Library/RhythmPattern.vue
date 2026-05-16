@@ -221,7 +221,7 @@ defineExpose({ play, stop, toggle });
       <button
         v-if="playable"
         type="button"
-        class="sbn-rhythm-play-btn"
+        class="sbn-play-btn sbn-rhythm-play-btn"
         :class="{ 'is-playing': isPlaying }"
         @click="toggle"
         :aria-label="isPlaying ? 'Stop' : 'Play'"
@@ -329,33 +329,20 @@ defineExpose({ play, stop, toggle });
   gap: 16px;
 }
 
-/* Play button - Circular & Premium */
+/* Rhythm-specific: strip color theming + alignment offset */
 .sbn-rhythm-play-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  border: 1px solid var(--clr-border);
-  background: var(--clr-white);
-  cursor: pointer;
   color: var(--strip-color, var(--clr-accent));
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  margin-top: 24px; /* Align with cells, accounting for label row */
-  padding: 0;
+  margin-top: 24px;
 }
 
 .sbn-rhythm-play-btn:hover {
   color: var(--strip-color, var(--clr-accent));
   border-color: var(--strip-color, var(--clr-accent));
-  transform: scale(1.08);
 }
 
 .sbn-rhythm-play-btn.is-playing {
   background: var(--strip-color, var(--clr-accent));
   border-color: var(--strip-color, var(--clr-accent));
-  color: var(--clr-white);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--strip-color, var(--clr-accent)) 20%, transparent);
 }
 
@@ -475,7 +462,7 @@ defineExpose({ play, stop, toggle });
 .is-mini .sbn-rhythm-cell.is-rest { height: 4px; }
 .is-mini .sbn-rhythm-row-thumb { height: 8px; }
 .is-mini .sbn-rhythm-cell-thumb { height: 8px; }
-.is-mini .sbn-rhythm-play-btn { width: 30px; height: 30px; margin-top: 18px; }
+.is-mini .sbn-rhythm-play-btn { width: 30px; height: 30px; margin-top: 18px; min-width: unset; }
 .is-mini .sbn-row-label { width: 44px; font-size: 10px; }
 
 /* Truncation / Fade */

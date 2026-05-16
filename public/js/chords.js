@@ -119,6 +119,26 @@ function _fretScore(parse, position) {
  * @param {boolean} [opts.showFingers] — show finger numbers (default: true)
  * @returns {string} SVG markup
  */
+// Guide tone colour palette (amber = 7ths, blue = 3rds, gray = root, purple = 9ths, mid-gray = 5ths)
+var GT_COLORS = {
+    seventh: { fill: '#d97706', text: '#fff' },   // b7 7 maj7
+    third:   { fill: '#2563eb', text: '#fff' },   // 3 b3
+    root:    { fill: '#e8e8e0', text: '#333' },   // R
+    ninth:   { fill: '#7c3aed', text: '#fff' },   // 9 b9 #9
+    fifth:   { fill: '#6b7280', text: '#fff' },   // 5 b5
+};
+
+function sbnGtColorForInterval(label) {
+    if (!label || label === 'x' || label === 'X') return null;
+    var l = label.trim();
+    if (l === 'R') return GT_COLORS.root;
+    if (l === '5' || l === 'b5' || l === '#5') return GT_COLORS.fifth;
+    if (l === 'b7' || l === '7' || l === 'maj7' || l === 'bb7') return GT_COLORS.seventh;
+    if (l === '3' || l === 'b3') return GT_COLORS.third;
+    if (l === '9' || l === 'b9' || l === '#9' || l === '11' || l === '#11' || l === '13' || l === 'b13') return GT_COLORS.ninth;
+    return null;
+}
+
 function sbnRenderDiagramSVG(voicing, opts) {
     if (!voicing) return '';
     var fretStr  = voicing.frets || voicing.fret_string;
@@ -126,13 +146,19 @@ function sbnRenderDiagramSVG(voicing, opts) {
     if (!fretStr) return '';
 
     opts = opts || {};
-    var dotColor   = opts.dotColor || 'var(--clr-red)';
-    var showFingers = opts.showFingers !== false;
+    var dotColor     = opts.dotColor || 'var(--clr-red)';
+    var showFingers  = opts.showFingers !== false;
+    var showGuideTones = !!opts.intervalLabels;
+    // Parse positional interval labels ("x,R,5,b7,b3,x") into a 6-element array
+    var intervalArr  = showGuideTones
+        ? opts.intervalLabels.split(',').map(function(s) { return s.trim(); })
+        : [];
+    while (intervalArr.length < 6) intervalArr.push('');
 
     var frets = sbnParseFretString(fretStr, position);
 
     // Fixed coordinate system — CSS scales via width="100%"
-    var W = 80, H = 95;
+    var W = 88, H = 95;
     var strSp = 12, fretSp = 16;
     var left = 14, top = 12, numFrets = 4;
 
@@ -168,22 +194,38 @@ function sbnRenderDiagramSVG(voicing, opts) {
     frets.forEach(function(fretVal, i) {
         var x = left + i * strSp;
         var finger = (voicing.fingers || '000000')[i];
+        var ivLabel = intervalArr[i] || '';
+        var gtColor = showGuideTones ? sbnGtColorForInterval(ivLabel) : null;
+
         if (fretVal === 0) {
-            svg += '<circle cx="' + x + '" cy="' + (top - 8)
-                 + '" r="3" fill="none"'
-                 + ' stroke="var(--clr-text)" stroke-width="0.75"/>';
+            // Open string: draw a small colored circle (or plain ring)
+            if (gtColor) {
+                svg += '<circle cx="' + x + '" cy="' + (top - 8)
+                     + '" r="4" fill="' + gtColor.fill + '"/>';
+                svg += '<text x="' + x + '" y="' + (top - 8)
+                     + '" font-size="5" font-weight="800"'
+                     + ' text-anchor="middle" dominant-baseline="central"'
+                     + ' fill="' + gtColor.text + '">' + ivLabel + '</text>';
+            } else {
+                svg += '<circle cx="' + x + '" cy="' + (top - 8)
+                     + '" r="3" fill="none"'
+                     + ' stroke="var(--clr-text)" stroke-width="0.75"/>';
+            }
         } else {
             var rf = fretVal - position + 1;
             if (rf > 0 && rf <= numFrets) {
                 var y = top + rf * fretSp - fretSp / 2;
+                var fill = gtColor ? gtColor.fill : dotColor;
+                var labelText = gtColor ? ivLabel : (showFingers && finger && finger !== '0' ? finger : '');
+                var labelColor = gtColor ? gtColor.text : '#fff';
                 svg += '<circle class="sbn-svg-dot" data-string="' + (i + 1) + '"'
                      + ' cx="' + x + '" cy="' + y
-                     + '" r="4.5" fill="' + dotColor + '" opacity="1"/>';
-                if (showFingers && finger && finger !== '0') {
+                     + '" r="4.5" fill="' + fill + '" opacity="1"/>';
+                if (labelText) {
                     svg += '<text x="' + x + '" y="' + y
-                         + '" font-size="6.5" font-weight="700"'
-                         + ' text-anchor="middle" dominant-baseline="central" fill="#fff"'
-                         + ' style="pointer-events:none">' + finger + '</text>';
+                         + '" font-size="5.5" font-weight="800"'
+                         + ' text-anchor="middle" dominant-baseline="central" fill="' + labelColor + '"'
+                         + ' style="pointer-events:none">' + labelText + '</text>';
                 }
             }
         }

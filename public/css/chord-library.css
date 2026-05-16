@@ -448,31 +448,6 @@
     gap: 12px;
 }
 
-/* ── Chord Card ── */
-.sbn-chord-card {
-    position: relative;
-    background: var(--clr-white);
-    border: 1px solid var(--clr-border);
-    border-radius: var(--radius);
-    padding: 10px 10px 8px;
-    transition: transform 0.25s var(--ease), border-color 0.2s;
-    cursor: pointer;
-    overflow: visible;
-    text-decoration: none;
-    display: flex;
-    flex-direction: column;
-}
-
-.sbn-chord-card:hover {
-    transform: translateY(-2px);
-    border-color: var(--clr-red);
-    text-decoration: none;
-}
-
-.sbn-chord-card:focus-visible {
-    outline: 2px solid var(--clr-red);
-    outline-offset: 2px;
-}
 
 /* Card name */
 .sbn-card-chord-name {
@@ -481,28 +456,15 @@
     margin-bottom: 1px;
 }
 
+.sbn-card-chord-name {
+    --sbn-chord-color: var(--clr-text);
+}
+
 .sbn-card-chord-name .sbn-chord-symbol {
-    font-family: var(--font-chord);
-    font-size: 1.1rem;
-    color: var(--clr-text);
-    font-weight: 400;
+    font-size: 1em;
     display: inline-block;
     white-space: nowrap;
     line-height: 1;
-}
-
-/* Cards show quality+ext only (no root) — all spans at baseline, full size */
-.sbn-card-chord-name .sbn-chord-quality,
-.sbn-card-chord-name .sbn-chord-ext {
-    font-size: 1em;
-    vertical-align: baseline;
-    line-height: inherit;
-    font-weight: 700;
-}
-
-.sbn-card-chord-name .sbn-chord-ext--extra {
-    font-weight: 500;
-    color: var(--clr-text-muted);
 }
 
 /* Inversion label */
@@ -532,7 +494,7 @@
 /* Arpeggio dot ping animation */
 @keyframes sbnDotPing {
     0%   { transform: scale(1);   fill: var(--clr-red); }
-    35%  { transform: scale(1.8); fill: var(--clr-style-bossa); }
+    35%  { transform: scale(1.8); fill: var(--clr-red); }
     100% { transform: scale(1);   fill: var(--clr-red); }
 }
 
@@ -564,7 +526,20 @@
     padding-top: 4px;
     margin-top: 0;
     border-top: 1px solid var(--clr-surface-2);
-    min-height: 18px;
+    min-height: 16px;
+}
+
+.sbn-chords-grid .sbn-chord-card {
+    padding: 10px;
+}
+
+.sbn-chords-grid .sbn-card-pop {
+    padding: 1px 4px;
+    font-size: 8px;
+}
+
+.sbn-chords-grid .sbn-diff-star {
+    font-size: 8px;
 }
 
 /* Popularity pill */
@@ -600,44 +575,6 @@
     color: var(--clr-red);
 }
 
-/* Play button — absolute, floats at bottom of diagram, hover-only */
-.sbn-card-diagram .sbn-play-btn {
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%) translateY(4px);
-    width: 30px;
-    height: 30px;
-    border: none;
-    background: var(--clr-red);
-    color: var(--clr-white);
-    cursor: pointer;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.15s, opacity 0.2s, background 0.15s;
-    padding: 0;
-    opacity: 0;
-    pointer-events: none;
-    box-shadow: none;
-    z-index: 2;
-}
-
-.sbn-chord-card:hover .sbn-card-diagram .sbn-play-btn {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-.sbn-chord-card:hover .sbn-card-diagram .sbn-play-btn:hover {
-    background: var(--clr-accent-dim);
-    transform: translateX(-50%) translateY(4px) scale(1.1);
-}
-
-.sbn-play-btn.is-playing {
-    opacity: 1;
-    background: var(--clr-accent-dim);
-}
 
 /* No results */
 .sbn-no-results {

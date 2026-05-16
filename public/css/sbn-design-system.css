@@ -392,11 +392,13 @@
 .sbn-chord-card {
     position: relative;
     background: var(--clr-white);
-    border: 1px solid var(--clr-border);
+    border: 1px solid transparent;
     border-radius: var(--radius);
     padding: 16px;
-    transition: border-color 0.2s var(--ease),
-        transform 0.2s var(--ease);
+    box-shadow: 1px 1px 0 var(--clr-border);
+    transition: box-shadow 0.2s var(--ease),
+        transform 0.2s var(--ease),
+        background 0.2s var(--ease);
     cursor: pointer;
     overflow: visible;
     display: flex;
@@ -406,7 +408,8 @@
 
 .sbn-chord-card:hover {
     transform: translateY(-2px);
-    border-color: var(--clr-accent);
+    box-shadow: 3px 3px 0 rgba(54, 131, 255, 0.35);
+    background: rgba(183, 211, 255, 0.06);
 }
 
 .sbn-chord-card:focus-visible {
@@ -427,6 +430,8 @@
 
 .sbn-chord-card--detail:hover {
     transform: none;
+    box-shadow: 1px 1px 0 var(--clr-border);
+    background: var(--clr-white);
 }
 
 /* Mini variant */
@@ -440,22 +445,49 @@
     text-align: center;
     line-height: 1;
     font-family: var(--font-chord);
-    font-size: 24px;
+    font-size: 22px;
     color: var(--clr-text);
 }
 
 .sbn-chord-card--mini .sbn-card-chord-name {
-    font-size: 16px;
+    font-size: 13px;
 }
 
 .sbn-chord-card--detail .sbn-card-chord-name {
-    font-size: 28px;
+    font-size: 26px;
 }
 
 /* Card diagram wrapper */
 .sbn-card-diagram {
     width: 100%;
-    margin-top: 8px;
+    margin-top: 0;
+    position: relative;
+}
+
+.sbn-card-diagram .sbn-play-btn {
+    position: absolute;
+    top: 90%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 24px;
+    height: 24px;
+    opacity: 0;
+    background: var(--clr-red);
+    border-color: var(--clr-red);
+    color: var(--clr-white);
+    transition: opacity 0.15s var(--ease), transform 0.15s var(--ease);
+}
+
+.sbn-chord-card:hover .sbn-card-diagram .sbn-play-btn {
+    opacity: 1;
+}
+
+.sbn-card-diagram .sbn-play-btn:hover {
+    transform: translate(-50%, -50%) scale(1.15);
+}
+
+.sbn-card-diagram .sbn-play-btn.is-playing {
+    transform: translate(-50%, -50%) scale(1.15);
 }
 
     /* ── Category Badges (Standardized) ──────────────────
@@ -497,11 +529,11 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-top: 8px;
-    padding-top: 7px;
+    margin-top: 6px;
+    padding-top: 4px;
     border-top: 1px solid var(--clr-border-dim);
     width: 100%;
-    min-height: 20px;
+    min-height: 16px;
 }
 
 .sbn-card-footer-left,
@@ -661,31 +693,27 @@
 
 .sbn-play-btn,
 .sbn-info-btn {
-    width: 26px;
-    height: 26px;
+    width: 38px;
+    height: 38px;
     border: 1px solid var(--clr-border);
     background: var(--clr-white);
     color: var(--clr-text-muted);
     cursor: pointer;
-    border-radius: var(--radius-sm);
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.15s var(--ease);
     padding: 0;
+    flex-shrink: 0;
 }
 
 .sbn-play-btn:hover {
-    background: var(--clr-red);
-    color: #fff;
-    border-color: var(--clr-red);
+    transform: scale(1.15);
 }
 
 .sbn-play-btn.is-playing {
-    background: var(--clr-red);
-    color: #fff;
-    border-color: var(--clr-red);
-    transform: scale(0.95);
+    transform: scale(1.15);
 }
 
 .sbn-info-btn:hover {
@@ -1756,6 +1784,84 @@
    Phase 9 viewer may opt in by overriding this rule. */
 .sbn-ve-measure-num {
     display: none;
+}
+
+/* ── Volta bracket ──────────────────────────────────────────────────────────
+   Sits above the measure content. Left arm on --start, right arm on --end.
+   The row needs padding-top so the bracket isn't clipped.
+   ────────────────────────────────────────────────────────────────────────── */
+.sbn-ve-volta {
+    position: absolute;
+    top: -22px;
+    left: 0;
+    right: 0;
+    height: 20px;
+    border-top: 2px solid currentColor;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.sbn-ve-volta--start {
+    border-left: 2px solid currentColor;
+}
+
+.sbn-ve-volta--end {
+    border-right: 2px solid currentColor;
+}
+
+.sbn-ve-volta-label {
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: 'Crimson Text', Georgia, serif;
+    line-height: 1;
+}
+
+/* Rows need headroom for the bracket */
+.sbn-ve-row {
+    padding-top: 26px;
+}
+
+/* ── Repeat barlines in chord grid ─────────────────────────────────────────────
+   Bars SVG stretches full height (preserveAspectRatio=none).
+   Dots SVG is a square overlay centered vertically, not stretched.
+   ────────────────────────────────────────────────────────────────────────── */
+.sbn-ve-rep-svg {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 12px;
+    color: var(--color-text, #222);
+    pointer-events: none;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+}
+.sbn-ve-rep-svg--start { left: 0; }
+.sbn-ve-rep-svg--end   { right: 0; }
+
+.sbn-ve-rep-bars {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 12px;
+    height: 100%;
+}
+.sbn-ve-rep-dots {
+    position: absolute;
+    top: 50%;
+    width: 32px;
+    height: 30px;
+    transform: translateY(-50%);
+}
+.sbn-ve-rep-svg--start .sbn-ve-rep-dots {
+    left: 12px;
+}
+.sbn-ve-rep-svg--end .sbn-ve-rep-dots {
+    right: 12px;
+    left: auto;
 }
 
 /* Individual chord cell inside a measure */
