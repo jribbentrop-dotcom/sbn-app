@@ -278,33 +278,137 @@ no markdown needed. The registry is the single source of truth.
 
 ---
 
-## 5. Consumption surfaces (this phase)
+## 5. Consumption surfaces — Task 3 plan (steps 8–9)
+
+Task 3 is the first time edu content reaches real product surfaces. Three
+sub-tasks below; **3.0 (model + content reconciliation) must land first** —
+3.1/3.2/3.3 all depend on it.
+
+### 5.0 Quality file model — one shape for all topics
+
+A `qualities/*.md` file is the **same shape as a `concepts/*.md` file** —
+frontmatter + a markdown body that may embed `<sbn-widget>`. Qualities add two
+optional structured frontmatter fields. No per-type special-casing.
+
+```markdown
+---
+slug: maj7
+title: Major 7
+summary: Lush, sophisticated — a major triad plus the major seventh.
+description: Add the major seventh to a major triad and you get a lush...
+usage: The signature sound of bossa nova and smooth jazz...
+related: [voice-leading]
+---
+
+<sbn-widget slug="triad-builder" quality="maj7" />
+
+(optional richer prose / interactives go in the body)
+```
+
+Field → consumer mapping:
+
+| Field | Type | Consumer | Notes |
+|---|---|---|---|
+| `summary` | frontmatter, 1 line | `EduPanel` `.blurb` | unchanged behavior |
+| `description` | frontmatter string | `Chords/Show.vue` `.sbn-chord-identity-description` | kept separate from `usage` because Show renders them as two distinct styled spans |
+| `usage` | frontmatter string | `Chords/Show.vue` `.sbn-chord-identity-usage` | — |
+| body (`body_html`) | markdown + `<sbn-widget>` | any surface, via `mountSbnNodes` | the **only** home for interactive/graphical elements; empty for most qualities today |
+
+**Rule:** prose that needs distinct styling → frontmatter field. Anything
+richer or interactive → markdown body + `<sbn-widget>`. This holds for
+`concept`, `quality`, and `glossary` alike — interactives never get a
+type-specific mechanism.
+
+### 5.0a Slug reconciliation (do first) — audited, scope shrank
+
+**Audit result (verified 2026-05-17): all three slug sets already match.**
+The earlier worry about `min`-vs-`m7` / `aug`-vs-`aug7` mismatches was wrong —
+those are four *distinct* canonical keys, all present in every set:
+
+| Source | Count | Slugs |
+|---|---|---|
+| `ChordDiagram::CHORD_QUALITIES` | 18 | the canonical authority |
+| `resources/edu/qualities/*.md` | 18 | **identical** to canonical (Task 1's old config already used canonical keys) |
+| `Chords/Show.vue` `qualityEdu` | 17 | canonical **minus `7sus4`** — its only gap |
+
+`Chords/Show.vue` looks edu up by `props.chord.quality`, which is the raw
+`ChordDiagram->quality` DB column — model-constrained to `CHORD_QUALITIES`
+keys. So every consumer is already keyed on canonical slugs.
+
+**Consequence — no mapping table, no normalization layer, no superset work.**
+The 18 `qualities/*.md` files *are* the complete canonical set. The only data
+gap is the missing `7sus4` entry in `qualityEdu`.
+
+Revised 5.0a scope:
+
+- Add `description` + `usage` frontmatter to all 18 `qualities/*.md`. For 17 of
+  them, migrate the prose verbatim from `Chords/Show.vue`'s `qualityEdu`.
+- **Author one new `7sus4` `description`/`usage` pair** — `qualityEdu` lacks it
+  but the canonical set and the `.md` set both have the slug. Match the tone of
+  the existing 17.
+- No `EduContentService` slug-normalization API — nothing needs one.
 
 ### 5.1 Leadsheet Edu Panel
 
 `EduPanel.vue` already wires `eduChordQualities` + `qualityByKey` and renders a
-`.blurb`. After §3, that data comes from markdown `qualities/*.md` instead of
-config. Behavior unchanged; source swapped.
+`.blurb` — unchanged after Task 1's source swap.
 
-Enhancement (optional, low-risk): when a chord quality's topic has a `related`
-concept, show a "Learn more" link/expander pulling that concept's `summary`.
+Enhancement (this task): when the active quality's topic has a `related`
+concept, show a "Learn more" expander. It pulls that concept's `body_html` and
+renders it through `mountSbnNodes` — so a related concept with a `<sbn-widget>`
+shows the live interactive *inside the leadsheet panel*. This is the first
+product surface (after the dev harness) to mount a widget.
+
+- `SongLibraryController::viewer` / `apiViewerData` already pass
+  `eduChordQualities`. Add a second prop — the related `concept` topics keyed
+  by slug — so the panel has the bodies it needs offline.
+- Keep it collapsed by default; the panel is narrow.
 
 ### 5.2 Course Practice Panel
 
-The course player practice panel should be able to surface a concept topic
-(e.g. a lesson about drop2 voicings shows the `drop2` explainer + its widget).
+The course practice panel surfaces a `concept` topic (e.g. a drop2 lesson shows
+the `drop2` explainer + its widget).
 
-- Author lessons reference an edu topic by slug.
-- The practice panel renders `topic('concept', slug).body_html` through the
-  `mountSbnNodes` pipeline → text + embedded widgets appear inline.
+- Lessons reference an edu topic by slug (author-side; how the slug is stored
+  on the lesson is a Course-system detail — confirm against
+  `docs/SBN-Course-Reference.md` before implementing).
+- The panel renders `topic('concept', slug).body_html` through `mountSbnNodes`
+  → text + embedded widgets inline.
+- The course controller calls `EduContentService::topic()` and passes the
+  topic in the Inertia payload (§6 pattern).
 
-### 5.3 Chords/Show.vue cleanup
+### 5.3 Chords/Show.vue migration
 
-`Chords/Show.vue` currently hard-codes `theoryMap` / `qualityEdu` / `voicingEdu`
-/ `inversionEdu` inline. Migrate `qualityEdu` content into `qualities/*.md` and
-read it via the service (passed through the Inertia payload like `EduPanel`
-already gets `eduChordQualities`). Leave `theoryMap` (intervals/tension) as code
-for now — it is structured data, not prose; out of scope.
+`Chords/Show.vue` hard-codes `theoryMap` / `qualityEdu` / `voicingEdu` /
+`inversionEdu` inline.
+
+- **Migrate `qualityEdu` only.** Its `{description, usage}` per quality now
+  comes from the `qualities/*.md` frontmatter (5.0). Delete the inline
+  `qualityEdu` const.
+- `ChordLibraryController`'s Show action passes **no edu props today** — add
+  one: the quality topic for the chord being shown (`description`, `usage`,
+  and `body_html`). Render `description`/`usage` in the existing two spans;
+  render `body_html` (if non-empty) through `mountSbnNodes` below them.
+- Graceful fallback: quality with no file / no `description` → the identity
+  section falls back to `theoryMap`'s `typical_context`, exactly as the
+  current `v-else-if="theory"` branch already does. No new empty states.
+- **Leave `theoryMap`, `voicingEdu`, `inversionEdu` as inline code.**
+  `theoryMap` is structured data (intervals/tension), not prose. `voicingEdu`/
+  `inversionEdu` key off voicing category / inversion, not quality — out of
+  scope for this task; revisit only if a future task moves them.
+
+### 5.4 New service method
+
+`chordQuality()` keeps returning `{title, blurb}` (compat — do not touch).
+Add:
+
+```php
+qualityTopic(string $slug): ?EduTopic   // full quality topic: title, summary,
+                                        // description, usage, body_html
+```
+
+`EduTopic` gains two optional fields: `description`, `usage` (null for
+non-quality topics). `toArray`/`fromArray` updated for cache round-trip.
 
 ---
 
@@ -330,22 +434,31 @@ mirroring how `SongLibraryController` already passes `eduChordQualities`.
 | 2 | ✅ `league/commonmark` direct require | — |
 | 3 | ✅ Rewrite `EduContentService` → file-backed parser + cache + `edu:clear-cache` | 1, 2 |
 | 4 | ✅ Verified existing consumers behave identically (18 blurbs byte-identical) | 3 |
-| 5 | Widget registry `registry.ts` + extend `mountSbnNodes` for `<sbn-widget>` | — |
-| 6 | Build `triad-builder` widget; embed in `triad.md`; verify end-to-end render | 5 |
+| 5 | ✅ Widget registry `registry.ts` + `<sbn-widget>` branch in `mountSbnNodes` | — |
+| 6 | ✅ `triad-builder` widget + `/dev/edu` harness; end-to-end verified | 5 |
 | 7 | Build `circle-of-fifths` + `drop2-visualizer` widgets | 6 |
-| 8 | Wire concept topics into Course Practice Panel | 3, 5 |
-| 9 | Migrate `Chords/Show.vue` `qualityEdu` to service-fed props | 3 |
+| **8.0** | **Task 3 — quality model + slug reconciliation** (§5.0, §5.0a): union-superset `qualities/*.md`, add `description`/`usage` frontmatter, `EduTopic` + `qualityTopic()` service method (§5.4) | 6 |
+| **8.1** | **Task 3 — Chords/Show.vue migration** (§5.3): `ChordLibraryController` Show passes quality topic; Vue renders `description`/`usage` spans + optional `body_html` via `mountSbnNodes`; delete inline `qualityEdu` | 8.0 |
+| **8.2** | **Task 3 — EduPanel "Learn more"** (§5.1): related-concept expander, `body_html` via `mountSbnNodes`; `SongLibraryController` passes concept topics | 8.0 |
+| **8.3** | **Task 3 — Course Practice Panel** (§5.2): lesson references concept slug; panel renders `topic()` body via `mountSbnNodes` | 8.0, 8.1 done as warm-up |
+| 9 | (folded into 8.0–8.3) | — |
 | 10 | Author remaining content (ongoing, no code) | 3 |
 
 Steps 1–4 are a self-contained, shippable slice (storage + service swap, zero
-visible change). Steps 5–7 add interactivity. 8–9 are wiring. 10 is forever.
+visible change). Steps 5–7 add interactivity. **Step 8 (Task 3) is the wiring:
+8.0 first — everything depends on it — then 8.1/8.2/8.3, which are independent
+of each other and could be separate commits.** Step 10 is forever.
+
+Task 3 ordering note: 8.1 (Chords/Show.vue) before 8.2/8.3 is recommended — it
+exercises `qualityTopic()` and the static-prop path before the harder
+selection-driven panels.
 
 ---
 
 ## 8. Definition of done
 
-- `resources/edu/` is the single source of educational prose; `config/edu.php`
-  is gone (or empty).
+- `resources/edu/` is the single source of educational prose; the old
+  `config/edu/chord-qualities.php` is gone (✅ Task 1).
 - `EduContentService` reads markdown, caches, and all current consumers behave
   identically to before the swap.
 - A topic body containing `<sbn-widget slug="...">` renders text + a live
