@@ -403,8 +403,28 @@ the `drop2` explainer + its widget).
   `qualityEdu` const.
 - `ChordLibraryController`'s Show action passes **no edu props today** — add
   one: the quality topic for the chord being shown (`description`, `usage`,
-  and `body_html`). Render `description`/`usage` in the existing two spans;
-  render `body_html` (if non-empty) through `mountSbnNodes` below them.
+  `body_html`, `hasWidgets`). Render `description`/`usage` in the existing two
+  spans.
+- **`body_html` rendering — widget-gated, not non-empty-gated.** §5.3 originally
+  said "render `body_html` if non-empty." That clause predates the quality
+  bodies existing. They now do, but they are short Task-1 prose blurbs that
+  largely **restate `description`** — rendering them literally would duplicate
+  text on every chord page. Decision (Option 1):
+  - Render `body_html` through `mountSbnNodes` **only when the body carries an
+    `<sbn-widget>`** — i.e. when it brings something the spans can't.
+  - The "carries a widget" decision is **data, computed at the parse layer** —
+    a `hasWidgets` boolean on `EduTopic` (see §5.4). `Show.vue` does a clean
+    `v-if="qualityTopic?.hasWidgets"`. **Do not string-sniff `body_html` in the
+    Vue component.**
+  - `hasWidgets` is derived from the **rendered HTML**, matching an actual
+    element — `/<sbn-widget[\s/>]/` — **not** a naive `includes('sbn-widget')`.
+    A body that merely mentions the words "sbn-widget" in prose or a code fence
+    must not trip the flag. 8.2/8.3 must compute it the same way.
+  - **Consequence to expect (not a bug):** no quality body has a widget today,
+    so for all 18 qualities `body_html` is parsed and passed in the payload but
+    never rendered. That is intentional — it is the price of the auto-light-up
+    seam: the day a quality body gets a `<sbn-widget>`, the chord page shows it
+    with zero extra wiring.
 - Graceful fallback: quality with no file / no `description` → the identity
   section falls back to `theoryMap`'s `typical_context`, exactly as the
   current `v-else-if="theory"` branch already does. No new empty states.
@@ -423,16 +443,37 @@ qualityTopic(string $slug): ?EduTopic   // full quality topic: title, summary,
                                         // description, usage, body_html
 ```
 
-`EduTopic` gains two optional fields: `description`, `usage` (null for
-non-quality topics). `toArray`/`fromArray` updated for cache round-trip.
+`EduTopic` gains: `description`, `usage` (optional, null for non-quality
+topics) — and `hasWidgets: bool` (8.1). `toArray`/`fromArray` updated for
+cache round-trip on all three.
 
-Test additions (8.0) — guard the nullable-field path specifically, since
-`fromArray` is the easiest place to silently drop it:
+`hasWidgets` (8.1) — computed at parse time, on every topic type:
+
+- Derive from the **rendered `body_html`** by matching an actual element:
+  `preg_match('/<sbn-widget[\s\/>]/', $bodyHtml)`. **Not** a substring test —
+  a body that mentions "sbn-widget" in prose or a code fence must not trip it.
+- It is data, not a view concern. `Show.vue` (8.1) and the panels (8.2/8.3)
+  all read this flag rather than re-deriving it; one definition, computed once.
+
+Test additions (8.0, done) — nullable-field path, since `fromArray` is the
+easiest place to silently drop it:
 
 - a `quality` topic exposes non-null `description`/`usage`;
 - a `concept`/`glossary` topic has both `null`;
 - `qualityTopic()` on a non-quality slug returns `null` outright;
 - `description`/`usage` survive the `toArray` → `fromArray` round-trip.
+
+Test additions (8.1) — `hasWidgets`:
+
+- the 18 current quality topics all report `hasWidgets: false`;
+- a body containing `<sbn-widget …>` reports `true`; a body that only mentions
+  the literal string "sbn-widget" in prose reports `false`;
+- `hasWidgets` survives the `toArray` → `fromArray` round-trip.
+- **Fixture:** no existing quality body has a widget — like Task 2's harness
+  test, the "widget present" case needs a **dedicated test fixture file**
+  (a small `.md` under a test fixtures path) rather than mutating a real
+  `resources/edu/` file. The test author should add that fixture, not invent
+  an inline topic.
 
 ---
 
@@ -461,7 +502,7 @@ mirroring how `SongLibraryController` already passes `eduChordQualities`.
 | 5 | ✅ Widget registry `registry.ts` + `<sbn-widget>` branch in `mountSbnNodes` | — |
 | 6 | ✅ `triad-builder` widget + `/dev/edu` harness; end-to-end verified | 5 |
 | 7 | Build `circle-of-fifths` + `drop2-visualizer` widgets | 6 |
-| **8.0** | **Task 3 — quality model + slug reconciliation** (§5.0, §5.0a): union-superset `qualities/*.md`, add `description`/`usage` frontmatter, `EduTopic` + `qualityTopic()` service method (§5.4) | 6 |
+| **8.0** | ✅ **Task 3 — quality model + slug reconciliation** (§5.0, §5.0a): 18 `qualities/*.md` carry `description`/`usage` frontmatter (17 verbatim from `qualityEdu`, `7sus4` fresh-authored), `EduTopic` nullable fields, `qualityTopic()` method, tests extended | 6 |
 | **8.1** | **Task 3 — Chords/Show.vue migration** (§5.3): `ChordLibraryController` Show passes quality topic; Vue renders `description`/`usage` spans + optional `body_html` via `mountSbnNodes`; delete inline `qualityEdu` | 8.0 |
 | **8.2** | **Task 3 — EduPanel "Learn more"** (§5.1): related-concept expander, `body_html` via `mountSbnNodes`; `SongLibraryController` passes concept topics | 8.0 |
 | **8.3** | **Task 3 — Course Practice Panel** (§5.2): lesson references concept slug; panel renders `topic()` body via `mountSbnNodes` | 8.0, 8.1 done as warm-up |
