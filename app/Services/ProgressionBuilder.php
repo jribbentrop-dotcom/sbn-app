@@ -220,6 +220,9 @@ class ProgressionBuilder
         $category   = $options['category'] ?? self::CATEGORY_DEFAULT;
         $style      = $options['style'] ?? '';
         $extensions = $options['extensions'] ?? false;
+        // When set, basic-only voicings are enforced regardless of category
+        // pass1_extensions_allowed setting. Caller signals strict-basic mode.
+        $strictBasic = (bool) ($options['strict_basic'] ?? false);
         $rootOnly   = $options['rootOnly'] ?? $this->settings->getRootOnlyDefault($category);
         $voicingStyle = $options['voicing_style'] ?? $this->settings->getDefaultVoicingStyle($category);
         if ($voicingStyle === 'auto' || $voicingStyle === '') {
@@ -306,10 +309,19 @@ class ProgressionBuilder
 
         $n = count($allChords);
 
-        // Fetch voicings for each chord from the database
+        // Fetch voicings for each chord from the database.
+        // Note: in strict-basic mode we DO keep the chord's own extension —
+        // hardcoded tensions on the input (e.g. Emaj7(9)) must be honored so
+        // the picked voicing actually contains those tones. The strict flag
+        // only blocks the *category-wide* extension allowance that would let
+        // option-tone shapes leak in for plain chord tokens.
         $chordVoicings = [];
         foreach ($allChords as $i => $chord) {
             $functionalRole = $this->determineFunctionalRole($chord);
+            // Hardcoded quality (e.g. Cm6, EMaj7) must not be widened to its
+            // tonic-family siblings — only plain triads written without a
+            // quality token get the widen treatment.
+            $explicitQuality = $this->hasExplicitQuality($chord['chord_name'] ?? '');
             $chordVoicings[$i] = $this->fetchVoicingsForChord(
                 $chord['root'],
                 $chord['quality'],
@@ -320,7 +332,9 @@ class ProgressionBuilder
                 $extensions,
                 $i,
                 $diagnostics,
-                $functionalRole
+                $functionalRole,
+                $strictBasic,
+                $explicitQuality
             );
         }
         $lattice = $this->buildAnchorFreeLattice($chordVoicings, $style, $rootOnly, $category);
@@ -454,8 +468,8 @@ class ProgressionBuilder
                 'chord_name'    => $chord['chord_name'],
                 'roman_numeral' => $chord['roman_numeral'],
                 'measure_index' => $chord['measure_index'],
-                'voicing'       => $sel ? $this->formatVoicing($sel, $chord['chord_name']) : null,
-                'voicings'      => array_values(array_map(fn($v) => $this->formatVoicing($v, $chord['chord_name']), $pool)),
+                'voicing'       => $sel ? $this->formatVoicing($sel, $chord['chord_name'], $chord) : null,
+                'voicings'      => array_values(array_map(fn($v) => $this->formatVoicing($v, $chord['chord_name'], $chord), $pool)),
             ];
         }
 
@@ -502,7 +516,9 @@ class ProgressionBuilder
         bool $extensions = false,
         int $slotIndex = 0,
         array &$diagnostics = null,
-        ?string $functionalRole = null
+        ?string $functionalRole = null,
+        bool $strictBasic = false,
+        bool $explicitQuality = false
     ): array {
         if (!$root) return [];
 
@@ -514,7 +530,8 @@ class ProgressionBuilder
             $this->getQualityAliases($dbQuality),
             $dbQuality,
             $category,
-            $functionalRole
+            $functionalRole,
+            $explicitQuality
         );
 
         // Determine pool based on category and blues sub-mode trigger
@@ -543,7 +560,13 @@ class ProgressionBuilder
         // The DB seeds extension-carrying rows under the same quality (e.g. m7+11,
         // dom7+9), which leaked color tones into Pass 1 output. Pass 2 keeps the
         // full pool so Phase E can upgrade to tension voicings.
-        if (!$extensions && !$this->settings->isPass1ExtensionsAllowed($category)) {
+        // Strict-basic forces the filter even when the category is normally
+        // pass1_extensions_allowed (e.g. jazz). However, when the input chord
+        // carries an explicit extension (e.g. Emaj7(9)), skip the filter so
+        // hardcoded tensions can still match extension-carrying shapes — the
+        // narrower per-tone filter below handles that case.
+        $applyPlainFilter = $extension === '' && ($strictBasic || (!$extensions && !$this->settings->isPass1ExtensionsAllowed($category)));
+        if ($applyPlainFilter) {
             $query->where(function ($q) {
                 $q->whereNull('extensions')->orWhere('extensions', '');
             });
@@ -570,7 +593,7 @@ class ProgressionBuilder
         // alias's identity (alt_root, alt_quality, alt_extensions, alt_bass) but
         // the parent's diagram_data. Same Pass-1/Pass-2 extension gating as the
         // parent table. Honors the category pool via the parent's voicing_category.
-        $aliasShapes = $this->fetchAliasShapes($qualityAliases, $extensions, $rootOnly, $pool, $extension, $category);
+        $aliasShapes = $this->fetchAliasShapes($qualityAliases, $extensions, $rootOnly, $pool, $extension, $category, $strictBasic);
         $shapes = $shapes->concat($aliasShapes);
 
         if ($shapes->isEmpty()) return [];
@@ -632,7 +655,7 @@ class ProgressionBuilder
      * accepts them unchanged. The alias's alt_root_note becomes shape->root_note;
      * the parent's diagram_data is preserved verbatim.
      */
-    private function fetchAliasShapes(array $qualityAliases, bool $extensions, bool $rootOnly, array $pool, string $extension = '', string $category = self::CATEGORY_DEFAULT): \Illuminate\Support\Collection
+    private function fetchAliasShapes(array $qualityAliases, bool $extensions, bool $rootOnly, array $pool, string $extension = '', string $category = self::CATEGORY_DEFAULT, bool $strictBasic = false): \Illuminate\Support\Collection
     {
         $query = DB::table('sbn_chord_diagram_aliases as a')
             ->join('sbn_chord_diagrams as d', 'a.diagram_id', '=', 'd.id')
@@ -655,7 +678,11 @@ class ProgressionBuilder
             );
 
         // Pass 1: only plain aliases. Mirrors the parent-table extension filter.
-        if (!$extensions && !$this->settings->isPass1ExtensionsAllowed($category)) {
+        // Strict-basic overrides the category opt-out — but skip when an
+        // explicit extension was requested so hardcoded tensions still match
+        // their tone-carrying aliases.
+        $applyPlainFilter = $extension === '' && ($strictBasic || (!$extensions && !$this->settings->isPass1ExtensionsAllowed($category)));
+        if ($applyPlainFilter) {
             $query->where(function ($q) {
                 $q->whereNull('a.alt_extensions')->orWhere('a.alt_extensions', '');
             });
@@ -1048,8 +1075,8 @@ class ProgressionBuilder
                 'chord_name' => $chord['chord_name'],
                 'roman_numeral' => $chord['roman_numeral'],
                 'measure_index' => $chord['measure_index'],
-                'voicing' => $sel ? $this->formatVoicing($sel, $chord['chord_name']) : null,
-                'voicings' => array_values(array_map(fn($v) => $this->formatVoicing($v, $chord['chord_name']), $pool)),
+                'voicing' => $sel ? $this->formatVoicing($sel, $chord['chord_name'], $chord) : null,
+                'voicings' => array_values(array_map(fn($v) => $this->formatVoicing($v, $chord['chord_name'], $chord), $pool)),
             ];
         }
 
@@ -1289,10 +1316,13 @@ class ProgressionBuilder
      */
     private function hasExplicitQuality(string $chordName): bool
     {
-        // Explicit if contains: 7, maj7, m7, m9, dim, aug, sus, add, etc.
-        // Basic triads: C, Cm, C#, F#m, etc. are not explicit
-        $explicitPattern = '/(7|maj|m9|m6|mMaj|dim|aug|sus|add|b9|#9|#11|b13)/i';
-        return (bool) preg_match($explicitPattern, $chordName);
+        // Explicit if contains: 6, 7, maj6, maj7, m6, m7, m9, dim, aug, sus, add, etc.
+        // Basic triads: C, Cm, C#, F#m, etc. are not explicit.
+        // Strip a trailing slash-bass so "C/G" doesn't trip false positives on
+        // anything after the slash, but the chord body itself decides.
+        $body = explode('/', $chordName, 2)[0];
+        $explicitPattern = '/(6|7|maj|mMaj|dim|aug|sus|add|b9|#9|#11|b13)/i';
+        return (bool) preg_match($explicitPattern, $body);
     }
 
     /**
@@ -1509,15 +1539,34 @@ class ProgressionBuilder
      */
     private function applyPhaseEExtensionUpgrade(array $context, bool $extensionsEnabled): array
     {
-        if (!$extensionsEnabled) {
-            return $context;
-        }
-
         if (!isset($context['sections'])) {
             return $context;
         }
 
         $pinnedSlot = $context['pinnedSlot'] ?? null;
+
+        // Always flag hardcoded-extension chords so the harmony filter can
+        // reject voicings that introduce alterations not in the source token —
+        // this needs to happen even when Phase E option-tone upgrade is
+        // disabled (e.g. pass2_eligible doesn't include this category).
+        foreach ($context['sections'] as $secIdx => $section) {
+            foreach ($section['chords'] as $chordIdx => $chord) {
+                $globalIdx = $this->globalChordIndex($context, $secIdx, $chordIdx);
+                if ($globalIdx === $pinnedSlot) continue;
+                $existingExt = trim($chord['extension'] ?? '');
+                if ($existingExt === '') continue;
+                $existingTones = array_values(array_filter(
+                    array_map('trim', explode(',', $existingExt)),
+                    fn ($t) => $t !== ''
+                ));
+                $context['sections'][$secIdx]['chords'][$chordIdx]['phase_e_extensions'] = $existingTones;
+                $context['sections'][$secIdx]['chords'][$chordIdx]['phase_e_hardcoded'] = true;
+            }
+        }
+
+        if (!$extensionsEnabled) {
+            return $context;
+        }
 
         // First pass: collect all chords and determine functional roles
         $chordRoles = [];
@@ -1534,6 +1583,12 @@ class ProgressionBuilder
                 $globalIdx = $this->globalChordIndex($context, $secIdx, $chordIdx);
                 if ($globalIdx === $pinnedSlot) {
                     continue; // Never upgrade pinned slots
+                }
+
+                // Hardcoded extensions are already flagged above and we never
+                // overwrite them with Phase E option-tone selection.
+                if (!empty($chord['phase_e_hardcoded'])) {
+                    continue;
                 }
 
                 $currentRole = $chordRoles[$globalIdx];
@@ -1788,8 +1843,15 @@ class ProgressionBuilder
         array $aliases,
         string $dbQuality,
         string $category,
-        ?string $functionalRole
+        ?string $functionalRole,
+        bool $explicitQuality = false
     ): array {
+        // Hardcoded quality token (Cm6, EMaj7, etc.) is a hard constraint —
+        // never widen across the tonic family. Plain triads upgraded by the
+        // category numeral pass still get widened.
+        if ($explicitQuality) {
+            return $aliases;
+        }
         if (!$this->settings->isTonicWidenEnabled($category) || $functionalRole === null) {
             return $aliases;
         }
@@ -1824,7 +1886,8 @@ class ProgressionBuilder
         $nextQuality = $nextChord ? $this->resolveQuality($nextChord) : '';
         $nextIsMinor = $this->isMinorQuality($nextQuality);
 
-        $filtered = array_filter($pool, function ($v) use ($quality, $nextIsMinor, $chord, $nextChord, $index, $allChords) {
+        $currentRoleForFilter = $this->determineFunctionalRole($chord);
+        $filtered = array_filter($pool, function ($v) use ($quality, $nextIsMinor, $chord, $nextChord, $index, $allChords, $currentRoleForFilter) {
             $labels = array_map('trim', explode(',', $v->interval_labels ?? ''));
             $ext = trim($v->extensions ?? '');
 
@@ -1833,8 +1896,12 @@ class ProgressionBuilder
                 if (in_array('9', $labels, true)) return false;
             }
 
-            // dom7 → minor: exclude natural 13, natural 9, #9
-            if ($this->isDomQuality($quality) && $nextIsMinor) {
+            // dom7 → minor: exclude natural 13, natural 9, #9.
+            // Skip for tritone subs (bII7): a Lydian-dominant tritone sub uses
+            // naturals + #11; altered tones come from the Phase E avoid filter
+            // below. The "naturals imply major resolution" heuristic is for V7
+            // → Im only.
+            if ($this->isDomQuality($quality) && $nextIsMinor && $currentRoleForFilter !== 'bII7') {
                 foreach ($labels as $l) {
                     if (in_array($l, ['13', '6', '9', '#9'], true)) return false;
                 }
@@ -1844,6 +1911,21 @@ class ProgressionBuilder
             if ($this->isTonicMajQuality($quality)) {
                 if (in_array('#11', $labels, true)) return false;
                 if (str_contains($ext, '#11')) return false;
+            }
+
+            // Hardcoded extension: the chord name (e.g. Eb7#11) is the source
+            // of truth. Reject voicings carrying any extension tone that the
+            // chord name doesn't list — both alterations (b9, #9, b13, #11)
+            // and naturals (9, 11, 13). Chord tones (R, 3, b3, 5, 7, b7, etc.)
+            // are always present and don't count as extensions.
+            if (!empty($chord['phase_e_hardcoded'])) {
+                $requested = $chord['phase_e_extensions'] ?? [];
+                $extensionTones = ['9', 'b9', '#9', '11', '#11', '13', 'b13'];
+                foreach ($labels as $l) {
+                    if (in_array($l, $extensionTones, true) && !in_array($l, $requested, true)) {
+                        return false;
+                    }
+                }
             }
 
             // Phase E avoid tones filter (E.1.3)
@@ -3080,11 +3162,12 @@ class ProgressionBuilder
 
     /**
      * Format a voicing object for API output.
-     * 
-     * @param object $v The voicing object from the DB
+     *
+     * @param object      $v                The voicing object from the DB
      * @param string|null $contextChordName The chord_name from the context (after numeral upgrade)
+     * @param array|null  $chordContext     The full chord context array (provides roman_numeral for role)
      */
-    private function formatVoicing(object $v, ?string $contextChordName = null): array
+    private function formatVoicing(object $v, ?string $contextChordName = null, ?array $chordContext = null): array
     {
         $dd = $v->diagram_data;
         if (is_string($dd)) {
@@ -3111,6 +3194,14 @@ class ProgressionBuilder
             }
         }
 
+        $functionalRole = null;
+        if ($chordContext !== null) {
+            $functionalRole = $this->determineFunctionalRole([
+                'quality'       => $quality,
+                'roman_numeral' => $chordContext['roman_numeral'] ?? '',
+            ]);
+        }
+
         return [
             'diagram_id'       => $v->id ?? null,
             'chord_name'       => $chordName,
@@ -3126,6 +3217,7 @@ class ProgressionBuilder
             'diagram_data'     => $dd,
             'interval_labels'  => $v->interval_labels ?? '',
             'popularity'       => $v->popularity ?? 0,
+            'functional_role'  => $functionalRole,
         ];
     }
 }

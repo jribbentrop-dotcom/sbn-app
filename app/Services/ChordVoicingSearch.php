@@ -320,59 +320,73 @@ class ChordVoicingSearch
             6 => 'F#', 7 => 'G', 8 => 'Ab', 9 => 'A', 10 => 'Bb', 11 => 'B',
         ];
 
-        $aliasLookup = [];
+        // Group aliases by diagram_id — multiple alt_roots can alias one shape,
+        // and each yields a distinct fret position when transposed to the
+        // requested root.
+        $aliasesByDiagram = [];
         foreach ($aliasMatches as $alias) {
-            $aliasLookup[$alias->diagram_id] = $alias;
+            $aliasesByDiagram[$alias->diagram_id][] = $alias;
+        }
+
+        $shapeById = [];
+        foreach ($aliasShapes as $shape) {
+            $shapeById[$shape->id] = $shape;
         }
 
         $results = [];
+        $seenFretPos = []; // dedupe by (shape_id, start_fret) so two aliases that land on the same position don't double up
         foreach ($aliasShapes as $shape) {
-            $alias = $aliasLookup[$shape->id] ?? null;
-            if (!$alias) continue;
+            $aliases = $aliasesByDiagram[$shape->id] ?? [];
+            foreach ($aliases as $alias) {
+                $altRootSemi   = $noteSemitones[$alias->alt_root_note] ?? null;
+                $reqRootSemi   = $noteSemitones[$root] ?? null;
+                $shapeRootSemi = $noteSemitones[$shape->root_note] ?? null;
 
-            $altRootSemi   = $noteSemitones[$alias->alt_root_note] ?? null;
-            $reqRootSemi   = $noteSemitones[$root] ?? null;
-            $shapeRootSemi = $noteSemitones[$shape->root_note] ?? null;
+                if ($altRootSemi === null || $reqRootSemi === null || $shapeRootSemi === null) continue;
 
-            if ($altRootSemi === null || $reqRootSemi === null || $shapeRootSemi === null) continue;
+                $offset = (($reqRootSemi - $altRootSemi) + 12) % 12;
+                $targetSemi = ($shapeRootSemi + $offset) % 12;
+                $targetNote = $semitoneToNote[$targetSemi] ?? null;
+                if (!$targetNote) continue;
 
-            $offset = (($reqRootSemi - $altRootSemi) + 12) % 12;
-            $targetSemi = ($shapeRootSemi + $offset) % 12;
-            $targetNote = $semitoneToNote[$targetSemi] ?? null;
-            if (!$targetNote) continue;
+                $calculated = $this->calculator->calculateFrets($shape, $targetNote);
 
-            $calculated = $this->calculator->calculateFrets($shape, $targetNote);
+                if (empty($calculated['diagram_data']) ||
+                    (empty($calculated['diagram_data']['positions']) && empty($calculated['diagram_data']['open']))) {
+                    continue;
+                }
 
-            if (empty($calculated['diagram_data']) ||
-                (empty($calculated['diagram_data']['positions']) && empty($calculated['diagram_data']['open']))) {
-                continue;
+                $dedupeKey = $shape->id . ':' . ($calculated['start_fret'] ?? '?');
+                if (isset($seenFretPos[$dedupeKey])) continue;
+                $seenFretPos[$dedupeKey] = true;
+
+                $chordName = $root . $quality . ($extension ? "($extension)" : '');
+                if (!empty($bassNote)) {
+                    $chordName .= '/' . $bassNote;
+                }
+
+                $results[] = [
+                    'id'               => $shape->id,
+                    'slug'             => $shape->slug ?? '',
+                    'name'             => $chordName,
+                    'root_note'        => $root,
+                    'original_root'    => $shape->root_note,
+                    'quality'          => $quality,
+                    'extensions'       => $extension,
+                    'voicing_category' => $shape->voicing_category,
+                    'root_string'      => $shape->root_string,
+                    'inversion'        => $shape->inversion ?? 'root',
+                    'start_fret'       => $calculated['start_fret'],
+                    'diagram_data'     => $calculated['diagram_data'],
+                    'interval_labels'  => $calculated['interval_labels'] ?? ($shape->interval_labels ?? ''),
+                    'notes'            => $calculated['notes'] ?? '',
+                    'bass_note'        => $bassNote,
+                    'popularity'       => $shape->popularity ?? 0,
+                    'difficulty'       => $shape->difficulty ?? null,
+                    'alias_match'      => true,
+                    'alias_alt_root'   => $alias->alt_root_note,
+                ];
             }
-
-            $chordName = $root . $quality . ($extension ? "($extension)" : '');
-            if (!empty($bassNote)) {
-                $chordName .= '/' . $bassNote;
-            }
-
-            $results[] = [
-                'id'               => $shape->id,
-                'slug'             => $shape->slug ?? '',
-                'name'             => $chordName,
-                'root_note'        => $root,
-                'original_root'    => $shape->root_note,
-                'quality'          => $quality,
-                'extensions'       => $extension,
-                'voicing_category' => $shape->voicing_category,
-                'root_string'      => $shape->root_string,
-                'inversion'        => $shape->inversion ?? 'root',
-                'start_fret'       => $calculated['start_fret'],
-                'diagram_data'     => $calculated['diagram_data'],
-                'interval_labels'  => $calculated['interval_labels'] ?? ($shape->interval_labels ?? ''),
-                'notes'            => $calculated['notes'] ?? '',
-                'bass_note'        => $bassNote,
-                'popularity'       => $shape->popularity ?? 0,
-                'difficulty'       => $shape->difficulty ?? null,
-                'alias_match'      => true,
-            ];
         }
 
         return $results;

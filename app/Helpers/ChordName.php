@@ -98,12 +98,15 @@ class ChordName
         }
 
         if ($qualityFound !== '') {
-            // Normalize display: "min" → "m", keep others as-is
-            $display = match (strtolower($qualityFound)) {
-                'min' => 'm',
-                default => $qualityFound,
-            };
-            $html .= '<span class="sbn-chord-quality">' . htmlspecialchars($display) . '</span>';
+            // Suppress bare "maj" — pure major chord needs no quality label
+            $isBareM = strtolower($qualityFound) === 'maj' && $remaining === '';
+            if (!$isBareM) {
+                $display = match (strtolower($qualityFound)) {
+                    'min' => 'm',
+                    default => $qualityFound,
+                };
+                $html .= '<span class="sbn-chord-quality">' . htmlspecialchars($display) . '</span>';
+            }
         }
 
         // --- 5. Extensions & alterations (everything left) ---
@@ -132,6 +135,40 @@ class ChordName
     public static function styled(string $chord): string
     {
         return '<span class="sbn-chord-symbol">' . self::format($chord) . '</span>';
+    }
+
+    /**
+     * Normalize a chord token to its canonical text form.
+     * Strips bare "maj" from major triads (Gmaj → G, F#MAJ → F#) while
+     * preserving "maj" inside extended qualities (Gmaj7, Cmaj9 stay intact).
+     */
+    public static function normalize(string $chord): string
+    {
+        $chord = trim($chord);
+        if ($chord === '') return $chord;
+
+        // Split off bass
+        $bass = '';
+        $slashIdx = strpos($chord, '/');
+        if ($slashIdx !== false) {
+            $bass  = substr($chord, $slashIdx);
+            $chord = substr($chord, 0, $slashIdx);
+        }
+
+        // Match root + accidental + the rest
+        if (! preg_match('/^([A-Ga-g])([#b♯♭]?)(.*)$/u', $chord, $m)) {
+            return $chord . $bass;
+        }
+        $root = strtoupper($m[1]);
+        $acc  = $m[2];
+        $rest = $m[3];
+
+        // Drop bare "maj" (case-insensitive) when nothing follows it.
+        if (preg_match('/^maj$/i', $rest)) {
+            $rest = '';
+        }
+
+        return $root . $acc . $rest . $bass;
     }
 
     /**

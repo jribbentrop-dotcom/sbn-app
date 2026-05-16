@@ -73,9 +73,14 @@
 
         for (const q of QUALITIES) {
             if (remainingLower.startsWith(q)) {
-                let display = q === 'min' ? 'm' : remaining.slice(0, q.length);
-                html += '<span class="sbn-chord-quality">' + esc(display) + '</span>';
                 qualityLen = q.length;
+                const afterQuality = remaining.slice(qualityLen);
+                // Suppress bare "maj" — pure major chord needs no quality label
+                const isBareM = q === 'maj' && !afterQuality;
+                if (!isBareM) {
+                    let display = q === 'min' ? 'm' : remaining.slice(0, qualityLen);
+                    html += '<span class="sbn-chord-quality">' + esc(display) + '</span>';
+                }
                 break;
             }
         }
@@ -98,5 +103,33 @@
 
     window.sbnStyledChord = function (chord) {
         return '<span class="sbn-chord-symbol">' + sbnFormatChord(chord) + '</span>';
+    };
+
+    /**
+     * Normalize a chord token: strip bare "maj" so "Gmaj" → "G",
+     * preserving extended qualities ("Gmaj7" stays intact).
+     * Mirrors App\Helpers\ChordName::normalize().
+     */
+    window.sbnNormalizeChord = function (chord) {
+        chord = (chord || '').trim();
+        if (!chord) return chord;
+
+        let bass = '';
+        const slashIdx = chord.indexOf('/');
+        if (slashIdx !== -1) {
+            bass = chord.slice(slashIdx);
+            chord = chord.slice(0, slashIdx);
+        }
+
+        const m = chord.match(/^([A-Ga-g])([#b♯♭]?)(.*)$/);
+        if (!m) return chord + bass;
+
+        const root = m[1].toUpperCase();
+        const acc  = m[2];
+        let rest   = m[3];
+
+        if (/^maj$/i.test(rest)) rest = '';
+
+        return root + acc + rest + bass;
     };
 })();
