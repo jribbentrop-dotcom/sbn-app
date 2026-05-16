@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ChordDiagram;
 use App\Services\Edu\EduTopic;
 use App\Services\EduContentService;
 use Tests\TestCase;
@@ -148,5 +149,19 @@ class EduContentServiceTest extends TestCase
         $this->assertSame($original->description, $rehydrated->description);
         $this->assertSame($original->usage, $rehydrated->usage);
         $this->assertEquals($original, $rehydrated);
+    }
+
+    public function test_every_canonical_chord_quality_has_a_topic(): void
+    {
+        // De-risks 8.1: Chords/Show.vue looks up qualityTopic($chord->quality),
+        // and $chord->quality is constrained to ChordDiagram::CHORD_QUALITIES.
+        // A missing qualities/*.md file would make qualityTopic() return null
+        // and the chord page silently show no edu content. Catch the gap here.
+        foreach (array_keys(ChordDiagram::CHORD_QUALITIES) as $quality) {
+            $topic = $this->edu->qualityTopic((string) $quality);
+            $this->assertNotNull($topic, "No edu topic for chord quality '{$quality}'");
+            $this->assertNotNull($topic->description, "Quality '{$quality}' has no description");
+            $this->assertNotNull($topic->usage, "Quality '{$quality}' has no usage");
+        }
     }
 }
