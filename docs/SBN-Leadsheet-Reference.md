@@ -285,16 +285,19 @@ Light overrides: white background, dark text, orange accent preserved. Stored in
 ```ts
 interface VideoSync {
   videoId: string;
-  videoType: 'youtube';
+  videoType: 'youtube' | 'hosted';
   mappings: Array<{ measureIndex: number; videoTime: number }>;
+  // Duplicates per measureIndex are expected for repeated bars (AABA).
 }
 ```
 
-**Video → bar/beat** (`videoTimeToMeasureIndex`): binary search + linear interpolation between sync points. Fractional part × `beatsPerMeasure` = current beat.
+Cinema interpolates in **play-position** space — see [SBN-Audio-Reference §5.1](SBN-Audio-Reference.md#51-repeat--volta-playback-model). On load, Cinema reads `jsonData.repeatMarkers` into per-measure `repeatStart` / `repeatEnd` flags via `normalizeMeasure`, builds `expandedSequence` with `expandMeasureSequence(flatBars)`, and projects raw mappings onto play positions through `mappingsByPosition` (same gi-grouping logic as the tab editor's `useVideoSync`). Without this projection, an AABA score plays the repeat correctly in the video but the cursor walks straight into the B section.
 
-**Bar → video time** (`measureIndexToVideoTime`): inverse of above. Called by `onSeekBar` to seek the YouTube player when the user clicks a bar in the grid.
+**Video → bar/beat** (`videoTimeToPlayPosition` → `giAtPosition`): binary search over pos-keyed mappings + linear interpolation. Fractional part × `beatsPerMeasure` = current beat. The bar that highlights is `seq[floor(pos)]`, so a repeated bar correctly re-lights on each pass.
 
-**Fallback clock**: when no video or no mappings, `setInterval` at `(60/tempo)*1000` ms advances beat/bar. The fallback never runs when the video is master.
+**Bar → video time** (`measureIndexToVideoTime`): resolves gi → its first play position → `playPositionToVideoTime`. Clicking a repeated bar always seeks to its first occurrence (start of phrase). Matches the tab editor's `seekToMeasure` semantics.
+
+**Fallback clock**: when no video or no mappings, `setInterval` at `(60/tempo)*1000` ms advances beat/bar. The fallback never runs when the video is master. **Not repeat-aware** — it walks gi linearly and loops at `totalBars`. Acceptable while video is the primary playback mode; see Open items if/when silent practice mode needs repeats.
 
 ### 8.3 `StageHeroNow`
 
@@ -494,4 +497,5 @@ Rule: whenever you add a new `inject()` to a component that is also used in the 
 - **Fret-string consolidation:** four locations (§10). Planned as `ChordFretString.php` + `fretString.ts` but not yet done.
 - **Tab reflow on resize:** tab view uses static row layout; does not reflow on viewport resize. Acceptable; revisit if flagged.
 - **`edu_topics` DB table:** `EduContentService` is config-backed. DB migration deferred.
-- **Cinema video sync editor:** sync mapping UI (mapping `measureIndex ↔ videoTime` in the admin) is not yet built. Mappings must currently be hand-authored in the JSON.
+- **Cinema fallback clock is not repeat-aware (§8.2):** the silent fallback (no video) walks gi linearly. Fix by counting in play positions and looking up the gi via `giAtPosition(expandedSequence.value, pos)` per beat; small change but currently low-priority since the practical use of Cinema is video-master.
+- **Cinema-side bar-click on repeated bars always lands on pass 1:** `measureIndexToVideoTime(gi)` uses `firstPositionForGi`. Match the tab editor's "click a sync editor row to seek a specific pass" idea (a Cinema popover or right-click menu) once badge popovers ship there.

@@ -81,13 +81,16 @@ recommended_extensions:
       - { tones: [b9],          priority: 4 }
       - { tones: [b9, b13],     priority: 4 }
 
-  - role: bII7              # tritone substitute (e.g. bII7 → I)
-    target_role: Imaj7
+  - role: bII7              # tritone substitute (resolves to either major or minor tonic)
+    target_role: any
     key_mode: any
     extensions:
       - { tones: [9, "#11"],    priority: 5, notes: "Lydian-dominant idiom for tritone sub" }
+      - { tones: [9, 13],       priority: 5, notes: "natural-9/natural-13 voicing" }
       - { tones: ["#11"],       priority: 4 }
-    forbid: [b9, b13]          # the tritone is already doing the work
+      - { tones: [13],          priority: 4 }
+      - { tones: [9],           priority: 3 }
+    forbid: [b9, "#9", b13]    # tritone-sub uses naturals + #11 only — no altered tensions
 
   - role: bVII7             # backdoor dominant (Lady Bird, Take the A Train coda)
     target_role: Imaj7
@@ -261,7 +264,8 @@ avoid_tones_index:
   - { context: "IIm7b5",         forbid: [9] }
   - { context: "V7 → Imaj7",     forbid: [b9, b13] }
   - { context: "V7 → Im",        forbid: [9, 13] }
-  - { context: "bII7 → Imaj7",   forbid: [b9, b13] }
+  - { context: "bII7 → Imaj7",   forbid: [b9, "#9", b13] }
+  - { context: "bII7",           forbid: [b9, "#9", b13] }  # tritone-sub: any target — naturals + #11 only
   - { context: "dim7",           forbid: [9, b9, "#9", 11, "#11", 13] }
  
 

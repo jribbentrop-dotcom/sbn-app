@@ -1,7 +1,7 @@
 # SBN Audio System
 
-> Last updated: 2026-04-18  
-> Status: chord view and tab editor fully wired. Percussion voices wired into AudioEngine + Scheduler (PercussionSampler + FallbackSynths routed). Rhythm and video views deferred.
+> Last updated: 2026-05-16  
+> Status: chord view and tab editor fully wired. Percussion voices wired. Video sync shipped (YouTube-as-clock, play-position model, AABA repeats). Adapters (`tabMeasureToEvents`, `chordVoicingsToEvents`) are repeat/volta-aware via `expandMeasureSequence`.
 
 ---
 
@@ -158,10 +158,29 @@ ctx = {
 ```
 
 ### `tabMeasureToEvents(model, ctx)`
-Converts the tab model (`model.sections[].measures[].events[].notes[]`) into pitched events. One event per sounding note. Pitch derived from string number + fret via standard tuning (Low E = MIDI 40). Ties and bends not yet implemented.
+Converts the tab model (`model.sections[].measures[].events[].notes[]`) into pitched events. One event per sounding note. Pitch derived from string number + fret via standard tuning (Low E = MIDI 40). Repeat/volta-aware — runs the flat measure list through `expandMeasureSequence` and re-times each event by `tickInMeasure` within its play position, so a bar that repeats produces two sets of events at different beat offsets. Ties and bends not yet implemented.
 
 ### `chordVoicingsToEvents(model, ctx)`
-Converts `model.chordVoicings` into one strum per measure. Voicing key lookup: `"Am@3.0"` (per-measure) falling back to `"Am"` (global). Fret string format: 6-char hex string (`"x32010"`), index 0 = string 1 (Low E). Produced by `useVoicingPickerStore._diagramDataToFrets()`.
+Converts `model.chordVoicings` into one strum per measure. Voicing key lookup: `"Am@3.0"` (per-measure) falling back to `"Am"` (global). Fret string format: 6-char hex string (`"x32010"`), index 0 = string 1 (Low E). Produced by `useVoicingPickerStore._diagramDataToFrets()`. Repeat/volta-aware via `expandMeasureSequence` — see §5.1.
+
+### 5.1 Repeat + volta playback model
+
+The audio engine clock counts **play positions**, not bar indices. A score has two coordinate systems that must not be confused:
+
+| Coordinate | Meaning | Where it's used |
+|------------|---------|-----------------|
+| **gi** (global index) | "Which bar of the score" — 0..N-1 over the flat measure list | Score rendering, click handlers, video sync mappings (as stored on disk), most UI |
+| **play position** | "Which step of the linear, repeat-expanded timeline" — a bar that repeats has several positions | Audio engine clock, scheduler events, video↔score interpolation, internal seek math |
+
+`expandMeasureSequence(measures)` is the single source of truth for the conversion. It returns a `number[]` where `seq[pos] = gi` — feed it the flat measure list (with `repeatStart`, `repeatEnd`, `volta` flags populated) and it produces the play order honouring standard repeat + first/second ending semantics.
+
+Helpers exported from the same file:
+- `giAtPosition(seq, pos)` — `seq[pos]` with out-of-range clamping. Use this in any watcher that turns a beat or play-position into a highlight gi.
+- `firstPositionForGi(seq, gi)` — inverse for the common "seek to a bar" path. A repeated bar's *first* play position is the start of its phrase, which is the sane default for "jump to bar N" clicks.
+
+**Both `tabMeasureToEvents` and `chordVoicingsToEvents` MUST use this helper.** If only one of them expands repeats and the other emits a linear timeline, you get the "two audio streams after the repeat" bug — the engine plays the repeat-expanded chord events and the linear tab events simultaneously and they drift apart at the repeat. Tested in [`expandMeasureSequence.test.js`](../resources/js/audio/adapters/__tests__/expandMeasureSequence.test.js) with the standard AABA fixture; add a test there before touching the algorithm.
+
+Video sync layers on top: see SBN-Admin-Reference §VIDEO SYNC ARCHITECTURE for editor-side authoring and SBN-Leadsheet-Reference §8.2 for the Cinema viewer.
 
 ### `chordDiagramToEvents(model, ctx)`
 Converts a `ChordDiagram` database record into a single strum. MIDI derived from `diagram_data.positions` + standard tuning — **not** from the `notes` column (which has no octave). Barre chords handled; muted strings skipped.
@@ -331,7 +350,12 @@ sampleGainNode.gain.value = ratio       * 0.8;
 ```
 
 ### Video sync
-`MediaElementClock` is a stub that throws on instantiation. When video arrives, implement it to wrap `HTMLMediaElement.currentTime` as the clock authority. `AudioEngine`, `Scheduler`, and all adapters are already written against the `PlaybackClock` interface — no changes needed there.
+Shipped — YouTube is the clock when `audioSource === 'video'`. `useVideoSync.js` interpolates `videoTime ↔ playPosition` in pos-space (see §5.1) so AABA repeats work end-to-end. `MediaElementClock` remains a stub; the current implementation drives the score cursor via rAF from `VideoPlayer.timeupdate` rather than a true engine clock swap. If hosted-MP3 support ever needs the engine's tempo/transport machinery (loop, tempo nudges, blend with synth), implement `MediaElementClock` then — `AudioEngine`/`Scheduler` are already written against the `PlaybackClock` interface so no other code needs to change.
+
+Followups (deferred):
+- **Shared sequence builder.** Five call sites currently inline `model.sections.flatMap(s => s.measures ?? [])` + `expandMeasureSequence(flat)`: `useVideoSync` (via injected `getSequence`), `tabMeasureToEvents`, `chordVoicingsToEvents`, `Cinema.vue`, `LeadsheetViewer.vue`. Extract `expandModelSequence(model)` and have all five call it — the duplication is small but bug-shaped (one site forgetting to read `repeatMarkers` produces a silently-linear timeline).
+- **`useVideoSync.mappingsByPosition` tests.** The pos-pairing logic (sort marks per gi by `videoTime`, assign to that gi's k-th occurrence in the sequence) is the heart of AABA support and is currently only verified by manual taps. Cheap to add: AABA fixture, "more marks than passes" pathological case, two marks sharing a `videoTime`, mark for a gi not in the sequence.
+- **`VideoSyncMark` typedef.** `videoSyncMap` provides `Map<gi, Array<{ videoTime, pass, pos, mappingIdx }>>` — that shape only exists in JSDoc on the producer. Add an exported typedef so badge consumers can't silently fall back to the old `{ markerIndex, videoTime }` assumption.
 
 ### Remaining adapters
 - `chordDiagramToEvents` — wired to nothing yet; intended for chord diagram library playback.

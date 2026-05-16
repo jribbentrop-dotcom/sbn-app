@@ -27,6 +27,19 @@ L4   Source-driven extractors        ──►  ❄️ ON STANDBY
 
 ## 1. Current state (as-built)
 
+> **Doc split (planned).** This document is now mostly a record of
+> shipped behavior (L1, L2, L2.5) plus the L3/L4 audio-transcription
+> specs. Next time this needs heavy editing, split into:
+>
+> - **SBN-Leadsheet-Creation-Reference.md** — backend editor + L1/L2/L2.5
+>   (manual + builder-assisted creation). Living reference.
+> - **Phase-Audio-Leadsheet.md** — L3 (LLM song lookup) and L4 (source
+>   extractors / audio analysis). Still spec-shaped while experimental.
+>
+> Until then, treat §1–§3 as reference and §4–§5 + §8–§11 as spec.
+
+
+
 Relevant files:
 - [app/Http/Controllers/Admin/LeadsheetController.php](../app/Http/Controllers/Admin/LeadsheetController.php) — already has `create()` returning `admin.leadsheets.edit` with `leadsheet = null`, and `store()` that accepts `shortcode_content` / `json_data` / `tab_xml`. The route exists; it just isn't surfaced as a "blank canvas" UX.
 - [app/Services/ProgressionBuilder.php](../app/Services/ProgressionBuilder.php) — voicing builder used by `applyProgression()`. Already turns a chord sequence into MusicXML + `chordVoicings` + `melody`.
@@ -478,6 +491,40 @@ public function test_separates_thumb_strings_4_to_6_from_finger_strings_1_to_3()
 6. **Saved Progression source — DIRECTION CHANGED.** The original spec asked for a 5th tab. New direction (2026-05-04): remove the 4 free-text tabs entirely, make Saved Progression the *primary* (and initially only) source. Jazz Standards DB entries become the second source when built. See revised §3.1.
 
 **Deferred from L2 (see §11):** clone-source redesign (may become standalone "Duplicate" button on index) and key transposition for concrete chords.
+
+#### 2026-05-14 hardening pass — voicings vs. authored chord names
+
+Driven by mismatches creating Tunisia / Dream A Little Dream from the
+Jazz Standards DB. Full diagnostic write-up lives in
+[`docs/SBN-Builder-Reference.md`](SBN-Builder-Reference.md) Part 3
+("Basic / Extended split + hardcoded-extension discipline"). Net effect
+for the leadsheet creation flow:
+
+- **Both progression and lookup modals expose a Basic / Extended
+  radio** under "Voicing Style" (default: Basic). Stored as
+  `extension_mode` ∈ `{basic, extended}`.
+- **Basic** = clean chord names, no option-tone shapes leak into Pass 1
+  even on jazz (`strict_basic` flag overrides category opt-out).
+- **Extended** = builder picks option tones via Phase E for plain
+  chords. Hardcoded extensions (`A7b9`, `Eb7#11`) are honored as-authored
+  in both modes — name and voicing both reflect only the requested
+  tones.
+- **Chord-name preservation:** in extended mode the controller appends
+  the picked voicing's `extensions` to the stored chord name when no
+  extension was authored (so a plain `Eb7` voiced as Lydian-dominant is
+  stored as `Eb7(9,#11)` — the fingering crossref then resolves).
+- **`hasExplicitQuality` regex** in `ProgressionBuilder` now matches
+  `6` (so `C6` is no longer upgraded to `Cmaj7`) and strips a slash-bass
+  before testing.
+- **Tonic-family widening** (jazz/latin `m7↔m6`, `maj7↔maj6↔6`) now
+  respects explicit quality tokens — `Cm6` stays `m6`.
+
+Also in this batch (touches `LeadsheetController::apiShow`, not the
+builder): the lazy crossref backfill that adds fingerings to stored
+voicings now also resolves through `ChordVoicingSearch::findAliasMatches`.
+A bug in `findAliasMatches` had been dropping all but the last alt-root
+for shapes with multiple aliases (e.g. `E7(b9)` returned 1 of 4 alias
+positions). Fixed by iterating `(shape × alias)` pairs.
 
 ---
 

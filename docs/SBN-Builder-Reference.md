@@ -394,6 +394,14 @@ When `extensions=false`, `fetchVoicingsForChord` restricts the
 candidate query to rows with empty `extensions` columns. Without this,
 extension-carrying rows (`m7+11`, `dom7+9`) leak into Pass 1 output.
 
+Two opt-outs exist:
+- `pass1_extensions_allowed[category]` (BuilderSettings) — global per-category.
+- `strict_basic` option to `buildVoicings` — per-call override that
+  forces the filter on regardless of category opt-out. Set by the
+  leadsheet creator when the user picks **Basic** mode. The chord's own
+  `extension` field (e.g. `A7b9` → `'b9'`) still flows through; only
+  the *category-wide* allowance is gated.
+
 #### §8.4 Functional roles
 
 `determineFunctionalRole($chord)` returns the chord's role string:
@@ -888,6 +896,75 @@ with an arbitrary first-pool element, dragging Viterbi away from the
 true global optimum. Discovered during the xx0212 D7 investigation
 (see Part 4). Fixed by removing the pre-Viterbi pin and adding
 `applyRepeatedChordReuse` post-Viterbi.
+
+### Basic / Extended split + hardcoded-extension discipline — ✅ SHIPPED 2026-05-14
+
+Five related corrections to the leadsheet-creation builder path, all
+discovered while building from the Jazz Standards DB (Night in Tunisia,
+Dream A Little Dream). Driven by user-reported voicing/name mismatches.
+
+1. **Two user-visible modes:** the L2 / lookup modals now expose a
+   *Basic / Extended* radio under "Voicing Style". Both modals state-bind
+   to `extensionMode`; controller passes `'strict_basic' => mode==='basic'`
+   and `'extensions' => mode==='extended'` to `buildVoicings`. Default is
+   Basic (chord names stay clean — "EMaj7", not "EMaj7(9)").
+
+2. **Strict-basic now actually basic.** `pass1_extensions_allowed=["jazz"]`
+   in the live `sbn_builder_settings` was letting extension-tone shapes
+   leak into Pass 1. Added a `strict_basic` option to `buildVoicings`
+   that, when set, forces the `extensions IS NULL OR ''` filter on both
+   `fetchVoicingsForChord` and `fetchAliasShapes` regardless of category
+   opt-out. Hardcoded extensions on the chord (`Emaj7(9)`) still flow
+   through the per-tone filter; only **category-wide** allowance is
+   gated.
+
+3. **Tonic-family widening respects hardcoded quality.**
+   `expandTonicFamilyAliases` was widening `m7 ↔ m6 ↔ 6` and
+   `maj7 ↔ maj6` for any tonic-role chord in jazz/latin — even when the
+   user wrote `Cm6` or `Cmaj7` explicitly. Added an `$explicitQuality`
+   guard derived from `hasExplicitQuality($chord_name)`. The plain-numeral
+   path (`I`, `Im`) still widens; explicit tokens are now pinned.
+
+4. **bII7 (tritone-sub) avoid-tones generalized.** The YAML entry was
+   scoped to `bII7 → Imaj7` only, leaving `bII7 → Im` (Tunisia: Eb7→Dm6)
+   with no rule. Generalised to `target_role: any`, added priority-5
+   `[9,13]` and `[#11]` rows alongside `[9,#11]`, expanded forbid to
+   `[b9, #9, b13]`. Added a generic `bII7` row in `avoid_tones_index`.
+   Separately, the legacy "dom7 → minor: exclude naturals" rule in
+   `applyHarmonyFilter` now **skips** when role is `bII7`: a Lydian
+   dominant uses naturals + #11, not alterations.
+
+5. **Hardcoded extensions are honored as-authored.** When the source
+   token carries an extension (`A7b9`, `Eb7#11`), `applyPhaseEExtensionUpgrade`
+   tags the slot with `phase_e_hardcoded = true` and skips Phase E's
+   option-tone selection for that slot. The harmony filter then rejects
+   voicings whose `interval_labels` contain **any** extension tone
+   (alterations or naturals: 9, b9, #9, 11, #11, 13, b13) not in the
+   source's extension list. So `A7b9` cannot pick a `(b9, b13)` voicing
+   and `Eb7#11` cannot pick a `(9, #11)` voicing.
+
+   Critical subtlety: the hardcoded-flagging pass had to be lifted
+   **outside** the `$extensionsEnabled` short-circuit at the top of
+   `applyPhaseEExtensionUpgrade`. With `pass2_eligible=[]` in the live
+   settings, the whole method was returning early, so the flag was
+   never set even though the filter was in place. Hardcoded flagging
+   now runs unconditionally; option-tone upgrade still gated on
+   `$extensionsEnabled`.
+
+Also in this batch (controller, not builder):
+
+- Extended mode now appends the picked voicing's `extensions` to the
+  stored chord name when no extension was already authored. So a plain
+  `Eb7` picked as `xx5665` is stored as `Eb7(9,#11)` — letting the
+  fingering crossref find the right canonical shape.
+- The `hasExplicitQuality` regex now matches `6` and strips a slash-bass
+  before testing, so `C6` is no longer category-upgraded to `Cmaj7`.
+
+Bonus alias-search fix in `ChordVoicingSearch::findAliasMatches`: the
+old loop keyed `aliasLookup` by `diagram_id`, dropping all but the last
+alt-root when multiple aliases pointed at the same shape. `E7(b9)`
+returned 1 alias position; should have returned 4. Fixed by iterating
+`(shape × alias)` pairs and deduping on `(shape_id, start_fret)`.
 
 ---
 

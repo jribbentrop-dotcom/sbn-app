@@ -1,7 +1,7 @@
 # SBN Teaching Hub — Admin Reference
 
 > **Purpose:** Complete functional documentation for the SBN admin section. Covers all implemented modules, their architecture, data models, and the design system. Use this as the reference when building the public frontend.
-> **Last updated:** 2026-04-29 (Phase B chord editing complete — inline rename, tab chord ops, identify-from-tab with voicing write)
+> **Last updated:** 2026-05-16 (video sync play-position model; extension_mode UI; progression slug auto-generation; ChordVoicingSearch alias dedup)
 
 ---
 
@@ -521,15 +521,20 @@ const transportBeat = computed(() => {
 ### Overview
 Soundslice-style playback: when "Video audio" mode is active, the YouTube player is the clock — it supplies audio and drives the score cursor at 60fps via `requestAnimationFrame`. The synth engine stays idle. When "Synth audio" is selected, video pauses and synth engine drives playback as before.
 
+All sync interpolation runs in **play-position** space (the repeat-expanded timeline) — see [SBN-Audio-Reference §5.1](SBN-Audio-Reference.md#51-repeat--volta-playback-model) for the gi vs play-position model. The mapping table is stored gi-keyed for authoring ergonomics; conversion happens at the boundary in `useVideoSync.mappingsByPosition`.
+
 ### Data model
 ```js
 // Stored in leadsheet json_data.videoSync
 videoSync: {
-  videoId: string,           // YouTube ID or hosted URL
+  videoId: string,
   videoType: 'youtube' | 'hosted',
   audioSource: 'synth' | 'video',
   mappings: [
     { measureIndex: number, videoTime: number },  // seconds
+    // Duplicates per measureIndex ARE allowed and expected for repeated bars.
+    // A bar that plays in both A1 and A2 of an AABA carries two entries; they
+    // are paired with that gi's successive play positions in videoTime order.
   ]
 }
 ```
@@ -545,29 +550,57 @@ UI toggle in `TransportBar.vue`: **Synth** / **Video audio**
 |--------|--------------|--------------|
 | **Play/Pause** | `player.play()` / `player.pause()` | `playTab()` / `pauseTab()` |
 | **Stop** | `player.pause(); player.seekTo(0)` | `resetTab(); resetChord()` |
-| **Seek measure** | `player.seekTo(measureToVideoTime(gi))` once | `seekTab(beat); seekChord(beat)` |
+| **Seek measure** | `player.seekTo(measureToVideoTime(gi))` once | `seekTab(pos * bpm); seekChord(pos * bpm)` where `pos = firstPositionForGi(seq, gi)` |
+| **Seek specific pass** | n/a — pick the row in the sync editor table | `seekToPosition(mark.pos)` via the `seek-to-mapping` event from `VideoSyncEditor` |
 
 ### Mode switching mid-session
 Watcher on `videoSync.audioSource`:
 - **synth → video:** Pause synth, don't auto-start video
-- **video → synth:** Pause video, seed synth position from current measure
+- **video → synth:** Pause video, seed synth from `videoSync.videoPlayPosition` (preserves *which pass* of a repeat the video was on — not just the gi)
+
+### Tap-to-mark cursor (repeat-aware)
+The tap cursor (`useVideoSync.tapCursor`) is a **play position**, not a gi. Each `M` press:
+1. Resolves the cursor's gi via `seq[pos]` (exposed as `tapCursorGi`).
+2. Appends a mapping for that gi at the current `videoTime` — never overwrites, so AABA's A2 pass gets its own entry alongside A1's.
+3. Advances the cursor by one play position.
+
+`TabEditor.vue` provides **two** related injections:
+- `tapCursor` (computed → gi) — what measures key off for the tap-target highlight; mapped through the sequence so the highlight follows the cursor across repeats.
+- `tapCursorPos` (raw play position) — what `VideoSyncEditor` reads to drive its +/- buttons and the numeric `Pos` field.
+
+**Keyboard ownership smell:** the `M` key is bound both in `TabEditor.vue` (legacy: marks the currently-playing measure) and in `VideoSyncEditor.vue` (current: marks the tap-cursor gi). `TabEditor`'s handler self-guards with `!videoSidebarOpen.value` so only one fires at a time. Adding a third `M` consumer would re-introduce the double-mark bug — consider a small key-ownership registry if/when that happens.
 
 ### Components
 | Component | Purpose |
 |-----------|---------|
 | `VideoPlayer.vue` | YouTube iframe API wrapper; rAF timeupdate; exposes `seekTo(t)`, `play()`, `pause()` |
-| `useVideoSync.js` | Composable: mappings[], audioSource, isVideoMaster, videoBeat, bidirectional sync |
-| `VideoSyncEditor.vue` | Tap-to-mark UI + mapping table with +/- 5sec fine-tune sliders |
+| `useVideoSync.js` | Composable: mappings[], audioSource, isVideoMaster, `mappingsByGi`, `mappingsByPosition`, `videoPlayPosition`, `videoBeat`, `tapCursor`/`tapCursorGi`, bidirectional sync |
+| `VideoSyncEditor.vue` | Tap-to-mark UI; per-pass row table with `1/2`, `2/2` labels; drag-to-nudge for single-mark bars; clicking a row uses `seek-to-mapping` to land on the right pass |
+| `SyncPointBadge.vue` | Orange dot on the barline. Widens to a pill with `N·count` when a bar has multiple marks; drag-to-nudge disabled in that case (ambiguous which pass — per-pass editing happens in the editor table) |
 | `TransportBar.vue` | Audio source toggle (Synth / Video audio) |
 
-### Fine-tune slider
-Each mapping row: range slider, ±5 seconds, step 0.1, real-time via `onFineTune()` → `addMapping()`.
+### Interpolation pipeline
+1. `VideoPlayer.vue` emits `timeupdate` at ~60fps (rAF).
+2. `useVideoSync.onVideoTimeUpdate(t)` calls `videoTimeToPlayPosition(t)` — binary search over `mappingsByPosition` (pos-keyed, sorted) + linear interpolation between adjacent marks.
+3. The fractional play position lands in `videoPlayPosition`; `videoBeat = pos * beatsPerMeasure` feeds `transportBeat` in `TabEditor`.
+4. The `transportBeat` watcher does `floor(beat/bpm)` → `giAtPosition(seq, pos)` → `playingMeasureIndex`. Repeated bars correctly re-highlight on each pass because `seq[pos]` resolves to the same gi.
 
-### 60fps Video Sync
-`VideoPlayer.vue` uses `requestAnimationFrame` (replaced 250ms `setInterval`) — seeks happen once on Play or click-to-seek, then rAF drives smooth cursor motion.
+### Mapping shape: `Map<gi, Array<VideoSyncMark>>`
+Provided as `videoSyncMap` (when the sync sidebar is open). Each entry:
+```ts
+type VideoSyncMark = {
+  videoTime: number;    // seconds in the source video
+  pass: number;         // 1-based; earliest videoTime in this gi = pass 1
+  pos: number;          // play position this mark is paired with
+  mappingIdx: number;   // index into the live mappings array (stable handle for edit/remove)
+};
+```
+Badges read this for the count indicator; the editor table reads it for per-pass labels and the delete-by-identity path.
 
-### Fractional measure indexing
-`videoTimeToMeasureIndex(time)` in `useVideoSync.js` returns fractional measure index for smooth cursor. `videoBeat = measureIndex * beatsPerMeasure` drives metronome column + chord highlights.
+### Followups (deferred)
+- Shared sequence builder + `mappingsByPosition` tests + `VideoSyncMark` typedef — see [SBN-Audio-Reference §9 Video sync](SBN-Audio-Reference.md#video-sync).
+- **Per-pass popover on the badge.** Currently a bar with multiple marks shows a count pill; per-pass editing requires opening the sync editor. A click-to-popover on the badge (listing each pass with edit/delete) was deferred as nice-to-have.
+- **Distribute markers across a repeat.** `distributeMarkers()` interpolates linearly between adjacent gi-keyed marks. It works fine for the through-composed bulk of a song but would produce a smooth ramp across a repeat boundary (e.g. A1-end → A2-start) rather than the actual jump. Distribute *within* a contiguous unmarked run only; users who need pass-2 marks tap them manually for now.
 
 ---
 
