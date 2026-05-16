@@ -339,12 +339,28 @@ keys. So every consumer is already keyed on canonical slugs.
 The 18 `qualities/*.md` files *are* the complete canonical set. The only data
 gap is the missing `7sus4` entry in `qualityEdu`.
 
+**Audited 17→18 mapping (set-compared 2026-05-17).** The 17 `qualityEdu` keys
+are a clean, exact subset of the 18 filenames — every key matches a filename
+literally, no normalization:
+
+```
+qualityEdu keys (17): 5 add9 aug aug7 dim dom7 m6 m7 m7b5 mMaj7
+                      maj maj6 maj7 min o7 sus2 sus4
+qualities/*.md  (18): …all 17 above… + 7sus4   ← the only file with no source
+```
+
+So `17 verbatim + 1 fresh = 18` holds exactly. No 19th file; no `qualityEdu`
+key is orphaned. 8.1 will not hit a missing-file surprise.
+
 Revised 5.0a scope:
 
 - Add `description` + `usage` frontmatter to all 18 `qualities/*.md`. For 17 of
   them, migrate the prose verbatim from `Chords/Show.vue`'s `qualityEdu`.
 - **Author one new `7sus4` `description`/`usage` pair** — `qualityEdu` lacks it
-  but the canonical set and the `.md` set both have the slug. Match the tone of
+  but the canonical set and the `.md` set both have the slug. **This entry has
+  no legacy provenance** — mark it newly authored (a frontmatter comment or the
+  commit message) so a future reviewer does not hunt for a `qualityEdu` source
+  that never existed. Match the tone of
   the existing 17.
 - No `EduContentService` slug-normalization API — nothing needs one.
 
@@ -409,6 +425,14 @@ qualityTopic(string $slug): ?EduTopic   // full quality topic: title, summary,
 
 `EduTopic` gains two optional fields: `description`, `usage` (null for
 non-quality topics). `toArray`/`fromArray` updated for cache round-trip.
+
+Test additions (8.0) — guard the nullable-field path specifically, since
+`fromArray` is the easiest place to silently drop it:
+
+- a `quality` topic exposes non-null `description`/`usage`;
+- a `concept`/`glossary` topic has both `null`;
+- `qualityTopic()` on a non-quality slug returns `null` outright;
+- `description`/`usage` survive the `toArray` → `fromArray` round-trip.
 
 ---
 
