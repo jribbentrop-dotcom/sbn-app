@@ -86,6 +86,19 @@ class EduContentService
     }
 
     /**
+     * Look up the full quality topic — title, summary, the `description` and
+     * `usage` prose spans, and any body_html — by canonical quality slug.
+     *
+     * Unlike chordQuality() (legacy {title, blurb} shape), this returns the
+     * whole EduTopic so Chords/Show.vue can render the structured fields.
+     * Returns null for an unknown slug or a slug that is not a quality.
+     */
+    public function qualityTopic(string $slug): ?EduTopic
+    {
+        return $this->topic('quality', $slug);
+    }
+
+    /**
      * Look up multiple chord quality blurbs by their slugs.
      * Useful when you have a set of qualities used on a page.
      *
@@ -233,6 +246,13 @@ class EduContentService
             return null;
         }
 
+        // Optional quality-only prose. Authored as frontmatter strings because
+        // Chords/Show.vue renders them as two distinct styled spans.
+        $description = isset($meta['description']) && is_scalar($meta['description'])
+            ? (string) $meta['description'] : null;
+        $usage = isset($meta['usage']) && is_scalar($meta['usage'])
+            ? (string) $meta['usage'] : null;
+
         return new EduTopic(
             slug: $slug,
             type: $type,
@@ -241,6 +261,8 @@ class EduContentService
             bodyHtml: $this->renderMarkdown($body),
             related: array_map('strval', (array) ($meta['related'] ?? [])),
             seeAlso: array_map('strval', (array) ($meta['see_also'] ?? [])),
+            description: $description,
+            usage: $usage,
         );
     }
 

@@ -102,4 +102,51 @@ class EduContentServiceTest extends TestCase
 
         $this->assertEquals($original, $rehydrated);
     }
+
+    // ── Task 3 (8.0): quality-only description/usage fields ──────────────────
+
+    public function test_quality_topic_exposes_description_and_usage(): void
+    {
+        $maj7 = $this->edu->qualityTopic('maj7');
+
+        $this->assertInstanceOf(EduTopic::class, $maj7);
+        $this->assertNotNull($maj7->description);
+        $this->assertNotNull($maj7->usage);
+        $this->assertStringContainsString('major seventh', $maj7->description);
+
+        // 7sus4 was authored fresh in 8.0 (no qualityEdu source) — still must
+        // carry both fields like the 17 migrated qualities.
+        $sevenSus = $this->edu->qualityTopic('7sus4');
+        $this->assertNotNull($sevenSus->description);
+        $this->assertNotNull($sevenSus->usage);
+    }
+
+    public function test_non_quality_topics_have_null_description_and_usage(): void
+    {
+        $concept = $this->edu->topic('concept', 'triad');
+        $this->assertNull($concept->description);
+        $this->assertNull($concept->usage);
+
+        $glossary = $this->edu->topic('glossary', 'cadence');
+        $this->assertNull($glossary->description);
+        $this->assertNull($glossary->usage);
+    }
+
+    public function test_quality_topic_returns_null_for_a_non_quality_slug(): void
+    {
+        // A real concept slug is not a quality — qualityTopic() must not find it.
+        $this->assertNull($this->edu->qualityTopic('triad'));
+        $this->assertNull($this->edu->qualityTopic('does-not-exist'));
+    }
+
+    public function test_description_and_usage_survive_the_cache_round_trip(): void
+    {
+        // fromArray is the easiest place to silently drop the nullable fields.
+        $original = $this->edu->qualityTopic('maj7');
+        $rehydrated = EduTopic::fromArray($original->toArray());
+
+        $this->assertSame($original->description, $rehydrated->description);
+        $this->assertSame($original->usage, $rehydrated->usage);
+        $this->assertEquals($original, $rehydrated);
+    }
 }

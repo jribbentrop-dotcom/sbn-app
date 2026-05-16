@@ -2,6 +2,8 @@
 slug: aug
 title: Augmented
 summary: An augmented triad with a raised fifth. Creates an unsettled, dreamy quality that wants to resolve upward.
+description: Two stacked major thirds. Like diminished, it's symmetrical — but where diminished contracts, augmented expands. An unsettled, reaching sound.
+usage: Often used as a passing chord or dominant variation (V+). Common in Beatles progressions and film scores.
 related: []
 see_also: []
 ---

@@ -2,6 +2,8 @@
 slug: aug7
 title: Augmented 7
 summary: An augmented triad with a flat 7th. Rare but distinctive, combining the tension of both augmented and dominant qualities.
+description: Major triad plus augmented fifth and minor seventh. The raised fifth adds an upward, striving quality to the dominant tension.
+usage: V7#5, used when resolving to a major tonic. Common in jazz and gospel.
 related: [dom7]
 see_also: []
 ---

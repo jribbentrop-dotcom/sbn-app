@@ -18,6 +18,10 @@ final class EduTopic
      * @param  string  $bodyHtml  Markdown body rendered to HTML (sbn-widget tags preserved).
      * @param  string[]  $related  Slugs of related edu topics.
      * @param  string[]  $seeAlso  Glossary slugs cross-linked from this topic.
+     * @param  string|null  $description  Quality-only: the "what it is" prose
+     *                                    span on Chords/Show.vue. Null otherwise.
+     * @param  string|null  $usage  Quality-only: the "where it's used" prose
+     *                              span on Chords/Show.vue. Null otherwise.
      */
     public function __construct(
         public readonly string $slug,
@@ -27,12 +31,14 @@ final class EduTopic
         public readonly string $bodyHtml,
         public readonly array $related = [],
         public readonly array $seeAlso = [],
+        public readonly ?string $description = null,
+        public readonly ?string $usage = null,
     ) {}
 
     /**
      * Plain associative form for Inertia / JSON payloads.
      *
-     * @return array{slug:string,type:string,title:string,summary:string,body_html:string,related:string[],see_also:string[]}
+     * @return array{slug:string,type:string,title:string,summary:string,body_html:string,related:string[],see_also:string[],description:string|null,usage:string|null}
      */
     public function toArray(): array
     {
@@ -44,6 +50,8 @@ final class EduTopic
             'body_html' => $this->bodyHtml,
             'related' => $this->related,
             'see_also' => $this->seeAlso,
+            'description' => $this->description,
+            'usage' => $this->usage,
         ];
     }
 
@@ -60,6 +68,8 @@ final class EduTopic
             bodyHtml: $data['body_html'],
             related: $data['related'] ?? [],
             seeAlso: $data['see_also'] ?? [],
+            description: $data['description'] ?? null,
+            usage: $data['usage'] ?? null,
         );
     }
 }
