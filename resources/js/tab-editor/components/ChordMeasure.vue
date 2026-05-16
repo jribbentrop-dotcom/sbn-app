@@ -7,13 +7,42 @@
     :data-mi="measureIndex"
     :data-gi="globalIdx"
   >
-    <div class="sbn-ve-volta" v-if="volta">{{ volta.number }}.</div>
+    <div
+      v-if="volta"
+      class="sbn-ve-volta"
+      :class="{
+        'sbn-ve-volta--start': hasVoltaStart,
+        'sbn-ve-volta--end':   hasVoltaEnd,
+      }"
+    >
+      <span v-if="hasVoltaStart" class="sbn-ve-volta-label">{{ volta.text || volta.number + '.' }}</span>
+    </div>
     <div class="sbn-ve-measure-num">{{ globalIdx + 1 }}</div>
     <div class="sbn-ve-tab-badge" v-if="measure._fromTab">TAB</div>
-    <div class="sbn-ve-rep-sign rep-start" v-if="hasRepStart">𝄆</div>
-    <div class="sbn-ve-rep-sign rep-end"   v-if="hasRepEnd">𝄇</div>
+    <!-- Repeat start: thick bar + thin bar stretch full height; dots are in a separate non-stretched SVG -->
+    <span v-if="hasRepStart" class="sbn-ve-rep-svg sbn-ve-rep-svg--start" aria-hidden="true">
+      <svg class="sbn-ve-rep-bars" viewBox="0 0 12 100" preserveAspectRatio="none">
+        <rect x="0" y="0" width="3" height="100" fill="currentColor"/>
+        <rect x="5" y="0" width="1" height="100" fill="currentColor"/>
+      </svg>
+      <svg class="sbn-ve-rep-dots" viewBox="0 0 10 30" preserveAspectRatio="xMidYMid meet">
+        <circle cx="5" cy="5"  r="2.4" fill="currentColor"/>
+        <circle cx="5" cy="25" r="2.4" fill="currentColor"/>
+      </svg>
+    </span>
+    <!-- Repeat end: two dots + thin bar + thick bar right -->
+    <span v-if="hasRepEnd" class="sbn-ve-rep-svg sbn-ve-rep-svg--end" aria-hidden="true">
+      <svg class="sbn-ve-rep-dots" viewBox="0 0 10 30" preserveAspectRatio="xMidYMid meet">
+        <circle cx="5" cy="5"  r="2.4" fill="currentColor"/>
+        <circle cx="5" cy="25" r="2.4" fill="currentColor"/>
+      </svg>
+      <svg class="sbn-ve-rep-bars" viewBox="0 0 12 100" preserveAspectRatio="none">
+        <rect x="6" y="0" width="1" height="100" fill="currentColor"/>
+        <rect x="9" y="0" width="3" height="100" fill="currentColor"/>
+      </svg>
+    </span>
 
-    <SyncPointBadge v-if="syncPoint" :marker-index="syncPoint.markerIndex" :video-time="syncPoint.videoTime" :measure-index="globalIdx" />
+    <SyncPointBadge v-if="syncPoint" :marker-index="syncPoint.markerIndex" :video-time="syncPoint.videoTime" :measure-index="globalIdx" :marks="syncPoint.marks" />
 
     <div class="sbn-ve-measure-content">
       <!-- Beat-grid tick marks — one per quarter-note beat across the measure -->
@@ -117,7 +146,15 @@ const tapCursor           = inject('tapCursor', null);
 const videoSyncMap        = inject('videoSyncMap', null);
 const chordGridOps        = inject('chordGridOps', null);
 
-const syncPoint = computed(() => videoSyncMap?.value?.get(globalIdx.value) ?? null);
+// videoSyncMap.value is Map<gi, Array<{ videoTime, pass, pos, mappingIdx }>>.
+// The badge takes the FIRST mark (pass 1) as its representative and an array
+// of all marks so it can show a "·N" count for repeated bars.
+const syncMarks = computed(() => videoSyncMap?.value?.get(globalIdx.value) ?? null);
+const syncPoint = computed(() => {
+    const marks = syncMarks.value;
+    if (!marks?.length) return null;
+    return { markerIndex: marks[0].mappingIdx, videoTime: marks[0].videoTime, marks };
+});
 
 // ── Derived ───────────────────────────────────────────────────────────────────
 
@@ -180,9 +217,11 @@ function chordPositionStyle(ci) {
 }
 
 // Repeat signs and volta are serialized directly onto the measure object.
-const volta      = computed(() => props.measure.volta);
-const hasRepStart = computed(() => props.measure.repeatStart);
-const hasRepEnd   = computed(() => props.measure.repeatEnd);
+const volta        = computed(() => props.measure.volta);
+const hasVoltaStart = computed(() => props.measure.voltaStart);
+const hasVoltaEnd   = computed(() => props.measure.voltaEnd);
+const hasRepStart   = computed(() => props.measure.repeatStart);
+const hasRepEnd     = computed(() => props.measure.repeatEnd);
 
 const measureClasses = computed(() => ({
   'has-volta':      !!volta.value,
@@ -420,8 +459,9 @@ function onCardContextMenu(payload) {
   if (props.readOnly) return;
   emit('contextmenu', {
     ...payload,
-    si: props.sectionIndex,
-    mi: props.measureIndex,
+    si:      props.sectionIndex,
+    mi:      props.measureIndex,
+    measure: props.measure,
   });
 }
 </script>

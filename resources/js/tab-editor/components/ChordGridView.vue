@@ -20,13 +20,14 @@
       :left="ctxMenuLeft"
       :context-data="ctxMenuData"
       :has-clipboard="clipboard ? clipboard.hasClipboard.value : false"
+      :near-volta-end="nearVoltaEnd"
       @action="onContextMenuAction"
     />
   </div>
 </template>
 
 <script setup>
-import { inject, ref, onMounted, onUnmounted } from 'vue';
+import { inject, ref, computed, onMounted, onUnmounted } from 'vue';
 import ChordSection     from './ChordSection.vue';
 import ChordContextMenu from './ChordContextMenu.vue';
 
@@ -61,14 +62,39 @@ const ctxMenuOpen = ref(false);
 const ctxMenuTop  = ref(0);
 const ctxMenuLeft = ref(0);
 const ctxMenuData = ref({});
+// gi of the measure whose voltaEnd === true immediately before ctxMenuData.gi
+const ctxVoltaEndGi = ref(null);
 
-function openContextMenu({ event, gi, ci, chordName, voicing, si, mi }) {
+function openContextMenu({ event, gi, ci, chordName, voicing, si, mi, measure }) {
   if (props.readOnly === true) return;
   ctxMenuTop.value  = event.clientY;
   ctxMenuLeft.value = event.clientX;
-  ctxMenuData.value = { gi, ci, chordName, voicing, si, mi };
+  ctxMenuData.value = {
+    gi, ci, chordName, voicing, si, mi,
+    repeatStart: measure?.repeatStart ?? false,
+    repeatEnd:   measure?.repeatEnd   ?? false,
+    volta:       measure?.volta       ?? null,
+    voltaStart:  measure?.voltaStart  ?? false,
+    voltaEnd:    measure?.voltaEnd    ?? false,
+  };
+  // Check if the bar immediately before this one is the end of a volta bracket
+  ctxVoltaEndGi.value = _voltaEndBefore(gi);
   ctxMenuOpen.value = true;
 }
+
+// Returns the gi of the voltaEnd bar immediately preceding gi, or null.
+function _voltaEndBefore(gi) {
+  if (gi <= 0) return null;
+  const prevGi = gi - 1;
+  for (const sec of props.sections) {
+    for (const m of sec.measures) {
+      if (m.index === prevGi && m.voltaEnd) return prevGi;
+    }
+  }
+  return null;
+}
+
+const nearVoltaEnd = computed(() => ctxVoltaEndGi.value !== null);
 
 // ── Grid click — close pickers on bare-grid click ────────────────────────────
 
@@ -140,6 +166,47 @@ function onContextMenuAction(actionId, data) {
     // Section
     case 'duplicate-section':
       ops?.duplicateSection(si);
+      break;
+
+    // Repeat / volta
+    case 'toggle-repeat-start':
+      ops?.toggleRepeatStart(gi);
+      break;
+
+    case 'toggle-repeat-end':
+      ops?.toggleRepeatEnd(gi);
+      break;
+
+    case 'set-volta-1':
+      if (data.volta?.number === 1) {
+        ops?.clearVolta(gi);
+      } else {
+        ops?.setVoltaStart(gi, 1);
+        ops?.setVoltaEnd(gi); // always close as single-bar by default; user extends via "Extend bracket to here"
+      }
+      break;
+
+    case 'set-volta-2':
+      if (data.volta?.number === 2) {
+        ops?.clearVolta(gi);
+      } else {
+        ops?.setVoltaStart(gi, 2);
+        ops?.setVoltaEnd(gi);
+      }
+      break;
+
+    case 'set-volta-end':
+      ops?.setVoltaEnd(gi);
+      break;
+
+    case 'extend-volta-here':
+      if (ctxVoltaEndGi.value !== null) {
+        ops?.extendVoltaEnd(ctxVoltaEndGi.value, gi);
+      }
+      break;
+
+    case 'clear-volta':
+      ops?.clearVolta(gi);
       break;
   }
 }

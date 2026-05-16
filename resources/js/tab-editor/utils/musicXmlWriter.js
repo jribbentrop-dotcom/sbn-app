@@ -390,6 +390,10 @@ function serializeNote(note, event, opts) {
         }
     }
 
+    // Tie elements (note-level — must appear before <type> per MusicXML schema)
+    if (note.tieStart) lines.push('  <tie type="start"/>');
+    if (note.tieStop)  lines.push('  <tie type="stop"/>');
+
     // Duration
     lines.push(`  <duration>${ticksToDivDuration(event.ticks, event)}</duration>`);
 
@@ -462,10 +466,6 @@ function serializeNote(note, event, opts) {
         });
         lines.push('  </notations>');
     }
-
-    // Tie elements (note-level, for playback linkage)
-    if (note.tieStart) lines.push('<tie type="start"/>');
-    if (note.tieStop)  lines.push('<tie type="stop"/>');
 
     lines.push('</note>');
     return lines.join('\n');

@@ -308,9 +308,9 @@ function pickerDisplayName() {
         'maj7':'maj7','dom7':'7','m7':'m7','m7b5':'m7b5','o7':'dim7',
         'mMaj7':'mMaj7','maj6':'6','m6':'m6','aug7':'aug7','aug':'aug',
         'dim':'dim','sus4':'sus4','sus2':'sus2','7sus4':'7sus4',
-        'add9':'add9','maj':'maj','min':'m','5':'5',
+        'add9':'add9','maj':'','min':'m','5':'5',
     };
-    let name = store.root + (qDisplay[store.quality] || store.quality);
+    let name = store.root + (qDisplay[store.quality] !== undefined ? qDisplay[store.quality] : store.quality);
     const ext = store.activeFilters.extension;
     if (ext) name += '(' + ext + ')';
     const inv = store.activeFilters.inversion;

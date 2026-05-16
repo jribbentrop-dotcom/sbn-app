@@ -652,6 +652,142 @@ export function useChordGridOps(model, undo, tabModel) {
         });
     }
 
+    // ── Volta / repeat toggle ops ─────────────────────────────
+
+    /**
+     * Toggle a repeat-start barline on a measure.
+     * @param {number} gi
+     */
+    function toggleRepeatStart(gi) {
+        const m = _findMeasureByGi(gi);
+        if (!m) return;
+        undo.wrapCommand('Toggle Repeat Start', [gi], () => {
+            m.repeatStart = !m.repeatStart;
+        });
+        _dispatchSync();
+    }
+
+    /**
+     * Toggle a repeat-end barline on a measure.
+     * @param {number} gi
+     */
+    function toggleRepeatEnd(gi) {
+        const m = _findMeasureByGi(gi);
+        if (!m) return;
+        undo.wrapCommand('Toggle Repeat End', [gi], () => {
+            m.repeatEnd = !m.repeatEnd;
+        });
+        _dispatchSync();
+    }
+
+    /**
+     * Set a volta bracket start on a measure.
+     * Clears any existing volta on that measure first.
+     *
+     * @param {number} gi     — global measure index (the first bar of the bracket)
+     * @param {number} number — volta number (1, 2, …)
+     */
+    function setVoltaStart(gi, number) {
+        const m = _findMeasureByGi(gi);
+        if (!m) return;
+        undo.wrapCommand(`Set Volta ${number}`, [gi], () => {
+            m.volta      = { number, text: `${number}.` };
+            m.voltaStart = true;
+            // Don't touch voltaEnd here — caller sets the end separately,
+            // or setVoltaEnd is called on the last bar of the bracket.
+        });
+        _dispatchSync();
+    }
+
+    /**
+     * Mark a measure as the end of the current volta bracket.
+     * The measure must already carry a volta object (set by setVoltaStart or
+     * by being in the middle of a multi-bar bracket).
+     *
+     * @param {number} gi
+     */
+    function setVoltaEnd(gi) {
+        const m = _findMeasureByGi(gi);
+        if (!m) return;
+        undo.wrapCommand('Set Volta End', [gi], () => {
+            m.voltaEnd = true;
+        });
+        _dispatchSync();
+    }
+
+    /**
+     * Extend a volta bracket from its current end to a new end measure.
+     * Walks from the volta-start backwards to find the bracket's number,
+     * then stamps volta data onto all intermediate measures up to newEndGi.
+     *
+     * @param {number} gi       — current last bar of the bracket (volta.voltaEnd === true)
+     * @param {number} newEndGi — new last bar (must be > gi)
+     */
+    function extendVoltaEnd(gi, newEndGi) {
+        if (!model.value || newEndGi <= gi) return;
+
+        // Find the volta number by scanning back to the voltaStart
+        let voltaNum = null;
+        for (let i = gi; i >= 0; i--) {
+            const candidate = _findMeasureByGi(i);
+            if (!candidate) break;
+            if (candidate.volta) { voltaNum = candidate.volta.number; }
+            if (candidate.voltaStart) break;
+        }
+        if (voltaNum === null) return;
+
+        undo.wrapCommand('Extend Volta', [], () => {
+            // Un-end the old last bar
+            const oldEnd = _findMeasureByGi(gi);
+            if (oldEnd) oldEnd.voltaEnd = false;
+
+            // Stamp intermediate bars
+            for (let i = gi + 1; i <= newEndGi; i++) {
+                const im = _findMeasureByGi(i);
+                if (!im) continue;
+                im.volta     = { number: voltaNum, text: `${voltaNum}.` };
+                im.voltaEnd  = (i === newEndGi);
+            }
+        });
+        _dispatchSync();
+    }
+
+    /**
+     * Clear volta data from a measure (and propagate clear to the whole bracket
+     * if this is the voltaStart bar).
+     *
+     * @param {number} gi
+     */
+    function clearVolta(gi) {
+        if (!model.value) return;
+        const m = _findMeasureByGi(gi);
+        if (!m) return;
+
+        undo.wrapCommand('Clear Volta', [], () => {
+            if (m.voltaStart) {
+                // Clear the whole bracket forward
+                let clearing = true;
+                let i = gi;
+                while (clearing) {
+                    const bar = _findMeasureByGi(i);
+                    if (!bar) break;
+                    const wasEnd = bar.voltaEnd;
+                    bar.volta      = null;
+                    bar.voltaStart = false;
+                    bar.voltaEnd   = false;
+                    if (wasEnd) clearing = false;
+                    i++;
+                }
+            } else {
+                // Just clear this single bar (middle or end of a bracket)
+                m.volta      = null;
+                m.voltaStart = false;
+                m.voltaEnd   = false;
+            }
+        });
+        _dispatchSync();
+    }
+
     return {
         // Pattern A
         setChordName,
@@ -661,6 +797,13 @@ export function useChordGridOps(model, undo, tabModel) {
         setChordOffset,
         setChordEnd,
         setChordStart,
+        // Repeat / volta
+        toggleRepeatStart,
+        toggleRepeatEnd,
+        setVoltaStart,
+        setVoltaEnd,
+        extendVoltaEnd,
+        clearVolta,
         // Pattern B
         insertBarAfter,
         insertBarBefore,

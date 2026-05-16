@@ -59,7 +59,7 @@
             </template>
         </div>
 
-        <SyncPointBadge v-if="syncPoint" :marker-index="syncPoint.markerIndex" :video-time="syncPoint.videoTime" :measure-index="measure.index" context="tab" />
+        <SyncPointBadge v-if="syncPoint" :marker-index="syncPoint.markerIndex" :video-time="syncPoint.videoTime" :measure-index="measure.index" :marks="syncPoint.marks" context="tab" />
 
         <svg
             ref="svgEl"
@@ -209,13 +209,16 @@ function formatChord(name) {
         return window.sbnFormatChord(name);
     }
     // Minimal fallback: root + superscript quality
-    const m = name.match(/^([A-G][#b]?)(.*)$/);
+    const m = name.match(/^([A-G][#b♯♭]?)(.*)$/);
     if (!m) return name;
-    const root = m[1].replace('#', '♯').replace('b', '♭');
+    const root = m[1].replace('#', '♯').replace(/b(?=[^0-9]|$)/, '♭');
     let qual = m[2], bass = '';
     const si = qual.indexOf('/');
     if (si >= 0) { bass = '/' + qual.slice(si + 1).replace('#', '♯').replace('b', '♭'); qual = qual.slice(0, si); }
-    return root + (qual ? `<sup>${qual}</sup>` : '') + bass;
+    if (qual.toLowerCase() === 'maj') qual = '';
+    if (qual.toLowerCase() === 'min') qual = 'm';
+    const ext = qual.replace(/#/g, '♯').replace(/b(?=[0-9])/g, '♭');
+    return root + (ext ? `<sup>${ext}</sup>` : '') + bass;
 }
 
 // Phase 7d: overfill detection — use tick-span, not raw sum.
@@ -318,7 +321,12 @@ function cancelRename() {
 }
 const isPlaying           = computed(() => transportPlaying?.value ?? false);
 
-const syncPoint = computed(() => videoSyncMap?.value?.get(props.measure.index) ?? null);
+const syncMarks = computed(() => videoSyncMap?.value?.get(props.measure.index) ?? null);
+const syncPoint = computed(() => {
+    const marks = syncMarks.value;
+    if (!marks?.length) return null;
+    return { markerIndex: marks[0].mappingIdx, videoTime: marks[0].videoTime, marks };
+});
 
 // D2: Tap target highlight — show when this measure is the current tap cursor
 const isTapTarget = computed(() => tapCursor?.value === props.measure.index);
