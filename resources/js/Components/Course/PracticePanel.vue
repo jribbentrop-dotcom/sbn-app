@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
 import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
+import { mountSbnNodes } from '@/lib/mountSbnNodes';
 
 interface LessonData { slug: string; title: string; content: string | null; subsections: { title: string; slug: string }[] }
 interface CourseData { slug: string; title: string; primaryGenre: string | null }
@@ -14,6 +15,7 @@ const props = defineProps<{
   activeSoundSource?: 'sheet' | null;
   selectedChord?: SelectedChord | null;
   chordSlugs?: string[];
+  lessonConcept?: { slug: string; title: string; body_html: string; has_widgets: boolean } | null;
 }>();
 
 const emit = defineEmits<{
@@ -141,6 +143,23 @@ const heroChordUrl = computed(() => {
 function decreaseBpm(): void { bpm.value = Math.max(40, bpm.value - 2); }
 function increaseBpm(): void { bpm.value = Math.min(240, bpm.value + 2); }
 function setBpmPreset(val: number): void { bpm.value = val; }
+
+// ── Lesson concept expander ───────────────────────────────────────────────────
+const conceptBodyEl = ref<HTMLElement | null>(null);
+let conceptMounted = false;
+
+function onConceptToggle(event: Event): void {
+  if (!(event.target as HTMLDetailsElement).open) return;
+  if (!props.lessonConcept?.has_widgets) return;
+  if (conceptMounted) return;
+  conceptMounted = true;
+  if (conceptBodyEl.value) {
+    mountSbnNodes(conceptBodyEl.value);
+  }
+}
+
+// Reset mount flag when lesson changes so a new concept gets a fresh mount.
+watch(() => props.lesson?.slug, () => { conceptMounted = false; });
 </script>
 
 <template>
@@ -206,6 +225,15 @@ function setBpmPreset(val: number): void { bpm.value = val; }
       </div>
     </div>
 
+    <details
+      v-if="lessonConcept"
+      class="vC-concept-expander"
+      @toggle="onConceptToggle"
+    >
+      <summary>Learn more: {{ lessonConcept.title }}</summary>
+      <div ref="conceptBodyEl" v-html="lessonConcept.body_html" />
+    </details>
+
     <div class="vC-transport">
       <button type="button" class="vC-play" :class="{ 'is-playing': playing }" :disabled="transportDisabled" :title="transportDisabled ? 'Playing from exercise' : undefined" @click="playing = !playing">
         <svg v-if="playing" width="22" height="22" viewBox="0 0 22 22"><rect x="6" y="5" width="4" height="12" fill="white" /><rect x="12" y="5" width="4" height="12" fill="white" /></svg>
@@ -223,3 +251,37 @@ function setBpmPreset(val: number): void { bpm.value = val; }
     </div>
   </aside>
 </template>
+
+<style scoped>
+.vC-concept-expander {
+  font-size: 13px;
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.vC-concept-expander summary {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--clr-accent);
+  list-style: none;
+  user-select: none;
+}
+
+.vC-concept-expander summary::-webkit-details-marker { display: none; }
+.vC-concept-expander summary::before { content: '▶ '; font-size: 10px; opacity: 0.6; }
+.vC-concept-expander[open] summary::before { content: '▼ '; }
+
+.vC-concept-expander > div {
+  padding: 12px;
+  line-height: 1.6;
+  color: var(--clr-text-dim);
+  border-top: 1px solid var(--clr-border);
+}
+
+.vC-concept-expander > div p { margin: 0 0 8px 0; }
+.vC-concept-expander > div p:last-child { margin-bottom: 0; }
+.vC-concept-expander > div ul,
+.vC-concept-expander > div ol { margin: 0 0 8px 0; padding-left: 20px; }
+</style>

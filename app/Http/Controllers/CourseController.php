@@ -6,6 +6,7 @@ use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\Leadsheet;
 use App\Models\RhythmPattern;
+use App\Services\EduContentService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -95,7 +96,7 @@ class CourseController extends Controller
         };
     }
 
-    public function player(Request $request, Course $course, ?Lesson $lesson = null)
+    public function player(Request $request, Course $course, EduContentService $edu, ?Lesson $lesson = null)
     {
         $allLessons = $course->lessons()
             ->published()
@@ -112,6 +113,7 @@ class CourseController extends Controller
 
         $lessonData = null;
         $chordSlugs = [];
+        $lessonConcept = null;
         if ($activeLesson) {
             $canView = $hasAccess || $activeLesson->is_preview;
             $lessonData = $this->serializeLesson($activeLesson, withContent: $canView);
@@ -119,14 +121,18 @@ class CourseController extends Controller
                 preg_match_all('/<sbn-chord[^>]+slug="([^"]+)"/i', $activeLesson->content, $matches);
                 $chordSlugs = array_values(array_unique($matches[1] ?? []));
             }
+            if ($activeLesson->concept_slug) {
+                $lessonConcept = $edu->topic('concept', $activeLesson->concept_slug)?->toArray();
+            }
         }
 
         return Inertia::render('Courses/Player', [
-            'course' => $this->serializeCourse($course),
-            'lessons' => $allLessons->map(fn ($lessonItem) => $this->serializeLessonStub($lessonItem)),
-            'lesson' => $lessonData,
-            'hasAccess' => $hasAccess,
-            'chordSlugs' => $chordSlugs,
+            'course'        => $this->serializeCourse($course),
+            'lessons'       => $allLessons->map(fn ($lessonItem) => $this->serializeLessonStub($lessonItem)),
+            'lesson'        => $lessonData,
+            'hasAccess'     => $hasAccess,
+            'chordSlugs'    => $chordSlugs,
+            'lessonConcept' => $lessonConcept,
         ]);
     }
 
@@ -178,7 +184,8 @@ class CourseController extends Controller
     {
         return [
             ...$this->serializeLessonStub($lesson),
-            'content' => $withContent ? $lesson->content : null,
+            'content'      => $withContent ? $lesson->content : null,
+            'concept_slug' => $lesson->concept_slug,
         ];
     }
 }

@@ -25,6 +25,7 @@ class LessonRequest extends FormRequest
                 Rule::unique('sbn_lessons')->where('course_id', $courseId)->ignore($lessonId),
             ],
             'section_title' => ['nullable', 'string', 'max:255'],
+            'concept_slug'  => ['nullable', 'string', 'max:255'],
             'content'       => ['nullable', 'string'],
             'is_preview'    => ['boolean'],
             'sort_order'    => ['integer'],

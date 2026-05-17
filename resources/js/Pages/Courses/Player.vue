@@ -36,6 +36,7 @@ const props = defineProps<{
   lesson: LessonData | null;
   hasAccess: boolean;
   chordSlugs?: string[];
+  lessonConcept?: { slug: string; title: string; body_html: string; has_widgets: boolean } | null;
 }>();
 
 const contentRef = ref<InstanceType<typeof LessonContent> | null>(null);
@@ -131,6 +132,7 @@ watch(() => props.lesson?.slug, () => {
         :selected-chord="selectedChord"
         :chord-slugs="props.chordSlugs ?? []"
         :active-sound-source="activeSoundSource"
+        :lesson-concept="props.lessonConcept ?? null"
         @select-chord="onChordSelect"
         @clear-chord="clearChord"
       />

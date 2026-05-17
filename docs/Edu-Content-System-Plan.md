@@ -505,7 +505,7 @@ mirroring how `SongLibraryController` already passes `eduChordQualities`.
 | **8.0** | ✅ **Task 3 — quality model + slug reconciliation** (§5.0, §5.0a): 18 `qualities/*.md` carry `description`/`usage` frontmatter (17 verbatim from `qualityEdu`, `7sus4` fresh-authored), `EduTopic` nullable fields, `qualityTopic()` method, tests extended | 6 |
 | **8.1** | ✅ **Task 3 — Chords/Show.vue migration** (§5.3): `ChordLibraryController` Show passes `qualityTopic`; Vue renders `description`/`usage` spans + widget-gated `body_html` via `mountSbnNodes`; `EduTopic.hasWidgets`; inline `qualityEdu` deleted | 8.0 |
 | **8.2** | ✅ **Task 3 — EduPanel "Learn more"** (§5.1): related-concept expander, `body_html` via `mountSbnNodes`; `SongLibraryController` passes concept topics; `related` frontmatter audited + corrected across all 18 quality files (triads→triad, sevenths→voice-leading) | 8.0 |
-| **8.3** | **Task 3 — Course Practice Panel** (§5.2): lesson references concept slug; panel renders `topic()` body via `mountSbnNodes` | 8.0, 8.1 done as warm-up |
+| **8.3** | ✅ **Task 3 — Course Practice Panel** (§5.2): `concept_slug` nullable column on `sbn_lessons`; `CourseController::player` resolves concept via `EduContentService` and passes `lessonConcept` in payload; `PracticePanel.vue` renders expander + `mountSbnNodes` on first open; admin lesson edit has concept slug field | 8.0, 8.1 done as warm-up |
 | 9 | (folded into 8.0–8.3) | — |
 | 10 | Author remaining content (ongoing, no code) | 3 |
 
