@@ -2,12 +2,15 @@
 import { ref, computed, watch } from 'vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
-import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
+import ChordDiagram from '@/Components/Library/ChordDiagram.vue';
+import type { RhythmPatternWithMeta } from '@/Components/Library/RhythmPattern.vue';
 import { mountSbnNodes } from '@/lib/mountSbnNodes';
+import { getCategoryColor } from '@/composables/useCategoryColors';
 
 interface LessonData { slug: string; title: string; content: string | null; subsections: { title: string; slug: string }[] }
 interface CourseData { slug: string; title: string; primaryGenre: string | null }
 interface SelectedChord { slug: string; root: string; voicingData?: any }
+interface RhythmOption { slug: string; name: string; description: string | null; pattern: RhythmPatternWithMeta }
 
 const props = defineProps<{
   lesson: LessonData | null;
@@ -16,6 +19,7 @@ const props = defineProps<{
   selectedChord?: SelectedChord | null;
   chordSlugs?: string[];
   lessonConcept?: { slug: string; title: string; body_html: string; has_widgets: boolean } | null;
+  rhythms?: RhythmOption[];
 }>();
 
 const emit = defineEmits<{
@@ -32,22 +36,14 @@ const lessonChordData = ref<any[]>([]);
 const heroChord = ref<any | null>(null);
 const loadingHero = ref(false);
 
-const rhythmOptions: Array<{ label: string; pattern: RhythmPatternData }> = [
-  {
-    label: 'Bossa pulse',
-    pattern: {
-      name: 'Bossa Pulse', beats: 8, gridType: 'sixteenth', timeSignature: '2/4', bpm: 87,
-      fingers: 'x.x..x..', thumb: 'x...x...', percTop: 'tamborim', percBass: 'kick',
-    },
-  },
-  {
-    label: 'Partido alto',
-    pattern: {
-      name: 'Partido Alto', beats: 8, gridType: 'sixteenth', timeSignature: '2/4', bpm: 100,
-      fingers: 'x.x.xx.x', thumb: 'x...x...', percTop: 'tamborim', percBass: 'kick',
-    },
-  },
-];
+const rhythmOptions = computed<RhythmOption[]>(() => props.rhythms ?? []);
+const activeRhythmPattern = computed<RhythmPatternWithMeta | null>(
+  () => rhythmOptions.value[activeRhythm.value]?.pattern ?? null,
+);
+const activeRhythmColor = computed<string | null>(() => {
+  const cat = activeRhythmPattern.value?.category;
+  return cat ? getCategoryColor(cat) : null;
+});
 
 function parseRootFromChordName(name: string): string {
   const m = (name || '').match(/^([A-G](?:#|b)?)/);
@@ -169,7 +165,7 @@ watch(() => props.lesson?.slug, () => { conceptMounted = false; });
       Practice companion
     </div>
 
-    <div class="vC-card">
+    <div v-if="selectedChord || lessonChordData.length" class="vC-card">
       <div class="vC-card-eyebrow">
         <span>{{ selectedChord ? 'Selected chord' : 'Chords in this lesson' }}</span>
         <span class="vC-card-meta">{{ selectedChord ? 'active' : lessonChordData.length }}</span>
@@ -192,35 +188,41 @@ watch(() => props.lesson?.slug, () => { conceptMounted = false; });
           v-for="chord in lessonChordData"
           :key="chord.slug"
           type="button"
-          class="vC-chord-row"
+          class="vC-chord-cell"
           @click="emit('selectChord', chord.slug, parseRootFromChordName(chord.name || chord.slug))"
         >
-          <div class="vC-chord-row-text">
-            <div class="vC-chord-row-name sbn-chord">{{ chord.name || chord.slug }}</div>
-            <div class="vC-chord-row-sub">{{ chord.slug }}</div>
+          <div class="vC-chord-cell-name">{{ chord.name || chord.slug }}</div>
+          <div v-if="chord.diagram_data" class="vC-chord-cell-diagram">
+            <ChordDiagram :chord="chord" />
           </div>
-          <span class="vC-chord-row-arrow">›</span>
         </button>
-        <div v-if="!lessonChordData.length" class="sbn-text-dim">No lesson chords found.</div>
       </div>
     </div>
 
-    <div class="vC-card">
+    <div v-if="rhythmOptions.length" class="vC-card">
       <div class="vC-card-eyebrow">
         <span>Rhythm</span>
-        <span class="vC-card-meta">4/4 · 1 bar</span>
+        <span class="vC-card-meta">{{ activeRhythmPattern?.timeSignature ?? '' }}</span>
       </div>
-      <RhythmStrip :pattern="rhythmOptions[activeRhythm].pattern" :tempo="bpm" :label="rhythmOptions[activeRhythm].label" playable />
-      <div class="vC-rhythm-row">
+      <RhythmStrip
+        v-if="activeRhythmPattern"
+        :pattern="activeRhythmPattern"
+        :tempo="bpm"
+        :label="rhythmOptions[activeRhythm]?.name"
+        :color="activeRhythmColor"
+        mini
+        playable
+      />
+      <div v-if="rhythmOptions.length > 1" class="vC-rhythm-row">
         <button
           v-for="(r, i) in rhythmOptions"
-          :key="r.label"
+          :key="r.slug"
           type="button"
           class="vC-rhythm-pill"
           :class="{ 'is-active': activeRhythm === i }"
           @click="activeRhythm = i"
         >
-          {{ r.label }}
+          {{ r.name }}
         </button>
       </div>
     </div>

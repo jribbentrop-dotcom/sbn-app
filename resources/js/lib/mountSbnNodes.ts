@@ -9,7 +9,7 @@
  *   <sbn-progression slug="…">
  *   <sbn-sheet       slug="…" key="C">
  *   <sbn-song        slug="…">
- *   <sbn-youtube     video-id="…" start="…">  ← attrs only, no fetch
+ *   <sbn-youtube     id="…" start="…">        ← attrs only, no fetch
  *   <sbn-widget      slug="…" …attrs>        ← edu interactive, no fetch
  */
 

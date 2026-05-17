@@ -29,6 +29,7 @@ interface LessonStub {
 }
 interface LessonData extends LessonStub { content: string | null }
 interface SelectedChord { slug: string; root: string; voicingData?: any }
+interface RhythmOption { slug: string; name: string; description: string | null; pattern: any }
 
 const props = defineProps<{
   course: CourseData;
@@ -37,6 +38,7 @@ const props = defineProps<{
   hasAccess: boolean;
   chordSlugs?: string[];
   lessonConcept?: { slug: string; title: string; body_html: string; has_widgets: boolean } | null;
+  rhythms?: RhythmOption[];
 }>();
 
 const contentRef = ref<InstanceType<typeof LessonContent> | null>(null);
@@ -133,6 +135,7 @@ watch(() => props.lesson?.slug, () => {
         :chord-slugs="props.chordSlugs ?? []"
         :active-sound-source="activeSoundSource"
         :lesson-concept="props.lessonConcept ?? null"
+        :rhythms="props.rhythms ?? []"
         @select-chord="onChordSelect"
         @clear-chord="clearChord"
       />

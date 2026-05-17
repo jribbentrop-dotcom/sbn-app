@@ -327,7 +327,7 @@ dialog (root, key, label) is needed.
 | # | Task | Priority |
 |---|---|---|
 | 1 | Migrate `<sbn-rhythm>` lesson embed (`mountSbnNodes.ts`) from `RhythmCard` to `RhythmStrip` | Medium |
-| 2 | Add `@click.stop` on `RhythmStrip`'s play button so playback doesn't navigate when strip is inside a `<Link>` | High |
-| 3 | Extend `RhythmStrip` with a `mini` prop (CSS already present, prop missing) | Low |
+| 2 | ~~Add `@click.stop` on `RhythmStrip`'s play button~~ — **DONE** | High |
+| 3 | ~~Extend `RhythmStrip` with a `mini` prop~~ — **DONE** | Low |
 | 4 | Phase 7: "Used in songs" section on rhythm Show page (query `sbn_leadsheets WHERE rhythm = {slug}`) | Low |
 | 5 | Rhythm Show page: confirm demo blend slider still works after `RhythmPattern` refactors | Medium |

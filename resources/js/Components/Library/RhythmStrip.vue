@@ -15,6 +15,8 @@ interface Props {
   showMeta?: boolean;
   /** Tint colour for hit/accent cells. Defaults to var(--clr-accent). */
   color?: string | null;
+  /** Compact variant — slimmer cells. */
+  mini?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -23,6 +25,7 @@ const props = withDefaults(defineProps<Props>(), {
   label: null,
   showMeta: false,
   color: null,
+  mini: false,
 });
 
 const isPlaying = ref(false);
@@ -152,7 +155,7 @@ defineExpose({ play, stop, toggle });
 <template>
   <div
     class="sbn-rhythm-strip"
-    :class="{ 'is-playing': isPlaying }"
+    :class="{ 'is-playing': isPlaying, 'is-mini': mini }"
     :style="color ? { '--strip-color': color, '--strip-color-accent': color } : {}"
     role="img"
     :aria-label="`${pattern.name}: ${pattern.timeSignature} pattern`"
@@ -172,7 +175,7 @@ defineExpose({ play, stop, toggle });
         type="button"
         class="sbn-rhythm-strip-play"
         :class="{ 'is-playing': isPlaying }"
-        @click="toggle"
+        @click.stop="toggle"
         :aria-label="isPlaying ? 'Stop' : 'Play'"
       >
         <svg v-if="isPlaying" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">

@@ -564,40 +564,37 @@
     justify-content: center;
 }
 
-/* Chord list rows */
-.vC-chord-list { display: flex; flex-direction: column; gap: 2px; }
-
-.vC-chord-row {
+/* Chord grid */
+.vC-chord-list {
     display: grid;
-    grid-template-columns: 44px 1fr 16px;
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+    gap: 6px;
+}
+
+.vC-chord-cell {
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    width: 100%;
+    gap: 4px;
     border: 0;
     background: transparent;
     cursor: pointer;
-    padding: 7px 6px;
-    text-align: left;
+    padding: 6px 4px;
     border-radius: var(--radius-sm);
     transition: background 0.12s;
 }
-.vC-chord-row:hover { background: var(--clr-surface-2); }
+.vC-chord-cell:hover { background: var(--clr-surface-2); }
 
-.vC-chord-row-diagram { width: 44px; flex-shrink: 0; }
+.vC-chord-cell-diagram { width: 44px; }
 .vC-chord-canvas { display: block; width: 44px; height: 56px; }
 
-.vC-chord-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.vC-chord-row-name { font-size: 16px; line-height: 1; }
-.vC-chord-row-sub {
-    font-size: 11px;
-    color: var(--clr-text-muted);
-    font-family: var(--font-mono, monospace);
-    letter-spacing: 0.04em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.vC-chord-cell-name {
+    font-family: var(--font-chord);
+    font-size: 15px;
+    line-height: 1.1;
+    color: var(--clr-text);
+    text-align: center;
 }
-.vC-chord-row-arrow { color: var(--clr-text-muted); font-size: 16px; line-height: 1; }
 
 /* Rhythm selector */
 .vC-rhythm-row {
@@ -611,7 +608,11 @@
     color: var(--clr-text-dim);
     transition: all 0.12s;
 }
-.vC-rhythm-pill.is-active { background: var(--clr-text); color: var(--clr-white); border-color: var(--clr-text); }
+.vC-rhythm-pill.is-active {
+    background: var(--clr-text-muted);
+    color: var(--clr-white);
+    border-color: var(--clr-text-muted);
+}
 
 /* Transport */
 .vC-transport {

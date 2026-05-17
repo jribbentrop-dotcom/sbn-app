@@ -113,6 +113,7 @@ class CourseController extends Controller
 
         $lessonData = null;
         $chordSlugs = [];
+        $rhythmSlugs = [];
         $lessonConcept = null;
         if ($activeLesson) {
             $canView = $hasAccess || $activeLesson->is_preview;
@@ -120,10 +121,30 @@ class CourseController extends Controller
             if ($canView && $activeLesson->content) {
                 preg_match_all('/<sbn-chord[^>]+slug="([^"]+)"/i', $activeLesson->content, $matches);
                 $chordSlugs = array_values(array_unique($matches[1] ?? []));
+                preg_match_all('/<sbn-rhythm[^>]+slug="([^"]+)"/i', $activeLesson->content, $rhythmMatches);
+                $rhythmSlugs = array_values(array_unique($rhythmMatches[1] ?? []));
             }
             if ($activeLesson->concept_slug) {
                 $lessonConcept = $edu->topic('concept', $activeLesson->concept_slug)?->toArray();
             }
+        }
+
+        // Rhythms shown in the practice panel are the ones referenced by
+        // <sbn-rhythm> tags in the lesson content — keep panel order matching
+        // the slug order in the content.
+        $rhythms = collect();
+        if ($rhythmSlugs) {
+            $bySlug = RhythmPattern::whereIn('slug', $rhythmSlugs)->get()->keyBy('slug');
+            $rhythms = collect($rhythmSlugs)
+                ->map(fn ($slug) => $bySlug->get($slug))
+                ->filter()
+                ->map(fn ($r) => [
+                    'slug'        => $r->slug,
+                    'name'        => $r->name,
+                    'description' => $r->description,
+                    'pattern'     => $r->toPlayerData(),
+                ])
+                ->values();
         }
 
         return Inertia::render('Courses/Player', [
@@ -133,6 +154,7 @@ class CourseController extends Controller
             'hasAccess'     => $hasAccess,
             'chordSlugs'    => $chordSlugs,
             'lessonConcept' => $lessonConcept,
+            'rhythms'       => $rhythms,
         ]);
     }
 

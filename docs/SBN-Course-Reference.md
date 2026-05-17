@@ -225,11 +225,13 @@ Chord clicks in `SheetMiniPlayer` emit `@chord-click` from `TabMeasure`, which c
 
 ### 9.5 PracticePanel states
 
-Three display states driven by `selectedChord` ref in `Player.vue`:
+The chords card is driven by `selectedChord` ref in `Player.vue`. The card is
+**hidden entirely** when there is no `selectedChord` and the lesson has no
+chords.
 
 | State | Condition | Display |
 |---|---|---|
-| Chord list | `selectedChord === null` | All `chordSlugs` from lesson as mini `ChordCard` — slugs parsed server-side in `CourseController::player()` |
+| Chord grid | `selectedChord === null` | All `chordSlugs` from lesson as a grid of `ChordDiagram` cells (chord name above diagram, `--font-chord` style). Slugs parsed server-side in `CourseController::player()` |
 | Hero chord | `selectedChord` set | Always goes through `/api/sbn/chords?q={name}` name search — DB voicing, full `diagram_data` with correct fingers |
 
 **Voicing resolution in `loadHeroChord`:**
@@ -244,6 +246,21 @@ Three display states driven by `selectedChord` ref in `Player.vue`:
 **Fingers:** `chordVoicings` stores `{frets, position, fingers}`. Historically `fingers` was hardcoded `'000000'` — fixed in `useVoicingPickerStore._diagramDataToFingers()` (2026-05-10). Existing saved content with `'000000'` is harmless because `loadHeroChord` always fetches from the DB (which has correct `diagram_data`). The `fingers` field is still written correctly for audio playback via `chordVoicingsToEvents`.
 
 **Alias chord library feature (not yet built):** the chord library has no detail page for alias names. A future `?alias=` param on `/library/chords/{slug}` could override the displayed chord name and root to match the alias, allowing the hero link to work correctly for alias voicings too. Tracked in §8 open work.
+
+### 9.5b PracticePanel rhythm card
+
+The rhythm card shows the rhythm patterns referenced by `<sbn-rhythm slug="…">`
+tags in the lesson content — **lesson-specific**, not course-genre-generic.
+
+- `CourseController::player()` parses `<sbn-rhythm>` slugs from lesson content
+  (same approach as `chordSlugs`), fetches the patterns via `whereIn('slug', …)`,
+  and preserves the slug order from the content. Passed as the `rhythms` prop.
+- The card is hidden when the lesson has no `<sbn-rhythm>` tags.
+- `RhythmStrip` renders with `mini` and a `color` tint from
+  `getCategoryColor(pattern.category)` (e.g. `brazilian` → bossa style color).
+- The pattern selector pills appear only when there is more than one rhythm.
+- Pattern data comes from `RhythmPattern::toPlayerData()` (shape:
+  `RhythmPatternWithMeta`).
 
 ### 9.6 Admin editor integration
 
