@@ -9,7 +9,7 @@ const SLUG_TO_TOKEN: Record<string, string> = {
     'iconic':     '--clr-style-gold',
     'general':    '--clr-style-general',
     // Aliases & extra mappings
-    'cuban':      '--clr-style-latin',
+    'cuban':      '--clr-style-cuban',
     'brazilian':  '--clr-style-bossa',
     // Progression category mappings
     'modal':      '--clr-style-pop',      // Modal uses pop colors

@@ -20,10 +20,10 @@ class RhythmLibraryController extends Controller
         'bossa'       => 'bossa',
         'jazz'        => 'jazz',
         'latin'       => 'latin',
-        'cuban'       => 'latin',
+        'cuban'       => 'cuban',
         'blues'       => 'blues',
         'classical'   => 'classical',
-        'general'     => 'pop',
+        'general'     => 'general',
     ];
 
     public function index()
@@ -84,7 +84,8 @@ class RhythmLibraryController extends Controller
 
     public function serializePattern(RhythmPattern $pattern): array
     {
-        $styleSlug = self::CATEGORY_TO_STYLE[strtolower($pattern->category ?? '')] ?? 'pop';
+        $categoryKey = strtolower(trim((string) ($pattern->category ?? '')));
+        $styleSlug = self::CATEGORY_TO_STYLE[$categoryKey] ?? 'pop';
 
         return [
             'id' => $pattern->id,
