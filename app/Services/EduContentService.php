@@ -73,13 +73,20 @@ class EduContentService
      * needs offline lookup over a known set (e.g. an Inertia payload that
      * surfaces blurbs for every chord on the page).
      *
-     * @return array<string, array{title:string,blurb:string}>
+     * Returns {title, blurb, related} — `related` is additive; existing
+     * consumers that only read `title`/`blurb` are unaffected.
+     *
+     * @return array<string, array{title:string,blurb:string,related:string[]}>
      */
     public function allChordQualities(): array
     {
         $result = [];
         foreach ($this->topics('quality') as $topic) {
-            $result[$topic->slug] = ['title' => $topic->title, 'blurb' => $topic->summary];
+            $result[$topic->slug] = [
+                'title'   => $topic->title,
+                'blurb'   => $topic->summary,
+                'related' => $topic->related,
+            ];
         }
 
         return $result;

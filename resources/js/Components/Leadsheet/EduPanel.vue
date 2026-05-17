@@ -31,37 +31,31 @@
           <LibraryChordCard :chord="activeCard" :show-root="true" />
         </a>
 
-        <!-- Chord quality blurb (Step 6 replaces with edu content service) -->
-        <div v-if="chordQualityInfo" class="sbn-edu-chord-blurb">
-          <p>{{ chordQualityInfo.blurb }}</p>
-        </div>
-
-        <!-- Link to chord library -->
-        <div v-if="activeCard.slug" class="sbn-edu-chord-actions">
-          <a
-            :href="chordDetailUrl"
-            class="sbn-edu-link"
-          >
-            View in chord library →
-          </a>
-        </div>
+        <!-- Learn more expander — related concept, if one exists -->
+        <details
+          v-if="relatedConcept"
+          class="sbn-edu-learn-more"
+          @toggle="onLearnMoreToggle"
+        >
+          <summary>Learn more: {{ relatedConcept.title }}</summary>
+          <div ref="conceptBodyEl" v-html="relatedConcept.body_html" />
+        </details>
       </div>
       <div v-else-if="currentChord" class="sbn-edu-chord-detail">
         <!-- Fallback when no voicing data available -->
         <a :href="chordDetailUrl" class="sbn-edu-chord-card-link">
           <div class="sbn-edu-chord-name" v-html="formatChordHtml(currentChord)"></div>
         </a>
-        <div v-if="chordQualityInfo" class="sbn-edu-chord-blurb">
-          <p>{{ chordQualityInfo.blurb }}</p>
-        </div>
-        <div class="sbn-edu-chord-actions">
-          <a
-            :href="chordDetailUrl"
-            class="sbn-edu-link"
-          >
-            View in chord library →
-          </a>
-        </div>
+
+        <!-- Learn more expander — related concept, if one exists -->
+        <details
+          v-if="relatedConcept"
+          class="sbn-edu-learn-more"
+          @toggle="onLearnMoreToggle"
+        >
+          <summary>Learn more: {{ relatedConcept.title }}</summary>
+          <div ref="conceptBodyEl" v-html="relatedConcept.body_html" />
+        </details>
       </div>
       <div v-else class="sbn-edu-empty-state">
         <p>Click a chord to learn more</p>
@@ -102,7 +96,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { mountSbnNodes } from '@/lib/mountSbnNodes';
 
 // Import chord formatting utilities (reuse from tab-editor)
 import { formatChordHtml } from '@/tab-editor/utils/chordFormat.js';
@@ -143,6 +138,10 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
+  eduRelatedConcepts: {
+    type: Object,
+    default: () => ({}),
+  },
 });
 
 // Look up a value by per-slot key, falling back to bare-name (mirrors the
@@ -160,24 +159,36 @@ const activeCard = computed(() =>
   _lookupWithFallback(props.chordCards, props.selectionKey)
 );
 
-// ── Chord quality blurb lookup ─────────────────────────────────────────────────────
-const chordQualityInfo = computed(() => {
-  if (!props.selectionKey) return null;
-
-  // Get quality slug from qualityByKey map (computed server-side by ChordVoicingSearch)
+// ── Related concept expander ───────────────────────────────────────────────────────
+// Resolves the first related concept slug for the active quality and looks it
+// up in eduRelatedConcepts. Returns null if no related concept exists.
+const relatedConcept = computed(() => {
   const qualitySlug = _lookupWithFallback(props.qualityByKey, props.selectionKey);
   if (!qualitySlug) return null;
-
-  // Look up blurb from eduChordQualities (from EduContentService)
-  const info = props.eduChordQualities[qualitySlug];
-  if (info) return info;
-
-  // Fallback for unknown qualities
-  return {
-    title: qualitySlug,
-    blurb: 'This chord quality is not yet documented in our education library.',
-  };
+  const quality = props.eduChordQualities[qualitySlug];
+  const conceptSlug = quality?.related?.[0];
+  if (!conceptSlug) return null;
+  return props.eduRelatedConcepts[conceptSlug] ?? null;
 });
+
+// The body element for the active concept — used by mountSbnNodes.
+const conceptBodyEl = ref(null);
+
+// Track which concept slugs have already had their widgets mounted so we only
+// call mountSbnNodes once per concept per panel lifetime (widgets misbehave if
+// mounted into hidden / already-mounted elements).
+const mountedConcepts = new Set();
+
+function onLearnMoreToggle(event) {
+  if (!event.target.open) return;
+  const concept = relatedConcept.value;
+  if (!concept || !concept.has_widgets) return;
+  if (mountedConcepts.has(concept.slug)) return;
+  mountedConcepts.add(concept.slug);
+  if (conceptBodyEl.value) {
+    mountSbnNodes(conceptBodyEl.value);
+  }
+}
 
 // ── Chord slug generation ─────────────────────────────────────────────────────────────
 const chordSlug = computed(() => {
@@ -327,23 +338,6 @@ const filteredProgressions = computed(() => {
   border: 2px solid var(--clr-accent-border);
 }
 
-.sbn-edu-chord-blurb {
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--clr-text-dim);
-  padding: 12px;
-  background: var(--clr-surface-2);
-  border-radius: var(--radius-sm);
-}
-
-.sbn-edu-chord-blurb p {
-  margin: 0;
-}
-
-.sbn-edu-chord-actions {
-  text-align: center;
-}
-
 /* Progressions */
 .sbn-edu-progressions {
   display: flex;
@@ -391,22 +385,56 @@ const filteredProgressions = computed(() => {
   letter-spacing: 0.5px;
 }
 
-/* Links */
-.sbn-edu-link {
-  display: inline-block;
-  padding: 8px 16px;
-  background: var(--clr-accent);
-  color: white;
-  text-decoration: none;
+/* Learn more expander */
+.sbn-edu-learn-more {
+  font-size: 14px;
+  border: 1px solid var(--clr-border);
   border-radius: var(--radius-sm);
-  font-weight: 500;
-  font-size: 13px;
-  transition: all 0.15s;
+  overflow: hidden;
 }
 
-.sbn-edu-link:hover {
-  background: var(--clr-accent-dim);
-  transform: translateY(-1px);
+.sbn-edu-learn-more summary {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--clr-accent);
+  list-style: none;
+  user-select: none;
+}
+
+.sbn-edu-learn-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.sbn-edu-learn-more summary::before {
+  content: '▶ ';
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.sbn-edu-learn-more[open] summary::before {
+  content: '▼ ';
+}
+
+.sbn-edu-learn-more > div {
+  padding: 12px;
+  line-height: 1.6;
+  color: var(--clr-text-dim);
+  border-top: 1px solid var(--clr-border);
+}
+
+.sbn-edu-learn-more > div p {
+  margin: 0 0 8px 0;
+}
+
+.sbn-edu-learn-more > div p:last-child {
+  margin-bottom: 0;
+}
+
+.sbn-edu-learn-more > div ul,
+.sbn-edu-learn-more > div ol {
+  margin: 0 0 8px 0;
+  padding-left: 20px;
 }
 
 /* Empty states */

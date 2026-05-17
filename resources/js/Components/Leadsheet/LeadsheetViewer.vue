@@ -124,6 +124,7 @@
           :chord-cards="chordCards"
           :quality-by-key="qualityByKey"
           :edu-chord-qualities="eduChordQualities"
+          :edu-related-concepts="eduRelatedConcepts"
         />
       </div>
     </div>
@@ -174,6 +175,11 @@ const props = defineProps({
   },
   /** Edu content blurbs for chord qualities keyed by quality slug */
   eduChordQualities: {
+    type: Object,
+    default: () => ({}),
+  },
+  /** Related concept topics keyed by concept slug, for EduPanel expander */
+  eduRelatedConcepts: {
     type: Object,
     default: () => ({}),
   },

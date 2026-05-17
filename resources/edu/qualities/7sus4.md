@@ -6,7 +6,7 @@ summary: A suspended 4th chord with a dominant 7th. Creates a floating, unresolv
 # entry in Chords/Show.vue, so unlike the other 17 there is no legacy source.
 description: A dominant seventh with the third replaced by a perfect fourth. The suspended fourth strips out the major/minor identity, leaving the dominant seventh's pull intact but unanchored.
 usage: A floating dominant — common in funk, fusion, and gospel, and as a V7sus4 that delays its resolution to V7. Think the opening chord of "Pinball Wizard."
-related: [sus4, dom7]
+related: []
 see_also: []
 ---
 

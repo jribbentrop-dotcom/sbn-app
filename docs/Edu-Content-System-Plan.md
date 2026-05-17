@@ -463,17 +463,17 @@ easiest place to silently drop it:
 - `qualityTopic()` on a non-quality slug returns `null` outright;
 - `description`/`usage` survive the `toArray` → `fromArray` round-trip.
 
-Test additions (8.1) — `hasWidgets`:
+Test additions (8.1, done) — `hasWidgets`:
 
 - the 18 current quality topics all report `hasWidgets: false`;
-- a body containing `<sbn-widget …>` reports `true`; a body that only mentions
-  the literal string "sbn-widget" in prose reports `false`;
+- the widget-present case tests against a **real existing topic** —
+  `concepts/triad.md` already embeds an `<sbn-widget>`, so no test-only
+  fixture `.md` is needed (the original plan called for a dedicated fixture;
+  that proved unnecessary);
+- the prose-mention negative ("sbn-widget" as literal text, not an element)
+  tests directly against the pure static `EduTopic::bodyHasWidgets()` —
+  no file needed at all;
 - `hasWidgets` survives the `toArray` → `fromArray` round-trip.
-- **Fixture:** no existing quality body has a widget — like Task 2's harness
-  test, the "widget present" case needs a **dedicated test fixture file**
-  (a small `.md` under a test fixtures path) rather than mutating a real
-  `resources/edu/` file. The test author should add that fixture, not invent
-  an inline topic.
 
 ---
 
@@ -503,8 +503,8 @@ mirroring how `SongLibraryController` already passes `eduChordQualities`.
 | 6 | ✅ `triad-builder` widget + `/dev/edu` harness; end-to-end verified | 5 |
 | 7 | Build `circle-of-fifths` + `drop2-visualizer` widgets | 6 |
 | **8.0** | ✅ **Task 3 — quality model + slug reconciliation** (§5.0, §5.0a): 18 `qualities/*.md` carry `description`/`usage` frontmatter (17 verbatim from `qualityEdu`, `7sus4` fresh-authored), `EduTopic` nullable fields, `qualityTopic()` method, tests extended | 6 |
-| **8.1** | **Task 3 — Chords/Show.vue migration** (§5.3): `ChordLibraryController` Show passes quality topic; Vue renders `description`/`usage` spans + optional `body_html` via `mountSbnNodes`; delete inline `qualityEdu` | 8.0 |
-| **8.2** | **Task 3 — EduPanel "Learn more"** (§5.1): related-concept expander, `body_html` via `mountSbnNodes`; `SongLibraryController` passes concept topics | 8.0 |
+| **8.1** | ✅ **Task 3 — Chords/Show.vue migration** (§5.3): `ChordLibraryController` Show passes `qualityTopic`; Vue renders `description`/`usage` spans + widget-gated `body_html` via `mountSbnNodes`; `EduTopic.hasWidgets`; inline `qualityEdu` deleted | 8.0 |
+| **8.2** | ✅ **Task 3 — EduPanel "Learn more"** (§5.1): related-concept expander, `body_html` via `mountSbnNodes`; `SongLibraryController` passes concept topics; `related` frontmatter audited + corrected across all 18 quality files (triads→triad, sevenths→voice-leading) | 8.0 |
 | **8.3** | **Task 3 — Course Practice Panel** (§5.2): lesson references concept slug; panel renders `topic()` body via `mountSbnNodes` | 8.0, 8.1 done as warm-up |
 | 9 | (folded into 8.0–8.3) | — |
 | 10 | Author remaining content (ongoing, no code) | 3 |

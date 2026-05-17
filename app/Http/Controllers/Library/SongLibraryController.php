@@ -243,6 +243,28 @@ class SongLibraryController extends Controller
         ]);
     }
 
+    /**
+     * Collect every concept topic referenced by any quality's `related` field,
+     * keyed by concept slug. Null-resolved slugs (missing concept files) are
+     * filtered out so the frontend only sees topics that actually exist.
+     *
+     * @return array<string, array{slug:string,title:string,summary:string,body_html:string,has_widgets:bool}>
+     */
+    private function buildEduRelatedConcepts(EduContentService $edu): array
+    {
+        $allRelated = collect($edu->allChordQualities())
+            ->flatMap(fn ($quality) => $quality['related'] ?? [])
+            ->unique()
+            ->values();
+
+        return collect($allRelated)
+            ->mapWithKeys(fn ($slug) => [
+                $slug => $edu->topic('concept', $slug)?->toArray(),
+            ])
+            ->filter()
+            ->all();
+    }
+
     public function viewer(Leadsheet $leadsheet, ChordVoicingSearch $search, EduContentService $edu)
     {
         $enriched = $this->viewerService->enrich($leadsheet, $search);
@@ -263,7 +285,8 @@ class SongLibraryController extends Controller
                 'voicingNotes'  => $leadsheet->voicing_notes,
             ],
             ...$enriched,
-            'eduChordQualities' => $edu->allChordQualities(),
+            'eduChordQualities'   => $edu->allChordQualities(),
+            'eduRelatedConcepts'  => $this->buildEduRelatedConcepts($edu),
         ]);
     }
 
@@ -311,7 +334,8 @@ class SongLibraryController extends Controller
                 'voicingNotes'  => $leadsheet->voicing_notes,
             ],
             ...$enriched,
-            'eduChordQualities' => $edu->allChordQualities(),
+            'eduChordQualities'   => $edu->allChordQualities(),
+            'eduRelatedConcepts'  => $this->buildEduRelatedConcepts($edu),
         ]);
     }
 
