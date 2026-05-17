@@ -40,7 +40,7 @@ use Illuminate\Support\Facades\File;
  * Smoothing: not applied here. Consumers apply Laplace add-K smoothing at
  * read time so the smoothing parameter can be tuned without regenerating.
  *
- * Spec: docs/SBN-Identifier-Phase3-Plan.md §5.3.
+ * Spec: docs/SBN-Identifier-Reference.md §5.3.
  */
 class ReseedTransitions extends Command
 {

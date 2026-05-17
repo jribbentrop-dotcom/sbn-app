@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\DB;
  * matches the target voicing under any transposition. Returns ranked
  * hits with confidence metadata.
  *
- * Design and shadow-dump findings: docs/SBN-Identifier-Phase3-Plan.md §3.
+ * Design and shadow-dump findings: docs/SBN-Identifier-Reference.md §5.1.
  *
- * Two DB-schema traps this service works around (see spec §3.4a):
+ * Two DB-schema traps this service works around (see spec §5.1):
  *   1. `root_note` column is sometimes a positional archetype tag, not the
  *      chord root. True root derived from `interval_labels` ('R' position).
  *   2. `inversion` field can disagree with the shape's actual lowest pitch.

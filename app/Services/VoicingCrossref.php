@@ -1590,7 +1590,7 @@ class VoicingCrossref
         $candidates = $this->buildCandidateList($allCandidates, $pcSet, $bassPc, $frets, $position);
 
         // ── Phase 3.1/3.2: DB shape evidence + key-fit weighting ──
-        // See docs/SBN-Identifier-Phase3-Plan.md §3 (Layer 1) and §4 (Layer 2).
+        // See docs/SBN-Identifier-Reference.md §5.1 (Layer 1) and §5.2 (Layer 2).
         // If a high-confidence DB hit names a chord that Pass 1 didn't produce,
         // inject it as a candidate and let it compete on the rescored ranking.
         // Key-fit weight (1.00–1.20) is applied alongside DB multipliers; chromatic
@@ -2299,7 +2299,7 @@ class VoicingCrossref
     /**
      * Phase 3.1: apply DB shape evidence to Pass 1 candidates.
      *
-     * Score adjustments (see docs/SBN-Identifier-Phase3-Plan.md §3.3):
+     * Score adjustments (see docs/SBN-Identifier-Reference.md §5.1):
      *   - DB hit with bass_match + (root=bass OR shape is inversion) + pop ≥ 1 → ×1.5
      *   - DB hit with bass_match only → ×1.15
      *   - Pass 1 winner not in DB anywhere → ×0.85

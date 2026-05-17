@@ -708,8 +708,8 @@ leadsheet):
   `bass_string_min/max` and `top_string_min/max`. Track separately
   under Part 4.
 
-The cross-reference to the leadsheet doc lives in
-`docs/Phase-Leadsheet-Creation.md` (add a section there).
+This is a cross-doc concern with the leadsheet creator — track it
+alongside the builder's Part 4 work.
 
 ### §18. Safety affordances
 
@@ -1018,8 +1018,7 @@ they ship.
 
 - **String-set constraint.** The leadsheet creator should support
   "play on strings 2–5 only" as a hard pool filter. Not in the builder
-  today. Tracked in `docs/Phase-Leadsheet-Creation.md` once that doc
-  picks it up.
+  today — open cross-doc item for the leadsheet creator.
 - **Leadsheet per-build settings panel.** Replace the current
   `popular | drop2 | shell | archetype` control with the §17 expanded
   panel.

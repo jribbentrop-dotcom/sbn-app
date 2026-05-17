@@ -16,7 +16,7 @@ use App\Helpers\ChordName;
  * Consumers convert probability to a score multiplier (e.g. clamped to [1.00, 1.50])
  * when combining with the other identifier scoring signals.
  *
- * Spec: docs/SBN-Identifier-Phase3-Plan.md §5.3.
+ * Spec: docs/SBN-Identifier-Reference.md §5.3.
  */
 class TransitionScorer
 {

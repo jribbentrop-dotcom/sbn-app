@@ -10,7 +10,7 @@ namespace App\Services\Identifier;
  * candidates get the neutral 1.00, so jazz idioms (secondary dominants,
  * tritone subs, modal mixture) are NOT downweighted.
  *
- * Spec: docs/SBN-Identifier-Phase3-Plan.md §4.
+ * Spec: docs/SBN-Identifier-Reference.md §5.2.
  *
  * Tonicization is NOT handled here (deferred to Layer 3, which absorbs
  * secondary-ii-V groupings as high-probability transitions).

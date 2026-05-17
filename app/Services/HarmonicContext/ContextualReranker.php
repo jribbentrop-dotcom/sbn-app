@@ -274,7 +274,7 @@ class ContextualReranker implements IContextualReranker
      * candidate at slot N. Then re-pick the winner if a different candidate now
      * leads the rescored ranking.
      *
-     * Spec: docs/SBN-Identifier-Phase3-Plan.md §5.3.
+     * Spec: docs/SBN-Identifier-Reference.md §5.3.
      *
      * Safety rails identical to 2d to avoid silly slash-chord promotions:
      *   - never promote slash over non-slash unless the rescored gap is large
@@ -350,7 +350,7 @@ class ContextualReranker implements IContextualReranker
      * path wins.
      *
      * Structurally mirrors ProgressionBuilder::viterbiSearch (Phase D builder).
-     * Spec: docs/SBN-Identifier-Phase3-Plan.md §5.5.
+     * Spec: docs/SBN-Identifier-Reference.md §5.3.
      *
      * Safety rails:
      *   - Only candidates already in each slot's top-K are considered (cannot
