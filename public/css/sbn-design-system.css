@@ -88,6 +88,7 @@
     --clr-style-samba: #10b981;
     /* green  — samba           */
     --clr-style-latin: #8b5cf6;
+    --clr-style-cuban: #0050a4;
     /* purple — latin           */
     --clr-style-blues: #6366f1;
     /* indigo — blues           */
@@ -97,11 +98,21 @@
     /* slate  — classical       */
     --clr-style-gold: #d69e2e;
     /* gold   — iconic/featured */
-    --clr-style-general: #5a5a5a;
+    --clr-style-general: #94a3b8;
     /* dark grey — general rhythms */
 
     /* Fallback when slug is unknown */
     --clr-style-default: var(--clr-style-bossa);
+
+    /* ── Chord-tone role colors ──────────────────────────
+       Per-voice hues for chord-construction edu widgets
+       (triad-builder, drop2-visualizer). One fixed color
+       per scale degree so the visual language is shared
+       across every widget that stacks chord tones.        */
+    --clr-role-root: #f39c12;     /* accent orange — the root  */
+    --clr-role-third: #3b82f6;    /* blue   — the third        */
+    --clr-role-fifth: #10b981;    /* green  — the fifth        */
+    --clr-role-seventh: #8b5cf6;  /* purple — the seventh      */
 
     /* ── Layout dimensions ─────────────────────────────── */
     --sidebar-w: 260px;
@@ -521,7 +532,7 @@
     /* Aliases for common legacy names */
     .sbn-cat-badge--brazilian  { --cat-clr: var(--clr-style-bossa); }
     .sbn-cat-badge--bossa-nova { --cat-clr: var(--clr-style-bossa); }
-    .sbn-cat-badge--cuban      { --cat-clr: var(--clr-style-latin); }
+    .sbn-cat-badge--cuban      { --cat-clr: var(--clr-style-cuban); }
     .sbn-cat-badge--modal      { --cat-clr: var(--clr-mod-progression); }
 
 /* Card footer — popularity + difficulty */
