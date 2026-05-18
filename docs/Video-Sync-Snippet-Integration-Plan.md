@@ -5,8 +5,59 @@ course player, synced to visual components — Hooktheory-style. Short
 analytical snippets accompany the existing player components so students can
 hear how a groove, progression, or chord shape appears in a real recording.
 
-This builds on the Phase D video-sync work (`useVideoSync.js`, the
+This builds on the earlier admin video-sync work (`useVideoSync.js`, the
 `#sbn-video-slot` editor pattern) and extends it to the public frontend.
+
+---
+
+## 0. Status — as built (2026-05-18)
+
+**Frontend COMPLETE.** Committed `68470bf` on branch
+`feature/video-sync-snippets` (not yet merged to `main`).
+
+Built:
+- `resources/js/Components/Library/Video/VideoEmbed.vue` — shared YouTube/hosted
+  embed. Relocated from `tab-editor/components/VideoPlayer.vue`; rAF polling,
+  IFrame API, `seek/play/pause`. This is the `<YouTubeEmbed>` of §3.
+- `resources/js/composables/useVideoPlayhead.ts` — the shared sync layer.
+  Domain-free: reactive **`playheadSec`** (seconds, verbatim from YouTube — no
+  conversion on the wire), `playing`, `play/pause/seek`, and `setLoop` (loop
+  enforced in recording-native seconds). NOTE: this is a *new* composable, not
+  the admin `useVideoSync.js` — the latter is measure/gi-domain (mappings, D2
+  authoring) and stays the leadsheet Cinema view's own consumer, untouched.
+- `ChordProgressionViewer` — `chordTimeline` + `chordIndexAtTime(sec)` (§4 ⚠️
+  refactor; done).
+- `RhythmStrip`, `SheetMiniPlayer` — additive `videoPlayhead` prop. Audio paths
+  untouched; the video clock drives the highlight only when the prop is non-null.
+- `PracticePanel` — one panel-level `VideoEmbed` slot, bound to the focused
+  rhythm's `videoSnippet`. `VideoSnippet` type lives on `RhythmPattern.vue`.
+
+**Transport unit (locked):** seconds. Each snippet carries an anchor pair
+`startSec` + `tempoBpm`; each consumer converts seconds→its own unit once at its
+edge. Loops are `[startSec, endSec]` in YouTube-native seconds.
+
+**Design (locked):** a snippet always attaches to a *component instance*
+(rhythm, progression, …), never to a bare lesson. The practice panel renders
+one embed slot bound to the focused component.
+
+**Leadsheet sync:** already shipped as the Cinema view — no separate work
+needed. Verified intact after the `VideoEmbed` rename.
+
+### Remaining — pick up here
+
+**Backend `videoSnippet` field (the only open task).** Nothing populates
+`videoSnippet` yet, so the practice-panel embed slot stays hidden. To finish:
+1. Add a `video_snippet` JSON field to the rhythm pattern (column or existing
+   JSON blob on `sbn_rhythms`).
+2. Include it in `RhythmPatternController` serialization → the
+   `RhythmPatternWithMeta` shape already declares `videoSnippet?`.
+3. Admin editor UI (Blade) to author `videoId` / `startSec` / `endSec` /
+   `tempoBpm`.
+Shape to emit (see `VideoSnippet` in `RhythmPattern.vue`):
+`{ videoId, videoType?, startSec, endSec?, tempoBpm }`.
+
+Sections 1–7 below are the original plan, kept for rationale and the legal
+posture. Where they describe future work, §0 above supersedes them.
 
 ---
 
