@@ -247,3 +247,120 @@ Integrating a "Standard Reference" database (like the Mike Oliphant Jazz Standar
 *   **Melody Pipeline:** `LeadsheetController::musicalizeTranscription` orchestration.
 
 > **History:** This doc supersedes the 2026-05-04 `Audio-Transcription-OPUSAnalysis` audit, whose proposed fixes (range filter, beat clamping, no-dots grid, duration-weighted ID) are all now implemented above. The chord mis-ID deep-dive it called out lives in [SBN-Identifier-Reference.md](SBN-Identifier-Reference.md).
+
+---
+
+## 10. Next Phases — Roadmap & Design Notes
+
+> Captured 2026-05-18 from a planning session. The pipeline's remaining
+> weaknesses are **music-theory problems, not acoustic ones** — and every item
+> below reuses an engine that already exists in the codebase. Nothing here is a
+> from-scratch research effort. Listed roughly in value order.
+
+### Known bug — `transcriptionRaw` leaks into the AI prompt
+
+`musicalizeTranscription()` builds the user prompt as `json_encode($rawAnalysis)`
+— the **entire** analysis array, which now includes the `transcriptionRaw` blob
+(cached `beats`, `beat_times`, all raw `notes`) added for the downbeat tool.
+That field is internal plumbing; it has no business in the AI payload. It ships
+a duplicate copy of the whole raw transcription on every AI-cleanup call — pure
+cost/latency for zero benefit. The prompt strips `pitches`/`raw_beats` from
+*output* but never strips `transcriptionRaw` from *input*.
+**Fix:** strip `transcriptionRaw` (and ideally `raw_beats`, `melody_data`,
+`note_durations`) before encoding the user prompt. Folded into the AI-redivision
+work below, but it's a standalone bug too.
+
+### Phase T1 — Fretboard position optimisation (highest user-visible value)
+
+**Problem:** `midiToTab()` maps each MIDI pitch to *a* string/fret in isolation.
+Even a perfectly correct transcription produces physically absurd tab — a line
+may leap fret 2 → 14 → 5 for notes any guitarist plays in one hand position.
+
+**Approach:** shortest-path / Viterbi over `(string, fret)` candidates per note,
+minimising a cost function: fret-distance (hand travel), string changes, hand-
+span (favour staying within ~4–5 frets), open strings as low-cost anchors, and
+physical reachability for simultaneous notes (chords/dyads).
+
+**Reuse:** this is the **same machine as `ProgressionBuilder`'s Viterbi voicing
+selection** (`scoreVL`, cost fn) — different cost function, candidate = fret
+position instead of voicing. Adapting proven code, not new algorithm.
+
+**Caveat:** can't recover the *exact* fingering the player used, but "playable
+and sensible" is a huge leap from "right pitches, physically impossible."
+
+### Phase T2 — Melody / bass / inner voice separation
+
+**Problem:** every note `basic-pitch` emits becomes a melody event. For solo
+jazz guitar (bass + chord + melody played at once) the tab is one cluttered
+monophonic line. Doc §4 lists this as "P3 Multi-Voice" / far-future — that
+priority is too low; it's the root cause of cluttered tab.
+
+**Approach:** reuse the **bass-snap onset clustering** (already written —
+`bassSnapBeatTimes()` clusters onsets, takes lowest-per-cluster). Route:
+lowest-per-cluster → bass voice; highest sustained → melody voice; middle →
+dropped from tab but **kept for chord ID**. Needs a `voice` field through the
+melody schema + tab renderer voice selection.
+
+**Pairs with T1:** separate the voices first, then lay each voice ergonomically.
+
+### Phase T3 — Wire the context-aware identifier into the audio path
+
+**Problem:** doc §6 — the audio path identifies every chord *in isolation* via
+`identifyFromMidi()`. The context-aware Phase 3 engine (Viterbi + bigram +
+key-fit, see [SBN-Identifier-Reference.md](SBN-Identifier-Reference.md) §5) was
+built but **never connected to transcription**.
+
+**Approach:** after first-pass ID, re-identify with key + neighbour context.
+Mostly plumbing of an existing engine, not new algorithm.
+
+### Phase T4 — Redivide the AI's job (prompt + payload redesign)
+
+**Problem:** the current `musicalizeTranscription()` prompt asks Gemini to do
+**chord identification from raw MIDI pitch-class integers** (task 1) and
+**rhythmic quantization** (task 4) — both things the deterministic pipeline
+already does *better* (`VoicingCrossref`, the beat-clamp/no-dots quantizer).
+LLMs are weak at mechanical pitch-set→chord arithmetic; the AI can also
+*overwrite* good deterministic results. The user prompt also dumps tens of
+thousands of tokens of redundant JSON (`raw_beats` + `transcriptionRaw` +
+`melody_data`). The prompt is generic — no "solo jazz guitar", no key, no
+Jazz Standard reference.
+
+**The fix is re-division of labour, not prompt wording:**
+- **Deterministic pipeline keeps:** chord ID, rhythm quantization, melody.
+- **AI does only:** structuralisation — read the *sequence of identified chord
+  names* + bar structure, return section labels (Intro/A/A/B/A/Outro) and light
+  enharmonic / obvious-misID spelling cleanup. This is pattern recognition over
+  chord *names* — real LLM value.
+- **Strip from payload:** `transcriptionRaw`, `raw_beats`, `melody_data`,
+  `note_durations`. Send chord names, not pitch integers.
+- **Add to payload:** key, time signature, "solo jazz guitar", and the matched
+  Jazz Standard's changes when one exists.
+- Net effect: cheaper, faster, *better* — the AI does the one thing it's good
+  at on clean input. Much of this phase is deletion.
+
+### Phase T5 — Reference anchoring (known standards)
+
+When the tune matches an entry in the ~1,400-row **Mike Oliphant Jazz Standards
+DB**, use its bar count / section labels / changes to force-align the grid and
+bias chord ID (doc §7). Especially powerful for known standards (e.g. *Body and
+Soul*). Composes with T4 (feed the reference into the AI payload) and with
+bass-snap (bias anchors toward expected bass pitches).
+
+### Phase T6 — Tap-correct re-time UI (manual fallback)
+
+Designed, not built (see §3 Future Improvements B). Manual downbeat tapping
+against the synced video for recordings where bass-snap can't find good
+anchors. Tapped times become `downbeatOverrides` feeding `assembleTranscription()`.
+Lower priority — bass-snap covers the common case.
+
+### Smaller fixes
+
+- **90-second cap.** `transcribe.py` — `librosa.load(..., duration=90)` truncates
+  every transcription at 90 s (≈ one chorus of a jazz tune). Likely a leftover
+  dev limit; lifting it removes a hard ceiling on usefulness.
+
+### Suggested order
+
+T4 first (largest cost/quality win, mostly deletion, fixes the known bug) →
+T1 (highest user-visible win, Viterbi engine exists) → T2 (deeper fix, enables
+cleaner T1) → T3 → T5 → T6. The 90 s cap can be lifted any time.
