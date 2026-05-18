@@ -52,19 +52,82 @@ If the first detected beat is an anacrusis or beat 2, every bar boundary is wron
 ### Implemented Fixes (Session 2026-05-04)
 - **Leading Silence Removal:** The engine scans for the first busy measure and trims empty bars from the start, realigning the `videoSync` mappings. ✅
 
+### Implemented: User Downbeat Offset Tool (Session 2026-05-18) ✅
+The "Set downbeat" panel in the Video sidebar (`VideoSyncEditor.vue`) lets the
+user fix a within-bar phase offset *after* import, without re-downloading or
+re-transcribing.
+
+- **Raw cache.** `assembleTranscription()` stores the raw Python output
+  (`beats`, `beat_times`, `notes`, `tempo`, `downbeatOffset`) in
+  `json_data.transcriptionRaw`. `AnalysisToLeadsheet` passes it through;
+  `musicalizeTranscription` preserves it across the Gemini pass.
+- **Picker.** The panel renders the first ~12 beats from the cached `beats` as
+  columns with per-beat pitch dots. The user clicks the beat that is the true
+  musical "1".
+- **Pickup, not drop.** Beats *before* the chosen "1" are not discarded — they
+  become a leading pickup bar (a full 4-beat measure with leading rests). The
+  offset is `chosenOneIndex − firstBusyBeatIndex`, clamped 0–3.
+- **Re-assembly.** `POST /api/admin/leadsheets/{id}/reshift-downbeat` re-runs
+  `assembleTranscription()` with the new offset, rebuilds sections / melody /
+  `videoSync`, persists, and the editor reloads. Idempotent — always re-shifts
+  from the original cached beats.
+- **Caveat.** Full re-assembly discards manual chord/voicing edits made after
+  import. The panel warns; it is meant as a "do this first" step.
+
+### Implemented: Bass-Snap Beat Correction (Session 2026-05-18) ✅
+For jazz solo guitar the time is flexible (rubato), so `beat_track()`'s steady
+grid drifts away from the actual playing. The bass note (thumb), however, keeps
+far steadier time than the melody above it — so bass onsets are used as metric
+anchors to rebuild a tempo-following `beat_times`.
+
+All in `LeadsheetController`:
+- **`bassSnapBeatTimes($notes, $beatTimes)`** — clusters note onsets (70 ms
+  window = one attack), takes the *lowest pitch per cluster* as the bass note,
+  drops clusters whose lowest note is implausibly high (median + 7 semitones —
+  a melody-only moment), then snaps each bass onset to the nearest 8th-note
+  subdivision of `beat_track`'s provisional grid. Yields `(audioTime → gridPos)`
+  anchor pairs. `beat_track` only needs to be locally accurate to within an 8th
+  for the snap to pick the right subdivision; anchoring then resets the
+  accumulated drift at every bass note.
+- **`buildCorrectedBeatTimes($anchors, $fallback)`** — rebuilds `beat_times` by
+  piecewise-linear interpolation between anchors. Melody-only stretches ride
+  smoothly across the gap between the nearest anchored bass notes. Front-edge
+  extrapolation is clamped to ≥ 0; output is guaranteed monotonic.
+- **`rebucketBeats($notes, $beatTimes)`** — re-groups notes into per-beat pitch
+  buckets against the corrected grid (mirrors Python's bucketing), so chord
+  region detection stays aligned after the grid moves.
+
+Wiring: `assembleTranscription()` takes a `bass_snap` opt — **on by default**
+for new audio imports. The cached `transcriptionRaw` always stores the pristine
+Python grid plus a `bassSnap` flag, so re-runs are reproducible. The
+`reshift-downbeat` endpoint accepts `bass_snap`, defaulting to whatever produced
+the current assembly.
+
+**Caveat — depends on detection.** The snap is only as good as `basic-pitch`'s
+bass detection; muddy low register can be missed, leaving sparse anchors (it
+then falls back to `beat_track`). And `beat_track` must be locally accurate to
+within an 8th or an anchor snaps to the wrong subdivision. Best results on
+recordings with a clear bass-vs-melody separation.
+
+**Dev tool:** `php artisan sbn:bass-snap-debug {leadsheetId}` prints the
+`beat_track` vs bass-snap times per beat with deltas — for spot-checking how
+much (and where) the correction moved the grid.
+
 ### Proposed Future Improvements
-#### A. Python: Use `librosa.beat.plp()` for downbeat estimation
-```python
-onset_env = librosa.onset.onset_strength(y=y, sr=sr)
-pulse = librosa.beat.plp(onset_envelope=onset_env, sr=sr)
-# The phase of the strongest pulse cycle hints at the downbeat offset
-```
-#### B. UI: User Downbeat Offset Selector
-Add a control in the transcription modal or Video Sidebar:
-- Users see the first 4–8 beats and tap which one is "1".
-- Stores a `beat_offset` (0–3) to re-assemble the leadsheet with shifted bar grouping.
+#### A. PLP for beat tracking — tried, rejected
+`librosa.beat.plp()` follows local tempo, but it returns a *pulse curve* —
+sparse, unevenly-spaced peaks, not a quarter-note grid. The PHP pipeline hard-
+assumes "1 `beat_times` entry = 1 quarter note (480 ticks)", so swapping in PLP
+drops notes (fewer beats → fewer bars → shortened timeline). Rubato is corrected
+by **bass-snap** (and, where that fails, manual re-shift) instead. See the
+explanatory comment in `transcribe.py`.
+#### B. Tap-correct re-time UI
+A manual escape hatch for recordings where bass-snap can't find good anchors:
+the user taps downbeats against the synced video; tapped times become
+`downbeatOverrides` feeding `assembleTranscription()`. Designed, not built —
+bass-snap covers the common case.
 #### C. Reference Anchoring
-If the song matches a standard leadsheet from the **Mike Oliphant JazzStandards JSON**, use the standard bar count and section labels to force-align the grid.
+If the song matches a standard leadsheet from the **Mike Oliphant JazzStandards JSON**, use the standard bar count and section labels to force-align the grid. Could also bias bass-snap toward expected bass pitches.
 
 ---
 
@@ -165,8 +228,10 @@ Integrating a "Standard Reference" database (like the Mike Oliphant Jazz Standar
 | **P1** | Leading Silence Removal | ✅ Implemented | Score starts at music onset |
 | **P1** | No-Dots Rhythmic Grid | ✅ Implemented | Maximizes tab readability |
 | **P1** | Duration-Weighted ID | ✅ Implemented | Better chord recognition input |
-| **P2** | User Downbeat Offset UI | ⏳ Pending | User can fix grid alignment |
+| **P2** | User Downbeat Offset UI | ✅ Implemented | User picks the true "1" from an onset strip; re-shifts via pickup bar |
+| **P2** | Bass-Snap Beat Correction | ✅ Implemented | Rebuilds beat_times from bass-note anchors so the grid follows rubato |
 | **P2** | Phase 3 Context Awareness | ⏳ Pending | Context-aware chord disambiguation |
+| **P3** | Tap-Correct Re-time UI | ⏳ Designed | Manual downbeat tapping for recordings bass-snap can't anchor |
 | **P3** | Reference Leadsheet Sync | ⏳ Pending | Anchoring transcription to standard progressions |
 | **P3** | Multi-Voice Support | ⏳ Pending | Clean separation of melody/bass/inner |
 
@@ -175,6 +240,10 @@ Integrating a "Standard Reference" database (like the Mike Oliphant Jazz Standar
 ## 9. Maintenance & Debugging
 
 *   **Testing:** `php artisan sbn:transcribe-test path/to/audio.mp3`
+*   **Bass-snap inspection:** `php artisan sbn:bass-snap-debug {leadsheetId}` — prints `beat_track` vs bass-snapped grid per beat with deltas.
 *   **yt-dlp Update:** `.\yt-dlp.exe -U`
 *   **Harmonic Engine:** Core logic in `VoicingCrossref.php` (Pass 1–3c).
+*   **Assembly:** `LeadsheetController::assembleTranscription()` owns beat→bar grouping, bass-snap, chord region detection, melody reconstruction and videoSync mapping.
 *   **Melody Pipeline:** `LeadsheetController::musicalizeTranscription` orchestration.
+
+> **History:** This doc supersedes the 2026-05-04 `Audio-Transcription-OPUSAnalysis` audit, whose proposed fixes (range filter, beat clamping, no-dots grid, duration-weighted ID) are all now implemented above. The chord mis-ID deep-dive it called out lives in [SBN-Identifier-Reference.md](SBN-Identifier-Reference.md).

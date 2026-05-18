@@ -521,6 +521,7 @@ class LeadsheetController extends Controller
             'mode'          => 'nullable|string|in:quick,assistant,audio',
             'youtube_id'    => 'nullable|string',
             'ai_cleanup'    => 'nullable|boolean',
+            'bass_snap'     => 'nullable|boolean',
         ]);
 
         if (($validated['mode'] ?? '') === 'audio') {
@@ -537,348 +538,22 @@ class LeadsheetController extends Controller
                 return back()->withErrors(['lookup' => "Transcription Error: " . $e->getMessage()]);
             }
 
-            // Convert raw Python output (beats/notes) to standard Analysis format
-            $analysis = [
-                'title'         => $request->input('youtube_title') ?: 'Audio Transcription',
-                'composer'      => '',
-                'key'           => $validated['preferred_key'] ?: 'C',
-                'tempo'         => (int)round($rawResult['tempo'] ?? 120),
-                'timeSignature' => '4/4',
-                'source_note'   => 'AI Audio Transcription from YouTube (ID: ' . $validated['youtube_id'] . ')',
-                'sections'      => [],
-                'videoSync'     => [
-                    'videoId'     => $validated['youtube_id'],
-                    'videoType'   => 'youtube',
-                    'audioSource' => 'video',
-                    'mappings'    => []
-                ]
-            ];
+            // Convert raw Python output (beats/notes) to standard Analysis format.
+            // assembleTranscription() owns the beat→bar grouping, chord region
+            // detection, melody reconstruction and videoSync mapping. The raw
+            // Python output is cached in json_data so the downbeat can be
+            // re-shifted later without re-downloading / re-transcribing.
+            $aiCleanup = !empty($validated['ai_cleanup']);
 
-            $currentSection = ['label' => 'A', 'bars' => []];
-            $beatsPerBar    = 4;
-            $tempBar        = ['chords' => []];
-            $mappings       = [];
-            $aiCleanup      = !empty($validated['ai_cleanup']);
-
-            // Remove leading silence by finding the first bar with musical content (P1 fix)
-            $firstBusyBeatIdx = 0;
-            foreach ($rawResult['beats'] as $idx => $beat) {
-                if (!empty($beat['notes']) || !empty($beat['note_durations'])) {
-                    $firstBusyBeatIdx = $idx;
-                    break;
-                }
-            }
-            $skipBars = (int)floor($firstBusyBeatIdx / $beatsPerBar);
-            $startBeatIdx = $skipBars * $beatsPerBar;
-            $tickOffset = $skipBars * $beatsPerBar * 480;
-
-            // ── Non-AI path state: harmonic region grouping (Phase 2c) ──────────
-            // Consecutive beats with Jaccard similarity >= threshold merge into
-            // a single chord slot so identifyFromMidi() is called once per region.
-            $regionPitches    = [];   // accumulated unique MIDI pitches for current region
-            $regionStartBeat  = 1;    // bar-relative beat number where region started
-
-            for ($i = $startBeatIdx; $i < count($rawResult['beats']); $i++) {
-                $beat = $rawResult['beats'][$i];
-                if ($i % $beatsPerBar === 0) {
-                    $mappings[] = [
-                        'measureIndex' => (int)(($i - $startBeatIdx) / $beatsPerBar),
-                        'videoTime'    => (float)$beat['start']
-                    ];
-                }
-
-                // Duration-weighted pitch selection (P1 fix)
-                $rawPitches = [];
-                foreach ($beat['note_durations'] ?? [] as $pitch => $dur) {
-                    if ($dur >= 0.1) $rawPitches[] = (int)$pitch;
-                }
-                if (empty($rawPitches)) $rawPitches = $beat['notes'] ?? [];
-
-                $beatNum = ($i % $beatsPerBar) + 1;
-
-                if ($aiCleanup) {
-                    // ── AI path (Phase 2b) ────────────────────────────────────
-                    // Store raw pitch classes + '?' placeholder; Gemini fills labels.
-                    if (!empty($rawPitches)) {
-                        $pcSet = array_values(array_unique(array_map(fn($p) => $p % 12, $rawPitches)));
-                        $tempBar['chords'][] = [
-                            'label'   => '?',
-                            'beat'    => $beatNum,
-                            'pitches' => $pcSet,   // read by Gemini; stripped after AI pass
-                        ];
-                    }
-                } else {
-                    // ── Non-AI path (Phase 2c): Jaccard region grouping ──────
-                    if (empty($rawPitches)) {
-                        // Silent beat — flush any open region
-                        if (!empty($regionPitches)) {
-                            $idResult = $crossref->identifyFromMidi($regionPitches);
-                            if ($idResult['name']) {
-                                $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
-                            }
-                            $regionPitches = [];
-                        }
-                    } else {
-                        if (empty($regionPitches)) {
-                            // Start a new region
-                            $regionPitches   = $rawPitches;
-                            $regionStartBeat = $beatNum;
-                        } else {
-                            $sim = $this->jaccardSimilarity($regionPitches, $rawPitches);
-                            if ($sim >= 0.5) {
-                                // Harmonically similar — extend region, keep all pitches
-                                $regionPitches = array_values(array_unique(array_merge($regionPitches, $rawPitches)));
-                            } else {
-                                // New harmonic region — flush previous
-                                $idResult = $crossref->identifyFromMidi($regionPitches);
-                                if ($idResult['name']) {
-                                    $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
-                                }
-                                $regionPitches   = $rawPitches;
-                                $regionStartBeat = $beatNum;
-                            }
-                        }
-                    }
-                }
-
-                // ── End of bar ────────────────────────────────────────────────
-                if (($i + 1) % $beatsPerBar === 0) {
-                    // Non-AI: flush the final open region before closing the bar
-                    if (!$aiCleanup && !empty($regionPitches)) {
-                        $idResult = $crossref->identifyFromMidi($regionPitches);
-                        if ($idResult['name']) {
-                            $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
-                        }
-                        $regionPitches = [];
-                    }
-
-                    if (empty($tempBar['chords'])) {
-                        $tempBar['chords'][] = ['label' => '/', 'beat' => 1];
-                    }
-                    $currentSection['bars'][] = $tempBar;
-                    $tempBar = ['chords' => []];
-                }
-            }
-
-            // Flush any trailing partial bar
-            if (!$aiCleanup && !empty($regionPitches)) {
-                $idResult = $crossref->identifyFromMidi($regionPitches);
-                if ($idResult['name']) {
-                    $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
-                }
-            }
-            if (!empty($tempBar['chords'])) {
-                $currentSection['bars'][] = $tempBar;
-            }
-
-            if (empty($currentSection['bars'])) {
-                $currentSection['bars'][] = ['chords' => [['label' => '/', 'beat' => 1]]];
-            }
-            $analysis['sections'][] = $currentSection;
-            $analysis['videoSync']['mappings'] = $mappings;
-
-            // AI path: attach raw beats so Gemini can read pitch context
-            if ($aiCleanup) {
-                $analysis['raw_beats'] = $rawResult['beats'];
-            }
-
-            // Reconstruct melody from raw MIDI notes (P0 & P1 fixes)
-            $melody = [];
-            if (!empty($rawResult['notes']) && !empty($rawResult['beat_times'])) {
-                $ticksPerBar = $beatsPerBar * 480;
-
-                // 1. Filter by guitar range and group by quantized tick (P0)
-                $tickGroups = [];
-                foreach ($rawResult['notes'] as $note) {
-                    // P0: Guitar range filter (MIDI 40-88)
-                    if ($note['pitch'] < 40 || $note['pitch'] > 88) continue;
-
-                    $rawStart = $this->timeToTicks($note['start'], $rawResult['beat_times']);
-                    // Bias start toward 8th note grid (240 ticks) to avoid unwanted 16th-note jitter
-                    $startTick = (int)round($rawStart / 240) * 240;
-                    if (abs($rawStart - $startTick) > 60) {
-                        // If it's clearly a 16th off-beat, keep it
-                        $startTick = (int)round($rawStart / 120) * 120;
-                    }
-                    
-                    $startTick -= $tickOffset;
-                    if ($startTick >= 0) {
-                        $tickGroups[$startTick][] = $note;
-                    }
-                }
-
-                // 2. Process all notes per tick (Restoring polyphony) and build melody events
-                $sortedTicks = array_keys($tickGroups);
-                sort($sortedTicks);
-                
-                $tempMelody = [];
-                for ($i = 0; $i < count($sortedTicks); $i++) {
-                    $tick = $sortedTicks[$i];
-                    $notes = $tickGroups[$tick];
-                    $nextTick = ($i + 1 < count($sortedTicks)) ? $sortedTicks[$i+1] : null;
-                    
-                    $barIdx  = (int)floor($tick / $ticksPerBar);
-                    $barEnd  = ($barIdx + 1) * $ticksPerBar;
-                    $beatEnd = ((int)floor($tick / 480) + 1) * 480;
-
-                    // NEW: Beat-boundary clamping. Notes cannot cross beat boundaries (P1 fix)
-                    $limit = min($barEnd, $beatEnd);
-                    
-                    $availableSpace = $limit - $tick;
-                    if ($nextTick !== null && $nextTick < $limit) {
-                        $availableSpace = $nextTick - $tick;
-                    }
-
-                    foreach ($notes as $note) {
-                        $endTick = $this->timeToTicks($note['end'], $rawResult['beat_times']);
-                        $endTick = (int)round($endTick / 120) * 120;
-                        
-                        $rawDuration = max(120, $endTick - $tick);
-                        
-                        // Clamping duration to avoid "overfilled bars" and ensure beat-sync
-                        $clampedDuration = min($availableSpace, $rawDuration);
-                        $quantizedTicks = $this->quantizeToStandard($clampedDuration);
-                        
-                        // Final safety check
-                        if ($quantizedTicks > $availableSpace) $quantizedTicks = $availableSpace;
-                        if ($quantizedTicks < 120 && $availableSpace >= 120) $quantizedTicks = 120;
-                        if ($quantizedTicks < 120) continue;
-
-                        $noteInfo = $this->midiToNote($note['pitch']);
-                        $tabInfo  = $this->midiToTab($note['pitch']);
-
-                        $tempMelody[] = [
-                            'tick'         => $tick,
-                            'pitch'        => $noteInfo['pitch'],
-                            'octave'       => $noteInfo['octave'],
-                            'duration'     => $this->ticksToDuration($quantizedTicks),
-                            'ticks'        => $quantizedTicks,
-                            'string'       => $tabInfo['string'],
-                            'fret'         => $tabInfo['fret'],
-                            'isRest'       => false,
-                            'voice'        => 1,
-                            'tieStart'     => false,
-                            'tieStop'      => false,
-                            'isChordNote'  => false,
-                        ];
-                    }
-                }
-                
-                // 3. Rest insertion pass (P1)
-                $melodyWithRests = [];
-                $lastEnd = 0;
-                usort($tempMelody, fn($a, $b) => $a['tick'] <=> $b['tick']);
-                
-                foreach ($tempMelody as $m) {
-                    if ($m['tick'] > $lastEnd) {
-                        $gap = $m['tick'] - $lastEnd;
-                        
-                        // NEW: Gap Closing logic. If the gap is just a 16th note (120 ticks), 
-                        // extend the previous note(s) to fill it instead of inserting a rest.
-                        if ($gap <= 120 && !empty($melodyWithRests)) {
-                            $extended = false;
-                            foreach ($melodyWithRests as &$prev) {
-                                if (!($prev['isRest'] ?? false) && ($prev['tick'] + $prev['ticks'] == $lastEnd)) {
-                                    // Only extend if it results in a standard duration and stays within beat
-                                    $newTicks = $prev['ticks'] + $gap;
-                                    $quantized = $this->quantizeToStandard($newTicks);
-                                    
-                                    $pBeatEnd = ((int)floor($prev['tick'] / 480) + 1) * 480;
-                                    if ($quantized > $prev['ticks'] && ($prev['tick'] + $quantized <= $pBeatEnd)) {
-                                        $prev['ticks'] = $quantized;
-                                        $prev['duration'] = $this->ticksToDuration($prev['ticks']);
-                                        $extended = true;
-                                    }
-                                }
-                            }
-                            if ($extended) {
-                                $lastEnd = $m['tick'];
-                                $gap = 0;
-                            }
-                        }
-
-                        while ($gap >= 120) {
-                            $barIdx = (int)floor($lastEnd / $ticksPerBar);
-                            $barEnd = ($barIdx + 1) * $ticksPerBar;
-                            
-                            $restTicks = 120;
-                            foreach ([1920, 960, 480, 240, 120] as $s) {
-                                if ($s <= $gap && ($lastEnd + $s <= $barEnd)) {
-                                    $restTicks = $s;
-                                    break;
-                                }
-                            }
-                            
-                            if ($lastEnd + $restTicks > $barEnd) $restTicks = $barEnd - $lastEnd;
-                            if ($restTicks < 120) {
-                                $lastEnd = $barEnd;
-                                $gap = $m['tick'] - $lastEnd;
-                                continue;
-                            }
-
-                            $melodyWithRests[] = [
-                                'tick'     => $lastEnd,
-                                'ticks'    => $restTicks,
-                                'duration' => $this->ticksToDuration($restTicks),
-                                'isRest'   => true,
-                                'voice'    => 1,
-                                'pitch'    => 'R',
-                                'octave'   => 0,
-                            ];
-                            $lastEnd += $restTicks;
-                            $gap -= $restTicks;
-                        }
-                    }
-                    $melodyWithRests[] = $m;
-                    $lastEnd = max($lastEnd, $m['tick'] + $m['ticks']);
-                }
-                
-                // Fill up to the end of the last measure
-                $totalBeats = count($rawResult['beats']) - $startBeatIdx;
-                $totalTicks = $totalBeats * 480;
-                $gap = $totalTicks - $lastEnd;
-
-                // Final gap closing: if the very end has a tiny gap, absorb it into the last notes
-                if ($gap > 0 && $gap <= 120 && !empty($melodyWithRests)) {
-                    foreach ($melodyWithRests as &$prev) {
-                        if (!($prev['isRest'] ?? false) && ($prev['tick'] + $prev['ticks'] == $lastEnd)) {
-                            $prev['ticks'] += $gap;
-                            $prev['duration'] = $this->ticksToDuration($prev['ticks']);
-                        }
-                    }
-                    $lastEnd = $totalTicks;
-                    $gap = 0;
-                }
-
-                while ($gap >= 120) {
-                    $barIdx = (int)floor($lastEnd / $ticksPerBar);
-                    $barEnd = ($barIdx + 1) * $ticksPerBar;
-                    $restTicks = 120;
-                    foreach ([1920, 960, 480, 240, 120] as $s) {
-                        if ($s <= $gap && ($lastEnd + $s <= $barEnd)) {
-                            $restTicks = $s;
-                            break;
-                        }
-                    }
-                    if ($lastEnd + $restTicks > $barEnd) $restTicks = $barEnd - $lastEnd;
-                    if ($restTicks >= 120) {
-                        $melodyWithRests[] = [
-                            'tick'     => $lastEnd,
-                            'ticks'    => $restTicks,
-                            'duration' => $this->ticksToDuration($restTicks),
-                            'isRest'   => true,
-                            'voice'    => 1,
-                            'pitch'    => 'R',
-                            'octave'   => 0,
-                        ];
-                    }
-                    $lastEnd += $restTicks;
-                    $gap = $totalTicks - $lastEnd;
-                }
-                
-                $melody = $melodyWithRests;
-            }
-            $analysis['melody_data'] = $melody;
+            $analysis = $this->assembleTranscription($rawResult, [
+                'title'       => $request->input('youtube_title') ?: 'Audio Transcription',
+                'key'         => $validated['preferred_key'] ?: 'C',
+                'youtube_id'  => $validated['youtube_id'],
+                'ai_cleanup'  => $aiCleanup,
+                // Bass-snap beat correction — on by default; the user can
+                // re-shift from the editor if it misfires on a given tune.
+                'bass_snap'   => !array_key_exists('bass_snap', $validated) || !empty($validated['bass_snap']),
+            ], 0, $crossref);
 
             // ── Optional: AI Refinement (Musicology Pass) ────────────────────
             // Phase 2b: Gemini receives raw pitch arrays per chord slot and
@@ -1149,6 +824,78 @@ class LeadsheetController extends Controller
         $validated = $request->validate(['description' => 'nullable|string|max:5000']);
         $leadsheet->update(['description' => $validated['description'] ?? '']);
         return response()->json(['success' => true, 'description' => $leadsheet->description]);
+    }
+
+    /**
+     * Re-assemble an audio-transcribed leadsheet with a user-chosen downbeat.
+     *
+     * The original raw Python transcription is cached in json_data.transcriptionRaw
+     * on import. This endpoint re-runs assembleTranscription() with the chosen
+     * offset (which beat is the true musical "1"), rebuilds sections / melody /
+     * videoSync, and persists. Beats before the chosen "1" survive as a leading
+     * pickup bar — no content is lost.
+     *
+     * Idempotent: always re-shifts from the original cached beats, so the user
+     * can re-pick freely. WARNING: full re-assembly discards any manual chord /
+     * voicing edits made after import — this is meant as a "do this first" step.
+     */
+    public function reshiftDownbeat(
+        Request $request,
+        Leadsheet $leadsheet,
+        AnalysisToLeadsheet $converter,
+        VoicingCrossref $crossref
+    ) {
+        $validated = $request->validate([
+            'offset'    => 'required|integer|min:0|max:3',
+            'bass_snap' => 'nullable|boolean',
+        ]);
+
+        $parsed = $leadsheet->parsed_data;
+        $raw    = $parsed['transcriptionRaw'] ?? null;
+
+        if (empty($raw) || empty($raw['beats'])) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'This leadsheet has no cached audio transcription. The downbeat can only be re-shifted on sheets created via audio transcription after this feature was added.',
+            ], 422);
+        }
+
+        // Bass-snap defaults to whatever produced the current assembly so a
+        // plain downbeat re-shift doesn't silently turn correction off.
+        $bassSnap = array_key_exists('bass_snap', $validated)
+            ? !empty($validated['bass_snap'])
+            : !empty($raw['bassSnap']);
+
+        $analysis = $this->assembleTranscription($raw, [
+            'title'      => $leadsheet->title,
+            'key'        => $leadsheet->song_key ?: 'C',
+            'youtube_id' => $raw['videoId'] ?? ($parsed['videoSync']['videoId'] ?? ''),
+            'ai_cleanup' => false,
+            'bass_snap'  => $bassSnap,
+        ], (int)$validated['offset'], $crossref);
+
+        $scaffold      = $converter->convert($analysis);
+        $jsonDataArray = json_decode($scaffold['json_data'], true);
+
+        $leadsheet->update([
+            'measure_count'     => $scaffold['measure_count'],
+            'shortcode_content' => $scaffold['shortcode_content'],
+            'json_data'         => $this->normalizeChordNamesInJson(
+                json_encode($jsonDataArray, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            ),
+            // Audio transcription melody lives in json_data.melody; the tab_xml
+            // skeleton is regenerated from scratch on next save.
+            'tab_xml'           => null,
+        ]);
+
+        return response()->json([
+            'success'   => true,
+            'offset'    => (int)$validated['offset'],
+            'leadsheet' => $this->serializeLeadsheet(
+                $leadsheet->fresh(),
+                $this->backfillFingersFromCrossref($leadsheet->fresh()->parsed_data)
+            ),
+        ]);
     }
 
     public function apiShow(Leadsheet $leadsheet)
@@ -1861,6 +1608,607 @@ class LeadsheetController extends Controller
     }
 
     /**
+     * Bass-snap beat correction — detect bass-note onsets and use them as
+     * metric anchors to rebuild a tempo-following beat_times grid.
+     *
+     * Rationale: in jazz solo guitar the bass note (thumb) keeps far steadier
+     * time than the rubato melody above it. beat_track() drifts on rubato; the
+     * bass onsets do not. We don't assume each bass note is a downbeat — a bass
+     * note may land on any quarter. Instead each bass onset is snapped to the
+     * nearest subdivision of beat_track's *provisional* grid, producing
+     * (audioTime → gridTick) anchor pairs. beat_track only needs to be locally
+     * accurate to within an 8th note for the snap to pick the right
+     * subdivision; anchoring then resets the accumulated drift at every bass
+     * note. beat_times is rebuilt by interpolating between anchors.
+     *
+     * @param array $notes       Raw note events: [{ start, end, pitch }, …]
+     * @param array $beatTimes   Provisional beat_track grid (one entry/quarter)
+     * @return array  Corrected beat_times, or the original if too few anchors.
+     */
+    protected function bassSnapBeatTimes(array $notes, array $beatTimes): array
+    {
+        if (count($beatTimes) < 4 || empty($notes)) {
+            return $beatTimes;
+        }
+
+        // ── 1. Cluster note onsets; take the lowest pitch per cluster as bass.
+        // Onsets within 70 ms are one attack (a strummed chord). The lowest
+        // sounding pitch of that attack is the thumb / bass note.
+        $sorted = $notes;
+        usort($sorted, fn($a, $b) => $a['start'] <=> $b['start']);
+
+        $clusters = [];               // [{ time, pitch }]
+        $clusterStart = null;
+        $clusterLowPitch = null;
+        $clusterLowTime  = null;
+        foreach ($sorted as $n) {
+            if ($clusterStart === null || ($n['start'] - $clusterStart) > 0.07) {
+                if ($clusterStart !== null) {
+                    $clusters[] = ['time' => $clusterLowTime, 'pitch' => $clusterLowPitch];
+                }
+                $clusterStart    = $n['start'];
+                $clusterLowPitch = $n['pitch'];
+                $clusterLowTime  = $n['start'];
+            } elseif ($n['pitch'] < $clusterLowPitch) {
+                $clusterLowPitch = $n['pitch'];
+                $clusterLowTime  = $n['start'];
+            }
+        }
+        if ($clusterStart !== null) {
+            $clusters[] = ['time' => $clusterLowTime, 'pitch' => $clusterLowPitch];
+        }
+
+        // ── 2. Drop only clusters whose lowest note is implausibly high — a
+        // melody-only moment with no thumb note to anchor on. The lowest note
+        // of a cluster already *is* the bass; we keep all of them and let
+        // interpolation ride across the dropped (anchorless) gaps. The ceiling
+        // is the median cluster pitch + 7 semitones, so a bass-heavy section
+        // (all low) keeps every anchor while a pure single-line run is skipped.
+        $pitches = array_map(fn($c) => $c['pitch'], $clusters);
+        sort($pitches);
+        $median = $pitches[(int)floor(count($pitches) / 2)] ?? 60;
+        $ceil   = $median + 7;
+        $bassOnsets = [];
+        foreach ($clusters as $c) {
+            if ($c['pitch'] <= $ceil) $bassOnsets[] = $c['time'];
+        }
+        if (count($bassOnsets) < 3) {
+            return $beatTimes;   // not enough bass to anchor — keep beat_track
+        }
+
+        // ── 3. Snap each bass onset to the nearest 8th-note subdivision of the
+        // provisional grid. The grid index is in *quarter* units; an 8th is 0.5.
+        $lastIdx = count($beatTimes) - 1;
+        $anchors = [];   // [ gridPos(float, quarter units) => audioTime ]
+        foreach ($bassOnsets as $t) {
+            if ($t < $beatTimes[0] || $t > $beatTimes[$lastIdx]) continue;
+
+            // Locate the provisional quarter interval containing this onset.
+            $lo = 0; $hi = $lastIdx;
+            while ($lo < $hi - 1) {
+                $mid = (int)(($lo + $hi) / 2);
+                if ($beatTimes[$mid] <= $t) $lo = $mid; else $hi = $mid;
+            }
+            $span = max(1e-4, $beatTimes[$lo + 1] - $beatTimes[$lo]);
+            $frac = ($t - $beatTimes[$lo]) / $span;          // 0..1 within quarter
+            $gridPos = $lo + (round($frac * 2) / 2);          // snap to 8th
+            // Keep the closest onset per grid position (strongest anchor wins
+            // ties simply by replacement — order is already time-sorted).
+            $anchors[(string)$gridPos] = $t;
+        }
+        if (count($anchors) < 3) {
+            return $beatTimes;
+        }
+
+        return $this->buildCorrectedBeatTimes($anchors, $beatTimes);
+    }
+
+    /**
+     * Rebuild beat_times by piecewise-linear interpolation between bass
+     * anchors. Each anchor pins a grid position (in quarter units) to an audio
+     * time; quarter positions between/around anchors are interpolated, so the
+     * grid follows local tempo and melody-only stretches ride smoothly across
+     * the gap between the nearest anchored bass notes.
+     *
+     * @param array $anchors    [ gridPos(string float) => audioTime ]
+     * @param array $fallback   Provisional grid, used to size the output.
+     * @return array  One audio time per quarter-note grid index.
+     */
+    protected function buildCorrectedBeatTimes(array $anchors, array $fallback): array
+    {
+        // Sorted anchor list of [gridPos => time].
+        $pts = [];
+        foreach ($anchors as $pos => $time) {
+            $pts[] = ['pos' => (float)$pos, 'time' => (float)$time];
+        }
+        usort($pts, fn($a, $b) => $a['pos'] <=> $b['pos']);
+
+        $count = count($fallback);
+        $out   = [];
+        for ($q = 0; $q < $count; $q++) {
+            // Find the anchor pair bracketing quarter index $q.
+            $before = null; $after = null;
+            foreach ($pts as $p) {
+                if ($p['pos'] <= $q) $before = $p;
+                if ($p['pos'] >= $q && $after === null) $after = $p;
+            }
+
+            if ($before && $after && $before['pos'] !== $after['pos']) {
+                // Interpolate between the two bracketing anchors.
+                $t = ($q - $before['pos']) / ($after['pos'] - $before['pos']);
+                $out[$q] = $before['time'] + $t * ($after['time'] - $before['time']);
+            } elseif ($before && $after && $before['pos'] === $after['pos']) {
+                $out[$q] = $before['time'];
+            } else {
+                // $q lies outside the anchored range — extrapolate at the local
+                // tempo of the nearest anchor pair.
+                $ref = $before ?: $after;       // the single nearest anchor
+                $pair = $before
+                    ? [$pts[count($pts) - 2] ?? $pts[0], end($pts)]
+                    : [$pts[0], $pts[1] ?? end($pts)];
+                $p0 = $pair[0]; $p1 = $pair[1];
+                $secPerQuarter = ($p1['pos'] !== $p0['pos'])
+                    ? ($p1['time'] - $p0['time']) / ($p1['pos'] - $p0['pos'])
+                    : 0.5;
+                $out[$q] = $ref['time'] + ($q - $ref['pos']) * $secPerQuarter;
+            }
+        }
+
+        // Front-edge clamp: extrapolating before the first anchor can run the
+        // leading beats to negative audio time (no audio exists there). Clamp
+        // any negative entry to 0 — the monotonic pass below then re-spaces the
+        // collapsed run into a small non-negative ramp.
+        for ($q = 0; $q < $count; $q++) {
+            if ($out[$q] < 0) $out[$q] = 0.0;
+            else break;
+        }
+
+        // Guarantee monotonic non-decreasing times (interpolation can't break
+        // this, but extrapolation / front-clamp can collapse leading entries).
+        for ($q = 1; $q < $count; $q++) {
+            if ($out[$q] <= $out[$q - 1]) {
+                $out[$q] = $out[$q - 1] + 0.01;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Re-group note events into per-beat pitch buckets against a (corrected)
+     * beat_times grid. Mirrors the bucketing transcribe.py does in Python — it
+     * must be re-run in PHP after bass-snap rewrites beat_times, otherwise the
+     * chord region detector reads buckets aligned to the stale grid.
+     *
+     * @param array $notes      Raw note events: [{ start, end, pitch }, …]
+     * @param array $beatTimes  Corrected grid, one entry per quarter note.
+     * @return array  beats[] in Python's shape: { start, end, notes, note_durations }
+     */
+    protected function rebucketBeats(array $notes, array $beatTimes): array
+    {
+        $MIN_NOTE_DURATION = 0.05;   // matches transcribe.py
+        $count = count($beatTimes);
+        $beats = [];
+
+        for ($i = 0; $i < $count; $i++) {
+            $startT = $beatTimes[$i];
+            $endT   = $i + 1 < $count
+                ? $beatTimes[$i + 1]
+                : $startT + ($beatTimes[$i] - ($beatTimes[$i - 1] ?? $startT - 0.5));
+
+            // Lowest duration kept per pitch (dedupe within the beat).
+            $pitchDur = [];
+            foreach ($notes as $n) {
+                $dur = $n['end'] - $n['start'];
+                if ($n['start'] >= $startT && $n['start'] < $endT && $dur >= $MIN_NOTE_DURATION) {
+                    $p = (int)$n['pitch'];
+                    if (!isset($pitchDur[$p]) || $dur > $pitchDur[$p]) {
+                        $pitchDur[$p] = $dur;
+                    }
+                }
+            }
+
+            $beats[] = [
+                'start'          => $startT,
+                'end'            => $endT,
+                'notes'          => array_map('intval', array_keys($pitchDur)),
+                'note_durations' => $pitchDur,
+            ];
+        }
+        return $beats;
+    }
+
+    /**
+     * Assemble a raw Python transcription result into a standard Analysis array.
+     *
+     * Owns the beat→bar grouping, chord region detection, melody reconstruction
+     * and videoSync mapping. Called once on initial import (offset 0) and again
+     * by reshiftDownbeat() whenever the user re-picks the downbeat.
+     *
+     * @param array $rawResult  Raw Python output: beats[], notes[], beat_times[], tempo
+     * @param array $opts       title, key, youtube_id, ai_cleanup, bass_snap
+     * @param int   $downbeatOffset  0..3 — which beat (relative to the first
+     *              busy beat) is the true musical "1". When > 0, the beats
+     *              before it are kept as a leading pickup bar (a full 4-beat
+     *              measure with leading rests), so no content is lost.
+     */
+    protected function assembleTranscription(array $rawResult, array $opts, int $downbeatOffset, \App\Services\VoicingCrossref $crossref): array
+    {
+        $beatsPerBar = 4;
+        $aiCleanup   = !empty($opts['ai_cleanup']);
+
+        // The cached transcriptionRaw must always hold the *original* Python
+        // grid + buckets so a re-snap is reproducible. Capture them before the
+        // bass-snap step mutates $rawResult.
+        $origBeats     = $rawResult['beats'] ?? [];
+        $origBeatTimes = $rawResult['beat_times'] ?? [];
+
+        // ── Bass-snap beat correction (opt-in) ──────────────────────────────
+        // When bass_snap is on, rebuild beat_times from bass-note anchors and
+        // re-bucket beats[] against the new grid so chord region detection
+        // stays aligned with the corrected timing.
+        $bassSnapped = false;
+        if (!empty($opts['bass_snap'])
+            && !empty($rawResult['notes'])
+            && !empty($rawResult['beat_times'])) {
+            $corrected = $this->bassSnapBeatTimes($rawResult['notes'], $rawResult['beat_times']);
+            if ($corrected !== $rawResult['beat_times']) {
+                $rawResult['beat_times'] = $corrected;
+                $rawResult['beats']      = $this->rebucketBeats($rawResult['notes'], $corrected);
+                $bassSnapped = true;
+            }
+        }
+
+        $analysis = [
+            'title'         => $opts['title'] ?? 'Audio Transcription',
+            'composer'      => '',
+            'key'           => $opts['key'] ?? 'C',
+            'tempo'         => (int)round($rawResult['tempo'] ?? 120),
+            'timeSignature' => '4/4',
+            'source_note'   => 'AI Audio Transcription from YouTube (ID: ' . ($opts['youtube_id'] ?? '') . ')',
+            'sections'      => [],
+            'videoSync'     => [
+                'videoId'     => $opts['youtube_id'] ?? '',
+                'videoType'   => 'youtube',
+                'audioSource' => 'video',
+                'mappings'    => [],
+            ],
+            // Cached *original* Python output + the settings that produced this
+            // assembly, so the editor's downbeat / bass-snap tools can re-run
+            // without re-transcribing. Always the pristine grid, never snapped.
+            'transcriptionRaw' => [
+                'beats'          => $origBeats,
+                'beat_times'     => $origBeatTimes,
+                'notes'          => $rawResult['notes'] ?? [],
+                'tempo'          => $rawResult['tempo'] ?? 120,
+                'downbeatOffset' => $downbeatOffset,
+                'bassSnap'       => $bassSnapped,
+            ],
+        ];
+
+        $currentSection = ['label' => 'A', 'bars' => []];
+        $tempBar        = ['chords' => []];
+        $mappings       = [];
+
+        // Remove leading silence by finding the first bar with musical content.
+        $firstBusyBeatIdx = 0;
+        foreach ($rawResult['beats'] as $idx => $beat) {
+            if (!empty($beat['notes']) || !empty($beat['note_durations'])) {
+                $firstBusyBeatIdx = $idx;
+                break;
+            }
+        }
+        $skipBars     = (int)floor($firstBusyBeatIdx / $beatsPerBar);
+        $startBeatIdx = $skipBars * $beatsPerBar;
+        $tickOffset   = $skipBars * $beatsPerBar * 480;
+
+        // Downbeat offset → pickup padding. If the chosen "1" sits `offset` beats
+        // after the first busy beat, those `offset` beats belong to a pickup bar.
+        // We pad the grid with `padBeats = beatsPerBar - offset` leading rest-beats
+        // so the chosen beat lands on the downbeat of measure index 1, and the
+        // pickup content fills the tail of measure 0.
+        $downbeatOffset = max(0, min($beatsPerBar - 1, $downbeatOffset));
+        $padBeats = $downbeatOffset > 0 ? ($beatsPerBar - $downbeatOffset) : 0;
+        $padTicks = $padBeats * 480;
+
+        // ── Non-AI path state: harmonic region grouping (Phase 2c) ──────────
+        $regionPitches   = [];
+        $regionStartBeat = 1;
+
+        // `g` is the padded grid index (0-based from the start of the pickup bar).
+        for ($i = $startBeatIdx; $i < count($rawResult['beats']); $i++) {
+            $beat = $rawResult['beats'][$i];
+            $g    = ($i - $startBeatIdx) + $padBeats;
+
+            if ($g % $beatsPerBar === 0) {
+                $mappings[] = [
+                    'measureIndex' => (int)($g / $beatsPerBar),
+                    'videoTime'    => (float)$beat['start'],
+                ];
+            }
+
+            // Duration-weighted pitch selection (P1 fix)
+            $rawPitches = [];
+            foreach ($beat['note_durations'] ?? [] as $pitch => $dur) {
+                if ($dur >= 0.1) $rawPitches[] = (int)$pitch;
+            }
+            if (empty($rawPitches)) $rawPitches = $beat['notes'] ?? [];
+
+            $beatNum = ($g % $beatsPerBar) + 1;
+
+            if ($aiCleanup) {
+                if (!empty($rawPitches)) {
+                    $pcSet = array_values(array_unique(array_map(fn($p) => $p % 12, $rawPitches)));
+                    $tempBar['chords'][] = [
+                        'label'   => '?',
+                        'beat'    => $beatNum,
+                        'pitches' => $pcSet,
+                    ];
+                }
+            } else {
+                if (empty($rawPitches)) {
+                    if (!empty($regionPitches)) {
+                        $idResult = $crossref->identifyFromMidi($regionPitches);
+                        if ($idResult['name']) {
+                            $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
+                        }
+                        $regionPitches = [];
+                    }
+                } else {
+                    if (empty($regionPitches)) {
+                        $regionPitches   = $rawPitches;
+                        $regionStartBeat = $beatNum;
+                    } else {
+                        $sim = $this->jaccardSimilarity($regionPitches, $rawPitches);
+                        if ($sim >= 0.5) {
+                            $regionPitches = array_values(array_unique(array_merge($regionPitches, $rawPitches)));
+                        } else {
+                            $idResult = $crossref->identifyFromMidi($regionPitches);
+                            if ($idResult['name']) {
+                                $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
+                            }
+                            $regionPitches   = $rawPitches;
+                            $regionStartBeat = $beatNum;
+                        }
+                    }
+                }
+            }
+
+            // ── End of bar ──────────────────────────────────────────────────
+            if (($g + 1) % $beatsPerBar === 0) {
+                if (!$aiCleanup && !empty($regionPitches)) {
+                    $idResult = $crossref->identifyFromMidi($regionPitches);
+                    if ($idResult['name']) {
+                        $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
+                    }
+                    $regionPitches = [];
+                }
+
+                if (empty($tempBar['chords'])) {
+                    $tempBar['chords'][] = ['label' => '/', 'beat' => 1];
+                }
+                $currentSection['bars'][] = $tempBar;
+                $tempBar = ['chords' => []];
+            }
+        }
+
+        // Flush any trailing partial bar
+        if (!$aiCleanup && !empty($regionPitches)) {
+            $idResult = $crossref->identifyFromMidi($regionPitches);
+            if ($idResult['name']) {
+                $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
+            }
+        }
+        if (!empty($tempBar['chords'])) {
+            $currentSection['bars'][] = $tempBar;
+        }
+
+        if (empty($currentSection['bars'])) {
+            $currentSection['bars'][] = ['chords' => [['label' => '/', 'beat' => 1]]];
+        }
+        $analysis['sections'][] = $currentSection;
+        $analysis['videoSync']['mappings'] = $mappings;
+
+        // AI path: attach raw beats so Gemini can read pitch context
+        if ($aiCleanup) {
+            $analysis['raw_beats'] = $rawResult['beats'];
+        }
+
+        // ── Reconstruct melody from raw MIDI notes (P0 & P1 fixes) ──────────
+        $melody = [];
+        if (!empty($rawResult['notes']) && !empty($rawResult['beat_times'])) {
+            $ticksPerBar = $beatsPerBar * 480;
+
+            // 1. Filter by guitar range and group by quantized tick (P0).
+            //    `+ $padTicks` shifts content into measure 1, leaving the pickup
+            //    bar's leading beats empty (rests inserted by the gap pass).
+            $tickGroups = [];
+            foreach ($rawResult['notes'] as $note) {
+                if ($note['pitch'] < 40 || $note['pitch'] > 88) continue;
+
+                $rawStart  = $this->timeToTicks($note['start'], $rawResult['beat_times']);
+                $startTick = (int)round($rawStart / 240) * 240;
+                if (abs($rawStart - $startTick) > 60) {
+                    $startTick = (int)round($rawStart / 120) * 120;
+                }
+
+                $startTick = $startTick - $tickOffset + $padTicks;
+                if ($startTick >= 0) {
+                    $tickGroups[$startTick][] = $note;
+                }
+            }
+
+            // 2. Process all notes per tick (Restoring polyphony) and build events
+            $sortedTicks = array_keys($tickGroups);
+            sort($sortedTicks);
+
+            $tempMelody = [];
+            for ($i = 0; $i < count($sortedTicks); $i++) {
+                $tick     = $sortedTicks[$i];
+                $notes    = $tickGroups[$tick];
+                $nextTick = ($i + 1 < count($sortedTicks)) ? $sortedTicks[$i + 1] : null;
+
+                $barIdx  = (int)floor($tick / $ticksPerBar);
+                $barEnd  = ($barIdx + 1) * $ticksPerBar;
+                $beatEnd = ((int)floor($tick / 480) + 1) * 480;
+
+                $limit = min($barEnd, $beatEnd);
+
+                $availableSpace = $limit - $tick;
+                if ($nextTick !== null && $nextTick < $limit) {
+                    $availableSpace = $nextTick - $tick;
+                }
+
+                foreach ($notes as $note) {
+                    $endTick = $this->timeToTicks($note['end'], $rawResult['beat_times']);
+                    $endTick = (int)round($endTick / 120) * 120 - $tickOffset + $padTicks;
+
+                    $rawDuration = max(120, $endTick - $tick);
+
+                    $clampedDuration = min($availableSpace, $rawDuration);
+                    $quantizedTicks  = $this->quantizeToStandard($clampedDuration);
+
+                    if ($quantizedTicks > $availableSpace) $quantizedTicks = $availableSpace;
+                    if ($quantizedTicks < 120 && $availableSpace >= 120) $quantizedTicks = 120;
+                    if ($quantizedTicks < 120) continue;
+
+                    $noteInfo = $this->midiToNote($note['pitch']);
+                    $tabInfo  = $this->midiToTab($note['pitch']);
+
+                    $tempMelody[] = [
+                        'tick'         => $tick,
+                        'pitch'        => $noteInfo['pitch'],
+                        'octave'       => $noteInfo['octave'],
+                        'duration'     => $this->ticksToDuration($quantizedTicks),
+                        'ticks'        => $quantizedTicks,
+                        'string'       => $tabInfo['string'],
+                        'fret'         => $tabInfo['fret'],
+                        'isRest'       => false,
+                        'voice'        => 1,
+                        'tieStart'     => false,
+                        'tieStop'      => false,
+                        'isChordNote'  => false,
+                    ];
+                }
+            }
+
+            // 3. Rest insertion pass (P1)
+            $melodyWithRests = [];
+            $lastEnd = 0;
+            usort($tempMelody, fn($a, $b) => $a['tick'] <=> $b['tick']);
+
+            foreach ($tempMelody as $m) {
+                if ($m['tick'] > $lastEnd) {
+                    $gap = $m['tick'] - $lastEnd;
+
+                    if ($gap <= 120 && !empty($melodyWithRests)) {
+                        $extended = false;
+                        foreach ($melodyWithRests as &$prev) {
+                            if (!($prev['isRest'] ?? false) && ($prev['tick'] + $prev['ticks'] == $lastEnd)) {
+                                $newTicks  = $prev['ticks'] + $gap;
+                                $quantized = $this->quantizeToStandard($newTicks);
+
+                                $pBeatEnd = ((int)floor($prev['tick'] / 480) + 1) * 480;
+                                if ($quantized > $prev['ticks'] && ($prev['tick'] + $quantized <= $pBeatEnd)) {
+                                    $prev['ticks']    = $quantized;
+                                    $prev['duration'] = $this->ticksToDuration($prev['ticks']);
+                                    $extended = true;
+                                }
+                            }
+                        }
+                        unset($prev);
+                        if ($extended) {
+                            $lastEnd = $m['tick'];
+                            $gap = 0;
+                        }
+                    }
+
+                    while ($gap >= 120) {
+                        $barIdx = (int)floor($lastEnd / $ticksPerBar);
+                        $barEnd = ($barIdx + 1) * $ticksPerBar;
+
+                        $restTicks = 120;
+                        foreach ([1920, 960, 480, 240, 120] as $s) {
+                            if ($s <= $gap && ($lastEnd + $s <= $barEnd)) {
+                                $restTicks = $s;
+                                break;
+                            }
+                        }
+
+                        if ($lastEnd + $restTicks > $barEnd) $restTicks = $barEnd - $lastEnd;
+                        if ($restTicks < 120) {
+                            $lastEnd = $barEnd;
+                            $gap = $m['tick'] - $lastEnd;
+                            continue;
+                        }
+
+                        $melodyWithRests[] = [
+                            'tick'     => $lastEnd,
+                            'ticks'    => $restTicks,
+                            'duration' => $this->ticksToDuration($restTicks),
+                            'isRest'   => true,
+                            'voice'    => 1,
+                            'pitch'    => 'R',
+                            'octave'   => 0,
+                        ];
+                        $lastEnd += $restTicks;
+                        $gap -= $restTicks;
+                    }
+                }
+                $melodyWithRests[] = $m;
+                $lastEnd = max($lastEnd, $m['tick'] + $m['ticks']);
+            }
+
+            // Fill up to the end of the last measure (account for pickup padding)
+            $totalBeats = (count($rawResult['beats']) - $startBeatIdx) + $padBeats;
+            $totalTicks = $totalBeats * 480;
+            $gap = $totalTicks - $lastEnd;
+
+            if ($gap > 0 && $gap <= 120 && !empty($melodyWithRests)) {
+                foreach ($melodyWithRests as &$prev) {
+                    if (!($prev['isRest'] ?? false) && ($prev['tick'] + $prev['ticks'] == $lastEnd)) {
+                        $prev['ticks'] += $gap;
+                        $prev['duration'] = $this->ticksToDuration($prev['ticks']);
+                    }
+                }
+                unset($prev);
+                $lastEnd = $totalTicks;
+                $gap = 0;
+            }
+
+            while ($gap >= 120) {
+                $barIdx = (int)floor($lastEnd / $ticksPerBar);
+                $barEnd = ($barIdx + 1) * $ticksPerBar;
+                $restTicks = 120;
+                foreach ([1920, 960, 480, 240, 120] as $s) {
+                    if ($s <= $gap && ($lastEnd + $s <= $barEnd)) {
+                        $restTicks = $s;
+                        break;
+                    }
+                }
+                if ($lastEnd + $restTicks > $barEnd) $restTicks = $barEnd - $lastEnd;
+                if ($restTicks >= 120) {
+                    $melodyWithRests[] = [
+                        'tick'     => $lastEnd,
+                        'ticks'    => $restTicks,
+                        'duration' => $this->ticksToDuration($restTicks),
+                        'isRest'   => true,
+                        'voice'    => 1,
+                        'pitch'    => 'R',
+                        'octave'   => 0,
+                    ];
+                }
+                $lastEnd += $restTicks;
+                $gap = $totalTicks - $lastEnd;
+            }
+
+            $melody = $melodyWithRests;
+        }
+        $analysis['melody_data'] = $melody;
+
+        return $analysis;
+    }
+
+    /**
      * Refine a raw audio transcription using Gemini.
      *
      * Phase 2b: The input analysis now contains raw MIDI pitch arrays per chord
@@ -1970,9 +2318,12 @@ PROMPT;
 
         $refined = $response['data'];
 
-        // Preserve videoSync (Gemini does not return it)
+        // Preserve videoSync + cached raw transcription (Gemini returns neither)
         if (!isset($refined['videoSync']) && isset($rawAnalysis['videoSync'])) {
             $refined['videoSync'] = $rawAnalysis['videoSync'];
+        }
+        if (!isset($refined['transcriptionRaw']) && isset($rawAnalysis['transcriptionRaw'])) {
+            $refined['transcriptionRaw'] = $rawAnalysis['transcriptionRaw'];
         }
 
         return $refined;

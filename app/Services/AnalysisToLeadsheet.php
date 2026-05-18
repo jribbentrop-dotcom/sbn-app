@@ -68,6 +68,9 @@ class AnalysisToLeadsheet
             'rhythmPattern' => null,
             'melody' => $analysis['melody_data'] ?? $this->buildPlaceholderMelody($globalMeasure, $displayBeats),
             'videoSync' => $analysis['videoSync'] ?? null,
+            // Cached raw audio transcription, kept so the downbeat can be
+            // re-shifted later without re-downloading / re-transcribing.
+            'transcriptionRaw' => $analysis['transcriptionRaw'] ?? null,
             'research' => $analysis['research'] ?? null,
             'description' => '',
             'harmonyNotes' => '',

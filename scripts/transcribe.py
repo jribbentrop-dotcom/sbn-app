@@ -23,11 +23,21 @@ def transcribe(audio_path):
         
         duration = librosa.get_duration(y=y, sr=sr)
 
-        # 2. Beat Tracking (The "Powerful" part)
-        # librosa.beat.beat_track gives us the estimated tempo and the frame indices of beats
+        # 2. Beat Tracking
+        # librosa.beat.beat_track gives us the estimated tempo and the frame
+        # indices of beats. It assumes a roughly steady tempo, so it produces a
+        # dense quarter-note grid — which the PHP pipeline relies on (one
+        # beat_times entry == one quarter note / 480 ticks).
+        #
+        # NOTE: beat_track drifts on rubato playing (e.g. solo jazz guitar).
+        # PLP (librosa.beat.plp) follows local tempo better but emits far fewer,
+        # unevenly-spaced beats — it is a *pulse curve*, not a quarter grid —
+        # which breaks the "1 entry = 1 quarter" contract and drops notes.
+        # Rubato is therefore corrected by the user via the tap-to-mark re-time
+        # UI, not by swapping the automatic detector here.
         tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
         beat_times = librosa.frames_to_time(beat_frames, sr=sr)
-        
+
         # Ensure we have a beat at the very beginning if it's missing
         if len(beat_times) > 0 and beat_times[0] > 0.5:
             # Prepend a beat at 0 if the first beat is late

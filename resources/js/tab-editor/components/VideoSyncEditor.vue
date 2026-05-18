@@ -18,6 +18,51 @@
             <button class="sbn-vsync-clear-btn" @click="clearVideo" title="Remove video">✕</button>
         </div>
 
+        <!-- Set downbeat — only for audio-transcribed leadsheets -->
+        <div v-if="onsetBeats.length" class="sbn-downbeat-tool">
+            <div class="sbn-downbeat-header">
+                <span class="sbn-vsync-label">Set downbeat</span>
+                <span class="sbn-downbeat-hint">Click the beat that is the true “1”.</span>
+            </div>
+            <div class="sbn-downbeat-strip">
+                <button
+                    v-for="b in onsetBeats"
+                    :key="b.index"
+                    class="sbn-downbeat-beat"
+                    :class="{ 'is-one': b.index === chosenOneIndex, 'is-empty': !b.pitches.length }"
+                    @click="chosenOneIndex = b.index"
+                    :title="b.pitches.length ? b.pitches.join(' ') : 'no notes detected'"
+                >
+                    <span class="sbn-downbeat-dots">
+                        <span
+                            v-for="pi in Math.min(b.pitches.length, 5)"
+                            :key="pi"
+                            class="sbn-downbeat-dot"
+                        ></span>
+                        <span v-if="!b.pitches.length" class="sbn-downbeat-rest">·</span>
+                    </span>
+                    <span class="sbn-downbeat-label">{{ b.index === chosenOneIndex ? '1' : (b.index - chosenOneIndex) }}</span>
+                </button>
+            </div>
+            <div class="sbn-downbeat-actions">
+                <span class="sbn-downbeat-pickup" v-if="pickupBeatCount > 0">
+                    {{ pickupBeatCount }} beat{{ pickupBeatCount > 1 ? 's' : '' }} → pickup bar
+                </span>
+                <button
+                    class="sbn-btn sbn-btn-sm sbn-btn-primary"
+                    :disabled="reshiftBusy"
+                    @click="applyDownbeat"
+                >
+                    {{ reshiftBusy ? 'Re-shifting…' : 'Apply downbeat' }}
+                </button>
+            </div>
+            <div v-if="reshiftError" class="sbn-downbeat-error">{{ reshiftError }}</div>
+            <div class="sbn-downbeat-warn">
+                Re-shifting rebuilds the grid from the original audio — manual chord
+                or voicing edits made after import will be lost. Do this first.
+            </div>
+        </div>
+
         <!-- Player -->
         <VideoPlayer
             v-if="videoId"
@@ -116,7 +161,7 @@
 
 <script setup>
 import { ref, computed, watch, inject, onMounted, onUnmounted } from 'vue';
-import VideoPlayer from './VideoPlayer.vue';
+import VideoPlayer from '@/Components/Library/Video/VideoEmbed.vue';
 
 const props = defineProps({
     videoId:        { type: String,  default: '' },
@@ -165,6 +210,94 @@ const rawInput       = ref(props.videoId || '');
 const player         = ref(null);
 const playbackRate   = ref(1.0);
 const localTapCursor = ref(0);
+
+// ── Set-downbeat tool ─────────────────────────────────────────
+// Cached raw audio transcription is exposed by the edit blade on
+// window.__sbnLeadsheet. Present only on audio-transcribed leadsheets.
+const PC_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const _lsGlobal = (typeof window !== 'undefined' && window.__sbnLeadsheet) || {};
+const _rawTranscription = _lsGlobal.transcriptionRaw || null;
+const _leadsheetId = _lsGlobal.id || null;
+
+const reshiftBusy  = ref(false);
+const reshiftError = ref('');
+
+// First beat that carries musical content (leading silence is trimmed there).
+const firstBusyIndex = computed(() => {
+    const beats = _rawTranscription?.beats || [];
+    for (let i = 0; i < beats.length; i++) {
+        const b = beats[i];
+        if ((b.notes && b.notes.length) ||
+            (b.note_durations && Object.keys(b.note_durations).length)) {
+            return i;
+        }
+    }
+    return 0;
+});
+
+// Beat columns shown in the strip: from the first busy beat through ~12 beats.
+const onsetBeats = computed(() => {
+    const beats = _rawTranscription?.beats || [];
+    if (!beats.length) return [];
+    const start = firstBusyIndex.value;
+    const end = Math.min(beats.length, start + 12);
+    const out = [];
+    for (let i = start; i < end; i++) {
+        const b = beats[i];
+        // Prefer duration-weighted pitches; fall back to raw note list.
+        let pcs = [];
+        if (b.note_durations && Object.keys(b.note_durations).length) {
+            pcs = Object.entries(b.note_durations)
+                .filter(([, d]) => d >= 0.1)
+                .map(([p]) => parseInt(p, 10));
+        }
+        if (!pcs.length) pcs = (b.notes || []).map(p => parseInt(p, 10));
+        const names = [...new Set(pcs.map(p => PC_NAMES[((p % 12) + 12) % 12]))];
+        out.push({ index: i, pitches: names });
+    }
+    return out;
+});
+
+// The beat currently treated as "1" — first busy beat plus the stored offset.
+const chosenOneIndex = ref(
+    firstBusyIndex.value + (_rawTranscription?.downbeatOffset || 0)
+);
+
+// Beats between the first busy beat and the chosen "1" become a pickup bar.
+const pickupBeatCount = computed(() =>
+    Math.max(0, Math.min(3, chosenOneIndex.value - firstBusyIndex.value))
+);
+
+async function applyDownbeat() {
+    if (!_leadsheetId || reshiftBusy.value) return;
+    reshiftBusy.value = true;
+    reshiftError.value = '';
+    try {
+        const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const resp = await fetch(`/api/admin/leadsheets/${_leadsheetId}/reshift-downbeat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': token,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ offset: pickupBeatCount.value }),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.success) {
+            reshiftError.value = data.error || `Re-shift failed (${resp.status}).`;
+            reshiftBusy.value = false;
+            return;
+        }
+        // Full re-assembly replaces sections/melody/videoSync. Reload so the
+        // editor re-initialises cleanly from the fresh json_data.
+        window.location.reload();
+    } catch (e) {
+        reshiftError.value = 'Could not reach the server.';
+        reshiftBusy.value = false;
+    }
+}
 
 // Sync injected → local (one way, external changes update local)
 watch(injectedTapCursor, (v) => { localTapCursor.value = v; }, { immediate: true });
@@ -482,5 +615,111 @@ onUnmounted(() => { document.removeEventListener('keydown', onKeydown); });
 .sbn-vsync-bar-num.has-tempo-warning {
     color: #ef4444;
     font-weight: bold;
+}
+
+/* ── Set-downbeat tool ───────────────────────────────────────── */
+.sbn-downbeat-tool {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--clr-border);
+    border-radius: 6px;
+    background: var(--clr-surface-alt, #f9fafb);
+}
+
+.sbn-downbeat-header {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.sbn-downbeat-hint {
+    font-size: 11px;
+    color: var(--clr-text-muted);
+}
+
+.sbn-downbeat-strip {
+    display: flex;
+    gap: 3px;
+    overflow-x: auto;
+}
+
+.sbn-downbeat-beat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    min-width: 30px;
+    padding: 4px 2px;
+    border: 1px solid var(--clr-border);
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+}
+
+.sbn-downbeat-beat.is-empty {
+    opacity: 0.5;
+}
+
+.sbn-downbeat-beat.is-one {
+    border-color: var(--clr-accent);
+    box-shadow: inset 0 0 0 1px var(--clr-accent);
+    background: var(--clr-accent-dim, #fff7ed);
+}
+
+.sbn-downbeat-dots {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 2px;
+    min-height: 30px;
+    justify-content: flex-start;
+}
+
+.sbn-downbeat-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--clr-style-jazz, #3b82f6);
+}
+
+.sbn-downbeat-rest {
+    color: var(--clr-text-muted);
+    font-size: 14px;
+    line-height: 1;
+}
+
+.sbn-downbeat-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--clr-text-muted);
+}
+
+.sbn-downbeat-beat.is-one .sbn-downbeat-label {
+    color: var(--clr-accent);
+}
+
+.sbn-downbeat-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.sbn-downbeat-pickup {
+    font-size: 11px;
+    color: var(--clr-accent);
+    font-weight: 600;
+}
+
+.sbn-downbeat-error {
+    font-size: 11px;
+    color: #ef4444;
+}
+
+.sbn-downbeat-warn {
+    font-size: 10px;
+    color: var(--clr-text-muted);
+    line-height: 1.4;
 }
 </style>

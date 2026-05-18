@@ -337,6 +337,15 @@
 @endsection
 @push('scripts')
 <script>window.__sbnRhythmPatterns = @json($rhythmPatterns);</script>
+<script>
+    // Audio-transcription downbeat tool: expose leadsheet id + cached raw
+    // transcription so the Vue "Set downbeat" panel can re-shift the grid.
+    window.__sbnLeadsheet = {
+        id: @json($leadsheet->id ?? $exercise->id ?? null),
+        // transcriptionRaw only exists on audio-transcribed leadsheets.
+        transcriptionRaw: @json(isset($leadsheet) ? ($leadsheet->parsed_data['transcriptionRaw'] ?? null) : null),
+    };
+</script>
 {{-- Chord diagram renderer --}}
 <script src="{{ asset('js/chords.js') }}"></script>
 {{-- Chord name formatter (carried from Phase 4d) --}}
