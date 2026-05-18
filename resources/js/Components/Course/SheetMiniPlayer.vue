@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, provide, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, provide, watch, onMounted, onBeforeUnmount } from 'vue';
 import { getAudioEngine } from '@/audio/engine/AudioEngine.js';
 import { tabModelToEvents } from '@/audio/adapters/tabMeasureToEvents.js';
 import { chordVoicingsToEvents } from '@/audio/adapters/chordVoicingsToEvents.js';
@@ -30,6 +30,17 @@ interface ExercisePayload {
 const props = defineProps<{
   exercise: ExercisePayload;
   onChordSelect?: ((slug: string, root: string, voicingData?: any) => void) | null;
+  /**
+   * Video-sync playhead, in seconds of an embedded recording. When non-null,
+   * the highlighted measure is driven by the video clock instead of the audio
+   * engine — `transportBeat` / `playingMeasureIndex` are fed the same way the
+   * engine `tick` feeds them, so TabMeasure highlighting is unchanged.
+   */
+  videoPlayhead?: number | null;
+  /** Recording-time (seconds) at which the sheet's first measure begins. */
+  videoStartSec?: number;
+  /** Recording tempo (bpm) used to convert recording-seconds to measure beats. */
+  videoBpm?: number;
 }>();
 
 // ── Tab model — mirrors LeadsheetViewer setup exactly ────────────────────────
@@ -108,6 +119,7 @@ onMounted(() => {
   _unsubs.push(
     engine.on('tick', (beat: number) => {
       if (!isPlaying.value) return;
+      if (props.videoPlayhead != null) return; // video clock owns the playhead
       transportBeat.value = beat;
       const pos = Math.floor(beat / beatsPerMeasure.value);
       playingMeasureIndex.value = expandedSequence.value[pos] ?? pos;
@@ -133,6 +145,23 @@ onBeforeUnmount(() => {
   _unsubs = [];
   if (isPlaying.value) engine.stop();
 });
+
+// ── Video-sync clock ──────────────────────────────────────────────────────────
+// When `videoPlayhead` is non-null the sheet is driven by the video clock:
+// convert recording-seconds → beats against the authored `videoStartSec` +
+// `videoBpm` anchor, then feed `transportBeat` / `playingMeasureIndex` exactly
+// as the engine `tick` handler does — TabMeasure highlighting is unchanged.
+watch(
+  () => props.videoPlayhead,
+  (sec) => {
+    if (sec == null) return;
+    const tempo = props.videoBpm ?? bpm.value;
+    const beat = Math.max(0, (sec - (props.videoStartSec ?? 0)) * (tempo / 60));
+    transportBeat.value = beat;
+    const pos = Math.floor(beat / beatsPerMeasure.value);
+    playingMeasureIndex.value = expandedSequence.value[pos] ?? pos;
+  },
+);
 
 // ── BPM change ────────────────────────────────────────────────────────────────
 

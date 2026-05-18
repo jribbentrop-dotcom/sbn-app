@@ -73,7 +73,7 @@
 
 <script setup>
 import { ref } from 'vue';
-import VideoPlayer from '@/tab-editor/components/VideoPlayer.vue';
+import VideoPlayer from '@/Components/Library/Video/VideoEmbed.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
 import { formatChordHtml } from '@/tab-editor/utils/chordFormat.js';
 

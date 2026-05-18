@@ -741,7 +741,7 @@ Video sync is a single-video-per-leadsheet feature. The sync data lives in `json
 |------|------|
 | `resources/js/tab-editor/composables/useVideoSync.js` | All sync state + authoring mutations |
 | `resources/js/tab-editor/components/VideoSyncEditor.vue` | Sidebar UI: video ID, player, tap controls, rate buttons, mapping table |
-| `resources/js/tab-editor/components/VideoPlayer.vue` | YouTube / hosted `<video>` wrapper; emits `timeupdate` at 60fps via rAF |
+| `resources/js/Components/Library/Video/VideoEmbed.vue` | Shared YouTube / hosted `<video>` wrapper; emits `timeupdate` at 60fps via rAF (formerly `tab-editor/components/VideoPlayer.vue`) |
 | `resources/js/tab-editor/components/SyncPointBadge.vue` | Draggable orange circle overlay on measure barlines |
 | `resources/js/tab-editor/TabEditor.vue` | Provides inject keys; wires VideoSyncEditor events; transport logic |
 
@@ -769,7 +769,7 @@ Audio source auto-switches: opening the Video sidebar sets source to `'video'`; 
 
 ### D1 — Playback sync
 
-- `VideoPlayer.vue` runs a `requestAnimationFrame` loop calling `player.getCurrentTime()` and emitting `timeupdate` at ~60fps.
+- `VideoEmbed.vue` runs a `requestAnimationFrame` loop calling `player.getCurrentTime()` and emitting `timeupdate` at ~60fps.
 - `useVideoSync.onVideoTimeUpdate(time)` converts seconds → fractional `videoMeasureIndex` via binary-search interpolation.
 - `transportBeat = videoMeasureIndex * beatsPerMeasure` feeds the score cursor.
 - Seeking a measure in video-master mode calls `videoSync.measureToVideoTime(gi)` → `player.seekTo(t)`.

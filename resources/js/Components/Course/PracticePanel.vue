@@ -3,9 +3,11 @@ import { ref, computed, watch } from 'vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
 import ChordDiagram from '@/Components/Library/ChordDiagram.vue';
+import VideoEmbed from '@/Components/Library/Video/VideoEmbed.vue';
 import type { RhythmPatternWithMeta } from '@/Components/Library/RhythmPattern.vue';
 import { mountSbnNodes } from '@/lib/mountSbnNodes';
 import { getCategoryColor } from '@/composables/useCategoryColors';
+import { useVideoPlayhead } from '@/composables/useVideoPlayhead';
 
 interface LessonData { slug: string; title: string; content: string | null; subsections: { title: string; slug: string }[] }
 interface CourseData { slug: string; title: string; primaryGenre: string | null }
@@ -44,6 +46,23 @@ const activeRhythmColor = computed<string | null>(() => {
   const cat = activeRhythmPattern.value?.category;
   return cat ? getCategoryColor(cat) : null;
 });
+
+// ── Video snippet ─────────────────────────────────────────────────────────────
+// One panel-level embed slot, bound to the focused component. The rhythm is the
+// default target — its real-world example video (when present) rides on the
+// pattern record. The shared `useVideoPlayhead` reports YouTube time in seconds;
+// RhythmStrip converts it to cells at its own edge via `videoPlayhead`.
+const videoSnippet = computed(() => activeRhythmPattern.value?.videoSnippet ?? null);
+const ph = useVideoPlayhead();
+
+// Apply the snippet's loop window whenever the focused snippet changes.
+watch(videoSnippet, (snip) => {
+  if (snip?.endSec != null) {
+    ph.setLoop({ startSec: snip.startSec, endSec: snip.endSec });
+  } else {
+    ph.setLoop(null);
+  }
+}, { immediate: true });
 
 function parseRootFromChordName(name: string): string {
   const m = (name || '').match(/^([A-G](?:#|b)?)/);
@@ -199,6 +218,20 @@ watch(() => props.lesson?.slug, () => { conceptMounted = false; });
       </div>
     </div>
 
+    <div v-if="videoSnippet" class="vC-card">
+      <div class="vC-card-eyebrow">
+        <span>Real-world example</span>
+        <span class="vC-card-meta">{{ ph.playing.value ? 'playing' : 'video' }}</span>
+      </div>
+      <VideoEmbed
+        :ref="ph.embedRef"
+        :video-id="videoSnippet.videoId"
+        :video-type="videoSnippet.videoType ?? 'youtube'"
+        @timeupdate="ph.onTimeUpdate"
+        @play-state-change="ph.onPlayStateChange"
+      />
+    </div>
+
     <div v-if="rhythmOptions.length" class="vC-card">
       <div class="vC-card-eyebrow">
         <span>Rhythm</span>
@@ -210,6 +243,9 @@ watch(() => props.lesson?.slug, () => { conceptMounted = false; });
         :tempo="bpm"
         :label="rhythmOptions[activeRhythm]?.name"
         :color="activeRhythmColor"
+        :video-playhead="videoSnippet ? ph.playheadSec.value : null"
+        :video-start-sec="videoSnippet?.startSec ?? 0"
+        :video-bpm="videoSnippet?.tempoBpm"
         mini
         playable
       />

@@ -21,6 +21,23 @@ export interface RhythmPatternData {
 }
 
 /**
+ * A real-world video example attached to a component (rhythm, progression, …).
+ * The snippet is always bound to a specific component instance, never free-
+ * standing on a lesson. Times are in seconds of the embedded recording.
+ */
+export interface VideoSnippet {
+  /** YouTube video ID (or hosted URL when videoType === 'hosted'). */
+  videoId: string;
+  videoType?: 'youtube' | 'hosted';
+  /** Recording-time (seconds) at which the snippet's first bar/cell begins. */
+  startSec: number;
+  /** Recording-time (seconds) the snippet ends — also the loop wrap point. */
+  endSec?: number;
+  /** Snippet tempo (bpm), used to convert recording-seconds to component beats. */
+  tempoBpm: number;
+}
+
+/**
  * Extended pattern data with metadata (from controller serialization)
  */
 export interface RhythmPatternWithMeta extends RhythmPatternData {
@@ -30,6 +47,8 @@ export interface RhythmPatternWithMeta extends RhythmPatternData {
   category: string;
   styleSlug: string;
   demoUrl?: string | null;
+  /** Optional real-world example video synced to this pattern. */
+  videoSnippet?: VideoSnippet | null;
 }
 
 interface Props {

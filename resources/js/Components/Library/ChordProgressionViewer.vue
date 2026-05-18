@@ -73,6 +73,17 @@ export interface ChordProgressionViewerProps {
     category?: string;
     numerals?: string;
     keyLabel?: string;
+    /**
+     * Video-sync playhead, in seconds of the embedded recording. When non-null,
+     * the active chord is driven by `chordIndexAtTime` instead of audio playback.
+     * The shared sync layer (useVideoSync) reports YouTube's getCurrentTime()
+     * verbatim — seconds is the transport unit; beats are derived here.
+     */
+    videoPlayhead?: number | null;
+    /** Recording-time (seconds) at which the snippet's first bar begins. */
+    videoStartSec?: number;
+    /** Snippet tempo, used to convert recording-seconds to chord beats. */
+    tempoBpm?: number;
 }
 
 const props = withDefaults(defineProps<ChordProgressionViewerProps>(), {
@@ -85,6 +96,9 @@ const props = withDefaults(defineProps<ChordProgressionViewerProps>(), {
     category: '',
     numerals: '',
     keyLabel: '',
+    videoPlayhead: null,
+    videoStartSec: 0,
+    tempoBpm: 120,
 });
 
 const isPlayingAll = ref(false);
@@ -177,8 +191,42 @@ const fretNumbers = computed(() => {
     return out;
 });
 
+// ---------- Video-sync time map ----------
+// Cumulative beat spans per chord, built from each chord's `beats` (default 0.5).
+// This is the time→index backbone the shared playhead resolves against.
+interface ChordSpan { startBeat: number; endBeat: number; }
+const chordTimeline = computed<ChordSpan[]>(() => {
+    let cursor = 0;
+    return props.chords.map(c => {
+        const startBeat = cursor;
+        cursor += c.beats || 0.5;
+        return { startBeat, endBeat: cursor };
+    });
+});
+
+/** Total beat length of the progression. */
+const totalBeats = computed<number>(() =>
+    chordTimeline.value.length ? chordTimeline.value[chordTimeline.value.length - 1].endBeat : 0
+);
+
+/**
+ * Resolve a recording-time (seconds) to a chord index. Converts seconds to
+ * progression-beats once, at this consumer's edge, against the authored
+ * `videoStartSec` + `tempoBpm` anchor — no global tempo guessing.
+ */
+function chordIndexAtTime(sec: number): number {
+    const beat = (sec - props.videoStartSec) * (props.tempoBpm / 60);
+    if (beat <= 0) return 0;
+    const tl = chordTimeline.value;
+    if (!tl.length) return 0;
+    if (beat >= tl[tl.length - 1].endBeat) return tl.length - 1;
+    return tl.findIndex(span => beat < span.endBeat);
+}
+
 // ---------- Active chord & dot positions ----------
 const activeIndex = computed<number>(() => {
+    // Video clock, when present, wins over audio playback / manual selection.
+    if (props.videoPlayhead !== null) return chordIndexAtTime(props.videoPlayhead);
     if (currentPlayingIndex.value !== null) return currentPlayingIndex.value;
     return selectedIndex.value;
 });

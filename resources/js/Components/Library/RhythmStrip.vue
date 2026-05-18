@@ -17,6 +17,16 @@ interface Props {
   color?: string | null;
   /** Compact variant — slimmer cells. */
   mini?: boolean;
+  /**
+   * Video-sync playhead, in seconds of an embedded recording. When non-null,
+   * the highlighted cell is driven by the video clock instead of the audio
+   * engine — the cell math (`beatToStep`) is unchanged, only the clock source.
+   */
+  videoPlayhead?: number | null;
+  /** Recording-time (seconds) at which the pattern's first cell begins. */
+  videoStartSec?: number;
+  /** Recording tempo (bpm) used to convert recording-seconds to pattern beats. */
+  videoBpm?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -26,6 +36,9 @@ const props = withDefaults(defineProps<Props>(), {
   showMeta: false,
   color: null,
   mini: false,
+  videoPlayhead: null,
+  videoStartSec: 0,
+  videoBpm: undefined,
 });
 
 const isPlaying = ref(false);
@@ -52,6 +65,25 @@ function beatToStep(beat: number): number {
   return Math.floor(beat / stepDuration.value) % props.pattern.beats;
 }
 
+// ---------- Video-sync clock ----------
+// When `videoPlayhead` is non-null the strip is driven by the video clock:
+// convert recording-seconds → pattern-beats once, against the authored
+// `videoStartSec` + `videoBpm` anchor (falls back to the strip's own tempo).
+const isVideoDriven = computed(() => props.videoPlayhead !== null);
+
+watch(
+  () => props.videoPlayhead,
+  (sec) => {
+    if (sec === null) return;
+    const bpm = props.videoBpm ?? effectiveBpm.value;
+    const beat = Math.max(0, (sec - props.videoStartSec) * (bpm / 60));
+    currentStep.value = beatToStep(beat);
+  },
+);
+
+/** True when a cell should show the running highlight (either clock source). */
+const stepActive = computed(() => isVideoDriven.value || isPlaying.value);
+
 const fingersArray = computed(() =>
   (props.pattern.fingers || '').padEnd(props.pattern.beats, '.').split('')
 );
@@ -75,7 +107,7 @@ function fingerCellClass(i: number): Record<string, boolean> {
     'is-rest':    c === '.',
     'is-hit':     c === 'x',
     'is-accent':  c === 'X',
-    'is-current': isPlaying.value && currentStep.value === i,
+    'is-current': stepActive.value && currentStep.value === i,
   };
 }
 
@@ -85,7 +117,7 @@ function thumbCellClass(i: number): Record<string, boolean> {
     'is-rest':    c === '.',
     'is-hit':     c.toLowerCase() === 'x',
     'is-accent':  c === 'X',
-    'is-current': isPlaying.value && currentStep.value === i,
+    'is-current': stepActive.value && currentStep.value === i,
   };
 }
 
