@@ -21,10 +21,26 @@ const LABELS: Record<SbnNodeType, string> = {
     song:        'song',
 };
 
-const ATTRS: Record<SbnNodeType, Record<string, { default: string }>> = {
+// Attribute objects may carry parseHTML/renderHTML so a camelCase TipTap attr
+// can serialize to a hyphenated HTML attribute (e.g. videoSnippet →
+// video-snippet, the tag attribute CourseController::player() reads).
+type AttrSpec = {
+    default: string | null;
+    parseHTML?: (el: HTMLElement) => string | null;
+    renderHTML?: (attrs: Record<string, any>) => Record<string, any>;
+};
+
+const videoSnippetAttr: AttrSpec = {
+    default: '',
+    parseHTML: (el) => el.getAttribute('video-snippet') || '',
+    renderHTML: (attrs) =>
+        attrs.videoSnippet ? { 'video-snippet': attrs.videoSnippet } : {},
+};
+
+const ATTRS: Record<SbnNodeType, Record<string, AttrSpec>> = {
     chord:       { slug: { default: '' }, root:  { default: '' } },
-    rhythm:      { slug: { default: '' } },
-    progression: { slug: { default: '' }, key:   { default: 'C' } },
+    rhythm:      { slug: { default: '' }, videoSnippet: videoSnippetAttr },
+    progression: { slug: { default: '' }, key:   { default: 'C' }, videoSnippet: videoSnippetAttr },
     sheet:       { slug: { default: '' }, key:   { default: 'C' } },
     song:        { slug: { default: '' }, label: { default: '' } },
 };
@@ -63,6 +79,7 @@ function makeSbnNode(type: SbnNodeType) {
                 if (type === 'progression' && node.attrs.key)   extras.push(`key: ${node.attrs.key}`);
                 if (type === 'sheet'       && node.attrs.key)   extras.push(`key: ${node.attrs.key}`);
                 if (type === 'song'        && node.attrs.label) extras.push(node.attrs.label);
+                if ((type === 'rhythm' || type === 'progression') && node.attrs.videoSnippet) extras.push('▶ video');
                 const suffix = extras.length ? ` (${extras.join(', ')})` : '';
 
                 label.textContent = `${LABELS[type]}: ${node.attrs.slug}${suffix}`;
@@ -78,7 +95,9 @@ function makeSbnNode(type: SbnNodeType) {
                         const pos = typeof getPos === 'function' ? getPos() : null;
                         if (pos == null) return;
                         ed.chain().focus().command(({ tr }) => {
-                            tr.setNodeMarkup(pos, undefined, { slug: newSlug });
+                            // Preserve every other attr (key, videoSnippet, …);
+                            // only the slug changes.
+                            tr.setNodeMarkup(pos, undefined, { ...node.attrs, slug: newSlug });
                             return true;
                         }).run();
                     }

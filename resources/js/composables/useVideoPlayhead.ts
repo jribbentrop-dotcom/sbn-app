@@ -112,3 +112,36 @@ export function useVideoPlayhead() {
 }
 
 export type VideoPlayhead = ReturnType<typeof useVideoPlayhead>;
+
+/**
+ * Shared playhead registry — one `useVideoPlayhead` instance per snippet id,
+ * memoised at module scope.
+ *
+ * The course player splits a synced pair across two Vue roots: the
+ * `<sbn-progression>` component is mounted in the lesson body by
+ * `mountSbnNodes` (an isolated `createApp`), while the `<VideoEmbed>` lives in
+ * `PracticePanel` inside the `Courses/Player` root. Neither can see the
+ * other's reactivity. Keying the playhead by snippet id lets both roots reach
+ * the *same* clock: whichever root mounts the `<VideoEmbed>` owns the IFrame
+ * (binds `embedRef`, forwards `onTimeUpdate`/`onPlayStateChange`); the other
+ * root only reads `playheadSec` / `playing`.
+ *
+ * This is explicit shared module state, not implicit cross-app coupling — the
+ * snippet id is the contract.
+ */
+const playheadRegistry = new Map<string, VideoPlayhead>();
+
+/** Get (or lazily create) the shared playhead for a snippet id. */
+export function getVideoPlayhead(snippetId: string): VideoPlayhead {
+    let ph = playheadRegistry.get(snippetId);
+    if (!ph) {
+        ph = useVideoPlayhead();
+        playheadRegistry.set(snippetId, ph);
+    }
+    return ph;
+}
+
+/** Drop a snippet's shared playhead (e.g. on lesson change). */
+export function releaseVideoPlayhead(snippetId: string): void {
+    playheadRegistry.delete(snippetId);
+}

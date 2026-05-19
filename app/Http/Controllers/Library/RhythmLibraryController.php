@@ -129,9 +129,15 @@ class RhythmLibraryController extends Controller
         }
 
         $results = $query->limit(20)->get()->map(fn ($p) => [
-            'slug'  => $p->slug,
-            'label' => $p->name,
-            'meta'  => $p->category,
+            'slug'     => $p->slug,
+            'label'    => $p->name,
+            'meta'     => $p->category,
+            // id + label only — the palette's "Video example" picker lists
+            // these; the full snippet objects are resolved later by
+            // CourseController::player(). See plan §0.5 step 4.
+            'snippets' => collect($p->video_snippets ?? [])
+                ->map(fn ($s) => ['id' => $s['id'], 'label' => $s['label']])
+                ->values(),
         ]);
 
         return response()->json(['results' => $results]);

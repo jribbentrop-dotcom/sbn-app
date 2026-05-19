@@ -56,12 +56,6 @@ class ProgressionLibraryController extends Controller
         $progression = ChordProgression::where('slug', $slug)
             ->firstOrFail();
 
-        // Test switch — ?pass=2 runs the builder with extensions=true so the
-        // tiles reflect Phase E option-tone upgrades. Default (pass=1) is the
-        // public-facing plain-voicing output.
-        $pass = (int) $request->query('pass', 1);
-        $usePass2 = $pass === 2;
-
         // Get songs featuring this progression
         $songs = Leadsheet::query()
             ->join('sbn_progression_occurrences as o', 'sbn_leadsheets.id', '=', 'o.leadsheet_id')
@@ -86,10 +80,11 @@ class ProgressionLibraryController extends Controller
             ->map(fn ($p) => $this->serializeProgression($p));
 
         // Resolve chord diagram tiles via the proper voice-leading path
+        // extensions is omitted: buildVoicings defaults it from the Machine
+        // Room's per-category pass2_eligible setting.
         $context = $this->harmonicContext->buildFromNumerals('C', $progression->numerals);
         $built   = $this->progressionBuilder->buildVoicings($context, [
             'category'   => $progression->category,
-            'extensions' => $usePass2,
         ]);
         $tiles   = array_map(function ($sel) {
             $v = $sel['voicing'] ?? null;
@@ -107,7 +102,6 @@ class ProgressionLibraryController extends Controller
             'songs'       => $songs,
             'siblings'    => $siblings,
             'tiles'       => $tiles,
-            'builderPass' => $usePass2 ? 2 : 1,
         ]);
     }
 
@@ -194,6 +188,33 @@ class ProgressionLibraryController extends Controller
 
     // ── Phase 11b: JSON endpoints for mountSbnNodes.ts + palette search ───────
 
+    /**
+     * Build the resolved chord tiles for a progression in a given key.
+     *
+     * Progression chords are not stored — they are materialised on the fly by
+     * `ProgressionBuilder` from the `numerals` string. Shared by `apiShow()`
+     * (mountSbnNodes / palette) and `CourseController::player()` so the course
+     * player renders identical voicings to the inline `<sbn-progression>`.
+     *
+     * Returns the `ProgressionChord[]` shape `ChordProgressionViewer` expects.
+     */
+    public function buildChordsFor(ChordProgression $progression, string $key = 'C', bool $usePass2 = true): array
+    {
+        $context = $this->harmonicContext->buildFromNumerals($key, $progression->numerals);
+        $built   = $this->progressionBuilder->buildVoicings($context, [
+            'category'   => $progression->category,
+            'extensions' => $usePass2,
+        ]);
+
+        return array_map(fn ($sel) => [
+            'chordName'      => $sel['chord_name'],
+            'diagramData'    => $sel['voicing'] ?? null,
+            'functionalRole' => $sel['voicing']['functional_role'] ?? null,
+            'beats'          => 4,
+            'slug'           => null,
+        ], $built['selections']);
+    }
+
     public function apiShow(Request $request, string $slug): \Illuminate\Http\JsonResponse
     {
         $progression = ChordProgression::where('slug', $slug)->firstOrFail();
@@ -201,19 +222,7 @@ class ProgressionLibraryController extends Controller
         $key      = trim((string) $request->get('key', 'C')) ?: 'C';
         $usePass2 = (bool) $request->boolean('pass2', true);
 
-        $context = $this->harmonicContext->buildFromNumerals($key, $progression->numerals);
-        $built   = $this->progressionBuilder->buildVoicings($context, [
-            'category'   => $progression->category,
-            'extensions' => $usePass2,
-        ]);
-
-        $chords = array_map(fn ($sel) => [
-            'chordName'      => $sel['chord_name'],
-            'diagramData'    => $sel['voicing'] ?? null,
-            'functionalRole' => $sel['voicing']['functional_role'] ?? null,
-            'beats'          => 4,
-            'slug'           => null,
-        ], $built['selections']);
+        $chords = $this->buildChordsFor($progression, $key, $usePass2);
 
         return response()->json([
             'progression' => $this->serializeProgression($progression),
@@ -237,9 +246,15 @@ class ProgressionLibraryController extends Controller
         }
 
         $results = $query->orderBy('name')->limit(20)->get()->map(fn ($p) => [
-            'slug'  => $p->slug,
-            'label' => $p->name,
-            'meta'  => $p->category,
+            'slug'     => $p->slug,
+            'label'    => $p->name,
+            'meta'     => $p->category,
+            // id + label only — the palette's "Video example" picker lists
+            // these; the full snippet objects are resolved later by
+            // CourseController::player(). Mirrors the rhythm apiSearch.
+            'snippets' => collect($p->video_snippets ?? [])
+                ->map(fn ($s) => ['id' => $s['id'], 'label' => $s['label']])
+                ->values(),
         ]);
 
         return response()->json(['results' => $results]);

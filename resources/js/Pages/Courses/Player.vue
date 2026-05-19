@@ -30,6 +30,14 @@ interface LessonStub {
 interface LessonData extends LessonStub { content: string | null }
 interface SelectedChord { slug: string; root: string; voicingData?: any }
 interface RhythmOption { slug: string; name: string; description: string | null; pattern: any }
+interface VideoSnippet { id: string; label?: string; videoId: string; videoType?: string; startSec: number; endSec?: number; tempoBpm: number }
+interface ProgressionOption {
+  slug: string;
+  name: string;
+  key: string;
+  category: string;
+  videoSnippet: VideoSnippet | null;
+}
 
 const props = defineProps<{
   course: CourseData;
@@ -39,7 +47,20 @@ const props = defineProps<{
   chordSlugs?: string[];
   lessonConcept?: { slug: string; title: string; body_html: string; has_widgets: boolean } | null;
   rhythms?: RhythmOption[];
+  progressions?: ProgressionOption[];
 }>();
+
+// snippet id → sync anchor, for the inline <sbn-progression> in the lesson
+// body. mountSbnNodes hands these to the body component so its highlight can
+// follow the same playhead PracticePanel's <VideoEmbed> drives.
+const snippetSync = computed<Record<string, { startSec: number; tempoBpm: number }>>(() => {
+  const map: Record<string, { startSec: number; tempoBpm: number }> = {};
+  for (const p of props.progressions ?? []) {
+    const s = p.videoSnippet;
+    if (s) map[s.id] = { startSec: s.startSec, tempoBpm: s.tempoBpm };
+  }
+  return map;
+});
 
 const contentRef = ref<InstanceType<typeof LessonContent> | null>(null);
 const activeSubsection = ref<string | null>(null);
@@ -123,6 +144,7 @@ watch(() => props.lesson?.slug, () => {
           :next-lesson="nextLesson ? { slug: nextLesson.slug, title: nextLesson.title } : null"
           :course-slug="course.slug"
           :on-chord-select="onChordSelect"
+          :snippet-sync="snippetSync"
           @subsection-change="activeSubsection = $event"
           @open-sidebar="mobileSidebarOpen = true"
         />
@@ -136,6 +158,7 @@ watch(() => props.lesson?.slug, () => {
         :active-sound-source="activeSoundSource"
         :lesson-concept="props.lessonConcept ?? null"
         :rhythms="props.rhythms ?? []"
+        :progressions="props.progressions ?? []"
         @select-chord="onChordSelect"
         @clear-chord="clearChord"
       />

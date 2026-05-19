@@ -252,15 +252,19 @@ chords.
 The rhythm card shows the rhythm patterns referenced by `<sbn-rhythm slug="…">`
 tags in the lesson content — **lesson-specific**, not course-genre-generic.
 
-- `CourseController::player()` parses `<sbn-rhythm>` slugs from lesson content
-  (same approach as `chordSlugs`), fetches the patterns via `whereIn('slug', …)`,
-  and preserves the slug order from the content. Passed as the `rhythms` prop.
+- `CourseController::player()` parses `<sbn-rhythm>` tags via
+  `parseRhythmTags()` — **one panel entry per tag occurrence**, in document
+  order, NOT deduped by slug (the same pattern may appear twice with different
+  video examples). The parser matches each tag whole, then extracts `slug` and
+  `video-snippet` — attribute order is irrelevant. Patterns are fetched via
+  `whereIn('slug', …)`. Passed as the `rhythms` prop.
 - The card is hidden when the lesson has no `<sbn-rhythm>` tags.
 - `RhythmStrip` renders with `mini` and a `color` tint from
   `getCategoryColor(pattern.category)` (e.g. `brazilian` → bossa style color).
 - The pattern selector pills appear only when there is more than one rhythm.
 - Pattern data comes from `RhythmPattern::toPlayerData()` (shape:
-  `RhythmPatternWithMeta`).
+  `RhythmPatternWithMeta`). The resolved video snippet (§10) is nested onto it
+  as `pattern.videoSnippet`.
 
 ### 9.6 Admin editor integration
 
@@ -269,3 +273,100 @@ tags in the lesson content — **lesson-specific**, not course-genre-generic.
 - Slash command: `/sheet` → `window.__sbnPalette('sheet')`
 - Leadsheets index: "Exercises →" cross-link; Exercises index: "← Songs" cross-link
 - Exercise edit page uses the full `TabEditor.vue` visual editor via `exerciseEditor()` Alpine function — loads data from `GET /admin/exercises/{id}/data`, dispatches `sbn-tab-init`, syncs back on save via hidden `content_json` field
+
+---
+
+## 10. Video Sync — real-world example snippets
+
+Hooktheory-style YouTube examples synced to a course-player component. Full
+design + rationale in `docs/Video-Sync-Snippet-Integration-Plan.md`.
+**Shipped: rhythm path (plan steps 1–6) and progression path (step 6b).** The
+two paths sync the same way but place the synced component differently — see
+§10.3 (rhythm, PracticePanel-only) vs §10.4 (progression, inline body).
+
+### 10.1 Two layers
+
+| Layer | Owns | Where authored |
+|---|---|---|
+| Component snippet library | A rhythm/progression's list of `VideoSnippet`s | Rhythm · Progression admin edit pages |
+| Course slot selection | *Which* snippet (if any) shows for this lesson's instance | `LessonPalette` "Video example" picker |
+
+The course slot stores only a **reference** — the snippet `id` — as a tag
+attribute, never snippet data. Editing a snippet in the rhythm admin updates
+every lesson that points at it.
+
+### 10.2 The tag attribute
+
+Both `<sbn-rhythm>` and `<sbn-progression>` tags carry an optional
+`video-snippet` id:
+
+```html
+<sbn-rhythm slug="son-clave-3-2" video-snippet="vs_02839d89-…">
+<sbn-progression slug="ii-v-i" key="F" video-snippet="vs_5e1c…">
+```
+
+- Authored in `LessonPalette.vue`: selecting a rhythm **or progression** shows a
+  "Video example" dropdown (None + one per the component's snippets, fetched
+  from `/api/sbn/rhythms` / `/api/sbn/progressions`, both of which return
+  `snippets: [{id,label}]`). Both use the select→configure→confirm path.
+- `LessonEditor.vue`: the `rhythm` and `progression` TipTap nodes both have a
+  `videoSnippet` attr with explicit HTML mapping (camelCase attr →
+  `video-snippet` HTML attribute). The chip-edit slug prompt preserves all
+  other attrs (`key`, `videoSnippet`).
+- `CourseController::player()` resolves the id against the component's
+  `video_snippets` library; a dangling id (snippet deleted) resolves to `null`
+  → slot hidden. For rhythm it nests as `pattern.videoSnippet`; for progression
+  it rides on the `progressions` prop entry as `videoSnippet`.
+
+### 10.3 Runtime sync (PracticePanel only)
+
+The synced video lives in the **PracticePanel** companion, not the inline
+lesson-body component:
+
+- `PracticePanel` renders one `VideoEmbed` bound to the active rhythm's
+  `videoSnippet`, driven by the `useVideoPlayhead` composable (seconds-based,
+  domain-free clock).
+- Transport ⇄ video are two-way bound: the rhythm strip's play button (in
+  video mode) emits `playRequest` → toggles the shared video; driving the
+  YouTube player directly mirrors back to the transport. Play seeks to the
+  snippet's `startSec` first; `setLoop` wraps at `endSec`.
+- `RhythmStrip`'s `videoPlayhead` prop converts video seconds → pattern cells;
+  the audio engine is untouched in video mode (no competing clocks).
+
+**By design, the inline `<sbn-rhythm>` in the lesson body is audio-only.** It is
+mounted by `mountSbnNodes` as an isolated `createApp` with no access to the
+PracticePanel's playhead; its play button runs the rhythm samples. Rhythm video
+sync is PracticePanel-only — `mountSbnNodes` does not read `video-snippet` for
+the `rhythm` type.
+
+### 10.4 Runtime sync — progression (inline body component)
+
+Progression sync differs from rhythm: the **inline `<sbn-progression>` in the
+lesson body is the synced surface**, not the PracticePanel companion. The video
+sits in the sidebar; the component stays in the main column.
+
+The two live in **separate Vue roots** — the inline component is an isolated
+`createApp` from `mountSbnNodes`, the `VideoEmbed` is in the `Courses/Player`
+root. They share one clock via a **playhead registry**:
+
+- `getVideoPlayhead(snippetId)` in `useVideoPlayhead.ts` — a module-level
+  `Map` memoising one `useVideoPlayhead` instance per snippet id. The snippet
+  id is the explicit cross-root contract.
+- `PracticePanel` owns the `VideoEmbed` and registers its playhead under the
+  focused snippet's id. The inline `<sbn-progression>` *reads* the same
+  instance: `mountSbnNodes` mounts it via a render function bound to
+  `getVideoPlayhead(id).playheadSec`, so the highlight stays reactive (root
+  props passed to `createApp` are otherwise static).
+- Anchors (`startSec`, `tempoBpm`) reach `mountSbnNodes` through a `snippetSync`
+  map: `Player.vue` builds it from the `progressions` prop and threads it
+  `Player → LessonContent → mountSbnNodes`.
+- `ChordProgressionViewer.chordIndexAtTime()` converts video seconds → chord
+  index. When the video isn't playing, `videoPlayhead` is `null` and the
+  component falls back to its own audio playback / manual selection.
+
+`PracticePanel` does **not** render its own `ChordProgressionViewer` — that
+would duplicate the inline body component. It contributes only the `VideoEmbed`
+slot, which is shared across **all** lesson snippets (rhythm + progression) via
+a pill selector. The panel's `RhythmStrip` is still video-synced when a rhythm
+snippet is focused (`rhythmVideoActive`); progression sync is entirely the
+inline component's job.

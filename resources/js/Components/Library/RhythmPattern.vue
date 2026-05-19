@@ -26,6 +26,10 @@ export interface RhythmPatternData {
  * standing on a lesson. Times are in seconds of the embedded recording.
  */
 export interface VideoSnippet {
+  /** Stable id, unique within its component's snippet library. */
+  id: string;
+  /** Author-facing name, shown in the course snippet picker. */
+  label?: string;
   /** YouTube video ID (or hosted URL when videoType === 'hosted'). */
   videoId: string;
   videoType?: 'youtube' | 'hosted';

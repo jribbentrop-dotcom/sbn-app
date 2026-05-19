@@ -13,9 +13,20 @@
  *   <sbn-widget      slug="…" …attrs>        ← edu interactive, no fetch
  */
 
-import { createApp, type App } from 'vue';
+import { createApp, h, type App } from 'vue';
 import { getCategoryColor } from '../composables/useCategoryColors';
 import { eduWidgets, isEduWidget } from '../edu/widgets/registry';
+import { getVideoPlayhead } from '../composables/useVideoPlayhead';
+
+/**
+ * Snippet sync info passed in from the course player. Keyed by snippet id, it
+ * lets an inline <sbn-progression video-snippet="…"> reach the shared playhead
+ * that PracticePanel's <VideoEmbed> drives. See useVideoPlayhead's registry.
+ */
+export interface SnippetSyncInfo {
+  startSec: number;
+  tempoBpm: number;
+}
 
 // ── Component registry ──────────────────────────────────────────────────────
 
@@ -121,7 +132,11 @@ function fetchData(type: NodeType, slug: string, qs: string): Promise<unknown> {
 
 export async function mountSbnNodes(
   container: HTMLElement,
-  options: { onChordSelect?: ((slug: string, root: string, voicingData?: any) => void) | null } = {},
+  options: {
+    onChordSelect?: ((slug: string, root: string, voicingData?: any) => void) | null;
+    /** snippet id → sync anchor, for inline <sbn-progression> video sync. */
+    snippetSync?: Record<string, SnippetSyncInfo> | null;
+  } = {},
 ): Promise<() => void> {
   const apps: App[] = [];
   const tasks: Promise<void>[] = [];
@@ -224,6 +239,34 @@ export async function mountSbnNodes(
             if (mountPoint) {
               const app = createApp(Component, propsFor[type](data, el));
               app.mount(mountPoint);
+              apps.push(app);
+            }
+          } else if (type === 'progression') {
+            // Inline <sbn-progression> is the synced surface in the course
+            // player: the body component shows the highlight, PracticePanel's
+            // <VideoEmbed> owns the clock. When the tag carries a
+            // video-snippet whose id is in the snippetSync map, mount via a
+            // render function so the shared playhead stays reactive (root
+            // props passed to createApp are static otherwise).
+            const baseProps = propsFor[type](data, el);
+            const snippetId = el.getAttribute('video-snippet') ?? '';
+            const sync = snippetId ? options.snippetSync?.[snippetId] : undefined;
+
+            if (sync) {
+              const ph = getVideoPlayhead(snippetId);
+              const app = createApp({
+                render: () => h(Component, {
+                  ...baseProps,
+                  videoPlayhead: ph.playing.value ? ph.playheadSec.value : null,
+                  videoStartSec: sync.startSec,
+                  tempoBpm: sync.tempoBpm,
+                }),
+              });
+              app.mount(el);
+              apps.push(app);
+            } else {
+              const app = createApp(Component, baseProps);
+              app.mount(el);
               apps.push(app);
             }
           } else {

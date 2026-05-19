@@ -7,12 +7,20 @@ import VideoEmbed from '@/Components/Library/Video/VideoEmbed.vue';
 import type { RhythmPatternWithMeta } from '@/Components/Library/RhythmPattern.vue';
 import { mountSbnNodes } from '@/lib/mountSbnNodes';
 import { getCategoryColor } from '@/composables/useCategoryColors';
-import { useVideoPlayhead } from '@/composables/useVideoPlayhead';
+import { getVideoPlayhead } from '@/composables/useVideoPlayhead';
+import type { VideoSnippet } from '@/Components/Library/RhythmPattern.vue';
 
 interface LessonData { slug: string; title: string; content: string | null; subsections: { title: string; slug: string }[] }
 interface CourseData { slug: string; title: string; primaryGenre: string | null }
 interface SelectedChord { slug: string; root: string; voicingData?: any }
 interface RhythmOption { slug: string; name: string; description: string | null; pattern: RhythmPatternWithMeta }
+interface ProgressionOption {
+  slug: string;
+  name: string;
+  key: string;
+  category: string;
+  videoSnippet: VideoSnippet | null;
+}
 
 const props = defineProps<{
   lesson: LessonData | null;
@@ -22,6 +30,7 @@ const props = defineProps<{
   chordSlugs?: string[];
   lessonConcept?: { slug: string; title: string; body_html: string; has_widgets: boolean } | null;
   rhythms?: RhythmOption[];
+  progressions?: ProgressionOption[];
 }>();
 
 const emit = defineEmits<{
@@ -47,22 +56,118 @@ const activeRhythmColor = computed<string | null>(() => {
   return cat ? getCategoryColor(cat) : null;
 });
 
-// ── Video snippet ─────────────────────────────────────────────────────────────
-// One panel-level embed slot, bound to the focused component. The rhythm is the
-// default target — its real-world example video (when present) rides on the
-// pattern record. The shared `useVideoPlayhead` reports YouTube time in seconds;
-// RhythmStrip converts it to cells at its own edge via `videoPlayhead`.
-const videoSnippet = computed(() => activeRhythmPattern.value?.videoSnippet ?? null);
-const ph = useVideoPlayhead();
+// ── Video snippets ────────────────────────────────────────────────────────────
+// One panel-level embed slot, focus-switched across every snippet in the
+// lesson — rhythm snippets ride on the pattern record, progression snippets on
+// the progression entry. Each entry keeps a back-reference so focusing a
+// snippet can also surface its component. The shared playhead is keyed by
+// snippet id (registry): PracticePanel owns the <VideoEmbed> here; the inline
+// <sbn-progression> body component reads the same instance for its highlight.
+interface SnippetEntry {
+  snippet: VideoSnippet;
+  kind: 'rhythm' | 'progression';
+  /** index into rhythmOptions / progressionOptions */
+  componentIndex: number;
+  label: string;
+}
+
+const progressionOptions = computed<ProgressionOption[]>(() => props.progressions ?? []);
+
+const snippetEntries = computed<SnippetEntry[]>(() => {
+  const out: SnippetEntry[] = [];
+  rhythmOptions.value.forEach((r, i) => {
+    if (r.pattern?.videoSnippet) {
+      out.push({ snippet: r.pattern.videoSnippet, kind: 'rhythm', componentIndex: i, label: r.name });
+    }
+  });
+  progressionOptions.value.forEach((p, i) => {
+    if (p.videoSnippet) {
+      out.push({ snippet: p.videoSnippet, kind: 'progression', componentIndex: i, label: p.name });
+    }
+  });
+  return out;
+});
+
+const focusedSnippetIndex = ref(0);
+const focusedEntry = computed<SnippetEntry | null>(
+  () => snippetEntries.value[focusedSnippetIndex.value] ?? null,
+);
+const videoSnippet = computed<VideoSnippet | null>(() => focusedEntry.value?.snippet ?? null);
+
+// Reset focus when the lesson (and thus its snippet list) changes.
+watch(() => props.lesson?.slug, () => {
+  focusedSnippetIndex.value = 0;
+  activeRhythm.value = 0;
+});
+
+// Focusing a rhythm snippet surfaces its pattern in the Rhythm selector, so
+// the panel's RhythmStrip shows the component the embed drives. Progression
+// snippets need no equivalent — the synced progression lives inline in the
+// lesson body (see mountSbnNodes), not in this panel.
+watch(focusedEntry, (entry) => {
+  if (entry?.kind === 'rhythm') activeRhythm.value = entry.componentIndex;
+});
+
+// The video clock drives the panel's RhythmStrip only when the focused snippet
+// is that rhythm. Progression sync is handled by the inline body component.
+const rhythmVideoActive = computed(
+  () => focusedEntry.value?.kind === 'rhythm'
+    && focusedEntry.value.componentIndex === activeRhythm.value,
+);
+
+// The shared playhead for the focused snippet — same registry instance the
+// inline <sbn-progression> reads. Falls back to a throwaway instance when no
+// snippet is focused so `ph` is always defined.
+const fallbackId = '__practice_panel_idle__';
+const ph = computed(() => getVideoPlayhead(videoSnippet.value?.id ?? fallbackId));
 
 // Apply the snippet's loop window whenever the focused snippet changes.
 watch(videoSnippet, (snip) => {
   if (snip?.endSec != null) {
-    ph.setLoop({ startSec: snip.startSec, endSec: snip.endSec });
+    ph.value.setLoop({ startSec: snip.startSec, endSec: snip.endSec });
   } else {
-    ph.setLoop(null);
+    ph.value.setLoop(null);
   }
 }, { immediate: true });
+
+// ── Transport ⇄ video sync ────────────────────────────────────────────────────
+// The transport's `playing` ref is the single source of truth. When a video
+// snippet is bound, transport play/pause drives the embed, and the embed seeks
+// to the snippet's startSec on each play (the loop window only handles the
+// wrap, not the initial anchor). `_syncingFromVideo` guards against the two
+// watchers ping-ponging.
+let _syncingFromVideo = false;
+
+watch(playing, (isPlaying) => {
+  if (_syncingFromVideo || !videoSnippet.value) return;
+  const phv = ph.value;
+  if (isPlaying) {
+    // Anchor to the snippet start before playing. If the playhead has drifted
+    // outside the loop window (or sits at 0 from a fresh load), reset it.
+    const snip = videoSnippet.value;
+    const at = phv.playheadSec.value;
+    if (at < snip.startSec || (snip.endSec != null && at >= snip.endSec)) {
+      phv.seek(snip.startSec);
+    }
+    phv.play();
+  } else {
+    phv.pause();
+  }
+});
+
+// Reverse: if the user drives the YouTube player directly, mirror its state
+// onto the transport. The source is `ph.value.playing` — a getter-based watch
+// so it re-subscribes when the focused snippet (and its playhead) changes.
+watch(() => ph.value.playing.value, (videoPlaying) => {
+  if (videoPlaying === playing.value) return;
+  _syncingFromVideo = true;
+  playing.value = videoPlaying;
+  _syncingFromVideo = false;
+});
+
+// Switching focus while playing: stop the transport so the old embed pauses
+// and the new one isn't left in an inconsistent state.
+watch(focusedSnippetIndex, () => { playing.value = false; });
 
 function parseRootFromChordName(name: string): string {
   const m = (name || '').match(/^([A-G](?:#|b)?)/);
@@ -218,6 +323,27 @@ watch(() => props.lesson?.slug, () => { conceptMounted = false; });
       </div>
     </div>
 
+    <div v-if="progressionOptions.length" class="vC-card">
+      <div class="vC-card-eyebrow">
+        <span>Progressions in this lesson</span>
+        <span class="vC-card-meta">{{ progressionOptions.length }}</span>
+      </div>
+      <div class="vC-prog-list">
+        <a
+          v-for="(p, i) in progressionOptions"
+          :key="`${p.slug}-${i}`"
+          :href="`/library/progressions/${p.slug}?key=${encodeURIComponent(p.key)}`"
+          class="vC-prog-link"
+        >
+          <span class="vC-prog-name">{{ p.name }}</span>
+          <span class="vC-prog-meta">
+            <span class="vC-prog-key">Key of {{ p.key }}</span>
+            <span class="vC-prog-style">{{ p.category }}</span>
+          </span>
+        </a>
+      </div>
+    </div>
+
     <div v-if="videoSnippet" class="vC-card">
       <div class="vC-card-eyebrow">
         <span>Real-world example</span>
@@ -230,6 +356,18 @@ watch(() => props.lesson?.slug, () => { conceptMounted = false; });
         @timeupdate="ph.onTimeUpdate"
         @play-state-change="ph.onPlayStateChange"
       />
+      <div v-if="snippetEntries.length > 1" class="vC-rhythm-row">
+        <button
+          v-for="(entry, i) in snippetEntries"
+          :key="entry.snippet.id"
+          type="button"
+          class="vC-rhythm-pill"
+          :class="{ 'is-active': focusedSnippetIndex === i }"
+          @click="focusedSnippetIndex = i"
+        >
+          {{ entry.snippet.label || entry.label }}
+        </button>
+      </div>
     </div>
 
     <div v-if="rhythmOptions.length" class="vC-card">
@@ -243,9 +381,11 @@ watch(() => props.lesson?.slug, () => { conceptMounted = false; });
         :tempo="bpm"
         :label="rhythmOptions[activeRhythm]?.name"
         :color="activeRhythmColor"
-        :video-playhead="videoSnippet ? ph.playheadSec.value : null"
-        :video-start-sec="videoSnippet?.startSec ?? 0"
-        :video-bpm="videoSnippet?.tempoBpm"
+        :video-playhead="rhythmVideoActive ? ph.playheadSec.value : null"
+        :video-start-sec="activeRhythmPattern?.videoSnippet?.startSec ?? 0"
+        :video-bpm="activeRhythmPattern?.videoSnippet?.tempoBpm"
+        :video-playing="rhythmVideoActive && ph.playing.value"
+        @play-request="playing = !playing"
         mini
         playable
       />
@@ -262,6 +402,7 @@ watch(() => props.lesson?.slug, () => { conceptMounted = false; });
         </button>
       </div>
     </div>
+
 
     <details
       v-if="lessonConcept"
@@ -291,6 +432,58 @@ watch(() => props.lesson?.slug, () => { conceptMounted = false; });
 </template>
 
 <style scoped>
+/* Progressions-in-this-lesson reference list */
+.vC-prog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vC-prog-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--clr-text);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.vC-prog-link:hover {
+  background: var(--clr-bg-hover);
+  border-color: var(--clr-accent);
+}
+.vC-prog-name {
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vC-prog-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.vC-prog-key {
+  font-size: 11px;
+  color: var(--clr-text-dim);
+  white-space: nowrap;
+}
+.vC-prog-style {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--clr-text-muted);
+  border: 1px solid var(--clr-border);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
 .vC-concept-expander {
   font-size: 13px;
   border: 1px solid var(--clr-border);

@@ -22,6 +22,7 @@ const props = defineProps<{
   prevLesson: LessonNav | null;
   nextLesson: LessonNav | null;
   onChordSelect?: ((slug: string, root: string, voicingData?: any) => void) | null;
+  snippetSync?: Record<string, { startSec: number; tempoBpm: number }> | null;
 }>();
 
 const emit = defineEmits<{
@@ -106,7 +107,10 @@ defineExpose({ goSubsection });
 async function mountNodes(): Promise<void> {
   if (unmountSbnNodes) { unmountSbnNodes(); unmountSbnNodes = null; }
   if (!contentRef.value) return;
-  unmountSbnNodes = await mountSbnNodes(contentRef.value, { onChordSelect: props.onChordSelect ?? null });
+  unmountSbnNodes = await mountSbnNodes(contentRef.value, {
+    onChordSelect: props.onChordSelect ?? null,
+    snippetSync: props.snippetSync ?? null,
+  });
 }
 
 watch(() => props.lesson?.slug, async () => {

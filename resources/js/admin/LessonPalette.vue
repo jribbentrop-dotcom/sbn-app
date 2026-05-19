@@ -3,7 +3,8 @@ import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 
 type NodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'media';
 
-interface PaletteItem { slug: string; label: string; meta?: string; url?: string }
+interface SnippetRef { id: string; label: string }
+interface PaletteItem { slug: string; label: string; meta?: string; url?: string; snippets?: SnippetRef[] }
 
 const TABS: { type: NodeType; label: string }[] = [
     { type: 'chord',       label: 'Chord' },
@@ -37,6 +38,9 @@ const selectedSlug = ref<string | null>(null);
 const configRoot   = ref('C');
 const configKey    = ref('C');
 const configLabel  = ref('');
+// Video-example picker — holds the chosen snippet id ('' = none).
+const configSnippet      = ref('');
+const configSnippetList  = ref<SnippetRef[]>([]);
 
 const ROOTS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
@@ -119,7 +123,7 @@ watch(activeTab, () => { query.value = ''; results.value = []; selectedSlug.valu
 // ── Insert ────────────────────────────────────────────────────────────────────
 
 function insert(item: PaletteItem) {
-    if (activeTab.value === 'rhythm' || activeTab.value === 'media') {
+    if (activeTab.value === 'media') {
         doInsert(item.slug);
         return;
     }
@@ -133,7 +137,8 @@ function insert(item: PaletteItem) {
         return;
     }
 
-    // Toggle or select new row for others
+    // Toggle or select new row for others (rhythm now uses the config path
+    // too, so it can host the video-example picker — plan §0.5 step 5).
     if (selectedSlug.value === item.slug) {
         selectedSlug.value = null;
     } else {
@@ -141,6 +146,11 @@ function insert(item: PaletteItem) {
         // Defaults
         if (activeTab.value === 'progression') configKey.value = 'C';
         if (activeTab.value === 'song') configLabel.value = item.label;
+        // Rhythm and progression both host the video-example picker.
+        if (activeTab.value === 'rhythm' || activeTab.value === 'progression') {
+            configSnippet.value     = '';
+            configSnippetList.value = item.snippets ?? [];
+        }
     }
 }
 
@@ -151,6 +161,10 @@ function doConfirmInsert() {
     if (activeTab.value === 'progression') extras.key  = configKey.value;
     if (activeTab.value === 'song')        extras.label = configLabel.value;
     if (activeTab.value === 'sheet')       extras.key = configKey.value;
+    // Emitted as the `video-snippet` tag attribute; '' = no example.
+    if ((activeTab.value === 'rhythm' || activeTab.value === 'progression') && configSnippet.value) {
+        extras.videoSnippet = configSnippet.value;
+    }
 
     doInsert(selectedSlug.value, extras);
     selectedSlug.value = null;
@@ -264,6 +278,13 @@ function onDragStart(e: DragEvent, item: PaletteItem) {
             <label>Label:</label>
             <input v-model="configLabel" type="text" class="sbn-search-input" style="height:28px; flex:1; font-size:12px;" />
           </div>
+          <div v-if="activeTab === 'rhythm' || activeTab === 'progression'" class="sbn-palette-config-row">
+            <label>Video example:</label>
+            <select v-model="configSnippet" class="sbn-search-input" style="height:28px; flex:1; font-size:12px;">
+              <option value="">None</option>
+              <option v-for="s in configSnippetList" :key="s.id" :value="s.id">{{ s.label }}</option>
+            </select>
+          </div>
           <button type="button" class="sbn-btn sbn-btn-primary sbn-btn-sm" style="height:28px;" @click="doConfirmInsert">Insert</button>
         </div>
       </div>
@@ -305,13 +326,3 @@ function onDragStart(e: DragEvent, item: PaletteItem) {
     border-left: 3px solid var(--clr-accent);
 }
 </style>
-    if (activeTab.value === 'sheet') {
-        if (selectedSlug.value === item.slug) {
-            doInsert(item.slug, { key: configKey.value });
-            selectedSlug.value = null;
-        } else {
-            selectedSlug.value = item.slug;
-            configKey.value = 'C';
-        }
-        return;
-    }
