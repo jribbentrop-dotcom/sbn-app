@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Services\BuilderSettings;
 use App\Services\ChordShapeCalculator;
 use App\Services\ProgressionBuilder;
 use ReflectionClass;
@@ -26,7 +27,7 @@ class PhaseECategoryGateTest extends TestCase
 
     private function builder(): ProgressionBuilder
     {
-        return new ProgressionBuilder(new ChordShapeCalculator());
+        return new ProgressionBuilder(new ChordShapeCalculator(), new BuilderSettings());
     }
 
     /**

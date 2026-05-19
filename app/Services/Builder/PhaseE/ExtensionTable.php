@@ -170,21 +170,62 @@ class ExtensionTable
 
     /**
      * Route a secondary dominant to appropriate V7 entry
-     * 
+     *
+     * The YAML routing rules key on a spelled-out quality vocabulary
+     * (`minor7`, `minor`, `maj7`, …), but the builder stores chord qualities
+     * in its own shorthand (`m7`, `m`, `maj7`, `dom7`, …). Without translation
+     * every minor-target rule silently misses and the secondary dominant
+     * defaults to the *major*-resolution extension set — handing natural 9/13
+     * to a dominant that resolves to a minor chord. Normalize first.
+     *
      * @param string $targetQuality
      * @return string Route description
      */
     public static function routeSecondaryDominant(string $targetQuality): string
     {
         $routing = self::getSecondaryDominantRouting();
-        
+        $normalized = self::normalizeTargetQuality($targetQuality);
+
         foreach ($routing['rules'] as $rule) {
-            if ($rule['target_quality'] === $targetQuality) {
+            if ($rule['target_quality'] === $normalized) {
                 return $rule['route_to'];
             }
         }
-        
+
         return $routing['default_when_target_unknown']['route_to'];
+    }
+
+    /**
+     * Translate the builder's quality shorthand into the YAML routing
+     * vocabulary. Unknown values pass through untouched so a quality already
+     * spelled the YAML way (or a future addition) still matches directly.
+     */
+    private static function normalizeTargetQuality(string $quality): string
+    {
+        $map = [
+            'm7'    => 'minor7',
+            'min7'  => 'minor7',
+            'm7b5'  => 'minor7b5',
+            'm6'    => 'minor6',
+            'min6'  => 'minor6',
+            'm'     => 'minor',
+            'min'   => 'minor',
+            'minor' => 'minor',
+            'maj7'  => 'maj7',
+            'maj'   => 'major',
+            'major' => 'major',
+            '6'     => '6',
+            '6/9'   => '6/9',
+            '69'    => '6/9',
+            '7'     => 'dom7',
+            'dom7'  => 'dom7',
+            'dim7'  => 'dim7',
+            'dim'   => 'dim7',
+            'o7'    => 'dim7',
+            '°7'    => 'dim7',
+        ];
+
+        return $map[trim($quality)] ?? trim($quality);
     }
 
     /**

@@ -1,6 +1,6 @@
 # SBN Builder — Reference
 
-**Status:** Living document, 2026-05-05.
+**Status:** Living document, 2026-05-19.
 **Scope:** `App\Services\ProgressionBuilder` — the algorithm that turns a
 chord progression (Roman-numeral or chord-name sequence) into a sequence
 of guitar voicings.
@@ -726,50 +726,6 @@ alongside the builder's Part 4 work.
   errors out (e.g. a parser bug), the others still render. The errored
   one shows the error inline.
 
-### §19. Implementation order
-
-Three independently-shippable steps:
-
-1. **Storage + service layer** (no UI). Move the constants to DB-backed
-   reads with code fallbacks. Verify the regression suite produces
-   bit-identical output before/after. Proves the indirection isn't
-   introducing bugs.
-2. **Read-only Machine Room page.** Shows current settings + the six
-   live previews. No editing yet. Verifies the values surface
-   correctly through the admin shell and the live preview is fast
-   enough.
-3. **Editing + archetype save/load + restore-defaults.** The actual
-   tuning surface, with all safety affordances baked in.
-
-The leadsheet-flow integration (§17) is orthogonal and can ship at any
-point after step 1.
-
-### §20. Open tuning questions
-
-These are things to investigate using the Machine Room once it ships.
-None are bugs; all are calibration concerns.
-
-1. **Style preset enforcement strength.** `roota` / `roote` get
-   over-ridden by `c_register` / `c_voice_leading` even when explicitly
-   selected. Should `c_style` weight bump when user picks non-`auto`?
-   Or should the preset's bass-string range act as a hard pool filter
-   instead of a soft cost?
-2. **High-register pull on Pass 1 jazz.** Multi-slot Imaj7 progressions
-   sometimes lock to fret-8+ shapes. Is this a `c_register` weight
-   issue, a `popularity` prior issue, or genuinely tied to the §6.1
-   cascade leaving only high-register candidates?
-3. **`c_common_tone` saturation.** During the xx0212 D7 investigation,
-   common-tone scores were nearly identical across most candidates.
-   Is the term saturated, or is the pitch-class pool small enough that
-   most edges share the same count?
-4. **Tonic-widening's impact on Pass 2.** §4.5 widens the pool for
-   tonic slots. Does this interact with Pass 2's option-tone selection
-   (e.g. should Pass 2 prefer `6/9` voicings on `Imaj7` slots in latin
-   categories)? Currently no special handling.
-5. **Bonus magnitude tuning (E.1.6).** The Phase E YAML's `bonus`
-   values are educated guesses. With the Machine Room + regression
-   suite, this becomes tractable.
-
 ---
 
 ## Part 3 — Phase History (appendix)
@@ -966,6 +922,139 @@ alt-root when multiple aliases pointed at the same shape. `E7(b9)`
 returned 1 alias position; should have returned 4. Fixed by iterating
 `(shape × alias)` pairs and deduping on `(shape_id, start_fret)`.
 
+### Machine Room wiring + naming/Phase-E correctness — ✅ SHIPPED 2026-05-19
+
+A round of bug fixes discovered while auditing the Machine Room and the
+builder's chord-naming. All user-reported or audit-found.
+
+**Machine Room (`builder.blade.php`, `BuilderSettings`, `ProgressionBuilderController`):**
+
+1. **`root_only_default` / `default_voicing_style` never persisted.**
+   Their `FALLBACK_DEFAULTS` value was `[]`. In JS `[]` is truthy, so
+   the `toggleCategoryArray` init guard never replaced it with `{}`;
+   setting a named per-category key on an Array, then `JSON.stringify`,
+   drops the key — the server received `"[]"` and the checkbox/select
+   change vanished. The builder's `rootOnly` logic was always correct;
+   it just never received a `true`. Fixed in four layers: PHP fallbacks
+   now seed per-category objects; `toggleCategoryArray` coerces arrays
+   to `{}`; `normalizeSettings()` repairs stale array-shaped values on
+   every load; the two corrupted `"[]"` DB rows were deleted.
+2. **`toggleArrayItem` mutated arrays in place** — reactivity desync
+   when the setting was previously undefined. Now rebuilds a fresh
+   array each toggle.
+3. **`register_targets` x-model crash guard.** `normalizeSettings()`
+   backfills a complete `{target, weight}` for all six categories so a
+   partial DB row / archetype can't crash the panel on category switch.
+4. **Server `updateSetting` had no validation.** Added a `SETTING_TYPES`
+   allowlist + per-key type check; unknown keys / wrong types now 422.
+5. **Dead global `register` weight slider.** The global `cost_weights`
+   `register` term is overwritten per-category by
+   `register_targets[cat].weight` (`§7` / builder L2284), so the global
+   slider did nothing. Excluded from the global weights UI via
+   `weightKeys()`; added the spec'd cost-weight **sum display + drift
+   warning** (§14.2, §18) at the same time.
+
+**Chord naming / Phase E (`ProgressionBuilder`):**
+
+6. **Diminished chords named differently per pass.** `composeChordName`
+   (Pass 2's name builder) borrowed `qualityToSuffix`, which emits
+   *Roman-numeral* suffixes (`o`, `o7`) — wrong for chord names. The
+   same progression rendered `Bdim`/`Bdim7` with `extensions=false` but
+   `Bo`/`Bo7` with `extensions=true`. Added a dedicated
+   `qualityToChordNameSuffix` (emits `dim`/`dim7`, also normalizes the
+   unicode `°`), used only by `composeChordName`. `qualityToSuffix`
+   left untouched for any future numeral-suffix use.
+7. **sus/add chords got nonsensical Pass-2 extensions.** Phase E
+   selects extensions purely by functional role and never checked the
+   chord quality; `IIsus4 → Dsus4(9)` and `IIadd9 → Dadd9(9)` (the
+   latter outright redundant). Phase E's second pass now skips
+   `sus2`/`sus4`/`add9` qualities, mirroring the `phase_e_hardcoded`
+   skip.
+
+8. **`romanToDegree` mis-parsed many numerals.** The old suffix-strip
+   regex (`/^[b#]|[mM]7(b5)?$|maj7?|7$|dim$|aug$/`) only recognised a
+   fixed suffix list — `sus4`, `add9`, `o`, `°`, bare `m`, `9`, `maj9`
+   all fell through and the numeral defaulted to **degree 1**. Rewrote
+   it to extract the leading Roman-letter run, ignoring any suffix, and
+   to return the *plain letter degree* (accidental ignored — every
+   caller inspects the accidental itself). The rewrite exposed two
+   latent bugs that had been silently compensating for the broken
+   degree:
+
+   - **`upgradeJazzLatin` depended on the old accidental-shift.** It
+     used bare `$degree` and relied on `bII→1, bIII→2, bVII→6` (shifted)
+     to dodge the diatonic `{2,3,6} → m7` test. With the corrected
+     degree, `bII` read as 2 and upgraded to `bIIm7` instead of `bII7`,
+     breaking the tritone substitute. Now routes any flatted/sharped
+     numeral (except `bVI`) explicitly to `dom7`.
+   - **`determineFunctionalRole` mis-classified `VIm` as `Im7`.** The
+     old regex stripped `m7` but not a bare `m`, so `VIm` → base `VIM`
+     → degree-1 fallback → tonic role. `Am7` in a `vi-ii-V` was seen as
+     a tonic. Fixed as a consequence of the `romanToDegree` rewrite.
+
+   The `the-turnaround` fixture was re-captured — its old `[none]`
+   expectations encoded the `VIm` misclassification. (The handful of
+   remaining failures at this point were misattributed to E.1.6 tuning;
+   the next entry shows they were a genuine bug.)
+
+Also in this batch (controllers, not builder): the **Pass 1 / Pass 2
+test toggle** was removed from the public progression-detail and
+chord-detail pages (`?pass` query param, `builderPass` prop, UI). Public
+pages now follow the Machine Room's per-category `pass2_eligible`:
+`buildVoicings` defaults `extensions` to
+`BuilderSettings::isPass2Eligible($category)` when the caller omits it.
+The `fetchAliasShapes` category filter was also widened to include
+blank/null `voicing_category` rows, matching `queryWithCategoryPool`.
+
+### Secondary-dominant routing + minor-tonic resolutions — ✅ SHIPPED 2026-05-19
+
+Two bugs found while polishing the Minor Blues Cadenza
+(`G7(b9,b13) → Cm7`). Both made the Phase E named-resolution machinery
+silently inert for any dominant resolving to a minor chord — the
+"handful of remaining failures" the previous entry misattributed to
+E.1.6 tuning.
+
+1. **Secondary-dominant routing misrouted every minor target.**
+   `ExtensionTable::routeSecondaryDominant` matched the YAML routing
+   rules, which key on a spelled-out quality vocabulary (`minor7`,
+   `minor`, …). The builder stores qualities in its own shorthand
+   (`m7`, `m`, `dom7`, `7`). No minor-target rule ever matched, so the
+   secondary dominant fell through to `default_when_target_unknown` —
+   the **major**-resolution extension set — handing natural 9/13 to a
+   dominant resolving to a minor chord (5 `filter_breach_dom_min` audit
+   flags). Fixed with a `normalizeTargetQuality()` translation step.
+   Follow-on: `applyPhaseEExtensionUpgrade` now forces `keyMode='minor'`
+   when a secondary dominant routes to `Im`, because the `V7 → Im` YAML
+   row is gated `key_mode: minor` and a V7/ii inside a major-key tune
+   locally tonicizes minor regardless of the global key.
+
+2. **All three dom→minor-tonic named resolutions were dead code.**
+   - `vl.dom.b9_to_5` / `vl.dom.b13_to_5` target the role `Im`, but
+     `determineFunctionalRole` returns `Im7` / `Im6` / `ImMaj7` —
+     `Im !== Im7`, so they never matched.
+   - `vl.dom.b7_to_3` hardcodes tone `3` (major third, +4) with
+     `semitones: -1`. A minor target has a b3 (+3) and the motion is
+     -2. The tone-presence check looked for the major 3rd, found none
+     in the minor voicing, and bailed — despite the YAML comment
+     promising "3 of major or b3 of minor".
+
+   Fixed in `ProgressionBuilder`: `resolutionRoleMatches()` does
+   role-family matching (`Im` ↔ {Im, Im7, Im6, ImMaj7};
+   `Imaj7` ↔ {Imaj7, I6}); `isMinorTonicRole()` plus a remap in
+   `testNamedResolutionWithDebug` rewrites a target tone `3 → b3` and
+   shifts the expected motion -1 when the target is a minor tonic.
+
+   Result: `G7(b9,b13) → Cm7` now lands the Cm9 voicing `xx1333` and
+   fires `vl.dom.b13_to_5` + `vl.dom.b9_to_5` (-0.65 combined); the edge
+   cost drops -0.096 → -0.37. Corpus-wide, jazz-mode `position_thrash`
+   fell 23 → 6 and `high_vl_score` 30 → 10 — the dead resolutions had
+   been starving good voice-leading paths everywhere. The
+   `phase-e-regression.json` fixture was regenerated (its old
+   expectations encoded the broken behaviour); suite now 25/25.
+   `PhaseECategoryGateTest::builder()` was also updated — the
+   `ProgressionBuilder` constructor needs a second `BuilderSettings`
+   argument since the DB-backed settings service landed.
+
 ---
 
 ## Part 4 — Known places to improve
@@ -978,11 +1067,25 @@ they ship.
 - **Style preset enforcement.** `roota` / `roote` get out-voted by
   `c_register` / `c_voice_leading` even when explicitly requested.
   Possibly bump `c_style` weight when user picks non-`auto`, or
-  promote bass-string range to a hard candidate-pool filter. (See §20.1.)
-- **Phase E.1.6 bonus magnitude tuning.** YAML bonuses are educated
-  guesses. Tractable once the Machine Room exists.
-- **High-register pull on Pass 1 jazz.** See §20.2.
-- **`c_common_tone` may be saturated.** See §20.3.
+  promote bass-string range to a hard candidate-pool filter.
+- **Phase E.1.6 bonus magnitude tuning.** YAML `bonus` values are
+  educated guesses. The named-resolution machinery itself is now
+  verified correct (see the 2026-05-19 routing/resolution entry in
+  Part 3); what remains is calibrating the magnitudes against the
+  regression suite so a single resolution breaks ties without
+  overriding a multi-semitone voice-leading difference.
+- **High-register pull on Pass 1 jazz.** Multi-slot `Imaj7`
+  progressions sometimes lock to fret-8+ shapes. Possibly a
+  `c_register` weight issue, a `popularity` prior issue, or the §6.1
+  cascade leaving only high-register candidates.
+- **`c_common_tone` may be saturated.** During the xx0212 D7
+  investigation, common-tone scores were near-identical across most
+  candidates — either the term is saturated or the pitch-class pool is
+  small enough that most edges share the same count.
+- **Tonic-widening's impact on Pass 2.** §4.5 widens the pool for tonic
+  slots; no special handling for how this interacts with Pass 2's
+  option-tone selection (e.g. preferring `6/9` voicings on `Imaj7`
+  slots in latin categories).
 - **k-best Viterbi (Phase H).** Today Viterbi returns one path; users
   can't request "version B" of a progression. Original spec sketched
   list-Viterbi (top-k partial paths per slot) with `take` and
@@ -992,12 +1095,20 @@ they ship.
 
 ### 4.2 Numeral / parser coverage
 
-- **`VIIo` / fully-spelled diminished symbols.** Crashes
-  `HarmonicContext::buildFromNumerals` with "Undefined array key 0"
-  when fed `Im VIIo bVIIm` from the regression suite. Need to confirm
-  the parser accepts `o` / `°` / `dim` as diminished-quality markers.
-- **Quality suffixes not in the `romanToDegree` regex.** `sus`, `add9`,
-  `°` may appear in the corpus and are not currently stripped.
+- ~~**`VIIo` / fully-spelled diminished symbols.** Crashes
+  `HarmonicContext::buildFromNumerals`.~~ **Resolved (2026-05-19).** No
+  longer crashes — `HarmonicContext::SUFFIX_TO_DISPLAY` maps `o → dim`
+  and `o7 → dim7`, and the greedy `[IViv]+` capture leaves `o` as the
+  quality suffix. `Im VIIo bVIIm`, `Im7 VIIo7 IVm`, and `bII°` all
+  resolve cleanly through both Pass 1 and Pass 2. This backlog item
+  predated the fix.
+- ~~**Quality suffixes not in the `romanToDegree` regex.**~~ **Resolved
+  (2026-05-19).** `romanToDegree` was rewritten to extract the leading
+  Roman-letter run instead of enumerating suffixes, so `sus`, `add9`,
+  `o`, `°`, bare `m`, `9`, `maj9` etc. all parse correctly. See the
+  2026-05-19 Phase History entry (item 8) — the rewrite also fixed two
+  latent bugs (`upgradeJazzLatin` chromatic routing, `VIm`
+  misclassification).
 
 ### 4.3 DB coverage
 
@@ -1059,3 +1170,8 @@ Key dates from the refactor:
 - 2026-05-08: Part 2 (The Machine Room) shipped. Config moved to DB via
   `BuilderSettings` service, Machine Room AlpineJS UI built at
   `admin/progressions/builder`, and archetype saving/loading implemented.
+- 2026-05-14: Basic / Extended split + hardcoded-extension discipline.
+- 2026-05-19: Machine Room wiring fixes (settings persistence,
+  reactivity, validation), diminished/sus chord-naming + Phase E
+  correctness, public Pass 1/2 toggle removed. Secondary-dominant
+  routing fix + minor-tonic named resolutions un-deadened.

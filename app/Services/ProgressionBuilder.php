@@ -219,7 +219,9 @@ class ProgressionBuilder
         $mode       = $options['mode'] ?? '';
         $category   = $options['category'] ?? self::CATEGORY_DEFAULT;
         $style      = $options['style'] ?? '';
-        $extensions = $options['extensions'] ?? false;
+        // Default extensions to the Machine Room's per-category pass2_eligible
+        // setting. Callers may still pass an explicit bool to override.
+        $extensions = $options['extensions'] ?? $this->settings->isPass2Eligible($category);
         // When set, basic-only voicings are enforced regardless of category
         // pass1_extensions_allowed setting. Caller signals strict-basic mode.
         $strictBasic = (bool) ($options['strict_basic'] ?? false);
@@ -660,7 +662,9 @@ class ProgressionBuilder
         $query = DB::table('sbn_chord_diagram_aliases as a')
             ->join('sbn_chord_diagrams as d', 'a.diagram_id', '=', 'd.id')
             ->whereIn('a.alt_quality', $qualityAliases)
-            ->whereIn('d.voicing_category', $pool)
+            // Match queryWithCategoryPool: include blank/null categories so
+            // aliases on uncategorized parent shapes aren't silently dropped.
+            ->whereIn('d.voicing_category', array_merge($pool, ['', null]))
             ->select(
                 'd.id',
                 'd.voicing_category',
@@ -1374,12 +1378,22 @@ class ProgressionBuilder
             return 'maj7';
         }
 
-        // II, III, VI → m7 (diatonic minor chords)
+        // Chromatic (flatted/sharped) numerals are chromatic dominants —
+        // bII (tritone sub), bIII, bVII (backdoor), etc. → dom7. bVI is the
+        // sole exception, handled above. The diatonic-degree test below must
+        // only run for *unaltered* numerals: romanToDegree returns the plain
+        // letter degree, so e.g. bII would otherwise read as degree 2 (m7).
+        $isChromatic = str_starts_with($fullNumeral, 'b') || str_starts_with($fullNumeral, '#');
+        if ($isChromatic) {
+            return 'dom7';
+        }
+
+        // Diatonic II, III, VI → m7 (diatonic minor chords)
         if ($degree === 2 || $degree === 3 || $degree === 6) {
             return 'm7';
         }
 
-        // V, VII, bII, bIII, bVII → dom7
+        // Diatonic V, VII → dom7
         return 'dom7';
     }
 
@@ -1412,27 +1426,34 @@ class ProgressionBuilder
     }
 
     /**
-     * Convert Roman numeral to degree number (I=1, II=2, ..., VII=7).
-     * Handles accidentals: bII=2, #III=4, etc.
+     * Convert a Roman numeral to its plain scale-degree number (I=1 … VII=7).
+     *
+     * Returns the degree of the Roman *letters only* — the leading accidental
+     * is ignored, so `bVII` → 7 and `#IV` → 4. Every caller inspects the
+     * accidental itself (via str_contains on the raw numeral), so degree must
+     * stay the plain letter value, not an accidental-shifted one.
+     *
+     * The numeral is matched by extracting the longest leading run of Roman
+     * characters, which is robust to any trailing quality suffix
+     * (m7, maj9, sus4, add9, o, °, dim, aug, …) without enumerating them.
      */
     private function romanToDegree(string $numeral): int
     {
-        $romanMap = ['I' => 1, 'II' => 2, 'III' => 3, 'IV' => 4, 'V' => 5, 'VI' => 6, 'VII' => 7];
-        
-        // Remove quality suffixes (m, m7, m7b5, maj7, 7, etc.) and accidentals
-        $base = strtoupper(preg_replace('/^[b#]|[mM]7(b5)?$|maj7?|7$|dim$|aug$/', '', $numeral));
-        $degree = $romanMap[$base] ?? 1;
+        $romanMap = ['VII' => 7, 'VI' => 6, 'IV' => 4, 'V' => 5, 'III' => 3, 'II' => 2, 'I' => 1];
 
-        // Handle accidentals
-        if (str_starts_with($numeral, 'b')) {
-            $degree = ($degree - 1 + 7) % 7;
-            if ($degree === 0) $degree = 7;
-        } elseif (str_starts_with($numeral, '#')) {
-            $degree = ($degree + 1) % 7;
-            if ($degree === 0) $degree = 7;
+        // Drop a leading accidental, then take the leading Roman-numeral run.
+        $stripped = ltrim($numeral, 'b#');
+        if (preg_match('/^([IViv]+)/', $stripped, $m)) {
+            $base = strtoupper($m[1]);
+            // Match longest-first so "VII" wins over "VI"/"V".
+            foreach ($romanMap as $roman => $degree) {
+                if ($base === $roman) {
+                    return $degree;
+                }
+            }
         }
 
-        return $degree;
+        return 1; // fallback for unparseable input
     }
 
     /**
@@ -1443,8 +1464,9 @@ class ProgressionBuilder
     {
         $name = $root;
 
-        // Normalize quality for display
-        $displayQuality = $this->qualityToSuffix($quality);
+        // Normalize quality for chord-name display (e.g. "dim", not the
+        // Roman-numeral "o" — see qualityToChordNameSuffix).
+        $displayQuality = $this->qualityToChordNameSuffix($quality);
         if ($displayQuality) {
             $name .= $displayQuality;
         }
@@ -1454,6 +1476,50 @@ class ProgressionBuilder
         }
 
         return $name;
+    }
+
+    /**
+     * Map a quality to a chord-NAME suffix (e.g. "Bdim", "Caug").
+     *
+     * Distinct from qualityToSuffix(), which produces Roman-NUMERAL suffixes
+     * ("vii°", "bIIo"). composeChordName previously borrowed qualityToSuffix
+     * and emitted numeral conventions ("Bo", "Bo7") into chord names — which
+     * disagreed with Pass 1 / HarmonicContext ("Bdim", "Bdim7"), so the same
+     * chord was named differently depending on whether extensions were on.
+     */
+    private function qualityToChordNameSuffix(string $quality): string
+    {
+        $q = $this->normalizeQuality($quality);
+
+        $suffixMap = [
+            'maj'   => '',
+            'dom7'  => '7',
+            '7'     => '7',
+            'maj7'  => 'maj7',
+            'min'   => 'm',
+            'm'     => 'm',
+            'm7'    => 'm7',
+            'm7b5'  => 'm7b5',
+            'dim'   => 'dim',
+            'o'     => 'dim',
+            '°'     => 'dim',
+            'dim7'  => 'dim7',
+            'o7'    => 'dim7',
+            '°7'    => 'dim7',
+            'aug'   => 'aug',
+            'aug7'  => 'aug7',
+            'sus4'  => 'sus4',
+            'sus2'  => 'sus2',
+            'maj6'  => '6',
+            'm6'    => 'm6',
+            'mMaj7' => 'mMaj7',
+            'add9'  => 'add9',
+            '9'     => '9',
+            '11'    => '11',
+            '13'    => '13',
+        ];
+
+        return $suffixMap[$q] ?? $q;
     }
 
     /**
@@ -1591,6 +1657,16 @@ class ProgressionBuilder
                     continue;
                 }
 
+                // Skip sus / add chords. Phase E's option-tone table is keyed
+                // by functional role and assumes plain triads / 7ths; a sus4
+                // or add9 already carries its own tone structure, so layering
+                // a "(9)" on top yields nonsense names (Dsus4(9), Dadd9(9)).
+                $chordQuality = $this->normalizeQuality($chord['quality'] ?? '');
+                if (in_array($chordQuality, ['sus2', 'sus4', 'add9'], true)) {
+                    $context['sections'][$secIdx]['chords'][$chordIdx]['extension'] = '';
+                    continue;
+                }
+
                 $currentRole = $chordRoles[$globalIdx];
                 $nextRole = $chordRoles[$globalIdx + 1] ?? null;
                 $keyMode = $chord['tonality'] ?? 'major';
@@ -1601,6 +1677,14 @@ class ProgressionBuilder
                     $routing = ExtensionTable::routeSecondaryDominant($targetQuality);
                     // Map routing to appropriate target role for extension lookup
                     $nextRole = $this->mapRoutingToTargetRole($routing);
+
+                    // A secondary dominant *locally* tonicizes its target, so
+                    // the extension lookup's key_mode must follow the target's
+                    // quality, not the progression's global key. Without this,
+                    // a V7/ii inside a major-key tune (VI7 → IIm7) finds no
+                    // V7→Im row — that row is gated key_mode:minor — and gets
+                    // no altered tones at all.
+                    $keyMode = $nextRole === 'Im' ? 'minor' : 'major';
                 }
 
                 // Get recommended extensions
@@ -1696,19 +1780,23 @@ class ProgressionBuilder
     }
 
     /**
-     * Check if a chord is a secondary dominant
+     * Check if a chord is a secondary dominant.
+     *
+     * Only chords that resolved to the `V7` role qualify — substitute
+     * dominants (`bII7`, `bVI7`, `bVII7`) carry their own roles. Among
+     * `V7`-role chords, the one on scale degree 5 is the *primary* dominant;
+     * any other degree (V/ii, V/vi, …) is a secondary dominant.
      */
     private function isSecondaryDominant(string $role, array $chord): bool
     {
         if ($role !== 'V7') {
             return false;
         }
-        
+
         $romanNumeral = $chord['roman_numeral'] ?? '';
-        $degree = $this->romanToDegree($romanNumeral);
-        
-        // V7 is primary, others are secondary
-        return $degree !== 5;
+
+        // Plain V (degree 5) is primary; any other degree is secondary.
+        return $this->romanToDegree($romanNumeral) !== 5;
     }
 
     /**
@@ -2351,15 +2439,26 @@ class ProgressionBuilder
                                                  string $sourceRole, string $targetRole): array
     {
         // Check role matching (support 'any_tonic' wildcard)
-        $sourceMatch = $resolution['source']['role'] === $sourceRole;
-        $targetMatch = $resolution['target']['role'] === $targetRole || 
-                      $resolution['target']['role'] === 'any_tonic';
+        $sourceMatch = $this->resolutionRoleMatches($resolution['source']['role'], $sourceRole);
+        $targetMatch = $resolution['target']['role'] === 'any_tonic'
+            || $this->resolutionRoleMatches($resolution['target']['role'], $targetRole);
 
         if (!$sourceMatch || !$targetMatch) {
             $reason = "role_mismatch";
             if (!$sourceMatch) $reason .= " (source: {$resolution['source']['role']} != $sourceRole)";
             if (!$targetMatch) $reason .= " (target: {$resolution['target']['role']} != $targetRole)";
             return ['fired' => false, 'reason' => $reason];
+        }
+
+        // The minor tonic is a *family* of roles (Im, Im7, Im6, ImMaj7) — the
+        // YAML resolution table refers to it as bare "Im". A minor target's 3rd
+        // is a b3, a whole step below the dominant's b7 rather than a half step.
+        // Remap "3" → "b3" and shift the expected motion by one extra semitone
+        // down so vl.dom.b7_to_3 (and friends) fire into minor as the YAML
+        // comment promises ("3 of major or b3 of minor").
+        if ($this->isMinorTonicRole($targetRole) && ($resolution['target']['tone'] ?? '') === '3') {
+            $resolution['target']['tone'] = 'b3';
+            $resolution['motion']['semitones'] = ($resolution['motion']['semitones'] ?? 0) - 1;
         }
 
         // Check if source tone is present in source voicing
@@ -2391,6 +2490,37 @@ class ProgressionBuilder
                                                      $sourceTone, $targetTone, $expectedSemitones);
             return ['fired' => $motionResult, 'reason' => $motionResult ? "fired" : "motion_mismatch"];
         }
+    }
+
+    /**
+     * Match a named-resolution role against an actual functional role.
+     *
+     * The YAML refers to tonic chords by their bare quality-free role (`Im`,
+     * `Imaj7`), but determineFunctionalRole() returns quality-specific roles
+     * (`Im7`, `Im6`, `ImMaj7`, `I6`). Without family matching the minor-tonic
+     * resolutions (vl.dom.b9_to_5, vl.dom.b13_to_5, …) never fire because
+     * `Im` !== `Im7`.
+     */
+    private function resolutionRoleMatches(string $ruleRole, string $actualRole): bool
+    {
+        if ($ruleRole === $actualRole) {
+            return true;
+        }
+
+        $families = [
+            'Im'    => ['Im', 'Im7', 'Im6', 'ImMaj7'],
+            'Imaj7' => ['Imaj7', 'I6'],
+        ];
+
+        return isset($families[$ruleRole]) && in_array($actualRole, $families[$ruleRole], true);
+    }
+
+    /**
+     * True for any role in the minor-tonic family.
+     */
+    private function isMinorTonicRole(string $role): bool
+    {
+        return in_array($role, ['Im', 'Im7', 'Im6', 'ImMaj7'], true);
     }
 
     /**

@@ -57,10 +57,20 @@ class BuilderSettings
         ],
         'pass2_eligible' => ['jazz', 'latin'],
         'pass1_extensions_allowed' => [],
-        'root_only_default' => [],
+        // Per-category maps. Seeded with an explicit key for every category so
+        // the value is always a JSON object, never an empty array — an empty
+        // array is truthy in JS and breaks the Machine Room's per-category
+        // checkbox/select binding (named keys on an Array serialize away).
+        'root_only_default' => [
+            'jazz' => false, 'blues' => false, 'pop' => false,
+            'classical' => false, 'modal' => false, 'latin' => false,
+        ],
         'tonic_widen_default' => ['jazz' => true, 'latin' => true],
         'repeated_chord_reuse' => true,
-        'default_voicing_style' => [],
+        'default_voicing_style' => [
+            'jazz' => 'auto', 'blues' => 'auto', 'pop' => 'auto',
+            'classical' => 'auto', 'modal' => 'auto', 'latin' => 'auto',
+        ],
     ];
 
     /**
