@@ -1055,6 +1055,68 @@ E.1.6 tuning.
    `ProgressionBuilder` constructor needs a second `BuilderSettings`
    argument since the DB-backed settings service landed.
 
+### Builder polish — numeral / II7 / m7b5 — ✅ SHIPPED 2026-05-19
+
+A round of user-reported builder corrections.
+
+1. **`bVIIm` mis-upgraded to `m7b5`.** `upgradeJazzLatin` mapped any
+   minor numeral of degree 7 to `m7b5` (the diatonic half-diminished
+   leading-tone chord). But `romanToDegree` strips the accidental, so a
+   *chromatic* `bVIIm` (the borrowed/backdoor minor 7th — Corcovado's
+   3rd chord) also read as degree 7 and got the wrong quality. The
+   upgrade now skips chromatically altered numerals; only an unaltered
+   `VIIm` becomes `m7b5`.
+
+2. **`II7` altered-tone handling, two bugs.** In a *major* key a `II7`
+   (V7/V) is a bright Lydian-dominant — only the naturals and `#11` are
+   idiomatic; `b9/#9/b13` belong to its minor-key use only.
+   - The `avoid_tones_index` `"II7"` row was **dead code**.
+     `determineFunctionalRole` collapses every secondary dominant to the
+     generic `V7` role, and `createAvoidTonesContext` only produced
+     `"V7 → Imaj7"` / `"V7 → Im"` / `"V7"` — never `"II7"`. So a `II7`
+     had no avoid-tones filter at all. `createAvoidTonesContext` now
+     takes the chord and, for a major-key unaltered degree-2 dominant,
+     returns `"II7"`. The YAML row was tightened to
+     `forbid: [b9, "#9", b13]`.
+   - **Non-resolving secondary dominants were routed by target quality.**
+     `applyPhaseEExtensionUpgrade` treated *any* secondary dominant as
+     tonicizing the next chord, reading that chord's quality for
+     routing. For a static-root `II7 → IIm7` (Ellington: D7 → Dm7 —
+     V7/V followed by the supertonic, **same root**, a parallel
+     major→minor, not a cadence) it routed "into minor" and handed D7
+     the `b9/b13` palette. New `resolvesToNextChord()` guard: route by
+     target quality only when the next root actually moves (interval
+     ≠ 0). The 4th-up / half-step secondary dominants (`VI7→IIm7`,
+     `III7→IVmaj7`) are unaffected.
+   - Because a no-longer-upgraded `II7` is a *plain* `D7` with no
+     Phase-E extension, the avoid-tones filter (gated on
+     `hasPhaseEExtensions`) skips it — and Pass-2 voice-leading would
+     still pick a `b9` voicing to chase a guide-tone line. An
+     unconditional pool filter now drops `b9/#9/b13` voicings for any
+     major-key `II7`.
+
+3. **m7b5 over-preferred the `(11)` voicing.** Option tones on a
+   half-diminished chord carried no real cost: `costSimplicity`'s
+   extension penalty was negligible at weight `0.10`, and `seedCost`
+   (first-slot scoring) has no simplicity term at all — so a *leading*
+   `IIm7b5`, the common minor-ii-V-i case, got its option tone free.
+   New machine-room constant **`HALF_DIM_OPTION_TONE_PENALTY`** (1.5)
+   and `halfDimOptionTonePenalty()` helper surcharge each option tone on
+   a m7b5 voicing, applied in **both** `costSimplicity` and `seedCost`.
+   A standard minor ii-V-i now lands the plain m7b5 across all keys; an
+   option-tone shape still wins with an overwhelming VL advantage. This
+   constant is the seed for the planned basic↔advanced progression
+   slider (see §4.1) — the slider scales it (→ 0 at "advanced", higher
+   at "basic"). Regression unchanged at 25/25; no fixture changes (no
+   m7b5-leading progression in the fixture set).
+
+   The `bVIIm`/Ellington fixes did regenerate `phase-e-regression.json`
+   — `the-corcovado-progression` slot 3 `Gm7b5 → Gm7`, and
+   `ellington-progression` slot 3 `D7(b9,b13) → D7`. (The new `D7`'s
+   `extension_set: ["8"]` is a pre-existing single-row DB typo in
+   `chord_diagrams.extensions`, surfaced because that voicing is now the
+   pick — unrelated to this work.)
+
 ---
 
 ## Part 4 — Known places to improve
@@ -1092,6 +1154,16 @@ they ship.
   `min_diversity` API params. Out of scope for now but **important
   for future reference** — this is what unlocks "alternate takes" in
   the leadsheet creation flow.
+- **Basic↔advanced progression slider.** A frontend control on the
+  progression component, ideally mapped to the app's 5 difficulty
+  levels, that scales how adventurous the voicing selection is —
+  option-tone density, altered tensions, extended shapes. `m7b5(11)`,
+  for instance, should surface around late-intermediate. The first
+  machine-room lever wired for this is `HALF_DIM_OPTION_TONE_PENALTY`
+  (see the 2026-05-19 m7b5 entry in Part 3): the slider would scale
+  that constant (and future siblings) — high at "basic", → 0 at
+  "advanced". Each level-sensitive knob should be a single named
+  constant so the slider has one documented dial per behaviour.
 
 ### 4.2 Numeral / parser coverage
 
@@ -1174,4 +1246,6 @@ Key dates from the refactor:
 - 2026-05-19: Machine Room wiring fixes (settings persistence,
   reactivity, validation), diminished/sus chord-naming + Phase E
   correctness, public Pass 1/2 toggle removed. Secondary-dominant
-  routing fix + minor-tonic named resolutions un-deadened.
+  routing fix + minor-tonic named resolutions un-deadened. Builder
+  polish: `bVIIm` mis-upgrade, `II7` altered-tone routing/filtering,
+  m7b5 option-tone penalty (`HALF_DIM_OPTION_TONE_PENALTY`).

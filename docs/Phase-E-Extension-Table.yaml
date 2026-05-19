@@ -73,6 +73,8 @@ recommended_extensions:
       - { tones: [9, 13],       priority: 5 }
       - { tones: ["#9"],        priority: 3, notes: "Rhythm-Changes bridge style" }
       - { tones: [b13],         priority: 2 }
+    forbid: [b9]               # b9 implies minor resolution — wrong in a dom chain.
+                               # major-key II7 also bars #9/b13: see avoid_tones "II7".
 
   - role: V7
     target_role: bVImaj7    # backdoor / deceptive resolution
@@ -259,7 +261,7 @@ avoid_tones_index:
   - { context: "Im6",            forbid: [b9, 11, 7, b7] }
   - { context: "ImMaj7",         forbid: [b9, 11] }
   - { context: "IIm7",           forbid: [b9] }
-  - { context: "II7",            forbid: [b9, b13] }
+  - { context: "II7",            forbid: [b9, "#9", b13] }  # major-key II7: Lydian-dom colour — naturals + #11 only
   - { context: "IVm7",           forbid: [b9] }
   - { context: "IIm7b5",         forbid: [9] }
   - { context: "V7 → Imaj7",     forbid: [b9, b13] }

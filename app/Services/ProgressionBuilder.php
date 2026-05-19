@@ -112,6 +112,18 @@ class ProgressionBuilder
         'latin' => 0.05,
     ];
 
+    /**
+     * Extra simplicity cost charged per option (extension) tone carried by a
+     * half-diminished voicing. The m7b5(11) shape is idiomatic but reads as
+     * late-intermediate; on a standard minor ii–V–i the plain m7b5 should win
+     * unless an option-tone voicing has an overwhelming voice-leading edge.
+     *
+     * Machine-room lever: this is the seed for the planned basic↔advanced
+     * progression slider — at "advanced" the multiplier would fall toward 0,
+     * at "basic" it would rise. Tune here.
+     */
+    private const HALF_DIM_OPTION_TONE_PENALTY = 1.5;
+
     private const COST_WEIGHTS = [
         'simplicity' => 0.10,
         'position' => 0.20,
@@ -1360,7 +1372,12 @@ class ProgressionBuilder
         // Uppercase + m (IIm, IIIm, IVm, VIm, VIIm) → m7
         // VIIm → m7b5 in major
         if ($isMinor) {
-            if ($degree === 7) { // VIIm
+            // Diatonic VIIm is the half-diminished leading-tone chord.
+            // A *chromatic* flat-7 minor (bVIIm — backdoor / borrowed) is a
+            // plain m7, so the m7b5 upgrade must skip altered numerals.
+            $isChromaticMinor = str_starts_with($fullNumeral, 'b')
+                || str_starts_with($fullNumeral, '#');
+            if ($degree === 7 && ! $isChromaticMinor) { // VIIm
                 return 'm7b5';
             }
             return 'm7';
@@ -1672,7 +1689,9 @@ class ProgressionBuilder
                 $keyMode = $chord['tonality'] ?? 'major';
 
                 // Handle secondary dominant routing
-                if ($this->isSecondaryDominant($currentRole, $chord)) {
+                $nextChordForRouting = $this->chordAtGlobalIndex($context, $globalIdx + 1);
+                if ($this->isSecondaryDominant($currentRole, $chord)
+                    && $this->resolvesToNextChord($chord, $nextChordForRouting)) {
                     $targetQuality = $this->getTargetChordQuality($context, $globalIdx + 1);
                     $routing = ExtensionTable::routeSecondaryDominant($targetQuality);
                     // Map routing to appropriate target role for extension lookup
@@ -1684,6 +1703,16 @@ class ProgressionBuilder
                     // a V7/ii inside a major-key tune (VI7 → IIm7) finds no
                     // V7→Im row — that row is gated key_mode:minor — and gets
                     // no altered tones at all.
+                    //
+                    // The resolvesToNextChord() guard above is essential: it
+                    // gates this on a *genuine* dominant resolution (next root
+                    // a 4th up). Without it, a non-resolving dominant like
+                    // II7 → IIm7 (same root, D7 → Dm7 — V7/V followed by ii,
+                    // not a V7→i cadence) reads the next chord's m7 quality
+                    // and gets routed "into minor", handing it b9/b13. A II7
+                    // that doesn't resolve falls through to the generic V7
+                    // handling below and keeps the major-key Lydian-dom
+                    // palette (naturals + #11).
                     $keyMode = $nextRole === 'Im' ? 'minor' : 'major';
                 }
 
@@ -1800,22 +1829,67 @@ class ProgressionBuilder
     }
 
     /**
+     * Does this dominant genuinely resolve to the next chord?
+     *
+     * A secondary dominant tonicizes — and so routes its extensions by — the
+     * next chord only when that chord is a plausible *target*, i.e. the roots
+     * differ. The one motion that is never a resolution is a *static* root:
+     * II7 → IIm7 (D7 → Dm7) is V7/V followed by the supertonic, sharing root
+     * D — a parallel major→minor, not a cadence. Treating it as a resolution
+     * reads Dm7's m7 quality and wrongly hands D7 the into-minor b9/b13
+     * palette.
+     *
+     * Any non-zero interval (4th-up V→I, half-step deceptive, etc.) still
+     * counts: those routings were correct before and must be preserved.
+     *
+     * Returns false when there is no next chord (terminal dominant).
+     */
+    private function resolvesToNextChord(array $chord, ?array $nextChord): bool
+    {
+        if ($nextChord === null) {
+            return false;
+        }
+
+        $domRoot  = $chord['root'] ?? null;
+        $nextRoot = $nextChord['root'] ?? null;
+        if ($domRoot === null || $nextRoot === null) {
+            return false;
+        }
+
+        $interval = ($this->noteNameToPitchClass($nextRoot)
+            - $this->noteNameToPitchClass($domRoot) + 12) % 12;
+
+        // Static root (interval 0) is the sole non-resolution. Everything else
+        // is a plausible tonicization target.
+        return $interval !== 0;
+    }
+
+    /**
      * Get target chord quality for secondary dominant routing
      */
     private function getTargetChordQuality(array $context, int $targetIndex): string
     {
-        // Find the target chord by global index
+        return $this->chordAtGlobalIndex($context, $targetIndex)['quality'] ?? 'maj7';
+    }
+
+    /**
+     * Fetch the chord array at a global (section-flattened) index, or null
+     * when the index is out of range. Used where a method has $context but
+     * not a pre-flattened $allChords (e.g. applyPhaseEExtensionUpgrade).
+     */
+    private function chordAtGlobalIndex(array $context, int $targetIndex): ?array
+    {
         $currentIndex = 0;
-        foreach ($context['sections'] as $section) {
+        foreach ($context['sections'] ?? [] as $section) {
             foreach ($section['chords'] as $chord) {
                 if ($currentIndex === $targetIndex) {
-                    return $chord['quality'] ?? 'maj7';
+                    return $chord;
                 }
                 $currentIndex++;
             }
         }
-        
-        return 'maj7'; // default fallback
+
+        return null;
     }
 
     /**
@@ -1995,6 +2069,21 @@ class ProgressionBuilder
                 }
             }
 
+            // Major-key II7 (V7/V) is a bright Lydian-dominant colour — only
+            // the naturals and #11 are idiomatic. The Phase-E avoid_tones rule
+            // for "II7" enforces this, but ONLY when the chord carries a
+            // Phase-E extension upgrade; a plain D7 that wasn't upgraded skips
+            // that block, and Pass-2 voice-leading would then be free to pick
+            // a b9/#9/b13 voicing to chase a guide-tone line (e.g. the second
+            // of two II7s feeding a IIm7). Filter the pool unconditionally so
+            // an altered voicing is never in scope for a major-key II7.
+            if ($this->isDomQuality($quality)
+                && $this->createAvoidTonesContext($currentRoleForFilter, null, $chord['tonality'] ?? 'major', $chord) === 'II7') {
+                foreach ($labels as $l) {
+                    if (in_array($l, ['b9', '#9', 'b13'], true)) return false;
+                }
+            }
+
             // Tonic maj7: exclude #11 (unless numeral explicitly requests it)
             if ($this->isTonicMajQuality($quality)) {
                 if (in_array('#11', $labels, true)) return false;
@@ -2024,7 +2113,7 @@ class ProgressionBuilder
                 $keyMode = $chord['tonality'] ?? 'major';
                 
                 // Create context string for avoid tones lookup
-                $contextString = $this->createAvoidTonesContext($currentRole, $nextRole, $keyMode);
+                $contextString = $this->createAvoidTonesContext($currentRole, $nextRole, $keyMode, $chord);
                 
                 // Check each extension tone against avoid tones index
                 foreach ($labels as $tone) {
@@ -2051,8 +2140,24 @@ class ProgressionBuilder
     /**
      * Create context string for avoid tones lookup
      */
-    private function createAvoidTonesContext(string $currentRole, ?string $nextRole, string $keyMode): string
+    private function createAvoidTonesContext(string $currentRole, ?string $nextRole, string $keyMode, array $chord = []): string
     {
+        // A degree-2 secondary dominant (II7 = V7/V) collapses to the generic
+        // V7 role in determineFunctionalRole(). Restore its own avoid-tones
+        // context so the YAML "II7" rule applies. In a *major* key II7 is a
+        // bright Lydian-dominant colour — only the natural extensions and #11
+        // are idiomatic, so b9/#9/b13 are forbidden (the YAML "II7" row). In a
+        // *minor* key II7 borrows the altered palette and keeps the generic
+        // V7-family handling, so fall through.
+        if ($currentRole === 'V7' && $keyMode === 'major') {
+            $romanNumeral = $chord['roman_numeral'] ?? '';
+            if ($this->romanToDegree(rtrim($romanNumeral, 'm')) === 2
+                && ! str_starts_with($romanNumeral, 'b')
+                && ! str_starts_with($romanNumeral, '#')) {
+                return 'II7';
+            }
+        }
+
         // Map to the context strings used in avoid_tones_index
         if ($currentRole === 'V7' && $nextRole) {
             if ($nextRole === 'Imaj7') {
@@ -2063,7 +2168,7 @@ class ProgressionBuilder
         } elseif ($currentRole === 'bII7' && $nextRole === 'Imaj7') {
             return 'bII7 → Imaj7';
         }
-        
+
         // For other contexts, use the role directly
         return $currentRole;
     }
@@ -2819,7 +2924,8 @@ class ProgressionBuilder
 
         $noteCount = $this->soundingNoteCount($voicing);
         $notePenalty = max(0, $noteCount - $baseline);
-        $extensionPenalty = $this->extensionCount($voicing);
+        $extensionPenalty = $this->extensionCount($voicing)
+            + $this->halfDimOptionTonePenalty($voicing, $quality);
 
         return $this->boundedCost(($notePenalty * 0.5 + $extensionPenalty * 0.5) / 2.0);
     }
@@ -2910,6 +3016,25 @@ class ProgressionBuilder
         return round(max(0.0, min(1.0, $value)), 4);
     }
 
+    /**
+     * Surcharge for option (extension) tones on a half-diminished voicing.
+     * Returns the *extra* extension-equivalent units to add to a simplicity
+     * calculation — zero for any non-m7b5 quality, or a plain m7b5.
+     *
+     * See HALF_DIM_OPTION_TONE_PENALTY: the m7b5(11) is idiomatic but reads
+     * as late-intermediate, so a standard minor ii–V–i should land the plain
+     * m7b5 unless an option-tone shape voice-leads far better.
+     */
+    private function halfDimOptionTonePenalty(object $voicing, ?string $quality = null): float
+    {
+        $quality ??= $this->resolveVoicingQuality($voicing);
+        if (!$this->isHalfDimQuality($quality)) {
+            return 0.0;
+        }
+
+        return $this->extensionCount($voicing) * self::HALF_DIM_OPTION_TONE_PENALTY;
+    }
+
     private function seedCost(object $candidate, string $category, array $context = []): float
     {
         $bias = self::CATEGORY_SEED_BIAS[$category] ?? self::CATEGORY_SEED_BIAS['jazz'];
@@ -2930,6 +3055,11 @@ class ProgressionBuilder
 
         // Phase G: add style penalty to seed cost
         $cost += $this->costStyle($candidate, $context);
+
+        // seedCost has no simplicity term, so a first-slot m7b5 would pick an
+        // option-tone voicing for free. Carry the half-dim surcharge here too
+        // so a leading IIm7b5 prefers the plain shape.
+        $cost += $this->halfDimOptionTonePenalty($candidate);
 
         return $this->boundedCost($cost);
     }
