@@ -134,6 +134,7 @@ export const eduWidgets = {
   'triad-builder':    () => import('./TriadBuilder.vue'),
   'circle-of-fifths': () => import('./CircleOfFifths.vue'),
   'drop2-visualizer': () => import('./Drop2Visualizer.vue'),
+  'voice-leading':    () => import('./VoiceLeading.vue'),
 } as const;
 ```
 
@@ -150,7 +151,7 @@ Every widget follows these rules (see `TriadBuilder.vue` as the reference):
 - `<script setup lang="ts">`, self-contained — no store, no tab-editor imports.
 - Pure data/interval math; props optional, JSON-decoded from tag attributes.
 - Design-system CSS tokens only (see §7); scoped styles with a short class
-  prefix (`tb-`, `cof-`, `d2-`).
+  prefix (`tb-`, `cof-`, `d2-`, `vl-`).
 - Own lazy chunk via the registry thunk.
 
 ---
@@ -159,29 +160,33 @@ Every widget follows these rules (see `TriadBuilder.vue` as the reference):
 
 | Slug | Component | Teaches |
 |---|---|---|
-| `triad-builder` | `TriadBuilder.vue` | Triad construction — root/third/fifth stacked in thirds. |
+| `triad-builder` | `TriadBuilder.vue` | Triad construction — four quality badges (Major/Minor/Diminished/Augmented), dots animate on switch. |
 | `circle-of-fifths` | `CircleOfFifths.vue` | The 12 keys arranged by fifths, with relative minors. |
-| `drop2-visualizer` | `Drop2Visualizer.vue` | The drop-2 voicing technique — drop the 2nd voice an octave. |
+| `drop2-visualizer` | `Drop2Visualizer.vue` | Drop-2 and Drop-3 voicings — Closed/Drop 2/Drop 3 badges, dropped dot slides and pulses. |
+| `voice-leading` | `VoiceLeading.vue` | 6 guitar strings, two chord columns, bezier curves per voice. Three preset ii–V–I pairs as badges. |
 
 ### Shared pitch-dot visual language
 
-`TriadBuilder` and `Drop2Visualizer` share one visual vocabulary so a learner
-who understands one understands all chord-construction widgets:
+`TriadBuilder` and `Drop2Visualizer` share one visual vocabulary:
 
-- A **dot** = one note; label inside, role/interval label beside it.
+- A **dot** = one note; note label inside, role label beside it.
 - **Vertical position is literal pitch** — higher on screen = higher pitch.
 - **Color = scale-degree role**, fixed via `--clr-role-*` tokens (see §7).
-- Dots **build up on load** — root → third → fifth (→ seventh), staggered.
-- Changing state animates the dots: triad quality changes slide the third/fifth;
-  the drop-2 button arcs the 2nd-from-top voice down an octave (same dot,
-  continuous motion). `prefers-reduced-motion` skips to the final state.
+- Dots **build up on load** — root → third → fifth (→ seventh), staggered, with a spring pop-in on each arrival.
+- **Badge pills** (not dropdowns) select the active state. Switching quality/mode: the relevant dot slides to its new position (spring easing, slight overshoot) and briefly pulses to mark the voice that moved.
+- `prefers-reduced-motion` disables all animations.
 
-`CircleOfFifths` is a clickable 12-segment SVG donut (polar geometry, no
-charting library); each segment shows a major key + its relative minor.
+`CircleOfFifths` is a clickable 12-segment SVG donut (polar geometry, no charting library); each segment shows a major key + its relative minor.
 
-**Guitar-aware data layer:** `Drop2Visualizer` voices carry a `typicalString`
-field even though the current render is abstract pitch dots. A future polish
-pass can add a fretboard / string-lane diagram without restructuring the logic.
+### Voice-leading widget
+
+`VoiceLeading` uses a horizontal string-lane layout (6 lines, top = high E):
+
+- Two dot columns, one per chord. Dots are role-colored; note name inside.
+- **Bezier curves** connect matching roles across the two chords — control points pulled to center so arcs are visible even for unison motion. Curve opacity 0.45 so dots read first.
+- **Steep curve = big leap, flat curve = smooth motion** — the teaching point is readable at a glance.
+- Three preset pairs: Imaj7→VIm7 (smooth), IIm7→V7 (contrary motion), V7→Imaj7 (tritone resolution).
+- `transition: d` on paths animates the curve morph in supporting browsers (Chrome, Firefox, Safari 16+).
 
 ---
 
@@ -237,6 +242,17 @@ transport, mounts widgets on first open, resets on lesson change.
 `body_html` via `mountSbnNodes` when `has_widgets`. Currently dormant — no
 quality body embeds a widget yet.
 
+### Theory browse page (`resources/js/Pages/Library/Theory/Index.vue`)
+
+Public route `GET /theory` (name `theory.index`) — no props from the backend.
+The full widget catalog (`resources/js/edu/widgets/catalog.ts`) is frontend-static:
+each entry has `slug`, `title`, `summary`, and `tags[]`. The page mounts widgets
+live via `createApp(mod.default).mount(el)` — same pattern as `mountSbnNodes`,
+no second mounter. Cards are a 3-column CSS grid; tag-pill sidebar filter + text
+search are client-side. "Music Theory" link added to the Resources column of the
+MegaMenu Explore panel. To add a widget to the page: create the component,
+register it in `registry.ts`, add one entry to `catalog.ts`.
+
 ---
 
 ## 9. Dev Harness
@@ -256,15 +272,18 @@ Examples: `/dev/edu/concept/triad`, `/dev/edu/concept/circle-of-fifths`,
 ## 10. Status
 
 - **System + pipeline:** complete. `EduContentService` (file-backed), the
-  `<sbn-widget>` mounter, the widget registry, and all three surfaces are wired.
-- **Widgets:** `triad-builder`, `circle-of-fifths`, `drop2-visualizer` built,
-  data-complete, registered, and using design tokens.
+  `<sbn-widget>` mounter, the widget registry, and all four surfaces are wired.
+- **Widgets (2026-05-20):** four widgets built, registered, design-token compliant:
+  - `triad-builder` — quality badge pills, spring pop-in + pulse animations.
+  - `circle-of-fifths` — clickable SVG donut.
+  - `drop2-visualizer` — Closed/Drop 2/Drop 3 badges, compact pitch-dot layout.
+  - `voice-leading` — 6-string lane diagram, bezier voice curves, three ii–V–I pairs.
+- **Theory browse page:** `GET /theory` live — widget grid with tag filter sidebar,
+  live-mounted widgets, MegaMenu wired under Explore → Resources.
 - **Content:** ongoing — 18 quality files + a growing set of concept/glossary
   topics. New content scales as files, no code changes.
-- **Deferred:** a visual polish pass for the chord-construction widgets — a
-  fretboard / guitar-string-lane diagram so the cramped closed voicing vs. the
-  easy-to-grab drop-2 voicing is shown on a real fretboard. The widget data
-  layers are already guitar-aware (`typicalString`); this is render-only work.
+- **Deferred:** fretboard render pass for chord-construction widgets — `typicalString`
+  data is already in place on `Drop2Visualizer` voices; this is render-only work.
 
 ---
 

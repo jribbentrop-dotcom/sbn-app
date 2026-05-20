@@ -15,9 +15,10 @@
  */
 
 export const eduWidgets = {
-  'triad-builder': () => import('./TriadBuilder.vue'),
+  'triad-builder':    () => import('./TriadBuilder.vue'),
   'circle-of-fifths': () => import('./CircleOfFifths.vue'),
   'drop2-visualizer': () => import('./Drop2Visualizer.vue'),
+  'voice-leading':    () => import('./VoiceLeading.vue'),
 } as const;
 
 export type EduWidgetSlug = keyof typeof eduWidgets;

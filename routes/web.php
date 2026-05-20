@@ -19,6 +19,7 @@ use App\Http\Controllers\Library\ChordLibraryController;
 use App\Http\Controllers\Library\RhythmLibraryController;
 use App\Http\Controllers\Library\ProgressionLibraryController;
 use App\Http\Controllers\Library\SongLibraryController;
+use App\Http\Controllers\Library\TheoryController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\Admin\CourseController as AdminCourseController;
 use App\Http\Controllers\Admin\LessonController as AdminLessonController;
@@ -209,6 +210,8 @@ Route::get('/library/songs', [SongLibraryController::class, 'index'])->name('lib
 Route::get('/library/songs/{leadsheet:slug}', [SongLibraryController::class, 'show'])->name('library.songs.show');
 Route::get('/library/songs/{leadsheet:slug}/viewer', [SongLibraryController::class, 'viewer'])->name('library.songs.viewer');
 Route::get('/library/songs/{leadsheet:slug}/cinema', [SongLibraryController::class, 'cinema'])->name('library.songs.cinema');
+
+Route::get('/theory', [TheoryController::class, 'index'])->name('theory.index');
 
 // Phase 11b — JSON endpoints for mountSbnNodes.ts + palette search (public, no auth)
 Route::prefix('api/sbn')->name('api.sbn.')->group(function () {

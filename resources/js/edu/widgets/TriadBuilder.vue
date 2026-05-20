@@ -10,7 +10,7 @@
  *
  * Self-contained: pure interval math, no tab-editor or store dependency.
  */
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 // Twelve pitch classes, sharp spelling — enough for a teaching illustration.
 const CHROMATIC = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'] as const;
@@ -67,10 +67,6 @@ const voices = computed<Voice[]>(() => {
   ];
 });
 
-const chordName = computed(() => {
-  const suffix = { major: '', minor: 'm', diminished: '°', augmented: '+' }[quality.value];
-  return `${root.value}${suffix}`;
-});
 
 // ── Pitch-dot geometry ─────────────────────────────────────────────────────
 // The third/fifth offsets span 3..8 semitones above the root, so a fixed
@@ -130,28 +126,28 @@ const VOICE_RANK: Record<string, number> = { Root: 0, Third: 1, Fifth: 2 };
 function isVoiceVisible(v: PlacedVoice): boolean {
   return VOICE_RANK[v.role] < visibleCount.value;
 }
+
+// ── Pulse on quality change ────────────────────────────────────────────────
+// Tracks which roles are currently pulsing so we can add/remove a CSS class.
+const pulsingRoles = ref<Set<string>>(new Set());
+
+watch(quality, (next: QualityKey, prev: QualityKey) => {
+  if (prefersReducedMotion) return;
+  const prevQ = QUALITIES[prev];
+  const nextQ = QUALITIES[next];
+  const moved = new Set<string>();
+  if (prevQ.offsets[0] !== nextQ.offsets[0]) moved.add('Third');
+  if (prevQ.offsets[1] !== nextQ.offsets[1]) moved.add('Fifth');
+  if (!moved.size) return;
+
+  pulsingRoles.value = moved;
+  setTimeout(() => { pulsingRoles.value = new Set(); }, 500);
+});
 </script>
 
 <template>
   <div class="sbn-edu-widget triad-builder">
-    <div class="tb-controls">
-      <label class="tb-field">
-        <span class="tb-field-label">Root</span>
-        <select v-model.number="rootIndex" class="tb-select">
-          <option v-for="(name, i) in CHROMATIC" :key="i" :value="i">{{ name }}</option>
-        </select>
-      </label>
-      <label class="tb-field">
-        <span class="tb-field-label">Quality</span>
-        <select v-model="quality" class="tb-select">
-          <option v-for="(q, key) in QUALITIES" :key="key" :value="key">{{ q.label }}</option>
-        </select>
-      </label>
-    </div>
-
     <div class="tb-stage">
-      <div class="tb-chord-name">{{ chordName }}</div>
-
       <svg :viewBox="`0 0 ${SVG_W} ${svgHeight}`" width="100%" class="tb-svg" :style="{ maxHeight: svgHeight + 'px' }">
         <g
           v-for="v in placedVoices"
@@ -160,7 +156,14 @@ function isVoiceVisible(v: PlacedVoice): boolean {
           :class="{ 'tb-voice--hidden': !isVoiceVisible(v) }"
           :style="{ transform: `translateY(${v.y}px)` }"
         >
-          <circle :cx="DOT_X" cy="0" :r="DOT_R" :fill="v.color" class="tb-dot" />
+          <circle
+            :cx="DOT_X" cy="0" :r="DOT_R" :fill="v.color"
+            class="tb-dot"
+            :class="{
+              'tb-dot--popin': VOICE_RANK[v.role] === visibleCount - 1,
+              'tb-dot--pulse': pulsingRoles.has(v.role),
+            }"
+          />
           <text :x="DOT_X" y="0" text-anchor="middle" dominant-baseline="central" class="tb-dot-note">
             {{ v.note }}
           </text>
@@ -173,6 +176,16 @@ function isVoiceVisible(v: PlacedVoice): boolean {
         </g>
       </svg>
     </div>
+
+    <div class="tb-badges">
+      <button
+        v-for="(q, key) in QUALITIES"
+        :key="key"
+        class="tb-badge"
+        :class="{ active: quality === key }"
+        @click="quality = key"
+      >{{ q.label }}</button>
+    </div>
   </div>
 </template>
 
@@ -180,54 +193,45 @@ function isVoiceVisible(v: PlacedVoice): boolean {
 .triad-builder {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   padding: 16px;
-  background: var(--clr-surface-2, #f7fafc);
-  border: 1px solid var(--clr-border, #e2e8f0);
-  border-radius: var(--radius, 10px);
   font-family: var(--font-body, system-ui, sans-serif);
-}
-
-.tb-controls {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.tb-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.tb-field-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--clr-text-muted, #8896a4);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.tb-select {
-  padding: 6px 10px;
-  font-size: 14px;
-  border: 1px solid var(--clr-border, #e2e8f0);
-  border-radius: var(--radius-sm, 6px);
-  background: var(--clr-surface, #fff);
-  color: var(--clr-text, #2c3e50);
 }
 
 .tb-stage {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   align-items: center;
 }
 
-.tb-chord-name {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--clr-text, #2c3e50);
+.tb-badges {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.tb-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--clr-border, #e2e8f0);
+  background: transparent;
+  color: var(--clr-text-muted, #8896a4);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.tb-badge:hover {
+  border-color: var(--clr-accent, #f39c12);
+  color: var(--clr-accent, #f39c12);
+}
+
+.tb-badge.active {
+  background: var(--clr-accent, #f39c12);
+  border-color: var(--clr-accent, #f39c12);
+  color: #000;
 }
 
 .tb-svg {
@@ -268,9 +272,34 @@ function isVoiceVisible(v: PlacedVoice): boolean {
   pointer-events: none;
 }
 
+/* Pop-in: the dot that just became visible springs from scale 0 */
+@keyframes tb-popin {
+  0%   { transform: scale(0);    opacity: 0; }
+  60%  { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+
+/* Pulse: a quick scale ripple on the dot that moved quality */
+@keyframes tb-pulse {
+  0%   { transform: scale(1);    }
+  35%  { transform: scale(1.35); }
+  100% { transform: scale(1);    }
+}
+
+.tb-dot--popin {
+  animation: tb-popin 0.35s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+.tb-dot--pulse {
+  animation: tb-pulse 0.45s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .tb-voice {
-    transition: none;
-  }
+  .tb-voice { transition: none; }
+  .tb-dot--popin, .tb-dot--pulse { animation: none; }
 }
 </style>

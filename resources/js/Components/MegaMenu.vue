@@ -143,6 +143,7 @@ onUnmounted(() => {
                             <li><Link href="/library/rhythms" @click="closeAllMenus">Rhythm Library</Link></li>
                             <li><Link href="/library/songs" @click="closeAllMenus">Song Library</Link></li>
                             <li><Link href="/library/progressions" @click="closeAllMenus">Chord Progressions</Link></li>
+                            <li><Link href="/theory" @click="closeAllMenus">Music Theory</Link></li>
                         </ul>
                     </li>
                     <!-- Col 2: Featured Chord thumbnail -->
