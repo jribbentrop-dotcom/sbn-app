@@ -125,6 +125,8 @@
           :quality-by-key="qualityByKey"
           :edu-chord-qualities="eduChordQualities"
           :edu-related-concepts="eduRelatedConcepts"
+          :hovered-progression-id="hoveredProgressionId"
+          @progression-hover="hoveredProgressionId = $event"
         />
       </div>
     </div>
@@ -555,6 +557,41 @@ watch(
 );
 
 
+// ── Detected-progression highlight ───────────────────────────────────────────
+// Which progression entry the user is hovering in the EduPanel list. null when
+// none — drives the "intensified" highlight (one progression at a time).
+const hoveredProgressionId = ref(null);
+
+// Map: globalIndex → array of progression ids whose detected range covers that
+// bar. `start_measure` is section-relative; we resolve it to the grid's global
+// measure index by matching the occurrence's sectionId against model.sections.
+const progressionHighlights = computed(() => {
+  const map = new Map();
+  if (!model.value) return map;
+
+  // Build sectionId → its measures (in order) once.
+  const sectionsById = new Map();
+  for (const sec of model.value.sections || []) {
+    if (sec.id != null) sectionsById.set(String(sec.id), sec.measures || []);
+  }
+
+  for (const prog of props.progressions || []) {
+    for (const range of prog.ranges || []) {
+      const measures = sectionsById.get(String(range.sectionId));
+      if (!measures) continue;
+      const start = range.startMeasure ?? 0;
+      const end = start + (range.length ?? 1);
+      for (let mi = start; mi < end && mi < measures.length; mi++) {
+        const gi = measures[mi].index;
+        if (gi == null) continue;
+        if (!map.has(gi)) map.set(gi, []);
+        map.get(gi).push(prog.id);
+      }
+    }
+  }
+  return map;
+});
+
 // ── EduPanel current-chord derivation (selection uses { gi, ci }) ────────────
 function _findInModel(gi) {
   if (!model.value) return null;
@@ -711,6 +748,10 @@ provide('transportBeat', transportBeat);
 provide('seekToMeasure', seekToMeasure);
 provide('transportPlaying', transportPlaying);
 provide('readOnly', true);
+// Detected-progression highlight: map of gi → progression ids, plus the
+// currently-hovered progression id. ChordMeasure injects both.
+provide('progressionHighlights', progressionHighlights);
+provide('hoveredProgressionId', hoveredProgressionId);
 // globalIndexOf: in the viewer the model already stores measure.index as the
 // global index, so the identity-style fallback in ChordMeasure is fine. We
 // still provide a function so descendants can rely on it being callable.
@@ -726,6 +767,12 @@ provide('globalIndexOf', (si, mi) => {
   margin: 0 auto;
   padding: 40px 20px 80px;
   background: white;
+
+  /* Override accent to leadsheet blue throughout this page */
+  --clr-accent:        #3b82f6;
+  --clr-accent-dim:    #2563eb;
+  --clr-accent-bg:     rgba(59, 130, 246, 0.08);
+  --clr-accent-border: rgba(59, 130, 246, 0.25);
 }
 
 .sbn-leadsheet-viewer.is-embedded {

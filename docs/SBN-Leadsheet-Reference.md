@@ -252,13 +252,15 @@ Props: `currentChord`, `currentSectionId`, `selectionKey`, `song`, `progressions
 
 ### 6.6 Detected-progression grid highlight
 
-Each `ProgressionRef` carries a `ranges` array — one entry per occurrence — built by `LeadsheetViewerService::fetchProgressions()` from `sbn_progression_occurrences` (no longer `distinct()`-ed away). Each range is `{ sectionId, startMeasure, length }` where `startMeasure` is **section-relative**.
+Each `ProgressionRef` carries a `ranges` array — one entry per occurrence — built by `LeadsheetViewerService::fetchProgressions()` from `sbn_progression_occurrences`. Each range is `{ sectionId, startMeasure, length }` where `startMeasure` is **section-relative**.
 
-`LeadsheetViewer` builds `progressionHighlights` — `Map<globalIndex, progressionId[]>` — by matching each range's `sectionId` against `model.sections[].id` and resolving `startMeasure` to the measure's global `.index`. It `provide()`s `progressionHighlights` and `hoveredProgressionId`.
+`LeadsheetViewer` builds `progressionHighlights` — `Map<globalIndex, progressionId[]>` — and `provide()`s `progressionHighlights` + `hoveredProgressionId`.
 
-`ChordMeasure` injects both (with `null` defaults — absent in the admin editor):
-- `.in-progression` — persistent subtle band on every bar inside any detected progression.
-- `.in-progression--active` — intensified band + accent ring when the bar belongs to the progression hovered in the EduPanel list (one progression at a time).
+`ChordMeasure` injects both (with `null` defaults):
+- `.in-progression` — rotating conic-gradient border ring (blue, `--clr-primary` `#3b82f6`). Implemented as `::before` on `.sbn-ve-measure-content` using `padding + mask-composite: exclude` to show only the border zone. `@property --prog-angle` animates the sweep at 4s/orbit.
+- `.in-progression--active` — brighter sweep (2.5s orbit), faint blue tint fill via `::after`.
+
+**Classic viewer accent override:** `.sbn-leadsheet-viewer` overrides `--clr-accent` / `--clr-accent-bg` / `--clr-accent-border` / `--clr-accent-dim` to blue (`#3b82f6`) so all accent-colored UI on the viewer page (toggle buttons, EduPanel borders, chord focus ring, hover frame) is blue rather than the global orange.
 
 CSS lives in `public/css/sbn-design-system.css`, scoped under `.sbn-leadsheet-viewer`.
 
@@ -299,18 +301,20 @@ Set on `.leadsheet-stage[data-theme="dark"|"light"]`. Dark is default.
 
 | Token | Dark value |
 |-------|-----------|
-| `--stage-bg` | `#0a0a0b` |
-| `--stage-bg-1` | `#111114` |
-| `--stage-bg-2` | `#18181d` |
+| `--stage-bg` | `#0a0a0c` |
+| `--stage-bg-1` | `#111117` |
+| `--stage-bg-2` | `#16161e` |
 | `--stage-accent` | `#ff7a1a` |
 | `--stage-accent-rgb` | `255, 122, 26` |
-| `--stage-accent-2` | `#fff` |
+| `--stage-accent-2` | `#ffb347` |
 | `--stage-line` | `rgba(255,255,255,0.08)` |
-| `--stage-text` | `rgba(255,255,255,0.92)` |
+| `--stage-text` | `#e8e4dc` |
 | `--stage-font-chord` | `'Crimson Text', Georgia, serif` |
 | `--stage-font-mono` | `'JetBrains Mono', monospace` |
 
-Light overrides: white background, dark text, orange accent preserved. Stored in `localStorage` under key `cinema-theme`.
+Light overrides: white/blue-tinted surfaces, dark text, orange accent preserved. Stored in `localStorage` under key `cinema-theme`.
+
+Orange halo glows removed from video card and hero card (`box-shadow` outer glow stripped). Page-level scrim retains only the bottom purple gradient; top orange scrim removed.
 
 ### 8.2 Video sync
 
@@ -325,7 +329,9 @@ interface VideoSync {
 }
 ```
 
-Cinema interpolates in **play-position** space — see [SBN-Audio-Reference §5.1](SBN-Audio-Reference.md#51-repeat--volta-playback-model). On load, Cinema reads `jsonData.repeatMarkers` into per-measure `repeatStart` / `repeatEnd` flags via `normalizeMeasure`, builds `expandedSequence` with `expandMeasureSequence(flatBars)`, and projects raw mappings onto play positions through `mappingsByPosition` (same gi-grouping logic as the tab editor's `useVideoSync`). Without this projection, an AABA score plays the repeat correctly in the video but the cursor walks straight into the B section.
+Cinema interpolates in **play-position** space — see [SBN-Audio-Reference §5.1](SBN-Audio-Reference.md#51-repeat--volta-playback-model). On load, Cinema reads `jsonData.repeatMarkers` into per-measure `repeatStart` / `repeatEnd` flags via `normalizeMeasure`, builds `expandedSequence` with `expandMeasureSequenceWithPass(flatBars)` (replaces `expandMeasureSequence`), and projects raw mappings onto play positions through `mappingsByPosition`.
+
+`expandMeasureSequenceWithPass` returns `{ sequence, passAtPosition }` — `passAtPosition[playPos]` is the repeat-block pass number (1, 2, …) at that position. Cinema stores `currentPlayPosition` (updated by both video clock and fallback clock) and derives `activeVoltaPass = passAtPosition[currentPlayPosition] ?? 1`, passed down to `StageSectionsGrid` to show/hide volta endings.
 
 **Video → bar/beat** (`videoTimeToPlayPosition` → `giAtPosition`): binary search over pos-keyed mappings + linear interpolation. Fractional part × `beatsPerMeasure` = current beat. The bar that highlights is `seq[floor(pos)]`, so a repeated bar correctly re-lights on each pass.
 
@@ -343,12 +349,22 @@ Exposes via `defineExpose`: `play()`, `pause()`, `seekTo(seconds)` — proxied t
 
 ### 8.4 `StageSectionsGrid`
 
-- Section tabs at top; one section rendered at a time (`activeSectionIndex`).
-- `watch(currentBarIndex)` auto-advances `activeSectionIndex` during playback.
-- One `ClassicChordCard` per chord in each measure bar.
-- Horizontal scroll within `.stage-sec-body`.
-- Clicking a bar calls `$emit('seek-bar', measure.globalIndex)`.
-- `getVoicingAt(measure, ci)` — looks up `chordVoicings["${name}@${gi}.${ci}"]` then `chordVoicings[name]`.
+Props: `sections`, `currentBarIndex`, `playing`, `chordVoicings`, `activeVoltaPass`, `tabModel`, `tabHasData`.
+
+**View toggle** (top-right): `'chords'` (default) | `'tab'`. Tab button only shown when `tabHasData` is true (song has note data with string+fret). Persists in local `view` ref.
+
+**Chords view** — one `ClassicChordCard` per chord slot per measure bar, horizontal scroll.
+
+**Tab view** — `TabMeasure` components for the active section, `barsPerRow=4` (standard width), horizontal scroll. `TabMeasure` wrapped in `.stage-tab-measure-wrap` for click-to-seek and active highlight. Chord names scaled to 26px via scoped `:deep()` override.
+
+**Shared behaviour:**
+- `watch(currentBarIndex)` auto-advances `activeSectionIndex` + calls `scrollToActive()` which `scrollIntoView`s the active element in whichever scroll container is visible.
+- Clicking any bar/measure emits `seek-measure(globalIndex)`.
+- Volta bars: `isMeasureVisible(measure)` hides measures whose `volta.number ≠ activeVoltaPass`. Hidden measures collapse via `max-width: 0 + min-width: 0 + margin: 0` transition (no flex gap left behind).
+
+**Tab model provided by Cinema.vue** — `useTabModel` built from `jsonData` refs. Full provide contract: `model`, `beatsPerMeasureRef`, `playingMeasureIndex` → `currentBarIndex`, `transportBeat` (cumulative), `transportPlaying`, `seekToMeasure`, `gridSelection`, `globalIndexOf`, `inlineRenameTarget`, plus null stubs for all editor-only injects.
+
+`getVoicingAt(measure, ci)` — looks up `chordVoicings["${name}@${gi}.${ci}"]` then `chordVoicings[name]`.
 
 ### 8.5 `ClassicChordCard`
 
@@ -533,3 +549,4 @@ Rule: whenever you add a new `inject()` to a component that is also used in the 
 - **`edu_topics` DB table:** `EduContentService` is config-backed. DB migration deferred.
 - **Cinema fallback clock is not repeat-aware (§8.2):** the silent fallback (no video) walks gi linearly. Fix by counting in play positions and looking up the gi via `giAtPosition(expandedSequence.value, pos)` per beat; small change but currently low-priority since the practical use of Cinema is video-master.
 - **Cinema-side bar-click on repeated bars always lands on pass 1:** `measureIndexToVideoTime(gi)` uses `firstPositionForGi`. Match the tab editor's "click a sync editor row to seek a specific pass" idea (a Cinema popover or right-click menu) once badge popovers ship there.
+- **Cinema fretboard view:** `StageSectionsGrid` view toggle is `'chords' | 'tab'`; fretboard (`'fretboard'`) is the planned third option. Model: `ChordProgressionViewer`'s embedded fretboard SVG as a standalone component fed from `chordCards` + active section measures.

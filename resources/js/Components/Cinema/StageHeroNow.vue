@@ -133,7 +133,6 @@ defineExpose({
 
 .stage-video-card--live {
   border-color: rgba(var(--stage-accent-rgb), 0.35);
-  box-shadow: 0 12px 48px -8px rgba(var(--stage-accent-rgb), 0.18);
 }
 
 /* VideoPlayer fills the card */
@@ -268,17 +267,11 @@ defineExpose({
 
 .stage-hero-card--now {
   border-color: rgba(var(--stage-accent-rgb), 0.35);
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--stage-accent-rgb), 0.15),
-    0 12px 48px -8px rgba(var(--stage-accent-rgb), 0.18);
+  box-shadow: inset 0 0 0 1px rgba(var(--stage-accent-rgb), 0.15);
 }
 
 .stage-hero-card--now::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 600px 300px at 20% 0%, rgba(var(--stage-accent-rgb), 0.1), transparent 70%);
-  pointer-events: none;
+  display: none;
 }
 
 .stage-hero-label {
@@ -325,7 +318,6 @@ defineExpose({
   letter-spacing: -0.03em;
   font-weight: 700;
   color: var(--stage-accent-2);
-  text-shadow: 0 0 32px rgba(var(--stage-accent-rgb), 0.45);
 }
 
 .stage-hero-chord :deep(.sbn-chord-accidental) {

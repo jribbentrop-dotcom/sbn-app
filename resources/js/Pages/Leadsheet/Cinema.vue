@@ -1,13 +1,14 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, provide, onMounted, onUnmounted } from 'vue';
 import { Head } from '@inertiajs/vue3';
 
 import StageTopBar from '@/Components/Cinema/StageTopBar.vue';
 import StageHeroNow from '@/Components/Cinema/StageHeroNow.vue';
 import StageTransportDeck from '@/Components/Cinema/StageTransportDeck.vue';
 import StageSectionsGrid from '@/Components/Cinema/StageSectionsGrid.vue';
+import { useTabModel } from '@/tab-editor/composables/useTabModel.js';
 import {
-  expandMeasureSequence,
+  expandMeasureSequenceWithPass,
   giAtPosition,
   firstPositionForGi,
 } from '@/audio/adapters/expandMeasureSequence.js';
@@ -145,8 +146,9 @@ const beatsPerMeasure = computed(() => {
 const heroRef = ref(null);
 
 // ── Playback state (bar/beat clock driven by video time when synced) ─────
-const currentBarIndex = ref(0);
-const currentBeat = ref(0);
+const currentBarIndex    = ref(0);
+const currentBeat        = ref(0);
+const currentPlayPosition = ref(0);   // linear play position in expandedSequence
 const playing = ref(false);
 
 // Toggle/loop/count/click toggles
@@ -167,7 +169,15 @@ const mappings = computed(() => videoSync.value?.mappings ?? []);
 // Expanded play sequence (play position → gi). Drives repeat + volta-aware
 // cursor and seeks. Built from flatBars (which now carries repeatStart /
 // repeatEnd / volta flags via normalizeMeasure).
-const expandedSequence = computed(() => expandMeasureSequence(flatBars.value));
+const _expanded          = computed(() => expandMeasureSequenceWithPass(flatBars.value));
+const expandedSequence   = computed(() => _expanded.value.sequence);
+const passAtPosition     = computed(() => _expanded.value.passAtPosition);
+
+// Which volta pass is currently active — 1 on first time through, 2 on repeat.
+// Falls back to 1 when there are no voltas / no sequence.
+const activeVoltaPass = computed(() =>
+  passAtPosition.value[currentPlayPosition.value] ?? 1
+);
 
 // Mappings projected onto play positions. For each gi we sort that gi's marks
 // by videoTime ascending and pair them with that gi's successive play
@@ -247,8 +257,9 @@ function onVideoTimeUpdate(time) {
   const fraction = pos - Math.floor(pos);
   const beat = Math.floor(fraction * beatsPerMeasure.value);
 
-  currentBarIndex.value = Math.max(0, Math.min(totalBars.value - 1, bar));
-  currentBeat.value = Math.max(0, beat);
+  currentBarIndex.value    = Math.max(0, Math.min(totalBars.value - 1, bar));
+  currentBeat.value        = Math.max(0, beat);
+  currentPlayPosition.value = floored;
 }
 
 function onVideoPlayState(playing_) {
@@ -267,13 +278,16 @@ function startFallbackClock() {
   _intervalId = setInterval(() => {
     if (!playing.value) return;
     let beat = currentBeat.value + 1;
+    let pos  = currentPlayPosition.value;
     let bar  = currentBarIndex.value;
     if (beat >= beatsPerMeasure.value) {
       beat = 0;
+      pos  = pos + 1;
       bar  = bar + 1;
       if (bar >= totalBars.value) {
         if (loopOn.value) {
           bar = 0;
+          pos = 0;
         } else {
           bar = totalBars.value - 1;
           stopFallbackClock();
@@ -282,8 +296,9 @@ function startFallbackClock() {
         }
       }
     }
-    currentBeat.value = beat;
-    currentBarIndex.value = bar;
+    currentBeat.value         = beat;
+    currentBarIndex.value     = bar;
+    currentPlayPosition.value = pos;
   }, ms);
 }
 
@@ -440,6 +455,46 @@ const currentChordCard = computed(() => {
 
 // Classic view URL
 const classicUrl = computed(() => props.classicUrl);
+
+// ── Tab model (for cinema tab view) ─────────────────────────────────────────
+// Mirrors SheetMiniPlayer setup. Cinema owns the playhead so no audio engine
+// here — playingMeasureIndex and transportBeat are fed from currentBarIndex /
+// currentBeat directly, driven by video or fallback clock.
+
+const _melodyRef        = computed(() => jsonData.value.melody        ?? null);
+const _sectionsRef      = computed(() => jsonData.value.sections      ?? []);
+const _timeSignatureRef = computed(() => props.leadsheet.timeSignature ?? '4/4');
+const _repeatMarkersRef = computed(() => jsonData.value.repeatMarkers ?? {});
+const _voltaEndingsRef  = computed(() => jsonData.value.voltaEndings  ?? {});
+const _chordVoicingsRef = computed(() => jsonData.value.chordVoicings ?? {});
+
+const { model: tabModel, buildModel, hasData: tabHasData } = useTabModel(
+  _melodyRef, _sectionsRef, _timeSignatureRef,
+  _repeatMarkersRef, _voltaEndingsRef, _chordVoicingsRef,
+);
+buildModel();
+
+// Provide the full contract TabMeasure expects — playhead driven by Cinema clock
+provide('model', tabModel);
+provide('beatsPerMeasureRef', beatsPerMeasure);
+provide('playingMeasureIndex', currentBarIndex);
+provide('transportBeat', computed(() => currentBeat.value + currentBarIndex.value * beatsPerMeasure.value));
+provide('transportPlaying', playing);
+provide('readOnly', true);
+provide('seekToMeasure', (gi) => onSeekBar(gi));
+provide('gridSelection', { selection: ref([]), handleClick: () => {} });
+provide('globalIndexOf', (si, mi) => {
+  const sec = tabModel.value?.sections?.[si];
+  return sec?.measures?.[mi]?.index ?? mi;
+});
+provide('inlineRenameTarget', ref(null));
+// Editor-only injects — null defaults so TabMeasure guards don't throw
+provide('chordPicker',    null);
+provide('voicingPicker',  null);
+provide('chordClipboard', null);
+provide('undo',           null);
+provide('noteInput',      null);
+provide('tapCursor',      ref(null));
 </script>
 
 <template>
@@ -508,6 +563,9 @@ const classicUrl = computed(() => props.classicUrl);
         :current-bar-index="currentFlatBar?.globalIndex ?? currentFlatBar?.index ?? 0"
         :playing="playing"
         :chord-voicings="chordVoicings"
+        :active-volta-pass="activeVoltaPass"
+        :tab-model="tabModel"
+        :tab-has-data="tabHasData"
         @seek-measure="onSeekMeasure"
       />
     </div>
@@ -517,27 +575,6 @@ const classicUrl = computed(() => props.classicUrl);
 <style>
 /* ── Stage palette — scoped so tokens don't leak into the rest of the app */
 .leadsheet-stage {
-  --stage-bg:          #0a0a0c;
-  --stage-bg-1:        #111117;
-  --stage-bg-2:        #16161e;
-  --stage-bg-3:        #1d1d27;
-  --stage-line:        rgba(255,255,255,0.08);
-  --stage-line-2:      rgba(255,255,255,0.14);
-  --stage-text:        #e8e4dc;
-  --stage-text-dim:    #8a8a96;
-  --stage-text-mute:   #545460;
-  --stage-accent:      #ff7a1a;
-  --stage-accent-2:    #ffb347;
-  --stage-accent-rgb:  255,122,26;
-  --stage-good:        #4ade80;
-  --stage-scrim-1:     rgba(255,122,26,0.08);
-  --stage-scrim-2:     rgba(100,80,255,0.05);
-  --stage-primary-ink: #1a0b00;
-  --stage-font-body:   'DM Sans', system-ui, sans-serif;
-  --stage-font-chord:  'Crimson Text', Georgia, serif;
-  --stage-font-mono:   'JetBrains Mono', monospace;
-
-  /* ── Dark (default) ── */
   --stage-bg:          #0a0a0c;
   --stage-bg-1:        #111117;
   --stage-bg-2:        #16161e;
@@ -598,7 +635,6 @@ const classicUrl = computed(() => props.classicUrl);
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 900px 700px at 50% -10%, var(--stage-scrim-1), transparent 60%),
     radial-gradient(ellipse 1200px 800px at 50% 110%, var(--stage-scrim-2), transparent 60%);
   pointer-events: none;
   z-index: 0;

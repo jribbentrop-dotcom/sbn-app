@@ -35,20 +35,36 @@
  * @returns {number[]}  ordered list of globalIndex values for the audio engine
  */
 export function expandMeasureSequence(measures) {
-    if (!measures?.length) return [];
+    return _expand(measures).sequence;
+}
+
+/**
+ * Like expandMeasureSequence but also returns a parallel `passAtPosition`
+ * array: passAtPosition[pos] = the repeat-block pass number active when that
+ * play position was emitted. Non-repeated bars get pass 1.
+ * Used by Cinema to know which volta ending to show at any play position.
+ *
+ * @returns {{ sequence: number[], passAtPosition: number[] }}
+ */
+export function expandMeasureSequenceWithPass(measures) {
+    return _expand(measures);
+}
+
+function _expand(measures) {
+    if (!measures?.length) return { sequence: [], passAtPosition: [] };
 
     const gi = (m, i) => m.globalIndex ?? m.index ?? i;
-    const seq = [];
+    const sequence = [];
+    const passAtPosition = [];
 
     let i = 0;
-    let blockStart = 0;   // index of the current repeat-block start
-    let pass = 1;         // which pass through the current block we're on
+    let blockStart = 0;
+    let pass = 1;
 
-    // Guard against pathological notation (mismatched markers) → infinite loop.
     const MAX_POSITIONS = measures.length * 64 + 256;
 
     while (i < measures.length) {
-        if (seq.length > MAX_POSITIONS) break;
+        if (sequence.length > MAX_POSITIONS) break;
 
         const m = measures[i];
 
@@ -61,7 +77,8 @@ export function expandMeasureSequence(measures) {
         const skip = v != null && v !== pass;
 
         if (!skip) {
-            seq.push(gi(m, i));
+            sequence.push(gi(m, i));
+            passAtPosition.push(pass);
 
             if (m.repeatEnd) {
                 const hasNextVolta  = _blockHasVoltaForPass(measures, blockStart, i, pass + 1);
@@ -71,7 +88,6 @@ export function expandMeasureSequence(measures) {
                     i = blockStart;
                     continue;
                 }
-                // Block finished — next bar starts a fresh implicit block.
                 blockStart = i + 1;
                 pass = 1;
             }
@@ -80,7 +96,7 @@ export function expandMeasureSequence(measures) {
         i++;
     }
 
-    return seq;
+    return { sequence, passAtPosition };
 }
 
 /**
