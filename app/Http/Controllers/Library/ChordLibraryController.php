@@ -98,10 +98,6 @@ class ChordLibraryController extends Controller
             $displayRoot = null; // ignore invalid values
         }
 
-        // Test switch — ?pass=2 runs the builder with extensions=true.
-        $pass = (int) $request->query('pass', 1);
-        $usePass2 = $pass === 2;
-
         $siblings = ChordDiagram::where('quality', $chord->quality)
             ->where('id', '!=', $chord->id)
             ->orderByDesc('popularity')
@@ -110,7 +106,7 @@ class ChordLibraryController extends Controller
             ->map(fn ($c) => $this->chordSerializer->serialize($c)); // siblings always at stored root (C)
 
         // Leadsheets that use this chord (via sbn_voicing_usage)
-        $songs = Leadsheet::query()
+        $songs = Leadsheet::published()
             ->join('sbn_voicing_usage as vu', 'sbn_leadsheets.id', '=', 'vu.leadsheet_id')
             ->where('vu.chord_diagram_id', $chord->id)
             ->select('sbn_leadsheets.id', 'sbn_leadsheets.slug', 'sbn_leadsheets.title', 'sbn_leadsheets.composer', 'sbn_leadsheets.song_key', 'sbn_leadsheets.rhythm', 'sbn_leadsheets.popularity')
@@ -198,7 +194,7 @@ class ChordLibraryController extends Controller
         $candidateKeys = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 
         $progressions = $progressions
-            ->map(function ($p) use ($pinnedVoicing, $pinnedRoot, $chordQuality, $candidateKeys, $usePass2) {
+            ->map(function ($p) use ($pinnedVoicing, $pinnedRoot, $chordQuality, $candidateKeys) {
                 // Find the key in which this progression places a chord matching our
                 // pinned root + quality. This makes the surrounding chords harmonically
                 // related to the chord the user is looking at, instead of always C-based.
@@ -227,9 +223,10 @@ class ChordLibraryController extends Controller
 
                 $context = $this->harmonicContext->buildFromNumerals($chosenKey, $p->numerals);
 
+                // extensions omitted: buildVoicings defaults it from the
+                // Machine Room's per-category pass2_eligible setting.
                 $built = $this->progressionBuilder->buildVoicings($context, [
                     'category' => $p->category,
-                    'extensions' => $usePass2,
                     'pinnedSlot' => $pinnedSlot,
                     'pinnedVoicing' => $pinnedSlot !== null ? $pinnedVoicing : null,
                 ]);
@@ -266,7 +263,6 @@ class ChordLibraryController extends Controller
             'siblings' => $siblings,
             'songs' => $songs,
             'progressions' => $progressions,
-            'builderPass' => $usePass2 ? 2 : 1,
             'qualityTopic' => $qualityTopic?->toArray(),
         ]);
     }

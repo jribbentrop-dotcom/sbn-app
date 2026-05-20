@@ -54,7 +54,7 @@
                         @endforeach
                     </td>
                     <td>
-                        <span class="sbn-badge {{ $course->status === 'publish' ? 'sbn-badge-accent' : 'sbn-badge-muted' }}">
+                        <span class="sbn-badge {{ $course->status === 'publish' ? 'sbn-badge-success' : 'sbn-badge-muted' }}">
                             {{ $course->status }}
                         </span>
                     </td>

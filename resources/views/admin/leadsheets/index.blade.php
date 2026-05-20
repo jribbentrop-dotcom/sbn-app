@@ -87,6 +87,14 @@
             color: var(--clr-primary, #2563eb);
             border-bottom-color: var(--clr-primary, #2563eb);
         }
+
+        .sbn-status-toggle {
+            cursor: pointer;
+            border: 1px solid transparent;
+            font: inherit;
+            transition: filter 0.12s;
+        }
+        .sbn-status-toggle:hover { filter: brightness(0.95); }
     </style>
 @endpush
 
@@ -162,7 +170,11 @@
                         <th class="col-tempo">BPM</th>
                         <th class="col-time">Time</th>
                         <th class="col-measures">Bars</th>
+                        @if($currentTab === 'leadsheets')
+                            <th class="col-status">Status</th>
+                        @endif
                         <th class="col-description">Description</th>
+                        <th class="col-cover">Cover image</th>
                         <th class="col-actions"></th>
                     </tr>
                 </thead>
@@ -188,6 +200,18 @@
                         <td class="col-tempo sbn-text-muted">{{ ($currentTab === 'leadsheets' ? $ls->tempo : $ls->bpm_default) ?: '—' }}</td>
                         <td class="col-time sbn-text-muted">{{ ($currentTab === 'leadsheets' ? $ls->time_signature : $ls->time_sig) ?: '4/4' }}</td>
                         <td class="col-measures sbn-text-muted">{{ $ls->measure_count ?: '—' }}</td>
+                        @if($currentTab === 'leadsheets')
+                        <td class="col-status">
+                            <button type="button"
+                                x-data="{ status: '{{ $ls->status }}' }"
+                                @click="toggleStatus({{ $ls->id }}, status).then(s => { if (s) status = s; })"
+                                class="sbn-badge sbn-status-toggle"
+                                :class="status === 'publish' ? 'sbn-badge-success' : 'sbn-badge-muted'"
+                                :title="status === 'publish' ? 'Published — click to unpublish' : 'Draft — click to publish'">
+                                <span x-text="status === 'publish' ? 'Published' : 'Draft'"></span>
+                            </button>
+                        </td>
+                        @endif
                         <td class="col-description">
                             <div x-data="{ editing: false }">
                                 <div x-show="!editing" class="sbn-ls-desc-row">
@@ -208,6 +232,33 @@
                                     <div class="sbn-ls-desc-actions">
                                         <button class="sbn-btn sbn-btn-xs sbn-btn-primary"
                                             @click="saveDescription({{ $ls->id }}, $refs['descInput{{ $ls->id }}'].value, '{{ $currentTab }}'); editing = false">Save</button>
+                                        <button class="sbn-btn sbn-btn-xs" @click="editing = false">Cancel</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="col-cover">
+                            <div x-data="{ editing: false }">
+                                <div x-show="!editing" class="sbn-ls-desc-row">
+                                    <span class="sbn-ls-cover-text" x-ref="coverText{{ $ls->id }}">
+                                        @if($ls->cover_image_path)
+                                            <span title="{{ $ls->cover_image_path }}" style="font-size:0.75em;color:var(--clr-text-dim);">{{ \Illuminate\Support\Str::limit($ls->cover_image_path, 28) }}</span>
+                                        @else
+                                            <span class="sbn-text-placeholder">No image</span>
+                                        @endif
+                                    </span>
+                                    <button class="sbn-ls-desc-edit" @click="editing = true" title="Set cover image">✎</button>
+                                </div>
+                                <div x-show="editing" x-cloak>
+                                    <input type="text" class="sbn-ls-desc-textarea" style="width:100%;padding:4px 6px;font-size:0.8em;"
+                                        x-ref="coverInput{{ $ls->id }}"
+                                        x-init="$watch('editing', v => { if (v) $nextTick(() => $refs['coverInput{{ $ls->id }}'].focus()) })"
+                                        value="{{ $ls->cover_image_path ?? '' }}"
+                                        placeholder="my-song.webp"
+                                    >
+                                    <div class="sbn-ls-desc-actions">
+                                        <button class="sbn-btn sbn-btn-xs sbn-btn-primary"
+                                            @click="saveCoverImage({{ $ls->id }}, $refs['coverInput{{ $ls->id }}'].value); editing = false">Save</button>
                                         <button class="sbn-btn sbn-btn-xs" @click="editing = false">Cancel</button>
                                     </div>
                                 </div>
@@ -257,6 +308,20 @@
 
 @push('scripts')
 <script>
+// Lightweight toast — also used by saveDescription / saveCoverImage below.
+function sbnToast(message, type) {
+    type = type || 'info';
+    const toast = document.createElement('div');
+    toast.className = 'sbn-toast sbn-toast-' + type;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(16px)';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
 function leadsheetIndex() {
     return {
         saveDescription(id, desc, tab) {
@@ -288,6 +353,58 @@ function leadsheetIndex() {
                 }
             })
             .catch(() => sbnToast('Failed to save', 'error'));
+        },
+
+        saveCoverImage(id, path) {
+            fetch(`/api/admin/leadsheets/${id}/cover-image`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                },
+                body: JSON.stringify({ cover_image_path: path }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const textEl = this.$refs['coverText' + id];
+                    if (textEl) {
+                        if (data.cover_image_path) {
+                            const short = data.cover_image_path.length > 28
+                                ? data.cover_image_path.slice(0, 28) + '…'
+                                : data.cover_image_path;
+                            textEl.innerHTML = `<span title="${data.cover_image_path}" style="font-size:0.75em;color:var(--clr-text-dim);">${short}</span>`;
+                        } else {
+                            textEl.innerHTML = '<span class="sbn-text-placeholder">No image</span>';
+                        }
+                    }
+                    sbnToast('Cover image saved', 'success');
+                }
+            })
+            .catch(() => sbnToast('Failed to save', 'error'));
+        },
+
+        // Flips draft <-> publish. Resolves to the new status, or null on failure.
+        toggleStatus(id, current) {
+            const next = current === 'publish' ? 'draft' : 'publish';
+            return fetch(`/api/admin/leadsheets/${id}/status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                },
+                body: JSON.stringify({ status: next }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    sbnToast(data.status === 'publish' ? 'Published' : 'Moved to draft', 'success');
+                    return data.status;
+                }
+                sbnToast('Failed to update status', 'error');
+                return null;
+            })
+            .catch(() => { sbnToast('Failed to update status', 'error'); return null; });
         },
 
         deleteItem(id, title, tab) {

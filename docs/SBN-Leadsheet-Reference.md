@@ -22,9 +22,19 @@ The classic viewer and cinema view both consume the same `LeadsheetViewerService
 
 ## 2. Data model
 
-- [`Leadsheet`](../app/Models/Leadsheet.php) — `slug`, `title`, `composer`, `song_key`, `tempo`, `time_signature`, `rhythm`, `description`, `harmony_notes`, `form_notes`, `voicing_notes`, `measure_count`, `popularity`.
+- [`Leadsheet`](../app/Models/Leadsheet.php) — `slug`, `title`, `composer`, `song_key`, `tempo`, `time_signature`, `rhythm`, `description`, `harmony_notes`, `form_notes`, `voicing_notes`, `measure_count`, `popularity`, `cover_image_path`, `status`.
 - `parsed_data` accessor — decodes the `json_data` column (see §3) and returns an array.
 - `getChordNames()` — returns a flat deduplicated list of chord names used across all measures.
+
+### 2.1 Draft / publish status
+
+`status` is `'draft'` or `'publish'` (column added 2026-05-20, defaults to `draft`). A library "Song" *is* a `Leadsheet` record, so this one column gates public visibility for the whole song library.
+
+- `Leadsheet::published()` scope — `where('status', 'publish')`. Used by every public-facing query: the song library index + its filter lists, and the "songs using this chord/progression/rhythm" lists on the chord/progression/rhythm library pages, and related-songs on the public course page.
+- Single-record public routes (`show`, `viewer`, `cinema`, `apiViewerData` in `SongLibraryController`) call `abortIfDraft()` → 404 on drafts.
+- `SongLibraryController::apiSearch()` is **not** scoped — admins can reference unpublished songs when building lessons.
+- Toggled from the admin leadsheet index via a clickable status badge → `POST /api/admin/leadsheets/{leadsheet}/status` (`LeadsheetController::updateStatus`).
+- The Exercises tab shares `sbn_leadsheets` but has no status UI (different controller).
 
 ---
 
@@ -221,14 +231,26 @@ Mode-swap handoff:
 
 ### 6.5 EduPanel
 
-Props: `currentChord`, `currentSectionId`, `selectionKey`, `song`, `progressions`, `chordCards`, `eduChordQualities`.
+Props: `currentChord`, `currentSectionId`, `selectionKey`, `song`, `progressions`, `chordCards`, `eduChordQualities`, `hoveredProgressionId`. Emits `progression-hover`.
 
 - Renders `<ChordCard :chord="activeCard" :show-root="true" />` for the selected chord.
 - `activeCard` = `_lookupWithFallback(chordCards, selectionKey)` — tries per-slot key, then bare name.
 - Chord-quality blurb from `eduChordQualities[qualitySlug]` (keyed by `quality` field on the card).
-- Progressions: shows all song progressions when none carry section attribution (all `sectionId` are `null` — the `sbn_progression_occurrences` table does not track section). Filter activates only when at least one progression has a non-null `sectionId`.
+- Progressions: shows all song progressions. Each list entry emits `progression-hover` (id, or `null` on leave) so `LeadsheetViewer` can intensify the matching bars in the grid; the entry hovered (`hoveredProgressionId`) gets an `is-active` marker.
 
-### 6.6 Transport placement
+### 6.6 Detected-progression grid highlight
+
+Each `ProgressionRef` carries a `ranges` array — one entry per occurrence — built by `LeadsheetViewerService::fetchProgressions()` from `sbn_progression_occurrences` (no longer `distinct()`-ed away). Each range is `{ sectionId, startMeasure, length }` where `startMeasure` is **section-relative**.
+
+`LeadsheetViewer` builds `progressionHighlights` — `Map<globalIndex, progressionId[]>` — by matching each range's `sectionId` against `model.sections[].id` and resolving `startMeasure` to the measure's global `.index`. It `provide()`s `progressionHighlights` and `hoveredProgressionId`.
+
+`ChordMeasure` injects both (with `null` defaults — absent in the admin editor):
+- `.in-progression` — persistent subtle band on every bar inside any detected progression.
+- `.in-progression--active` — intensified band + accent ring when the bar belongs to the progression hovered in the EduPanel list (one progression at a time).
+
+CSS lives in `public/css/sbn-design-system.css`, scoped under `.sbn-leadsheet-viewer`.
+
+### 6.7 Transport placement
 
 `.sbn-leadsheet-transport` inside `.sbn-leadsheet-main` flex column, `position: sticky; bottom: 20px; margin-top: auto`. Short songs: sits at bottom of content. Long songs: sticks near viewport bottom while scrolling. Spacebar toggles playback globally from the viewer.
 

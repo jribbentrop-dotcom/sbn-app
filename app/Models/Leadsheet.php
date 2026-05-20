@@ -33,6 +33,8 @@ class Leadsheet extends Model
         'form_notes',
         'voicing_notes',
         'popularity',
+        'cover_image_path',
+        'status',
     ];
 
     /**
@@ -45,6 +47,18 @@ class Leadsheet extends Model
         'created_at'    => 'datetime',
         'updated_at'    => 'datetime',
     ];
+
+    // =========================================================================
+    // SCOPES
+    // =========================================================================
+
+    /**
+     * Only leadsheets visible in the public song library.
+     */
+    public function scopePublished($query)
+    {
+        return $query->where('status', 'publish');
+    }
 
     // =========================================================================
     // ACCESSORS

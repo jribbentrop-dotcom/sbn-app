@@ -819,11 +819,28 @@ class LeadsheetController extends Controller
     }
 
     public function updateDescription(Request $request, Leadsheet $leadsheet)
-
     {
         $validated = $request->validate(['description' => 'nullable|string|max:5000']);
         $leadsheet->update(['description' => $validated['description'] ?? '']);
         return response()->json(['success' => true, 'description' => $leadsheet->description]);
+    }
+
+    public function updateCoverImage(Request $request, Leadsheet $leadsheet)
+    {
+        $validated = $request->validate(['cover_image_path' => 'nullable|string|max:500']);
+        $leadsheet->update(['cover_image_path' => $validated['cover_image_path'] ?? null]);
+        return response()->json(['success' => true, 'cover_image_path' => $leadsheet->cover_image_path]);
+    }
+
+    /**
+     * Toggle a leadsheet between 'draft' and 'publish'. Drafts are hidden
+     * from the public song library (see SongLibraryController).
+     */
+    public function updateStatus(Request $request, Leadsheet $leadsheet)
+    {
+        $validated = $request->validate(['status' => 'required|in:draft,publish']);
+        $leadsheet->update(['status' => $validated['status']]);
+        return response()->json(['success' => true, 'status' => $leadsheet->status]);
     }
 
     /**

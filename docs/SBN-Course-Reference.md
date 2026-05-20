@@ -125,17 +125,21 @@ Defined in [`routes/web.php`](../routes/web.php) under `Route::middleware('auth'
 - **Chip nodes** — one per type via `makeSbnNode(type)`. Each is `inline + atom` (or `block + atom` for youtube). Attrs per type are declared in the `ATTRS` map. `parseHTML` matches the tag; `renderHTML` round-trips with `mergeAttributes`. NodeView renders a `<span class="sbn-chip">` with type label, slug suffix, ✎ edit, ✕ delete.
 - **`__sbnInsert(type, slug, extras)`** — bridge function on `window` that the palette calls. Inserts `{ type: 'sbn-{type}', attrs: { slug, ...extras } }` at the cursor. `image`/`media` go through TipTap's image node instead.
 - **`__sbnPalette(type)`** — bridge function on `window` that switches the palette to a tab and focuses its search input. Called by slash commands and Ctrl+Shift keyboard shortcuts.
+- **`__sbnEditor`** — bridge object on `window` for the AI panel (§6.5): `getSelection()`, `getContext()` (≤800-char plain-text excerpt), `insertAtCursor(html)`, `replaceSelection(html)`. The panel touches the document *only* through these — AI output never lands without an explicit click.
 - **Hidden textarea sync** — every TipTap update writes `editor.getHTML()` into `#content-sync`. Form submit picks it up unchanged.
+- **Selection state** — `updateFmt()` (runs on every `onSelectionUpdate`) publishes whether text is selected into the shared reactive `hasSelection` ref ([`editorSelection.ts`](../resources/js/admin/editorSelection.ts)), which the AI panel reads live.
+- `aiAutocomplete` (Ctrl+Space) inserts an AI continuation at the cursor — the only AI feature still on the editor itself; proofread/generate moved to the AI panel.
 
 ### 6.3 LessonPalette.vue — search + insert
 
 [`resources/js/admin/LessonPalette.vue`](../resources/js/admin/LessonPalette.vue)
 
-- Tabs: Chord | Rhythm | Progression | Song | Media.
+- Tabs: Chord | Rhythm | Progression | Exercise | Song | Media.
 - Search hits `/api/sbn/{type}` (see §4 search row). Debounced 250ms.
-- Click row → for chord/progression/song, expands an inline config row (root selector / key selector / label input) before insert. For rhythm/media, inserts immediately.
+- **Chord rows** show the exact chord slug (mono font) under the name, so admins can copy it. The root used to seed the inserted chip is detected from the search query, falling back to the chord's `root` field.
+- **Insert behavior by type:** Chord, Exercise, Media insert immediately on click. Song opens an inline config row for a display label. Rhythm/Progression insert immediately *unless* the item has video snippets — then a config row opens with a "Video example" picker. The standalone key-selector was removed (it had no effect on the rendered component).
 - Insert calls `window.__sbnInsert(type, slug, extras)`.
-- Drag-drop emits the type+slug as JSON; **drag insertion does not carry extras** (chord drops as `root=""`, progression as `key="C"`). Documented limitation.
+- Drag-drop emits the type+slug as JSON; **drag insertion does not carry extras** (chord drops as `root=""`). Documented limitation.
 - Media tab is per-lesson scoped; uploads via `/admin/lessons/{id}/upload-image`.
 
 ### 6.4 slashCommands.ts
@@ -143,6 +147,17 @@ Defined in [`routes/web.php`](../routes/web.php) under `Route::middleware('auth'
 [`resources/js/admin/slashCommands.ts`](../resources/js/admin/slashCommands.ts)
 
 Typing `/` opens an inline popup with the SBN types, image, and youtube. Picking a type calls `window.__sbnPalette(type)` — which switches the palette and focuses search. Insertion happens through the normal palette path, not the slash menu. One code path. YouTube is the exception: it prompts for a URL and inserts directly.
+
+### 6.5 LessonAiPanel.vue — slide-out AI chat
+
+[`resources/js/admin/LessonAiPanel.vue`](../resources/js/admin/LessonAiPanel.vue) — separate Vue island, mounted on `#lesson-ai-panel` by [`lesson-editor.ts`](../resources/js/admin/lesson-editor.ts).
+
+- **Why a panel, not toolbar buttons** — the old `✨ Proof` / `✍️ Gen` toolbar buttons could overwrite the *whole document* in one click (proofread with no selection called `setContent()`). They were removed. AI now goes through a conversational drawer where output only reaches the document on an explicit click.
+- **Slide-out drawer** — fixed to the right edge, opened by a vertical "✨ AI" tab. No backdrop: while open it adds `body.sbn-ai-drawer-open`, which shrinks `.sbn-main` by 380px so the editor stays fully interactive alongside it (overlays instead on screens <900px).
+- **Chat** — multi-turn. Each send posts `{ action: 'chat', content, context, history, selection }` to `/admin/ai/process`. `context` and `selection` come from the `window.__sbnEditor` bridge (§6.2).
+- **Applying output** — an AI reply may carry insertable `html`. Two buttons: **Insert at cursor** (always) and **Replace selection** (enabled only when text is selected — driven live by the shared `hasSelection` ref). Nothing changes the lesson without one of these clicks.
+- **Quick actions** — when text is selected, a bar offers canned instructions (Proofread / Improve / Shorten) that send a preset prompt instead of free text.
+- **Backend** — the `chat` action in [`Admin\AIController`](../app/Http/Controllers/Admin/AIController.php) flattens conversation history + lesson context + current selection into one prompt (the `LookupClient::complete()` signature takes a single user prompt, no message-turn array) and returns `{ reply, html }`.
 
 ---
 

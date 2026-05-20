@@ -4,7 +4,16 @@ import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 type NodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'media';
 
 interface SnippetRef { id: string; label: string }
-interface PaletteItem { slug: string; label: string; meta?: string; url?: string; snippets?: SnippetRef[] }
+interface PaletteItem {
+    slug: string;
+    label: string;
+    meta?: string;
+    metaMono?: boolean;
+    /** Chord root, used to seed the inserted tag (kept separate from `meta`). */
+    root?: string;
+    url?: string;
+    snippets?: SnippetRef[];
+}
 
 const TABS: { type: NodeType; label: string }[] = [
     { type: 'chord',       label: 'Chord' },
@@ -36,7 +45,6 @@ const errorMsg   = ref('');
 
 const selectedSlug = ref<string | null>(null);
 const configRoot   = ref('C');
-const configKey    = ref('C');
 const configLabel  = ref('');
 // Video-example picker — holds the chosen snippet id ('' = none).
 const configSnippet      = ref('');
@@ -96,9 +104,12 @@ async function doSearch() {
 
             if (activeTab.value === 'chord') {
                 results.value = (data.results ?? []).map((r: any) => ({
-                    slug:  r.slug,
-                    label: r.name ?? r.slug,
-                    meta:  [r.root_note, r.quality_label].filter(Boolean).join(' '),
+                    slug:     r.slug,
+                    label:    r.name ?? r.slug,
+                    // Show the exact slug under the name so admins can copy it.
+                    meta:     r.slug,
+                    metaMono: true,
+                    root:     r.root_note,
                 }));
             } else {
                 results.value = data.results ?? [];
@@ -123,7 +134,8 @@ watch(activeTab, () => { query.value = ''; results.value = []; selectedSlug.valu
 // ── Insert ────────────────────────────────────────────────────────────────────
 
 function insert(item: PaletteItem) {
-    if (activeTab.value === 'media') {
+    // Media and Exercise have no config — insert straight away.
+    if (activeTab.value === 'media' || activeTab.value === 'sheet') {
         doInsert(item.slug);
         return;
     }
@@ -132,8 +144,16 @@ function insert(item: PaletteItem) {
         // Detect root from query (e.g. "F#7" -> "F#")
         const q = query.value.trim().toUpperCase();
         const rootMatch = q.match(/^([A-G][#B]?)/);
-        const root = (rootMatch && ROOTS.includes(rootMatch[1])) ? rootMatch[1] : (item.meta?.split(' ')[0] || 'C');
+        const root = (rootMatch && ROOTS.includes(rootMatch[1])) ? rootMatch[1] : (item.root || 'C');
         doInsert(item.slug, { root: ROOTS.includes(root) ? root : 'C' });
+        return;
+    }
+
+    // Rhythm/progression only need the config panel to pick a video example.
+    // With no snippets there's nothing to configure — insert straight away.
+    if ((activeTab.value === 'rhythm' || activeTab.value === 'progression')
+        && !(item.snippets?.length)) {
+        doInsert(item.slug);
         return;
     }
 
@@ -144,7 +164,6 @@ function insert(item: PaletteItem) {
     } else {
         selectedSlug.value = item.slug;
         // Defaults
-        if (activeTab.value === 'progression') configKey.value = 'C';
         if (activeTab.value === 'song') configLabel.value = item.label;
         // Rhythm and progression both host the video-example picker.
         if (activeTab.value === 'rhythm' || activeTab.value === 'progression') {
@@ -158,9 +177,7 @@ function doConfirmInsert() {
     if (!selectedSlug.value) return;
     const extras: Record<string, string> = {};
     if (activeTab.value === 'chord')       extras.root = configRoot.value;
-    if (activeTab.value === 'progression') extras.key  = configKey.value;
     if (activeTab.value === 'song')        extras.label = configLabel.value;
-    if (activeTab.value === 'sheet')       extras.key = configKey.value;
     // Emitted as the `video-snippet` tag attribute; '' = no example.
     if ((activeTab.value === 'rhythm' || activeTab.value === 'progression') && configSnippet.value) {
         extras.videoSnippet = configSnippet.value;
@@ -263,17 +280,15 @@ function onDragStart(e: DragEvent, item: PaletteItem) {
           @dragstart="(e) => onDragStart(e, item)"
         >
           <span class="sbn-palette-item-label">{{ item.label }}</span>
-          <span v-if="item.meta" class="sbn-palette-item-meta">{{ item.meta }}</span>
+          <span
+            v-if="item.meta"
+            class="sbn-palette-item-meta"
+            :class="{ 'sbn-palette-item-meta--mono': item.metaMono }"
+          >{{ item.meta }}</span>
         </button>
 
         <!-- Inline Config Panel -->
         <div v-if="selectedSlug === item.slug" class="sbn-palette-config" @keydown.enter="doConfirmInsert">
-          <div v-if="activeTab === 'progression' || activeTab === 'sheet'" class="sbn-palette-config-row">
-            <label>Key:</label>
-            <select v-model="configKey" class="sbn-search-input" style="height:28px; width:60px; font-size:12px;">
-              <option v-for="r in ROOTS" :key="r" :value="r">{{ r }}</option>
-            </select>
-          </div>
           <div v-if="activeTab === 'song'" class="sbn-palette-config-row">
             <label>Label:</label>
             <input v-model="configLabel" type="text" class="sbn-search-input" style="height:28px; flex:1; font-size:12px;" />
@@ -324,5 +339,11 @@ function onDragStart(e: DragEvent, item: PaletteItem) {
 .sbn-palette-item.is-selected {
     background: var(--clr-bg-hover);
     border-left: 3px solid var(--clr-accent);
+}
+.sbn-palette-item-meta--mono {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--clr-text-dim);
+    letter-spacing: -0.01em;
 }
 </style>

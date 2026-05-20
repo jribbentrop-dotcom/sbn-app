@@ -69,7 +69,7 @@
         </div>
 
         {{-- Right: meta sidebar --}}
-        <div style="display:flex; flex-direction:column; gap:16px;">
+        <div class="sbn-editor-sidebar">
 
             <div class="sbn-editor-card">
                 <div class="sbn-editor-card-header"><h2>Publish</h2></div>
@@ -151,8 +151,11 @@
 </form>
 @endif
 
+{{-- AI chat assistant — slide-out drawer (Vue island, mounts itself fixed-position) --}}
+<div id="lesson-ai-panel"></div>{{-- @see resources/js/admin/LessonAiPanel.vue --}}
+
 @push('styles')
-<link rel="stylesheet" href="{{ asset('css/lesson-editor.css') }}">
+<link rel="stylesheet" href="{{ asset('css/lesson-editor.css') }}?v={{ filemtime(public_path('css/lesson-editor.css')) }}">
 @endpush
 
 @push('scripts')

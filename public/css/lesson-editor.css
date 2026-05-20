@@ -1,4 +1,6 @@
 /* ── Phase 11b: TipTap lesson editor ──────────────────────────────────────── */
+/* Note: .sbn-editor-sidebar (sticky meta column) is styled in admin2.css,
+   shared by the lesson and course editors. */
 
 /* Toolbar */
 .sbn-tiptap-toolbar {
@@ -280,30 +282,19 @@
     letter-spacing: 0.02em;
 }
 
-/* AI Buttons */
-.sbn-tiptap-btn.ai-btn {
-    background: linear-gradient(135deg, #f0f7ff 0%, #e1effe 100%);
-    border: 1px solid #bfdbfe;
-    color: #1e40af;
-    padding: 0 10px;
-    margin-left: 4px;
-}
-.sbn-tiptap-btn.ai-btn:hover {
-    background: linear-gradient(135deg, #e1effe 0%, #d1e9ff 100%);
-    border-color: #3b82f6;
-    color: #1d4ed8;
-}
-.sbn-tiptap-btn.ai-btn:disabled {
-    opacity: 0.7;
-    cursor: wait;
-}
+/* Note: AI assistance moved from toolbar buttons to the slide-out
+   chat drawer — see resources/js/admin/LessonAiPanel.vue. */
 
-.ai-spinner {
-    display: inline-block;
-    animation: ai-pulse 1s infinite ease-in-out;
+/* When the AI drawer is open it sits beside the editor (no backdrop).
+   Shrink the page content so nothing hides behind the 380px drawer and
+   the editor stays fully interactive. LessonAiPanel toggles this class. */
+body.sbn-ai-drawer-open .sbn-main {
+    margin-right: 380px;
+    transition: margin-right 0.22s ease;
 }
+.sbn-main { transition: margin-right 0.22s ease; }
 
-@keyframes ai-pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(0.9); }
+@media (max-width: 900px) {
+    /* On narrow screens the drawer overlays instead of pushing. */
+    body.sbn-ai-drawer-open .sbn-main { margin-right: 0; }
 }

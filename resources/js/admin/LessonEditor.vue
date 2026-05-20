@@ -6,6 +6,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { SlashCommands } from './slashCommands';
 import Image from '@tiptap/extension-image';
+import { hasSelection } from './editorSelection';
 
 // ── SBN chip node factory ────────────────────────────────────────────────────
 
@@ -231,33 +232,6 @@ async function callAI(action: string, content: string, context: string = '') {
     }
 }
 
-async function aiProofread() {
-    if (!editor) return;
-    const { from, to } = editor.state.selection;
-    const text = editor.state.doc.textBetween(from, to, ' ');
-    const contentToProcess = text || editor.getHTML();
-    
-    const res = await callAI('proofread', contentToProcess, editor.getText().substring(0, 500));
-    if (res?.improved_text) {
-        if (text) {
-            editor.chain().focus().insertContentAt({ from, to }, res.improved_text).run();
-        } else {
-            editor.chain().focus().setContent(res.improved_text).run();
-        }
-    }
-}
-
-async function aiGenerate() {
-    if (!editor) return;
-    const prompt = window.prompt('What should I write? (e.g. "A brief intro to Bossa Nova")');
-    if (!prompt) return;
-
-    const res = await callAI('generate', prompt, editor.getText().substring(0, 500));
-    if (res?.generated_html) {
-        editor.chain().focus().insertContent(res.generated_html).run();
-    }
-}
-
 async function aiAutocomplete() {
     if (!editor) return;
     const { from } = editor.state.selection;
@@ -271,6 +245,9 @@ async function aiAutocomplete() {
 
 function updateFmt() {
     if (!editor) return;
+    // Publish selection state for LessonAiPanel's "Replace selection" button.
+    const { from, to } = editor.state.selection;
+    hasSelection.value = from !== to;
     fmt.value = {
         bold:       editor.isActive('bold'),
         italic:     editor.isActive('italic'),
@@ -470,10 +447,31 @@ onMounted(() => {
         }).run();
     };
 
-    // Bridge for SlashCommands
-    (window as any).__sbnAI = (action: string) => {
-        if (action === 'proofread') aiProofread();
-        if (action === 'generate') aiGenerate();
+    // Bridge for the AI panel (LessonAiPanel.vue). The panel only ever reads
+    // state or applies content through these methods — it can't reach the doc
+    // any other way, so AI output never lands without an explicit click.
+    (window as any).__sbnEditor = {
+        /** Plain text the admin currently has selected ('' if nothing). */
+        getSelection(): string {
+            if (!editor) return '';
+            const { from, to } = editor.state.selection;
+            return from === to ? '' : editor.state.doc.textBetween(from, to, ' ');
+        },
+        /** Short plain-text excerpt of the whole lesson, for AI context. */
+        getContext(): string {
+            return editor ? editor.getText().substring(0, 800) : '';
+        },
+        /** Drop HTML at the current cursor position. */
+        insertAtCursor(html: string) {
+            editor?.chain().focus().insertContent(html).run();
+        },
+        /** Overwrite the current selection with HTML. No-op if nothing selected. */
+        replaceSelection(html: string) {
+            if (!editor) return;
+            const { from, to } = editor.state.selection;
+            if (from === to) return;
+            editor.chain().focus().insertContentAt({ from, to }, html).run();
+        },
     };
 
     // Keyboard shortcuts — open palette to the right tab
@@ -490,7 +488,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
     document.removeEventListener('keydown', handleShortcut);
     delete (window as any).__sbnInsert;
-    delete (window as any).__sbnAI;
+    delete (window as any).__sbnEditor;
     editor?.destroy();
     editor = null;
 });
@@ -514,15 +512,6 @@ onBeforeUnmount(() => {
       <div class="sbn-tiptap-divider" />
       <button type="button" class="sbn-tiptap-btn"                                           title="Undo (Ctrl+Z)"       @click="tb('undo')">↩</button>
       <button type="button" class="sbn-tiptap-btn"                                           title="Redo (Ctrl+Y)"       @click="tb('redo')">↪</button>
-      <div class="sbn-tiptap-divider" />
-      <button type="button" class="sbn-tiptap-btn ai-btn" :disabled="isProcessingAI" title="Proofread selection (or all)" @click="aiProofread">
-        <span v-if="!isProcessingAI">✨ Proof</span>
-        <span v-else class="ai-spinner">...</span>
-      </button>
-      <button type="button" class="sbn-tiptap-btn ai-btn" :disabled="isProcessingAI" title="Generate content" @click="aiGenerate">
-        <span v-if="!isProcessingAI">✍️ Gen</span>
-        <span v-else class="ai-spinner">...</span>
-      </button>
     </div>
     <!-- Editor body -->
     <div class="sbn-tiptap-wrap">

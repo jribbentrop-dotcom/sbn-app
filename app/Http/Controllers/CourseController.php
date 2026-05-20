@@ -43,7 +43,8 @@ class CourseController extends Controller
         // or simply pull all songs — genre filtering on Leadsheet uses the rhythm slug
         // mapping. For now pull songs that have matching genre or all songs ordered by title.
         $genre = $course->primary_genre; // e.g. "bossa-nova"
-        $relatedSongs = Leadsheet::whereNotNull('title')
+        $relatedSongs = Leadsheet::published()
+            ->whereNotNull('title')
             ->where(function ($q) use ($genre) {
                 // Try course_id first, then genre-style match via rhythm slug prefix
                 $q->where('course_id', null); // open to all styles for now

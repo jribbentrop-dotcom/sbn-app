@@ -73,18 +73,21 @@ class SongLibraryController extends Controller
             'rhythm'        => $song->rhythm,
             'styleSlug'     => $this->rhythmToStyleSlug($song->rhythm),
             'description'   => $song->description ? Str::limit(strip_tags($song->description), 120) : null,
-            'popularity'    => $song->popularity,
-            'measureCount'  => $song->measure_count,
+            'popularity'      => $song->popularity,
+            'measureCount'    => $song->measure_count,
+            'coverImagePath'  => $song->cover_image_path ? '/images/songs/' . $song->cover_image_path : null,
         ];
     }
 
     public function index()
     {
-        $songs = Leadsheet::orderBy('title')->get();
+        // Public library shows published leadsheets only — drafts are admin-only.
+        $songs = Leadsheet::published()->orderBy('title')->get();
 
         $serialized = $songs->map(fn ($s) => $this->serializeSong($s));
 
-        $composers = Leadsheet::whereNotNull('composer')
+        $composers = Leadsheet::published()
+            ->whereNotNull('composer')
             ->where('composer', '!=', '')
             ->selectRaw('composer, COUNT(*) as cnt')
             ->groupBy('composer')
@@ -93,14 +96,16 @@ class SongLibraryController extends Controller
             ->pluck('composer')
             ->toArray();
 
-        $keys = Leadsheet::whereNotNull('song_key')
+        $keys = Leadsheet::published()
+            ->whereNotNull('song_key')
             ->where('song_key', '!=', '')
             ->distinct()
             ->orderBy('song_key')
             ->pluck('song_key')
             ->toArray();
 
-        $rhythms = Leadsheet::whereNotNull('rhythm')
+        $rhythms = Leadsheet::published()
+            ->whereNotNull('rhythm')
             ->where('rhythm', '!=', '')
             ->distinct()
             ->orderBy('rhythm')
@@ -116,8 +121,18 @@ class SongLibraryController extends Controller
         ]);
     }
 
+    /**
+     * Draft leadsheets are admin-only — 404 on any public-facing route.
+     */
+    private function abortIfDraft(Leadsheet $leadsheet): void
+    {
+        abort_if($leadsheet->status !== 'publish', 404);
+    }
+
     public function show(Leadsheet $leadsheet, ChordVoicingSearch $search)
     {
+        $this->abortIfDraft($leadsheet);
+
         // Fetch actual voicings from the leadsheet
         $leadsheetVoicings = $leadsheet->parsed_data['chordVoicings'] ?? [];
         $uniqueChords = [];
@@ -234,8 +249,9 @@ class SongLibraryController extends Controller
                 'rhythmCategory'=> $rhythmPattern?->category ?? 'general',
                 'rhythmData'    => $rhythmPattern ? $rhythmPattern->toPlayerData() : null,
                 'styleSlug'     => $this->rhythmToStyleSlug($leadsheet->rhythm),
-                'measureCount'  => $leadsheet->measure_count,
-                'popularity'    => $leadsheet->popularity,
+                'measureCount'    => $leadsheet->measure_count,
+                'popularity'      => $leadsheet->popularity,
+                'coverImagePath'  => $leadsheet->cover_image_path ? '/images/songs/' . $leadsheet->cover_image_path : null,
             ],
             'chordNames'   => $chordNames,
             'chords'       => $topChords,
@@ -267,6 +283,7 @@ class SongLibraryController extends Controller
 
     public function viewer(Leadsheet $leadsheet, ChordVoicingSearch $search, EduContentService $edu)
     {
+        $this->abortIfDraft($leadsheet);
         $enriched = $this->viewerService->enrich($leadsheet, $search);
 
         return Inertia::render('Library/Songs/Viewer', [
@@ -316,6 +333,7 @@ class SongLibraryController extends Controller
 
     public function apiViewerData(Leadsheet $leadsheet, ChordVoicingSearch $search, EduContentService $edu): \Illuminate\Http\JsonResponse
     {
+        $this->abortIfDraft($leadsheet);
         $enriched = $this->viewerService->enrich($leadsheet, $search);
 
         return response()->json([
@@ -341,6 +359,7 @@ class SongLibraryController extends Controller
 
     public function cinema(Leadsheet $leadsheet, ChordVoicingSearch $search)
     {
+        $this->abortIfDraft($leadsheet);
         $enriched = $this->viewerService->enrich($leadsheet, $search);
 
         return Inertia::render('Leadsheet/Cinema', [

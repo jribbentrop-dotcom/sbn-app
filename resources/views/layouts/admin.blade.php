@@ -12,7 +12,7 @@
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="{{ asset('css/sbn-design-system.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/admin2.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/admin2.css') }}?v={{ filemtime(public_path('css/admin2.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/chord-symbols.css') }}">
     <style>
         /* Nav badge (sidebar — needs to be global, not module CSS) */

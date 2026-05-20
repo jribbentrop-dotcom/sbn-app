@@ -27,8 +27,6 @@ const ITEMS: SlashItem[] = [
     { label: 'Song',        type: 'song',         shortcut: '⇧L' },
     { label: 'Image',       type: 'image',        shortcut: '⇧M' },
     { label: 'YouTube',     type: 'youtube',      shortcut: '' },
-    { label: 'AI Proofread', type: 'image',       shortcut: '' }, // Reusing 'image' type for icon color or similar, or just add new
-    { label: 'AI Generate',  type: 'song',        shortcut: '' },
 ];
 
 // ── Popup DOM ─────────────────────────────────────────────────────────────────
@@ -177,16 +175,6 @@ export const SlashCommands = Extension.create({
                         } else {
                             alert('Invalid YouTube URL');
                         }
-                        return;
-                    }
-
-                    // AI Commands
-                    if (props.label === 'AI Proofread') {
-                        (window as any).__sbnAI('proofread');
-                        return;
-                    }
-                    if (props.label === 'AI Generate') {
-                        (window as any).__sbnAI('generate');
                         return;
                     }
 

@@ -57,7 +57,7 @@ class ProgressionLibraryController extends Controller
             ->firstOrFail();
 
         // Get songs featuring this progression
-        $songs = Leadsheet::query()
+        $songs = Leadsheet::published()
             ->join('sbn_progression_occurrences as o', 'sbn_leadsheets.id', '=', 'o.leadsheet_id')
             ->where('o.progression_id', $progression->id)
             ->select('sbn_leadsheets.id', 'sbn_leadsheets.slug', 'sbn_leadsheets.title', 'sbn_leadsheets.composer', 'sbn_leadsheets.song_key')

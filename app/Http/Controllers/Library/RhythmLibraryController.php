@@ -63,7 +63,8 @@ class RhythmLibraryController extends Controller
             ->map(fn ($p) => $this->serializePattern($p));
 
         // Songs that use this rhythm pattern
-        $songs = Leadsheet::where('rhythm', $pattern->slug)
+        $songs = Leadsheet::published()
+            ->where('rhythm', $pattern->slug)
             ->orderByDesc('popularity')
             ->limit(8)
             ->get()

@@ -125,6 +125,8 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
     Route::delete('/leadsheets/{leadsheet}', [LeadsheetController::class, 'destroy'])->name('leadsheets.destroy');
     Route::post('/leadsheets/{leadsheet}/remove-voicing', [LeadsheetController::class, 'removeVoicing'])->name('leadsheets.removeVoicing');
     Route::post('/leadsheets/{leadsheet}/description', [LeadsheetController::class, 'updateDescription'])->name('leadsheets.updateDescription');
+    Route::post('/leadsheets/{leadsheet}/cover-image', [LeadsheetController::class, 'updateCoverImage'])->name('leadsheets.updateCoverImage');
+    Route::post('/leadsheets/{leadsheet}/status', [LeadsheetController::class, 'updateStatus'])->name('leadsheets.updateStatus');
     Route::post('/leadsheets/{leadsheet}/reshift-downbeat', [LeadsheetController::class, 'reshiftDownbeat'])->name('leadsheets.reshiftDownbeat');
     Route::get('/leadsheets/{leadsheet}/data', [LeadsheetController::class, 'apiShow'])->name('leadsheets.show');
     Route::post('/leadsheets/identify-voicings', [LeadsheetController::class, 'identifyVoicings'])->name('leadsheets.identifyVoicings');

@@ -40,7 +40,7 @@
                             <td style="cursor:grab; color:var(--clr-text-muted); text-align:center;">⠿</td>
                             <td style="color:var(--clr-text-muted); font-size:12px;">{{ $loop->iteration }}</td>
                             <td>
-                                <a href="{{ route('admin.lessons.edit', $lesson) }}" style="font-weight:600;">{{ $lesson->title }}</a>
+                                <a href="{{ route('admin.lessons.edit', $lesson) }}" style="font-weight:600; color:var(--clr-text);">{{ $lesson->title }}</a>
                                 <div style="font-size:11px; color:var(--clr-text-muted);">{{ $lesson->slug }}</div>
                             </td>
                             <td x-data="{ editing: false, val: @js($lesson->section_title) }" style="font-size:12px; position:relative;">
@@ -58,7 +58,7 @@
                                        style="width:100%; padding:2px 6px; font-size:12px; border:1.5px solid var(--clr-accent); border-radius:4px; outline:none; background:#fff;">
                             </td>
                             <td>
-                                <span class="sbn-badge {{ $lesson->status === 'publish' ? 'sbn-badge-accent' : 'sbn-badge-muted' }}">
+                                <span class="sbn-badge {{ $lesson->status === 'publish' ? 'sbn-badge-success' : 'sbn-badge-muted' }}">
                                     {{ $lesson->status }}
                                 </span>
                             </td>
@@ -86,7 +86,7 @@
     </div>
 
     {{-- Right: Meta info --}}
-    <div>
+    <div class="sbn-editor-sidebar">
         <form method="POST" action="{{ route('admin.courses.update', $course) }}"
               x-data="courseForm()"
               x-init="init()">
