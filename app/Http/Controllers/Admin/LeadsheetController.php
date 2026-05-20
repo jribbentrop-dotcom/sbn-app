@@ -549,28 +549,22 @@ class LeadsheetController extends Controller
                 'title'       => $request->input('youtube_title') ?: 'Audio Transcription',
                 'key'         => $validated['preferred_key'] ?: 'C',
                 'youtube_id'  => $validated['youtube_id'],
-                'ai_cleanup'  => $aiCleanup,
                 // Bass-snap beat correction — on by default; the user can
                 // re-shift from the editor if it misfires on a given tune.
                 'bass_snap'   => !array_key_exists('bass_snap', $validated) || !empty($validated['bass_snap']),
             ], 0, $crossref);
 
-            // ── Optional: AI Refinement (Musicology Pass) ────────────────────
-            // Phase 2b: Gemini receives raw pitch arrays per chord slot and
-            // returns proper chord names. Post-AI pass resolves any remaining
-            // '?' labels via identifyFromMidi() as a fallback.
+            // ── Optional: AI Refinement (Structuralisation Pass) ─────────────
+            // T4: chords are already identified deterministically by
+            // assembleTranscription(). The AI only groups bars into named
+            // sections and does light enharmonic spelling cleanup.
             if ($aiCleanup) {
                 try {
-                    $analysis = $this->musicalizeTranscription($analysis, $lookup);
-                    // Post-AI fallback: identify any slots Gemini left unresolved
-                    $analysis = $this->resolveUnidentifiedChords($analysis, $crossref);
+                    $analysis = $this->musicalizeTranscription($analysis);
                 } catch (\Exception $e) {
                     \Log::error('[LeadsheetController] AI Cleanup failed: ' . $e->getMessage());
-                    // Fallback: resolve '?' labels from the pitch arrays we already built
-                    $analysis = $this->resolveUnidentifiedChords($analysis, $crossref);
+                    // Non-fatal: the deterministic analysis is already complete.
                 }
-                // Strip the raw_beats payload before assembly (not needed downstream)
-                unset($analysis['raw_beats']);
             }
         } else {
             try {
@@ -612,6 +606,13 @@ class LeadsheetController extends Controller
                 $isStandard = in_array($sourceType, ['jazz_standard', 'standard']);
                 $category   = $isStandard ? 'jazz' : (($style === 'popular' || empty($style)) ? 'jazz' : $style);
 
+                // Per-measure melody position hints: where the melody's
+                // fretting hand sits in each bar. The builder uses these to
+                // pick chord voicings in the same neck region as the melody
+                // (a chord-melody piece is played by one hand), instead of
+                // anchoring the whole progression on the first chord's seed.
+                $positionHints = $this->melodyPositionHints($analysis['melody_data'] ?? []);
+
                 // Build context and run algorithm. Extensions only on opt-in.
                 $extensionMode = $validated['extension_mode'] ?? 'basic';
                 $hc = $context->buildFromChordSequence($analysis['key'], $allChords);
@@ -621,6 +622,7 @@ class LeadsheetController extends Controller
                     'strict_basic'   => $extensionMode === 'basic',
                     'voicing_style'  => ($style === 'popular') ? 'auto' : $style,
                     'bars_per_chord' => $isStandard ? 1 : ($validated['bars_per_chord'] ?? 1),
+                    'position_hints' => $positionHints,
                 ]);
 
                 // Map algorithm output to the internal selections format.
@@ -887,7 +889,6 @@ class LeadsheetController extends Controller
             'title'      => $leadsheet->title,
             'key'        => $leadsheet->song_key ?: 'C',
             'youtube_id' => $raw['videoId'] ?? ($parsed['videoSync']['videoId'] ?? ''),
-            'ai_cleanup' => false,
             'bass_snap'  => $bassSnap,
         ], (int)$validated['offset'], $crossref);
 
@@ -1851,7 +1852,6 @@ class LeadsheetController extends Controller
     protected function assembleTranscription(array $rawResult, array $opts, int $downbeatOffset, \App\Services\VoicingCrossref $crossref): array
     {
         $beatsPerBar = 4;
-        $aiCleanup   = !empty($opts['ai_cleanup']);
 
         // The cached transcriptionRaw must always hold the *original* Python
         // grid + buckets so a re-snap is reproducible. Capture them before the
@@ -1952,47 +1952,40 @@ class LeadsheetController extends Controller
 
             $beatNum = ($g % $beatsPerBar) + 1;
 
-            if ($aiCleanup) {
-                if (!empty($rawPitches)) {
-                    $pcSet = array_values(array_unique(array_map(fn($p) => $p % 12, $rawPitches)));
-                    $tempBar['chords'][] = [
-                        'label'   => '?',
-                        'beat'    => $beatNum,
-                        'pitches' => $pcSet,
-                    ];
+            // Deterministic chord ID via harmonic region grouping (Phase 2c).
+            // Runs for *both* paths — T4 moved chord identification entirely
+            // into the deterministic engine; the AI no longer identifies
+            // chords from pitch integers.
+            if (empty($rawPitches)) {
+                if (!empty($regionPitches)) {
+                    $idResult = $crossref->identifyFromMidi($regionPitches);
+                    if ($idResult['name']) {
+                        $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
+                    }
+                    $regionPitches = [];
                 }
             } else {
-                if (empty($rawPitches)) {
-                    if (!empty($regionPitches)) {
+                if (empty($regionPitches)) {
+                    $regionPitches   = $rawPitches;
+                    $regionStartBeat = $beatNum;
+                } else {
+                    $sim = $this->jaccardSimilarity($regionPitches, $rawPitches);
+                    if ($sim >= 0.5) {
+                        $regionPitches = array_values(array_unique(array_merge($regionPitches, $rawPitches)));
+                    } else {
                         $idResult = $crossref->identifyFromMidi($regionPitches);
                         if ($idResult['name']) {
                             $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
                         }
-                        $regionPitches = [];
-                    }
-                } else {
-                    if (empty($regionPitches)) {
                         $regionPitches   = $rawPitches;
                         $regionStartBeat = $beatNum;
-                    } else {
-                        $sim = $this->jaccardSimilarity($regionPitches, $rawPitches);
-                        if ($sim >= 0.5) {
-                            $regionPitches = array_values(array_unique(array_merge($regionPitches, $rawPitches)));
-                        } else {
-                            $idResult = $crossref->identifyFromMidi($regionPitches);
-                            if ($idResult['name']) {
-                                $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
-                            }
-                            $regionPitches   = $rawPitches;
-                            $regionStartBeat = $beatNum;
-                        }
                     }
                 }
             }
 
             // ── End of bar ──────────────────────────────────────────────────
             if (($g + 1) % $beatsPerBar === 0) {
-                if (!$aiCleanup && !empty($regionPitches)) {
+                if (!empty($regionPitches)) {
                     $idResult = $crossref->identifyFromMidi($regionPitches);
                     if ($idResult['name']) {
                         $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
@@ -2009,7 +2002,7 @@ class LeadsheetController extends Controller
         }
 
         // Flush any trailing partial bar
-        if (!$aiCleanup && !empty($regionPitches)) {
+        if (!empty($regionPitches)) {
             $idResult = $crossref->identifyFromMidi($regionPitches);
             if ($idResult['name']) {
                 $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
@@ -2024,11 +2017,6 @@ class LeadsheetController extends Controller
         }
         $analysis['sections'][] = $currentSection;
         $analysis['videoSync']['mappings'] = $mappings;
-
-        // AI path: attach raw beats so Gemini can read pitch context
-        if ($aiCleanup) {
-            $analysis['raw_beats'] = $rawResult['beats'];
-        }
 
         // ── Reconstruct melody from raw MIDI notes (P0 & P1 fixes) ──────────
         $melody = [];
@@ -2104,6 +2092,9 @@ class LeadsheetController extends Controller
                         'tieStart'     => false,
                         'tieStop'      => false,
                         'isChordNote'  => false,
+                        // Absolute MIDI pitch — consumed (and removed) by the
+                        // T1 fretboard-optimisation pass below.
+                        '_midi'        => (int)$note['pitch'],
                     ];
                 }
             }
@@ -2220,113 +2211,295 @@ class LeadsheetController extends Controller
 
             $melody = $melodyWithRests;
         }
+
+        // ── T1: fretboard position optimisation ─────────────────────────────
+        // midiToTab() picked each note's string/fret in isolation, which yields
+        // physically absurd tab (fret 2 → 14 → 5). Re-assign positions with a
+        // Viterbi pass that minimises hand travel across the whole line.
+        $melody = $this->optimizeTabPositions($melody);
+
         $analysis['melody_data'] = $melody;
 
         return $analysis;
     }
 
     /**
-     * Refine a raw audio transcription using Gemini.
+     * Per-measure melody position hints for chord-voicing selection.
      *
-     * Phase 2b: The input analysis now contains raw MIDI pitch arrays per chord
-     * slot (from basic-pitch) instead of pre-identified chord names. Gemini
-     * reads the 'pitches' field on each chord object, applies its harmonic
-     * knowledge plus the raw_beats context, and returns proper chord labels.
-     * It also quantizes melody, identifies song sections, and determines the key.
+     * Returns a `measureIndex => meanFret` map describing where the melody's
+     * fretting hand sits in each bar. ProgressionBuilder uses it to choose
+     * chord voicings in the same neck region as the melody — on a chord-melody
+     * piece the chords and melody are one fretting hand, so an open Am next to
+     * a melody at the 5th–8th fret is unplayable as written.
      *
-     * Any chord slot Gemini cannot confidently identify is returned as '?' and
-     * resolved by the post-AI resolveUnidentifiedChords() fallback pass.
+     * Only fretted notes count (open strings and rests don't place the hand).
+     * A measure with no fretted melody note simply gets no hint; the builder's
+     * position-hint term is inert there. Expects post-T1 melody (440-tick grid,
+     * 1920 ticks/bar).
      */
-    protected function musicalizeTranscription(array $rawAnalysis, SongLookup $lookup): array
+    protected function melodyPositionHints(array $melody): array
+    {
+        $ticksPerBar = 1920;
+        $byMeasure   = []; // measureIndex => [frets…]
+
+        foreach ($melody as $note) {
+            if (!empty($note['isRest'])) continue;
+            $fret = $note['fret'] ?? null;
+            if ($fret === null || $fret <= 0) continue; // open string places no hand
+
+            $measure = (int) floor(($note['tick'] ?? 0) / $ticksPerBar);
+            $byMeasure[$measure][] = (int) $fret;
+        }
+
+        $hints = [];
+        foreach ($byMeasure as $measure => $frets) {
+            $hints[$measure] = array_sum($frets) / count($frets);
+        }
+        return $hints;
+    }
+
+    /**
+     * T1 — Fretboard position optimisation.
+     *
+     * midiToTab() maps each MIDI pitch to a string/fret greedily and in
+     * isolation, so a melody can leap across the neck for notes a guitarist
+     * would play in one hand position. This pass re-derives string/fret for
+     * the whole melody as a shortest-path problem (Viterbi):
+     *
+     *  - States  : every playable (string, fret) candidate for a note's pitch
+     *              on standard tuning, fret 0–17.
+     *  - Emission: a small penalty for high frets so low positions win ties;
+     *              open strings (fret 0) are free anchors.
+     *  - Transition: fret-distance (hand travel) + a string-change nudge +
+     *              a hand-span penalty when the fret leaves a ~5-fret window
+     *              around a running anchor (the current hand position).
+     *
+     * Rests carry the hand anchor across without adding travel cost. Notes
+     * sharing a tick are treated independently (real polyphony is T2's job).
+     * The temporary '_midi' key is stripped before returning.
+     */
+    protected function optimizeTabPositions(array $melody): array
+    {
+        $stringPitches = [64, 59, 55, 50, 45, 40]; // string 1(e) … 6(E)
+        $maxFret       = 17;
+
+        // Candidate (string,fret) positions for a given absolute MIDI pitch.
+        $candidates = function (int $midi) use ($stringPitches, $maxFret): array {
+            $out = [];
+            foreach ($stringPitches as $i => $base) {
+                $fret = $midi - $base;
+                if ($fret >= 0 && $fret <= $maxFret) {
+                    $out[] = ['string' => $i + 1, 'fret' => $fret];
+                }
+            }
+            return $out;
+        };
+
+        // Indices of the pitched (non-rest) notes, in order.
+        $noteIdx = [];
+        foreach ($melody as $i => $m) {
+            if (empty($m['isRest']) && isset($m['_midi'])) {
+                $noteIdx[] = $i;
+            }
+        }
+        if (count($noteIdx) < 2) {
+            foreach ($melody as &$m) { unset($m['_midi']); }
+            unset($m);
+            return $melody;
+        }
+
+        // Viterbi forward pass over the note sequence.
+        $prevCol  = null;   // [ ['string','fret','cost','anchor','back'] … ]
+        $cols     = [];     // one column of states per note
+        foreach ($noteIdx as $col => $mi) {
+            $cands = $candidates($melody[$mi]['_midi']);
+            if (empty($cands)) {
+                // Pitch out of range — keep midiToTab's fallback for this note,
+                // break the chain so neighbours aren't dragged by it.
+                $cols[$col] = [];
+                $prevCol    = null;
+                continue;
+            }
+
+            $states = [];
+            foreach ($cands as $c) {
+                $isOpen   = $c['fret'] === 0;
+                // Prefer lower frets; open strings get a small extra bonus.
+                $emission = $c['fret'] * 0.15 - ($isOpen ? 0.3 : 0.0);
+
+                if ($prevCol === null) {
+                    $states[] = [
+                        'string' => $c['string'],
+                        'fret'   => $c['fret'],
+                        'cost'   => $emission,
+                        'anchor' => $c['fret'],   // running hand position
+                        'back'   => -1,
+                    ];
+                    continue;
+                }
+
+                // Cheapest transition from any previous state.
+                $bestCost = PHP_INT_MAX;
+                $bestBack = 0;
+                $bestAnchor = $c['fret'];
+                foreach ($prevCol as $pi => $p) {
+                    // Hand travel is measured against the running anchor (the
+                    // fretting hand's position), not the previous note's fret —
+                    // so an intervening open string doesn't teleport the hand.
+                    $ref     = $p['anchor'];
+                    $travel  = abs($c['fret'] - $ref);
+                    $strJump = $c['string'] !== $p['string'] ? 0.5 : 0.0;
+                    // Hand-span: extra cost for reaching past a ~5-fret window.
+                    $span    = max(0, $travel - 4) * 1.2;
+                    // An open string needs no finger, but the hand must still
+                    // be reachable for the surrounding line — so it pays span
+                    // but not the per-fret travel cost.
+                    $moveCost = $isOpen ? 0.0 : $travel;
+                    $t = $p['cost'] + $emission + $moveCost + $strJump + $span;
+                    if ($t < $bestCost) {
+                        $bestCost   = $t;
+                        $bestBack   = $pi;
+                        // Open strings leave the anchor where it was.
+                        $bestAnchor = $isOpen ? $ref : $c['fret'];
+                    }
+                }
+                $states[] = [
+                    'string' => $c['string'],
+                    'fret'   => $c['fret'],
+                    'cost'   => $bestCost,
+                    'anchor' => $bestAnchor,
+                    'back'   => $bestBack,
+                ];
+            }
+            $cols[$col] = $states;
+            $prevCol    = $states;
+        }
+
+        // Backtrace each contiguous chain of decided columns.
+        $col = count($noteIdx) - 1;
+        while ($col >= 0) {
+            if (empty($cols[$col])) { $col--; continue; }
+
+            // Find the end of this chain and its cheapest final state.
+            $best = 0;
+            foreach ($cols[$col] as $si => $s) {
+                if ($s['cost'] < $cols[$col][$best]['cost']) $best = $si;
+            }
+            $si = $best;
+            while ($col >= 0 && !empty($cols[$col])) {
+                $state = $cols[$col][$si];
+                $mi    = $noteIdx[$col];
+                $melody[$mi]['string'] = $state['string'];
+                $melody[$mi]['fret']   = $state['fret'];
+                $si = $state['back'];
+                $col--;
+                if ($si < 0) break;
+            }
+        }
+
+        foreach ($melody as &$m) { unset($m['_midi']); }
+        unset($m);
+
+        return $melody;
+    }
+
+    /**
+     * Refine an assembled audio transcription using Gemini (T4 redivision).
+     *
+     * Chords are already identified deterministically by assembleTranscription()
+     * via VoicingCrossref — the AI is NOT asked to do pitch-set→chord arithmetic.
+     * Its job is narrowed to what an LLM is actually good at:
+     *  - read the *sequence of chord names* + bar structure and group bars into
+     *    musically logical, named sections (Intro / A / A / B / A / Outro);
+     *  - light enharmonic spelling cleanup (e.g. D#m7 → Ebm7 to match the key).
+     *
+     * The AI never sees pitch integers, melody, raw beats, or transcriptionRaw;
+     * it returns only section grouping + an optional relabel map. The
+     * deterministic bar list (chord labels, beats), melody, videoSync and
+     * transcriptionRaw are preserved verbatim — the AI cannot overwrite them.
+     */
+    protected function musicalizeTranscription(array $analysis): array
     {
         $client = app(LLM\LookupClient::class);
 
+        // Flatten the deterministic analysis into a bar list the AI can read.
+        $flatBars = [];
+        foreach ($analysis['sections'] as $section) {
+            foreach ($section['bars'] as $bar) {
+                $flatBars[] = $bar;
+            }
+        }
+        $barCount = count($flatBars);
+
+        // Render each bar as a compact chord string ("Dm7 | G7" / "/").
+        $barLines = [];
+        foreach ($flatBars as $i => $bar) {
+            $labels = array_map(
+                fn($c) => $c['label'] ?? '/',
+                $bar['chords'] ?? []
+            );
+            $barLines[] = ($i + 1) . ': ' . (empty($labels) ? '/' : implode(' ', $labels));
+        }
+
         $systemPrompt = <<<PROMPT
-You are a master music transcriber and theorist. I have a raw AI audio transcription of a song.
-Each chord slot in the 'sections' data contains a 'pitches' array: a set of MIDI pitch classes
-(integers 0–11, where 0=C, 1=C#/Db, 2=D … 11=B) detected at that moment in the audio.
-You also have a 'raw_beats' array with the same pitch data at beat-level granularity.
+You are a jazz musicologist. A solo jazz guitar performance has already been
+transcribed and its chords identified by a deterministic harmonic engine. Your
+job is structural analysis only — do NOT re-identify chords from scratch.
 
 ## YOUR TASKS:
-1. **CHORD IDENTIFICATION**: For each chord slot, read its 'pitches' array and use your music
-   theory knowledge to determine the correct chord name. Write it in the 'label' field.
-   - Use standard leadsheet notation: C, Dm, G7, Fmaj7, Am7/G, etc.
-   - If fewer than 3 distinct pitch classes are present, or you cannot determine a chord,
-     return '/' (repeat sign) or '?' — the system will handle it.
-   - Consider functional harmony and the surrounding chord context when disambiguating.
-2. **KEY DETECTION**: Determine the song's key from the overall harmonic content.
-3. **STRUCTURALIZATION**: Group bars into logical sections (Intro, Verse, Chorus, Bridge, Outro).
-   Rename the 'label' field on each section accordingly.
-4. **RHYTHMIC SIMPLIFICATION**: Quantize melody note tick values to standard 8th/16th note grids.
-   DO NOT use dotted notes. Use only regular whole, half, quarter, 8th, and 16th notes. 
-   Every note MUST fit within a single beat boundary (1, 2, 3, or 4). If a note sounds 
-   across a boundary, split it into two notes or truncate it. Ensure every beat 
-   is filled with a combination of notes and rests that sum to exactly one quarter note.
-5. **FORMAT**: Return data in the exact IntermediateAnalysis schema. Do NOT include the
-   'pitches' or 'raw_beats' fields in your output — only 'label' and 'beat' per chord.
+1. **STRUCTURALIZATION**: Read the sequence of chord-bar lines and group the
+   bars into musically logical, named sections (e.g. Intro, A, A, B, A, Outro,
+   or Verse / Chorus / Bridge). Return one entry per section with its 'name'
+   and 'barCount' (number of consecutive bars it spans). The barCounts MUST
+   sum to exactly the total bar count given.
+2. **SPELLING CLEANUP** (optional): If a chord label is enharmonically spelled
+   against the key (e.g. 'D#m7' in a flat key), add a 'relabel' entry mapping
+   the exact old label to the corrected one. Only fix spelling — never change
+   chord quality or root function. Omit 'relabel' entirely if nothing needs it.
+3. **KEY**: Confirm or correct the song's key from the chord sequence.
 
+Do NOT invent chords, change rhythms, or touch the melody. Return only the
+schema fields requested.
 PROMPT;
 
-        $userPrompt = "Raw Transcription Data for '{$rawAnalysis['title']}':\n\n";
-        $userPrompt .= json_encode($rawAnalysis, JSON_PRETTY_PRINT);
+        $context = $analysis['key'] ?? 'C';
+        $userPrompt  = "Song: '{$analysis['title']}'\n";
+        $userPrompt .= "Style: solo jazz guitar\n";
+        $userPrompt .= "Detected key: {$context}\n";
+        $userPrompt .= "Time signature: " . ($analysis['timeSignature'] ?? '4/4') . "\n";
+        $userPrompt .= "Tempo: " . ($analysis['tempo'] ?? 120) . " BPM\n";
+        $userPrompt .= "Total bars: {$barCount}\n\n";
+        $userPrompt .= "Chords per bar (one line = one bar):\n";
+        $userPrompt .= implode("\n", $barLines);
 
         $schema = [
             'type'       => 'OBJECT',
             'properties' => [
-                'title'         => ['type' => 'STRING'],
-                'composer'      => ['type' => 'STRING', 'nullable' => true],
-                'key'           => ['type' => 'STRING'],
-                'tempo'         => ['type' => 'INTEGER'],
-                'timeSignature' => ['type' => 'STRING'],
-                'sections'      => [
+                'key'      => ['type' => 'STRING'],
+                'sections' => [
                     'type'  => 'ARRAY',
                     'items' => [
                         'type'       => 'OBJECT',
                         'properties' => [
-                            'name' => ['type' => 'STRING'],
-                            'bars' => [
-                                'type'  => 'ARRAY',
-                                'items' => [
-                                    'type'       => 'OBJECT',
-                                    'properties' => [
-                                        'chords' => [
-                                            'type'  => 'ARRAY',
-                                            'items' => [
-                                                'type'       => 'OBJECT',
-                                                'properties' => [
-                                                    'label' => ['type' => 'STRING'],
-                                                    'beat'  => ['type' => 'INTEGER'],
-                                                ],
-                                                'required' => ['label', 'beat'],
-                                            ],
-                                        ],
-                                    ],
-                                    'required' => ['chords'],
-                                ],
-                            ],
+                            'name'     => ['type' => 'STRING'],
+                            'barCount' => ['type' => 'INTEGER'],
                         ],
-                        'required' => ['name', 'bars'],
+                        'required' => ['name', 'barCount'],
                     ],
                 ],
-                'melody_data' => [
+                'relabel' => [
                     'type'  => 'ARRAY',
                     'items' => [
                         'type'       => 'OBJECT',
                         'properties' => [
-                            'tick'     => ['type' => 'INTEGER'],
-                            'pitch'    => ['type' => 'STRING'],
-                            'octave'   => ['type' => 'INTEGER'],
-                            'duration' => ['type' => 'STRING'],
-                            'ticks'    => ['type' => 'INTEGER'],
-                            'string'   => ['type' => 'INTEGER'],
-                            'fret'     => ['type' => 'INTEGER'],
-                            'isRest'   => ['type' => 'BOOLEAN'],
+                            'from' => ['type' => 'STRING'],
+                            'to'   => ['type' => 'STRING'],
                         ],
+                        'required' => ['from', 'to'],
                     ],
                 ],
-                'source_note' => ['type' => 'STRING'],
             ],
-            'required' => ['title', 'key', 'timeSignature', 'sections', 'source_note'],
+            'required' => ['key', 'sections'],
         ];
 
         $response = $client->complete($systemPrompt, $userPrompt, $schema, [
@@ -2335,53 +2508,59 @@ PROMPT;
 
         $refined = $response['data'];
 
-        // Preserve videoSync + cached raw transcription (Gemini returns neither)
-        if (!isset($refined['videoSync']) && isset($rawAnalysis['videoSync'])) {
-            $refined['videoSync'] = $rawAnalysis['videoSync'];
+        // ── Apply enharmonic relabel map to the deterministic bar list ──────
+        $relabel = [];
+        foreach ($refined['relabel'] ?? [] as $r) {
+            if (!empty($r['from']) && !empty($r['to'])) {
+                $relabel[$r['from']] = $r['to'];
+            }
         }
-        if (!isset($refined['transcriptionRaw']) && isset($rawAnalysis['transcriptionRaw'])) {
-            $refined['transcriptionRaw'] = $rawAnalysis['transcriptionRaw'];
-        }
-
-        return $refined;
-    }
-
-    /**
-     * Post-AI fallback: iterate the returned analysis and resolve any chord
-     * slot where the label is still '?' or null.
-     *
-     * Each such slot carries a 'pitches' array (pitch classes 0–11) that was
-     * embedded by the pre-AI beat loop. identifyFromMidi() is called on those
-     * pitches using the full Phase-1 algorithm. The 'pitches' key is stripped
-     * from all slots before returning so it does not leak into assembly.
-     *
-     * Called both on AI-success and AI-failure paths (fail-safe).
-     */
-    private function resolveUnidentifiedChords(array $analysis, VoicingCrossref $crossref): array
-    {
-        foreach ($analysis['sections'] as &$section) {
-            foreach ($section['bars'] as &$bar) {
+        if (!empty($relabel)) {
+            foreach ($flatBars as &$bar) {
                 foreach ($bar['chords'] as &$chord) {
-                    $label   = $chord['label'] ?? null;
-                    $pitches = $chord['pitches'] ?? null;
-
-                    // Resolve slots the AI could not identify
-                    if (($label === '?' || $label === null) && !empty($pitches)) {
-                        // pitches are already pitch classes (0–11) from the pre-AI loop;
-                        // identifyFromMidi() expects absolute MIDI pitches but operates
-                        // mod-12 internally, so pitch classes work correctly here.
-                        $idResult = $crossref->identifyFromMidi($pitches);
-                        $chord['label'] = $idResult['name'] ?: '/';
+                    if (isset($relabel[$chord['label'] ?? ''])) {
+                        $chord['label'] = $relabel[$chord['label']];
                     }
-
-                    // Always strip the pitches key — not part of the leadsheet schema
-                    unset($chord['pitches']);
                 }
                 unset($chord);
             }
             unset($bar);
         }
-        unset($section);
+
+        // ── Re-slice the flat bar list into the AI's named sections ─────────
+        // The bars themselves are never rewritten — only regrouped. If the
+        // AI's barCounts don't sum to the total, fall back to one section.
+        $aiSections = $refined['sections'] ?? [];
+        $sumCounts  = array_sum(array_map(fn($s) => (int)($s['barCount'] ?? 0), $aiSections));
+
+        if (!empty($aiSections) && $sumCounts === $barCount) {
+            $newSections = [];
+            $cursor = 0;
+            foreach ($aiSections as $s) {
+                $n    = (int)($s['barCount'] ?? 0);
+                $name = $s['name'] ?: 'A';
+                $newSections[] = [
+                    // 'name' is what AnalysisToLeadsheet reads; 'label' kept
+                    // for parity with the deterministic single-section shape.
+                    'name'  => $name,
+                    'label' => $name,
+                    'bars'  => array_slice($flatBars, $cursor, $n),
+                ];
+                $cursor += $n;
+            }
+            $analysis['sections'] = $newSections;
+        } else {
+            // AI sectioning unusable — keep deterministic single section,
+            // but still apply any relabels we made above.
+            \Log::warning('[LeadsheetController] AI sectioning rejected '
+                . "(sum {$sumCounts} != {$barCount}); keeping single section.");
+            $analysis['sections'] = [['label' => 'A', 'bars' => $flatBars]];
+        }
+
+        // Adopt the AI's key only if it returned a non-empty value.
+        if (!empty($refined['key'])) {
+            $analysis['key'] = $refined['key'];
+        }
 
         return $analysis;
     }

@@ -230,6 +230,9 @@ Integrating a "Standard Reference" database (like the Mike Oliphant Jazz Standar
 | **P1** | Duration-Weighted ID | ✅ Implemented | Better chord recognition input |
 | **P2** | User Downbeat Offset UI | ✅ Implemented | User picks the true "1" from an onset strip; re-shifts via pickup bar |
 | **P2** | Bass-Snap Beat Correction | ✅ Implemented | Rebuilds beat_times from bass-note anchors so the grid follows rubato |
+| **P1** | T4 AI Job Re-division | ✅ Implemented | Deterministic chord ID for all paths; AI does structuralisation only |
+| **P1** | T1 Fretboard Optimisation | ✅ Implemented | Viterbi over (string,fret) — playable tab instead of absurd fret leaps |
+| **P1** | T1b Melody→Voicing Position | ✅ Implemented | Chord voicings tracked to the melody's hand position per bar |
 | **P2** | Phase 3 Context Awareness | ⏳ Pending | Context-aware chord disambiguation |
 | **P3** | Tap-Correct Re-time UI | ⏳ Designed | Manual downbeat tapping for recordings bass-snap can't anchor |
 | **P3** | Reference Leadsheet Sync | ⏳ Pending | Anchoring transcription to standard progressions |
@@ -257,36 +260,74 @@ Integrating a "Standard Reference" database (like the Mike Oliphant Jazz Standar
 > below reuses an engine that already exists in the codebase. Nothing here is a
 > from-scratch research effort. Listed roughly in value order.
 
-### Known bug — `transcriptionRaw` leaks into the AI prompt
+### Fixed — `transcriptionRaw` leaked into the AI prompt ✅
 
-`musicalizeTranscription()` builds the user prompt as `json_encode($rawAnalysis)`
-— the **entire** analysis array, which now includes the `transcriptionRaw` blob
-(cached `beats`, `beat_times`, all raw `notes`) added for the downbeat tool.
-That field is internal plumbing; it has no business in the AI payload. It ships
-a duplicate copy of the whole raw transcription on every AI-cleanup call — pure
-cost/latency for zero benefit. The prompt strips `pitches`/`raw_beats` from
-*output* but never strips `transcriptionRaw` from *input*.
-**Fix:** strip `transcriptionRaw` (and ideally `raw_beats`, `melody_data`,
-`note_durations`) before encoding the user prompt. Folded into the AI-redivision
-work below, but it's a standalone bug too.
+(Session 2026-05-20, fixed as part of T4.) `musicalizeTranscription()` used to
+build the user prompt as `json_encode($rawAnalysis)` — the **entire** analysis
+array, including the `transcriptionRaw` blob (cached `beats`, `beat_times`, all
+raw `notes`) and `raw_beats` / `melody_data`. The AI payload now contains only
+the title, key/tempo/time-sig, and a compact one-line-per-bar chord listing;
+`transcriptionRaw`, `raw_beats`, `melody_data` and pitch integers are never
+encoded into it. See T4 below.
 
-### Phase T1 — Fretboard position optimisation (highest user-visible value)
+### Phase T1 — Fretboard position optimisation ✅ IMPLEMENTED (Session 2026-05-20)
 
-**Problem:** `midiToTab()` maps each MIDI pitch to *a* string/fret in isolation.
-Even a perfectly correct transcription produces physically absurd tab — a line
-may leap fret 2 → 14 → 5 for notes any guitarist plays in one hand position.
+**Problem (as was):** `midiToTab()` mapped each MIDI pitch to *a* string/fret
+greedily and in isolation (first string with fret 0–15). Even a perfectly
+correct transcription produced physically absurd tab — a line could leap
+fret 2 → 14 → 5 for notes any guitarist plays in one hand position.
 
-**Approach:** shortest-path / Viterbi over `(string, fret)` candidates per note,
-minimising a cost function: fret-distance (hand travel), string changes, hand-
-span (favour staying within ~4–5 frets), open strings as low-cost anchors, and
-physical reachability for simultaneous notes (chords/dyads).
+**As built — `LeadsheetController::optimizeTabPositions()`:** a Viterbi
+shortest-path pass over the assembled melody, run as a post-pass at the end of
+`assembleTranscription()` (right before `melody_data` is set).
 
-**Reuse:** this is the **same machine as `ProgressionBuilder`'s Viterbi voicing
-selection** (`scoreVL`, cost fn) — different cost function, candidate = fret
-position instead of voicing. Adapting proven code, not new algorithm.
+- **States:** every playable `(string, fret)` candidate for a note's pitch on
+  standard tuning, fret 0–17.
+- **Emission:** `fret * 0.15`, minus a `0.3` bonus for open strings — low
+  positions win ties.
+- **Transition:** hand travel is measured against a *running anchor* (the
+  fretting hand's position), not the literal previous fret — so an intervening
+  open string doesn't teleport the hand. Adds a `0.5` string-change nudge and a
+  `1.2 × (travel − 4)` hand-span penalty for reaching past a ~5-fret window.
+  Open strings pay the span term but not per-fret travel, and leave the anchor
+  where it was.
+- **Rests** carry the anchor across at no travel cost. A pitch out of range
+  breaks the chain (keeps `midiToTab`'s fallback for that note).
+- `midiToTab()` still does the *initial* assignment; the absolute MIDI pitch is
+  stashed on each melody event as `_midi` and stripped by the pass.
 
-**Caveat:** can't recover the *exact* fingering the player used, but "playable
-and sensible" is a huge leap from "right pitches, physically impossible."
+**Caveat:** notes sharing a tick are still optimised independently — true
+polyphony (chord/dyad reachability) is **T2**'s job. Can't recover the player's
+exact fingering, but "playable and sensible" is a huge leap from "right pitches,
+physically impossible."
+
+#### T1b — Melody-position hints for chord voicings (Session 2026-05-20)
+
+`optimizeTabPositions()` only laid out the single-note **melody**. The **chord
+voicings** are picked separately by `ProgressionBuilder::buildVoicings()`, whose
+Viterbi anchored the whole progression on the *first chord's* `seedCost()` and
+then only minimised *relative* fret motion between chords. It had no idea where
+the melody was — so an A-minor piece with the melody at the 5th–8th fret would
+still get an open `x0221x` Am instead of `5775xx`.
+
+**Fix — melody → voicing position coupling:**
+- `LeadsheetController::melodyPositionHints()` computes a `measureIndex →
+  meanFret` map from the post-T1 melody (mean of *fretted* notes per bar; open
+  strings/rests excluded). Passed into `buildVoicings()` as `position_hints`.
+- `ProgressionBuilder::positionHintCost()` penalises a voicing whose fretted-
+  note centroid is far from its measure's hint. Threaded into every Viterbi
+  context (`POSITION_HINT_WEIGHT = 0.45` — a strong pull, the user's choice for
+  chord-melody material). Fully-open voicings get only a soft pull.
+- `seedCost()` now takes a measure index: when a hint exists for slot 0, the
+  hint **replaces** the fixed category seed bias (`jazz → fret 5`), so the
+  first chord anchors to the melody, not a generic register.
+- Per-slot node cost applied in `viterbiSearch()` for slots 1+.
+- Inert when `position_hints` is absent — the standalone progression builder is
+  unaffected.
+
+**Caveat:** the hint is mean melody fret per *bar*; a bar where the melody
+leaps registers gets a blurred target. Fine in practice — chord-melody melodies
+mostly stay in a position within a bar.
 
 ### Phase T2 — Melody / bass / inner voice separation
 
@@ -313,30 +354,42 @@ built but **never connected to transcription**.
 **Approach:** after first-pass ID, re-identify with key + neighbour context.
 Mostly plumbing of an existing engine, not new algorithm.
 
-### Phase T4 — Redivide the AI's job (prompt + payload redesign)
+### Phase T4 — Redivide the AI's job ✅ IMPLEMENTED (Session 2026-05-20)
 
-**Problem:** the current `musicalizeTranscription()` prompt asks Gemini to do
-**chord identification from raw MIDI pitch-class integers** (task 1) and
-**rhythmic quantization** (task 4) — both things the deterministic pipeline
-already does *better* (`VoicingCrossref`, the beat-clamp/no-dots quantizer).
-LLMs are weak at mechanical pitch-set→chord arithmetic; the AI can also
-*overwrite* good deterministic results. The user prompt also dumps tens of
-thousands of tokens of redundant JSON (`raw_beats` + `transcriptionRaw` +
-`melody_data`). The prompt is generic — no "solo jazz guitar", no key, no
-Jazz Standard reference.
+**Problem (as was):** the old `musicalizeTranscription()` prompt asked Gemini to
+do **chord identification from raw MIDI pitch-class integers** and **rhythmic
+quantization** — both things the deterministic pipeline already does *better*
+(`VoicingCrossref`, the beat-clamp/no-dots quantizer). LLMs are weak at
+mechanical pitch-set→chord arithmetic and could *overwrite* good deterministic
+results. The prompt also dumped tens of thousands of tokens of redundant JSON.
 
-**The fix is re-division of labour, not prompt wording:**
-- **Deterministic pipeline keeps:** chord ID, rhythm quantization, melody.
-- **AI does only:** structuralisation — read the *sequence of identified chord
-  names* + bar structure, return section labels (Intro/A/A/B/A/Outro) and light
-  enharmonic / obvious-misID spelling cleanup. This is pattern recognition over
-  chord *names* — real LLM value.
-- **Strip from payload:** `transcriptionRaw`, `raw_beats`, `melody_data`,
-  `note_durations`. Send chord names, not pitch integers.
-- **Add to payload:** key, time signature, "solo jazz guitar", and the matched
-  Jazz Standard's changes when one exists.
-- Net effect: cheaper, faster, *better* — the AI does the one thing it's good
-  at on clean input. Much of this phase is deletion.
+**As built — re-division of labour:**
+- **`assembleTranscription()`** now runs the deterministic harmonic-region
+  chord ID (`VoicingCrossref::identifyFromMidi()`) for **both** the AI and
+  non-AI paths. The old AI-only branch that stuffed `label => '?'` + `pitches`
+  slots and attached `raw_beats` is gone — chords are identified deterministically
+  before the AI ever sees them. The `ai_cleanup` opt no longer affects assembly.
+- **`musicalizeTranscription()`** is now structuralisation-only:
+  - *Input:* title, detected key, tempo, time signature, `"solo jazz guitar"`,
+    and a compact **one-line-per-bar chord listing** (`"3: Dm7 G7"`). No pitch
+    integers, no melody, no `raw_beats`, no `transcriptionRaw`.
+  - *Output schema:* `key`, `sections` as `[{name, barCount}]`, and an optional
+    `relabel` map (`[{from, to}]`) for enharmonic spelling fixes only.
+  - *Merge:* the deterministic flat bar list is **re-sliced** into the AI's
+    named sections by `barCount` — bars/chords/beats are never rewritten. If the
+    `barCount`s don't sum to the total, it falls back to one section and logs a
+    warning. The `relabel` map is applied to chord labels (spelling only).
+    `melody_data`, `videoSync`, `transcriptionRaw` pass through untouched.
+- **Removed:** `resolveUnidentifiedChords()` (dead — no `'?'` slots exist now).
+- AI failure is non-fatal: the deterministic analysis is already complete.
+
+**Net effect:** cheaper, faster, *better* — the AI does the one thing it's good
+at (pattern recognition over chord *names*) on clean input, and can no longer
+corrupt deterministic chord/rhythm results.
+
+**Not yet done (folds into T5):** feeding the matched Jazz Standard's changes
+into the AI payload — `musicalizeTranscription()` no longer takes the
+`SongLookup` it would need; T5 re-introduces it.
 
 ### Phase T5 — Reference anchoring (known standards)
 
@@ -361,6 +414,6 @@ Lower priority — bass-snap covers the common case.
 
 ### Suggested order
 
-T4 first (largest cost/quality win, mostly deletion, fixes the known bug) →
-T1 (highest user-visible win, Viterbi engine exists) → T2 (deeper fix, enables
-cleaner T1) → T3 → T5 → T6. The 90 s cap can be lifted any time.
+~~T4~~ ✅ done · ~~T1~~ ✅ done (both Session 2026-05-20) → **T2 next** (voice
+separation — deeper fix, also lets T1 optimise each voice independently) → T3 →
+T5 → T6. The 90 s cap can be lifted any time.

@@ -124,6 +124,16 @@ class ProgressionBuilder
      */
     private const HALF_DIM_OPTION_TONE_PENALTY = 1.5;
 
+    /**
+     * Strength of the melody-position pull (audio transcription only — inert
+     * unless the caller supplies $context['position_hints']). Sized to be a
+     * strong influence: comparable to the heaviest standing cost term so a
+     * voicing that tracks the melody's hand position wins decisively over a
+     * far-away shape, while extreme voice-leading/simplicity disagreement can
+     * still override. See positionHintCost().
+     */
+    private const POSITION_HINT_WEIGHT = 0.45;
+
     private const COST_WEIGHTS = [
         'simplicity' => 0.10,
         'position' => 0.20,
@@ -388,6 +398,11 @@ class ProgressionBuilder
 
         $runPass2 = $extensions && $this->settings->isPass2Eligible($category);
 
+        // Melody position hints (audio transcription) — measure_index => target
+        // fret. Threaded into every Viterbi context so positionHintCost() can
+        // pull each chord toward the melody's hand position. Inert when absent.
+        $positionHints = $options['position_hints'] ?? [];
+
         if ($runPass2) {
             // Run Pass 1 (vlLevel = 1, no extensions)
             $pass1Context = [
@@ -395,6 +410,7 @@ class ProgressionBuilder
                 'vlLevel' => 1,
                 'voicing_style' => $voicingStyle,
                 'weight_overrides' => $options['weight_overrides'] ?? [],
+                'position_hints' => $positionHints,
             ];
             $pass1Selections = $this->viterbiSearchWithRelaxation($lattice, $pass1Context, $style, $diagnostics, $allChords);
             $pass1Cost = $this->calculatePathCost($pass1Selections, $allChords, $pass1Context);
@@ -405,6 +421,7 @@ class ProgressionBuilder
                 'vlLevel' => 2,
                 'voicing_style' => $voicingStyle,
                 'weight_overrides' => $options['weight_overrides'] ?? [],
+                'position_hints' => $positionHints,
             ];
             $pass2Selections = $this->viterbiSearchWithRelaxation($lattice, $pass2Context, $style, $diagnostics, $allChords);
             $pass2Result = $this->calculatePathCostWithResolutions($pass2Selections, $allChords, $pass2Context);
@@ -436,6 +453,7 @@ class ProgressionBuilder
                 'vlLevel' => $vlLevel,
                 'voicing_style' => $voicingStyle,
                 'weight_overrides' => $options['weight_overrides'] ?? [],
+                'position_hints' => $positionHints,
             ];
             $selections = $this->viterbiSearchWithRelaxation($lattice, $context, $style, $diagnostics, $allChords);
             if (empty($selections)) {
@@ -3035,7 +3053,52 @@ class ProgressionBuilder
         return $this->extensionCount($voicing) * self::HALF_DIM_OPTION_TONE_PENALTY;
     }
 
-    private function seedCost(object $candidate, string $category, array $context = []): float
+    /**
+     * Melody-position pull (audio transcription).
+     *
+     * When the caller supplies per-measure melody fret hints, a chord voicing
+     * is penalised for sitting far from where the melody's fretting hand is in
+     * that measure — both are played by one hand. Without this, the Viterbi
+     * anchors the whole progression on the first chord's seed and then only
+     * minimises *relative* fret motion, so an open shape (x0221x) can win even
+     * when the melody lives at the 5th–8th fret (5775xx).
+     *
+     * Hints are a measure_index => target_fret map under $context['position_hints'].
+     * No hint for a measure → 0.0 (term inert). Strength is deliberately high:
+     * the user opted for a strong pull for chord-melody material.
+     *
+     * @param int|null $measureIndex Global measure index of the candidate's slot.
+     */
+    private function positionHintCost(object $candidate, array $context, ?int $measureIndex): float
+    {
+        if ($measureIndex === null) return 0.0;
+        $hints = $context['position_hints'] ?? null;
+        if (empty($hints) || !isset($hints[$measureIndex])) return 0.0;
+
+        $target = (float) $hints[$measureIndex];
+
+        // Where is the fretting hand for this voicing? Mean of the *fretted*
+        // (non-open, non-muted) positions — that's the hand's centre. Open and
+        // muted strings don't move the hand, so they're excluded.
+        $fretted = [];
+        foreach (str_split((string) ($candidate->frets ?? '')) as $ch) {
+            if ($ch === 'x' || $ch === 'X' || $ch === '0') continue;
+            $f = is_numeric($ch) ? (int) $ch : hexdec($ch); // 10+ frets are hex
+            if ($f > 0) $fretted[] = $f;
+        }
+
+        if (empty($fretted)) {
+            // Fully open voicing — playable from anywhere, so only a soft pull
+            // proportional to how high the melody sits.
+            return $this->boundedCost(abs($target) / 12.0) * self::POSITION_HINT_WEIGHT * 0.4;
+        }
+
+        $hand = array_sum($fretted) / count($fretted);
+        // Distance in frets, normalised over the neck, scaled by the strong weight.
+        return $this->boundedCost(abs($hand - $target) / 7.0) * self::POSITION_HINT_WEIGHT;
+    }
+
+    private function seedCost(object $candidate, string $category, array $context = [], ?int $measureIndex = null): float
     {
         $bias = self::CATEGORY_SEED_BIAS[$category] ?? self::CATEGORY_SEED_BIAS['jazz'];
         $target = $bias['target_fret'];
@@ -3050,8 +3113,16 @@ class ProgressionBuilder
             }
         }
 
+        // Melody position hint dominates the fixed category seed bias when
+        // present — the first chord anchors the whole progression, so it must
+        // sit where the melody is rather than at a generic category register.
+        $hintCost = $this->positionHintCost($candidate, $context, $measureIndex);
+        $hasHint  = isset(($context['position_hints'] ?? [])[$measureIndex]);
+
         $pos = $candidate->start_fret ?? $candidate->position ?? 5;
-        $cost = $this->boundedCost(abs($pos - $target) / $range);
+        $cost = $hasHint
+            ? $hintCost
+            : $this->boundedCost(abs($pos - $target) / $range);
 
         // Phase G: add style penalty to seed cost
         $cost += $this->costStyle($candidate, $context);
@@ -3088,13 +3159,19 @@ class ProgressionBuilder
     {
         $n = count($pools);
         if ($n === 0) return [];
+        // Global measure index per slot — used to look up melody position hints.
+        $measureOf = fn(int $slot): ?int => isset($allChords[$slot]['measure_index'])
+            ? (int) $allChords[$slot]['measure_index']
+            : null;
+
         if ($n === 1) {
             if (empty($pools[0])) return [];
             $category = $context['category'] ?? self::CATEGORY_DEFAULT;
+            $m0 = $measureOf(0);
             $best = $pools[0][0];
-            $bestCost = $this->seedCost($best, $category, $context);
+            $bestCost = $this->seedCost($best, $category, $context, $m0);
             foreach ($pools[0] as $c) {
-                $cost = $this->seedCost($c, $category, $context);
+                $cost = $this->seedCost($c, $category, $context, $m0);
                 if ($cost < $bestCost) {
                     $bestCost = $cost;
                     $best = $c;
@@ -3109,12 +3186,16 @@ class ProgressionBuilder
         $cost = [];
         $prev = [];
 
-        $cost[0] = array_map(fn($c) => $this->seedCost($c, $category, $context), $pools[0]);
+        $cost[0] = array_map(
+            fn($c) => $this->seedCost($c, $category, $context, $measureOf(0)),
+            $pools[0]
+        );
         $prev[0] = array_fill(0, count($pools[0]), null);
 
         for ($i = 1; $i < $n; $i++) {
             $cost[$i] = [];
             $prev[$i] = [];
+            $measureIdx = $measureOf($i);
             foreach ($pools[$i] as $k => $cCurr) {
                 $best = $INF;
                 $bestPrev = null;
@@ -3122,13 +3203,13 @@ class ProgressionBuilder
                     if (!$this->isEdgeAdmissible($cPrev, $cCurr, $positionLimit)) {
                         continue;
                     }
-                    
+
                     // Add chord context for Phase E named resolutions
                     $edgeContext = array_merge($context, [
                         'source_chord' => $allChords[$i - 1] ?? null,
                         'target_chord' => $allChords[$i] ?? null,
                     ]);
-                    
+
                     $edgeCost = $this->costBetween($cPrev, $cCurr, $edgeContext);
                     $total = $cost[$i - 1][$j] + $edgeCost;
                     if ($total < $best) {
@@ -3136,7 +3217,10 @@ class ProgressionBuilder
                         $bestPrev = $j;
                     }
                 }
-                $cost[$i][$k] = $best;
+                // Per-slot node cost: pull this chord toward the melody's hand
+                // position in its measure. Same value for every path into node
+                // k, so it doesn't disturb the edge argmin above.
+                $cost[$i][$k] = $best + $this->positionHintCost($cCurr, $context, $measureIdx);
                 $prev[$i][$k] = $bestPrev;
             }
         }
