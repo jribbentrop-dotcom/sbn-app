@@ -143,6 +143,73 @@ class Leadsheet extends Model
         return $this->title;
     }
 
+    /**
+     * Map the leadsheet's rhythm slug to a design-system style slug
+     * (one of: bossa, samba, jazz, latin, blues, pop, classical).
+     * Used for category badges/colors wherever a song is linked.
+     */
+    public function getStyleSlugAttribute(): string
+    {
+        $rhythm = $this->rhythm;
+        if (!$rhythm) {
+            return 'bossa';
+        }
+
+        $map = [
+            'bossa'      => 'bossa',
+            'bossa-nova' => 'bossa',
+            'samba'      => 'samba',
+            'jazz'       => 'jazz',
+            'swing'      => 'jazz',
+            'latin'      => 'latin',
+            'afro-cuban' => 'latin',
+            'blues'      => 'blues',
+            'pop'        => 'pop',
+            'ballad'     => 'pop',
+            'classical'  => 'classical',
+        ];
+
+        if (isset($map[$rhythm])) {
+            return $map[$rhythm];
+        }
+
+        // Prefix match (e.g. "bossa-nova-variation" → "bossa")
+        foreach ($map as $prefix => $style) {
+            if (str_starts_with($rhythm, $prefix)) {
+                return $style;
+            }
+        }
+
+        return 'bossa';
+    }
+
+    /**
+     * Public URL for the cover image, or null when none is set.
+     */
+    public function getCoverImageUrlAttribute(): ?string
+    {
+        return $this->cover_image_path
+            ? '/images/songs/' . $this->cover_image_path
+            : null;
+    }
+
+    /**
+     * Compact payload for linking to this song from other library pages
+     * (chord / progression / rhythm detail). Shape consumed by SongLink.vue.
+     *
+     * @return array{id:int,slug:string,title:string,styleSlug:string,coverImagePath:?string}
+     */
+    public function toLinkArray(): array
+    {
+        return [
+            'id'             => $this->id,
+            'slug'           => $this->slug,
+            'title'          => $this->title,
+            'styleSlug'      => $this->style_slug,
+            'coverImagePath' => $this->cover_image_url,
+        ];
+    }
+
     // =========================================================================
     // SCOPES
     // =========================================================================

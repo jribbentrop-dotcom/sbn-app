@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
+import { Link } from '@inertiajs/vue3';
 import { mountSbnNodes } from '@/lib/mountSbnNodes';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordDiagram from '@/Components/Library/ChordDiagram.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
 import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
+import SongLink from '@/Components/Library/SongLink.vue';
+import type { SongLinkData } from '@/Components/Library/SongLink.vue';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
 import type { ProgressionChord } from '@/Components/Library/ChordProgressionViewer.vue';
 import { getCategoryColor } from '@/composables/useCategoryColors';
@@ -15,15 +17,6 @@ interface ProgressionTile {
     diagramData: ChordDiagramData | null;
     slug?: string | null;
     numeral?: string | null;
-}
-
-interface SongRef {
-    id: number;
-    slug: string;
-    title: string;
-    composer: string | null;
-    songKey: string | null;
-    rhythm: string | null;
 }
 
 interface ProgressionRef {
@@ -50,24 +43,13 @@ interface QualityTopic {
 interface Props {
     chord: ChordDiagramData;
     siblings: ChordDiagramData[];
-    songs: SongRef[];
+    songs: SongLinkData[];
     progressions: ProgressionRef[];
-    builderPass?: 1 | 2;
     qualityTopic?: QualityTopic | null;
 }
 
 const props = defineProps<Props>();
 defineOptions({ layout: PublicLayout });
-
-// Test switch — Pass 1 (plain voicings) vs Pass 2 (option-tone upgrades).
-const currentPass = computed(() => props.builderPass ?? 1);
-function setBuilderPass(pass: 1 | 2) {
-    if (currentPass.value === pass) return;
-    const url = new URL(window.location.href);
-    if (pass === 2) url.searchParams.set('pass', '2');
-    else url.searchParams.delete('pass');
-    router.visit(url.pathname + url.search, { preserveScroll: true });
-}
 
 // ── Theory data (mirrors legacy sbn_chord_detail_theory) ─────────────────────
 const theoryMap: Record<string, { intervals: string; function: string; typical_context: string; related: string[]; tension: number }> = {
@@ -359,12 +341,8 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
         <div v-if="songs.length" class="sbn-chord-detail-section">
             <h2 class="sbn-chord-detail-section-heading">Songs using this chord</h2>
             <ul class="sbn-chord-detail-songs">
-                <li v-for="song in songs" :key="song.id" class="sbn-chord-detail-song-item">
-                    <Link :href="`/library/songs/${song.slug}`" class="sbn-chord-detail-song-link">
-                        {{ song.title }}
-                    </Link>
-                    <span v-if="song.composer" class="sbn-chord-detail-song-meta">{{ song.composer }}</span>
-                    <span v-if="song.songKey" class="sbn-chord-detail-song-key">{{ song.songKey }}</span>
+                <li v-for="song in songs" :key="song.id">
+                    <SongLink :song="song" />
                 </li>
             </ul>
         </div>
@@ -373,35 +351,6 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
 </template>
 
 <style scoped>
-/* Builder pass test switch (Pass 1 = plain, Pass 2 = option-tone upgrades). */
-.sbn-builder-pass-toggle {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 16px;
-    font-size: 12px;
-}
-.sbn-builder-pass-toggle-label {
-    color: var(--clr-text-muted, #888);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-weight: 600;
-}
-.sbn-builder-pass-toggle-btn {
-    padding: 4px 10px;
-    border: 1px solid var(--clr-border, #d0d0d0);
-    background: transparent;
-    border-radius: 4px;
-    font-size: 12px;
-    cursor: pointer;
-    color: var(--clr-text-muted, #888);
-}
-.sbn-builder-pass-toggle-btn.is-active {
-    background: var(--clr-text, #222);
-    color: var(--clr-bg, #fff);
-    border-color: var(--clr-text, #222);
-}
-
 /* ── Page wrapper ── */
 .sbn-chord-detail {
     max-width: 1100px;
@@ -677,44 +626,14 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
     transform: translateY(-2px);
 }
 
-/* ── Songs ── */
+/* ── Songs ── (rows rendered by SongLink.vue / sbn-design-system.css) */
 .sbn-chord-detail-songs {
     list-style: none;
     padding: 0;
     margin: 0;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-}
-
-.sbn-chord-detail-song-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--clr-surface-2);
-}
-
-.sbn-chord-detail-song-link {
-    font-weight: 500;
-    font-size: 0.9em;
-    color: var(--clr-text);
-    text-decoration: none;
-}
-.sbn-chord-detail-song-link:hover { color: var(--clr-red); }
-
-.sbn-chord-detail-song-meta {
-    font-size: 0.8em;
-    color: var(--clr-text-muted);
-}
-
-.sbn-chord-detail-song-key {
-    font-size: 0.78em;
-    font-weight: 600;
-    color: var(--clr-style-bossa);
-    background: color-mix(in srgb, var(--clr-style-bossa) 10%, white);
-    padding: 1px 6px;
-    border-radius: 4px;
-    margin-left: auto;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 2px;
 }
 
 /* ── Responsive ── */

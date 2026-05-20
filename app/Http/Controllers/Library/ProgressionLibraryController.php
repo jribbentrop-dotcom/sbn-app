@@ -60,16 +60,10 @@ class ProgressionLibraryController extends Controller
         $songs = Leadsheet::published()
             ->join('sbn_progression_occurrences as o', 'sbn_leadsheets.id', '=', 'o.leadsheet_id')
             ->where('o.progression_id', $progression->id)
-            ->select('sbn_leadsheets.id', 'sbn_leadsheets.slug', 'sbn_leadsheets.title', 'sbn_leadsheets.composer', 'sbn_leadsheets.song_key')
+            ->select('sbn_leadsheets.id', 'sbn_leadsheets.slug', 'sbn_leadsheets.title', 'sbn_leadsheets.rhythm', 'sbn_leadsheets.cover_image_path')
             ->orderBy('sbn_leadsheets.title')
             ->get()
-            ->map(fn ($s) => [
-                'id'       => $s->id,
-                'title'    => $s->title,
-                'composer' => $s->composer,
-                'songKey'  => $s->song_key,
-                'slug'     => $s->slug,
-            ]);
+            ->map(fn ($s) => $s->toLinkArray());
 
         // Get siblings (other progressions in same category)
         $siblings = ChordProgression::where('category', $progression->category)

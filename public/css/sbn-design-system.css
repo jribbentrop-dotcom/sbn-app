@@ -535,6 +535,60 @@
     .sbn-cat-badge--cuban      { --cat-clr: var(--clr-style-cuban); }
     .sbn-cat-badge--modal      { --cat-clr: var(--clr-mod-progression); }
 
+    /* ── Song Link (app-wide) ────────────────────────────
+       Canonical row for linking to a song from any library
+       page. Cover thumbnail + title + style category badge.
+       Rendered by Components/Library/SongLink.vue.         */
+    .sbn-song-link {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        text-decoration: none;
+        color: var(--clr-text);
+        transition: background-color 0.12s ease;
+    }
+    .sbn-song-link:hover {
+        background: var(--clr-surface-2);
+    }
+
+    .sbn-song-link__thumb {
+        flex: 0 0 auto;
+        line-height: 0;
+    }
+    .sbn-song-link__img {
+        width: 40px;
+        height: 40px;
+        border-radius: 6px;
+        object-fit: cover;
+        display: block;
+    }
+    .sbn-song-link__img--fallback {
+        background: linear-gradient(
+            135deg,
+            var(--cat-clr, var(--clr-style-default)),
+            color-mix(in srgb, var(--cat-clr, var(--clr-style-default)) 35%, var(--clr-surface-2))
+        );
+    }
+
+    .sbn-song-link__title {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-weight: 500;
+        font-size: 0.92em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .sbn-song-link:hover .sbn-song-link__title {
+        color: var(--clr-red);
+    }
+
+    .sbn-song-link .sbn-cat-badge {
+        flex: 0 0 auto;
+    }
+
 /* Card footer — popularity + difficulty */
 .sbn-card-footer {
     display: flex;
@@ -1773,9 +1827,80 @@
     box-shadow: none;
 }
 
-/* Orange hover frame only in the frontend leadsheet viewer */
+/* Hover frame in the frontend leadsheet viewer — uses locally overridden --clr-accent (blue) */
 .sbn-leadsheet-viewer .sbn-ve-measure:hover .sbn-ve-measure-content::after {
     box-shadow: inset 0 0 0 1px var(--clr-accent);
+}
+
+/* ── Detected-progression highlight (leadsheet viewer only) ──────────────────
+   Rotating conic-gradient border on every bar in a detected progression.
+   Uses ::before on .sbn-ve-measure-content: 2px padding + background-clip trick
+   so only the border ring shows; no background fill on the measure itself.
+   --prog-angle is a registered custom property so transition/animation is smooth.
+   ──────────────────────────────────────────────────────────────────────── */
+
+@property --prog-angle {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+}
+
+@keyframes prog-spin {
+    to { --prog-angle: 360deg; }
+}
+
+/* Border ring via ::before — static base + rotating sweep in one element */
+.sbn-leadsheet-viewer .sbn-ve-measure.in-progression .sbn-ve-measure-content::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 18px 0;
+    border-radius: 3px;
+    padding: 1.5px;
+    background:
+        conic-gradient(
+            from var(--prog-angle),
+            rgba(59, 130, 246, 0.18) 0%,
+            rgba(59, 130, 246, 0.18) 55%,
+            rgba(59, 130, 246, 0.6) 70%,
+            rgba(147, 197, 253, 0.85) 78%,
+            rgba(59, 130, 246, 0.6) 86%,
+            rgba(59, 130, 246, 0.18) 100%
+        );
+    -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 1;
+    animation: prog-spin 4s linear infinite;
+}
+
+/* Active: brighter sweep, slightly faster */
+.sbn-leadsheet-viewer .sbn-ve-measure.in-progression--active .sbn-ve-measure-content::before {
+    background:
+        conic-gradient(
+            from var(--prog-angle),
+            rgba(59, 130, 246, 0.35) 0%,
+            rgba(59, 130, 246, 0.35) 48%,
+            rgba(59, 130, 246, 0.75) 65%,
+            rgba(147, 197, 253, 1.0) 76%,
+            rgba(59, 130, 246, 0.75) 85%,
+            rgba(59, 130, 246, 0.35) 100%
+        );
+    animation-duration: 2.5s;
+}
+
+.sbn-leadsheet-viewer .sbn-ve-measure.in-progression--active {
+    z-index: 2;
+}
+
+.sbn-leadsheet-viewer .sbn-ve-measure.in-progression--active .sbn-ve-measure-content::after {
+    background: rgba(59, 130, 246, 0.06);
+    border-radius: 3px;
 }
 
 /* Playback: measure z-index only (chord card gets the visual effect) */
@@ -1786,6 +1911,7 @@
 
 /* Content area inside measure */
 .sbn-ve-measure-content {
+    position: relative;
     display: flex;
     align-items: stretch;
     min-height: 150px;

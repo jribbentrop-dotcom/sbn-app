@@ -68,13 +68,7 @@ class RhythmLibraryController extends Controller
             ->orderByDesc('popularity')
             ->limit(8)
             ->get()
-            ->map(fn ($s) => [
-                'id'       => $s->id,
-                'slug'     => $s->slug,
-                'title'    => $s->title,
-                'composer' => $s->composer,
-                'songKey'  => $s->song_key,
-            ]);
+            ->map(fn ($s) => $s->toLinkArray());
 
         return Inertia::render('Library/Rhythms/Show', [
             'pattern'  => $this->serializePattern($pattern),

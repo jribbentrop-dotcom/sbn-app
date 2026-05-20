@@ -109,19 +109,12 @@ class ChordLibraryController extends Controller
         $songs = Leadsheet::published()
             ->join('sbn_voicing_usage as vu', 'sbn_leadsheets.id', '=', 'vu.leadsheet_id')
             ->where('vu.chord_diagram_id', $chord->id)
-            ->select('sbn_leadsheets.id', 'sbn_leadsheets.slug', 'sbn_leadsheets.title', 'sbn_leadsheets.composer', 'sbn_leadsheets.song_key', 'sbn_leadsheets.rhythm', 'sbn_leadsheets.popularity')
+            ->select('sbn_leadsheets.id', 'sbn_leadsheets.slug', 'sbn_leadsheets.title', 'sbn_leadsheets.rhythm', 'sbn_leadsheets.popularity', 'sbn_leadsheets.cover_image_path')
             ->distinct()
             ->orderByDesc('sbn_leadsheets.popularity')
             ->limit(8)
             ->get()
-            ->map(fn ($s) => [
-                'id' => $s->id,
-                'slug' => $s->slug,
-                'title' => $s->title,
-                'composer' => $s->composer,
-                'songKey' => $s->song_key,
-                'rhythm' => $s->rhythm,
-            ]);
+            ->map(fn ($s) => $s->toLinkArray());
 
         // Find progressions that contain a chord with this quality.
         // We can't do this in SQL via LIKE because numerals like "I7" / "Im7" / "Imaj7"

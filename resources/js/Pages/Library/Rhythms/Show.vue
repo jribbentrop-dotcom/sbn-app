@@ -4,24 +4,18 @@ import { Link } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmPattern from '@/Components/Library/RhythmPattern.vue';
 import RhythmCard from '@/Components/Library/RhythmCard.vue';
+import SongLink from '@/Components/Library/SongLink.vue';
 import type { RhythmPatternWithMeta } from '@/Components/Library/RhythmPattern.vue';
+import type { SongLinkData } from '@/Components/Library/SongLink.vue';
 import { getCategoryStyle, getCategoryColor } from '@/composables/useCategoryColors';
 import { getAudioEngine } from '../../../audio/engine/AudioEngine.js';
 
 defineOptions({ layout: PublicLayout });
 
-interface SongRef {
-  id: number;
-  slug: string;
-  title: string;
-  composer: string | null;
-  songKey: string | null;
-}
-
 interface Props {
   pattern: RhythmPatternWithMeta;
   siblings: RhythmPatternWithMeta[];
-  songs: SongRef[];
+  songs: SongLinkData[];
 }
 
 const props = defineProps<Props>();
@@ -99,12 +93,8 @@ watch(() => props.pattern.slug, () => {
           <div v-if="songs.length" class="sbn-pattern-songs">
             <h2>Used in songs</h2>
             <ul class="sbn-songs-list">
-              <li v-for="song in songs" :key="song.id" class="sbn-song-row">
-                <Link :href="`/library/songs/${song.slug}`" class="sbn-song-row-link">
-                  {{ song.title }}
-                </Link>
-                <span v-if="song.composer" class="sbn-song-row-meta">{{ song.composer }}</span>
-                <span v-if="song.songKey" class="sbn-song-row-key">{{ song.songKey }}</span>
+              <li v-for="song in songs" :key="song.id">
+                <SongLink :song="song" />
               </li>
             </ul>
           </div>
@@ -215,53 +205,15 @@ watch(() => props.pattern.slug, () => {
   color: var(--clr-text);
 }
 
+/* Rows rendered by SongLink.vue / sbn-design-system.css */
 .sbn-songs-list {
   list-style: none;
-  padding: 0;
+  padding: 4px;
   margin: 0;
   background: var(--clr-white);
   border: 1px solid var(--clr-border);
   border-radius: var(--radius);
   overflow: hidden;
-}
-
-.sbn-song-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--clr-surface-2);
-}
-
-.sbn-song-row:last-child {
-  border-bottom: none;
-}
-
-.sbn-song-row-link {
-  font-size: 0.9em;
-  font-weight: 500;
-  color: var(--clr-text);
-  text-decoration: none;
-  flex: 1;
-}
-
-.sbn-song-row-link:hover {
-  color: var(--category-color, var(--clr-red));
-}
-
-.sbn-song-row-meta {
-  font-size: 0.82em;
-  color: var(--clr-text-muted);
-}
-
-.sbn-song-row-key {
-  font-size: 0.78em;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--clr-surface-2);
-  color: var(--clr-text-muted);
-  white-space: nowrap;
 }
 
 .sbn-pattern-description h2 {

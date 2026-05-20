@@ -36,6 +36,18 @@ The classic viewer and cinema view both consume the same `LeadsheetViewerService
 - Toggled from the admin leadsheet index via a clickable status badge → `POST /api/admin/leadsheets/{leadsheet}/status` (`LeadsheetController::updateStatus`).
 - The Exercises tab shares `sbn_leadsheets` but has no status UI (different controller).
 
+### 2.2 Cover image & canonical song cross-link
+
+`cover_image_path` (column added 2026-05-19) stores a bare filename; images live in `public/images/songs/`. Assigned from the admin leadsheet index.
+
+Wherever a song is **linked from another page** (the "songs using this chord/progression/rhythm" lists), use the one canonical pattern — do not hand-roll song-row markup:
+
+- **Backend** — `Leadsheet::toLinkArray()` returns the compact payload `{id, slug, title, styleSlug, coverImagePath}`. It is the single source of truth, built from two accessors:
+  - `style_slug` — maps `rhythm` → design-system style slug (`bossa`/`samba`/`jazz`/`latin`/`blues`/`pop`/`classical`).
+  - `cover_image_url` — `/images/songs/{file}` or `null`.
+  `ChordLibraryController`, `ProgressionLibraryController`, and `RhythmLibraryController` all map their song lists through `toLinkArray()`.
+- **Frontend** — `Components/Library/SongLink.vue` renders one row: cover thumbnail (or style-colored gradient fallback) + title + an `sbn-cat-badge` style-category badge. Styled app-wide via `.sbn-song-link` in `sbn-design-system.css`. Title + category only — no composer/key (that detail lives on the richer `SongCard`).
+
 ---
 
 ## 3. Leadsheet JSON data shape (`json_data`)
