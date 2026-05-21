@@ -90,6 +90,9 @@ function getCategoryClass(category: string): string {
 function getTonalityClass(tonality: string): string {
     return `sbn-prog-tonality-${tonality}`;
 }
+
+const n = parseInt(new URLSearchParams(window.location.search).get('highlight') ?? '', 10);
+const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 </script>
 
 <template>
@@ -141,6 +144,7 @@ function getTonalityClass(tonality: string): string {
                             :numerals="progression.numeralsDisplay"
                             :color="getCategoryColor(progression.category)"
                             :vintage-card="true"
+                            :initial-index="highlightIndex"
                         />
                     </section>
 

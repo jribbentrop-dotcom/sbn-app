@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Library;
 
 use App\Http\Controllers\Controller;
 use App\Models\ChordDiagram;
+use App\Models\ChordDiagramAlias;
 use App\Models\ChordProgression;
 use App\Models\Leadsheet;
 use App\Services\ChordSerializer;
@@ -11,7 +12,6 @@ use App\Services\ChordShapeCalculator;
 use App\Services\ChordVoicingSearch;
 use App\Services\EduContentService;
 use App\Services\HarmonicContext;
-use App\Services\ProgressionBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,7 +21,6 @@ class ChordLibraryController extends Controller
 {
     public function __construct(
         protected ChordVoicingSearch $voicingSearch,
-        protected ProgressionBuilder $progressionBuilder,
         protected HarmonicContext $harmonicContext,
         protected ChordShapeCalculator $shapeCalculator,
         protected ChordSerializer $chordSerializer,
@@ -123,117 +122,21 @@ class ChordLibraryController extends Controller
         // is small) and keep ones whose parsed chord qualities include the target.
         $chordQuality = $chord->quality;
 
+        // Find progressions containing this quality and record which slot (0-based,
+        // C-key) matches — that index becomes the ?highlight= param on the link.
         $progressions = ChordProgression::orderBy('sort_order')
             ->get()
-            ->filter(function ($p) use ($chordQuality) {
+            ->map(function ($p) use ($chordQuality) {
                 $context = $this->harmonicContext->buildFromNumerals('C', $p->numerals);
                 $chords = $context['sections'][0]['chords'] ?? [];
-                foreach ($chords as $c) {
-                    if (($c['quality'] ?? null) === $chordQuality) {
-                        return true;
-                    }
-                }
-
-                return false;
-            })
-            ->take(4)
-            ->values();
-
-        // Build a pinned voicing object from the current chord so the progression
-        // builder voice-leads the surrounding chords around it. The DB stores
-        // shapes at their canonical root (e.g. Cm7 for the m7 shape); when the
-        // user is viewing a transposed version (Ebm7 via ?root=Eb), we must
-        // transpose the diagram_data + start_fret to that root so the pinned
-        // tile shows the correct frets.
-        $pinnedRoot = $displayRoot ?? ($chord->root_note ?? 'C');
-
-        // Always transpose — even when pinnedRoot matches the stored root_note.
-        // Legacy rows store diagram_data at arbitrary low frets but label the row
-        // root='C', so the raw start_fret is unreliable. The calculator is
-        // root-agnostic and re-derives start_fret from the bass interval, so
-        // round-tripping through it self-heals the label/data mismatch.
-        $transposed = $this->shapeCalculator->calculateFrets($chord, $pinnedRoot);
-        $diagData = $transposed['diagram_data'] ?? null;
-        $startFret = $transposed['start_fret'] ?? ($chord->start_fret ?? 1);
-        $intervalLabels = $transposed['interval_labels'] ?? ($chord->interval_labels ?? '');
-        $notesField = $transposed['notes'] ?? ($chord->notes ?? '');
-
-        if (empty($diagData) || (empty($diagData['positions']) && empty($diagData['open']))) {
-            $diagData = is_string($chord->diagram_data)
-                ? json_decode($chord->diagram_data, true)
-                : ($chord->diagram_data ?? []);
-            $startFret = $chord->start_fret ?? 1;
-            $intervalLabels = $chord->interval_labels ?? '';
-            $notesField = $chord->notes ?? '';
-        }
-
-        $pinnedVoicing = [
-            'id' => $chord->id,
-            'root_note' => $pinnedRoot,
-            'quality' => $chordQuality,
-            'extensions' => $chord->extensions ?? '',
-            'voicing_category' => $chord->voicing_category,
-            'root_string' => $chord->root_string,
-            'inversion' => $chord->inversion ?? 'root',
-            'start_fret' => $startFret,
-            'diagram_data' => $diagData,
-            'interval_labels' => $intervalLabels,
-            'notes' => $notesField,
-            'popularity' => $chord->popularity ?? 0,
-            'frets' => null,
-        ];
-
-        // The 12 keys we'll try when locating the right transposition for a progression.
-        $candidateKeys = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
-
-        $progressions = $progressions
-            ->map(function ($p) use ($pinnedVoicing, $pinnedRoot, $chordQuality, $candidateKeys) {
-                // Find the key in which this progression places a chord matching our
-                // pinned root + quality. This makes the surrounding chords harmonically
-                // related to the chord the user is looking at, instead of always C-based.
-                // Example: viewing Ebm7 in "IIm7 - V7 - Imaj7" → key Db → Ebm7, Ab7, Dbmaj7.
-                $chosenKey = null;
                 $pinnedSlot = null;
-                foreach ($candidateKeys as $candidate) {
-                    $context = $this->harmonicContext->buildFromNumerals($candidate, $p->numerals);
-                    $chords = $context['sections'][0]['chords'] ?? [];
-                    foreach ($chords as $i => $c) {
-                        if (($c['quality'] ?? null) === $chordQuality
-                            && $this->rootsEqual($c['root'] ?? null, $pinnedRoot)) {
-                            $chosenKey = $candidate;
-                            $pinnedSlot = $i;
-                            break 2;
-                        }
+                foreach ($chords as $i => $c) {
+                    if (($c['quality'] ?? null) === $chordQuality) {
+                        $pinnedSlot = $i;
+                        break;
                     }
                 }
-
-                // Fallback: no key produces a slot matching this chord exactly. This
-                // shouldn't happen for diatonic progressions but keeps us safe for
-                // non-diatonic numerals — render in C without pinning.
-                if ($chosenKey === null) {
-                    $chosenKey = 'C';
-                }
-
-                $context = $this->harmonicContext->buildFromNumerals($chosenKey, $p->numerals);
-
-                // extensions omitted: buildVoicings defaults it from the
-                // Machine Room's per-category pass2_eligible setting.
-                $built = $this->progressionBuilder->buildVoicings($context, [
-                    'category' => $p->category,
-                    'pinnedSlot' => $pinnedSlot,
-                    'pinnedVoicing' => $pinnedSlot !== null ? $pinnedVoicing : null,
-                ]);
-
-                $tiles = array_map(function ($sel) {
-                    $v = $sel['voicing'] ?? null;
-
-                    return [
-                        'chordName' => $sel['chord_name'],
-                        'numeral' => $sel['roman_numeral'] ?? null,
-                        'diagramData' => $v,
-                        'slug' => null,
-                    ];
-                }, $built['selections']);
+                if ($pinnedSlot === null) return null;
 
                 return [
                     'id' => $p->id,
@@ -241,10 +144,52 @@ class ChordLibraryController extends Controller
                     'name' => $p->name,
                     'category' => $p->category,
                     'numeralsDisplay' => $p->numerals_display,
-                    'keyLabel' => $chosenKey,
-                    'tiles' => $tiles,
+                    'pinnedSlot' => $pinnedSlot,
                 ];
-            });
+            })
+            ->filter()
+            ->take(8)
+            ->values();
+
+        // Aliases: same fret shape, different musical reinterpretation.
+        // Aliases are stored relative to the chord's stored root (C). If the page
+        // is showing a transposed root, shift each alias root/bass by the same offset.
+        $storedRoot  = $chord->root_note ?? 'C';
+        $effectiveDisplayRoot = $displayRoot ?? $storedRoot;
+        $semitones   = ChordShapeCalculator::NOTE_SEMITONES;
+        $sharpNames  = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+        $flatNames   = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+        $delta       = (($semitones[$effectiveDisplayRoot] ?? 0) - ($semitones[$storedRoot] ?? 0) + 12) % 12;
+
+        // Use the display root's enharmonic family to spell transposed alias notes.
+        $useFlats = str_contains($effectiveDisplayRoot, 'b');
+        $transposeNote = function (?string $note) use ($delta, $semitones, $sharpNames, $flatNames, $useFlats): ?string {
+            if ($note === null || $note === '') return $note;
+            $base = ($semitones[$note] ?? null);
+            if ($base === null) return $note;
+            $target = ($base + $delta) % 12;
+            return $useFlats ? $flatNames[$target] : $sharpNames[$target];
+        };
+
+        $aliases = ChordDiagramAlias::where('diagram_id', $chord->id)
+            ->whereNotNull('alt_root_note')
+            ->whereNotNull('alt_quality')
+            ->orderBy('id')
+            ->get()
+            ->map(function ($a) use ($transposeNote) {
+                $root = $transposeNote($a->alt_root_note);
+                $bass = $transposeNote($a->alt_bass_note);
+                return [
+                    'root_note'      => $root,
+                    'quality'        => $a->alt_quality,
+                    'extensions'     => $a->alt_extensions ?? '',
+                    'bass_note'      => $bass,
+                    'interval_labels'=> $a->interval_labels ?? null,
+                    'notes'          => $a->notes ?? null,
+                    'name'           => ChordDiagramAlias::buildAltName($root, $a->alt_quality, $a->alt_extensions, $bass),
+                ];
+            })
+            ->values();
 
         // Edu content for this chord's quality — description/usage prose for
         // the identity section, plus body_html + has_widgets so the page can
@@ -253,31 +198,12 @@ class ChordLibraryController extends Controller
 
         return Inertia::render('Library/Chords/Show', [
             'chord' => $this->chordSerializer->serialize($chord, $displayRoot),
+            'aliases' => $aliases,
             'siblings' => $siblings,
             'songs' => $songs,
             'progressions' => $progressions,
             'qualityTopic' => $qualityTopic?->toArray(),
         ]);
-    }
-
-    /**
-     * Compare two root notes by pitch class so enharmonic spellings match
-     * (Eb == D#, Db == C#, etc.).
-     */
-    private function rootsEqual(?string $a, ?string $b): bool
-    {
-        if (! $a || ! $b) {
-            return false;
-        }
-        static $semi = [
-            'C' => 0, 'B#' => 0, 'C#' => 1, 'Db' => 1, 'D' => 2, 'D#' => 3, 'Eb' => 3,
-            'E' => 4, 'Fb' => 4, 'F' => 5, 'E#' => 5, 'F#' => 6, 'Gb' => 6, 'G' => 7,
-            'G#' => 8, 'Ab' => 8, 'A' => 9, 'A#' => 10, 'Bb' => 10, 'B' => 11, 'Cb' => 11,
-        ];
-        $sa = $semi[$a] ?? null;
-        $sb = $semi[$b] ?? null;
-
-        return $sa !== null && $sa === $sb;
     }
 
     /**

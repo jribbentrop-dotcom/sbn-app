@@ -3,21 +3,11 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { mountSbnNodes } from '@/lib/mountSbnNodes';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
-import ChordDiagram from '@/Components/Library/ChordDiagram.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
-import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
 import SongLink from '@/Components/Library/SongLink.vue';
 import type { SongLinkData } from '@/Components/Library/SongLink.vue';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
-import type { ProgressionChord } from '@/Components/Library/ChordProgressionViewer.vue';
 import { getCategoryColor } from '@/composables/useCategoryColors';
-
-interface ProgressionTile {
-    chordName: string;
-    diagramData: ChordDiagramData | null;
-    slug?: string | null;
-    numeral?: string | null;
-}
 
 interface ProgressionRef {
     id: number;
@@ -25,7 +15,7 @@ interface ProgressionRef {
     name: string;
     category: string;
     numeralsDisplay: string;
-    tiles: ProgressionTile[];
+    pinnedSlot: number | null;
 }
 
 // Edu content for the chord's quality (EduContentService::qualityTopic).
@@ -40,8 +30,19 @@ interface QualityTopic {
     has_widgets: boolean;
 }
 
+interface ChordAlias {
+    root_note: string;
+    quality: string;
+    extensions: string;
+    bass_note: string | null;
+    interval_labels: string | null;
+    notes: string | null;
+    name: string;
+}
+
 interface Props {
     chord: ChordDiagramData;
+    aliases: ChordAlias[];
     siblings: ChordDiagramData[];
     songs: SongLinkData[];
     progressions: ProgressionRef[];
@@ -90,7 +91,8 @@ const inversionEdu: Record<string, { desc: string; context: string }> = {
 };
 
 // ── Computed ──────────────────────────────────────────────────────────────────
-const theory   = computed(() => theoryMap[props.chord.quality]   ?? null);
+const theory       = computed(() => theoryMap[props.chord.quality] ?? null);
+const activeTheory = computed(() => theoryMap[activeQuality.value] ?? theory.value);
 // eduQ: the quality's description/usage prose, or null when the quality has no
 // topic or no description — in which case the identity section falls back to
 // `theory.typical_context`, exactly as before.
@@ -119,29 +121,81 @@ onMounted(mountQualityBody);
 watch(() => props.qualityTopic?.slug, mountQualityBody);
 onBeforeUnmount(() => { unmountQualityBody?.(); unmountQualityBody = null; });
 
+// ── Alias switcher ────────────────────────────────────────────────────────────
+// -1 = primary chord; 0..n = alias index
+const activeAliasIdx = ref(-1);
+const activeAlias = computed(() => activeAliasIdx.value >= 0 ? props.aliases[activeAliasIdx.value] : null);
+
+// Merged view: fret shape always from chord, name/quality/extensions from active alias when set
+const activeQuality    = computed(() => activeAlias.value?.quality    ?? props.chord.quality);
+const activeExtensions = computed(() => activeAlias.value?.extensions ?? props.chord.extensions ?? '');
+const activeRootNote   = computed(() => activeAlias.value?.root_note  ?? props.chord.root_note ?? '');
+
+// Chord passed to ChordCard — overlay all alias fields when active
+const displayChord = computed(() => {
+    if (!activeAlias.value) return props.chord;
+    return {
+        ...props.chord,
+        root_note:       activeAlias.value.root_note,
+        quality:         activeAlias.value.quality,
+        extensions:      activeAlias.value.extensions,
+        bass_note:       activeAlias.value.bass_note ?? '',
+        interval_labels: activeAlias.value.interval_labels ?? props.chord.interval_labels,
+        notes:           activeAlias.value.notes ?? props.chord.notes,
+    };
+});
+
+const formattedActiveName = computed(() => {
+    const root = (activeAlias.value?.root_note ?? props.chord.root_note ?? '').replace(/#/g, '♯').replace(/b/g, '♭');
+    const quality = activeAlias.value?.quality ?? props.chord.quality;
+    const [qual, core] = qualityMap[quality] ?? ['', quality];
+    const ext = (activeAlias.value?.extensions ?? props.chord.extensions ?? '').replace(/#/g, '♯').replace(/b(?=[0-9])/g, '♭');
+    const bass = (activeAlias.value?.bass_note ?? props.chord.bass_note ?? '').replace(/#/g, '♯').replace(/b/g, '♭');
+    let html = '<span class="sbn-chord-symbol">';
+    if (root) html += `<span class="sbn-chord-root">${root}</span>`;
+    if (qual) html += `<span class="sbn-chord-quality">${qual}</span>`;
+    if (core) html += `<span class="sbn-chord-ext">${core}</span>`;
+    if (ext)  html += `<span class="sbn-chord-ext sbn-chord-ext--extra">(${ext})</span>`;
+    if (bass) html += `<span class="sbn-chord-bass">/${bass}</span>`;
+    html += '</span>';
+    return html;
+});
+
 const eduV     = computed(() => voicingEdu[props.chord.voicing_category] ?? null);
 const eduInv   = computed(() => props.chord.inversion && props.chord.inversion !== 'root' ? (inversionEdu[props.chord.inversion] ?? null) : null);
 
-const soundingIntervals = computed(() => {
-    if (!props.chord.interval_labels) return [];
-    const order: Record<string, number> = {
-        R: 0, b2: 1, '2': 2, b3: 3, '3': 4, '4': 5, '#4': 6, b5: 6, '5': 7,
-        '#5': 8, b6: 8, '6': 9, bb7: 9, b7: 10, '7': 11,
-        b9: 1, '9': 2, '#9': 3, '11': 5, '#11': 6, b13: 8, '13': 9,
-    };
+const DROP2_CATEGORIES = new Set(['drop2', 'drop3']);
+const TRIAD_CATEGORIES = new Set(['closed_triads', 'spread_triads', 'archetype', 'closed']);
+const voicingWidget = computed(() => {
+    const cat = props.chord.voicing_category;
+    if (DROP2_CATEGORIES.has(cat)) return 'drop2';
+    if (TRIAD_CATEGORIES.has(cat)) return 'triad';
+    return null;
+});
+
+const QUALITY_WIDGET_MAP: Record<string, string> = {
+    maj7: 'drop2-visualizer', maj6: 'drop2-visualizer',
+    m7: 'drop2-visualizer', mMaj7: 'drop2-visualizer', m6: 'drop2-visualizer',
+    dom7: 'drop2-visualizer', aug7: 'drop2-visualizer', m7b5: 'drop2-visualizer',
+    o7: 'drop2-visualizer',
+    maj: 'triad-builder', min: 'triad-builder', aug: 'triad-builder', dim: 'triad-builder',
+};
+const activeQualityWidget = computed(() => QUALITY_WIDGET_MAP[activeQuality.value] ?? null);
+
+const soundingNotes = computed(() => {
+    const notes = displayChord.value.notes;
+    if (!notes) return [];
     const seen = new Set<string>();
     const result: string[] = [];
-    for (const iv of props.chord.interval_labels.split(',')) {
-        const t = iv.trim();
+    for (const n of notes.split(',')) {
+        const t = n.trim();
         if (t && t !== 'x' && t !== 'X' && !seen.has(t)) { seen.add(t); result.push(t); }
     }
-    result.sort((a, b) => (order[a] ?? 99) - (order[b] ?? 99));
     return result;
 });
 
-function formatInterval(iv: string): string {
-    if (iv === 'R') return iv;
-    return iv.replace(/bb/g, '♭♭').replace(/b/g, '♭').replace(/#/g, '♯');
+function formatNote(n: string): string {
+    return n.replace(/#/g, '♯').replace(/b/g, '♭');
 }
 
 const qualityMap: Record<string, [string, string]> = {
@@ -152,31 +206,36 @@ const qualityMap: Record<string, [string, string]> = {
     'mMaj7': ['m', 'maj7'], 'aug7': ['aug', '7'], '7sus4': ['', '7sus4'],
 };
 
+function formatAliasName(alias: ChordAlias): string {
+    const root = alias.root_note.replace(/#/g, '♯').replace(/b/g, '♭');
+    const [qual, core] = qualityMap[alias.quality] ?? ['', alias.quality];
+    const ext = alias.extensions.replace(/#/g, '♯').replace(/b(?=[0-9])/g, '♭');
+    const bass = (alias.bass_note ?? '').replace(/#/g, '♯').replace(/b/g, '♭');
+    let html = '<span class="sbn-chord-symbol">';
+    html += `<span class="sbn-chord-root">${root}</span>`;
+    if (qual) html += `<span class="sbn-chord-quality">${qual}</span>`;
+    if (core) html += `<span class="sbn-chord-ext">${core}</span>`;
+    if (ext)  html += `<span class="sbn-chord-ext sbn-chord-ext--extra">(${ext})</span>`;
+    if (bass) html += `<span class="sbn-chord-bass">/${bass}</span>`;
+    html += '</span>';
+    return html;
+}
+
 const formattedChordName = computed(() => {
     const root = (props.chord.root_note ?? '').replace(/#/g, '♯').replace(/b/g, '♭');
     const [qual, core] = qualityMap[props.chord.quality] ?? ['', props.chord.quality];
     const ext = (props.chord.extensions ?? '').replace(/#/g, '♯').replace(/b(?=[0-9])/g, '♭');
+    const bass = (props.chord.bass_note ?? '').replace(/#/g, '♯').replace(/b/g, '♭');
     let html = '<span class="sbn-chord-symbol">';
     if (root) html += `<span class="sbn-chord-root">${root}</span>`;
     if (qual) html += `<span class="sbn-chord-quality">${qual}</span>`;
     if (core) html += `<span class="sbn-chord-ext">${core}</span>`;
     if (ext)  html += `<span class="sbn-chord-ext sbn-chord-ext--extra">(${ext})</span>`;
+    if (bass) html += `<span class="sbn-chord-bass">/${bass}</span>`;
     html += '</span>';
     return html;
 });
 
-// Convert tiles to chords for the viewer
-function getChords(prog: ProgressionRef): ProgressionChord[] {
-    return prog.tiles.map((tile) => ({
-        chordName: tile.chordName,
-        diagramData: tile.diagramData,
-        beats: 4,
-        slug: tile.slug,
-        numeral: tile.numeral ?? undefined,
-    }));
-}
-
-const previewProgressions = computed(() => props.progressions.slice(0, 2));
 </script>
 
 <template>
@@ -194,31 +253,16 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
             <div class="sbn-chord-identity-left">
 
                 <div class="sbn-chord-identity-diagram">
-                    <ChordCard :chord="chord" :showRoot="true" :detail="true" />
+                    <ChordCard :chord="displayChord" :showRoot="true" :detail="true" />
                 </div>
 
-                <!-- Interval dots -->
-                <div v-if="soundingIntervals.length" class="sbn-chord-identity-intervals-row">
+                <!-- Chord tone names -->
+                <div v-if="soundingNotes.length" class="sbn-chord-identity-intervals-row">
                     <span
-                        v-for="iv in soundingIntervals"
-                        :key="iv"
-                        :class="['sbn-iv', iv === 'R' ? 'sbn-iv-root' : '']"
-                    >{{ formatInterval(iv) }}</span>
-                </div>
-                <div v-else-if="theory" class="sbn-chord-identity-intervals-row sbn-iv-fallback">
-                    {{ theory.intervals }}
-                </div>
-
-                <!-- Tension meter -->
-                <div v-if="theory" class="sbn-chord-detail-tension" title="Harmonic tension (0 = stable, 5 = maximum)">
-                    <span class="sbn-chord-detail-tension-label">Tension</span>
-                    <div class="sbn-chord-detail-tension-dots">
-                        <span
-                            v-for="i in 5"
-                            :key="i"
-                            :class="['sbn-tension-dot', i <= theory.tension ? 'filled' : '']"
-                        />
-                    </div>
+                        v-for="n in soundingNotes"
+                        :key="n"
+                        class="sbn-iv"
+                    >{{ formatNote(n) }}</span>
                 </div>
 
             </div><!-- .sbn-chord-identity-left -->
@@ -227,10 +271,15 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
             <div class="sbn-chord-identity-right">
 
                 <h2 class="sbn-chord-identity-about">
-                    About the <span v-html="formattedChordName" /> chord
+                    About the <span v-html="formattedActiveName" /> chord
                 </h2>
 
-                <template v-if="eduQ">
+                <template v-if="activeAlias">
+                    <p class="sbn-chord-identity-description">
+                        {{ activeTheory?.typical_context ?? eduQ?.description ?? '' }}
+                    </p>
+                </template>
+                <template v-else-if="eduQ">
                     <p class="sbn-chord-identity-description">
                         {{ eduQ.description }}
                         <span class="sbn-chord-identity-usage">{{ eduQ.usage }}</span>
@@ -239,6 +288,28 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
                 <template v-else-if="theory">
                     <p class="sbn-chord-identity-description">{{ theory.typical_context }}</p>
                 </template>
+
+                <!-- Alias switcher — shown below description when aliases exist -->
+                <div v-if="aliases.length" class="sbn-alias-block">
+                    <p class="sbn-alias-blurb">
+                        This voicing can be interpreted as different chords depending on context.
+                        <Link v-if="activeQualityWidget" :href="`/theory?widget=${activeQualityWidget}`" class="sbn-alias-blurb-link">Learn more about alias voicings →</Link>
+                    </p>
+                </div>
+                <div v-if="aliases.length" class="sbn-alias-switcher">
+                    <button
+                        class="sbn-alias-btn"
+                        :class="{ active: activeAliasIdx === -1 }"
+                        @click="activeAliasIdx = -1"
+                    ><span v-html="formattedChordName" /></button>
+                    <button
+                        v-for="(alias, i) in aliases"
+                        :key="i"
+                        class="sbn-alias-btn"
+                        :class="{ active: activeAliasIdx === i }"
+                        @click="activeAliasIdx = i"
+                    ><span v-html="formatAliasName(alias)" /></button>
+                </div>
 
                 <!-- Quality body — rendered only when it embeds an <sbn-widget>;
                      mountSbnNodes turns the tag into a live component. -->
@@ -249,78 +320,92 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
                     v-html="qualityTopic!.body_html"
                 ></div>
 
-                <!-- Voicing type accordion -->
-                <details v-if="eduV" class="sbn-accordion">
-                    <summary class="sbn-accordion-summary">
-                        <span class="sbn-accordion-badge">{{ eduV.name }}</span>
-                        Voicing type
-                    </summary>
-                    <div class="sbn-accordion-body">
-                        <p>{{ eduV.detail }}</p>
-                        <p class="sbn-accordion-tip">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                            {{ eduV.tip }}
-                        </p>
-                    </div>
-                </details>
+                <div class="sbn-accordion-group">
 
-                <!-- Inversion accordion -->
-                <details v-if="eduInv" class="sbn-accordion">
-                    <summary class="sbn-accordion-summary">
-                        <span class="sbn-accordion-badge sbn-accordion-badge--inv">{{ chord.inversion_label }}</span>
-                        Inversion
-                    </summary>
-                    <div class="sbn-accordion-body">
-                        <p>{{ eduInv.desc }}</p>
-                        <p v-if="eduInv.context" class="sbn-accordion-context">{{ eduInv.context }}</p>
-                    </div>
-                </details>
-
-                <!-- Related chord types accordion -->
-                <details v-if="theory && theory.related.length" class="sbn-accordion">
-                    <summary class="sbn-accordion-summary">
-                        <span class="sbn-accordion-badge sbn-accordion-badge--related">Related</span>
-                        Related chord types
-                    </summary>
-                    <div class="sbn-accordion-body">
-                        <div class="sbn-accordion-related-chips">
-                            <Link
-                                v-for="rel in theory.related"
-                                :key="rel"
-                                :href="`/library/chords?quality=${rel}`"
-                                class="sbn-theory-related-chip"
-                            >
-                                <span v-html="rel" />
-                            </Link>
+                    <!-- Voicing type row -->
+                    <details v-if="eduV" class="sbn-accordion">
+                        <summary class="sbn-accordion-summary">
+                            <span class="sbn-accordion-icon sbn-accordion-icon--voicing">{{ chord.voicing_category.slice(0,2).toUpperCase() }}</span>
+                            <span class="sbn-accordion-label">Voicing type</span>
+                            <span class="sbn-accordion-value">{{ eduV.name }}</span>
+                            <span class="sbn-accordion-chevron">›</span>
+                        </summary>
+                        <div class="sbn-accordion-body">
+                            <p>{{ eduV.detail }}</p>
+                            <p class="sbn-accordion-tip">{{ eduV.tip }}</p>
+                            <Link v-if="voicingWidget === 'drop2'" href="/theory?widget=drop2-visualizer" class="sbn-accordion-explore">Explore Drop 2 &amp; Drop 3 →</Link>
+                            <Link v-else-if="voicingWidget === 'triad'" href="/theory?widget=triad-builder" class="sbn-accordion-explore">Explore triad voicings →</Link>
                         </div>
-                    </div>
-                </details>
+                    </details>
+
+                    <!-- Extensions row -->
+                    <details v-if="activeExtensions" class="sbn-accordion">
+                        <summary class="sbn-accordion-summary">
+                            <span class="sbn-accordion-icon sbn-accordion-icon--ext">♭♯</span>
+                            <span class="sbn-accordion-label">Extensions</span>
+                            <span class="sbn-accordion-value">{{ activeExtensions }}</span>
+                            <span class="sbn-accordion-chevron">›</span>
+                        </summary>
+                        <div class="sbn-accordion-body">
+                            <p>This voicing adds <strong>{{ activeExtensions }}</strong> on top of the base {{ activeQuality }} quality, enriching the colour without changing the chord's harmonic function.</p>
+                        </div>
+                    </details>
+
+                    <!-- Inversion row -->
+                    <details v-if="eduInv" class="sbn-accordion">
+                        <summary class="sbn-accordion-summary">
+                            <span class="sbn-accordion-icon sbn-accordion-icon--inv">inv</span>
+                            <span class="sbn-accordion-label">Inversion</span>
+                            <span class="sbn-accordion-value">{{ chord.inversion_label }}</span>
+                            <span class="sbn-accordion-chevron">›</span>
+                        </summary>
+                        <div class="sbn-accordion-body">
+                            <p>{{ eduInv.desc }}</p>
+                            <p v-if="eduInv.context" class="sbn-accordion-tip">{{ eduInv.context }}</p>
+                        </div>
+                    </details>
+
+                </div>
 
             </div><!-- .sbn-chord-identity-right -->
         </div><!-- .sbn-chord-identity -->
 
-        <!-- ════ PROGRESSIONS ════ -->
-        <div v-if="progressions.length" class="sbn-chord-detail-section">
-            <div class="sbn-chord-detail-section-heading-row">
-                <h2 class="sbn-chord-detail-section-heading">Chord Progressions</h2>
-                <Link href="/library/progressions" class="sbn-chord-detail-section-link">View all in library →</Link>
+        <div class="sbn-chord-detail-lower">
+
+            <!-- ════ PROGRESSIONS ════ -->
+            <div v-if="progressions.length" class="sbn-chord-detail-section">
+                <div class="sbn-chord-detail-section-heading-row">
+                    <h2 class="sbn-chord-detail-section-heading">Progressions with <span v-html="formattedChordName" class="sbn-chord-detail-heading-chord" /></h2>
+                    <Link href="/library/progressions" class="sbn-chord-detail-section-link">View all →</Link>
+                </div>
+                <ul class="sbn-chord-detail-progressions">
+                    <li v-for="prog in progressions.slice(0, 4)" :key="prog.id">
+                        <Link
+                            :href="`/library/progressions/${prog.slug}?chord=${chord.slug}&highlight=${prog.pinnedSlot ?? 0}`"
+                            class="sbn-chord-detail-prog-link"
+                            :style="{ '--prog-color': getCategoryColor(prog.category) }"
+                        >
+                            <span class="sbn-chord-detail-prog-name">{{ prog.name }}</span>
+                            <span class="sbn-chord-detail-prog-numerals">{{ prog.numeralsDisplay }}</span>
+                        </Link>
+                    </li>
+                </ul>
             </div>
-            <div class="sbn-chord-detail-progressions">
-                <ChordProgressionViewer
-                    v-for="prog in previewProgressions"
-                    :key="prog.id"
-                    :chords="getChords(prog)"
-                    :interactive="true"
-                    :compact="true"
-                    :show-flow-arrows="true"
-                    :name="prog.name"
-                    :category="prog.category"
-                    :key-label="prog.keyLabel"
-                    :color="getCategoryColor(prog.category)"
-                    :vintage-card="true"
-                />
+
+            <!-- ════ SONGS ════ -->
+            <div v-if="songs.length" class="sbn-chord-detail-section">
+                <div class="sbn-chord-detail-section-heading-row">
+                    <h2 class="sbn-chord-detail-section-heading">Songs with <span v-html="formattedChordName" class="sbn-chord-detail-heading-chord" /></h2>
+                    <Link href="/library/songs" class="sbn-chord-detail-section-link">View all →</Link>
+                </div>
+                <ul class="sbn-chord-detail-songs">
+                    <li v-for="song in songs.slice(0, 4)" :key="song.id">
+                        <SongLink :song="song" />
+                    </li>
+                </ul>
             </div>
-        </div>
+
+        </div><!-- .sbn-chord-detail-lower -->
 
         <!-- ════ OTHER VOICINGS ════ -->
         <div v-if="siblings.length" class="sbn-chord-detail-section sbn-chord-detail-other-voicings">
@@ -335,16 +420,6 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
                     <ChordCard :chord="sib" :showRoot="true" />
                 </Link>
             </div>
-        </div>
-
-        <!-- ════ SONGS ════ -->
-        <div v-if="songs.length" class="sbn-chord-detail-section">
-            <h2 class="sbn-chord-detail-section-heading">Songs using this chord</h2>
-            <ul class="sbn-chord-detail-songs">
-                <li v-for="song in songs" :key="song.id">
-                    <SongLink :song="song" />
-                </li>
-            </ul>
         </div>
 
     </div>
@@ -367,7 +442,6 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
     gap: 48px;
     align-items: start;
     margin-bottom: 56px;
-    background: var(--clr-surface-2);
     border: 1px solid var(--clr-border);
     border-radius: var(--radius);
     padding: 28px;
@@ -382,6 +456,59 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
     position: sticky;
     top: 90px;
 }
+
+/* Alias block — blurb + switcher */
+.sbn-alias-block {
+    margin-bottom: 12px;
+}
+.sbn-alias-blurb {
+    font-size: 0.85em;
+    color: var(--clr-text-muted);
+    margin: 0;
+    line-height: 1.5;
+}
+.sbn-alias-blurb-link {
+    display: inline;
+    font-weight: 600;
+    color: var(--clr-mod-chord);
+    text-decoration: none;
+    margin-left: 4px;
+}
+.sbn-alias-blurb-link:hover { text-decoration: underline; }
+
+/* Alias switcher — below description */
+.sbn-alias-switcher {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 20px;
+}
+.sbn-alias-btn {
+    font-family: var(--font-chord, 'Crimson Text', Georgia, serif);
+    font-size: 15px;
+    line-height: 1.3;
+    padding: 5px 14px;
+    border-radius: 6px;
+    border: 1.5px solid var(--clr-border);
+    background: var(--clr-surface-2);
+    color: var(--clr-text);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+.sbn-alias-btn:hover {
+    border-color: var(--clr-mod-chord);
+    background: var(--clr-white);
+}
+.sbn-alias-btn.active {
+    border-color: var(--clr-mod-chord);
+    background: var(--clr-white);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--clr-mod-chord) 20%, transparent);
+}
+.sbn-alias-btn :deep(.sbn-chord-root)    { font-weight: 700; }
+.sbn-alias-btn :deep(.sbn-chord-quality) { font-size: 0.78em; }
+.sbn-alias-btn :deep(.sbn-chord-ext)     { font-size: 0.72em; font-weight: 600; vertical-align: super; line-height: 0; }
+.sbn-alias-btn :deep(.sbn-chord-bass)    { font-size: 0.85em; color: var(--clr-text-muted); }
 
 .sbn-chord-identity-diagram {
     width: 100%;
@@ -406,44 +533,6 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
     color: var(--clr-text);
 }
 
-.sbn-iv-root {
-    background: var(--clr-accent-bg);
-    color: var(--clr-red);
-}
-
-.sbn-iv-fallback {
-    font-size: 0.82em;
-    color: var(--clr-text-muted);
-    text-align: center;
-}
-
-/* Tension meter */
-.sbn-chord-detail-tension {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.sbn-chord-detail-tension-label {
-    font-size: 0.75em;
-    font-weight: 500;
-    color: var(--clr-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-}
-
-.sbn-chord-detail-tension-dots {
-    display: flex;
-    gap: 4px;
-}
-
-.sbn-tension-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--clr-border);
-}
-.sbn-tension-dot.filled { background: var(--clr-red); }
 
 /* Right column */
 .sbn-chord-identity-right {
@@ -474,90 +563,86 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
     font-size: 0.93em;
 }
 
-/* Accordions */
-.sbn-accordion {
-    border-top: 1px solid var(--clr-border);
-    padding: 0;
+/* Accordions — iOS settings rows */
+.sbn-accordion-group {
+    margin-top: 16px;
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    overflow: hidden;
 }
-.sbn-accordion:last-child { border-bottom: 1px solid var(--clr-border); }
-
+.sbn-accordion {
+    border-bottom: 1px solid var(--clr-border);
+}
+.sbn-accordion:last-child { border-bottom: none; }
 .sbn-accordion-summary {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 13px 0;
+    gap: 12px;
+    padding: 11px 14px;
     cursor: pointer;
-    font-size: 0.88em;
-    font-weight: 500;
-    color: var(--clr-text);
     list-style: none;
     user-select: none;
+    transition: background 0.12s;
 }
 .sbn-accordion-summary::-webkit-details-marker { display: none; }
-.sbn-accordion-summary::after {
-    content: '›';
-    margin-left: auto;
+.sbn-accordion-summary:hover { background: var(--clr-surface-2); }
+.sbn-accordion[open] > .sbn-accordion-summary { background: var(--clr-surface-2); }
+
+.sbn-accordion-icon {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #fff;
+}
+.sbn-accordion-icon--voicing { background: var(--clr-mod-chord); }
+.sbn-accordion-icon--ext     { background: var(--clr-mod-progression); font-size: 12px; }
+.sbn-accordion-icon--inv     { background: var(--clr-primary); font-size: 9px; text-transform: uppercase; }
+
+.sbn-accordion-label {
+    flex: 1;
+    font-size: 0.9em;
+    font-weight: 500;
+    color: var(--clr-text);
+}
+.sbn-accordion-value {
+    font-size: 0.85em;
+    color: var(--clr-text-muted);
+    margin-right: 4px;
+}
+.sbn-accordion-chevron {
     font-size: 1.1em;
     color: var(--clr-text-muted);
     transition: transform 0.2s;
+    line-height: 1;
 }
-.sbn-accordion[open] > .sbn-accordion-summary::after { transform: rotate(90deg); }
-
-.sbn-accordion-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.82em;
-    font-weight: 600;
-    background: var(--clr-white);
-    border: 1px solid var(--clr-border);
-    color: var(--clr-text-muted);
-}
-.sbn-accordion-badge--inv     { background: rgba(99,102,241,0.1); color: #6366f1; }
-.sbn-accordion-badge--related { background: rgba(16,185,129,0.1);  color: #10b981; }
+.sbn-accordion[open] > .sbn-accordion-summary .sbn-accordion-chevron { transform: rotate(90deg); }
 
 .sbn-accordion-body {
-    padding: 0 0 16px;
+    padding: 2px 14px 14px 56px;
     font-size: 0.88em;
     line-height: 1.6;
     color: var(--clr-text);
+    border-top: 1px solid var(--clr-border-dim);
+    background: var(--clr-surface-2);
 }
-.sbn-accordion-body p { margin: 0 0 8px; }
-.sbn-accordion-body p:last-child { margin: 0; }
-
-.sbn-accordion-tip {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    color: var(--clr-text-muted);
-    font-style: italic;
-}
-.sbn-accordion-tip svg { flex-shrink: 0; margin-top: 2px; }
-
-.sbn-accordion-context { color: var(--clr-text-muted); }
-
-.sbn-accordion-related-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding-top: 4px;
-}
-
-.sbn-theory-related-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 12px;
-    border: 1px solid var(--clr-border);
-    border-radius: var(--radius-sm);
-    font-size: 0.88em;
+.sbn-accordion-body p { margin: 8px 0 0; }
+.sbn-accordion-tip { color: var(--clr-text-muted); font-style: italic; }
+.sbn-accordion-explore {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 0.85em;
     font-weight: 600;
-    font-family: var(--font-chord);
-    color: var(--clr-text);
+    color: var(--clr-mod-chord);
     text-decoration: none;
-    transition: border-color 0.15s, color 0.15s;
 }
-.sbn-theory-related-chip:hover { border-color: var(--clr-red); color: var(--clr-red); }
+.sbn-accordion-explore:hover { text-decoration: underline; }
 
 /* ── Section wrapper ── */
 .sbn-chord-detail-section {
@@ -584,6 +669,14 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
     color: var(--clr-text);
     margin: 0;
 }
+.sbn-chord-detail-heading-chord :deep(.sbn-chord-symbol) {
+    font-family: var(--font-chord, 'Crimson Text', Georgia, serif);
+    font-size: 1.15em;
+    font-weight: 400;
+}
+.sbn-chord-detail-heading-chord :deep(.sbn-chord-root)    { font-weight: 700; }
+.sbn-chord-detail-heading-chord :deep(.sbn-chord-quality) { font-size: 0.82em; }
+.sbn-chord-detail-heading-chord :deep(.sbn-chord-ext)     { font-size: 0.72em; font-weight: 600; vertical-align: super; line-height: 0; }
 
 .sbn-chord-detail-section-link {
     font-size: 0.85em;
@@ -595,15 +688,50 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
 }
 .sbn-chord-detail-section-link:hover { color: var(--clr-text); }
 
-/* ── Progressions ── */
-.sbn-chord-detail-progressions {
+/* ── Lower two-column layout ── */
+.sbn-chord-detail-lower {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    gap: 32px;
+    align-items: start;
+}
+@media (max-width: 720px) {
+    .sbn-chord-detail-lower { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 720px) {
-    .sbn-chord-detail-progressions { grid-template-columns: 1fr; }
+/* ── Progressions ── */
+.sbn-chord-detail-progressions {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.sbn-chord-detail-prog-link {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    border: 1px solid var(--clr-border);
+    border-left: 3px solid var(--prog-color, var(--clr-accent));
+    text-decoration: none;
+    transition: background 0.15s ease;
+}
+.sbn-chord-detail-prog-link:hover {
+    background: var(--clr-surface-2);
+}
+.sbn-chord-detail-prog-name {
+    font-weight: 600;
+    color: var(--clr-text);
+    font-size: 14px;
+}
+.sbn-chord-detail-prog-numerals {
+    font-family: var(--font-chord, 'Crimson Text', Georgia, serif);
+    font-size: 13px;
+    color: var(--prog-color, var(--clr-accent));
+    letter-spacing: 0.04em;
 }
 
 /* ── Sibling voicings ── */
@@ -631,9 +759,23 @@ const previewProgressions = computed(() => props.progressions.slice(0, 2));
     list-style: none;
     padding: 0;
     margin: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.sbn-chord-detail-songs li :deep(.sbn-song-link) {
+    border: 1px solid var(--clr-border);
+    border-left: 3px solid var(--cat-clr, var(--clr-accent));
+    border-radius: var(--radius);
+    padding: 10px 14px;
+}
+.sbn-chord-detail-songs li :deep(.sbn-song-link:hover) {
+    background: var(--clr-surface-2);
+}
+.sbn-chord-detail-songs li :deep(.sbn-song-link__img) {
+    width: 44px;
+    height: 44px;
+    border-radius: 6px;
 }
 
 /* ── Responsive ── */

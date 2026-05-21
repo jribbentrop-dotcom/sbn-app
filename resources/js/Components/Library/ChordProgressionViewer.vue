@@ -73,6 +73,8 @@ export interface ChordProgressionViewerProps {
     category?: string;
     numerals?: string;
     keyLabel?: string;
+    /** Start with this chord index selected (defaults to 0). */
+    initialIndex?: number;
     /**
      * Video-sync playhead, in seconds of the embedded recording. When non-null,
      * the active chord is driven by `chordIndexAtTime` instead of audio playback.
@@ -96,6 +98,7 @@ const props = withDefaults(defineProps<ChordProgressionViewerProps>(), {
     category: '',
     numerals: '',
     keyLabel: '',
+    initialIndex: 0,
     videoPlayhead: null,
     videoStartSec: 0,
     tempoBpm: 120,
@@ -231,7 +234,7 @@ const activeIndex = computed<number>(() => {
     return selectedIndex.value;
 });
 
-const selectedIndex = ref(0);
+const selectedIndex = ref(props.initialIndex);
 
 const activeChordDiagramData = computed<ChordDiagramData | null>(() =>
     props.chords[activeIndex.value]?.diagramData ?? null

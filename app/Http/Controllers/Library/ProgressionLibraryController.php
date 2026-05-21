@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ChordDiagram;
 use App\Models\ChordProgression;
 use App\Models\Leadsheet;
+use App\Services\ChordShapeCalculator;
 use App\Services\HarmonicContext;
 use App\Services\ProgressionBuilder;
 use Illuminate\Http\Request;
@@ -16,6 +17,7 @@ class ProgressionLibraryController extends Controller
     public function __construct(
         protected ProgressionBuilder $progressionBuilder,
         protected HarmonicContext $harmonicContext,
+        protected ChordShapeCalculator $shapeCalculator,
     ) {
     }
 
@@ -73,12 +75,43 @@ class ProgressionLibraryController extends Controller
             ->get()
             ->map(fn ($p) => $this->serializeProgression($p));
 
-        // Resolve chord diagram tiles via the proper voice-leading path
-        // extensions is omitted: buildVoicings defaults it from the Machine
-        // Room's per-category pass2_eligible setting.
+        // Optional: pin a specific chord voicing when arriving from a chord detail page.
+        $pinnedSlot    = null;
+        $pinnedVoicing = null;
+        $chordSlug     = $request->query('chord');
+        $highlightSlot = $request->query('highlight');
+        if ($chordSlug !== null && $highlightSlot !== null) {
+            $pinnedChord = ChordDiagram::where('slug', $chordSlug)->first();
+            if ($pinnedChord) {
+                $pinnedSlot     = (int) $highlightSlot;
+                $transposed     = $this->shapeCalculator->calculateFrets($pinnedChord, $pinnedChord->root_note ?? 'C');
+                $diagData       = $transposed['diagram_data']    ?? json_decode($pinnedChord->diagram_data, true) ?? [];
+                $startFret      = $transposed['start_fret']      ?? ($pinnedChord->start_fret ?? 1);
+                $intervalLabels = $transposed['interval_labels'] ?? ($pinnedChord->interval_labels ?? '');
+                $notesField     = $transposed['notes']           ?? ($pinnedChord->notes ?? '');
+                $pinnedVoicing  = [
+                    'id'               => $pinnedChord->id,
+                    'root_note'        => $pinnedChord->root_note ?? 'C',
+                    'quality'          => $pinnedChord->quality,
+                    'extensions'       => $pinnedChord->extensions ?? '',
+                    'voicing_category' => $pinnedChord->voicing_category,
+                    'root_string'      => $pinnedChord->root_string,
+                    'inversion'        => $pinnedChord->inversion ?? 'root',
+                    'start_fret'       => $startFret,
+                    'diagram_data'     => $diagData,
+                    'interval_labels'  => $intervalLabels,
+                    'notes'            => $notesField,
+                    'popularity'       => $pinnedChord->popularity ?? 0,
+                    'frets'            => null,
+                ];
+            }
+        }
+
         $context = $this->harmonicContext->buildFromNumerals('C', $progression->numerals);
         $built   = $this->progressionBuilder->buildVoicings($context, [
-            'category'   => $progression->category,
+            'category'      => $progression->category,
+            'pinnedSlot'    => $pinnedSlot,
+            'pinnedVoicing' => $pinnedVoicing,
         ]);
         $tiles   = array_map(function ($sel) {
             $v = $sel['voicing'] ?? null;

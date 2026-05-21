@@ -88,7 +88,12 @@ class ChordSerializer
             'root_string_label' => $chord->root_string_label,
             'inversion' => $chord->inversion ?? 'root',
             'inversion_label' => $chord->inversion_label,
-            'bass_note' => $chord->bass_note,
+            'bass_note' => $chord->bass_note
+                ?? ChordShapeCalculator::deriveBassNote(
+                    $root ?? $chord->root_note ?? 'C',
+                    $chord->quality ?? '',
+                    $chord->inversion ?? 'root'
+                ),
             'shape_family' => $chord->shape_family,
             'start_fret' => $startFret,
             'diagram_data' => $diagramData,

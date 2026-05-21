@@ -49,13 +49,15 @@ const formattedName = computed(() => {
     };
 
     const [qual, core] = qualityMap[quality] ?? ['', quality];
-    const ext = extension.replace(/#/g, '♯').replace(/b(?=[0-9])/g, '♭');
+    const ext  = extension.replace(/#/g, '♯').replace(/b(?=[0-9])/g, '♭');
+    const bass = ((props.chord.bass_note ?? '') as string).replace(/#/g, '♯').replace(/b/g, '♭');
 
     let html = '<span class="sbn-chord-symbol">';
     if (root) html += `<span class="sbn-chord-root">${root}</span>`;
     if (qual) html += `<span class="sbn-chord-quality">${qual}</span>`;
     if (core) html += `<span class="sbn-chord-ext">${core}</span>`;
     if (ext)  html += `<span class="sbn-chord-ext sbn-chord-ext--extra">(${ext})</span>`;
+    if (bass) html += `<span class="sbn-chord-bass">/${bass}</span>`;
     html += '</span>';
     return html;
 });

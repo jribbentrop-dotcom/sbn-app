@@ -163,6 +163,24 @@ class ChordShapeCalculator
      * @param  string $rootNote  Target root note (e.g., 'C', 'F#', 'Bb')
      * @return array  {diagram_data, start_fret, interval_labels, notes}
      */
+
+    /**
+     * Derive the bass note for an inversion given the root and quality.
+     * Returns null for root position or unknown inversions.
+     */
+    public static function deriveBassNote(string $rootNote, string $quality, string $inversion): ?string
+    {
+        if ($inversion === 'root' || $inversion === '') return null;
+        $semitones = self::INVERSION_INTERVALS[$quality] ?? null;
+        if (!$semitones || !isset($semitones[$inversion])) return null;
+        $rootSemitone = self::NOTE_TO_SEMITONE[$rootNote] ?? null;
+        if ($rootSemitone === null) return null;
+        $target = ($rootSemitone + $semitones[$inversion]) % 12;
+        $sharpNames = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+        $flatNames  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+        return str_contains($rootNote, 'b') ? $flatNames[$target] : $sharpNames[$target];
+    }
+
     public function calculateFrets(object $shape, string $rootNote): array
     {
         if (!isset(self::NOTE_TO_SEMITONE[$rootNote])) {
