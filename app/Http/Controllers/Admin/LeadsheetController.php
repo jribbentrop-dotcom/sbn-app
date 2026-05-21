@@ -522,6 +522,7 @@ class LeadsheetController extends Controller
             'youtube_id'    => 'nullable|string',
             'ai_cleanup'    => 'nullable|boolean',
             'bass_snap'     => 'nullable|boolean',
+            'tab_position_style' => 'nullable|string|in:fretted,open',
         ]);
 
         if (($validated['mode'] ?? '') === 'audio') {
@@ -552,6 +553,10 @@ class LeadsheetController extends Controller
                 // Bass-snap beat correction — on by default; the user can
                 // re-shift from the editor if it misfires on a given tune.
                 'bass_snap'   => !array_key_exists('bass_snap', $validated) || !empty($validated['bass_snap']),
+                // Fretboard optimiser bias: 'fretted' (jazz chord-melody, the
+                // default) keeps a bar in one neck position; 'open' favours
+                // open strings (classical / fingerstyle).
+                'tab_position_style' => $validated['tab_position_style'] ?? 'fretted',
             ], 0, $crossref);
 
             // ── Optional: AI Refinement (Structuralisation Pass) ─────────────
@@ -850,9 +855,10 @@ class LeadsheetController extends Controller
      *
      * The original raw Python transcription is cached in json_data.transcriptionRaw
      * on import. This endpoint re-runs assembleTranscription() with the chosen
-     * offset (which beat is the true musical "1"), rebuilds sections / melody /
-     * videoSync, and persists. Beats before the chosen "1" survive as a leading
-     * pickup bar — no content is lost.
+     * offset — a *tick* shift (0..1919, 480 = 1 quarter) locating the true "1",
+     * so an off-beat note can be the downbeat — rebuilds sections / melody /
+     * videoSync, and persists. Content before the chosen "1" survives as a
+     * leading pickup bar — nothing is lost.
      *
      * Idempotent: always re-shifts from the original cached beats, so the user
      * can re-pick freely. WARNING: full re-assembly discards any manual chord /
@@ -864,9 +870,13 @@ class LeadsheetController extends Controller
         AnalysisToLeadsheet $converter,
         VoicingCrossref $crossref
     ) {
+        // `offset` is the downbeat shift in ticks (480 ticks = 1 quarter, one
+        // 4/4 bar = 1920). Sub-beat values let the chosen "1" land exactly on
+        // a note quantized to an 8th/16th, not just on a whole beat.
         $validated = $request->validate([
-            'offset'    => 'required|integer|min:0|max:3',
+            'offset'    => 'required|integer|min:0|max:1919',
             'bass_snap' => 'nullable|boolean',
+            'tab_position_style' => 'nullable|string|in:fretted,open',
         ]);
 
         $parsed = $leadsheet->parsed_data;
@@ -885,11 +895,17 @@ class LeadsheetController extends Controller
             ? !empty($validated['bass_snap'])
             : !empty($raw['bassSnap']);
 
+        // Tab position style: explicit override, else whatever produced the
+        // current assembly (cached in transcriptionRaw), else the default.
+        $tabStyle = $validated['tab_position_style']
+            ?? ($raw['tabPositionStyle'] ?? 'fretted');
+
         $analysis = $this->assembleTranscription($raw, [
             'title'      => $leadsheet->title,
             'key'        => $leadsheet->song_key ?: 'C',
             'youtube_id' => $raw['videoId'] ?? ($parsed['videoSync']['videoId'] ?? ''),
             'bass_snap'  => $bassSnap,
+            'tab_position_style' => $tabStyle,
         ], (int)$validated['offset'], $crossref);
 
         $scaffold      = $converter->convert($analysis);
@@ -1844,10 +1860,13 @@ class LeadsheetController extends Controller
      *
      * @param array $rawResult  Raw Python output: beats[], notes[], beat_times[], tempo
      * @param array $opts       title, key, youtube_id, ai_cleanup, bass_snap
-     * @param int   $downbeatOffset  0..3 — which beat (relative to the first
-     *              busy beat) is the true musical "1". When > 0, the beats
-     *              before it are kept as a leading pickup bar (a full 4-beat
-     *              measure with leading rests), so no content is lost.
+     * @param int   $downbeatOffset  0..1919 — tick position (relative to the
+     *              first busy beat; 480 = 1 quarter) of the true musical "1".
+     *              When > 0, the content before it is kept as a leading pickup
+     *              bar (a full measure with leading rests), so no content is
+     *              lost. Sub-beat values re-PHASE the rhythm onto the grid —
+     *              note ticks are re-snapped to the 120-tick lattice after the
+     *              shift, they are not left de-quantized.
      */
     protected function assembleTranscription(array $rawResult, array $opts, int $downbeatOffset, \App\Services\VoicingCrossref $crossref): array
     {
@@ -1899,6 +1918,7 @@ class LeadsheetController extends Controller
                 'tempo'          => $rawResult['tempo'] ?? 120,
                 'downbeatOffset' => $downbeatOffset,
                 'bassSnap'       => $bassSnapped,
+                'tabPositionStyle' => $opts['tab_position_style'] ?? 'fretted',
             ],
         ];
 
@@ -1918,14 +1938,23 @@ class LeadsheetController extends Controller
         $startBeatIdx = $skipBars * $beatsPerBar;
         $tickOffset   = $skipBars * $beatsPerBar * 480;
 
-        // Downbeat offset → pickup padding. If the chosen "1" sits `offset` beats
-        // after the first busy beat, those `offset` beats belong to a pickup bar.
-        // We pad the grid with `padBeats = beatsPerBar - offset` leading rest-beats
-        // so the chosen beat lands on the downbeat of measure index 1, and the
-        // pickup content fills the tail of measure 0.
-        $downbeatOffset = max(0, min($beatsPerBar - 1, $downbeatOffset));
-        $padBeats = $downbeatOffset > 0 ? ($beatsPerBar - $downbeatOffset) : 0;
-        $padTicks = $padBeats * 480;
+        // Downbeat offset → pickup padding. `$downbeatOffset` is a *tick* shift
+        // (480 = 1 quarter, one bar = 1920). The chosen "1" sits `offset` ticks
+        // after the first busy beat, so the grid is padded by the complement
+        // (`barTicks - offset`) of leading rest-ticks: the chosen point then
+        // lands on the downbeat of measure 1 and the pickup content fills the
+        // tail of measure 0.
+        //
+        // The padding splits into two parts:
+        //   $padBeats — whole pickup beats; drives bar grouping + chord regions,
+        //               so it must stay an integer beat count.
+        //   $padFrac  — the sub-beat remainder (0..479 ticks); a constant tick
+        //               shift applied to note positions and the videoTime map.
+        $barTicks       = $beatsPerBar * 480;
+        $downbeatOffset = max(0, min($barTicks - 1, (int)$downbeatOffset));
+        $padTicks       = $downbeatOffset > 0 ? ($barTicks - $downbeatOffset) : 0;
+        $padBeats       = intdiv($padTicks, 480);
+        $padFrac        = $padTicks % 480;
 
         // ── Non-AI path state: harmonic region grouping (Phase 2c) ──────────
         $regionPitches   = [];
@@ -1937,9 +1966,18 @@ class LeadsheetController extends Controller
             $g    = ($i - $startBeatIdx) + $padBeats;
 
             if ($g % $beatsPerBar === 0) {
+                // With a sub-beat downbeat shift the raw beat sits $padFrac
+                // ticks *after* the true bar line, so interpolate the bar's
+                // audio time backward toward the previous beat by that
+                // fraction. ($padFrac === 0 → exact raw-beat time, as before.)
+                $videoTime = (float)$beat['start'];
+                if ($padFrac > 0 && $i > 0) {
+                    $prevStart  = (float)$rawResult['beats'][$i - 1]['start'];
+                    $videoTime -= ($beat['start'] - $prevStart) * ($padFrac / 480);
+                }
                 $mappings[] = [
                     'measureIndex' => (int)($g / $beatsPerBar),
-                    'videoTime'    => (float)$beat['start'],
+                    'videoTime'    => $videoTime,
                 ];
             }
 
@@ -2026,6 +2064,13 @@ class LeadsheetController extends Controller
             // 1. Filter by guitar range and group by quantized tick (P0).
             //    `+ $padTicks` shifts content into measure 1, leaving the pickup
             //    bar's leading beats empty (rests inserted by the gap pass).
+            //
+            //    `$padTicks` carries a sub-beat remainder ($padFrac) when the
+            //    user picks an off-beat note as the downbeat. A raw fractional
+            //    shift would push every note off the 120/240 lattice and break
+            //    duration quantization, so after shifting we re-snap to the
+            //    grid: the sub-beat pick re-PHASES the rhythm, it doesn't
+            //    de-quantize it.
             $tickGroups = [];
             foreach ($rawResult['notes'] as $note) {
                 if ($note['pitch'] < 40 || $note['pitch'] > 88) continue;
@@ -2037,6 +2082,9 @@ class LeadsheetController extends Controller
                 }
 
                 $startTick = $startTick - $tickOffset + $padTicks;
+                // Re-snap onto the 120-tick lattice after the (possibly
+                // fractional) downbeat shift.
+                $startTick = (int)round($startTick / 120) * 120;
                 if ($startTick >= 0) {
                     $tickGroups[$startTick][] = $note;
                 }
@@ -2066,6 +2114,9 @@ class LeadsheetController extends Controller
                 foreach ($notes as $note) {
                     $endTick = $this->timeToTicks($note['end'], $rawResult['beat_times']);
                     $endTick = (int)round($endTick / 120) * 120 - $tickOffset + $padTicks;
+                    // Re-snap to the 120-tick lattice after the downbeat shift
+                    // (matches the start-tick re-snap above).
+                    $endTick = (int)round($endTick / 120) * 120;
 
                     $rawDuration = max(120, $endTick - $tick);
 
@@ -2215,8 +2266,22 @@ class LeadsheetController extends Controller
         // ── T1: fretboard position optimisation ─────────────────────────────
         // midiToTab() picked each note's string/fret in isolation, which yields
         // physically absurd tab (fret 2 → 14 → 5). Re-assign positions with a
-        // Viterbi pass that minimises hand travel across the whole line.
-        $melody = $this->optimizeTabPositions($melody);
+        // Viterbi pass that locks one hand position per bar. The style bias
+        // ('fretted' vs 'open') is the user's per-piece choice from the import
+        // modal — jazz chord-melody wants fretted positions, classical /
+        // fingerstyle wants open strings.
+        //
+        // Chord-position hints: each bar's identified chord suggests a neck
+        // position (its root's low fret). T1 uses this as a soft tiebreak so
+        // a G7 bar leans to 3rd position even when an open-position layout is
+        // marginally cheaper note-for-note.
+        $chordPosHints = $this->chordPositionHints($currentSection['bars']);
+
+        $melody = $this->optimizeTabPositions(
+            $melody,
+            $opts['tab_position_style'] ?? 'fretted',
+            $chordPosHints
+        );
 
         $analysis['melody_data'] = $melody;
 
@@ -2259,29 +2324,104 @@ class LeadsheetController extends Controller
     }
 
     /**
-     * T1 — Fretboard position optimisation.
+     * Per-bar neck-position hint from each bar's identified chord.
+     *
+     * A chord has a "home position" on the neck — the low fret where its root
+     * sits on a bass string. T1 uses this as a *soft* bias so a bar's melody
+     * leans toward where the chord is played: a G7 bar nudges toward the 3rd
+     * position even when an open-position note layout is marginally cheaper.
+     *
+     * The position is the root pitch-class's fret on the low-E or A string,
+     * whichever lands in a sensible 1–7 window (preferring the lower). For a
+     * bar with multiple chords the first is used; a bar with no real chord
+     * (`/`, unparseable) gets no hint and is left unbiased.
+     *
+     * @param array $bars  assembleTranscription()'s per-bar chord list
+     *                     ([ ['chords'=>[ ['label'=>…], … ]], … ])
+     * @return array  measureIndex => suggested index-finger fret
+     */
+    protected function chordPositionHints(array $bars): array
+    {
+        // Root letter (+ accidental) → pitch class.
+        $pcOf = [
+            'C'=>0,'C#'=>1,'Db'=>1,'D'=>2,'D#'=>3,'Eb'=>3,'E'=>4,'F'=>5,
+            'F#'=>6,'Gb'=>6,'G'=>7,'G#'=>8,'Ab'=>8,'A'=>9,'A#'=>10,'Bb'=>10,'B'=>11,
+        ];
+        $eOpenPc = 4;   // low-E string open pitch class
+        $aOpenPc = 9;   // A string open pitch class
+
+        $hints = [];
+        foreach ($bars as $idx => $bar) {
+            $label = $bar['chords'][0]['label'] ?? '';
+            if ($label === '' || $label === '/') continue;
+
+            // Root = first 2 chars if they name a sharp/flat root, else 1 char.
+            $root = null;
+            if (strlen($label) >= 2 && isset($pcOf[substr($label, 0, 2)])) {
+                $root = substr($label, 0, 2);
+            } elseif (strlen($label) >= 1 && isset($pcOf[strtoupper(substr($label, 0, 1))])) {
+                $root = strtoupper(substr($label, 0, 1));
+            }
+            if ($root === null) continue;
+
+            $pc      = $pcOf[$root];
+            $eFret   = ($pc - $eOpenPc + 12) % 12;   // root fret on low-E
+            $aFret   = ($pc - $aOpenPc + 12) % 12;   // root fret on A string
+            // Prefer whichever sits low on the neck (1–7); ties → the lower.
+            $cands = array_filter([$eFret, $aFret], fn($f) => $f >= 1 && $f <= 7);
+            if (empty($cands)) continue;             // root only at open/high — no bias
+            $hints[$idx] = min($cands);
+        }
+        return $hints;
+    }
+
+    /**
+     * T1 — Fretboard position optimisation (bar-locked).
      *
      * midiToTab() maps each MIDI pitch to a string/fret greedily and in
-     * isolation, so a melody can leap across the neck for notes a guitarist
-     * would play in one hand position. This pass re-derives string/fret for
-     * the whole melody as a shortest-path problem (Viterbi):
+     * isolation, so a line can leap across the neck for notes a guitarist
+     * would play in one hand position. This pass re-derives string/fret so
+     * each bar commits to a single hand position.
      *
-     *  - States  : every playable (string, fret) candidate for a note's pitch
-     *              on standard tuning, fret 0–17.
-     *  - Emission: a small penalty for high frets so low positions win ties;
-     *              open strings (fret 0) are free anchors.
-     *  - Transition: fret-distance (hand travel) + a string-change nudge +
-     *              a hand-span penalty when the fret leaves a ~5-fret window
-     *              around a running anchor (the current hand position).
+     * The Viterbi runs over *bars*. Each bar's state is a candidate hand
+     * position — the index-finger fret, 0–17, anchoring a 4-fret window
+     * `pos..pos+3` (a real fretting hand covers ~4 frets, not the whole neck):
+     *  - Node cost : sum over the bar's notes of the cost to play each from
+     *                that window. A note picks the (string,fret) that keeps it
+     *                *inside* the window; a note that cannot is pulled to its
+     *                nearest fret and pays a stiff out-of-window penalty. So
+     *                the chosen position is the one that compactly covers the
+     *                whole bar — a 1st-position note and a 5th-position note
+     *                can no longer both look "free" in one bar.
+     *  - Transition: a flat shift cost + fret travel between consecutive bars,
+     *                so the hand only relocates at a bar line when needed.
      *
-     * Rests carry the hand anchor across without adding travel cost. Notes
-     * sharing a tick are treated independently (real polyphony is T2's job).
-     * The temporary '_midi' key is stripped before returning.
+     * `$style` is the user's per-piece bias from the import modal:
+     *  - 'fretted' (default) — jazz chord-melody. An open string costs more the
+     *    higher the hand sits, so a hand at the 5th position frets E4 at
+     *    B-string 5 rather than leaving its grip for the open e.
+     *  - 'open' — classical / fingerstyle. Open strings stay nearly free
+     *    regardless of hand position, so the optimiser uses them freely.
+     *
+     * `$chordPosHints` (measureIndex => suggested fret) softly biases each
+     * bar's position toward where its chord is played — see chordPositionHints().
+     *
+     * Rests pass through. The temporary '_midi' key is stripped before return.
      */
-    protected function optimizeTabPositions(array $melody): array
-    {
+    protected function optimizeTabPositions(
+        array $melody,
+        string $style = 'fretted',
+        array $chordPosHints = []
+    ): array {
         $stringPitches = [64, 59, 55, 50, 45, 40]; // string 1(e) … 6(E)
         $maxFret       = 17;
+        $ticksPerBar   = 1920;
+        // A hand position spans 4 frets: index at `pos`, pinky at `pos+3`.
+        $handSpan      = 3;
+        $preferOpen    = $style === 'open';
+        // Per-fret cost of a bar's position differing from its chord hint.
+        // Soft tiebreak — tune after eyeballing real imports.
+        $chordBiasWeight = 0.18;
 
         // Candidate (string,fret) positions for a given absolute MIDI pitch.
         $candidates = function (int $midi) use ($stringPitches, $maxFret): array {
@@ -2295,105 +2435,138 @@ class LeadsheetController extends Controller
             return $out;
         };
 
-        // Indices of the pitched (non-rest) notes, in order.
-        $noteIdx = [];
+        // Cost (and chosen string/fret) of playing one pitch from a hand
+        // position anchored at `pos` (window pos..pos+handSpan). The candidate
+        // is chosen to keep the note inside the window; one outside pays a
+        // stiff per-fret penalty for how far the hand must stretch/shift.
+        //
+        // An open string's cost depends on $style. In 'fretted' mode it costs
+        // `pos * 0.12` — free at the nut, but more awkward the higher the hand
+        // sits, so it stays *cheaper than an out-of-window stretch* yet
+        // *dearer than an in-window fretted alternative* (a hand at the 5th
+        // position frets E4 at B-string 5 rather than reaching for the open
+        // e). In 'open' mode it is a flat near-zero — classical / fingerstyle
+        // uses open strings freely regardless of hand position.
+        $playFromPos = function (int $midi, int $pos) use ($candidates, $handSpan, $preferOpen): ?array {
+            $cands = $candidates($midi);
+            if (empty($cands)) return null;
+            $best = null;
+            foreach ($cands as $c) {
+                $fret = $c['fret'];
+                if ($fret === 0) {
+                    $cost = $preferOpen ? 0.05 : $pos * 0.12;
+                } else {
+                    // Distance outside the [pos, pos+handSpan] window.
+                    $out  = $fret < $pos ? ($pos - $fret)
+                          : ($fret > $pos + $handSpan ? $fret - ($pos + $handSpan) : 0);
+                    $cost = $fret * 0.05 + $out * 1.5;  // height tiebreak + reach
+                }
+                if ($best === null || $cost < $best['cost']) {
+                    $best = ['string' => $c['string'], 'fret' => $fret, 'cost' => $cost];
+                }
+            }
+            return $best;
+        };
+
+        // Group pitched-note indices by bar.
+        $bars    = [];   // barIdx => [melody indices]
+        $anyNote = false;
         foreach ($melody as $i => $m) {
             if (empty($m['isRest']) && isset($m['_midi'])) {
-                $noteIdx[] = $i;
+                $bars[(int)floor(($m['tick'] ?? 0) / $ticksPerBar)][] = $i;
+                $anyNote = true;
             }
         }
-        if (count($noteIdx) < 2) {
+        if (!$anyNote) {
             foreach ($melody as &$m) { unset($m['_midi']); }
             unset($m);
             return $melody;
         }
+        ksort($bars);
 
-        // Viterbi forward pass over the note sequence.
-        $prevCol  = null;   // [ ['string','fret','cost','anchor','back'] … ]
-        $cols     = [];     // one column of states per note
-        foreach ($noteIdx as $col => $mi) {
-            $cands = $candidates($melody[$mi]['_midi']);
-            if (empty($cands)) {
-                // Pitch out of range — keep midiToTab's fallback for this note,
-                // break the chain so neighbours aren't dragged by it.
+        $barKeys   = array_keys($bars);
+        $positions = range(0, $maxFret);
+        $shiftCost = 0.6;   // flat penalty for relocating between bars
+
+        // Viterbi forward pass over bars. State = hand position (fret 0–maxFret).
+        $prevCol = null;    // [ pos => ['cost','back'] ]
+        $cols    = [];      // one column per bar
+        foreach ($barKeys as $col => $barIdx) {
+            $indices = $bars[$barIdx];
+            // Suggested neck position for this bar from its chord, if any.
+            $hintPos = $chordPosHints[$barIdx] ?? null;
+
+            // Node cost of each candidate position = sum of per-note play costs
+            // plus a soft pull toward the bar's chord position (if hinted).
+            $nodeCost = [];
+            foreach ($positions as $pos) {
+                $sum   = 0.0;
+                $valid = false;
+                foreach ($indices as $mi) {
+                    $play = $playFromPos($melody[$mi]['_midi'], $pos);
+                    if ($play === null) continue;     // out-of-range note
+                    $sum  += $play['cost'];
+                    $valid = true;
+                }
+                if ($valid) {
+                    if ($hintPos !== null) {
+                        $sum += abs($pos - $hintPos) * $chordBiasWeight;
+                    }
+                    $nodeCost[$pos] = $sum;
+                }
+            }
+            if (empty($nodeCost)) {                   // whole bar out of range
                 $cols[$col] = [];
                 $prevCol    = null;
                 continue;
             }
 
             $states = [];
-            foreach ($cands as $c) {
-                $isOpen   = $c['fret'] === 0;
-                // Prefer lower frets; open strings get a small extra bonus.
-                $emission = $c['fret'] * 0.15 - ($isOpen ? 0.3 : 0.0);
-
+            foreach ($nodeCost as $pos => $nc) {
                 if ($prevCol === null) {
-                    $states[] = [
-                        'string' => $c['string'],
-                        'fret'   => $c['fret'],
-                        'cost'   => $emission,
-                        'anchor' => $c['fret'],   // running hand position
-                        'back'   => -1,
-                    ];
+                    $states[$pos] = ['cost' => $nc, 'back' => -1];
                     continue;
                 }
-
-                // Cheapest transition from any previous state.
                 $bestCost = PHP_INT_MAX;
-                $bestBack = 0;
-                $bestAnchor = $c['fret'];
-                foreach ($prevCol as $pi => $p) {
-                    // Hand travel is measured against the running anchor (the
-                    // fretting hand's position), not the previous note's fret —
-                    // so an intervening open string doesn't teleport the hand.
-                    $ref     = $p['anchor'];
-                    $travel  = abs($c['fret'] - $ref);
-                    $strJump = $c['string'] !== $p['string'] ? 0.5 : 0.0;
-                    // Hand-span: extra cost for reaching past a ~5-fret window.
-                    $span    = max(0, $travel - 4) * 1.2;
-                    // An open string needs no finger, but the hand must still
-                    // be reachable for the surrounding line — so it pays span
-                    // but not the per-fret travel cost.
-                    $moveCost = $isOpen ? 0.0 : $travel;
-                    $t = $p['cost'] + $emission + $moveCost + $strJump + $span;
+                $bestBack = -1;
+                foreach ($prevCol as $pPos => $p) {
+                    $move = $pPos === $pos ? 0.0 : ($shiftCost + abs($pos - $pPos));
+                    $t    = $p['cost'] + $nc + $move;
                     if ($t < $bestCost) {
-                        $bestCost   = $t;
-                        $bestBack   = $pi;
-                        // Open strings leave the anchor where it was.
-                        $bestAnchor = $isOpen ? $ref : $c['fret'];
+                        $bestCost = $t;
+                        $bestBack = $pPos;
                     }
                 }
-                $states[] = [
-                    'string' => $c['string'],
-                    'fret'   => $c['fret'],
-                    'cost'   => $bestCost,
-                    'anchor' => $bestAnchor,
-                    'back'   => $bestBack,
-                ];
+                $states[$pos] = ['cost' => $bestCost, 'back' => $bestBack];
             }
             $cols[$col] = $states;
             $prevCol    = $states;
         }
 
-        // Backtrace each contiguous chain of decided columns.
-        $col = count($noteIdx) - 1;
+        // Backtrace each contiguous chain of decided bar-columns.
+        $col = count($barKeys) - 1;
         while ($col >= 0) {
             if (empty($cols[$col])) { $col--; continue; }
 
-            // Find the end of this chain and its cheapest final state.
-            $best = 0;
-            foreach ($cols[$col] as $si => $s) {
-                if ($s['cost'] < $cols[$col][$best]['cost']) $best = $si;
+            // Cheapest final position in this chain.
+            $bestPos  = null;
+            $bestCost = PHP_INT_MAX;
+            foreach ($cols[$col] as $pos => $s) {
+                if ($s['cost'] < $bestCost) { $bestCost = $s['cost']; $bestPos = $pos; }
             }
-            $si = $best;
             while ($col >= 0 && !empty($cols[$col])) {
-                $state = $cols[$col][$si];
-                $mi    = $noteIdx[$col];
-                $melody[$mi]['string'] = $state['string'];
-                $melody[$mi]['fret']   = $state['fret'];
-                $si = $state['back'];
+                $state = $cols[$col][$bestPos];
+                foreach ($bars[$barKeys[$col]] as $mi) {
+                    $play = $playFromPos($melody[$mi]['_midi'], $bestPos);
+                    if ($play !== null) {
+                        $melody[$mi]['string'] = $play['string'];
+                        $melody[$mi]['fret']   = $play['fret'];
+                    }
+                    // out-of-range note keeps midiToTab's fallback
+                }
+                $bestPos = $state['back'];
                 $col--;
-                if ($si < 0) break;
+                if ($bestPos < 0) break;
             }
         }
 

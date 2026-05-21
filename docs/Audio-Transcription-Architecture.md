@@ -52,7 +52,7 @@ If the first detected beat is an anacrusis or beat 2, every bar boundary is wron
 ### Implemented Fixes (Session 2026-05-04)
 - **Leading Silence Removal:** The engine scans for the first busy measure and trims empty bars from the start, realigning the `videoSync` mappings. ✅
 
-### Implemented: User Downbeat Offset Tool (Session 2026-05-18) ✅
+### Implemented: User Downbeat Offset Tool (Session 2026-05-18, reworked 2026-05-21) ✅
 The "Set downbeat" panel in the Video sidebar (`VideoSyncEditor.vue`) lets the
 user fix a within-bar phase offset *after* import, without re-downloading or
 re-transcribing.
@@ -61,16 +61,36 @@ re-transcribing.
   (`beats`, `beat_times`, `notes`, `tempo`, `downbeatOffset`) in
   `json_data.transcriptionRaw`. `AnalysisToLeadsheet` passes it through;
   `musicalizeTranscription` preserves it across the Gemini pass.
-- **Picker.** The panel renders the first ~12 beats from the cached `beats` as
-  columns with per-beat pitch dots. The user clicks the beat that is the true
-  musical "1".
-- **Pickup, not drop.** Beats *before* the chosen "1" are not discarded — they
-  become a leading pickup bar (a full 4-beat measure with leading rests). The
-  offset is `chosenOneIndex − firstBusyBeatIndex`, clamped 0–3.
+- **Pick by note.** The panel has one button — *🎯 Set downbeat from a note*.
+  Arming it puts the editor in `downbeatPickMode` (a ref `provide`d by
+  `TabEditor`); the next note clicked in the tab grid becomes the true "1".
+  This replaced the original abstract dot-strip picker, which was unintuitive
+  and silently clamped selections.
+- **Tick resolution.** Transcription quantizes note starts to an 8th/16th grid,
+  so the chosen "1" can sit anywhere in the bar. `reshiftDownbeat`'s `offset`
+  is a **tick** value (`0..1919`, 480 = 1 quarter), not a whole-beat index.
+  `TabEditor` hands the clicked note's `tickInMeasure` to
+  `VideoSyncEditor.pickDownbeatFromTick()`, which computes
+  `newOffset = (currentOffsetTicks + tickInBar) mod 1920`.
+- **Pickup, not drop.** Content *before* the chosen "1" is kept as a leading
+  pickup bar (a full measure with leading rests). In `assembleTranscription()`
+  the padding splits: `$padBeats` (whole pickup beats — drives bar grouping &
+  chord-region detection) + `$padFrac` (0–479 tick remainder).
+- **Sub-beat picks re-phase, they don't de-quantize.** After the (possibly
+  fractional) shift, note start/end ticks are re-snapped to the 120-tick
+  lattice. A raw fractional shift would push every note off the grid and break
+  duration quantization; re-snapping keeps the rhythm coherent, just re-phased.
+- **Video sync stays correct.** `videoSync` mappings are rebuilt from raw beat
+  `start` times every re-shift. With a fractional shift the bar line no longer
+  coincides with a raw beat, so the mapping's `videoTime` is interpolated
+  backward toward the previous beat by `$padFrac/480`.
 - **Re-assembly.** `POST /api/admin/leadsheets/{id}/reshift-downbeat` re-runs
   `assembleTranscription()` with the new offset, rebuilds sections / melody /
   `videoSync`, persists, and the editor reloads. Idempotent — always re-shifts
   from the original cached beats.
+- **Migration note.** `transcriptionRaw.downbeatOffset` now holds *ticks*;
+  sheets last assembled by the older whole-beat code stored `0..3`, which reads
+  as a near-zero tick shift — harmless, self-corrects on the next re-shift.
 - **Caveat.** Full re-assembly discards manual chord/voicing edits made after
   import. The panel warns; it is meant as a "do this first" step.
 
@@ -228,15 +248,16 @@ Integrating a "Standard Reference" database (like the Mike Oliphant Jazz Standar
 | **P1** | Leading Silence Removal | ✅ Implemented | Score starts at music onset |
 | **P1** | No-Dots Rhythmic Grid | ✅ Implemented | Maximizes tab readability |
 | **P1** | Duration-Weighted ID | ✅ Implemented | Better chord recognition input |
-| **P2** | User Downbeat Offset UI | ✅ Implemented | User picks the true "1" from an onset strip; re-shifts via pickup bar |
+| **P2** | User Downbeat Offset UI | ✅ Implemented | User clicks the true "1" note in the tab; tick-resolution re-shift via pickup bar |
 | **P2** | Bass-Snap Beat Correction | ✅ Implemented | Rebuilds beat_times from bass-note anchors so the grid follows rubato |
 | **P1** | T4 AI Job Re-division | ✅ Implemented | Deterministic chord ID for all paths; AI does structuralisation only |
 | **P1** | T1 Fretboard Optimisation | ✅ Implemented | Viterbi over (string,fret) — playable tab instead of absurd fret leaps |
 | **P1** | T1b Melody→Voicing Position | ✅ Implemented | Chord voicings tracked to the melody's hand position per bar |
+| **P1** | T1 Bar-Locked Positions | ✅ Implemented | One compact 4-fret hand position per bar — no fret-1/fret-8 mixing |
+| **P2** | T2 Voice Labelling | ⏸ Shelved | Position win folded into T1; chord-ID win smaller than T3 |
 | **P2** | Phase 3 Context Awareness | ⏳ Pending | Context-aware chord disambiguation |
 | **P3** | Tap-Correct Re-time UI | ⏳ Designed | Manual downbeat tapping for recordings bass-snap can't anchor |
 | **P3** | Reference Leadsheet Sync | ⏳ Pending | Anchoring transcription to standard progressions |
-| **P3** | Multi-Voice Support | ⏳ Pending | Clean separation of melody/bass/inner |
 
 ---
 
@@ -270,36 +291,93 @@ the title, key/tempo/time-sig, and a compact one-line-per-bar chord listing;
 `transcriptionRaw`, `raw_beats`, `melody_data` and pitch integers are never
 encoded into it. See T4 below.
 
-### Phase T1 — Fretboard position optimisation ✅ IMPLEMENTED (Session 2026-05-20)
+### Phase T1 — Fretboard position optimisation ✅ IMPLEMENTED (Session 2026-05-20, bar-locked rewrite 2026-05-21)
 
 **Problem (as was):** `midiToTab()` mapped each MIDI pitch to *a* string/fret
 greedily and in isolation (first string with fret 0–15). Even a perfectly
 correct transcription produced physically absurd tab — a line could leap
 fret 2 → 14 → 5 for notes any guitarist plays in one hand position.
 
-**As built — `LeadsheetController::optimizeTabPositions()`:** a Viterbi
-shortest-path pass over the assembled melody, run as a post-pass at the end of
-`assembleTranscription()` (right before `melody_data` is set).
+**First version (2026-05-20)** ran a per-note Viterbi minimising hand *travel*
+against a running anchor. It removed the absurd leaps but still let the hand
+*creep* — a 5→6→7→8 line within a bar paid almost nothing because each hop was
+small and measured against the previous note. It minimised travel, not
+*position changes*.
 
-- **States:** every playable `(string, fret)` candidate for a note's pitch on
-  standard tuning, fret 0–17.
-- **Emission:** `fret * 0.15`, minus a `0.3` bonus for open strings — low
-  positions win ties.
-- **Transition:** hand travel is measured against a *running anchor* (the
-  fretting hand's position), not the literal previous fret — so an intervening
-  open string doesn't teleport the hand. Adds a `0.5` string-change nudge and a
-  `1.2 × (travel − 4)` hand-span penalty for reaching past a ~5-fret window.
-  Open strings pay the span term but not per-fret travel, and leave the anchor
-  where it was.
-- **Rests** carry the anchor across at no travel cost. A pitch out of range
-  breaks the chain (keeps `midiToTab`'s fallback for that note).
-- `midiToTab()` still does the *initial* assignment; the absolute MIDI pitch is
-  stashed on each melody event as `_midi` and stripped by the pass.
+**As built — bar-locked rewrite (2026-05-21):** the Viterbi now runs over
+**bars**, not notes. Each bar commits to one hand position.
 
-**Caveat:** notes sharing a tick are still optimised independently — true
-polyphony (chord/dyad reachability) is **T2**'s job. Can't recover the player's
-exact fingering, but "playable and sensible" is a huge leap from "right pitches,
-physically impossible."
+- **State:** a candidate hand position — the index-finger fret, 0–17. A
+  position anchors a **4-fret window** `pos..pos+3`, because a real fretting
+  hand covers ~4 frets, not the whole neck. One state per bar (`tick / 1920`).
+- **Node cost:** sum over the bar's notes of the cost to play each from that
+  window. Each note picks the `(string,fret)` that keeps it *inside* the
+  window; a note that can't be is pulled to its nearest fret and pays a stiff
+  `1.5 ×` per-fret out-of-window penalty (plus a tiny `0.05 × fret` height
+  tiebreak). Open strings are nearly free and don't constrain the window.
+- **Why the window matters:** the first (2026-05-20) version used a 9-fret
+  span, so a 1st-position note and a 5th-position note *both* looked free in
+  one bar — the optimiser had no reason to pull them together and produced
+  bars mixing fret 1 and fret 8. The 4-fret window forces the bar to commit:
+  comp notes get pulled onto lower strings at higher frets to sit *with* the
+  melody's hand position instead of dropping to open frets. Verified on
+  *Manhã de Carnaval* — a bar that read `f1 f3 f3 f1 f8 f7 f5` (8-fret span)
+  now reads as a single 5th–8th-position grip (3-fret span).
+- **Transition:** between consecutive bars, `0` if the position is unchanged,
+  else `0.6` flat shift cost + fret distance. The hand only relocates at a bar
+  line, and only when the next bar needs it.
+- **Open-string handling — `tab_position_style`.** An open string's cost
+  depends on the user's per-piece choice from the import modal:
+  - *fretted* (default, jazz chord-melody): open string costs `pos × 0.12` —
+    free at the nut, dearer the higher the hand sits. It stays cheaper than an
+    out-of-window stretch but dearer than an in-window fretted alternative, so
+    a hand at the 5th position frets E4 at B-string 5 instead of reaching for
+    the open e. Verified on *Manhã* — a chord that read `x075x0` (two scattered
+    open strings) becomes `5x755x` (one 5th-position grip).
+  - *open* (classical / fingerstyle): open string is a flat `0.05`, used
+    freely regardless of hand position.
+  The chosen style is cached in `transcriptionRaw.tabPositionStyle` so a
+  `reshift-downbeat` re-assembly reuses it (or accepts an override).
+- **Chord-position bias.** Each bar's identified chord suggests a neck
+  position — `chordPositionHints()` maps the chord root to the low fret where
+  it sits on the E or A string (G→3, F→1, C→3, A→5, D→5). A *soft* node-cost
+  term (`chordBiasWeight = 0.18` per fret) nudges a bar toward that position.
+  Deliberately soft: measured on *Manhã*, forcing the G7 bar from open to 3rd
+  position costs 3.6× more for that bar's actual melody — the melody there is
+  genuinely a low, open-string phrase. The bias only flips bars that are
+  *already close*; it will not (and should not) steamroll a melody that
+  honestly wants open position. It is a tiebreak, not an override.
+- **Assignment:** once each bar's position is fixed, every note in it takes its
+  chosen `(string,fret)` for that position — so a whole bar sits in one region.
+- A bar entirely out of range breaks the chain (notes keep `midiToTab`'s
+  fallback). `midiToTab()` still does the *initial* assignment; absolute MIDI
+  is stashed as `_midi` and stripped by the pass.
+
+**Net effect:** the tab reads as a guitarist plays — one compact position per
+bar, relocating only at bar lines. Also tightens `melodyPositionHints()` (the
+chord-voicing position coupling), since every note in a bar now shares a fret
+region, so the mean-fret hint is sharp instead of blurred.
+
+**Caveat:** a bar whose notes genuinely span more than four frets gets the
+least-bad single position (the out-of-window penalty is finite, not infinite)
+rather than thrashing — the remaining notes pay the stretch. This is the right
+behaviour: a guitarist *does* stretch within a bar rather than re-anchor twice.
+T1 still optimises every detected note (bass + comp + melody) as one stream;
+true per-voice layout would need T2 voice labelling, which is shelved.
+
+**Known limitation — "playable" ≠ "stylistically nicest" (noted 2026-05-21).**
+The cost function has a built-in low-fret preference (`fret × 0.05`, open
+strings near-free). All else equal, lower on the neck *is* easier — and this is
+correct most of the time. But it diverges from style: a jazz phrase that a
+player would finger as a compact closed-position grip up the neck (e.g. a bar
+of D4/F4/G4 played in 4th position on strings 2–4) will instead be laid out in
+1st position, because 1st position is literally cheaper note-for-note. The
+output is *playable and correct*, just not the fingering a jazz guitarist would
+choose. T1 sees only fret height and hand travel — it has no concept of
+"closed-position voicing" as a stylistic target, and pitch data alone does not
+carry that intent. Pushing the cost model to chase this (rewarding tight
+adjacent-string clustering, or penalising low positions) risks regressing the
+clear wins above — deliberately **not pursued**. Accepted as a limitation.
 
 #### T1b — Melody-position hints for chord voicings (Session 2026-05-20)
 
@@ -329,20 +407,25 @@ still get an open `x0221x` Am instead of `5775xx`.
 leaps registers gets a blurred target. Fine in practice — chord-melody melodies
 mostly stay in a position within a bar.
 
-### Phase T2 — Melody / bass / inner voice separation
+### Phase T2 — Voice labelling (analysis aid) — NOT BUILT
 
-**Problem:** every note `basic-pitch` emits becomes a melody event. For solo
-jazz guitar (bass + chord + melody played at once) the tab is one cluttered
-monophonic line. Doc §4 lists this as "P3 Multi-Voice" / far-future — that
-priority is too low; it's the root cause of cluttered tab.
+**Idea:** tag every detected note as bass / harmony / melody — *without
+dropping any* — and use the labels to improve position detection, chord ID and
+rhythm. Everything still collapses to a single-voice tab; the labels are an
+internal analysis aid, not an output format.
 
-**Approach:** reuse the **bass-snap onset clustering** (already written —
-`bassSnapBeatTimes()` clusters onsets, takes lowest-per-cluster). Route:
-lowest-per-cluster → bass voice; highest sustained → melody voice; middle →
-dropped from tab but **kept for chord ID**. Needs a `voice` field through the
-melody schema + tab renderer voice selection.
+**Status — deliberately not built (Session 2026-05-21).** An attempt at a
+*melody-extraction* version (keep top note per tick, drop the rest) was
+prototyped and **reverted** — dropping detected notes was never the intent. The
+genuine win of voice labelling is concentrated in *position detection*, and
+that turned out to be fixable directly in T1 without a full voice classifier
+(see T1 below — narrowing the hand-position window). The chord-ID benefit is
+smaller than T3 would give, and the rhythm benefit is doubtful (bass-snap
+already uses bass onsets for the grid). So T2 as a standalone phase is shelved;
+revisit only if T1's position fix proves insufficient on more material.
 
-**Pairs with T1:** separate the voices first, then lay each voice ergonomically.
+**Constraint:** the tab editor renders a **single voice** and there is no plan
+to extend it — so multi-staff separation is out of scope regardless.
 
 ### Phase T3 — Wire the context-aware identifier into the audio path
 
@@ -414,6 +497,8 @@ Lower priority — bass-snap covers the common case.
 
 ### Suggested order
 
-~~T4~~ ✅ done · ~~T1~~ ✅ done (both Session 2026-05-20) → **T2 next** (voice
-separation — deeper fix, also lets T1 optimise each voice independently) → T3 →
-T5 → T6. The 90 s cap can be lifted any time.
+~~T4~~ ✅ · ~~T1~~ ✅ (Session 2026-05-20; bar-locked rewrite + 4-fret window
+2026-05-21) · ~~T2~~ ⏸ shelved (the position win it promised was achieved
+inside T1; revisit only if more material shows T1 is insufficient) → **T3
+next** (wire the context-aware identifier into the audio path — plumbing of an
+existing engine) → T5 → T6. The 90 s cap can be lifted any time.

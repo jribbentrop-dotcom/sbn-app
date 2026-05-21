@@ -150,6 +150,7 @@
         <Teleport v-if="videoSidebarOpen" to="#sbn-video-slot">
             <div class="sbn-video-sidebar-panel">
                 <VideoSyncEditor
+                    ref="videoSyncEditorRef"
                     :video-id="videoSync.videoId.value"
                     :video-type="videoSync.videoType.value"
                     :sorted-mappings="videoSync.sortedMappings.value"
@@ -710,6 +711,11 @@ provide('tapCursor', computed(() => {
     return videoSync.tapCursorGi.value;
 }));
 provide('tapCursorPos', computed(() => videoSync.tapCursor.value));
+
+// "Set downbeat" mode: when armed by VideoSyncEditor, the next tab-note click
+// is interpreted as "this note is beat 1" rather than a normal edit/select.
+const downbeatPickMode = ref(false);
+provide('downbeatPickMode', downbeatPickMode);
 
 // Video sync map — provided after videoSync is created below (patched in post-init block)
 
@@ -1449,6 +1455,9 @@ watch(
 // ── Editor root ref ────────────────────────────────────────
 
 const editorRoot = ref(null);
+// Template ref to the video sidebar editor — used so a tab-note click in
+// "set downbeat" mode can hand the chosen beat back to the re-shift tool.
+const videoSyncEditorRef = ref(null);
 
 // ── Keyboard shortcut overlay (Phase 7g) ───────────────────
 
@@ -1902,7 +1911,25 @@ function onEditorClick() {
 
 // ── Cursor mousedown / drag handlers ──────────────────────────
 
+// When "set downbeat" mode is armed, a click on any tab event means "this is
+// beat 1" instead of a normal edit. Returns true if the click was consumed.
+//
+// Transcription quantizes note starts to an 8th/16th grid, so a note can sit
+// at any tick within its bar — and that's fine: the re-shift works at tick
+// resolution, so any note (on- or off-beat) can become the new "1".
+function maybePickDownbeat(measureIndex, eventId) {
+    if (!downbeatPickMode.value) return false;
+    const m = allMeasures.value?.find(m => m.index === measureIndex);
+    const ev = m?.events?.find(e => e.id === eventId);
+    if (!ev) return false;
+    // tickInMeasure is the note's bar-relative position; hand it over verbatim.
+    videoSyncEditorRef.value?.pickDownbeatFromTick(ev.tickInMeasure ?? 0);
+    downbeatPickMode.value = false;
+    return true;
+}
+
 function onCursorMousedownEvent({ measureIndex, eventId, stringIndex, event }) {
+    if (maybePickDownbeat(measureIndex, eventId)) return;
     clickEvent(measureIndex, eventId, stringIndex);
     setSelectedEvents([eventId]);
     _noteSelAnchorIdx.value = null;
@@ -1913,6 +1940,7 @@ function onCursorMousedownEvent({ measureIndex, eventId, stringIndex, event }) {
 function onCursorMouseenterEvent({ eventId }) { }
 
 function onCursorMousedownRest({ measureIndex, eventId, event }) {
+    if (maybePickDownbeat(measureIndex, eventId)) return;
     clickRest(measureIndex, eventId);
     setSelectedEvents([eventId]);
     _noteSelAnchorIdx.value = null;
