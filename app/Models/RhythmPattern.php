@@ -30,6 +30,7 @@ class RhythmPattern extends Model
         'perc_top',
         'perc_bass',
         'mp3_file',
+        'video_snippets',
         'is_default',
         'sort_order',
     ];
@@ -57,10 +58,11 @@ class RhythmPattern extends Model
      * Cast columns to proper PHP types.
      */
     protected $casts = [
-        'beats'       => 'integer',
-        'default_bpm' => 'integer',
-        'is_default'  => 'boolean',
-        'sort_order'  => 'integer',
+        'beats'          => 'integer',
+        'default_bpm'    => 'integer',
+        'is_default'     => 'boolean',
+        'sort_order'     => 'integer',
+        'video_snippets' => 'array',
     ];
 
     // ──────────────────────────────────────────

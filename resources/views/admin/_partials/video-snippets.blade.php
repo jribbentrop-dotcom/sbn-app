@@ -1,6 +1,6 @@
 {{--
     Shared video-snippet authoring widget.
-    See docs/Video-Sync-Snippet-Integration-Plan.md §0.5 step 2.
+    As-built design: docs/SBN-Course-Reference.md §10.
 
     Include inside an Alpine editor page:
 

@@ -14,7 +14,8 @@
 
 <div class="editor-layout"
      x-data="rhythmEditor()"
-     x-init="init()">
+     x-init="init()"
+     @sbn:snippets-changed="form.video_snippets = $event.detail">
 
     {{-- -- Left: Main Form -- --}}
     <div class="editor-main">
@@ -235,6 +236,11 @@
         </div>
 
 
+        {{-- Video Examples --}}
+        @include('admin._partials.video-snippets', [
+            'snippets'    => $pattern->video_snippets ?? [],
+            'beatsPerBar' => (int) explode('/', $pattern->time_signature ?? '4/4')[0],
+        ])
 
         {{-- Actions --}}
         <div style="display: flex; flex-direction: column; gap: 12px;">
@@ -253,6 +259,7 @@
 @endsection
 
 @push('scripts')
+<script src="{{ asset('js/sbn-snippet-editor.js') }}"></script>
 <script>
     // -- Simple Web Audio preview (no Tone.js needed) --
     let _audioCtx = null;
@@ -334,6 +341,7 @@
                 perc_top:       @json($pattern->perc_top ?? 'none'),
                 perc_bass:      @json($pattern->perc_bass ?? 'none'),
                 mp3_file:       @json($pattern->mp3_file ?? ''),
+                video_snippets: @json($pattern->video_snippets ?? []),
             },
 
             bars: {{ $isNew ? 1 : 'null' }},

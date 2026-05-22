@@ -137,7 +137,15 @@ class RhythmPatternController extends Controller
 
     private function validatePattern(Request $request, ?int $excludeId = null): array
     {
-        return $request->validate([
+        // The video-snippet widget submits its library as a JSON string in a
+        // hidden field (classic form POST). Decode it to an array before
+        // validation so the per-snippet rules can apply.
+        if ($request->filled('video_snippets') && is_string($request->input('video_snippets'))) {
+            $decoded = json_decode($request->input('video_snippets'), true);
+            $request->merge(['video_snippets' => is_array($decoded) ? $decoded : []]);
+        }
+
+        $data = $request->validate([
             'name'           => 'required|string|max:100',
             'slug'           => [
                 'nullable', 'string', 'max:50', 'regex:/^[a-z0-9\-]+$/',
@@ -155,6 +163,72 @@ class RhythmPatternController extends Controller
             'perc_top'       => 'nullable|string|in:none,shaker,tamborim,hihat-brush,brush-snare',
             'perc_bass'      => 'nullable|string|in:none,kick',
             'mp3_file'       => 'nullable|string|max:255',
+
+            // Video snippet library — see docs/SBN-Course-Reference.md §10.
+            'video_snippets'             => 'nullable|array',
+            'video_snippets.*.id'        => 'required|string|max:64',
+            'video_snippets.*.label'     => 'required|string|max:120',
+            'video_snippets.*.videoId'   => 'required|string|max:32',
+            'video_snippets.*.videoType' => 'required|string|in:youtube,hosted',
+            'video_snippets.*.startSec'  => 'required|numeric|min:0',
+            'video_snippets.*.endSec'    => 'required|numeric|min:0',
+            'video_snippets.*.tempoBpm'  => 'required|numeric|min:20|max:300',
         ]);
+
+        $data['video_snippets'] = $this->normalizeSnippets(
+            $data['video_snippets'] ?? [],
+            $data['time_signature'] ?? '4/4'
+        );
+
+        return $data;
     }
+
+    /**
+     * Server-side enforcement of the snippet rules the authoring widget also
+     * checks: end-after-start and the ≤16-bar cap. The bar count is derived
+     * from the pattern's time signature. Throws a validation exception on
+     * violation. See docs/SBN-Course-Reference.md §10.
+     */
+    private function normalizeSnippets(array $snippets, string $timeSignature): array
+    {
+        $beatsPerBar = (int) (explode('/', $timeSignature)[0] ?? 4) ?: 4;
+        $clean       = [];
+
+        foreach ($snippets as $i => $s) {
+            $start = (float) $s['startSec'];
+            $end   = (float) $s['endSec'];
+            $bpm   = (float) $s['tempoBpm'];
+
+            if ($end <= $start) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    "video_snippets.$i.endSec" => 'End must be after start.',
+                ]);
+            }
+
+            $bars = (($end - $start) / 60) * $bpm / $beatsPerBar;
+            if ($bars > self::MAX_SNIPPET_BARS) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    "video_snippets.$i.endSec" => sprintf(
+                        'Snippet spans %.1f bars — keep it to %d or fewer.',
+                        $bars, self::MAX_SNIPPET_BARS
+                    ),
+                ]);
+            }
+
+            $clean[] = [
+                'id'        => $s['id'],
+                'label'     => trim($s['label']),
+                'videoId'   => $s['videoId'],
+                'videoType' => $s['videoType'],
+                'startSec'  => $start,
+                'endSec'    => $end,
+                'tempoBpm'  => $bpm,
+            ];
+        }
+
+        return $clean;
+    }
+
+    /** Max bars a snippet may span — the legal/architectural cap. */
+    private const MAX_SNIPPET_BARS = 16;
 }

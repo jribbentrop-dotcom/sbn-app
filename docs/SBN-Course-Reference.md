@@ -293,10 +293,10 @@ tags in the lesson content — **lesson-specific**, not course-genre-generic.
 
 ## 10. Video Sync — real-world example snippets
 
-Hooktheory-style YouTube examples synced to a course-player component. Full
-design + rationale in `docs/Video-Sync-Snippet-Integration-Plan.md`.
-**Shipped: rhythm path (plan steps 1–6) and progression path (step 6b).** The
-two paths sync the same way but place the synced component differently — see
+Hooktheory-style YouTube examples synced to a course-player component.
+**Shipped: rhythm path and progression path.** This section is the as-built
+reference. The two paths sync the same way but place the synced component
+differently — see
 §10.3 (rhythm, PracticePanel-only) vs §10.4 (progression, inline body).
 
 ### 10.1 Two layers

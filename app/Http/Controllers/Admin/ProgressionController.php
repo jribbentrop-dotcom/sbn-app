@@ -224,7 +224,7 @@ class ProgressionController extends Controller
             'alt_numerals.*.label'    => 'required|string|max:100',
             'alt_numerals.*.numerals' => 'required|string|max:255',
 
-            // Video snippet library — see Video-Sync-Snippet-Integration-Plan §0.2.
+            // Video snippet library — see docs/SBN-Course-Reference.md §10.
             'video_snippets'               => 'nullable|array',
             'video_snippets.*.id'          => 'required|string|max:64',
             'video_snippets.*.label'       => 'required|string|max:120',

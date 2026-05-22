@@ -284,6 +284,9 @@ Key method: `toPlayerData()` — serialises DB columns to `RhythmPatternData` sh
 Columns: `name`, `slug`, `beats`, `grid_type`, `thumb`, `fingers`, `bpm`, `time_signature`,
 `perc_top`, `perc_bass`, `description`, `category`, `style_slug`, `demo_url`.
 
+`video_snippets` — JSON column (cast `array`), the pattern's library of
+real-world YouTube examples. See §12.
+
 ### Controllers
 
 | Controller | Path | Actions |
@@ -317,8 +320,10 @@ whole-note mode runs unchanged.
 The TipTap lesson editor palette (`LessonPalette.vue`) has a **Rhythm tab** that searches
 the pattern library and inserts `<sbn-rhythm slug="...">` tags into the lesson body.
 
-Unlike chord/progression/song inserts, **rhythm inserts immediately** — no extra config
-dialog (root, key, label) is needed.
+Selecting a rhythm opens an inline config row with a **"Video example"**
+dropdown (select→configure→confirm path — rhythm no longer inserts on click).
+The chosen snippet id is emitted as the `video-snippet` tag attribute. See
+the Course Reference §10 for the course-side video-sync flow.
 
 ---
 
@@ -326,8 +331,49 @@ dialog (root, key, label) is needed.
 
 | # | Task | Priority |
 |---|---|---|
-| 1 | Migrate `<sbn-rhythm>` lesson embed (`mountSbnNodes.ts`) from `RhythmCard` to `RhythmStrip` | Medium |
+| 1 | ~~Migrate `<sbn-rhythm>` lesson embed (`mountSbnNodes.ts`) to `RhythmStrip`~~ — **DONE** | Medium |
 | 2 | ~~Add `@click.stop` on `RhythmStrip`'s play button~~ — **DONE** | High |
 | 3 | ~~Extend `RhythmStrip` with a `mini` prop~~ — **DONE** | Low |
 | 4 | Phase 7: "Used in songs" section on rhythm Show page (query `sbn_leadsheets WHERE rhythm = {slug}`) | Low |
 | 5 | Rhythm Show page: confirm demo blend slider still works after `RhythmPattern` refactors | Medium |
+
+---
+
+## 12. Video Snippet Library
+
+Each rhythm pattern can carry a library of real-world YouTube examples in its
+`video_snippets` JSON column. Course-side flow + full as-built design in the
+Course Reference §10.
+
+### Snippet shape
+
+```json
+{
+  "id": "vs_<uuid>",        // stable; the course tag references this
+  "label": "Jobim — 1965",  // shown in the LessonPalette video picker
+  "videoId": "abc123",
+  "videoType": "youtube",
+  "startSec": 7.0,           // recording-time of the snippet's first bar
+  "endSec": 22.5,            // loop wrap point
+  "tempoBpm": 120
+}
+```
+
+### Authoring widget
+
+Shared partial `resources/views/admin/_partials/video-snippets.blade.php`,
+included in the rhythm editor sidebar (and the progression editor). Backed by
+the registered Alpine component in `public/js/sbn-snippet-editor.js`:
+
+- Paste a YouTube URL/ID → embedded preview → scrub → "Mark start" /
+  "Mark end" → label + tempo → add to the list.
+- Each snippet gets a stable `vs_<uuid>` id on create.
+- Duration cap: a snippet may span at most **16 bars** (legal/architectural
+  line — see plan §2/§7). Enforced both in the widget (live bar-count) and
+  server-side in `RhythmPatternController::validatePattern()`.
+- The widget commits into `form.video_snippets` via a bubbling
+  `sbn:snippets-changed` event; persisted on the main pattern Save.
+
+The rhythm editor saves via AJAX (real array in the JSON body); the
+progression editor is a classic form POST, so its widget writes JSON into a
+hidden `video_snippets` input, decoded server-side.
