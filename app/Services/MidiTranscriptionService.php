@@ -23,12 +23,16 @@ class MidiTranscriptionService
 
     /**
      * Transcribe a YouTube video into a sequence of chord-ready MIDI buckets.
+     *
+     * @param array $detectionParams  basic-pitch tuning knobs from the import
+     *        modal: onset_threshold, frame_threshold, minimum_note_length,
+     *        minimum_frequency, maximum_frequency. Empty = basic-pitch defaults.
      */
-    public function transcribe(string $youtubeId): array
+    public function transcribe(string $youtubeId, array $detectionParams = []): array
     {
         // 1. Download Audio (Raw format from YT)
         $rawPath = $this->downloadAudio($youtubeId);
-        
+
         if (!$rawPath) {
             throw new \Exception("Failed to download audio from YouTube.");
         }
@@ -37,7 +41,7 @@ class MidiTranscriptionService
         $wavPath = $this->convertToWav($rawPath);
 
         // 3. Run Python Transcription
-        $result = $this->runPythonTranscription($wavPath);
+        $result = $this->runPythonTranscription($wavPath, $detectionParams);
 
         // 4. Cleanup
         if (file_exists($rawPath)) unlink($rawPath);
@@ -119,14 +123,25 @@ class MidiTranscriptionService
         return $outputPath;
     }
 
-    protected function runPythonTranscription(string $audioPath): array
+    protected function runPythonTranscription(string $audioPath, array $detectionParams = []): array
     {
         // Use forward slashes even on Windows for Python/Librosa stability
         $audioPath = str_replace('\\', '/', $audioPath);
         $scriptPath = str_replace('\\', '/', $this->scriptPath);
         $pythonPath = str_replace('\\', '/', $this->pythonPath);
-        
+
         $cmd = "\"{$pythonPath}\" \"{$scriptPath}\" \"{$audioPath}\"";
+
+        // Pass detection knobs via a temp JSON file, NOT an inline argument.
+        // The shell strips the double quotes inside `{"k":v}` when JSON is
+        // passed as a bare arg, so the params would arrive corrupt and the
+        // script would silently fall back to basic-pitch defaults.
+        $paramsPath = null;
+        if (!empty($detectionParams)) {
+            $paramsPath = $audioPath . '.params.json';
+            file_put_contents($paramsPath, json_encode($detectionParams));
+            $cmd .= " \"" . str_replace('\\', '/', $paramsPath) . "\"";
+        }
         
         Log::info("Running Python transcription: {$cmd}");
         
@@ -154,6 +169,10 @@ class MidiTranscriptionService
         fclose($pipes[1]);
         fclose($pipes[2]);
         $returnCode = proc_close($process);
+
+        if ($paramsPath && file_exists($paramsPath)) {
+            unlink($paramsPath);
+        }
 
         if ($returnCode !== 0) {
             Log::error("Python transcription failed (code {$returnCode}): " . $stderr);

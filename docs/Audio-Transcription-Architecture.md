@@ -151,6 +151,61 @@ If the song matches a standard leadsheet from the **Mike Oliphant JazzStandards 
 
 ---
 
+## 3b. Note-Detection Tuning (Session 2026-05-22) ✅
+
+### Symptom
+A whole class of recordings transcribed with **far too few notes** — e.g. *Stardust*
+came back at ~1.8 notes/sec where bossa-nova imports sit at 4.7–6.0. The shortfall
+was uniform across the whole track, not a truncated download.
+
+### Root Cause
+`predict()` ran with **basic-pitch's default thresholds** (`onset 0.5`,
+`frame 0.3`, `minimum_note_length ≈ 128 ms`). Those defaults are tuned for
+clearly-articulated input; soft / legato solo jazz guitar and orchestral mixes
+have weak onsets that fall below 0.5, so most notes are simply never detected.
+The PHP melody assembly was faithfully passing through every note it received —
+the loss was entirely upstream, in inference.
+
+### Implemented: Detection Sensitivity levers
+The import modal (`_lookup-modal.blade.php`, audio mode) now exposes:
+
+- **Note Detection Sensitivity** preset — `balanced` (defaults), `sensitive`
+  (`onset 0.3 / frame 0.18 / minLen 58 ms`), `strict` (`0.7 / 0.45 / 160 ms`),
+  or `custom`.
+- **Advanced knobs** (collapsible) — onset threshold, frame threshold and
+  minimum-note-length sliders, plus a "restrict to guitar range" checkbox
+  (clamps detection to ~80–1320 Hz). Touching any slider flips the preset to
+  `custom`.
+
+Measured effect on a real recording: **default 719 notes → sensitive 2793**
+(3.9×). `sensitive` can over-detect on already-dense material — nudge onset
+back toward ~0.4 via `custom` if so.
+
+### Threading
+`_lookup-modal.blade.php` → `createFromLookup` validation →
+`LeadsheetController::resolveDetectionParams()` (preset baseline + slider
+overrides; drops keys still equal to basic-pitch defaults so an untouched modal
+sends nothing) → `MidiTranscriptionService::transcribe($id, $params)` →
+**temp JSON file** → `transcribe.py` arg 2 → keyword args on `predict()`.
+The params used are echoed back by Python and cached in
+`transcriptionRaw.detectionParams`.
+
+### Gotcha — params MUST go via a file, not an inline arg
+Two stacked bugs made the first cut a silent no-op (every transcription used
+defaults regardless of the modal):
+1. Passing `{"k":v}` as a **bare CLI argument** lets the shell strip the double
+   quotes → `json.loads` fails.
+2. `transcribe.py`'s `except: params = None` fallback **swallowed the error**,
+   so it just used defaults with no signal.
+
+Fix: `MidiTranscriptionService` writes a temp `*.params.json` next to the audio
+and passes its **path**; `transcribe.py` reads it with `encoding='utf-8-sig'`
+(tolerates a BOM). Detection params only apply at **import time** —
+`reshiftDownbeat` works from cached notes and never re-runs Python, so a
+bad-detection transcription must be **re-imported** to fix, not re-shifted.
+
+---
+
 ## 4. Problem 2 — Repeated Notes & Voice Separation
 
 ### Symptom

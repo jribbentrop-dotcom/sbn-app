@@ -132,6 +132,99 @@
                             </div>
                         </label>
                     </div>
+
+                    <div class="sbn-form-group" style="margin-top: 15px;">
+                        <label for="tab_position_style">Tab Position Style</label>
+                        <select id="tab_position_style" name="tab_position_style" class="sbn-select" :disabled="loading">
+                            <option value="fretted">Fretted positions &mdash; jazz chord-melody (default)</option>
+                            <option value="open">Prefer open strings &mdash; classical / fingerstyle</option>
+                        </select>
+                        <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">
+                            How the fretboard optimiser places notes. Fretted keeps a bar in one
+                            neck position; open favours open strings even mid-position.
+                        </div>
+                    </div>
+
+                    <!-- ── Note Detection Tuning (basic-pitch) ──────────────── -->
+                    <div class="sbn-form-group" style="margin-top: 15px;">
+                        <label for="detection_preset">Note Detection Sensitivity</label>
+                        <select id="detection_preset" name="detection_preset" class="sbn-select"
+                                x-model="detectionPreset" @change="applyDetectionPreset()" :disabled="loading">
+                            <option value="balanced">Balanced &mdash; clearly-picked recordings (default)</option>
+                            <option value="sensitive">Sensitive &mdash; soft / legato solo guitar, orchestral mixes</option>
+                            <option value="strict">Strict &mdash; reject reverb tails &amp; false notes</option>
+                            <option value="custom">Custom &mdash; set the sliders below</option>
+                        </select>
+                        <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">
+                            Controls how aggressively note onsets are detected. If a transcription
+                            comes back with far too few notes, switch to <strong>Sensitive</strong>.
+                            Too many spurious notes &rarr; <strong>Strict</strong>.
+                        </div>
+                    </div>
+
+                    <div class="sbn-form-group" style="margin-top: 8px;">
+                        <button type="button" class="sbn-link-btn"
+                                @click="showDetectionAdvanced = !showDetectionAdvanced"
+                                style="background:none; border:none; padding:0; color:#3b82f6; font-size:12px; cursor:pointer;">
+                            <span x-text="showDetectionAdvanced ? '▾ Hide advanced detection knobs' : '▸ Advanced detection knobs'"></span>
+                        </button>
+                    </div>
+
+                    <div x-show="showDetectionAdvanced" style="margin-top: 8px; padding: 12px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;">
+                        <!-- Onset threshold -->
+                        <div style="margin-bottom: 14px;">
+                            <label style="font-size:12px; font-weight:600; display:flex; justify-content:space-between;">
+                                <span>Onset Threshold</span>
+                                <span x-text="Number(onsetThreshold).toFixed(2)" style="color:#3b82f6;"></span>
+                            </label>
+                            <input type="range" name="onset_threshold" min="0.05" max="0.95" step="0.05"
+                                   x-model.number="onsetThreshold"
+                                   @input="detectionPreset = 'custom'" :disabled="loading"
+                                   style="width:100%;">
+                            <div style="font-size:10px; color:#6b7280;">
+                                Lower = catches softer / legato attacks (more notes). Higher = only firm attacks.
+                            </div>
+                        </div>
+                        <!-- Frame threshold -->
+                        <div style="margin-bottom: 14px;">
+                            <label style="font-size:12px; font-weight:600; display:flex; justify-content:space-between;">
+                                <span>Frame (Pitch) Threshold</span>
+                                <span x-text="Number(frameThreshold).toFixed(2)" style="color:#3b82f6;"></span>
+                            </label>
+                            <input type="range" name="frame_threshold" min="0.05" max="0.95" step="0.05"
+                                   x-model.number="frameThreshold"
+                                   @input="detectionPreset = 'custom'" :disabled="loading"
+                                   style="width:100%;">
+                            <div style="font-size:10px; color:#6b7280;">
+                                Lower = sustains quiet pitches longer. Higher = drops faint / decaying notes.
+                            </div>
+                        </div>
+                        <!-- Minimum note length -->
+                        <div style="margin-bottom: 10px;">
+                            <label style="font-size:12px; font-weight:600; display:flex; justify-content:space-between;">
+                                <span>Minimum Note Length</span>
+                                <span style="color:#3b82f6;"><span x-text="Math.round(minNoteLength)"></span> ms</span>
+                            </label>
+                            <input type="range" name="minimum_note_length" min="10" max="500" step="2"
+                                   x-model.number="minNoteLength"
+                                   @input="detectionPreset = 'custom'" :disabled="loading"
+                                   style="width:100%;">
+                            <div style="font-size:10px; color:#6b7280;">
+                                Lower = keeps fast runs &amp; grace notes. Higher = filters out transients.
+                            </div>
+                        </div>
+                        <!-- Guitar range clamp -->
+                        <label class="sbn-checkbox" style="margin-top:4px;">
+                            <input type="checkbox" name="restrict_guitar_range" value="1"
+                                   x-model="restrictGuitarRange" :disabled="loading">
+                            <div>
+                                <div style="font-weight:600; font-size:12px;">Restrict to guitar range</div>
+                                <div style="font-size:10px; color:#6b7280;">
+                                    Ignores sub-bass rumble and cymbal noise outside ~E2&ndash;E6.
+                                </div>
+                            </div>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="sbn-form-group">
@@ -209,6 +302,27 @@
             extensionMode: 'basic',
             loading: false,
 
+            // Audio-transcription detection tuning (basic-pitch knobs)
+            detectionPreset: 'balanced',
+            showDetectionAdvanced: false,
+            onsetThreshold: 0.5,
+            frameThreshold: 0.3,
+            minNoteLength: 128,
+            restrictGuitarRange: false,
+            detectionPresets: {
+                balanced:  { onset: 0.5, frame: 0.3,  minLen: 128 },
+                sensitive: { onset: 0.3, frame: 0.18, minLen: 58 },
+                strict:    { onset: 0.7, frame: 0.45, minLen: 160 },
+            },
+            applyDetectionPreset() {
+                const p = this.detectionPresets[this.detectionPreset];
+                if (p) {
+                    this.onsetThreshold = p.onset;
+                    this.frameThreshold = p.frame;
+                    this.minNoteLength = p.minLen;
+                }
+            },
+
             // YouTube Search State
             youtubeQuery: '',
             youtubeSearching: false,
@@ -233,6 +347,11 @@
                 this.buildVoicings = true;
                 this.voicingStyle = 'popular';
                 this.loading = false;
+
+                this.detectionPreset = 'balanced';
+                this.showDetectionAdvanced = false;
+                this.restrictGuitarRange = false;
+                this.applyDetectionPreset();
 
                 this.youtubeQuery = '';
                 this.youtubeResults = [];

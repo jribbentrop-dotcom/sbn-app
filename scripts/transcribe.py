@@ -6,11 +6,26 @@ import librosa
 from basic_pitch.inference import predict
 from basic_pitch import ICASSP_2022_MODEL_PATH
 
-def transcribe(audio_path):
+def transcribe(audio_path, params=None):
     try:
         # Normalize Windows paths for librosa/soundfile
         import os
         audio_path = os.path.abspath(audio_path).replace('\\', '/')
+
+        # basic-pitch detection knobs (passed from the import modal). Defaults
+        # match basic-pitch's own defaults — tuned for clearly-articulated
+        # input. Soft / legato / orchestral material under-detects badly at
+        # these defaults, so the modal lets the user loosen them.
+        params = params or {}
+        onset_threshold      = float(params.get('onset_threshold', 0.5))
+        frame_threshold      = float(params.get('frame_threshold', 0.3))
+        minimum_note_length  = float(params.get('minimum_note_length', 127.7))
+        minimum_frequency    = params.get('minimum_frequency', None)
+        maximum_frequency    = params.get('maximum_frequency', None)
+        if minimum_frequency is not None:
+            minimum_frequency = float(minimum_frequency)
+        if maximum_frequency is not None:
+            maximum_frequency = float(maximum_frequency)
         
         # 1. Load Audio (Limit to first 90 seconds)
         y, sr = librosa.load(audio_path, sr=22050, duration=90)
@@ -46,8 +61,18 @@ def transcribe(audio_path):
             beat_times = np.array([0.0])
 
         # 3. MIDI Extraction (Basic Pitch)
-        # Use the clipped file
-        model_output, midi_data, note_events = predict(temp_clip_path, ICASSP_2022_MODEL_PATH)
+        # Use the clipped file. Detection thresholds come from the import
+        # modal — lowering onset_threshold / frame_threshold recovers soft or
+        # legato attacks that the defaults miss (e.g. solo jazz guitar).
+        model_output, midi_data, note_events = predict(
+            temp_clip_path,
+            ICASSP_2022_MODEL_PATH,
+            onset_threshold=onset_threshold,
+            frame_threshold=frame_threshold,
+            minimum_note_length=minimum_note_length,
+            minimum_frequency=minimum_frequency,
+            maximum_frequency=maximum_frequency,
+        )
         
         # Cleanup temp clip
         if os.path.exists(temp_clip_path):
@@ -109,7 +134,16 @@ def transcribe(audio_path):
             "duration": float(duration),
             "beats": beats_json,
             "beat_times": [float(t) for t in beat_times],
-            "notes": notes_json
+            "notes": notes_json,
+            # Echo the detection params actually used, so the cached
+            # transcriptionRaw records how this transcription was produced.
+            "detection_params": {
+                "onset_threshold": onset_threshold,
+                "frame_threshold": frame_threshold,
+                "minimum_note_length": minimum_note_length,
+                "minimum_frequency": minimum_frequency,
+                "maximum_frequency": maximum_frequency,
+            },
         }
         print("JSON_START")
         print(json.dumps(result))
@@ -130,5 +164,20 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(json.dumps({"success": False, "error": "No audio path provided"}))
         sys.exit(1)
-    
-    transcribe(sys.argv[1])
+
+    # Optional 2nd arg: PATH to a JSON file holding detection params from the
+    # import modal. A file (not an inline JSON arg) is used deliberately —
+    # shells mangle the double quotes inside `{"k":v}` when it is passed as a
+    # bare argument, so the params would silently arrive corrupt and json.loads
+    # would fall back to defaults.
+    params = None
+    if len(sys.argv) >= 3 and sys.argv[2].strip():
+        params_path = sys.argv[2].strip()
+        try:
+            # utf-8-sig tolerates a leading BOM (some editors / shells add one).
+            with open(params_path, 'r', encoding='utf-8-sig') as fh:
+                params = json.load(fh)
+        except (ValueError, TypeError, OSError):
+            params = None
+
+    transcribe(sys.argv[1], params)

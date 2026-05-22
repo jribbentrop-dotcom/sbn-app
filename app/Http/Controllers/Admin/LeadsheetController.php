@@ -523,6 +523,12 @@ class LeadsheetController extends Controller
             'ai_cleanup'    => 'nullable|boolean',
             'bass_snap'     => 'nullable|boolean',
             'tab_position_style' => 'nullable|string|in:fretted,open',
+            // ── basic-pitch detection tuning (audio mode) ────────────────────
+            'detection_preset'     => 'nullable|string|in:balanced,sensitive,strict,custom',
+            'onset_threshold'      => 'nullable|numeric|min:0.05|max:0.95',
+            'frame_threshold'      => 'nullable|numeric|min:0.05|max:0.95',
+            'minimum_note_length'  => 'nullable|numeric|min:10|max:500',
+            'restrict_guitar_range'=> 'nullable|boolean',
         ]);
 
         if (($validated['mode'] ?? '') === 'audio') {
@@ -530,8 +536,12 @@ class LeadsheetController extends Controller
                 return back()->withErrors(['lookup' => 'You must select a YouTube video for audio transcription.']);
             }
             
+            // Resolve basic-pitch detection knobs from the modal's preset
+            // (balanced / sensitive / strict) plus any custom overrides.
+            $detectionParams = $this->resolveDetectionParams($validated);
+
             try {
-                $rawResult = $transcriber->transcribe($validated['youtube_id']);
+                $rawResult = $transcriber->transcribe($validated['youtube_id'], $detectionParams);
                 if (!($rawResult['success'] ?? false)) {
                     throw new \Exception($rawResult['error'] ?? "Unknown transcription error.");
                 }
@@ -1852,6 +1862,63 @@ class LeadsheetController extends Controller
     }
 
     /**
+     * Resolve basic-pitch detection knobs from the import modal's inputs.
+     *
+     * The modal offers a preset (balanced / sensitive / strict) for the common
+     * cases plus optional fine-tune sliders. basic-pitch's defaults
+     * (onset 0.5, frame 0.3, minNoteLen ~128ms) are tuned for clearly-
+     * articulated input and badly under-detect soft / legato / orchestral
+     * material — that is what the 'sensitive' preset addresses.
+     *
+     *   balanced  — basic-pitch defaults; dense, clearly-picked recordings.
+     *   sensitive — lower thresholds; recovers soft jazz-guitar / legato runs.
+     *   strict    — higher thresholds; rejects reverb tails / false positives.
+     *
+     * A 'custom' preset (or any slider present) lets explicit values win over
+     * the preset baseline. restrict_guitar_range clamps detection to the
+     * 6-string range (~E2..~E6), trimming sub-bass rumble and cymbal noise.
+     *
+     * Returns only the keys the user actually changed from basic-pitch's own
+     * defaults, so an untouched modal yields [] and Python uses its defaults.
+     */
+    protected function resolveDetectionParams(array $validated): array
+    {
+        $presets = [
+            'balanced'  => ['onset_threshold' => 0.5,  'frame_threshold' => 0.3,  'minimum_note_length' => 127.7],
+            'sensitive' => ['onset_threshold' => 0.3,  'frame_threshold' => 0.18, 'minimum_note_length' => 58.0],
+            'strict'    => ['onset_threshold' => 0.7,  'frame_threshold' => 0.45, 'minimum_note_length' => 160.0],
+        ];
+
+        $preset = $validated['detection_preset'] ?? 'balanced';
+        $base   = $presets[$preset] ?? $presets['balanced'];
+
+        // Explicit slider values override the preset baseline.
+        foreach (['onset_threshold', 'frame_threshold', 'minimum_note_length'] as $k) {
+            if (isset($validated[$k]) && $validated[$k] !== '' && $validated[$k] !== null) {
+                $base[$k] = (float) $validated[$k];
+            }
+        }
+
+        // Optional: clamp detection to a 6-string guitar's pitch range.
+        // E2 ≈ 82 Hz, two octaves above the 12th-fret high-E ≈ 1320 Hz.
+        if (!empty($validated['restrict_guitar_range'])) {
+            $base['minimum_frequency'] = 80.0;
+            $base['maximum_frequency'] = 1320.0;
+        }
+
+        // Drop keys still equal to basic-pitch's defaults so an untouched
+        // modal sends nothing and Python keeps its built-in behaviour.
+        $defaults = ['onset_threshold' => 0.5, 'frame_threshold' => 0.3, 'minimum_note_length' => 127.7];
+        foreach ($defaults as $k => $def) {
+            if (isset($base[$k]) && abs($base[$k] - $def) < 1e-9) {
+                unset($base[$k]);
+            }
+        }
+
+        return $base;
+    }
+
+    /**
      * Assemble a raw Python transcription result into a standard Analysis array.
      *
      * Owns the beat→bar grouping, chord region detection, melody reconstruction
@@ -1919,6 +1986,10 @@ class LeadsheetController extends Controller
                 'downbeatOffset' => $downbeatOffset,
                 'bassSnap'       => $bassSnapped,
                 'tabPositionStyle' => $opts['tab_position_style'] ?? 'fretted',
+                // The basic-pitch knobs that produced this note set. Recorded
+                // for the editor (so the user can see what was used and
+                // re-import with different values if detection was off).
+                'detectionParams' => $rawResult['detection_params'] ?? null,
             ],
         ];
 
