@@ -4,6 +4,7 @@ import { Link } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
 import ChordDiagram from '@/Components/Library/ChordDiagram.vue';
+import AnimatedChordDiagram from '@/Components/Library/AnimatedChordDiagram.vue';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
 
 defineOptions({ layout: PublicLayout });
@@ -14,8 +15,22 @@ interface ArchetypeFamily {
     chords: ChordDiagramData[];
 }
 
+interface BarreFamily {
+    key: string;
+    label: string;
+    root: string;
+    chords: ChordDiagramData[];
+}
+
+interface DropTarget {
+    label: string;
+    chord: ChordDiagramData;
+}
+
 interface Props {
     archetypeFamilies: ArchetypeFamily[];
+    barreFamilies: BarreFamily[];
+    dropFamilies: Record<string, DropTarget>;
     otherChords: ChordDiagramData[];
     voicingCategories: Record<string, string>;
     chordQualities: Record<string, string>;
@@ -33,14 +48,128 @@ const fDiff    = ref('');
 const fInv     = ref('');
 const fExt     = ref('');
 
+// ── Archetype / barré panel mode ──────────────────────────
+// Forward animation (archetype → barré):
+//   idle      → normal
+//   exiting   → D/Dm/C/G fade+shrink away, E/Em/A/Am untouched
+//   gathering → 4 keeper tiles slide to center cluster via inline translate
+//   morphing  → content (diagram+label) switches to barré while gathered; shimmer plays
+//               → animation ends here; tiles stay centered, barreMode commits
+//
+// Reverse (barré → archetype): simple exit-all → enter-all.
+const barreMode  = ref(false);
+const panelPhase = ref<'idle' | 'exiting' | 'gathering' | 'morphing' | 'entering'>('idle');
+
+// showBarreContent: true while the tiles should display barré diagrams/labels,
+// even before barreMode flips (so the spread plays with barré content).
+const showBarreContent = ref(false);
+
+// Tile row ref for FLIP measurements
+const tilesRowRef = ref<HTMLElement | null>(null);
+// Per-tile inline translateX, keyed by morph-tile index (0-3)
+const tileTranslates = ref<Record<number, string>>({});
+
+// Indices that exit (D/Dm/C/G = 4,5,6,7) vs morph/keep (E/Em/A/Am = 0,1,2,3)
+const EXIT_INDICES  = new Set([4, 5, 6, 7]);
+const MORPH_INDICES = new Set([0, 1, 2, 3]);
+
+function tileClass(idx: number): Record<string, boolean> {
+    const phase = panelPhase.value;
+    if (phase === 'idle') return {};
+    if (phase === 'exiting') {
+        if (barreMode.value) return { 'sbn-tile--exit': true };
+        return { 'sbn-tile--exit': EXIT_INDICES.has(idx) };
+    }
+    // After exit phase the 4 gone tiles stay invisible through gather/morph/spread
+    const isGone = EXIT_INDICES.has(idx);
+    if (phase === 'gathering') return isGone ? { 'sbn-tile--gone': true } : { 'sbn-tile--gather': true };
+    if (phase === 'morphing')  return isGone ? { 'sbn-tile--gone': true } : { 'sbn-tile--morphing': true };
+    if (phase === 'entering')  return { 'sbn-tile--enter': true };
+    return {};
+}
+
+// Template reads this to decide which diagram/label to show for tiles 0-3
+const isMorphActive = computed(() => showBarreContent.value && !barreMode.value);
+
+// Compute translateX values to cluster morph tiles at row center
+function computeGatherTranslates(): Record<number, string> {
+    if (!tilesRowRef.value) return {};
+    const rowRect    = tilesRowRef.value.getBoundingClientRect();
+    const rowCenterX = rowRect.left + rowRect.width / 2;
+    const allTiles   = Array.from(tilesRowRef.value.querySelectorAll<HTMLElement>('.sbn-archetype-tile'));
+    const morphTiles = allTiles.filter((_, i) => MORPH_INDICES.has(i));
+    if (!morphTiles.length) return {};
+
+    const tileW  = morphTiles[0].getBoundingClientRect().width;
+    const gap    = 10;
+    const total  = morphTiles.length * tileW + (morphTiles.length - 1) * gap;
+    const startX = rowCenterX - total / 2;
+
+    const result: Record<number, string> = {};
+    morphTiles.forEach((el, ci) => {
+        const rect      = el.getBoundingClientRect();
+        const currCx    = rect.left + rect.width / 2;
+        const destCx    = startX + ci * (tileW + gap) + tileW / 2;
+        result[ci] = `translateX(${(destCx - currCx).toFixed(1)}px)`;
+    });
+    return result;
+}
+
+async function enterBarreMode() {
+    if (panelPhase.value !== 'idle') return;
+    activeFamily.value = null;
+
+    // 1 — exit the 4 non-transferable tiles
+    panelPhase.value = 'exiting';
+    await delay(480);
+
+    // 2 — slide keeper tiles to center
+    tileTranslates.value = computeGatherTranslates();
+    panelPhase.value = 'gathering';
+    await delay(540);
+
+    // 3 — switch content to barré while gathered; shimmer plays
+    showBarreContent.value = true;
+    panelPhase.value = 'morphing';
+    await delay(700);
+
+    // animation done — tiles stay centered; commit barré state
+    barreMode.value = true;
+    tileTranslates.value = {};
+    panelPhase.value = 'idle';
+}
+
+async function exitBarreMode() {
+    if (panelPhase.value !== 'idle') return;
+    activeFamily.value = null;
+    dropMode.value = false;
+    dropAnimating.value = false;
+    panelPhase.value = 'exiting';
+    await delay(400);
+    showBarreContent.value = false;
+    barreMode.value = false;
+    panelPhase.value = 'entering';
+    await delay(520);
+    panelPhase.value = 'idle';
+}
+
+function delay(ms: number): Promise<void> {
+    return new Promise(r => setTimeout(r, ms));
+}
+
 // ── Archetype drawer ───────────────────────────────────────
 const activeFamily = ref<string | null>(null);
 
-const activeFamilyIndex = computed(() =>
-    activeFamily.value
+const activeFamilyIndex = computed(() => {
+    if (barreMode.value) {
+        return activeFamily.value
+            ? props.barreFamilies.findIndex(f => f.key === activeFamily.value)
+            : -1;
+    }
+    return activeFamily.value
         ? props.archetypeFamilies.findIndex(f => f.key === activeFamily.value)
-        : -1
-);
+        : -1;
+});
 
 function toggleFamily(key: string) {
     activeFamily.value = activeFamily.value === key ? null : key;
@@ -213,6 +342,41 @@ const hasFilters = computed(() =>
 
 const visibleCount = computed(() => filteredOther.value.length);
 
+// ── Voicing groups (unfiltered browse mode only) ───────────────
+// Category order mirrors VOICING_CATEGORIES constant on the model.
+const CATEGORY_ORDER = [
+    'drop2', 'drop3', 'shell', 'rootless', 'closed', 'closed_triads', 'spread_triads', 'slash', 'custom',
+];
+
+interface VoicingGroup {
+    key: string;
+    label: string;
+    chords: ChordDiagramData[];
+}
+
+const voicingGroups = computed((): VoicingGroup[] => {
+    const map = new Map<string, ChordDiagramData[]>();
+    for (const c of props.otherChords) {
+        const cat = c.voicing_category || 'custom';
+        if (!map.has(cat)) map.set(cat, []);
+        map.get(cat)!.push(c);
+    }
+    const result: VoicingGroup[] = [];
+    for (const key of CATEGORY_ORDER) {
+        const chords = map.get(key);
+        if (chords?.length) {
+            result.push({ key, label: props.voicingCategories[key] ?? key, chords });
+        }
+    }
+    // Any categories not in CATEGORY_ORDER go last
+    for (const [key, chords] of map) {
+        if (!CATEGORY_ORDER.includes(key)) {
+            result.push({ key, label: props.voicingCategories[key] ?? key, chords });
+        }
+    }
+    return result;
+});
+
 function clearFilters() {
     search.value = '';
     fQuality.value = '';
@@ -235,6 +399,36 @@ function chordShowUrl(chord: ChordDiagramData): string {
     if (isRootless) return `${base}?root=C`;
     if (hasRoot || (root && root !== 'C')) return `${base}?root=${encodeURIComponent(root)}`;
     return base;
+}
+
+// Active tile count depends on which panel is showing (for drawer connector calc)
+const activeTileCount = computed(() =>
+    barreMode.value ? props.barreFamilies.length : props.archetypeFamilies.length
+);
+
+// ── Drop2/Drop3 level ─────────────────────────────────────────────────────
+// dropMode: dots inside barre tiles have animated to their drop voicing positions.
+// dropAnimating: the animation is currently running (prevents re-trigger).
+const dropMode      = ref(false);
+const dropAnimating = ref(false);
+
+async function enterDropMode() {
+    if (!barreMode.value || dropMode.value || dropAnimating.value) return;
+    activeFamily.value = null;
+    dropAnimating.value = true;
+    // Animation runs inside AnimatedChordDiagram; we just wait for it to finish
+    await delay(800);
+    dropAnimating.value = false;
+    dropMode.value = true;
+}
+
+// Key lookup: barreFamilies[idx].key → dropFamilies entry
+function dropTargetFor(barreFamily: BarreFamily): ChordDiagramData | null {
+    return props.dropFamilies[barreFamily.key]?.chord ?? null;
+}
+
+function dropLabelFor(barreFamily: BarreFamily): string {
+    return props.dropFamilies[barreFamily.key]?.label ?? barreFamily.label;
 }
 </script>
 
@@ -300,43 +494,116 @@ function chordShowUrl(chord: ChordDiagramData): string {
             <!-- Results -->
             <div class="sbn-results-container">
 
-                <!-- Archetype panel (hidden during search/filter) -->
+                <!-- Archetype / Barré panel (hidden during search/filter) -->
                 <div v-if="!hasFilters && archetypeFamilies.length" class="sbn-archetype-panel">
-                    <p class="sbn-archetype-panel-title">Archetypes</p>
-                    <p class="sbn-archetype-panel-subtitle">
-                        The fundamental open-position shapes — transposable as barré chords
-                    </p>
 
-                    <div class="sbn-archetype-tiles">
+                    <!-- ── Panel header (switches title/subtitle/back btn) ── -->
+                    <div class="sbn-archetype-panel-header">
+                        <div>
+                            <p class="sbn-archetype-panel-title">
+                                {{ dropMode ? '4-Part 7th Chords' : barreMode ? 'Common Barré Shapes' : 'Archetypes' }}
+                            </p>
+                            <p class="sbn-archetype-panel-subtitle">
+                                {{ dropMode
+                                    ? 'Drop voicings spread the 7th chord across the neck — the gateway to jazz harmony'
+                                    : barreMode
+                                        ? 'E and A shapes moved up the neck — the same fingering, any root'
+                                        : 'The 8 fundamental open-position shapes' }}
+                            </p>
+                        </div>
+                        <button v-if="barreMode" class="sbn-barre-back-btn" @click="exitBarreMode">
+                            ← Archetypes
+                        </button>
+                    </div>
+
+                    <!-- ── Unified tile row ── -->
+                    <!-- Source: always archetypeFamilies during forward animation so the
+                         same 4 DOM nodes persist through exit→gather→morph→spread.
+                         Only after barreMode commits do we switch to barreFamilies. -->
+                    <div ref="tilesRowRef" class="sbn-archetype-tiles" :class="{ 'sbn-tiles--animating': panelPhase !== 'idle' }">
                         <button
-                            v-for="(family, i) in archetypeFamilies"
+                            v-for="(family, idx) in (barreMode ? barreFamilies : archetypeFamilies)"
                             :key="family.key"
                             class="sbn-archetype-tile"
-                            :class="{ active: activeFamily === family.key }"
+                            :class="[{ active: activeFamily === family.key }, tileClass(idx)]"
+                            :style="{
+                                '--tile-i': idx,
+                                transition: panelPhase === 'gathering' ? 'transform 0.5s cubic-bezier(0.4,0,0.2,1)' : undefined,
+                                transform: (MORPH_INDICES.has(idx) && tileTranslates[idx]) ? tileTranslates[idx] : undefined,
+                            }"
+                            :disabled="panelPhase !== 'idle'"
                             @click="toggleFamily(family.key)"
                         >
-                            <span class="sbn-archetype-tile-name">{{ family.label.replace(' Shape', '') }}</span>
-                            <div v-if="family.chords[0]" class="sbn-archetype-tile-diagram">
-                                <ChordDiagram :chord="family.chords[0]" />
+                            <!-- Label -->
+                            <span class="sbn-archetype-tile-name">
+                                <!-- Drop mode: crossfade barré name → drop name -->
+                                <template v-if="barreMode">
+                                    <span
+                                        v-if="dropAnimating"
+                                        class="sbn-tile-label-out"
+                                    >{{ family.label }}</span>
+                                    <span
+                                        v-if="dropAnimating"
+                                        class="sbn-tile-label-in"
+                                    >{{ dropLabelFor(family as BarreFamily) }}</span>
+                                    <span v-else>{{ dropMode ? dropLabelFor(family as BarreFamily) : family.label }}</span>
+                                </template>
+                                <!-- Archetype mode: crossfade during forward morph -->
+                                <template v-else>
+                                    <span
+                                        v-if="isMorphActive && MORPH_INDICES.has(idx)"
+                                        class="sbn-tile-label-out"
+                                    >{{ family.label.replace(' Shape', '') }}</span>
+                                    <span
+                                        v-if="isMorphActive && MORPH_INDICES.has(idx)"
+                                        class="sbn-tile-label-in"
+                                    >{{ barreFamilies[idx]?.label ?? '' }}</span>
+                                    <span v-else>{{ family.label.replace(' Shape', '') }}</span>
+                                </template>
+                            </span>
+
+                            <!-- Diagram -->
+                            <div class="sbn-archetype-tile-diagram sbn-tile-diagram-wrap">
+                                <!-- Barré mode: AnimatedChordDiagram so dots can morph to drop voicings -->
+                                <AnimatedChordDiagram
+                                    v-if="barreMode && family.chords[0]"
+                                    :chord="family.chords[0]"
+                                    :target-chord="dropTargetFor(family as BarreFamily)"
+                                    :animating="dropAnimating"
+                                />
+                                <!-- Archetype mode: plain ChordDiagram; during forward morph, crossfade pair -->
+                                <template v-else>
+                                    <ChordDiagram
+                                        v-if="family.chords[0]"
+                                        :chord="family.chords[0]"
+                                        :class="isMorphActive && MORPH_INDICES.has(idx) ? 'sbn-diag--out' : ''"
+                                    />
+                                    <ChordDiagram
+                                        v-if="isMorphActive && MORPH_INDICES.has(idx) && barreFamilies[idx]?.chords[0]"
+                                        :chord="barreFamilies[idx].chords[0]"
+                                        class="sbn-diag--in"
+                                    />
+                                </template>
                             </div>
+
                             <span class="sbn-tile-hint">
                                 {{ activeFamily === family.key ? 'collapse' : `${family.chords.length} voicings` }}
                             </span>
                         </button>
                     </div>
 
-                    <!-- Connector: arrow pointing up from drawer to active tile -->
+                    <!-- Connector -->
                     <div
                         v-if="activeFamily"
                         class="sbn-drawer-connector"
-                        :style="{ '--tile-index': activeFamilyIndex, '--tile-count': archetypeFamilies.length }"
+                        :style="{ '--tile-index': activeFamilyIndex, '--tile-count': activeTileCount }"
                     />
 
                     <!-- Drawer -->
                     <div v-if="activeFamily" class="sbn-archetype-drawer">
                         <div class="sbn-drawer-cards">
                             <Link
-                                v-for="chord in archetypeFamilies.find(f => f.key === activeFamily)?.chords"
+                                v-for="chord in (barreMode ? barreFamilies : archetypeFamilies).find(f => f.key === activeFamily)?.chords"
                                 :key="chord.id"
                                 :href="chordShowUrl(chord)"
                             >
@@ -344,10 +611,66 @@ function chordShowUrl(chord: ChordDiagramData): string {
                             </Link>
                         </div>
                     </div>
+
+                    <!-- Next-level CTA (archetype mode only) -->
+                    <div v-if="!barreMode" class="sbn-archetype-next">
+                        <button class="sbn-archetype-next-btn" :disabled="panelPhase !== 'idle'" @click="enterBarreMode">
+                            Next level: 4 Common Barré Shapes →
+                        </button>
+                    </div>
+
+                    <!-- Drop level CTA (barré mode, not yet in drop mode) -->
+                    <div v-if="barreMode && !dropMode && !dropAnimating" class="sbn-archetype-next">
+                        <button class="sbn-archetype-next-btn" :disabled="panelPhase !== 'idle'" @click="enterDropMode">
+                            Next level: Drop Voicings →
+                        </button>
+                    </div>
+
+                    <!-- Drop mode blurb (shown after animation completes) -->
+                    <div v-if="dropMode" class="sbn-drop-blurb">
+                        <p>
+                            These are <strong>drop voicings</strong> — 4-part 7th chords with one voice
+                            lowered an octave to spread across the strings.
+                            Drop&nbsp;2 and Drop&nbsp;3 are the backbone of jazz comping.
+                        </p>
+                        <div class="sbn-drop-blurb-links">
+                            <button class="sbn-drop-link" @click="fVoicing = 'drop2'">Browse Drop 2 →</button>
+                            <button class="sbn-drop-link" @click="fVoicing = 'drop3'">Browse Drop 3 →</button>
+                        </div>
+                    </div>
+
                 </div>
 
-                <!-- Main chords grid -->
-                <div v-if="filteredOther.length" class="sbn-chords-grid">
+                <!-- Grouped panels (browse mode) -->
+                <template v-if="!hasFilters && voicingGroups.length">
+                    <details
+                        v-for="group in voicingGroups"
+                        :key="group.key"
+                        class="sbn-voicing-group"
+                        open
+                    >
+                        <summary class="sbn-voicing-group-summary">
+                            <span class="sbn-voicing-group-name">{{ group.label }}</span>
+                            <span class="sbn-voicing-group-count">{{ group.chords.length }}</span>
+                            <span class="sbn-voicing-group-chevron">›</span>
+                        </summary>
+                        <div class="sbn-voicing-group-body">
+                            <div class="sbn-chords-grid">
+                                <Link
+                                    v-for="chord in group.chords"
+                                    :key="chord.id"
+                                    :href="chordShowUrl(chord)"
+                                    style="text-decoration: none;"
+                                >
+                                    <ChordCard :chord="chord" />
+                                </Link>
+                            </div>
+                        </div>
+                    </details>
+                </template>
+
+                <!-- Flat grid (filtered / search results) -->
+                <div v-else-if="filteredOther.length" class="sbn-chords-grid">
                     <Link
                         v-for="chord in filteredOther"
                         :key="chord.id"
