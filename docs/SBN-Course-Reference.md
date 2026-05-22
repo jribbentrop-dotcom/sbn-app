@@ -385,3 +385,36 @@ slot, which is shared across **all** lesson snippets (rhythm + progression) via
 a pill selector. The panel's `RhythmStrip` is still video-synced when a rhythm
 snippet is focused (`rhythmVideoActive`); progression sync is entirely the
 inline component's job.
+
+### 10.5 Pinned voicings, play→video, overlay & layout (2026-05-22)
+
+Extensions past the original plan, progression-only:
+
+- **Pinned chord voicings.** A progression snippet may carry `key` (the key the
+  recording is played in) + a `chords` array — one chord-library slug per
+  numeral slot, blank = builder default. Authored per-slot in the snippet
+  widget. `ProgressionLibraryController::buildChordsFor()` takes a
+  `$pinnedSlugs` arg; for each pinned slot it **transposes** the diagram —
+  a DB diagram is a *movable shape*, so it runs through
+  `ChordSerializer::serialize($diagram, $targetRoot)` where `$targetRoot` is
+  the slot's builder-resolved root note (so a pinned `maj7` shape becomes the
+  actual chord in the snippet's key, not its stored reference position).
+  `apiShow` accepts `?chords=` (comma-list); `mountSbnNodes` sends it from
+  `snippetSync[id].chords`; `Player.vue` threads `key`/`chords` into that map.
+- **Course-editor key.** `LessonPalette` stamps the chosen snippet's `key`
+  onto the inserted `<sbn-progression key="…">` — `apiSearch` exposes
+  `snippets[].key`. Without this the TipTap node defaults `key` to `C`.
+- **Play button drives the video.** `mountSbnNodes` passes
+  `onVideoPlay`/`onVideoPause` (bound to the registry playhead) to the synced
+  `ChordProgressionViewer`. Its play button drives the shared video clock
+  instead of synth audio when a snippet is attached.
+- **Viewer parity.** `propsFor.progression` passes the full prop set so the
+  inline course progression looks identical to the library detail page;
+  `buildChordsFor` emits a per-chord `numeral`.
+- **`VideoEmbed`** — opt-in `facade` prop (thumbnail until first play, skips
+  the cued-state overlay) + seek-on-ENDED (suppresses the end-screen).
+  `PracticePanel` uses it. The ~5 s YouTube intro overlay on play-start is
+  timer-based and not removable by `playerVars` or the facade.
+- **Practice-panel layout** — the right-rail companion is now flat stacked
+  sections with hairline dividers (no nested cards); the `VideoEmbed` is
+  full-bleed to the sidebar edge.

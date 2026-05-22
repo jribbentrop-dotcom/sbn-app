@@ -489,14 +489,19 @@
     background: linear-gradient(180deg, var(--clr-accent-bg) 0%, var(--clr-white) 60%);
     border: 1px solid var(--clr-border);
     border-radius: var(--radius);
-    padding: 16px;
+    /* No outer padding — sections run edge to edge so media (the video) can
+       be full-bleed. Section content is re-inset by .vC-card; the head and
+       transport carry their own gutter. */
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    /* Sections butt against each other; .vC-card draws a divider between. */
+    gap: 0;
     max-height: calc(100vh - var(--header-height, 96px) - 32px);
     overflow-y: auto;
 }
 
+/* Horizontal gutter for the edge elements that aren't .vC-card sections. */
 .vC-practice-head {
     display: flex;
     align-items: center;
@@ -505,6 +510,7 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--clr-accent-dim);
+    padding: 16px 16px 12px;
 }
 
 .vC-practice-dot {
@@ -515,12 +521,16 @@
     flex-shrink: 0;
 }
 
-/* Shared card container */
+/* Shared section. Once boxed cards; now flat stacked sections separated by a
+   hairline divider. Horizontal padding keeps content off the sidebar edge —
+   only media (the video card) opts out of that inset. */
 .vC-card {
-    background: var(--clr-white);
-    border: 1px solid var(--clr-border);
-    border-radius: var(--radius);
-    padding: 14px;
+    padding: 14px 16px;
+    border-top: 1px solid var(--clr-border);
+}
+/* First section needs no divider — the head sits above it. */
+.vC-practice-head + .vC-card {
+    border-top: 0;
 }
 
 .vC-hero-chord-link,
@@ -624,6 +634,9 @@
     border: 1px solid var(--clr-border);
     border-radius: var(--radius);
     padding: 12px;
+    /* Sidebar has no outer padding now — inset the transport so the boxed
+       action bar doesn't touch the edges. */
+    margin: 14px 16px 16px;
 }
 
 .vC-play {

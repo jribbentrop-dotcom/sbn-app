@@ -22,7 +22,7 @@ const props = defineProps<{
   prevLesson: LessonNav | null;
   nextLesson: LessonNav | null;
   onChordSelect?: ((slug: string, root: string, voicingData?: any) => void) | null;
-  snippetSync?: Record<string, { startSec: number; tempoBpm: number }> | null;
+  snippetSync?: Record<string, { startSec: number; tempoBpm: number; key?: string; chords?: string[] }> | null;
 }>();
 
 const emit = defineEmits<{

@@ -344,8 +344,8 @@ watch(() => props.lesson?.slug, () => { conceptMounted = false; });
       </div>
     </div>
 
-    <div v-if="videoSnippet" class="vC-card">
-      <div class="vC-card-eyebrow">
+    <div v-if="videoSnippet" class="vC-card vC-card--video">
+      <div class="vC-card-eyebrow vC-card-eyebrow--inset">
         <span>Real-world example</span>
         <span class="vC-card-meta">{{ ph.playing.value ? 'playing' : 'video' }}</span>
       </div>
@@ -353,10 +353,12 @@ watch(() => props.lesson?.slug, () => { conceptMounted = false; });
         :ref="ph.embedRef"
         :video-id="videoSnippet.videoId"
         :video-type="videoSnippet.videoType ?? 'youtube'"
+        :facade="true"
+        :start-sec="videoSnippet.startSec ?? 0"
         @timeupdate="ph.onTimeUpdate"
         @play-state-change="ph.onPlayStateChange"
       />
-      <div v-if="snippetEntries.length > 1" class="vC-rhythm-row">
+      <div v-if="snippetEntries.length > 1" class="vC-rhythm-row vC-rhythm-row--inset">
         <button
           v-for="(entry, i) in snippetEntries"
           :key="entry.snippet.id"
@@ -432,6 +434,28 @@ watch(() => props.lesson?.slug, () => { conceptMounted = false; });
 </template>
 
 <style scoped>
+/* Video section — full-bleed to the sidebar edge. The shared .vC-card adds
+   14px 16px padding; zero the horizontal padding so the embed touches the
+   sidebar edges, then re-inset the header and snippet-pill row (text still
+   needs the gutter). A bigger frame also makes YouTube's overlay a smaller
+   fraction of the picture. */
+.vC-card--video {
+  padding-left: 0;
+  padding-right: 0;
+}
+.vC-card-eyebrow--inset {
+  padding: 0 16px 10px;
+  margin-bottom: 0;
+}
+.vC-rhythm-row--inset {
+  padding: 10px 16px 0;
+}
+/* The video sits flush — no rounding against the sidebar edge. VideoEmbed
+   is self-styled, hence :deep. */
+.vC-card--video :deep(.sbn-video-player) {
+  border-radius: 0;
+}
+
 /* Progressions-in-this-lesson reference list */
 .vC-prog-list {
   display: flex;

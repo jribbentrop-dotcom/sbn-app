@@ -26,6 +26,10 @@ import { getVideoPlayhead } from '../composables/useVideoPlayhead';
 export interface SnippetSyncInfo {
   startSec: number;
   tempoBpm: number;
+  /** Key the musician plays in (e.g. "Bb") — overrides the tag's key attr. */
+  key?: string;
+  /** Pinned chord slugs, one per numeral slot — bypasses the builder. */
+  chords?: string[];
 }
 
 // ── Component registry ──────────────────────────────────────────────────────
@@ -69,20 +73,35 @@ const propsFor: Record<NodeType, (data: any, el: HTMLElement) => Record<string, 
       : undefined,
   }),
   rhythm:      (d) => ({ pattern: d, color: getCategoryColor(d.styleSlug) }),
-  progression: (d) => ({ chords: d.chords ?? [] }),
+  // Pass the full prop set so the inline course-player progression looks
+  // identical to the library detail page (Pages/Library/Progressions/Show).
+  // apiShow returns { progression, key, chords } — `d.progression` carries
+  // name/category/numeralsDisplay/styleSlug.
+  progression: (d) => ({
+    chords:       d.chords ?? [],
+    name:         d.progression?.name ?? '',
+    category:     d.progression?.category ?? '',
+    numerals:     d.progression?.numeralsDisplay ?? d.progression?.numerals ?? '',
+    keyLabel:     d.key ?? '',
+    color:        d.progression?.styleSlug ? getCategoryColor(d.progression.styleSlug) : null,
+    interactive:  true,
+    vintageCard:  true,
+  }),
   sheet:       (d, el) => ({ exercise: d, onChordSelect: (el as any).__onChordSelect ?? null }),
 };
 
 // ── Per-type query string from element attrs ────────────────────────────────
 
-function queryStringFor(type: NodeType, el: HTMLElement): string {
+function queryStringFor(type: NodeType, el: HTMLElement, sync?: SnippetSyncInfo): string {
   const params = new URLSearchParams();
   if (type === 'chord') {
     const root = el.getAttribute('root');
     if (root) params.set('root', root);
   } else if (type === 'progression') {
-    const key = el.getAttribute('key');
+    // Pinned snippet key overrides the tag's key attr; falls back to tag attr.
+    const key = sync?.key ?? el.getAttribute('key');
     if (key) params.set('key', key);
+    if (sync?.chords?.length) params.set('chords', sync.chords.join(','));
   } else if (type === 'sheet') {
     const key = el.getAttribute('key');
     if (key) params.set('key', key);
@@ -214,7 +233,9 @@ export async function mountSbnNodes(
         (el as any).__onChordSelect = options.onChordSelect;
       }
 
-      const qs = queryStringFor(type, el);
+      const snippetIdForQs = type === 'progression' ? (el.getAttribute('video-snippet') ?? '') : '';
+      const syncForQs = snippetIdForQs ? options.snippetSync?.[snippetIdForQs] : undefined;
+      const qs = queryStringFor(type, el, syncForQs);
       const task = fetchData(type, slug, qs)
         .then(async (data: any) => {
           const mod = await components[type]();
@@ -260,6 +281,16 @@ export async function mountSbnNodes(
                   videoPlayhead: ph.playing.value ? ph.playheadSec.value : null,
                   videoStartSec: sync.startSec,
                   tempoBpm: sync.tempoBpm,
+                  // The viewer's play button drives the shared video clock
+                  // instead of synth audio when a snippet is attached. Both
+                  // callbacks resolve to the SAME registry playhead the
+                  // PracticePanel <VideoEmbed> owns — so this plays the video.
+                  // play() seeks to the snippet anchor before starting.
+                  onVideoPlay: () => {
+                    if (ph.playheadSec.value < sync.startSec) ph.seek(sync.startSec);
+                    ph.play();
+                  },
+                  onVideoPause: () => ph.pause(),
                 }),
               });
               app.mount(el);

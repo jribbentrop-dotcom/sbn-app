@@ -12,8 +12,28 @@
             <!-- YouTube iframe — loaded lazily so autoplay policy isn't triggered until needed -->
             <div class="sbn-video-iframe-wrap" :style="iframeWrapStyle">
                 <div :id="containerId" ref="ytContainer"></div>
+
+                <!-- Facade: a static thumbnail shown until the first play.
+                     A never-cued player never shows YouTube's cued-state
+                     title/channel overlay (the ~5s card). The genuine player
+                     loads intact on play, so this stays within the API terms
+                     (it defers the player, it doesn't obscure a live one). -->
+                <button
+                    v-if="facade && !playerStarted"
+                    type="button"
+                    class="sbn-video-facade"
+                    :style="{ backgroundImage: `url(${thumbnailUrl})` }"
+                    aria-label="Play video"
+                    @click="upgradeAndPlay"
+                >
+                    <span class="sbn-video-facade-play">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+                            <path d="M8 5v14l11-7z" />
+                        </svg>
+                    </span>
+                </button>
             </div>
-            <div v-if="!playerReady" class="sbn-video-loading">Loading…</div>
+            <div v-if="!facade && !playerReady" class="sbn-video-loading">Loading…</div>
         </template>
 
         <template v-else>
@@ -38,6 +58,18 @@ const props = defineProps({
     videoId:   { type: String, default: '' },
     videoType: { type: String, default: 'youtube' },
     aspectRatio: { type: String, default: '16/9' },
+    /**
+     * Facade mode: show a static thumbnail and defer loading the real player
+     * until the first play. A never-cued player skips YouTube's cued-state
+     * title/channel overlay. Opt-in (sidebar use) — leave off where the native
+     * player should be interactive from the start.
+     */
+    facade: { type: Boolean, default: false },
+    /**
+     * Recording-time (seconds) to start playback from when the facade is
+     * clicked — the snippet anchor. Keeps the first frame on the loop.
+     */
+    startSec: { type: Number, default: 0 },
 });
 
 const emit = defineEmits(['timeupdate', 'play-state-change', 'ready']);
@@ -46,10 +78,15 @@ const emit = defineEmits(['timeupdate', 'play-state-change', 'ready']);
 const ytContainer = ref(null);
 const videoEl     = ref(null);
 const playerReady = ref(false);
+// True once the real player has been created (facade dismissed). In non-facade
+// mode the player is created on mount, so this tracks playerReady.
+const playerStarted = ref(false);
 const containerId = `sbn-yt-${Math.random().toString(36).slice(2, 8)}`;
 
 let _ytPlayer  = null;
 let _rafId     = null;
+// When the facade is upgraded, play as soon as the player is ready.
+let _playOnReady = false;
 
 // ── Computed ─────────────────────────────────────────────────
 
@@ -58,6 +95,11 @@ const iframeWrapStyle = computed(() => ({
     width: '100%',
     paddingTop: props.aspectRatio === '16/9' ? '56.25%' : '75%',
 }));
+
+// hqdefault is the most reliably-present thumbnail size across all videos.
+const thumbnailUrl = computed(() =>
+    props.videoId ? `https://i.ytimg.com/vi/${props.videoId}/hqdefault.jpg` : '',
+);
 
 // ── YouTube IFrame API ────────────────────────────────────────
 
@@ -86,7 +128,11 @@ async function initYTPlayer() {
     await loadYTApi();
     if (!ytContainer.value) return;
 
+    // destroyPlayer clears _playOnReady; preserve a pending request across it
+    // so a facade upgrade still autoplays once the fresh player is ready.
+    const pendingPlay = _playOnReady;
     destroyPlayer();
+    _playOnReady = pendingPlay;
 
     _ytPlayer = new window.YT.Player(ytContainer.value, {
         videoId: props.videoId,
@@ -109,21 +155,45 @@ async function initYTPlayer() {
 
 function onYTReady() {
     playerReady.value = true;
-    // Reposition the iframe so it fills its container absolutely
-    const iframe = ytContainer.value?.querySelector('iframe');
-    if (iframe) {
-        iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;';
-    }
+    playerStarted.value = true;
+    // Iframe sizing is handled by the scoped <style> block — no JS layout here.
     emit('ready');
     startPolling();
+    // Facade was clicked (or play() was called before the player existed):
+    // seek to the snippet anchor and start now that the player is live.
+    if (_playOnReady) {
+        _playOnReady = false;
+        if (props.startSec > 0) _ytPlayer?.seekTo?.(props.startSec, true);
+        _ytPlayer?.playVideo?.();
+    }
 }
 
 function onYTStateChange(event) {
-    const YT_PLAYING = 1;
-    const playing = event.data === YT_PLAYING;
-    emit('play-state-change', playing);
-    if (!playing) stopPolling();
-    else startPolling();
+    // YT states: -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering,
+    // 5 cued. Buffering is transient — it fires on every loop seek — so it
+    // must NOT be reported as a pause, or a looping snippet stops itself.
+    const YT_PLAYING = 1, YT_PAUSED = 2, YT_ENDED = 0, YT_BUFFERING = 3;
+    const s = event.data;
+
+    if (s === YT_ENDED) {
+        // Reaching the video's real end shows YouTube's end-screen (related-
+        // video grid). Snippets normally loop-wrap at endSec well before this,
+        // but a snippet with no endSec — or one that overruns — can hit it.
+        // Seek back to the anchor and keep playing so the end-screen never
+        // renders. This is plain playback control via the documented API.
+        _ytPlayer?.seekTo?.(props.startSec || 0, true);
+        _ytPlayer?.playVideo?.();
+        return;
+    }
+    if (s === YT_PLAYING || s === YT_BUFFERING) {
+        // Treat buffering as "still playing" — keep polling, report playing.
+        emit('play-state-change', true);
+        startPolling();
+    } else if (s === YT_PAUSED) {
+        emit('play-state-change', false);
+        stopPolling();
+    }
+    // -1 (unstarted) and 5 (cued) are ignored — no transport change.
 }
 
 // Poll getCurrentTime via requestAnimationFrame for 60fps smooth cursor
@@ -149,6 +219,23 @@ function destroyPlayer() {
         _ytPlayer = null;
     }
     playerReady.value = false;
+    playerStarted.value = false;
+    _playOnReady = false;
+}
+
+/**
+ * Facade click / first play: create the real player and play once it's ready.
+ * In facade mode the player isn't created on mount, so this is the path that
+ * brings it to life. Safe to call when the player already exists.
+ */
+function upgradeAndPlay() {
+    if (_ytPlayer) {
+        if (props.startSec > 0) _ytPlayer.seekTo?.(props.startSec, true);
+        _ytPlayer.playVideo?.();
+        return;
+    }
+    _playOnReady = true;
+    initYTPlayer();
 }
 
 // ── Public API ────────────────────────────────────────────────
@@ -171,8 +258,14 @@ function getCurrentTime() {
 }
 
 function play() {
-    if (props.videoType === 'youtube') _ytPlayer?.playVideo?.();
-    else videoEl.value?.play();
+    if (props.videoType === 'youtube') {
+        // Facade mode: the player may not exist yet (external transport hit
+        // play before a facade click). upgradeAndPlay creates it then plays.
+        if (!_ytPlayer) upgradeAndPlay();
+        else _ytPlayer.playVideo?.();
+    } else {
+        videoEl.value?.play();
+    }
 }
 
 function pause() {
@@ -206,7 +299,9 @@ function onSeeked() { emit('timeupdate', videoEl.value?.currentTime ?? 0); }
 // ── Lifecycle ─────────────────────────────────────────────────
 
 onMounted(() => {
-    if (props.videoId && props.videoType === 'youtube') initYTPlayer();
+    // Facade mode defers the player until the thumbnail is clicked / play()
+    // is called — that's what skips the cued-state overlay.
+    if (props.videoId && props.videoType === 'youtube' && !props.facade) initYTPlayer();
 });
 
 onUnmounted(() => {
@@ -214,8 +309,9 @@ onUnmounted(() => {
 });
 
 watch(() => props.videoId, (newId) => {
-    if (newId && props.videoType === 'youtube') initYTPlayer();
-    else destroyPlayer();
+    // New video: drop the old player and return to the facade (if enabled).
+    destroyPlayer();
+    if (newId && props.videoType === 'youtube' && !props.facade) initYTPlayer();
 });
 
 watch(() => props.videoType, () => {
@@ -226,3 +322,96 @@ watch(() => props.videoType, () => {
 // ── Expose for parent (useVideoSync playerRef) ────────────────
 defineExpose({ seekTo, getCurrentTime, play, pause, setPlaybackRate });
 </script>
+
+<style scoped>
+/* Self-contained styling — VideoEmbed is used on both Blade pages (where
+   leadsheets.css is present) and Inertia/Vue pages (where it is not), so it
+   must not depend on any external stylesheet. */
+.sbn-video-player {
+    width: 100%;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+}
+.sbn-video-player-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 24px 12px;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 12px;
+}
+.sbn-video-iframe-wrap {
+    width: 100%;
+}
+/* The YouTube API mounts an <iframe> inside #ytContainer. Position both the
+   container and its iframe absolutely from the start so they fill the
+   aspect-ratio box immediately — not only after onReady runs. This is what
+   removes the whitespace above the video. */
+.sbn-video-iframe-wrap > div {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+.sbn-video-iframe-wrap :deep(iframe) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+.sbn-video-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 12px;
+    background: rgba(0, 0, 0, 0.5);
+}
+.sbn-video-hosted {
+    width: 100%;
+    display: block;
+}
+
+/* Facade: static thumbnail shown until first play. Covers the iframe box so
+   the cued-state player (and its title/channel overlay) is never visible. */
+.sbn-video-facade {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    cursor: pointer;
+    background-color: #000;
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: filter 0.15s ease;
+}
+.sbn-video-facade:hover { filter: brightness(1.08); }
+.sbn-video-facade-play {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 54px;
+    height: 54px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+.sbn-video-facade:hover .sbn-video-facade-play {
+    transform: scale(1.08);
+    background: rgba(0, 0, 0, 0.85);
+}
+.sbn-video-facade-play svg { margin-left: 3px; } /* optical centering */
+</style>

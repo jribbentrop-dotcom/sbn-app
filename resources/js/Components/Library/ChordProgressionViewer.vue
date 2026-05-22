@@ -86,6 +86,14 @@ export interface ChordProgressionViewerProps {
     videoStartSec?: number;
     /** Snippet tempo, used to convert recording-seconds to chord beats. */
     tempoBpm?: number;
+    /**
+     * Video transport callbacks. When provided (course player, video-synced
+     * <sbn-progression>), the play button drives the shared video clock
+     * instead of synth-audio playback — the video IS the audio. The chord
+     * highlight then follows `videoPlayhead` via chordIndexAtTime.
+     */
+    onVideoPlay?: (() => void) | null;
+    onVideoPause?: (() => void) | null;
 }
 
 const props = withDefaults(defineProps<ChordProgressionViewerProps>(), {
@@ -102,7 +110,12 @@ const props = withDefaults(defineProps<ChordProgressionViewerProps>(), {
     videoPlayhead: null,
     videoStartSec: 0,
     tempoBpm: 120,
+    onVideoPlay: null,
+    onVideoPause: null,
 });
+
+/** True when this viewer is wired to a video clock (course player snippet). */
+const isVideoSynced = computed(() => !!props.onVideoPlay);
 
 const isPlayingAll = ref(false);
 const currentPlayingIndex = ref<number | null>(null);
@@ -479,9 +492,23 @@ function stopPlayback() {
 }
 
 function togglePlayback() {
+    // Video-synced (course player): the button drives the shared video clock,
+    // not synth audio. `videoPlaying` reflects the real video state — the
+    // chord highlight already follows `videoPlayhead` via chordIndexAtTime.
+    if (isVideoSynced.value) {
+        if (videoPlaying.value) props.onVideoPause?.();
+        else props.onVideoPlay?.();
+        return;
+    }
     if (isPlayingAll.value) stopPlayback();
     else playProgression();
 }
+
+/** True while the synced video is actually playing (vs. paused/stopped). */
+const videoPlaying = computed(() => isVideoSynced.value && props.videoPlayhead !== null);
+
+/** Unified "is playing" for the button UI — audio path or video path. */
+const showAsPlaying = computed(() => isVideoSynced.value ? videoPlaying.value : isPlayingAll.value);
 
 function canPlayAll(): boolean {
     return props.chords.some(c => c.diagramData !== null);
@@ -529,7 +556,7 @@ function onFocusOut(e: FocusEvent) {
         :class="{
             'sbn-prog-viewer--compact': compact,
             'sbn-vintage-card': vintageCard,
-            'is-playing': isPlayingAll,
+            'is-playing': showAsPlaying,
         }"
         :data-size="sizeAttr"
         :style="color ? { '--prog-color': color } : {}"
@@ -557,11 +584,11 @@ function onFocusOut(e: FocusEvent) {
             <button
                 v-if="interactive && canPlayAll()"
                 class="play-btn"
-                :class="{ 'is-playing': isPlayingAll }"
-                :aria-label="isPlayingAll ? 'Stop progression' : 'Play progression'"
+                :class="{ 'is-playing': showAsPlaying }"
+                :aria-label="showAsPlaying ? 'Stop progression' : 'Play progression'"
                 @click="togglePlayback"
             >
-                <svg v-if="isPlayingAll" viewBox="0 0 12 12" fill="currentColor">
+                <svg v-if="showAsPlaying" viewBox="0 0 12 12" fill="currentColor">
                     <rect x="2" y="2" width="3" height="8" />
                     <rect x="7" y="2" width="3" height="8" />
                 </svg>

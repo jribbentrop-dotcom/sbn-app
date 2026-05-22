@@ -200,6 +200,14 @@ class ProgressionController extends Controller
 
     private function validateProgression(Request $request): array
     {
+        // The video-snippet widget submits its library as a JSON string in a
+        // hidden field (classic form POST). Decode it to an array before
+        // validation so the per-snippet rules can apply.
+        if ($request->filled('video_snippets') && is_string($request->input('video_snippets'))) {
+            $decoded = json_decode($request->input('video_snippets'), true);
+            $request->merge(['video_snippets' => is_array($decoded) ? $decoded : []]);
+        }
+
         $data = $request->validate([
             'name'           => 'required|string|max:120',
             'slug'           => 'nullable|string|max:180|regex:/^[a-z0-9\\-]+$/',
@@ -215,15 +223,88 @@ class ProgressionController extends Controller
             'alt_numerals'   => 'nullable|array',
             'alt_numerals.*.label'    => 'required|string|max:100',
             'alt_numerals.*.numerals' => 'required|string|max:255',
+
+            // Video snippet library — see Video-Sync-Snippet-Integration-Plan §0.2.
+            'video_snippets'               => 'nullable|array',
+            'video_snippets.*.id'          => 'required|string|max:64',
+            'video_snippets.*.label'       => 'required|string|max:120',
+            'video_snippets.*.videoId'     => 'required|string|max:32',
+            'video_snippets.*.videoType'   => 'required|string|in:youtube,hosted',
+            'video_snippets.*.startSec'    => 'required|numeric|min:0',
+            'video_snippets.*.endSec'      => 'required|numeric|min:0',
+            'video_snippets.*.tempoBpm'    => 'required|numeric|min:20|max:300',
+            // Pinned voicings: the key the musician plays in + one chord slug per numeral slot.
+            'video_snippets.*.key'         => 'nullable|string|max:4',
+            'video_snippets.*.chords'      => 'nullable|array',
+            'video_snippets.*.chords.*'    => 'nullable|string|max:120',
         ]);
 
         // Normalize
-        $data['sort_order'] = $data['sort_order'] ?? 0;
-        $data['featured']   = $data['featured'] ?? false;
-        $data['tags']       = $data['tags'] ?? '';
+        $data['sort_order']     = $data['sort_order'] ?? 0;
+        $data['featured']       = $data['featured'] ?? false;
+        $data['tags']           = $data['tags'] ?? '';
+        $data['video_snippets'] = $this->normalizeSnippets($data['video_snippets'] ?? []);
 
         return $data;
     }
+
+    /**
+     * Server-side enforcement of the snippet rules the authoring widget also
+     * checks: end-after-start and the ≤16-bar cap (plan §2/§7). Progressions
+     * have no time signature, so a 4-beat bar is assumed (matches the widget's
+     * default). Throws a validation exception on violation.
+     */
+    private function normalizeSnippets(array $snippets): array
+    {
+        $beatsPerBar = 4;
+        $clean       = [];
+
+        foreach ($snippets as $i => $s) {
+            $start = (float) $s['startSec'];
+            $end   = (float) $s['endSec'];
+            $bpm   = (float) $s['tempoBpm'];
+
+            if ($end <= $start) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    "video_snippets.$i.endSec" => 'End must be after start.',
+                ]);
+            }
+
+            $bars = (($end - $start) / 60) * $bpm / $beatsPerBar;
+            if ($bars > self::MAX_SNIPPET_BARS) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    "video_snippets.$i.endSec" => sprintf(
+                        'Snippet spans %.1f bars — keep it to %d or fewer.',
+                        $bars, self::MAX_SNIPPET_BARS
+                    ),
+                ]);
+            }
+
+            $entry = [
+                'id'        => $s['id'],
+                'label'     => trim($s['label']),
+                'videoId'   => $s['videoId'],
+                'videoType' => $s['videoType'],
+                'startSec'  => $start,
+                'endSec'    => $end,
+                'tempoBpm'  => $bpm,
+            ];
+
+            if (!empty($s['key'])) {
+                $entry['key'] = trim($s['key']);
+            }
+            if (!empty($s['chords']) && is_array($s['chords'])) {
+                $entry['chords'] = array_values(array_map('strval', $s['chords']));
+            }
+
+            $clean[] = $entry;
+        }
+
+        return $clean;
+    }
+
+    /** Max bars a snippet may span — the legal/architectural cap (plan §2/§7). */
+    private const MAX_SNIPPET_BARS = 16;
 
     private function resolveSlugForSave(array $data, ?ChordProgression $existing = null): string
     {

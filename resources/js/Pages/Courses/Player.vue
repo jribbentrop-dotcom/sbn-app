@@ -30,7 +30,7 @@ interface LessonStub {
 interface LessonData extends LessonStub { content: string | null }
 interface SelectedChord { slug: string; root: string; voicingData?: any }
 interface RhythmOption { slug: string; name: string; description: string | null; pattern: any }
-interface VideoSnippet { id: string; label?: string; videoId: string; videoType?: string; startSec: number; endSec?: number; tempoBpm: number }
+interface VideoSnippet { id: string; label?: string; videoId: string; videoType?: 'youtube' | 'hosted'; startSec: number; endSec?: number; tempoBpm: number; key?: string; chords?: string[] }
 interface ProgressionOption {
   slug: string;
   name: string;
@@ -53,11 +53,11 @@ const props = defineProps<{
 // snippet id → sync anchor, for the inline <sbn-progression> in the lesson
 // body. mountSbnNodes hands these to the body component so its highlight can
 // follow the same playhead PracticePanel's <VideoEmbed> drives.
-const snippetSync = computed<Record<string, { startSec: number; tempoBpm: number }>>(() => {
-  const map: Record<string, { startSec: number; tempoBpm: number }> = {};
+const snippetSync = computed<Record<string, { startSec: number; tempoBpm: number; key?: string; chords?: string[] }>>(() => {
+  const map: Record<string, { startSec: number; tempoBpm: number; key?: string; chords?: string[] }> = {};
   for (const p of props.progressions ?? []) {
     const s = p.videoSnippet;
-    if (s) map[s.id] = { startSec: s.startSec, tempoBpm: s.tempoBpm };
+    if (s) map[s.id] = { startSec: s.startSec, tempoBpm: s.tempoBpm, key: s.key, chords: s.chords };
   }
   return map;
 });

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ChordDiagram;
 use App\Models\ChordProgression;
 use App\Models\Leadsheet;
+use App\Services\ChordSerializer;
 use App\Services\ChordShapeCalculator;
 use App\Services\HarmonicContext;
 use App\Services\ProgressionBuilder;
@@ -18,6 +19,7 @@ class ProgressionLibraryController extends Controller
         protected ProgressionBuilder $progressionBuilder,
         protected HarmonicContext $harmonicContext,
         protected ChordShapeCalculator $shapeCalculator,
+        protected ChordSerializer $chordSerializer,
     ) {
     }
 
@@ -225,21 +227,80 @@ class ProgressionLibraryController extends Controller
      *
      * Returns the `ProgressionChord[]` shape `ChordProgressionViewer` expects.
      */
-    public function buildChordsFor(ChordProgression $progression, string $key = 'C', bool $usePass2 = true): array
-    {
+    /**
+     * Build the ProgressionChord[] array for ChordProgressionViewer.
+     *
+     * When $pinnedSlugs is provided (one slug per numeral slot from a video
+     * snippet's `chords` field), the builder is bypassed entirely and the
+     * library diagrams are used directly. Slots where the slug is empty string
+     * or the slug can't be resolved fall back to the built voicing for that slot.
+     */
+    public function buildChordsFor(
+        ChordProgression $progression,
+        string $key = 'C',
+        bool $usePass2 = true,
+        array $pinnedSlugs = []
+    ): array {
         $context = $this->harmonicContext->buildFromNumerals($key, $progression->numerals);
         $built   = $this->progressionBuilder->buildVoicings($context, [
             'category'   => $progression->category,
             'extensions' => $usePass2,
         ]);
 
-        return array_map(fn ($sel) => [
-            'chordName'      => $sel['chord_name'],
-            'diagramData'    => $sel['voicing'] ?? null,
-            'functionalRole' => $sel['voicing']['functional_role'] ?? null,
-            'beats'          => 4,
-            'slug'           => null,
-        ], $built['selections']);
+        $builtSelections = $built['selections'];
+
+        if (empty($pinnedSlugs)) {
+            return array_map(fn ($sel) => [
+                'chordName'      => $sel['chord_name'],
+                'diagramData'    => $sel['voicing'] ?? null,
+                'functionalRole' => $sel['voicing']['functional_role'] ?? null,
+                'beats'          => 4,
+                'slug'           => null,
+                'numeral'        => $sel['roman_numeral'] ?? null,
+            ], $builtSelections);
+        }
+
+        // Resolve non-empty slugs from the library in one query.
+        $nonEmpty = array_values(array_filter($pinnedSlugs, fn ($s) => $s !== '' && $s !== null));
+        $diagrams = ChordDiagram::whereIn('slug', $nonEmpty)->get()->keyBy('slug');
+
+        $result = [];
+        foreach ($builtSelections as $i => $sel) {
+            $slug = $pinnedSlugs[$i] ?? '';
+            $diagram = ($slug !== '' && $slug !== null) ? ($diagrams->get($slug) ?? null) : null;
+
+            if ($diagram) {
+                // A pinned diagram is a MOVABLE SHAPE — its stored
+                // diagram_data/root_note is an arbitrary low reference
+                // position, not the chord in this key. Transpose it to the
+                // root this numeral slot resolves to in $key (the builder
+                // already computed it) so the viewer shows e.g. Dmaj7, not
+                // the shape's stored Cmaj7. ChordSerializer::serialize runs
+                // the shape calculator when given a root override.
+                $targetRoot = $sel['voicing']['root_note'] ?? null;
+                $serialized = $this->chordSerializer->serialize($diagram, $targetRoot);
+                $result[] = [
+                    'chordName'      => $serialized['name'],
+                    'diagramData'    => $serialized,
+                    'functionalRole' => null,
+                    'beats'          => 4,
+                    'slug'           => $slug,
+                    'numeral'        => $sel['roman_numeral'] ?? null,
+                ];
+            } else {
+                // Pinned slug missing or unresolvable — fall back to builder voicing.
+                $result[] = [
+                    'chordName'      => $sel['chord_name'],
+                    'diagramData'    => $sel['voicing'] ?? null,
+                    'functionalRole' => $sel['voicing']['functional_role'] ?? null,
+                    'beats'          => 4,
+                    'slug'           => null,
+                    'numeral'        => $sel['roman_numeral'] ?? null,
+                ];
+            }
+        }
+
+        return $result;
     }
 
     public function apiShow(Request $request, string $slug): \Illuminate\Http\JsonResponse
@@ -249,7 +310,14 @@ class ProgressionLibraryController extends Controller
         $key      = trim((string) $request->get('key', 'C')) ?: 'C';
         $usePass2 = (bool) $request->boolean('pass2', true);
 
-        $chords = $this->buildChordsFor($progression, $key, $usePass2);
+        // Optional pinned chord slugs from a video snippet (comma-separated).
+        // When present, buildChordsFor bypasses the builder for those slots.
+        $pinnedSlugs = [];
+        if ($request->filled('chords')) {
+            $pinnedSlugs = array_map('trim', explode(',', (string) $request->get('chords')));
+        }
+
+        $chords = $this->buildChordsFor($progression, $key, $usePass2, $pinnedSlugs);
 
         return response()->json([
             'progression' => $this->serializeProgression($progression),
@@ -276,11 +344,16 @@ class ProgressionLibraryController extends Controller
             'slug'     => $p->slug,
             'label'    => $p->name,
             'meta'     => $p->category,
-            // id + label only — the palette's "Video example" picker lists
-            // these; the full snippet objects are resolved later by
-            // CourseController::player(). Mirrors the rhythm apiSearch.
+            // id + label + key — the palette's "Video example" picker lists
+            // these; `key` lets the palette stamp the snippet's playing key
+            // onto the inserted <sbn-progression> tag. The full snippet
+            // objects are resolved later by CourseController::player().
             'snippets' => collect($p->video_snippets ?? [])
-                ->map(fn ($s) => ['id' => $s['id'], 'label' => $s['label']])
+                ->map(fn ($s) => [
+                    'id'    => $s['id'],
+                    'label' => $s['label'],
+                    'key'   => $s['key'] ?? null,
+                ])
                 ->values(),
         ]);
 

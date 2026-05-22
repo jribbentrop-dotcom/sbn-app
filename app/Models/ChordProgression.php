@@ -24,12 +24,14 @@ class ChordProgression extends Model
         'match_mode',
         'sort_order',
         'featured',
+        'video_snippets',
     ];
 
     protected $casts = [
-        'sort_order'   => 'integer',
-        'featured'     => 'boolean',
-        'alt_numerals' => 'array',
+        'sort_order'     => 'integer',
+        'featured'       => 'boolean',
+        'alt_numerals'   => 'array',
+        'video_snippets' => 'array',
     ];
 
     /* ── Categories ─────────────────────────────────────────── */

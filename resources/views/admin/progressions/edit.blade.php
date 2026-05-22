@@ -124,7 +124,8 @@
 @endpush
 
 @section('content')
-<div class="sbn-prog-edit" x-data="progressionForm()">
+<div class="sbn-prog-edit" x-data="progressionForm()"
+     @sbn:snippets-changed="$refs.videoSnippetsInput.value = JSON.stringify($event.detail)">
 
     {{-- ── Back Link ─────────────────────────────────────────── --}}
     <a href="{{ route('admin.progressions.index') }}" class="sbn-back-link">
@@ -308,6 +309,26 @@
                 </div>
             </div>
 
+            {{-- ── Video Examples ────────────────────────────────── --}}
+            <div class="sbn-field">
+                {{-- Hidden field submitted with the classic form POST.
+                     The snippet widget writes its JSON here via the
+                     sbn:snippets-changed event (mirrors the tags pattern). --}}
+                <input type="hidden" name="video_snippets" x-ref="videoSnippetsInput"
+                       value="{{ old('video_snippets', json_encode($progression->video_snippets ?? [])) }}">
+@php
+    $numeralTokens = $progression
+        ? array_values(array_filter(array_map('trim', explode(',', $progression->numerals ?? ''))))
+        : [];
+@endphp
+                @include('admin._partials.video-snippets', [
+                    'snippets'    => $progression->video_snippets ?? [],
+                    'beatsPerBar' => 4,
+                    'numerals'    => $numeralTokens,
+                ])
+                @error('video_snippets') <span class="sbn-field-error">{{ $message }}</span> @enderror
+            </div>
+
             {{-- ── Actions ───────────────────────────────────────── --}}
             <div class="sbn-form-actions">
                 <button type="submit" class="sbn-btn sbn-btn-primary">
@@ -432,6 +453,7 @@
 
 @push('scripts')
 <script src="{{ asset('js/sbn-chord-name.js') }}"></script>
+<script src="{{ asset('js/sbn-snippet-editor.js') }}"></script>
 <script>
 function sbnStyledChord(name) {
     if (typeof sbnFormatChord === 'function') return sbnFormatChord(name);

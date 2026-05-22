@@ -72,6 +72,47 @@ strip cannot share the playhead without fragile cross-app coupling" — is
 still does not read `video-snippet` (rhythm's synced surface remains the
 PracticePanel companion), but the inline `<sbn-progression>` does.
 
+### As-built note (2026-05-22) — pinned voicings, play→video, polish
+
+All §0.5 steps were already complete; this slice extends the *feature* past
+the plan. Shipped on `feature/video-sync-snippets`:
+
+- **Pinned chord voicings per snippet.** A progression snippet may now also
+  carry a `key` (the key the recording is played in) and a `chords` array —
+  one chord-library slug per numeral slot, blank = use the builder. Authored
+  in the snippet widget (per-slot chord search, added to
+  `_partials/video-snippets.blade.php` + `sbn-snippet-editor.js`), validated
+  in `ProgressionController` (`key`, `chords.*` rules + `normalizeSnippets`).
+  `buildChordsFor($prog, $key, $usePass2, $pinnedSlugs)` resolves the slugs
+  and **transposes** each — a DB diagram is a movable shape, so the pinned
+  voicing is run through `ChordSerializer::serialize($diagram, $targetRoot)`
+  where `$targetRoot` is the slot's builder-resolved root note. `apiShow`
+  takes `?chords=` (comma-list); `mountSbnNodes` sends it from the snippet's
+  `chords`; `Player.vue` threads `key`/`chords` through `snippetSync`.
+- **Course-editor key.** `LessonPalette` stamps the selected snippet's `key`
+  onto the inserted `<sbn-progression key="…">` (apiSearch now exposes
+  `snippets[].key`) — the TipTap node otherwise defaults `key` to `C`.
+- **Play button → video.** `mountSbnNodes` passes `onVideoPlay`/`onVideoPause`
+  to the synced `ChordProgressionViewer`, bound to the registry playhead. The
+  viewer's play button drives the shared video clock instead of synth audio
+  when a snippet is attached; the chord highlight already follows
+  `videoPlayhead`.
+- **Viewer parity.** `mountSbnNodes`'s `propsFor.progression` now passes the
+  full prop set (name/category/numerals/keyLabel/color/vintageCard) so the
+  inline course progression matches the library detail page; `buildChordsFor`
+  emits a per-chord `numeral`; `BossaNovaChords` aligned with its sibling
+  Top10 pages.
+- **`VideoEmbed` overlay mitigation.** Opt-in `facade` prop (thumbnail until
+  first play — skips the cued-state title/channel overlay) and seek-on-ENDED
+  (state 0 → seek to `startSec`, suppresses the end-screen). `PracticePanel`
+  uses `facade`. NOTE: the ~5s intro overlay *on play start* is YouTube-side
+  and timer-based — neither `playerVars` nor the facade removes it; the only
+  compliant kill is a muted pre-roll behind the facade (deemed not worth the
+  click-to-video latency — see the chat decision).
+- **Practice-panel layout.** The right-rail companion lost its nested card
+  containers — flat stacked sections with hairline dividers, content inset
+  16px, the `VideoEmbed` full-bleed to the sidebar edge.
+
 **Decided scope — rhythm video sync is PracticePanel-only.** The course player
 shows the *same* `<sbn-rhythm>` component in two places:
 - the **PracticePanel** companion (right rail) — fed the resolved `videoSnippet`

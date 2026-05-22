@@ -6,6 +6,7 @@ import ChordCard from '@/Components/Library/ChordCard.vue';
 import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
 import type { ProgressionChord } from '@/Components/Library/ChordProgressionViewer.vue';
+import { getCategoryColor } from '@/composables/useCategoryColors';
 
 defineOptions({ layout: PublicLayout });
 
@@ -206,7 +207,8 @@ function goToChordLibrary(chord: ChordDiagramData) {
                                 <ChordProgressionViewer
                                     :chords="selectedChord.progressionTiles.map((t): ProgressionChord => ({ chordName: t.chordName, diagramData: t.diagramData, beats: 4, numeral: t.numeral }))"
                                     :interactive="true"
-                                    :show-flow-arrows="true"
+                                    :vintage-card="true"
+                                    :color="getCategoryColor(selectedChord.progressionMeta?.category || 'bossa-nova')"
                                     :name="selectedChord.progressionViewerName || selectedChord.progressionName"
                                     :category="selectedChord.progressionMeta?.category"
                                     :key-label="selectedChord.progressionSeedKey ? `Key: ${selectedChord.progressionSeedKey}` : ''"

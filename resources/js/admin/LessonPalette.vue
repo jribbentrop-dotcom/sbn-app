@@ -3,7 +3,7 @@ import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 
 type NodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'media';
 
-interface SnippetRef { id: string; label: string }
+interface SnippetRef { id: string; label: string; key?: string | null }
 interface PaletteItem {
     slug: string;
     label: string;
@@ -181,6 +181,14 @@ function doConfirmInsert() {
     // Emitted as the `video-snippet` tag attribute; '' = no example.
     if ((activeTab.value === 'rhythm' || activeTab.value === 'progression') && configSnippet.value) {
         extras.videoSnippet = configSnippet.value;
+        // A progression snippet may pin the key the recording is played in.
+        // Stamp it onto the tag so the inserted <sbn-progression key="…">
+        // matches the snippet — otherwise the node defaults to key="C" and
+        // the course player builds/displays the progression in C.
+        if (activeTab.value === 'progression') {
+            const snip = configSnippetList.value.find(s => s.id === configSnippet.value);
+            if (snip?.key) extras.key = snip.key;
+        }
     }
 
     doInsert(selectedSlug.value, extras);
