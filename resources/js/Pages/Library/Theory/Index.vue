@@ -141,7 +141,7 @@ watch(visible, mountVisible);
                         :key="widget.slug"
                         class="theory-card"
                     >
-                        <!-- Widget mounts here — no wrapper, natural size -->
+                        <!-- Widget mounts here -->
                         <div :id="`theory-widget-${widget.slug}`" />
 
                         <div class="theory-card-meta">
@@ -224,38 +224,35 @@ watch(visible, mountVisible);
     align-items: start;
 }
 
-/* ── Card: no fixed height, widget breathes freely ─────────────────────────── */
+/* ── Card ───────────────────────────────────────────────────────────────────── */
 .theory-card {
-    background: color-mix(in srgb, var(--clr-surface, #1a1a2e) 100%, var(--clr-accent, #f39c12) 3%);
-    border: 1px solid transparent;
-    border-radius: var(--radius, 0.75rem);
-    box-shadow: 1px 1px 0 var(--clr-border, rgba(255,255,255,0.08));
+    border: 1px solid var(--clr-border, #e8edf3);
+    border-radius: 0.875rem;
     overflow: hidden;
-    transition: box-shadow 0.2s var(--ease, ease), transform 0.2s var(--ease, ease), background 0.2s var(--ease, ease);
+    transition: border-color 0.15s ease;
 }
 
 .theory-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 3px 3px 0 rgba(54, 131, 255, 0.35);
-    background: rgba(183, 211, 255, 0.06);
+    border-color: var(--clr-accent, #f39c12);
 }
 
 /* Meta section below the widget */
 .theory-card-meta {
     padding: 1rem 1.25rem 1.25rem;
-    border-top: 1px solid var(--clr-border, rgba(255,255,255,0.06));
+    border-top: 1px solid var(--clr-border, #e8edf3);
+    background: var(--clr-surface, #ffffff);
 }
 
 .theory-card-title {
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 600;
-    color: var(--clr-text, #e8e8f0);
+    color: var(--clr-text, #1a1a2e);
     margin: 0 0 0.35rem;
 }
 
 .theory-card-summary {
-    font-size: 0.85rem;
-    color: var(--clr-text-muted, rgba(232,232,240,0.65));
+    font-size: 0.82rem;
+    color: var(--clr-text-muted, #64748b);
     line-height: 1.55;
     margin: 0 0 0.8rem;
 }
@@ -271,8 +268,8 @@ watch(visible, mountVisible);
     font-size: 0.72rem;
     padding: 0.18rem 0.55rem;
     border-radius: 999px;
-    background: var(--clr-surface-raised, rgba(255,255,255,0.06));
-    color: var(--clr-text-muted, rgba(232,232,240,0.55));
+    background: var(--clr-surface-3, #eef1f5);
+    color: var(--clr-text-muted, #64748b);
     border: 1px solid transparent;
     cursor: pointer;
     transition: background 120ms, color 120ms, border-color 120ms;
@@ -281,9 +278,9 @@ watch(visible, mountVisible);
 
 .theory-tag:hover,
 .theory-tag.active {
-    background: color-mix(in srgb, var(--clr-accent, #f39c12) 18%, transparent 82%);
+    background: var(--clr-accent-bg, rgba(243,156,18,0.1));
     color: var(--clr-accent, #f39c12);
-    border-color: color-mix(in srgb, var(--clr-accent, #f39c12) 40%, transparent 60%);
+    border-color: var(--clr-accent-border, rgba(243,156,18,0.25));
 }
 
 /* ── Load more ─────────────────────────────────────────────────────────────── */

@@ -131,10 +131,16 @@ embeddable widgets. Each entry is a **raw lazy-import thunk**:
 
 ```ts
 export const eduWidgets = {
-  'triad-builder':    () => import('./TriadBuilder.vue'),
-  'circle-of-fifths': () => import('./CircleOfFifths.vue'),
-  'drop2-visualizer': () => import('./Drop2Visualizer.vue'),
-  'voice-leading':    () => import('./VoiceLeading.vue'),
+  'triad-builder':     () => import('./TriadBuilder.vue'),
+  'circle-of-fifths':  () => import('./CircleOfFifths.vue'),
+  'drop2-visualizer':  () => import('./Drop2Visualizer.vue'),
+  'voice-leading':     () => import('./VoiceLeading.vue'),
+  'caged-system':      () => import('./CagedWidget.vue'),
+  'chord-function':    () => import('./ChordFunctionWidget.vue'),
+  'chord-tones':       () => import('./ChordTonesWidget.vue'),
+  'note-duration':     () => import('./DurationWidget.vue'),
+  'interval-explorer': () => import('./IntervalWidget.vue'),
+  'pentatonic-scales': () => import('./PentatonicWidget.vue'),
 } as const;
 ```
 
@@ -154,6 +160,15 @@ Every widget follows these rules (see `TriadBuilder.vue` as the reference):
   prefix (`tb-`, `cof-`, `d2-`, `vl-`).
 - Own lazy chunk via the registry thunk.
 
+**Light-background widgets** (the six design-session imports: `caged-system`,
+`chord-function`, `chord-tones`, `note-duration`, `interval-explorer`,
+`pentatonic-scales`) carry `background: #ffffff` on their root element and use
+hardcoded light-palette colors internally. They are standalone-card designs
+migrated from a React/JSX design session. Large display elements (numerals,
+chord symbols) use Cormorant Garamond; body/explanation text uses `system-ui`
+for readability. On the `/theory` page they fill the card width naturally
+(`width: 100%; box-sizing: border-box`) with no wrapper needed.
+
 ---
 
 ## 6. Current Widgets
@@ -164,6 +179,12 @@ Every widget follows these rules (see `TriadBuilder.vue` as the reference):
 | `circle-of-fifths` | `CircleOfFifths.vue` | The 12 keys arranged by fifths, with relative minors. |
 | `drop2-visualizer` | `Drop2Visualizer.vue` | Drop-2 and Drop-3 voicings — Closed/Drop 2/Drop 3 badges, dropped dot slides and pulses. |
 | `voice-leading` | `VoiceLeading.vue` | 6 guitar strings, two chord columns, bezier curves per voice. Three preset ii–V–I pairs as badges. |
+| `caged-system` | `CagedWidget.vue` | Five CAGED shapes for C major — animated camera pan across a full-neck SVG, mini strip position indicator, swipe + arrow nav. |
+| `chord-function` | `ChordFunctionWidget.vue` | All 7 diatonic degrees in major and minor, colour-coded by function (Tonic / Subdominant / Dominant), slide animations, swipe nav. |
+| `chord-tones` | `ChordTonesWidget.vue` | Chord-tone stacks from triad → 13th for maj/min/dom, with toggleable altered option tones (♭9/#9/#11/♭13). |
+| `note-duration` | `DurationWidget.vue` | Dotted and tied note durations — bar-grow reveal animations, tabbed between Dotted and Tied examples. |
+| `interval-explorer` | `IntervalWidget.vue` | All 12 intervals from C — upper dot is draggable on a pitch axis (mouse + touch), snaps to semitone, live colour update. |
+| `pentatonic-scales` | `PentatonicWidget.vue` | Diatonic ↔ pentatonic toggle — dropped degrees shrink and strike through, major and minor modes. |
 
 ### Shared pitch-dot visual language
 
@@ -273,11 +294,17 @@ Examples: `/dev/edu/concept/triad`, `/dev/edu/concept/circle-of-fifths`,
 
 - **System + pipeline:** complete. `EduContentService` (file-backed), the
   `<sbn-widget>` mounter, the widget registry, and all four surfaces are wired.
-- **Widgets (2026-05-20):** four widgets built, registered, design-token compliant:
+- **Widgets (2026-05-22):** ten widgets built and registered:
   - `triad-builder` — quality badge pills, spring pop-in + pulse animations.
   - `circle-of-fifths` — clickable SVG donut.
   - `drop2-visualizer` — Closed/Drop 2/Drop 3 badges, compact pitch-dot layout.
   - `voice-leading` — 6-string lane diagram, bezier voice curves, three ii–V–I pairs.
+  - `caged-system` — animated full-neck camera pan, mini strip, swipe nav.
+  - `chord-function` — 7 diatonic degrees, Tonic/Subdominant/Dominant colour coding, major/minor toggle.
+  - `chord-tones` — triad→13th extension stepper, altered option tones.
+  - `note-duration` — dotted/tied duration examples with bar-grow animations.
+  - `interval-explorer` — draggable pitch-axis dot, 12 intervals from C.
+  - `pentatonic-scales` — diatonic↔pentatonic toggle, major and minor modes.
 - **Theory browse page:** `GET /theory` live — widget grid with tag filter sidebar,
   live-mounted widgets, MegaMenu wired under Explore → Resources.
 - **Content:** ongoing — 18 quality files + a growing set of concept/glossary

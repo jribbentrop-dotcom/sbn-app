@@ -15,10 +15,16 @@
  */
 
 export const eduWidgets = {
-  'triad-builder':    () => import('./TriadBuilder.vue'),
-  'circle-of-fifths': () => import('./CircleOfFifths.vue'),
-  'drop2-visualizer': () => import('./Drop2Visualizer.vue'),
-  'voice-leading':    () => import('./VoiceLeading.vue'),
+  'triad-builder':      () => import('./TriadBuilder.vue'),
+  'circle-of-fifths':   () => import('./CircleOfFifths.vue'),
+  'drop2-visualizer':   () => import('./Drop2Visualizer.vue'),
+  'voice-leading':      () => import('./VoiceLeading.vue'),
+  'caged-system':       () => import('./CagedWidget.vue'),
+  'chord-function':     () => import('./ChordFunctionWidget.vue'),
+  'chord-tones':        () => import('./ChordTonesWidget.vue'),
+  'note-duration':      () => import('./DurationWidget.vue'),
+  'interval-explorer':  () => import('./IntervalWidget.vue'),
+  'pentatonic-scales':  () => import('./PentatonicWidget.vue'),
 } as const;
 
 export type EduWidgetSlug = keyof typeof eduWidgets;
