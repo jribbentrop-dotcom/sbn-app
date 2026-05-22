@@ -180,7 +180,10 @@
                 <div class="sbn-vp-meta-field">
                     <span class="sbn-vp-meta-label">Key</span>
                     <input type="text" class="sbn-vp-meta-input"
-                           x-model="parsed.key" @input="markDirty()">
+                           x-model="parsed.key" @input="markDirty(); keyInference = null">
+                    <span class="sbn-vp-meta-hint" x-show="keyInference" x-cloak
+                          :title="keyInference ? keyInference.evidence.join('; ') : ''"
+                          x-text="keyInference ? ('inferred · ' + keyInference.confidence + ' confidence') : ''"></span>
                 </div>
                 <div class="sbn-vp-meta-field">
                     <span class="sbn-vp-meta-label">Tempo</span>
@@ -235,6 +238,19 @@
                         x-text="saving ? 'Saving…' : (itemId ? 'Update ' + typeLabel : 'Save ' + typeLabel)"></button>
                 <span class="sbn-vp-dirty-hint" x-show="dirty">Unsaved</span>
             </div>
+        </div>
+
+        {{-- ── Import summary — persists until dismissed (replaces transient toasts) ── --}}
+        <div class="sbn-import-summary" x-show="importSummary" x-cloak>
+            <div class="sbn-import-summary-head">
+                <strong>Import report</strong>
+                <button class="sbn-import-summary-close" @click="importSummary = null" title="Dismiss">&times;</button>
+            </div>
+            <ul class="sbn-import-summary-list">
+                <template x-for="(line, i) in (importSummary ? importSummary.lines : [])" :key="i">
+                    <li :class="'sbn-import-summary-' + (line.kind || 'info')" x-text="line.text"></li>
+                </template>
+            </ul>
         </div>
 
         {{-- ── Voicing picker / overview — rendered by Vue via Teleport into #sbn-vp-slot ── --}}
@@ -350,6 +366,8 @@
 <script src="{{ asset('js/chords.js') }}"></script>
 {{-- Chord name formatter (carried from Phase 4d) --}}
 <script src="{{ asset('js/sbn-chord-name.js') }}"></script>
+{{-- Key inference: recovers tonal key from identified chords (every import) --}}
+<script src="{{ asset('js/sbn-key-inference.js') }}"></script>
 {{-- Context menu singleton + operation vocabulary (grid-interact Phase 1) --}}
 <script src="{{ asset('js/sbn-context-menu.js') }}"></script>
 <script src="{{ asset('js/sbn-grid-ops.js') }}"></script>
@@ -507,6 +525,12 @@ class MusicXMLParser {
                 globalMeasureIdx++;
             });
         });
+
+        // Flag harmony/notes mismatches: a written <harmony> symbol that the
+        // bar's own notated voicing contradicts (e.g. a `D5` whose notes also
+        // include the minor 3rd, spelling Dm). Detection only — never silently
+        // rewrites the author's chord symbol; the editor surfaces a badge.
+        this._flagHarmonyNoteMismatches(result);
 
         // Build melody
         const allNotes = [];
@@ -808,6 +832,29 @@ class MusicXMLParser {
                     ni+=grip.length;
                 }else ni++;
             }
+            // Double-stops: a tick with exactly 2 simultaneous notes that the
+            // block/grip collectors didn't claim is a standalone 2-note chord
+            // (a classical-guitar double-stop). Each such tick is its own group,
+            // claimed here so arpeggioChords can't pull its notes into a
+            // neighbouring stab's voicing.
+            //
+            // Guard against melodic 2-note figures: a stabbed double-stop
+            // spans a harmonic interval (a 3rd or wider). A stepwise pair
+            // (<=2 semitones) is a melodic line, not a chord — leave those
+            // ticks for arpeggioChords / the melody. String adjacency is NOT
+            // required: a classical double-stop routinely skips inner strings
+            // (e.g. bass on string 4, melody on string 1).
+            const dstopChords=[];
+            ticks.forEach(t=>{
+                if(gripClaimedTicks.has(t))return;
+                const notes=byTick[t];
+                if(notes.length!==2)return;
+                const m0=this._stringFretToMidi(notes[0].string,notes[0].fret);
+                const m1=this._stringFretToMidi(notes[1].string,notes[1].fret);
+                if(Math.abs(m0-m1)<3)return;
+                dstopChords.push({tick:t,notes});
+                gripClaimedTicks.add(t);
+            });
             const arpeggioChords=[];
             ticks.forEach((t,ti)=>{
                 if(gripClaimedTicks.has(t))return;const notes=byTick[t];const bassNotes=notes.filter(n=>n.string>=4);if(!bassNotes.length)return;if(notes.length>=3)return;
@@ -818,7 +865,7 @@ class MusicXMLParser {
                 const hasBass=bc.notes.some(n=>n.string>=5);if(hasBass)return;
                 for(let ti=ticks.indexOf(bc.tick)-1;ti>=0;ti--){const t2=ticks[ti];if(bc.tick-t2>arpeggioWindow)break;if(blockTicks.has(t2))break;const n2=byTick[t2];if(n2.length>2)break;const bh=n2.filter(n=>n.string>=4);if(!bh.length)continue;bh.forEach(bn=>{if(!bc.notes.some(n=>n.string===bn.string))bc.notes.push(bn);});break;}
             });
-            let combined=[...blockChords,...gripChords,...arpeggioChords].sort((a,b)=>a.tick-b.tick);
+            let combined=[...blockChords,...gripChords,...dstopChords,...arpeggioChords].sort((a,b)=>a.tick-b.tick);
             const measureVoicings=combined.map(group=>{
                 const v=this._notesToVoicing(group.notes);
                 // A chord group is a tie-start if ALL its non-bass notes (strings 1-4)
@@ -856,7 +903,7 @@ class MusicXMLParser {
                 if(mv.tieStart && mv.tick >= measureTotalTicks * 0.75) return;
                 deduped.push(mv);
             });
-            allMeasureVoicings.push(deduped);
+            allMeasureVoicings.push(this._mergeFragmentVoicings(deduped));
         });
         const shapeToName={};let shapeCounter=1;const resultMeasures=[],resultVoicings={};
 
@@ -871,10 +918,32 @@ class MusicXMLParser {
             return last.tieStart ? last.voicing.frets : null;
         });
 
+        // Distinct pitch classes in a 6-char fret string. Fret-string index
+        // 0..5 maps to XML strings 6..1; _OPEN_PC is keyed by XML string number.
+        const _fretsPcCount = (frets) => {
+            const OPEN = MusicXMLParser._OPEN_PC;
+            const pcs = new Set();
+            for (let idx = 0; idx < 6; idx++) {
+                const ch = (frets[idx] || 'x').toLowerCase();
+                if (ch === 'x') continue;
+                const fret = parseInt(ch, 16);
+                if (isNaN(fret)) continue;
+                const xmlString = 6 - idx;
+                pcs.add((OPEN[xmlString] + fret) % 12);
+            }
+            return pcs.size;
+        };
+
         allMeasureVoicings.forEach((mv,mIdx)=>{
             if(!mv.length)return;
             const chords=[];
             const prevTiedFrets = mIdx > 0 ? measureEndTiedFrets[mIdx-1] : null;
+
+            // A bare octave/unison (one distinct pitch class) is not a chord —
+            // it's the root struck early as an anacrusis. Suppress such a slot
+            // when the bar holds a real (multi-PC) chord it belongs to. A bar
+            // that is ONLY a single-PC stab keeps it (nothing else to show).
+            const barHasRealChord = mv.some(v => _fretsPcCount(v.voicing.frets) >= 2);
 
             mv.forEach((v,vi)=>{
                 // Suppress tie-stop chord: first event of this measure, same frets
@@ -882,6 +951,9 @@ class MusicXMLParser {
                 // These are notes tied over the barline — they ring from the previous
                 // bar and should not appear as a new chord symbol here.
                 if(vi===0 && prevTiedFrets && v.voicing.frets===prevTiedFrets) return;
+
+                // Suppress a bare single-PC octave/unison stub.
+                if(barHasRealChord && _fretsPcCount(v.voicing.frets) < 2) return;
 
                 const nextTick=(vi+1<mv.length)?mv[vi+1].tick:this.divisions*beatsPerMeasure;
                 const beats=(nextTick-v.tick)/this.divisions;
@@ -902,7 +974,223 @@ class MusicXMLParser {
 
     _notesToVoicing(notes){const fm={};notes.forEach(n=>{if(n.string>=1&&n.string<=6&&fm[n.string]===undefined)fm[n.string]=n.fret;});const frets=Array(6).fill('x');for(let s=1;s<=6;s++){if(fm[s]!==undefined){const f=fm[s];frets[6-s]=f===0?'0':(f<=9?f.toString():f.toString(16));}}const fv=Object.values(fm).filter(f=>f>0);let position=1;if(fv.length){const mn=Math.min(...fv);if(mn>1)position=mn;}return{frets:frets.join(''),position,fingers:'000000'};}
 
+    /**
+     * Overlay two fret strings into one, string by string. A string muted in
+     * one and fretted in the other takes the fret; same fret in both is fine;
+     * a string fretted *differently* in each is a collision — returns null.
+     * Collision rejection is the melody guard: a moving voice that re-frets a
+     * string blocks the merge, so only fragments of one held grip combine.
+     */
+    _overlayFrets(a, b) {
+        if (a.length !== 6 || b.length !== 6) return null;
+        let out = '';
+        for (let i = 0; i < 6; i++) {
+            const ca = a[i], cb = b[i];
+            const ma = ca === 'x' || ca === 'X';
+            const mb = cb === 'x' || cb === 'X';
+            if (ma && mb) { out += 'x'; }
+            else if (ma) { out += cb; }
+            else if (mb) { out += ca; }
+            else if (ca === cb) { out += ca; }
+            else { return null; }   // collision — different fret on same string
+        }
+        return out;
+    }
+
+    /**
+     * Intra-bar fragment merge. Consecutive voicing events whose fret strings
+     * overlay without collision are fragments of a single fingered chord —
+     * the MusicXML split one held grip across beats (e.g. Maria Luisa bar 8:
+     * xx0xx1 {D,F} then xxx23x {D,A} = one open Dm). Collapse such a run into
+     * one voicing event so it's identified once, as the whole chord.
+     *
+     * Conservative by design: runs within a single bar only, adjacent events
+     * only, gated to runs containing at least one thin (<=2 note) fragment,
+     * and capped to a playable fret span. A genuine two-chord bar where the
+     * second chord re-frets any string collides and is left untouched.
+     */
+    _mergeFragmentVoicings(deduped) {
+        if (!deduped || deduped.length < 2) return deduped;
+        const out = [];
+        let i = 0;
+        while (i < deduped.length) {
+            let run = [deduped[i]];
+            let mergedFrets = deduped[i].voicing.frets;
+            let j = i + 1;
+            while (j < deduped.length) {
+                const next = deduped[j];
+                // A tie boundary already carries voicing semantics — don't cross it.
+                if (next.isTieStop || run[run.length - 1].isTieStart) break;
+                const overlaid = this._overlayFrets(mergedFrets, next.voicing.frets);
+                if (overlaid === null) break;
+                // Fret-span guard: the merged shape must stay one playable grip.
+                const fv = overlaid.split('').filter(c => c !== 'x' && c !== '0').map(c => parseInt(c, 16));
+                if (fv.length && (Math.max(...fv) - Math.min(...fv)) > 5) break;
+                mergedFrets = overlaid;
+                run.push(next);
+                j++;
+            }
+            if (run.length > 1) {
+                // Gate: only merge a run that contains a clear fragment
+                // (<=2 fretted/open notes) — never collapse two full chords.
+                const hasFragment = run.some(e => {
+                    const n = e.voicing.frets.split('').filter(c => c !== 'x' && c !== 'X').length;
+                    return n <= 2;
+                });
+                if (hasFragment) {
+                    const first = run[0];
+                    const totalBeats = run.reduce((s, e) => s + (e.beats || 0), 0);
+                    const fvAll = mergedFrets.split('').filter(c => c !== 'x' && c !== '0').map(c => parseInt(c, 16));
+                    out.push({
+                        ...first,
+                        voicing: {
+                            frets: mergedFrets,
+                            position: fvAll.length ? Math.max(1, Math.min(...fvAll)) : 1,
+                            fingers: '000000'
+                        },
+                        beats: totalBeats || first.beats,
+                        noteCount: mergedFrets.split('').filter(c => c !== 'x').length,
+                        _merged: true
+                    });
+                    i = j;
+                    continue;
+                }
+            }
+            out.push(deduped[i]);
+            i++;
+        }
+        return out;
+    }
+
     _stringFretToMidi(string,fret){const os={1:64,2:59,3:55,4:50,5:45,6:40};return(os[string]||40)+fret;}
+
+    // Open-string pitch classes keyed by MusicXML <string> number, which uses
+    // the standard tab convention: string 1 = high E … string 6 = low E.
+    // These are `_stringFretToMidi`'s open MIDI values mod 12 — keep them in
+    // sync with that map (E A D G B E read 6→1): 64,59,55,50,45,40 → %12.
+    static get _OPEN_PC() { return { 1: 4, 2: 11, 3: 7, 4: 2, 5: 9, 6: 4 }; }
+
+    /**
+     * Collect each <harmony> chord's notated voicing from the bar's tab notes
+     * and attach it as `chord._slotVoicing` (a 6-char fret string).
+     *
+     * Critically, NOT every note under a harmony is a chord tone. The opening
+     * of a piece may be a single-line scale/arpeggio — six lone notes are a
+     * melody, not a six-note chord. A slot's notes count as a chord only when
+     * they show genuine verticality:
+     *
+     *   (a) Simultaneity — a tick carrying ≥2 notes (the MusicXML <chord/>
+     *       stack). Real chord stabs. This is the primary signal.
+     *   (b) Arpeggiation — a run of consecutive notes where EVERY adjacent
+     *       interval is a 3rd or wider (≥3 semitones). Scale steps (≤2
+     *       semitones) mark a melodic line and disqualify the run.
+     *
+     * A slot with neither — only stepwise single notes — is a melodic passage
+     * and is skipped (no `_slotVoicing`).
+     *
+     * The qualifying notes' pitch-class set + lowest pitch (bass) are rendered
+     * to a representative fret string. This only annotates; the async
+     * `detectHarmonyMismatches` identifies the slot voicings.
+     */
+    _flagHarmonyNoteMismatches(result) {
+        const OPEN = MusicXMLParser._OPEN_PC;
+        (result.measures || []).forEach(md => {
+            if (md._fromTab) return;                       // tab-path bars: no written harmony
+            const chords = md.chords || [];
+            const notes = (md.notes || []).filter(n => !n.isRest
+                && typeof n.string === 'number' && n.string >= 1 && n.string <= 6
+                && typeof n.fret === 'number');
+            if (!chords.length || !notes.length) return;
+
+            for (let ci = 0; ci < chords.length; ci++) {
+                const start = chords[ci].beatInMeasure ?? 0;
+                const end = (ci + 1 < chords.length)
+                    ? (chords[ci + 1].beatInMeasure ?? Infinity)
+                    : Infinity;
+                const slotNotes = notes.filter(n => {
+                    const t = n.measureTick ?? 0;
+                    return t >= start - 1e-6 && t < end - 1e-6;
+                });
+                if (slotNotes.length < 2) continue;
+
+                // Annotate each note with MIDI pitch + PC.
+                const enriched = slotNotes.map(n => ({
+                    tick: n.measureTick ?? 0,
+                    midi: this._stringFretToMidi(n.string, n.fret),
+                    pc: (OPEN[n.string] + n.fret) % 12,
+                }));
+
+                // (a) Simultaneity: any tick with ≥2 notes.
+                const byTick = {};
+                enriched.forEach(e => { (byTick[e.tick] = byTick[e.tick] || []).push(e); });
+                const hasStack = Object.values(byTick).some(g => g.length >= 2);
+
+                // (b) Arpeggiation: notes in time order, every adjacent
+                // interval ≥ 3 semitones (a 3rd+). A stepwise pair (≤2) means
+                // a melodic line — disqualifies the run.
+                let isArpeggio = false;
+                if (!hasStack) {
+                    const seq = enriched.slice().sort((a, b) => a.tick - b.tick);
+                    isArpeggio = seq.length >= 2;
+                    for (let k = 1; k < seq.length && isArpeggio; k++) {
+                        if (Math.abs(seq[k].midi - seq[k - 1].midi) < 3) isArpeggio = false;
+                    }
+                }
+
+                if (!hasStack && !isArpeggio) continue;    // melodic passage — skip
+
+                // Build the PC set from the qualifying notes. When a stack
+                // exists, use the stacked ticks only (lone passing notes
+                // between stabs are melodic); otherwise use the whole arpeggio.
+                const chordNotes = hasStack
+                    ? Object.values(byTick).filter(g => g.length >= 2).flat()
+                    : enriched;
+
+                const pcSet = {};
+                let bassMidi = Infinity, bassPc = null;
+                chordNotes.forEach(e => {
+                    pcSet[e.pc] = true;
+                    if (e.midi < bassMidi) { bassMidi = e.midi; bassPc = e.pc; }
+                });
+                const pcs = Object.keys(pcSet).map(Number);
+                if (pcs.length < 2) continue;
+
+                const frets = this._pcSetToFretString(pcs, bassPc);
+                if (frets) chords[ci]._slotVoicing = frets;
+            }
+        });
+    }
+
+    /**
+     * Render a pitch-class set to a representative 6-char fret string for the
+     * identifier. The string is consumed by `VoicingCrossref::identifyFromFrets`,
+     * which reads fret-string index i with its own `TUNING` array
+     * [4,9,2,7,11,4] (index 0 = low E) and derives the bass from the FIRST
+     * non-`x` index — so the bass PC is placed at index 0 and the remaining
+     * PCs follow. Frets are computed against that same TUNING (NOT `_OPEN_PC`,
+     * which is keyed by XML string number, the reverse order). Not a playable
+     * voicing — just a PC-faithful carrier of the right set + bass.
+     */
+    _pcSetToFretString(pcs, bassPc) {
+        // Must match VoicingCrossref::TUNING — fret-string index 0..5.
+        const TUNING = [4, 9, 2, 7, 11, 4];
+        const frets = ['x','x','x','x','x','x'];
+        const placeAt = (i, pc) => { frets[i] = (((pc - TUNING[i]) % 12 + 12) % 12).toString(16); };
+
+        const ordered = [];
+        let idx = 0;
+        // Bass first → index 0, so identifyFromFrets reads it as the bass.
+        if (bassPc !== null) { placeAt(0, bassPc); ordered.push(bassPc); idx = 1; }
+        pcs.forEach(pc => {
+            if (ordered.indexOf(pc) !== -1) return;
+            if (idx > 5) return;                     // ran out of strings
+            placeAt(idx, pc);
+            ordered.push(pc);
+            idx++;
+        });
+        const out = frets.join('');
+        return /^[x0-9a-f]{6}$/.test(out) ? out : null;
+    }
 }
 
 // =============================================================================
@@ -1016,6 +1304,8 @@ function leadsheetEditor() {
         highlightMatch: null,
         detecting: false,
         detectionResult: '',
+        keyInference: null,      // { key, confidence, evidence[] } from the last import
+        importSummary: null,     // { lines: [{text, kind}] } persistent import report
 
         // Tab editor (Phase 7)
         bravuraReady: false,
@@ -1515,9 +1805,15 @@ function leadsheetEditor() {
             return parsed;
         },
 
-        markDirty() { 
-            this.dirty = true; 
+        markDirty() {
+            this.dirty = true;
             this._analysisStale = true;
+        },
+
+        /** Append a line to the persistent import-summary panel. */
+        _importLog(text, kind) {
+            if (!this.importSummary) this.importSummary = { lines: [] };
+            this.importSummary.lines.push({ text, kind: kind || 'info' });
         },
 
         // ── Undo / Redo removed in Phase B — Alpine no longer manages its own chord grid history.
@@ -1584,6 +1880,9 @@ function leadsheetEditor() {
                     const xmlString = e.target.result;
                     const parser = new MusicXMLParser(xmlString);
 
+                    // Fresh import — reset the persistent summary panel.
+                    this.importSummary = null;
+
                     // Suppress the $watch('parsed') auto-dispatch so Vue doesn't receive
                     // Tab1/Tab2 placeholder names before identification renames them.
                     this._suppressTabInit = true;
@@ -1592,12 +1891,24 @@ function leadsheetEditor() {
 
                     this.tabXml = xmlString;
                     this.markDirty();
-                    let msg = 'Parsed: ' + this.parsed.measures.length + ' bars';
+                    let msg = 'Parsed ' + this.parsed.measures.length + ' bars';
                     if (this.parsed.melody && this.parsed.melody.length) msg += ', ' + this.parsed.melody.length + ' melody notes';
-                    sbnToast(msg, 'success');
+                    this._importLog(msg, 'info');
 
-                    // Await identification so Vue gets real chord names, not Tab1/Tab2.
-                    await this.identifyTabVoicings();
+                    // Two-pass identification with key inference in between.
+                    // Pass 1 is keyless (pure local scoring) so the harmonic
+                    // context can't bias names toward the wrong tonal centre.
+                    // The key is then inferred from those names and Pass 2
+                    // re-identifies with the correct key for context-aware
+                    // results. Relative keys (C / Am) share a key signature,
+                    // so the MusicXML <key> alone is not trustworthy.
+                    await this.identifyTabVoicings(null);
+                    this.inferKeyFromChords();
+                    await this.identifyTabVoicings(this.parsed.key || null, true);
+
+                    // Correct/flag bars whose written <harmony> symbol is
+                    // contradicted by the notated voicing (e.g. D5 → Dm).
+                    await this.detectHarmonyMismatches();
 
                     // A file import fully replaces the model — reset the init gate so
                     // Vue receives a fresh sbn-tab-init with the renamed chord data.
@@ -1616,18 +1927,26 @@ function leadsheetEditor() {
             reader.readAsText(file);
         },
 
-        async identifyTabVoicings() {
+        /**
+         * Identify Tab* placeholder voicings via the crossref endpoint and
+         * rename them in place. `songKey` is passed through to the harmonic
+         * context — pass null for a keyless Pass 1 (used by the import flow
+         * before the key has been inferred). `logPass` true logs the result
+         * into the import summary (set only for the final keyed pass).
+         */
+        async identifyTabVoicings(songKey, logPass) {
             if (!this.parsed || !this.parsed.chordVoicings) return;
             const tabVoicings = {};
             Object.keys(this.parsed.chordVoicings).forEach(name => {
                 if (/^Tab\d+$/.test(name)) tabVoicings[name] = this.parsed.chordVoicings[name];
             });
             if (!Object.keys(tabVoicings).length) return;
+            const key = songKey === undefined ? (this.parsed.key || null) : songKey;
             try {
                 const resp = await fetch('/api/admin/leadsheets/identify-voicings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
-                    body: JSON.stringify({ voicings: tabVoicings, songKey: this.parsed.key || null })
+                    body: JSON.stringify({ voicings: tabVoicings, songKey: key })
                 });
                 const data = await resp.json();
                 if (data.success && data.results) {
@@ -1646,10 +1965,174 @@ function leadsheetEditor() {
                             }
                         });
                         this.parsed.sections.forEach(s => (s.measures||[]).forEach(m => m.chords.forEach(c => { if (renameMap[c.name]) c.name = renameMap[c.name]; })));
-                        sbnToast('Identified ' + Object.keys(renameMap).length + ' chord(s) from tab', 'success');
+                        // Log only the keyed pass — the keyless Pass 1 (songKey
+                        // === null sentinel) is internal plumbing.
+                        if (logPass) {
+                            this._importLog('Identified ' + Object.keys(renameMap).length
+                                + ' chord(s) from the tab notation', 'info');
+                        }
                     }
                 }
             } catch(e) { console.warn('[SBN Editor] Identify failed:', e); }
+        },
+
+        /**
+         * Infer the leadsheet key from its identified chords and pre-fill the
+         * (editable) key field. Runs on every import: the MusicXML <key> is
+         * only a hint, since relative keys (C / Am) share a key signature.
+         * Built window-able for a future modulation-detection pass.
+         */
+        inferKeyFromChords() {
+            if (typeof window.sbnInferKey !== 'function') return;
+            if (!this.parsed || !this.parsed.sections) return;
+
+            // Build a flat (name, pcs, durationBeats) list from every slot.
+            const chords = [];
+            this.parsed.sections.forEach(s => (s.measures || []).forEach(m => {
+                (m.chords || []).forEach(c => {
+                    const voicing = this.parsed.chordVoicings[c.name];
+                    const pcs = voicing
+                        ? window.sbnFretsToPcs(voicing.frets)
+                        : (window.sbnFretsToPcs(c.frets || '') || []);
+                    if (pcs.length) {
+                        chords.push({ name: c.name, pcs, durationBeats: c.beats || 1 });
+                    }
+                });
+            }));
+            if (!chords.length) return;
+
+            const result = window.sbnInferKey(chords, {
+                xmlKeyHint: this.parsed.key || null,
+                useEndpoints: true
+            });
+
+            const prev = this.parsed.key;
+            this.parsed.key = result.key;
+            this.keyInference = result;
+            if (result.key !== prev) {
+                this._importLog('Key inferred: ' + prev + ' → ' + result.key
+                    + ' (' + result.confidence + ' — ' + result.evidence.join('; ') + ')', 'change');
+                this.markDirty();
+            } else {
+                this._importLog('Key: ' + result.key + ' (' + result.confidence + ' confidence)', 'info');
+            }
+        },
+
+        /**
+         * Strip a chord label down to {root, quality-ish, bass} for comparison,
+         * dropping extensions/parentheses so D5 vs Dm vs Dm(9) compare on the
+         * substance that matters here. Returns { root, isPower, bass }.
+         */
+        _chordSig(name) {
+            if (!name) return null;
+            const m = String(name).trim().match(/^([A-G][#b]?)([^/]*)(?:\/([A-G][#b]?))?/);
+            if (!m) return null;
+            return { root: m[1], rest: (m[2] || '').toLowerCase(), bass: m[3] || null };
+        },
+
+        /**
+         * Identify each harmony slot's notated voicing (collected as
+         * `_slotVoicing` during parse) and correct chords whose written
+         * MusicXML symbol the notes contradict.
+         *
+         * The MusicXML `<harmony>` symbol is often under-specified or simply
+         * wrong relative to the notated voicing (e.g. a bar written `D5`
+         * whose notes spell Dm, or `Bm7` whose notes carry a major 3rd =
+         * B7). The notes are the ground truth.
+         *
+         * **Auto-accept rule**: when the slot's notes identify with `exact`
+         * confidence (every chord tone present — no inference) and share the
+         * written symbol's root, the identified name replaces the written
+         * one. An exact identification of every sounding tone overrides the
+         * lead-sheet shorthand even on a 3rd conflict (Bm7→B7). A non-exact
+         * (partial) identification is left as a flag only — it's a guess,
+         * not ground truth.
+         */
+        async detectHarmonyMismatches() {
+            if (!this.parsed || !this.parsed.sections) return;
+
+            // Gather every harmony slot that carries a notated voicing.
+            const slots = [];          // { chord, frets, measureNumber }
+            this.parsed.sections.forEach(s => (s.measures || []).forEach(m => {
+                (m.chords || []).forEach(c => {
+                    delete c._harmonyMismatch;
+                    if (c._slotVoicing && /^[x0-9a-f]{6}$/i.test(c._slotVoicing)) {
+                        slots.push({ chord: c, frets: c._slotVoicing, measureNumber: m.measureNumber });
+                    }
+                });
+            }));
+            if (!slots.length) {
+                // Diagnostic: harmony-vs-notes check found no usable slots.
+                // (Tab-path bars are skipped by design; a piece with no
+                // <harmony> elements legitimately yields zero.)
+                this._importLog('Harmony/notes check: no harmony bars with notation to verify', 'info');
+                return;
+            }
+
+            // Batch-identify the slot voicings.
+            const voicings = {};
+            slots.forEach((s, i) => { voicings['HSlot' + i] = { frets: s.frets, position: 1 }; });
+            let results;
+            try {
+                const resp = await fetch('/api/admin/leadsheets/identify-voicings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+                    body: JSON.stringify({ voicings, songKey: this.parsed.key || null })
+                });
+                const data = await resp.json();
+                results = (data.success && data.results) ? data.results : null;
+            } catch (e) { console.warn('[SBN Editor] Harmony-mismatch identify failed:', e); return; }
+            if (!results) return;
+
+            const corrected = [];   // { from, to, measure }
+            const flagged = [];     // { written, suggested, measure }
+
+            slots.forEach((s, i) => {
+                const r = results['HSlot' + i];
+                if (!r || !r.name || r.confidence === 'none') return;
+                const written = this._chordSig(s.chord.name);
+                const found   = this._chordSig(r.name);
+                if (!written || !found) return;
+                // Same root required — a different root is a parsing artifact,
+                // not an under-specified symbol; leave those alone.
+                if (written.root !== found.root) return;
+                // Same quality already — nothing to do.
+                if (written.rest === found.rest) return;
+
+                if (r.confidence === 'exact') {
+                    // Notes are ground truth — adopt the identified name. Update
+                    // both the slot's chord name and any voicing keyed to it so
+                    // the corrected chord carries its real voicing.
+                    const oldName = s.chord.name;
+                    const v = this.parsed.chordVoicings[oldName];
+                    s.chord.name = r.name;
+                    if (v && !this.parsed.chordVoicings[r.name]) {
+                        this.parsed.chordVoicings[r.name] = { frets: s.frets, position: v.position || 1, fingers: '000000' };
+                    } else if (!this.parsed.chordVoicings[r.name]) {
+                        this.parsed.chordVoicings[r.name] = { frets: s.frets, position: 1, fingers: '000000' };
+                    }
+                    corrected.push({ from: oldName, to: r.name, measure: s.measureNumber });
+                } else {
+                    // Partial identification — a guess, not ground truth.
+                    // Flag only; surfaced for the user to review.
+                    s.chord._harmonyMismatch = { written: s.chord.name, suggested: r.name };
+                    flagged.push({ written: s.chord.name, suggested: r.name, measure: s.measureNumber });
+                }
+            });
+
+            if (!corrected.length && !flagged.length) {
+                this._importLog('Harmony/notes check: ' + slots.length
+                    + ' bar(s) verified — all written symbols match the notation', 'info');
+            }
+            corrected.forEach(c => {
+                this._importLog('Bar ' + (c.measure ?? '?') + ': corrected ' + c.from
+                    + ' → ' + c.to + ' (notes identified exactly)', 'change');
+            });
+            flagged.forEach(f => {
+                this._importLog('Bar ' + (f.measure ?? '?') + ': written ' + f.written
+                    + ' — notes suggest ' + f.suggested + ' (unverified, left as-is)', 'warn');
+            });
+            if (corrected.length || flagged.length) this.markDirty();
         },
 
         // ── Grid helpers ──────────────────────────────────────

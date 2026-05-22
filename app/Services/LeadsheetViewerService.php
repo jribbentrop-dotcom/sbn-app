@@ -41,9 +41,16 @@ class LeadsheetViewerService
     // Private — progression list
     // =========================================================================
 
+    /**
+     * One row per progression occurrence (NOT distinct) so each carries its
+     * measure range — start_measure is section-relative; section_id keys the
+     * section it lives in. The frontend resolves these to grid global indices.
+     * Rows are grouped by progression so the EduPanel still shows one entry
+     * per progression, with a `ranges` array spanning every occurrence.
+     */
     private function fetchProgressions(Leadsheet $leadsheet): array
     {
-        return ChordProgression::query()
+        $rows = ChordProgression::query()
             ->join('sbn_progression_occurrences as o', 'sbn_chord_progressions.id', '=', 'o.progression_id')
             ->where('o.leadsheet_id', $leadsheet->id)
             ->select(
@@ -52,19 +59,34 @@ class LeadsheetViewerService
                 'sbn_chord_progressions.name',
                 'sbn_chord_progressions.category',
                 'sbn_chord_progressions.numerals',
+                'o.section_id as occ_section_id',
+                'o.start_measure as occ_start_measure',
+                'o.length_measures as occ_length_measures',
             )
-            ->distinct()
             ->orderBy('sbn_chord_progressions.name')
-            ->get()
-            ->map(fn ($p) => [
-                'id'              => $p->id,
-                'slug'            => $p->slug,
-                'name'            => $p->name,
-                'category'        => $p->category,
-                'numeralsDisplay' => $p->numerals_display,
-                'sectionId'       => null,
-            ])
-            ->all();
+            ->get();
+
+        $grouped = [];
+        foreach ($rows as $p) {
+            if (!isset($grouped[$p->id])) {
+                $grouped[$p->id] = [
+                    'id'              => $p->id,
+                    'slug'            => $p->slug,
+                    'name'            => $p->name,
+                    'category'        => $p->category,
+                    'numeralsDisplay' => $p->numerals_display,
+                    'sectionId'       => null,
+                    'ranges'          => [],
+                ];
+            }
+            $grouped[$p->id]['ranges'][] = [
+                'sectionId'    => $p->occ_section_id,
+                'startMeasure' => (int) $p->occ_start_measure,
+                'length'       => max(1, (int) $p->occ_length_measures),
+            ];
+        }
+
+        return array_values($grouped);
     }
 
     // =========================================================================

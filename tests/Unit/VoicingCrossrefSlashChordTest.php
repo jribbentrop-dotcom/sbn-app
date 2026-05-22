@@ -100,6 +100,48 @@ class VoicingCrossrefSlashChordTest extends TestCase
     }
 
     /**
+     * Unsupported-alteration penalty: an incomplete voicing with only root +
+     * major 3rd ({R, M3}) must read as a plain major triad, never `aug`.
+     * `aug` asserts a #5 that is not sounding — a Bucket 1 artifact.
+     * (Maria Luisa import: x0x225 / xxx225 = {A, C#} was mis-named `Aaug`.)
+     */
+    public function test_root_plus_major_third_prefers_maj_over_aug()
+    {
+        foreach (['x0x225', 'xxx225'] as $frets) {
+            $result = $this->crossref->identifyFromFrets($frets);
+            $this->assertEquals('A', $result['name'],
+                "{$frets} = {A,C#} (root+M3, no #5) should be A, got {$result['name']}");
+            $this->assertStringNotContainsString('aug', strtolower($result['name']));
+        }
+    }
+
+    /**
+     * The mirror case: root + minor 3rd ({R, m3}) must read as a plain minor
+     * triad, never `dim` (`dim` asserts a b5 that is not sounding).
+     * x31xxx = {C, Eb}.
+     */
+    public function test_root_plus_minor_third_prefers_min_over_dim()
+    {
+        $result = $this->crossref->identifyFromFrets('x31xxx');
+        $this->assertEquals('Cm', $result['name'],
+            "x31xxx = {C,Eb} (root+m3, no b5) should be Cm, got {$result['name']}");
+        $this->assertStringNotContainsString('dim', strtolower($result['name']));
+    }
+
+    /**
+     * Regression guard: a voicing whose #5 IS sounding must still resolve to
+     * `aug`. The penalty only fires when the altered 5th is absent, so genuine
+     * augmented readings are untouched. 0xx558 = {E, C} — C is the #5 of E.
+     * (Maria Luisa "Eaug" slot; stays Eaug after the fix.)
+     */
+    public function test_augmented_with_sharp_five_present_stays_aug()
+    {
+        $result = $this->crossref->identifyFromFrets('0xx558');
+        $this->assertEquals('Eaug', $result['name'],
+            "0xx558 = {E,C} (#5 present) should stay Eaug, got {$result['name']}");
+    }
+
+    /**
      * Test quality normalization for slash chords
      */
     public function test_quality_normalization_for_slash_chords()

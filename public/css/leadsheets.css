@@ -971,6 +971,11 @@
     border-color: var(--clr-accent);
     box-shadow: 0 0 0 2px var(--clr-accent-bg);
 }
+.sbn-vp-meta-hint {
+    font-size: 9px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--clr-accent); cursor: help;
+}
 .sbn-vp-meta-select {
     padding: 5px 6px; font-size: 12px;
     background: var(--clr-surface-2); color: var(--clr-text-dim);
@@ -978,6 +983,42 @@
     outline: none; font-family: var(--font-body); width: 100%;
 }
 .sbn-vp-meta-select:focus { border-color: var(--clr-accent); }
+
+/* ── Import summary panel — persistent post-import report ───────────── */
+.sbn-import-summary {
+    margin: 10px 0; padding: 10px 12px;
+    background: var(--clr-surface-2);
+    border: 1px solid var(--clr-border);
+    border-left: 3px solid var(--clr-accent);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+}
+.sbn-import-summary-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 6px;
+}
+.sbn-import-summary-head strong {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--clr-text-dim);
+}
+.sbn-import-summary-close {
+    background: none; border: none; cursor: pointer;
+    font-size: 18px; line-height: 1; color: var(--clr-text-muted);
+    padding: 0 4px;
+}
+.sbn-import-summary-close:hover { color: var(--clr-text); }
+.sbn-import-summary-list {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-direction: column; gap: 3px;
+}
+.sbn-import-summary-list li {
+    padding: 3px 6px; border-radius: 3px;
+    font-family: var(--font-mono); font-size: 11.5px;
+    color: var(--clr-text);
+}
+.sbn-import-summary-info   { background: transparent; color: var(--clr-text-dim); }
+.sbn-import-summary-change { background: var(--clr-accent-bg); color: var(--clr-text); }
+.sbn-import-summary-warn   { background: rgba(220, 160, 40, 0.14); color: var(--clr-text); }
 .sbn-vp-meta-rhythm { grid-column: 1 / -1; }
 
 /* ── Right panel: toolbar ────────────────────────────────── */

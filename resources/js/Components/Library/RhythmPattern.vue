@@ -39,6 +39,10 @@ export interface VideoSnippet {
   endSec?: number;
   /** Snippet tempo (bpm), used to convert recording-seconds to component beats. */
   tempoBpm: number;
+  /** Key the musician plays in (e.g. "Bb") — progression snippets only. */
+  key?: string;
+  /** Pinned chord slugs, one per numeral slot — bypasses the builder. */
+  chords?: string[];
 }
 
 /**

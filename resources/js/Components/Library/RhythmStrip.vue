@@ -27,6 +27,8 @@ interface Props {
   videoStartSec?: number;
   /** Recording tempo (bpm) used to convert recording-seconds to pattern beats. */
   videoBpm?: number;
+  /** In video-driven mode, the embed's play state — drives the play-button icon. */
+  videoPlaying?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -39,7 +41,12 @@ const props = withDefaults(defineProps<Props>(), {
   videoPlayhead: null,
   videoStartSec: 0,
   videoBpm: undefined,
+  videoPlaying: false,
 });
+
+// Emitted (video-driven mode only) when the play button is pressed, so the
+// parent can toggle the shared video transport. See PracticePanel.
+const emit = defineEmits<{ playRequest: [] }>();
 
 const isPlaying = ref(false);
 const currentStep = ref(0);
@@ -83,6 +90,11 @@ watch(
 
 /** True when a cell should show the running highlight (either clock source). */
 const stepActive = computed(() => isVideoDriven.value || isPlaying.value);
+
+/** Play-button icon state: video state in video mode, engine state otherwise. */
+const showPlayingIcon = computed(() =>
+  isVideoDriven.value ? props.videoPlaying : isPlaying.value,
+);
 
 const fingersArray = computed(() =>
   (props.pattern.fingers || '').padEnd(props.pattern.beats, '.').split('')
@@ -168,6 +180,13 @@ function stop(): void {
 }
 
 function toggle(): void {
+  // Video-driven: the strip is not the clock — the embedded video is. The
+  // play button just asks the parent to toggle the shared video transport;
+  // the audio engine stays untouched so the two clocks never compete.
+  if (isVideoDriven.value) {
+    emit('playRequest');
+    return;
+  }
   if (isPlaying.value) stop();
   else play();
 }
@@ -206,11 +225,11 @@ defineExpose({ play, stop, toggle });
         v-if="playable"
         type="button"
         class="sbn-rhythm-strip-play"
-        :class="{ 'is-playing': isPlaying }"
+        :class="{ 'is-playing': showPlayingIcon }"
         @click.stop="toggle"
-        :aria-label="isPlaying ? 'Stop' : 'Play'"
+        :aria-label="showPlayingIcon ? 'Stop' : 'Play'"
       >
-        <svg v-if="isPlaying" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+        <svg v-if="showPlayingIcon" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
           <rect x="3" y="2" width="2" height="8" fill="currentColor" />
           <rect x="7" y="2" width="2" height="8" fill="currentColor" />
         </svg>

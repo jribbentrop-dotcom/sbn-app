@@ -61,15 +61,28 @@
             
             <div class="mr-group">
                 <h3>Global Cost Weights</h3>
-                <template x-for="(weight, key) in settings.cost_weights" :key="key">
+                <template x-for="key in weightKeys()" :key="key">
                     <div class="mr-row">
                         <label x-text="key"></label>
                         <div class="mr-control" style="display: flex; align-items: center; gap: 10px;">
                             <input type="range" min="0" max="1" step="0.05" x-model.number="settings.cost_weights[key]" @change="updateSetting('cost_weights', settings.cost_weights)">
-                            <span style="width: 30px; text-align: right;" x-text="settings.cost_weights[key].toFixed(2)"></span>
+                            <span style="width: 30px; text-align: right;" x-text="(settings.cost_weights[key] ?? 0).toFixed(2)"></span>
                         </div>
                     </div>
                 </template>
+                <div class="mr-row" style="border-top: 1px solid #e2e8f0; padding-top: 8px; margin-top: 4px;">
+                    <label style="font-weight: 600;">Sum</label>
+                    <div class="mr-control" style="text-align: right;">
+                        <span x-text="weightSum().toFixed(2)" :style="Math.abs(weightSum() - 1) > 0.2 ? 'color:#d97706;font-weight:600;' : 'color:#475569;'"></span>
+                        <div x-show="Math.abs(weightSum() - 1) > 0.2" style="font-size: 11px; color: #d97706;">
+                            drifted far from 1.0
+                        </div>
+                    </div>
+                </div>
+                <p style="font-size: 11px; color: #94a3b8; margin: 8px 0 0;">
+                    The <code>register</code> weight is set per-category below
+                    (Register Weight), not here — it overrides any global value.
+                </p>
             </div>
 
             <div class="mr-group">
@@ -236,7 +249,49 @@ document.addEventListener('alpine:init', () => {
         async fetchSettings() {
             const res = await fetch('/api/admin/progressions/builder/settings');
             const data = await res.json();
-            this.settings = data.settings;
+            this.settings = this.normalizeSettings(data.settings);
+        },
+
+        // Per-category maps must be objects. A DB row saved as "[]" decodes to
+        // an array, which silently swallows named-key writes — coerce here.
+        // Also backfill per-category structures so x-model bindings (which
+        // have no template guard) never hit an undefined entry.
+        normalizeSettings(s) {
+            const cats = ['jazz', 'blues', 'pop', 'classical', 'modal', 'latin'];
+
+            ['root_only_default', 'default_voicing_style'].forEach((key) => {
+                if (Array.isArray(s[key]) || s[key] == null) s[key] = {};
+            });
+
+            if (Array.isArray(s.category_pools) || s.category_pools == null) s.category_pools = {};
+            if (Array.isArray(s.register_targets) || s.register_targets == null) s.register_targets = {};
+            if (Array.isArray(s.cost_weights) || s.cost_weights == null) s.cost_weights = {};
+
+            // register_targets is bound directly via x-model (.target / .weight)
+            // — every category needs a complete entry or the panel crashes.
+            cats.forEach((c) => {
+                if (!s.register_targets[c] || typeof s.register_targets[c] !== 'object') {
+                    s.register_targets[c] = { target: 5, weight: 0.05 };
+                }
+                if (s.register_targets[c].target == null) s.register_targets[c].target = 5;
+                if (s.register_targets[c].weight == null) s.register_targets[c].weight = 0.05;
+            });
+
+            return s;
+        },
+
+        // Editable global weights. 'register' is excluded — it is overwritten
+        // per-category by register_targets[cat].weight in ProgressionBuilder,
+        // so a global slider for it would be a dead control.
+        weightKeys() {
+            return Object.keys(this.settings.cost_weights || {})
+                .filter(k => k !== 'register');
+        },
+
+        // Sum of the editable weights (mirrors what the builder actually uses).
+        weightSum() {
+            return this.weightKeys()
+                .reduce((t, k) => t + (Number(this.settings.cost_weights[k]) || 0), 0);
         },
 
         async fetchArchetypes() {
@@ -268,25 +323,37 @@ document.addEventListener('alpine:init', () => {
         },
 
         toggleArrayItem(key, val, add) {
-            let arr = this.settings[key] || [];
-            if (add && !arr.includes(val)) arr.push(val);
-            if (!add && arr.includes(val)) arr = arr.filter(i => i !== val);
+            // Build a fresh array (don't mutate in place): if settings[key] was
+            // undefined the in-place array isn't reactive and :checked desyncs.
+            const current = Array.isArray(this.settings[key]) ? this.settings[key] : [];
+            const arr = add
+                ? [...new Set([...current, val])]
+                : current.filter(i => i !== val);
             this.settings[key] = arr;
             this.updateSetting(key, arr);
         },
 
         toggleCategoryArray(key, cat, val) {
-            if (!this.settings[key]) this.settings[key] = {};
+            // Coerce to an object: a missing value OR an array (e.g. the
+            // fallback default []) cannot hold named per-category keys —
+            // JSON.stringify drops them, silently losing the change.
+            if (!this.settings[key] || Array.isArray(this.settings[key])) {
+                this.settings[key] = {};
+            }
             this.settings[key][cat] = val;
             this.updateSetting(key, this.settings[key]);
         },
 
         toggleCategoryPoolItem(cat, pool, add) {
-            if (!this.settings.category_pools[cat]) this.settings.category_pools[cat] = [];
-            let arr = this.settings.category_pools[cat];
-            if (add && !arr.includes(pool)) arr.push(pool);
-            if (!add && arr.includes(pool)) arr = arr.filter(i => i !== pool);
-            this.settings.category_pools[cat] = arr;
+            // Guard: category_pools (or its per-category entry) may be absent.
+            if (!this.settings.category_pools || Array.isArray(this.settings.category_pools)) {
+                this.settings.category_pools = {};
+            }
+            const current = Array.isArray(this.settings.category_pools[cat])
+                ? this.settings.category_pools[cat] : [];
+            this.settings.category_pools[cat] = add
+                ? [...new Set([...current, pool])]
+                : current.filter(p => p !== pool);
             this.updateSetting('category_pools', this.settings.category_pools);
         },
 
@@ -299,7 +366,7 @@ document.addEventListener('alpine:init', () => {
                 body: JSON.stringify({ slug: this.selectedArchetype })
             });
             const data = await res.json();
-            this.settings = data.settings;
+            this.settings = this.normalizeSettings(data.settings);
             this.saving = false;
             this.fetchPreview();
         },
@@ -327,7 +394,7 @@ document.addEventListener('alpine:init', () => {
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
             });
             const data = await res.json();
-            this.settings = data.settings;
+            this.settings = this.normalizeSettings(data.settings);
             this.selectedArchetype = '';
             this.saving = false;
             this.fetchPreview();

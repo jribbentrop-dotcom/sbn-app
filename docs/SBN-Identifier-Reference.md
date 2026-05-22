@@ -31,7 +31,7 @@ The full identification pipeline, in order:
 |---|---|---|
 | 1 | Score all `(rootPc, quality)` pairs. Bass-boost ×4 when root = bass. Exact-bonus ×3 for 4+ tone exact matches. **Slash-bonus** applies when a non-bass root passes the chord-tone test. **DB evidence** multiplies the winning candidate's score (×1.5 bass+root confirmed, ×1.15 bass only, ×0.85 no-DB penalty). | `VoicingCrossref::identifyFromFrets` + `maybeApplyDbEvidence` |
 | 3a | Rootless rescue: if Pass 1 found nothing, try interval sets *from an absent root*. | `VoicingCrossref::identifyFromFrets` |
-| 3b | Rootless upgrade: if Pass 1 picked a plain triad from only 3 PCs, also check rootless templates and prefer them when they match. | `VoicingCrossref::identifyFromFrets` |
+| 3b | Rootless upgrade: if Pass 1 picked a plain triad from 3 PCs, check rootless templates. An **incomplete** triad (partial match) → return the rootless reading (genuine shell rescue). A **complete exact** triad → keep the triad as winner but add the rootless reading as a *candidate* for the context layer to weigh (e.g. `{D,F,A}` stays `Dm`, with `Bbmaj7` as a candidate). Never discards an exact triad — see §3.3. | `VoicingCrossref::identifyFromFrets` |
 | 3c | Tritone-dominant rescue: if Pass 1 winner is non-dominant but the PC set contains a tritone, re-score dominant interpretations with bonus ×5. | `VoicingCrossref::identifyFromFrets` |
 | 4 | Slash-chord post-detection: if `bestRoot ≠ bassPc`, append `/BassNote` and set `inversion`. | `VoicingCrossref::identifyFromFrets` |
 | Context 2a | Pedal-point detector: N≥3 slots sharing bass note → upper-structure re-identified, labeled `Upper/PedalBass`. | `PedalDetector` |
@@ -41,6 +41,8 @@ The full identification pipeline, in order:
 | Context 2e | Key-aware enharmonic re-rank + **bigram transition prior** (Phase 3.3a): bumps candidates whose preceding winner predicts them via P(name\|prev) lookup. | `ContextualReranker` |
 | Context 2f | **Viterbi sequence rescore** (Phase 3.4a): DP min-cost path over all slots simultaneously using bigram edge weights (`edgeWeight=0.3`, `minScoreRatio=0.85` safety rail). | `ContextualReranker::applyViterbiRescore` |
 | Context key-fit | **Key-fit weighting** (Phase 3.2): soft diatonic preference (×1.0–1.20), never penalises chromatic chords. | `KeyFitWeigher` via `maybeApplyDbEvidence` |
+
+At import time, **key inference** (§5.5) runs *before* the pipeline: a keyless Pass 1 produces local names, `sbnInferKey` derives `song_key` from them, then the pipeline re-runs with the correct key. The MusicXML `<key>` is only a hint.
 
 ### 2.2 Load-bearing constants (Do not change lightly)
 - The `IDENTIFY_QUALITY_INTERVALS` table, sorted longest-first (`maj7` beats `maj`).
@@ -63,6 +65,16 @@ To fix this, a **slash bonus** was introduced. It requires the bass to be a **ge
 To prevent simpler partial triads (like `Csus4(9)/G`) from beating more specific 7th chords (like `Gm7(11)`), the slash bonus has two tiers:
 - **7-chord slash candidate** (`total >= 4` notes) gets `3.5`.
 - **Triad slash candidate** (`total <= 3` notes) gets `2.5`.
+
+### 3.3 Pass 3b — rootless upgrade does not discard exact triads
+
+A 3-PC plain triad is enharmonically ambiguous: `{D,F,A}` is both an exact `Dm` triad **and** the rootless 3-5-7 of `Bbmaj7`. Pass 3b previously always `return`ed the rootless reading, discarding the triad — which (a) violated §7 principle 1 (a Bucket 2 contextual choice made unilaterally in Phase 1) and (b) discarded the candidate list before the ContextualReranker ever saw it.
+
+The fix splits on whether Pass 1's triad winner is **complete**:
+- **Incomplete triad** (partial match — a tone or the root absent): a genuine rootless shell. Return the rootless reading. Established jazz-shell rescue, unchanged.
+- **Complete exact triad** (all 3 tones present): the triad is a legitimate name and stays the local winner. The rootless reading is instead **added as a candidate** (scored `0.95 × winner` — ranks #2, below the exact triad, above Pass-1 partials), so the ContextualReranker can promote it when neighbours/key support it. The triad-vs-rootless call becomes a *contextual* decision, per §7.
+
+**Known limitation**: the rootless candidate can only be injected when its quality exists in `IDENTIFY_QUALITY_INTERVALS` (`m7/7/maj7/m7b5/dim7/m6/mMaj7` — covers the common `Bbmaj7` case). The altered-dominant rootless qualities (`7(#9)`, `7(b9)`, `7(#11)`, `6`) are not representable in the `[rootPc, quality, …]` candidate tuple and are skipped for the complete-triad path. Extending `buildCandidateList` to carry explicit intervals for rootless candidates would lift this — deferred (see Appendix B).
 
 ---
 
@@ -151,6 +163,44 @@ The Ipanema chord 2 case (`6x566x`) demonstrates a hard limit: the PC set `{Bb, 
 
 ---
 
+## 5.5 Key inference at import (shipped 2026-05-21)
+
+Relative keys (C major / A minor) share a key signature, and most MusicXML
+exports omit the `<mode>` element — so the notation alone cannot tell which
+key a piece is in. Before this stage, `fifths=0` always mapped to `C`, and
+every relative-minor import got the wrong `song_key`. Since `KeyFitWeigher`,
+the bigram scorer, and Viterbi all consult `song_key`, a wrong key biased the
+entire context layer toward the wrong tonal centre.
+
+**`sbnInferKey`** (`public/js/sbn-key-inference.js`) recovers the key from
+*functional* evidence and runs on **every import**, treating the MusicXML
+`<key>` as a weak prior, not the source of truth.
+
+**Two-pass import flow** (`identifyTabVoicings` in `admin/leadsheets/edit.blade.php`):
+
+1. **Pass 1 — keyless.** `identify-voicings` is called with `songKey: null`,
+   so the harmonic context cannot bias names toward the wrong centre. Pure
+   local + Phase-1 scoring.
+2. **`inferKeyFromChords()`** scores all 24 keys from the Pass-1 names:
+   - **PC-profile correlation** — duration-weighted pitch-class histogram
+     correlated against Krumhansl–Schmuckler major/minor profiles. Backbone score.
+   - **Leading-tone bonus** — a minor key behaving tonally raises its 7th
+     degree (G♯ in A minor). This is the decisive signal for relative-key
+     disambiguation; profile correlation alone leaves C / Am / Em near-tied.
+   - **Endpoint bonus** — first/last chord matching a candidate tonic.
+   - **XML hint bonus** — a small prior for the `fifths`/`mode` reading, so
+     genuinely ambiguous pieces defer to notation but strong functional
+     evidence still wins.
+3. **Pass 2 — keyed.** `identify-voicings` re-runs with the inferred key.
+
+The inferred key pre-fills the editable Key field with an "inferred ·
+{confidence}" hint (evidence in the tooltip). A human can override before save.
+
+**Window-able by design.** `sbnInferKey(chords, opts)` takes a flat
+`{name, pcs, durationBeats}` list and `useEndpoints`. A future
+modulation-detection pass calls the same scorer over sliding windows and
+segments the resulting key timeline — see Appendix B.2.
+
 ## 6. Audit Infrastructure
 
 Always run audits before and after changing these algorithms to measure behavior change and catalog failure modes.
@@ -190,6 +240,9 @@ The core audit corpus resides in `docs/*.musicxml` and their expectations are en
 - **DB `root_note` is not always the chord root** (§5.1): derive root from `interval_labels` by locating `'R'`; fall back to `root_note` only when `interval_labels` is empty. Several legacy rows have `root_note = 'C'` (a positional tag) while the actual root is in the labels.
 - **DB `inversion` column is not always reliable** (§5.1): always derive slash-bass from the transposed bass PC of the diagram data, not from the stored inversion label.
 - **MusicXML Parsing**: The XML parsing runs in JavaScript (`resources/views/admin/leadsheets/edit.blade.php`), which then batches `Tab` voicings to `POST /api/admin/leadsheets/identify-voicings`.
+- **Intra-bar fragment merge** (tab-path bars): `_mergeFragmentVoicings` runs per bar before identification. Consecutive voicing events whose fret strings overlay *without collision* are fragments of one held grip; such a run collapses to one voicing event. Conservative: within-bar only, adjacent only, gated to runs containing a thin (≤2-note) fragment, fret-span capped. A collision (a voice re-fretting a string) blocks the merge — the melody guard.
+- **Harmony/notes mismatch correction** (`<harmony>`-path bars): a bar with an explicit `<harmony>` symbol takes the harmony path, *not* the tab path — its written chord name is often under-specified or wrong relative to the notated voicing (Maria Luisa bar 8: written `D5`, notes `{D,F,A}` = `Dm`; bar 14: written `Bm7`, notes `{B,D#,F#,A}` = `B7`). `_flagHarmonyNoteMismatches` collects a harmony slot's chord tones — but **not every note under a harmony is a chord tone**: a single-line scale/arpeggio passage is a melody, not a chord. A slot's notes qualify as a chord only via **(a) simultaneity** — a tick carrying ≥2 notes (a MusicXML `<chord/>` stack) — or **(b) arpeggiation** — a run where every adjacent interval is ≥3 semitones (a 3rd+; stepwise ≤2 = melodic line, disqualifies). A slot with neither is skipped. The qualifying notes' PC set + lowest pitch (bass) is rendered to a representative synthetic fret string (`_pcSetToFretString`, built against `VoicingCrossref::TUNING`, bass at index 0 — *not a playable diagram*, just a PC carrier). The async `detectHarmonyMismatches` identifies those and, on a **same-root quality mismatch**, either: (a) **auto-corrects** the name when the notes identify `exact` (ground truth, overrides the shorthand even on a 3rd conflict `Bm7`→`B7`); or (b) **flags** `chord._harmonyMismatch` when only `partial`. Reported in the persistent import-summary panel.
+  - **String-numbering** (the documented footgun): reading MusicXML `<string>` uses 1 = high E … 6 = low E (`_OPEN_PC`). The synthetic fret string uses `TUNING = [4,9,2,7,11,4]`, index 0 = low E. These are *reverse* — keep them distinct.
 - **Legacy Leadsheets**: Existing leadsheets identified before May 2026 are not automatically re-identified. You must use the editor's "identify voicings" button.
 
 ---
@@ -214,5 +267,7 @@ The core audit corpus resides in `docs/*.musicxml` and their expectations are en
 - **Functional bigram (Phase 3.3b)**: Extend `sbn:reseed-transitions` to also emit numeral-keyed bigrams. `TransitionScorer` consults functional bigram first (stronger generalization across keys), falls back to surface bigram. Requires reliable `song_key` per standard.
 - **HMM with latent key state (Phase 3.4b)**: Viterbi over `(chord_label × hidden_key)` states to handle modulations and tonicizations natively. Structurally identical to `ProgressionBuilder::viterbiSelect` (Phase D builder) — see `SBN-Builder-Reference.md` §10 for the proven inference pattern. A shared `App\Services\Inference\ViterbiSearch<TState, TObservation>` is the right abstraction once both call-sites exist.
 - **Expected-chord priors (B.2 original)**: Feed `expectedChords` from a reference leadsheet into `ContextualReranker` to resolve enharmonically ambiguous PC sets (e.g., Ipanema chord 2: `{Bb, G, Db, F}` is valid as both `Bbm6` and `Eb7(9)/Bb` — only an external expected-chord anchor can break the tie, see §5.4).
+- **Modulation detection**: Extend §5.5 key inference from one whole-piece key to a *key timeline*. `sbnInferKey` is already window-able (`useEndpoints: false` for windows); the pass calls it over sliding windows of the chord list, then segments the timeline (cost-based, à la Viterbi) into key regions. Per-region keys then feed `KeyFitWeigher`/bigram per slot instead of one global key. Structurally this is the import-time precursor to the HMM-with-latent-key idea (Phase 3.4b).
 - **`mappingsByPosition` tests for bigram corpus**: AABA fixture, "more marks than passes", mark for a gi not in the sequence.
 - **Diatonicity check deduplication**: The diatonic-candidate test in `ContextualReranker` and `ProgressionBuilder` share the same logic; extract to a shared utility.
+- **Rootless candidates with explicit intervals**: `buildCandidateList` derives a candidate's `basePcs` from `IDENTIFY_QUALITY_INTERVALS[$quality]`, so it can only represent rootless qualities present in that table (§3.3). To also surface `7(#9)`/`7(b9)`/`7(#11)`/`6` rootless readings as candidates, let a candidate optionally carry an explicit interval set + `rootless` flag, and have `buildCandidateList` use it instead of the table lookup. Touches the candidate-tuple model.

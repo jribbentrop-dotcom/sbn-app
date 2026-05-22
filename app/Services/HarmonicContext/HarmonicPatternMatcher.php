@@ -48,9 +48,13 @@ class HarmonicPatternMatcher
     public function match(array $phase1Results, ?string $songKey = null): array
     {
         if (count($phase1Results) < 2 || empty($this->fragments)) {
+            // Nothing to match — return results untouched. `results` MUST be
+            // present: ContextualReranker::rerank() always reads it (a missing
+            // key throws "Undefined array key 'results'").
             return [
                 'expected_chords' => [],
                 'matches' => [],
+                'results' => $phase1Results,
             ];
         }
 

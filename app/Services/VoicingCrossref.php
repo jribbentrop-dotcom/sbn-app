@@ -1411,6 +1411,8 @@ class VoicingCrossref
         $bestScore    = -1;
         $bestRootPc   = null;
         $bestQuality  = null;
+        $bestMatched  = 0;   // tones of the winner present in the PC set
+        $bestTotal    = 0;   // tones the winner's quality template expects
         $allCandidates = [];
 
         // Sort qualities longest-first (more specific wins ties)
@@ -1452,11 +1454,52 @@ class VoicingCrossref
                     continue;
                 }
 
+                // Suspended chords are defined by the ABSENCE of a 3rd — the
+                // 2nd/4th replaces it. If a 3rd (minor iv 3 or major iv 4) is
+                // actually sounding, a `sus` reading is self-contradictory:
+                // it would surface as nonsense like `Asus2(#9)` (the #9 IS the
+                // minor 3rd). Drop the sus candidate so the genuine 3rd-bearing
+                // reading (e.g. `Am(9)`) stands unopposed.
+                if (($quality === 'sus2' || $quality === 'sus4' || $quality === 'sus')
+                    && (in_array(($rootPc + 3) % 12, $pcSet, true)
+                        || in_array(($rootPc + 4) % 12, $pcSet, true))) {
+                    continue;
+                }
+
                 // Slash-chord candidate check: bass is chord tone (3rd, 5th, 7th, maj7th)
                 $bassIv = ($bassPc - $rootPc + 12) % 12;
                 $isSlashCandidate = !$isBass
                     && in_array($bassIv, [3, 4, 7, 10, 11], true)
                     && ($matched === $total || $unexplained === 0);
+
+                // Unsupported-alteration penalty: aug/dim assert an *altered*
+                // 5th (aug = #5 at iv 8, dim = b5 at iv 6). On an incomplete
+                // voicing the alteration can be pure speculation — a plain
+                // maj/min reading (perfect 5th, the default) is then the
+                // correct minimal name. Halving the score keeps aug/dim well
+                // below the tied maj/min even after the bass/slash multipliers,
+                // so the preference is strong, not a fragile exact-tie break.
+                //
+                // The alteration is speculative in either of two cases:
+                //   (a) the altered 5th itself (#5/b5) is NOT sounding; or
+                //   (b) the 3rd is NOT sounding — without a 3rd there is no
+                //       triad to alter, so "augmented/diminished" is undefined
+                //       and a thin dyad like {E,C} should not read as Eaug
+                //       (the C is equally the 5th of Am or the root of C).
+                // When the voicing genuinely spells the altered triad (3rd
+                // AND #5/b5 both present) neither case fires, so real aug/dim
+                // chords are untouched.
+                if (($quality === 'aug' || $quality === '+' || $quality === 'dim')
+                    && $matched < $total) {
+                    $alteredIv = ($quality === 'dim') ? 6 : 8;
+                    $alteredPc = ($rootPc + $alteredIv) % 12;
+                    $thirdIv   = ($quality === 'dim') ? 3 : 4;
+                    $thirdPc   = ($rootPc + $thirdIv) % 12;
+                    if (!in_array($alteredPc, $pcSet, true)
+                        || !in_array($thirdPc, $pcSet, true)) {
+                        $raw *= 0.5;
+                    }
+                }
 
                 $score = $raw;
                 if ($isBass) {
@@ -1475,6 +1518,8 @@ class VoicingCrossref
                     $bestScore   = $score;
                     $bestRootPc  = $rootPc;
                     $bestQuality = $quality;
+                    $bestMatched = $matched;
+                    $bestTotal   = $total;
                 }
             }
         }
@@ -1490,11 +1535,51 @@ class VoicingCrossref
 
         // ── Pass 3b: Rootless upgrade — plain triad from 3 PCs ──
         // $noteCount replaces frettedCount so this pass works for both fret and MIDI paths.
+        //
+        // A 3-PC plain triad can also be read as a rootless 7th chord (e.g.
+        // {D,F,A} is both an exact Dm triad and the rootless 3-5-7 of Bbmaj7).
+        // The handling depends on whether Pass 1's triad winner was COMPLETE:
+        //
+        //   - INCOMPLETE triad (partial match, root or a tone absent): the
+        //     voicing is a genuine rootless shell — return the rootless
+        //     reading. This is the established jazz-shell rescue.
+        //   - COMPLETE triad (all 3 tones present, exact): the triad is a
+        //     legitimate name. Do NOT discard it. Instead add the rootless
+        //     reading as a *candidate* so the ContextualReranker can promote
+        //     it when neighbours/key support it — but the exact triad stays
+        //     the local Phase 1 winner. Per docs §7: an enharmonically
+        //     ambiguous reading is a Bucket 2 (contextual) decision, never a
+        //     Phase 1 override.
         $isPlainTriad = in_array($bestQuality, ['maj','min','m','aug'], true);
         if ($isPlainTriad && count($pcSet) <= 3 && $noteCount <= 3) {
             $rootless = $this->identifyRootless($pcSet, $bassPc);
             if ($rootless) {
-                return $this->buildRootlessResult($rootless, $frets ?? '', $position, $bassPc);
+                $triadIsComplete = ($bestMatched === $bestTotal && $bestTotal === 3);
+                if (!$triadIsComplete) {
+                    // Genuine rootless shell — rescue it.
+                    return $this->buildRootlessResult($rootless, $frets ?? '', $position, $bassPc);
+                }
+                // Complete triad: keep it as the winner, but offer the
+                // rootless reading to the context layer as a candidate.
+                // Only representable when its quality exists in
+                // IDENTIFY_QUALITY_INTERVALS (covers m7/7/maj7/m7b5/dim7/
+                // m6/mMaj7 — the {D,F,A}=Bbmaj7 case). Altered-dominant
+                // rootless qualities (7(#9) etc.) are not representable in
+                // the candidate-tuple model and are skipped — see
+                // SBN-Identifier-Reference.md Appendix B.
+                $rlQuality = $rootless['quality'];
+                if (isset(self::IDENTIFY_QUALITY_INTERVALS[$rlQuality])
+                    && isset($rootless['root_pc'])) {
+                    // Score it just below the exact triad — a rootless exact
+                    // 3-5-7 is a strong, legitimate alternative reading, so it
+                    // should rank #2 in the top-K (above Pass-1 *partial*
+                    // readings). It stays below the complete triad, leaving
+                    // the triad-vs-rootless call to the context layer (whose
+                    // minScoreRatio/bigram guards decide whether to promote).
+                    $rlTotal = count(self::IDENTIFY_QUALITY_INTERVALS[$rlQuality]);
+                    $rlScore = $bestScore * 0.95;
+                    $allCandidates[] = [$rootless['root_pc'], $rlQuality, $rlScore, 3, $rlTotal];
+                }
             }
         }
 
@@ -1575,7 +1660,22 @@ class VoicingCrossref
                                 $allCandidates[] = [$rootPc, $quality, $score, $matched, $total];
                             }
 
-                            if ($score > $bestScore) {
+                            // Don't let a rootless tritone-dominant override a
+                            // non-dominant winner whose ROOT is actually present
+                            // in the voicing. A tritone {3rd, b7} is ambiguous —
+                            // it is equally the b3+6 of a m6 chord — and when the
+                            // current best is a real root-present chord (e.g.
+                            // D-F-B = Dm6, root D sounding), the dominant reading
+                            // is pure speculation. It stays in $allCandidates as
+                            // a candidate for the context layer, but must not
+                            // become the Pass 1 winner. The override still fires
+                            // when the current best is itself rootless/partial
+                            // (a genuine rootless-dominant voicing).
+                            $bestRootPresent = $bestRootPc !== null
+                                && in_array($bestRootPc, $pcSet, true)
+                                && !in_array($bestQuality, $dominantQualities, true);
+
+                            if ($score > $bestScore && !$bestRootPresent) {
                                 $bestScore   = $score;
                                 $bestRootPc  = $rootPc;
                                 $bestQuality = $quality;
@@ -2077,6 +2177,18 @@ class VoicingCrossref
                     $raw = $matched * 100 - 50 - $unexplained * 50;
                 } else {
                     continue;
+                }
+
+                // Unsupported-alteration penalty (mirrors identifyFromFrets):
+                // aug/dim assert an altered 5th. On a partial match where that
+                // altered 5th is absent, halve the score so a tied maj/min
+                // (perfect-5th, default) reading is strongly preferred.
+                if (($quality === 'aug' || $quality === '+' || $quality === 'dim')
+                    && $matched < $total) {
+                    $alteredIv = ($quality === 'dim') ? 6 : 8;
+                    if (!in_array(($rootPc + $alteredIv) % 12, $pcSet, true)) {
+                        $raw *= 0.5;
+                    }
                 }
 
                 $score = $isBass ? $raw * $bassBoost : $raw;

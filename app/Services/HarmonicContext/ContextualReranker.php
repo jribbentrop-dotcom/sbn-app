@@ -392,6 +392,24 @@ class ContextualReranker implements IContextualReranker
                 $pools[$i] = [['name' => $results[$i]['name'] ?? '', '_score' => 1.0, '_fallback' => true]];
                 continue;
             }
+            // A slot already reinterpreted by an upstream sub-pass (2a/2c/2d/2e)
+            // is a COMMITTED decision. Its pool must collapse to that single
+            // winner — otherwise Viterbi can route a neighbour's transition
+            // through a candidate name this slot already rejected, producing a
+            // path inconsistent with the slot's own displayed chord (e.g. slot
+            // shows Dm6 but the path into the next slot goes via its discarded
+            // G7/D candidate, pulling the next slot to the wrong reading).
+            if ($results[$i]['reinterpreted'] ?? false) {
+                $winnerName = $results[$i]['name'] ?? '';
+                $winnerCand = null;
+                foreach ($cands as $c) {
+                    if (($c['name'] ?? '') === $winnerName) { $winnerCand = $c; break; }
+                }
+                $winnerCand ??= ['name' => $winnerName, 'score' => 1.0];
+                $s = max(0.001, (float)($winnerCand['score'] ?? 1.0));
+                $pools[$i] = [$winnerCand + ['_score' => $s]];
+                continue;
+            }
             $pools[$i] = array_map(function ($c) {
                 $s = max(0.001, (float)($c['score'] ?? 1.0));
                 return $c + ['_score' => $s];

@@ -146,6 +146,11 @@ const tapCursor           = inject('tapCursor', null);
 const videoSyncMap        = inject('videoSyncMap', null);
 const chordGridOps        = inject('chordGridOps', null);
 
+// Detected-progression highlight (leadsheet viewer only — null in the editor).
+// progressionHighlights: Map<gi, progressionId[]>; hoveredProgressionId: Ref.
+const progressionHighlights = inject('progressionHighlights', null);
+const hoveredProgressionId  = inject('hoveredProgressionId', null);
+
 // videoSyncMap.value is Map<gi, Array<{ videoTime, pass, pos, mappingIdx }>>.
 // The badge takes the FIRST mark (pass 1) as its representative and an array
 // of all marks so it can show a "·N" count for repeated bars.
@@ -223,6 +228,22 @@ const hasVoltaEnd   = computed(() => props.measure.voltaEnd);
 const hasRepStart   = computed(() => props.measure.repeatStart);
 const hasRepEnd     = computed(() => props.measure.repeatEnd);
 
+// ── Detected-progression highlight ────────────────────────────────────────────
+// Progression ids whose detected range covers this bar (empty in the editor).
+const progressionIds = computed(() =>
+  progressionHighlights?.value?.get(globalIdx.value) ?? []
+);
+
+// Persistent subtle band when this bar belongs to any detected progression.
+const inProgression = computed(() => progressionIds.value.length > 0);
+
+// Intensified highlight: this bar is covered by the progression the user is
+// hovering in the EduPanel list. One progression at a time.
+const inHoveredProgression = computed(() => {
+  const hid = hoveredProgressionId?.value;
+  return hid != null && progressionIds.value.includes(hid);
+});
+
 const measureClasses = computed(() => ({
   'has-volta':      !!volta.value,
   'rep-start-bar':  hasRepStart.value,
@@ -231,6 +252,8 @@ const measureClasses = computed(() => ({
   'is-tap-target':  tapCursor?.value === globalIdx.value,  // D2: pulse when this measure is tap cursor
   'is-compact':     props.density === 'compact',
   'is-full':        props.density === 'full',
+  'in-progression':         inProgression.value,
+  'in-progression--active': inHoveredProgression.value,
 }));
 
 // ── Ghost overlay computeds ───────────────────────────────────────────────────

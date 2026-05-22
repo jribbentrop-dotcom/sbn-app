@@ -18,7 +18,11 @@
       "PowerShell(php check_filter.php)",
       "Bash(npm i *)",
       "Bash(awk 'NR==1509,/^### Phase 12/' docs/Frontend-Migration-Plan.md)",
-      "Bash(python -)"
+      "Bash(python -)",
+      "PowerShell(php artisan edu:probe 2>&1)",
+      "PowerShell(php artisan test --filter 'EduHarnessRoute' 2>&1)",
+      "PowerShell($php = \\(Get-Command php -ErrorAction SilentlyContinue\\); if \\($php\\) { Write-Output \"php: $\\($php.Source\\)\" } else { Write-Output \"no php on PATH\" })",
+      "PowerShell(php -r '$db=new PDO\\(\"sqlite:database/sbn.db\"\\); $cols=$db->query\\(\"PRAGMA table_info\\(leadsheets\\)\"\\)->fetchAll\\(PDO::FETCH_COLUMN,1\\); echo implode\\(\", \",$cols\\).\"\\\\n---\\\\n\"; $rows=$db->query\\(\"SELECT id,title,slug,status FROM leadsheets WHERE title LIKE \\\\\"%maria%\\\\\" OR title LIKE \\\\\"%luisa%\\\\\" OR slug LIKE \\\\\"%maria%\\\\\"\"\\)->fetchAll\\(PDO::FETCH_ASSOC\\); print_r\\($rows\\);')"
     ]
   }
 }

@@ -56,6 +56,13 @@ export interface LeadsheetJson {
   videoSync?: VideoSync | null;
 }
 
+/** One detected occurrence of a progression — measure range within a section. */
+export interface ProgressionOccurrenceRange {
+  sectionId: string;       // matches LeadsheetSection.id ('A', 'B', ...)
+  startMeasure: number;    // section-relative measure index
+  length: number;          // span in measures (>= 1)
+}
+
 export interface ProgressionRef {
   id: number;
   slug: string;
@@ -63,4 +70,6 @@ export interface ProgressionRef {
   category: string;
   numeralsDisplay: string;
   sectionId?: string | null;   // null/undefined when occurrence section attribution unavailable (R3)
+  /** Every occurrence of this progression in the leadsheet, for in-grid highlight. */
+  ranges?: ProgressionOccurrenceRange[];
 }

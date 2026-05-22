@@ -68,12 +68,15 @@
         {{ progressionsScopeLabel }}
       </h4>
       <div v-if="filteredProgressions.length > 0" class="sbn-edu-progressions">
-        <div 
-          v-for="progression in filteredProgressions" 
+        <div
+          v-for="progression in filteredProgressions"
           :key="progression.id"
           class="sbn-edu-progression-item"
+          :class="{ 'is-active': progression.id === hoveredProgressionId }"
+          @mouseenter="emit('progression-hover', progression.id)"
+          @mouseleave="emit('progression-hover', null)"
         >
-          <a 
+          <a
             :href="`/library/progressions/${progression.slug}`"
             class="sbn-edu-progression-link"
           >
@@ -142,7 +145,16 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
+  // Id of the progression currently hovered in this list — drives the
+  // 'is-active' marker. Owned by LeadsheetViewer so the grid can react too.
+  hoveredProgressionId: {
+    type: Number,
+    default: null,
+  },
 });
+
+// Emitted when the user hovers/leaves a progression entry (id, or null).
+const emit = defineEmits(['progression-hover']);
 
 // Look up a value by per-slot key, falling back to bare-name (mirrors the
 // grid's lookup pattern: cv[`${name}@${gi}.${ci}`] || cv[name]). Voicings can
@@ -352,9 +364,14 @@ const filteredProgressions = computed(() => {
   transition: all 0.15s;
 }
 
-.sbn-edu-progression-item:hover {
+.sbn-edu-progression-item:hover,
+.sbn-edu-progression-item.is-active {
   border-color: var(--clr-accent);
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.sbn-edu-progression-item.is-active {
+  background: var(--clr-accent-bg, rgba(232, 93, 59, 0.08));
 }
 
 .sbn-edu-progression-link {
