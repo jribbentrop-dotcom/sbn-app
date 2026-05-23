@@ -1750,6 +1750,77 @@
     opacity: 0.4;
 }
 
+/* Fill voicings panel */
+.sbn-fill-panel {
+    background: var(--clr-surface-2, #f8f8f8);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sbn-fill-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sbn-fill-label {
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    white-space: nowrap;
+    min-width: 70px;
+}
+
+.sbn-fill-label-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    min-width: unset;
+}
+
+.sbn-fill-select {
+    flex: 1;
+    font-size: 11px;
+    padding: 3px 6px;
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-xs, 4px);
+    background: var(--clr-white);
+    color: var(--clr-text);
+}
+
+.sbn-fill-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 2px;
+}
+
+.sbn-fill-message {
+    font-size: 11px;
+    padding: 4px 6px;
+    border-radius: var(--radius-xs, 4px);
+    margin-top: 2px;
+}
+
+.sbn-fill-message.ok {
+    background: rgba(34, 197, 94, 0.08);
+    color: var(--clr-success, #16a34a);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.sbn-fill-message.error {
+    background: rgba(239, 68, 68, 0.06);
+    color: var(--clr-error);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+}
+
 
 /* ──────────────────────────────────────────────────────────
    8. CHORD GRID  (.sbn-ve-*)

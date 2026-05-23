@@ -487,6 +487,16 @@ function removeVoicingByName(chordName) {
     return false;
 }
 
+function clearAllVoicings() {
+    if (!_model?.value?.chordVoicings) return;
+    _undo?.wrapCommand?.('Clear all voicings', [], () => {
+        _model.value.chordVoicings = {};
+    });
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sbn-tab-sections-sync'));
+    }
+}
+
 function cleanUnusedVoicings() {
     if (!_model?.value?.chordVoicings) return 0;
 
@@ -672,6 +682,7 @@ Object.assign(store, {
     removeVoicing,
     removeVoicingByName,
     cleanUnusedVoicings,
+    clearAllVoicings,
     togglePickerFilter,
     stepExtension,
     clearExtension,

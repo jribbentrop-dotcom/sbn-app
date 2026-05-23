@@ -1368,6 +1368,18 @@ function leadsheetEditor() {
 
         // ── Init ──────────────────────────────────────────────
         init() {
+            // Expose ID for Vue components that need to call leadsheet-scoped endpoints.
+            window._sbnLeadsheetId = this.itemId;
+
+            // When fill-voicings completes, merge new voicings into parsed so
+            // the Alpine save pipeline serialises them into the shortcode.
+            document.addEventListener('sbn-voicings-filled', (e) => {
+                if (e.detail?.voicings && this.parsed) {
+                    Object.assign(this.parsed.chordVoicings, e.detail.voicings);
+                }
+                this.markDirty();
+            });
+
             if (this.leadsheetId) {
                 this.loadExistingData();
             }
@@ -1895,23 +1907,15 @@ function leadsheetEditor() {
                     if (this.parsed.melody && this.parsed.melody.length) msg += ', ' + this.parsed.melody.length + ' melody notes';
                     this._importLog(msg, 'info');
 
-                    // Two-pass identification with key inference in between.
-                    // Pass 1 is keyless (pure local scoring) so the harmonic
-                    // context can't bias names toward the wrong tonal centre.
-                    // The key is then inferred from those names and Pass 2
-                    // re-identifies with the correct key for context-aware
-                    // results. Relative keys (C / Am) share a key signature,
-                    // so the MusicXML <key> alone is not trustworthy.
-                    await this.identifyTabVoicings(null);
+                    // Infer key from pitch-class content (MusicXML <key> is unreliable
+                    // for relative-key disambiguation), then surface identifier suggestions
+                    // for Tab* placeholders and harmony/notes mismatches.
                     this.inferKeyFromChords();
                     await this.identifyTabVoicings(this.parsed.key || null, true);
-
-                    // Correct/flag bars whose written <harmony> symbol is
-                    // contradicted by the notated voicing (e.g. D5 → Dm).
                     await this.detectHarmonyMismatches();
 
                     // A file import fully replaces the model — reset the init gate so
-                    // Vue receives a fresh sbn-tab-init with the renamed chord data.
+                    // Vue receives a fresh sbn-tab-init with the current chord data.
                     // Without this, _tabInitDone=true from loadExistingData silently
                     // swallows the dispatch and Tab1/Tab2 names persist.
                     this._tabInitDone = false;
@@ -1928,11 +1932,9 @@ function leadsheetEditor() {
         },
 
         /**
-         * Identify Tab* placeholder voicings via the crossref endpoint and
-         * rename them in place. `songKey` is passed through to the harmonic
-         * context — pass null for a keyless Pass 1 (used by the import flow
-         * before the key has been inferred). `logPass` true logs the result
-         * into the import summary (set only for the final keyed pass).
+         * Identify Tab* placeholder voicings via the crossref endpoint.
+         * Suggestions only — no renames are applied. The keyed pass (logPass=true)
+         * flags each chord slot with a _harmonyMismatch suggestion and logs it.
          */
         async identifyTabVoicings(songKey, logPass) {
             if (!this.parsed || !this.parsed.chordVoicings) return;
@@ -1949,29 +1951,24 @@ function leadsheetEditor() {
                     body: JSON.stringify({ voicings: tabVoicings, songKey: key })
                 });
                 const data = await resp.json();
-                if (data.success && data.results) {
-                    const renameMap = {};
+                if (data.success && data.results && logPass) {
                     Object.keys(data.results).forEach(tabName => {
                         const r = data.results[tabName];
-                        if (r.name && r.confidence !== 'none') renameMap[tabName] = r.name;
-                    });
-                    if (Object.keys(renameMap).length) {
-                        // Apply renames
-                        Object.keys(renameMap).forEach(old => {
-                            const newN = renameMap[old];
-                            if (this.parsed.chordVoicings[old]) {
-                                if (!this.parsed.chordVoicings[newN]) this.parsed.chordVoicings[newN] = this.parsed.chordVoicings[old];
-                                delete this.parsed.chordVoicings[old];
-                            }
-                        });
-                        this.parsed.sections.forEach(s => (s.measures||[]).forEach(m => m.chords.forEach(c => { if (renameMap[c.name]) c.name = renameMap[c.name]; })));
-                        // Log only the keyed pass — the keyless Pass 1 (songKey
-                        // === null sentinel) is internal plumbing.
-                        if (logPass) {
-                            this._importLog('Identified ' + Object.keys(renameMap).length
-                                + ' chord(s) from the tab notation', 'info');
+                        if (!r.name || r.confidence === 'none') return;
+                        // Tab* slots have no written harmony — auto-apply the identifier result.
+                        const voicing = this.parsed.chordVoicings[tabName];
+                        if (voicing) {
+                            this.parsed.chordVoicings[r.name] = voicing;
+                            delete this.parsed.chordVoicings[tabName];
                         }
-                    }
+                        this.parsed.sections.forEach(s => (s.measures||[]).forEach(m => m.chords.forEach(c => {
+                            if (c.name === tabName) c.name = r.name;
+                        })));
+                        this._importLog(
+                            tabName + ' → ' + r.name + ' (' + (r.confidence || '?') + ')',
+                            r.confidence === 'exact' ? 'info' : 'warn'
+                        );
+                    });
                 }
             } catch(e) { console.warn('[SBN Editor] Identify failed:', e); }
         },
@@ -2040,13 +2037,9 @@ function leadsheetEditor() {
          * whose notes spell Dm, or `Bm7` whose notes carry a major 3rd =
          * B7). The notes are the ground truth.
          *
-         * **Auto-accept rule**: when the slot's notes identify with `exact`
-         * confidence (every chord tone present — no inference) and share the
-         * written symbol's root, the identified name replaces the written
-         * one. An exact identification of every sounding tone overrides the
-         * lead-sheet shorthand even on a 3rd conflict (Bm7→B7). A non-exact
-         * (partial) identification is left as a flag only — it's a guess,
-         * not ground truth.
+         * All mismatches are flagged as suggestions only — no chord names are
+         * renamed automatically. The import log and _harmonyMismatch badge let
+         * the user review and decide.
          */
         async detectHarmonyMismatches() {
             if (!this.parsed || !this.parsed.sections) return;
@@ -2084,8 +2077,7 @@ function leadsheetEditor() {
             } catch (e) { console.warn('[SBN Editor] Harmony-mismatch identify failed:', e); return; }
             if (!results) return;
 
-            const corrected = [];   // { from, to, measure }
-            const flagged = [];     // { written, suggested, measure }
+            const flagged = [];     // { written, suggested, measure, confidence }
 
             slots.forEach((s, i) => {
                 const r = results['HSlot' + i];
@@ -2099,40 +2091,24 @@ function leadsheetEditor() {
                 // Same quality already — nothing to do.
                 if (written.rest === found.rest) return;
 
-                if (r.confidence === 'exact') {
-                    // Notes are ground truth — adopt the identified name. Update
-                    // both the slot's chord name and any voicing keyed to it so
-                    // the corrected chord carries its real voicing.
-                    const oldName = s.chord.name;
-                    const v = this.parsed.chordVoicings[oldName];
-                    s.chord.name = r.name;
-                    if (v && !this.parsed.chordVoicings[r.name]) {
-                        this.parsed.chordVoicings[r.name] = { frets: s.frets, position: v.position || 1, fingers: '000000' };
-                    } else if (!this.parsed.chordVoicings[r.name]) {
-                        this.parsed.chordVoicings[r.name] = { frets: s.frets, position: 1, fingers: '000000' };
-                    }
-                    corrected.push({ from: oldName, to: r.name, measure: s.measureNumber });
-                } else {
-                    // Partial identification — a guess, not ground truth.
-                    // Flag only; surfaced for the user to review.
-                    s.chord._harmonyMismatch = { written: s.chord.name, suggested: r.name };
-                    flagged.push({ written: s.chord.name, suggested: r.name, measure: s.measureNumber });
-                }
+                // Flag for user review; never auto-rename.
+                s.chord._harmonyMismatch = { written: s.chord.name, suggested: r.name };
+                flagged.push({ written: s.chord.name, suggested: r.name, measure: s.measureNumber, confidence: r.confidence });
             });
 
-            if (!corrected.length && !flagged.length) {
+            if (!flagged.length) {
                 this._importLog('Harmony/notes check: ' + slots.length
                     + ' bar(s) verified — all written symbols match the notation', 'info');
             }
-            corrected.forEach(c => {
-                this._importLog('Bar ' + (c.measure ?? '?') + ': corrected ' + c.from
-                    + ' → ' + c.to + ' (notes identified exactly)', 'change');
-            });
             flagged.forEach(f => {
-                this._importLog('Bar ' + (f.measure ?? '?') + ': written ' + f.written
-                    + ' — notes suggest ' + f.suggested + ' (unverified, left as-is)', 'warn');
+                this._importLog(
+                    'Bar ' + (f.measure ?? '?') + ': written ' + f.written
+                    + ' — notes suggest ' + f.suggested
+                    + (f.confidence === 'exact' ? ' (exact match)' : ' (unverified)'),
+                    'warn'
+                );
             });
-            if (corrected.length || flagged.length) this.markDirty();
+            if (flagged.length) this.markDirty();
         },
 
         // ── Grid helpers ──────────────────────────────────────

@@ -124,6 +124,12 @@ export function useAlpineBridge() {
         }
     }
 
+    function handleChordVoicingsPatch(e) {
+        const incoming = e.detail?.voicings;
+        if (!incoming) return;
+        chordVoicings.value = { ...chordVoicings.value, ...incoming };
+    }
+
     // ── Lifecycle ──────────────────────────────────────────
 
     onMounted(() => {
@@ -139,6 +145,7 @@ export function useAlpineBridge() {
         document.addEventListener('sbn-tab-init', handleTabInit);
         document.addEventListener('sbn-tab-save-request', handleSaveRequest);
         document.addEventListener('sbn-tab-structure-request', handleStructureRequest);
+        document.addEventListener('sbn-chord-voicings-patch', handleChordVoicingsPatch);
 
         // Request initial data from Alpine.
         // Alpine may not have finished loadExistingData() yet, so retry every 200ms
@@ -174,6 +181,7 @@ export function useAlpineBridge() {
         document.removeEventListener('sbn-tab-init', handleTabInit);
         document.removeEventListener('sbn-tab-save-request', handleSaveRequest);
         document.removeEventListener('sbn-tab-structure-request', handleStructureRequest);
+        document.removeEventListener('sbn-chord-voicings-patch', handleChordVoicingsPatch);
     });
 
     return {

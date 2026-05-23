@@ -262,8 +262,10 @@ class VoicingCrossref
 
             if (strlen($fretString) !== 6) continue;
 
-            // Parse chord name — reuse the controller's parser logic
+            // Parse chord name — reuse the controller's parser logic.
+            // Skip entries that don't parse to a valid root (e.g. Tab1 placeholders).
             $parsed = $this->parseChordName($chordName);
+            if ($parsed === null) continue;
 
             $voicings[] = [
                 'chord_name'  => $chordName,

@@ -158,6 +158,11 @@ class LeadsheetController extends Controller
             'popularity'        => 0,
         ]);
 
+        if (!empty($shortcode)) {
+            $crossref = app(VoicingCrossref::class);
+            $crossref->processLeadsheet($leadsheet);
+        }
+
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'id' => $leadsheet->id, 'message' => 'Leadsheet created.']);
         }
@@ -770,6 +775,12 @@ class LeadsheetController extends Controller
             'form_notes'        => $validated['form_notes'] ?? '',
             'voicing_notes'     => $validated['voicing_notes'] ?? '',
         ]);
+
+        // Re-index voicing → DB chord associations whenever shortcode changes.
+        if (!empty($shortcode)) {
+            $crossref = app(VoicingCrossref::class);
+            $crossref->processLeadsheet($leadsheet->fresh());
+        }
 
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'id' => $leadsheet->id, 'message' => 'Leadsheet updated.']);
@@ -1550,6 +1561,140 @@ class LeadsheetController extends Controller
             'tab_xml'  => $result['tab_xml'],
             'voicings' => $result['voicings'],
             'measures' => $result['measures'],
+        ]);
+    }
+
+    /**
+     * Fill chord voicings for an existing leadsheet using the progression builder.
+     *
+     * POST /api/admin/leadsheets/{leadsheet}/fill-voicings
+     * Body: {
+     *   "voicing_style":   "popular"|"shell"|"drop2"|...,  // default "popular"
+     *   "extension_mode":  "basic"|"extended",             // default "basic"
+     *   "fill_gaps_only":  true|false,                     // default true
+     *   "category":        "jazz"|"pop"|...                // optional override
+     * }
+     *
+     * Reads the chord sequence from shortcode_content, pins already-set voicings
+     * as seeds when fill_gaps_only=true, runs the builder, then merges the result
+     * into json_data.chordVoicings. Tab data (tab_xml, melody) is never touched.
+     */
+    public function fillVoicings(
+        Request $request,
+        Leadsheet $leadsheet,
+        \App\Services\ProgressionBuilder $builder,
+        HarmonicContext $context
+    ) {
+        $style         = $request->input('voicing_style', 'popular');
+        $extensionMode = $request->input('extension_mode', 'basic');
+        $fillGapsOnly  = (bool) $request->input('fill_gaps_only', true);
+        $categoryOverride = $request->input('category');
+
+        // Parse chord sequence from the stored shortcode
+        $song = $this->parser->parse($leadsheet->shortcode_content ?? '');
+        if (empty($song['sections'])) {
+            return response()->json(['success' => false, 'error' => 'No chord structure found.'], 422);
+        }
+
+        // Build flat chord list with global measure index across all sections
+        $allChords  = [];
+        $globalMIdx = 0;
+        foreach ($song['sections'] as $section) {
+            foreach ($section['measures'] as $measure) {
+                foreach ($measure['chords'] as $chord) {
+                    $name = $chord['name'] ?? '';
+                    if ($name !== '' && $name !== '?') {
+                        // Strip slash-bass for builder lookup (G/D → G); voicing is keyed
+                        // under the original name so it lands on the right chord slot.
+                        $builderName = strpos($name, '/') !== false
+                            ? explode('/', $name)[0]
+                            : $name;
+                        $allChords[] = [
+                            'chord_name'         => $builderName,
+                            'original_chord_name' => $name,
+                            'measure_index'       => $globalMIdx,
+                        ];
+                    }
+                }
+                $globalMIdx++;
+            }
+        }
+
+        if (empty($allChords)) {
+            return response()->json(['success' => false, 'error' => 'No chords found in structure.'], 422);
+        }
+
+        // Read current voicings from json_data
+        $raw      = DB::table('sbn_leadsheets')->where('id', $leadsheet->id)->value('json_data');
+        $jsonData = $raw ? (json_decode($raw, true) ?? []) : [];
+        $existing = $jsonData['chordVoicings'] ?? [];
+
+        // Map already-set voicings to slot indices for pinning.
+        // A slot is pinned when its chord name has a base (non-override) voicing entry.
+        $pinnedVoicings = [];
+        if ($fillGapsOnly) {
+            foreach ($allChords as $slotIdx => $chord) {
+                $name = $chord['original_chord_name'] ?? $chord['chord_name'];
+                $v    = $existing[$name] ?? null;
+                if ($v && !empty($v['frets'])) {
+                    $pinnedVoicings[$slotIdx] = [
+                        'frets'      => $v['frets'],
+                        'start_fret' => $v['position'] ?? 1,
+                        'id'         => $v['diagram_id'] ?? null,
+                    ];
+                }
+            }
+        }
+
+        $key      = $song['key'] ?? ($leadsheet->song_key ?? 'C');
+        $category = $categoryOverride ?? ($style ?: 'jazz');
+
+        $hc  = $context->buildFromChordSequence($key, $allChords);
+        $res = $builder->buildVoicings($hc, [
+            'category'             => $category,
+            'extensions'           => $extensionMode === 'extended',
+            'strict_basic'         => $extensionMode === 'basic',
+            'voicing_style'        => 'auto',
+            'pinnedVoicings'       => $pinnedVoicings,
+            'skip_numeral_upgrade' => true,
+        ]);
+
+        // Convert builder output to chordVoicings entries.
+        // Only update slots that weren't pinned (or all slots if fill_gaps_only=false).
+        $newVoicings = [];
+        foreach ($res['selections'] as $slotIdx => $sel) {
+            if ($fillGapsOnly && isset($pinnedVoicings[$slotIdx])) continue;
+            $v = $sel['voicing'] ?? null;
+            if (!$v || empty($v['frets'])) continue;
+            // Use the original chord name (with slash bass) as the voicing key
+            $name = $allChords[$slotIdx]['original_chord_name'] ?? $sel['chord_name'];
+            $newVoicings[$name] = [
+                'frets'    => $v['frets'],
+                'position' => $v['start_fret'] ?? 1,
+                'fingers'  => $v['fingers'] ?? '000000',
+            ];
+        }
+
+        // Merge: existing (pins) take priority over new only when fill_gaps_only
+        $merged = $fillGapsOnly
+            ? array_merge($newVoicings, $existing)   // existing wins for set slots
+            : array_merge($existing, $newVoicings);  // new wins for all slots
+
+        $jsonData['chordVoicings'] = $merged;
+
+        DB::table('sbn_leadsheets')->where('id', $leadsheet->id)->update([
+            'json_data'  => $this->normalizeChordNamesInJson(json_encode($jsonData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+            'updated_at' => now(),
+        ]);
+
+        $crossref = app(VoicingCrossref::class);
+        $crossref->processLeadsheet($leadsheet->fresh());
+
+        return response()->json([
+            'success'  => true,
+            'voicings' => $merged,
+            'filled'   => count($newVoicings),
+            'pinned'   => count($pinnedVoicings),
         ]);
     }
 

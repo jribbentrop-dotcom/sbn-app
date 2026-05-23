@@ -133,6 +133,7 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
     Route::post('/leadsheets/identify-voicings', [LeadsheetController::class, 'identifyVoicings'])->name('leadsheets.identifyVoicings');
     Route::post('/leadsheets/identify-single', [LeadsheetController::class, 'identifySingle']);
     Route::post('/leadsheets/{leadsheet}/apply-progression', [LeadsheetController::class, 'applyProgression'])->name('leadsheets.applyProgression');
+    Route::post('/leadsheets/{leadsheet}/fill-voicings', [LeadsheetController::class, 'fillVoicings'])->name('leadsheets.fillVoicings');
 
 
     // Phase 5d — Progression Detection

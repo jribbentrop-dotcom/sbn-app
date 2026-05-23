@@ -305,8 +305,11 @@ class ProgressionBuilder
             return $this->buildSimpleModeVoicings($context, $allChords, $options, $diagnostics);
         }
 
-        // Apply numeral upgrade (§6.1) for category-aware progressions
-        $context = $this->applyCategoryNumeralUpgrade($context, $category);
+        // Apply numeral upgrade (§6.1) for category-aware progressions.
+        // Skipped when caller sets skip_numeral_upgrade (e.g. fill-voicings on an existing chart).
+        if (empty($options['skip_numeral_upgrade'])) {
+            $context = $this->applyCategoryNumeralUpgrade($context, $category);
+        }
 
         // Apply Phase E extension upgrade (§6.2)
         $applyExtensionUpgrade = $extensions && $this->settings->isPass2Eligible($category);
@@ -1995,7 +1998,7 @@ class ProgressionBuilder
             'm7b5' => ['m7b5'],
             'o7'   => ['o7', 'dim7'],
             'dim7' => ['o7', 'dim7'],
-            'dim'  => ['dim'],
+            'dim'  => ['dim', 'o7', 'dim7'],
             'aug'  => ['aug', '+'],
             'mMaj7' => ['mMaj7'],
             'aug7'  => ['aug7'],
@@ -3513,7 +3516,7 @@ class ProgressionBuilder
      */
     private function formatVoicing(object $v, ?string $contextChordName = null, ?array $chordContext = null): array
     {
-        $dd = $v->diagram_data;
+        $dd = $v->diagram_data ?? null;
         if (is_string($dd)) {
             $dd = json_decode($dd, true);
         } elseif (is_object($dd)) {

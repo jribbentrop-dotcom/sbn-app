@@ -50,6 +50,7 @@ ALPINE (edit.blade.php — thin page shell)
 | HTTP save | Alpine |
 | File import (drop/parse → sbn-tab-init) | Alpine |
 | `identifyTabVoicings` (runs once on import) | Alpine |
+| Fill voicings (POST fill-voicings, patch bridge) | Vue (VoicingOverview.vue) + Alpine |
 
 ---
 
@@ -250,6 +251,46 @@ Right-clicking a chord slot in tab view or the measure background dispatches to 
 5. Vue writes chord name (with undo) + `chordVoicings["name@gi.ci"] = { frets, position, fingers: '000000' }`
 
 **Note:** The voicing written is derived from actual tab frets, not the DB diagram library. It will not automatically match a DB-canonical voicing even if the frets are identical — the diagram shows exactly what was played.
+
+### Import identifier policy
+Two identifier paths run after every MusicXML import (`inferKeyFromChords` → `identifyTabVoicings` → `detectHarmonyMismatches`):
+
+| Source | Behavior |
+|--------|----------|
+| **`Tab*` placeholder** (bar had no `<harmony>` element — fret content only) | Auto-applied: chord name + voicing key renamed immediately; logged as info/warn |
+| **Written `<harmony>` element** (chord name from score) | Suggestions-only: `_harmonyMismatch = { written, suggested }` flag set; badge shown in editor for user review; never auto-renamed |
+
+`VoicingCrossref::processLeadsheet()` is called on every `store()` and `update()` to keep `sbn_voicing_usage` in sync. A null-guard in `extractVoicings()` skips any remaining `Tab*` keys that weren't resolved.
+
+### VoicingOverview — Song Voicings panel
+`VoicingOverview.vue` renders the resting-state right panel (Chords/Tab view, no picker open). Header buttons:
+
+| Button | Action |
+|--------|--------|
+| **Clean unused** | `picker.cleanUnusedVoicings()` — removes entries not referenced by any chord slot |
+| **Clear all** | Confirm dialog → `picker.clearAllVoicings()` — empties `chordVoicings`, undoable |
+| **Fill voicings** | Toggles the fill panel (see below) |
+
+#### Fill voicings panel
+POST `admin/leadsheets/{id}/fill-voicings` → `LeadsheetController::fillVoicings()`.
+
+Options: **Style** (Jazz / Latin / Pop / Blues — same presets as Machine Room), **Extensions** (Basic / Extended), **Keep existing voicings** checkbox.
+
+Backend flow:
+1. Parse `shortcode_content` → flat chord list; strip slash-bass (`G/D` → `G`) so builder gets a non-empty pool; store original name for voicing key
+2. Map existing `chordVoicings` base-name entries to pinned slot indices (when Keep existing is on)
+3. `HarmonicContext::buildFromChordSequence()` → `ProgressionBuilder::buildVoicings()` with `skip_numeral_upgrade: true` (respects written chord names, no jazz quality upgrade) and `voicing_style: auto`
+4. Merge new base-name voicings into `json_data.chordVoicings`; save; run `VoicingCrossref::processLeadsheet()`
+5. Return `{ voicings, filled, pinned }`
+
+Frontend patch path (critical — direct model mutation does not work):
+- `runFill` dispatches `sbn-chord-voicings-patch` → `useAlpineBridge` merges into `chordVoicings` ref → `useTabModel` watch fires `patchChordVoicings()` → `model.value.chordVoicings` updated reactively
+- `sbn-voicings-filled` → Alpine merges into `parsed.chordVoicings` + calls `markDirty()` so next save persists the new keys into the shortcode
+
+**Builder gotchas for fill context:**
+- `dim` quality alias now includes `o7`/`dim7` — plain diminished triads (`Cdim`, `A#dim`) had no pool entries and caused Viterbi to return `[]` for the entire sequence
+- `skip_numeral_upgrade: true` prevents jazz quality upgrade (`C` → `Cmaj7` etc.) mutating stored chord names
+- `formatVoicing()` accesses `$v->diagram_data ?? null` (null-safe) to handle alias shapes
 
 ### Keyboard shortcuts (tab editor)
 | Key | Action |
@@ -493,9 +534,10 @@ public/js/chords.js                 -- CONSOLIDATED:
 ### Design system
 ```
 public/css/sbn-design-system.css    -- §1 tokens, §2 cards, §2b fretboard, §2c chord-card
-                                       §2d selection frame, §3 buttons, §4 badges, §5 panels
-                                       §6 forms, §7 voicing picker, §8 chord grid cells
-                                       §9 context menu, §10 drag-to-reorder
+                                       §2d selection frame, §3 buttons (.sbn-btn-accent, .sbn-btn-danger),
+                                       §4 badges, §5 panels, §6 forms, §7 voicing picker,
+                                       §7b fill-voicings panel (.sbn-fill-*),
+                                       §8 chord grid cells, §9 context menu, §10 drag-to-reorder
 ```
 
 ### Leadsheets + editor
