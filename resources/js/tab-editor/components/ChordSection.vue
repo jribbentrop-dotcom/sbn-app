@@ -17,6 +17,17 @@
              @keydown.enter="$event.target.blur()" />
       <span v-else class="sbn-ve-section-name">{{ section.name }}</span>
       <span class="sbn-ve-section-bar-count">{{ section.measures ? section.measures.length : 0 }} bars</span>
+      <label v-if="!readOnly" class="sbn-ve-section-bpr" title="Bars per row">
+        <span>cols</span>
+        <input
+          type="number"
+          min="1" max="12"
+          :value="section.lineBreaks?.[0] ?? 4"
+          @change="setBarsPerRow(sectionIndex, +$event.target.value)"
+          @keydown.enter="$event.target.blur()"
+          @click.stop
+        />
+      </label>
       <!-- Action buttons - hidden in readOnly -->
       <div v-if="!props.readOnly" class="sbn-ve-section-actions">
         <button class="sbn-ve-section-btn" @click="addMeasureToSection(sectionIndex)" title="Add bar">+</button>
@@ -90,6 +101,7 @@ const sectionCount         = inject('sectionCount', null);
 const rowShrink            = inject('rowShrink', null);
 const rowGrow              = inject('rowGrow', null);
 const rowSplit             = inject('rowSplit', null);
+const setBarsPerRow        = inject('setBarsPerRow', null);
 
 // ── Row layout (respects lineBreaks from model) ───────────────────────────────
 

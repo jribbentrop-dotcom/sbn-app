@@ -344,6 +344,80 @@ export function useSelection(model) {
         }
     }
 
+    /**
+     * Copy N full measures into the clipboard as mode: 'measures'.
+     *
+     * @param {Array} measureObjects — live measure objects from allMeasures
+     */
+    function copyMeasures(measureObjects) {
+        if (!measureObjects?.length) return false;
+        const tpm = model.value?.ticksPerMeasure ?? 1920;
+        const measures = measureObjects.map(m => {
+            const events = m.events.map(ev => {
+                const c = cloneEvent(ev, false);
+                // store tick relative to measure start so paste re-bases correctly
+                c.relTick = ev.tickInMeasure;
+                return c;
+            });
+            return { events, chordNames: [...(m.chordNames || [])] };
+        });
+        clipboard.value = { mode: 'measures', measures, tpm };
+        return true;
+    }
+
+    /**
+     * Prepare a paste of mode:'measures' clipboard into consecutive measures
+     * starting at `startMeasureIdx`.
+     *
+     * @param {Array} allMeasureList — allMeasures.value
+     * @param {number} startMeasureIdx — global index of first destination measure
+     */
+    function preparePasteMeasures(allMeasureList, startMeasureIdx) {
+        if (!clipboard.value || clipboard.value.mode !== 'measures') return null;
+        const { measures: clipMeasures, tpm: clipTpm } = clipboard.value;
+        const tpm = model.value?.ticksPerMeasure ?? clipTpm;
+
+        const startIdx = allMeasureList.findIndex(m => m.index === startMeasureIdx);
+        if (startIdx === -1) return null;
+
+        const affectedIndices = [];
+        for (let i = 0; i < clipMeasures.length && startIdx + i < allMeasureList.length; i++) {
+            affectedIndices.push(allMeasureList[startIdx + i].index);
+        }
+        if (!affectedIndices.length) return null;
+
+        return {
+            affectedIndices,
+            mutate() {
+                for (let i = 0; i < clipMeasures.length && startIdx + i < allMeasureList.length; i++) {
+                    const destM  = allMeasureList[startIdx + i];
+                    const destGi = destM.index;
+                    const { events: clipEvents, chordNames } = clipMeasures[i];
+
+                    const pasted = clipEvents.map(clipEv => {
+                        const ev = cloneEvent(clipEv, true);
+                        ev.tickInMeasure = clipEv.relTick;
+                        ev.tick          = destGi * tpm + clipEv.relTick;
+                        ev.measureIdx    = destGi;
+                        ev.xPos          = clipEv.relTick / tpm;
+                        return ev;
+                    });
+                    pasted.sort((a, b) => a.tick - b.tick || (a.voice ?? 1) - (b.voice ?? 1));
+                    destM.events = pasted;
+
+                    const allV1 = pasted.filter(ev => (ev.voice ?? 1) === 1).sort((a, b) => a.tick - b.tick);
+                    const last = allV1[allV1.length - 1];
+                    destM.actualTicks = last ? last.tickInMeasure + last.ticks : tpm;
+
+                    // restore chord names
+                    if (chordNames.length) {
+                        destM.chordNames.splice(0, destM.chordNames.length, ...chordNames);
+                    }
+                }
+            },
+        };
+    }
+
     // ── Public API ─────────────────────────────────────────────────────────
 
     return {
@@ -358,7 +432,10 @@ export function useSelection(model) {
         stopDrag,
         clipboard:          readonly(clipboard),
         copy,
+        copyMeasures,
         prepareCut,
         preparePaste,
+        preparePasteMeasures,
+        makeWholeRest,
     };
 }

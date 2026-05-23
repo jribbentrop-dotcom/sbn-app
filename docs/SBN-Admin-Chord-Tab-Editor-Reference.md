@@ -1,7 +1,7 @@
 # SBN Admin — Chord / Tab Editor Reference
 
 > **Purpose:** Complete reference for the admin leadsheet editor: architecture, Vue component tree, chord grid, voicing picker, tab notation, audio playback, video sync, keyboard shortcuts, design system, and all creation flows (blank, from progression, exercises, transcription).
-> **Last updated:** 2026-05-16
+> **Last updated:** 2026-05-23
 
 ---
 
@@ -193,7 +193,7 @@ On save, `exportAlpineSections()` serializes `beatInMeasure`/`beats` back onto e
 ### Key conventions
 - Model uses **`ref()`** (deep reactive), NOT `shallowRef`
 - Tick constants: whole=1920, half=960, quarter=480, eighth=240, sixteenth=120, thirty-second=60
-- Chord grid provide/inject: `TabEditor.vue` provides `model`, `globalIndexOf`, `chordGridOps`, `setChordName`, `inlineRenameTarget`, `triggerInlineRename`, `gridSelection`, `chordClipboard`, `chordPicker`, `voicingPicker`, `renameSection`, `addMeasureToSection`, `deleteSection`, `sectionCount`, `rowShrink`, `rowGrow`, `rowSplit`
+- Chord grid provide/inject: `TabEditor.vue` provides `model`, `globalIndexOf`, `chordGridOps`, `setChordName`, `inlineRenameTarget`, `triggerInlineRename`, `gridSelection`, `chordClipboard`, `chordPicker`, `voicingPicker`, `renameSection`, `addMeasureToSection`, `deleteSection`, `sectionCount`, `rowShrink`, `rowGrow`, `rowSplit`, `setBarsPerRow`
 - `useVoicingPickerStore` and `useChordPickerStore` are **module-level singletons** — both Vue apps share the same instance without provide/inject
 - `VoicingPicker.vue` Teleports unconditionally into `#sbn-vp-slot`
 
@@ -229,6 +229,46 @@ Both chord grid and tab view share a single `inlineRenameTarget = ref({ gi, ci, 
 - `triggerInlineRename(gi, ci)` is provided globally and used by both `ChordGridView` (context menu "Rename chord") and `TabEditor` (chord context menu "Rename chord")
 - View switch (`setViewMode`) clears `inlineRenameTarget` to prevent stale open inputs
 - Global `onKeydown` guard: returns early when `e.target.tagName === 'INPUT'` so numbers/backspace/delete reach the input
+
+### Inline chord rename — source discrimination
+`inlineRenameTarget` carries a `source` field (`'tab'` | `'chord'`) to prevent cross-editor bleed:
+- `ChordCard.vue` watch fires only when `source !== 'tab'`
+- `TabMeasure.vue` watch fires only when `source === 'tab'`
+- All tab-triggered renames (double-click on chord label, voicing assign with empty name) set `source: 'tab'`
+
+Tab rename UX: single-click on chord label starts a 220ms timer then opens rename; double-click cancels the timer and opens immediately (mirrors chord-grid double-click behaviour).
+
+Empty chord card (`ChordCard.vue`): renders a `?` placeholder so the card is clickable; body-click immediately opens inline edit when the name is empty.
+
+### Row layout and bars-per-row
+`SectionModel.lineBreaks[]` is an array of per-row bar counts (e.g. `[4, 4, 3]`). **Never recomputed globally** — all structural mutations now touch only the affected row:
+
+| Operation | `lineBreaks` effect |
+|-----------|---------------------|
+| Insert bar | `_growRowAt(sec, localMi)` increments the row containing the insertion point |
+| Delete bar | `_shrinkRowAt(sec, localMi)` decrements (before splice); removes row entry if it hits 0 |
+| Split section | `lineBreaks` array is sliced at the row boundary — each half keeps its original rows |
+| `patchStructure` splitSection / deleteSection | Same slice logic; falls back to `_resetUniformLineBreaks` only if `newBreaks` is empty |
+
+**Bars-per-row control:** each section header (both chord and tab view) has a `cols` number input (1–12). `@change` calls `setBarsPerRow(si, n)` which uniformly redistributes all rows in that section. Injected via `provide('setBarsPerRow', ...)`.
+
+### Structural mutations and volta/repeat stamping
+`_reindexGlobalMeasures()` in `useTabModel.js` updates `m.index` after any structural change but does **not** update volta/repeat flags (which are index-keyed in `voltaEndings` / `repeatMarkers` refs).
+
+`_restampStructuralFlags()` is called after every `_reindexGlobalMeasures()` call. It:
+1. Resets all `repeatStart/End`, `volta`, `voltaStart`, `voltaEnd` on every measure
+2. Re-applies from `repeatMarkers.value` (keyed by `m.index`)
+3. Re-applies from `voltaEndings.value` (keyed by `m.index.toString()`), walking forward with an `activeVolta` cursor; closes open brackets at the last volta measure if none was closed explicitly
+
+All structural functions call both in sequence: `insertMeasureAfter`, `insertMeasureBefore`, `deleteMeasure`, `addSection`, `deleteSection`, `splitSection`, `deleteMeasuresByGlobalIndices`, `moveMeasure`, and the `patchStructure` splitSection/deleteSection paths.
+
+### Volta serialization round-trip
+`_buildVoltaEndingsFromModel()` serializes live measure volta flags → `{ gi: {type,number,text} }` map:
+- `voltaStart` → emits `{ type:'start', number, text }` at that gi
+- `voltaEnd && volta && !voltaStart` → emits `{ type:'stop' }` at that gi
+- **Single-bar bracket** (`voltaStart && voltaEnd` on same measure) → emits both start at `gi` **and** stop at `"gi_stop"` (string key with `_stop` suffix)
+
+`useTabModel` populate pass reads `ve[m.index + '_stop']` for the stop-entry fallback so single-bar brackets survive save/reload.
 
 ### Tab chord operations (context menu)
 Right-clicking a chord slot in tab view or the measure background dispatches to `handleTabContextAction(actionId, measureIndex, chordIndex, clickBeat)`:
@@ -292,6 +332,30 @@ Frontend patch path (critical — direct model mutation does not work):
 - `skip_numeral_upgrade: true` prevents jazz quality upgrade (`C` → `Cmaj7` etc.) mutating stored chord names
 - `formatVoicing()` accesses `$v->diagram_data ?? null` (null-safe) to handle alias shapes
 
+### Multi-bar clipboard and structural ops
+Both chord and tab views support multi-bar selection for clipboard and structural operations.
+
+**Chord view** — multi-bar selection (Shift-click / Ctrl-click across measures):
+- `Ctrl+C` → `copySelection(sel)` — stores one clipboard entry per measure, preserving bar boundaries (`{ mode: 'measures', measures: [{chordNames, voicings}] }`)
+- `Ctrl+V` → `pasteMeasure(targetGi)` — spreads N clipboard measures across N consecutive destination measures
+- `Ctrl+X` → `cutSelection(sel, deleteChords)` — copy + clear slots
+- `Delete`/`Backspace` with >1 bar selected → `deleteBars(selGis)` (structural delete)
+- Context menu: "Copy N bars" / "Cut N bars" / "Insert N bars before/after" / "Delete N bars" when N > 1
+
+**Tab view** — multi-bar selection (Shift-click across measures):
+- `Ctrl+C` with >1 bar → `copyMeasures(measureObjects)` — stores full events + chordNames per measure (`mode: 'measures'`)
+- `Ctrl+V` when clipboard is `mode:'measures'` → `preparePasteMeasures(allMeasures, startGi)` — replaces events in N consecutive destination measures
+- `Ctrl+X` with >1 bar → copy + clear to whole rests (undoable)
+- `Delete`/`Backspace` with >1 bar → structural delete (`deleteMeasuresByGlobalIndices`)
+- Context menu: "Insert N bars after/before" / "Delete N bars"
+
+**Single-bar / note-level operations are unchanged** when only one measure is selected.
+
+### Applying voicings from tab view
+`useVoicingPickerStore.applyVoicing()` has two paths:
+- **`keyMatch` path** (picker opened from chord grid): sets chord name globally + applies tab frets with `skipIfTabExists: true` — will NOT overwrite an existing tab bar that already has notes
+- **`tabSrc` path** (picker opened from tab view via `voicingPickerStore.openForTab(...)`): always writes through; uses specific `gi/ci` coords; if `!keyMatch && _tabSource && !oldName`, writes name directly into `m.chordNames[ci]` and keys voicing as `"newName@gi.ci"`
+
 ### Keyboard shortcuts (tab editor)
 | Key | Action |
 |-----|--------|
@@ -300,15 +364,16 @@ Frontend patch path (critical — direct model mutation does not work):
 | Tab / Shift+Tab | Navigate measures |
 | Home / End | First/last event in measure |
 | 0–9 | Enter fret number (two-digit with 600ms timeout) |
-| Delete / Backspace | Remove note on cursor string |
+| Delete / Backspace | Remove note on cursor string (single bar); structural delete of selected bars (multi-bar) |
 | Ctrl+↑ / Ctrl+↓ | Shift note to adjacent string, transposing fret (±5; ±4 across the B↔G boundary). No-op at string 1/6 boundary or if new fret would be out of 0–24 range. |
 | Ctrl+1–6 | Set duration (whole→32nd) |
 | + / = / - | Shorter / longer duration |
 | . | Toggle dotted |
 | T | Toggle tie |
 | A | Insert rest after cursor event |
-| Shift+←/→ | Extend note selection |
-| Ctrl+C/X/V | Copy/cut/paste |
+| Shift+←/→ | Extend note selection (within measure) |
+| Shift+click measure | Extend bar selection across measures |
+| Ctrl+C/X/V | Copy/cut/paste (note-level, single bar, or multi-bar depending on selection) |
 | Ctrl+Z / Ctrl+Shift+Z | Undo/redo (unified — covers chord grid + tab + voicings) |
 | Space | Play/pause toggle (global — works in all contexts) |
 | M | Create video sync point at current measure (global) |

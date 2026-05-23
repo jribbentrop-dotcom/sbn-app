@@ -20,13 +20,6 @@
                     @click="toggleVideoSidebar">🎬 Video</button>
             <button class="sbn-ve-tab" :class="{ 'is-active': researchSidebarOpen }"
                     @click="toggleResearchSidebar">📚 Research</button>
-            <button
-                v-if="hasChordsData && viewMode === 'chords'"
-                class="sbn-ve-tab sbn-ve-play-btn"
-                :class="{ 'is-playing': isChordPlaying }"
-                @click="onTransportToggle"
-                :title="isChordPlaying ? 'Pause (Space)' : 'Play / Resume (Space)'"
-            >{{ isChordPlaying ? 'Pause' : 'Play' }}</button>
         </div>
 
         <!-- Chords Grid (Phase B) -->
@@ -80,6 +73,17 @@
                                    @blur="tabModel.renameSection(si, $event.target.value)"
                                    @keydown.enter="$event.target.blur()" />
                             <span class="sbn-ve-section-bar-count">{{ section.measures.length }} bars</span>
+                            <label class="sbn-ve-section-bpr" title="Bars per row">
+                                <span>cols</span>
+                                <input
+                                    type="number"
+                                    min="1" max="12"
+                                    :value="section.lineBreaks?.[0] ?? 4"
+                                    @change="tabModel.setBarsPerRow(si, +$event.target.value)"
+                                    @keydown.enter="$event.target.blur()"
+                                    @click.stop
+                                />
+                            </label>
                             <div class="sbn-ve-section-actions">
                                 <button class="sbn-ve-section-btn" @click="onAddMeasure(si)" title="Add bar">+</button>
                                 <button v-if="model.sections.length > 1" class="sbn-ve-section-delete" @click="onDeleteSection(si)" title="Remove section">×</button>
@@ -893,7 +897,7 @@ provide('setChordName',      (gi, ci, name) => chordGridOps.setChordName(gi, ci,
 
 const inlineRenameTarget = ref(null);  // { gi, ci } — set to trigger inline edit on matching card
 provide('inlineRenameTarget',  inlineRenameTarget);
-provide('triggerInlineRename', (gi, ci) => { inlineRenameTarget.value = { gi, ci, ts: Date.now() }; });
+provide('triggerInlineRename', (gi, ci) => { inlineRenameTarget.value = { gi, ci, ts: Date.now(), source: 'tab' }; });
 provide('gridSelection',     gridSelection);
 provide('chordClipboard',    chordClipboard);
 provide('chordPicker',       chordPickerStore);
@@ -905,6 +909,7 @@ provide('sectionCount',         computed(() => model.value?.sections?.length ?? 
 provide('rowShrink',            (si, ri)   => rowShrink(si, ri));
 provide('rowGrow',              (si, ri)   => rowGrow(si, ri));
 provide('rowSplit',             (si, ri)   => onSplitSection(si, ri));
+provide('setBarsPerRow',        (si, n)    => tabModel.setBarsPerRow(si, n));
 
 // ── Step 4: Structural sync — clamp cursor after grid changes ──
 // When Alpine adds/removes measures, buildModel() re-slices from the
@@ -927,8 +932,11 @@ const {
     setSelectedEvents,
     clipboard,
     copy:        selectionCopy,
+    copyMeasures,
     prepareCut,
     preparePaste,
+    preparePasteMeasures,
+    makeWholeRest,
 } = useSelection(model);
 
 // Note-selection anchor: event index where Shift+Arrow started.
@@ -1026,8 +1034,14 @@ function _buildVoltaEndingsFromModel() {
         for (const m of sec.measures) {
             if (m.voltaStart && m.volta) {
                 out[String(gi)] = { type: 'start', number: m.volta.number, text: m.volta.text || `${m.volta.number}.` };
-            } else if (m.voltaEnd && m.volta) {
+            }
+            if (m.voltaEnd && m.volta && !m.voltaStart) {
                 out[String(gi)] = { type: 'stop', number: m.volta.number };
+            }
+            // Single-bar bracket (voltaStart + voltaEnd): emit an explicit stop under a '_stop' key
+            // so useTabModel doesn't auto-close at a later bar.
+            if (m.voltaStart && m.voltaEnd && m.volta) {
+                out[String(gi) + '_stop'] = { type: 'stop', number: m.volta.number };
             }
             gi++;
         }
@@ -1617,10 +1631,22 @@ function onKeydown(e) {
 
     // 3b. Delete removed — handleDeleteSelected now cleans up all events functionally.
 
-    // 4. Delete selected events (Shift+Arrow range active)
+    // 4. Delete selected events / bars
     if ((e.key === 'Delete' || e.key === 'Backspace') && hasNoteSelection.value) {
         e.preventDefault();
-        handleDeleteSelected();
+        const indices = getSelectedMeasureIndices();
+        if (indices.length > 1) {
+            // Multi-bar keyboard delete → structural delete (same as context menu)
+            const voicingDeletes = captureVoicingDeletesByGlobalIndices(indices);
+            wrapCommand('Delete bars (tab)', [], () => {
+                applyChordVoicingOps({ voicingDeletes });
+                deleteMeasuresByGlobalIndices(indices);
+                syncTabSectionsToAlpine();
+            }, structuralUndoOptions);
+            clearNoteSelection();
+        } else {
+            handleDeleteSelected();
+        }
         return;
     }
 
@@ -1684,7 +1710,7 @@ function onChordClick({ measureIndex, chordIndex, chordName }) {
  * Called by the bridge when Alpine dispatches sbn-tab-voicing-applied.
  * Applies the selected voicing frets into the tab model.
  */
-function onVoicingApplied({ globalMeasureIndex, chordIndex, chordName, frets, position }) {
+function onVoicingApplied({ globalMeasureIndex, chordIndex, chordName, frets, position, skipIfTabExists = false }) {
     console.log('[SBN] onVoicingApplied called', { globalMeasureIndex, chordIndex, frets });
     if (!model.value || !frets) {
         console.warn('[SBN] onVoicingApplied: early return — model:', !!model.value, 'frets:', frets);
@@ -1695,6 +1721,10 @@ function onVoicingApplied({ globalMeasureIndex, chordIndex, chordName, frets, po
     const measure  = measures.find(m => m.index === globalMeasureIndex);
     if (!measure) {
         console.warn('[SBN] onVoicingApplied: measure not found for index', globalMeasureIndex, 'available:', measures.map(m => m.index));
+        return;
+    }
+
+    if (skipIfTabExists && (measure.events || []).some(ev => !ev.isRest)) {
         return;
     }
 
@@ -1816,11 +1846,56 @@ function _showIdentifyConfirm(oldName, newName, measureIndex, chordIndex, tabDat
 // those events. Otherwise copy/cut the whole measure.
 
 function handleCopy() {
-    // Pass the actual event object + string index — same as delete uses
+    if (viewMode.value === 'chords') {
+        const sel = gridSelection.selection.value;
+        const selGis = [...new Set(sel.map(s => s.gi))];
+        if (selGis.length > 1) {
+            chordClipboard.copySelection(sel);
+        } else if (selGis.length === 1) {
+            chordClipboard.copyMeasure(selGis[0]);
+        }
+        return;
+    }
+    // Tab view: multi-bar selection → measure-level copy
+    const indices = getSelectedMeasureIndices();
+    if (indices.length > 1) {
+        const measureObjects = indices.map(gi => allMeasures.value.find(m => m.index === gi)).filter(Boolean);
+        copyMeasures(measureObjects);
+        return;
+    }
     selectionCopy(currentEvent.value, cursor.value.stringIndex, selectedEvents.value);
 }
 
 function handleCut() {
+    if (viewMode.value === 'chords') {
+        const sel = gridSelection.selection.value;
+        const selGis = [...new Set(sel.map(s => s.gi))];
+        if (selGis.length > 1) {
+            chordClipboard.cutSelection(sel, (s) => chordGridOps.deleteChords(s));
+        } else if (selGis.length === 1) {
+            chordClipboard.cutMeasure(selGis[0]);
+        }
+        gridSelection.clearSelection();
+        return;
+    }
+    // Tab view: multi-bar selection → measure-level cut (copy then clear)
+    const indices = getSelectedMeasureIndices();
+    if (indices.length > 1) {
+        const measureObjects = indices.map(gi => allMeasures.value.find(m => m.index === gi)).filter(Boolean);
+        copyMeasures(measureObjects);
+        const tpm = model.value.ticksPerMeasure;
+        wrapCommand('cut bars (tab)', indices, () => {
+            indices.forEach(gi => {
+                const m = allMeasures.value.find(m => m.index === gi);
+                if (!m) return;
+                m.events = [makeWholeRest(gi, tpm)];
+                m.actualTicks = tpm;
+                m.chordNames.splice(0, m.chordNames.length);
+            });
+        });
+        clearNoteSelection();
+        return;
+    }
     const op = prepareCut(currentEvent.value, cursor.value.stringIndex, selectedEvents.value);
     if (!op) return;
     wrapCommand('cut', op.affectedIndices, op.mutate);
@@ -1829,6 +1904,23 @@ function handleCut() {
 }
 
 function handlePaste() {
+    if (viewMode.value === 'chords') {
+        const sel = gridSelection.selection.value;
+        const targetGi = sel.length > 0
+            ? Math.min(...sel.map(s => s.gi))
+            : cursor.value.measureIndex;
+        if (targetGi != null) chordClipboard.pasteMeasure(targetGi);
+        return;
+    }
+    // Tab view: measure-level paste when clipboard has measures mode
+    if (clipboard.value?.mode === 'measures') {
+        const targetGi = cursor.value.measureIndex;
+        const op = preparePasteMeasures(allMeasures.value, targetGi);
+        if (!op) return;
+        wrapCommand('paste bars (tab)', op.affectedIndices, op.mutate);
+        clearNoteSelection();
+        return;
+    }
     const op = preparePaste(currentEvent.value, cursor.value.stringIndex);
     if (!op) return;
     wrapCommand('paste', op.affectedIndices, op.mutate);
@@ -2149,6 +2241,8 @@ function onMeasureContextMenu({ measureIndex, event }) {
             { id: 'copy', label: `Copy selection (${indices.length} bars)`,   shortcut: 'Ctrl+C', group: 'clipboard' },
             { id: 'cut',  label: `Cut selection (${indices.length} bars)`,    shortcut: 'Ctrl+X', group: 'clipboard' },
             { id: 'paste', label: 'Paste', shortcut: 'Ctrl+V', group: 'clipboard', disabled: !clipboard.value },
+            { id: 'insertBarsAfter',  label: `Insert ${indices.length} bars after`,  group: 'structure' },
+            { id: 'insertBarsBefore', label: `Insert ${indices.length} bars before`, group: 'structure' },
             { id: 'deleteSelection', label: `Delete ${indices.length} bars`, danger: true, group: 'danger' },
         );
     }
@@ -2170,7 +2264,7 @@ function onMeasureContextMenu({ measureIndex, event }) {
 function handleTabContextAction(actionId, measureIndex, chordIndex = 0, clickBeat = 0) {
     switch (actionId) {
         case 'renameChord': {
-            inlineRenameTarget.value = { gi: measureIndex, ci: chordIndex, ts: Date.now() };
+            inlineRenameTarget.value = { gi: measureIndex, ci: chordIndex, ts: Date.now(), source: 'tab' };
             break;
         }
         case 'changeVoicing': {
@@ -2185,7 +2279,7 @@ function handleTabContextAction(actionId, measureIndex, chordIndex = 0, clickBea
                 const snapped = Math.round(clickBeat / 0.5) * 0.5;
                 let ci = (m.chordOffsets || []).findIndex(o => Math.abs(o - snapped) < 0.01);
                 if (ci === -1) ci = (m?.chordNames?.length ?? 1) - 1;
-                inlineRenameTarget.value = { gi: measureIndex, ci, ts: Date.now() };
+                inlineRenameTarget.value = { gi: measureIndex, ci, ts: Date.now(), source: 'tab' };
             });
             break;
         }
@@ -2221,6 +2315,34 @@ function handleTabContextAction(actionId, measureIndex, chordIndex = 0, clickBea
             wrapCommand('Insert bar before (tab)', [], () => {
                 insertMeasureBefore(c.si, c.mi);
                 applyChordVoicingOps({ voicingReindexAt: G, voicingDelta: 1 });
+                syncTabSectionsToAlpine();
+            }, structuralUndoOptions);
+            clearNoteSelection();
+            break;
+        }
+        case 'insertBarsAfter':
+        case 'insertBarsBefore': {
+            const selectedIndices = getSelectedMeasureIndices();
+            const count = selectedIndices.length;
+            const insertAfter = actionId === 'insertBarsAfter';
+            const refGi = insertAfter ? Math.max(...selectedIndices) : Math.min(...selectedIndices);
+            const c = globalToSectionMeasure(refGi);
+            if (!c) break;
+            const refG = globalMeasureIndex(c.si, c.mi);
+            wrapCommand(`Insert ${count} bars (tab)`, [], () => {
+                for (let i = 0; i < count; i++) {
+                    // Re-resolve coord each time since indices shift after each insert
+                    const coord = globalToSectionMeasure(insertAfter ? refG + i : refG);
+                    if (!coord) continue;
+                    const G = globalMeasureIndex(coord.si, coord.mi);
+                    if (insertAfter) {
+                        insertMeasureAfter(coord.si, coord.mi);
+                        applyChordVoicingOps({ voicingReindexAt: G + 1, voicingDelta: 1 });
+                    } else {
+                        insertMeasureBefore(coord.si, coord.mi);
+                        applyChordVoicingOps({ voicingReindexAt: G, voicingDelta: 1 });
+                    }
+                }
                 syncTabSectionsToAlpine();
             }, structuralUndoOptions);
             clearNoteSelection();
@@ -2287,7 +2409,7 @@ function handleTabContextAction(actionId, measureIndex, chordIndex = 0, clickBea
  * Tells Alpine to open the chord name text-input picker for that measure.
  */
 function onChordNameNeeded({ measureIndex, chordIndex }) {
-    inlineRenameTarget.value = { gi: measureIndex, ci: chordIndex, ts: Date.now() };
+    inlineRenameTarget.value = { gi: measureIndex, ci: chordIndex, ts: Date.now(), source: 'tab' };
 }
 function onChordContextMenu({ measureIndex, chordIndex, chordName, event }) {
     const m = allMeasures.value[measureIndex];
@@ -2304,7 +2426,7 @@ function onChordContextMenu({ measureIndex, chordIndex, chordName, event }) {
         window.showContextMenu(event, items, (actionId) => {
             switch (actionId) {
                 case 'renameChord':
-                    inlineRenameTarget.value = { gi: measureIndex, ci: chordIndex, ts: Date.now() };
+                    inlineRenameTarget.value = { gi: measureIndex, ci: chordIndex, ts: Date.now(), source: 'tab' };
                     break;
                 case 'changeVoicing':
                     onChordClick({ measureIndex, chordIndex, chordName });

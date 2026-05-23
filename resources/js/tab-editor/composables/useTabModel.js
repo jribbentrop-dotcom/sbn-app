@@ -247,7 +247,8 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
                 if (activeVolta) {
                     measures[mi].volta = { ...activeVolta };
                 }
-                if (entry?.type === 'stop') {
+                const stopEntry = entry?.type === 'stop' ? entry : ve[mi + '_stop'];
+                if (stopEntry?.type === 'stop') {
                     measures[mi].voltaEnd = true;
                     activeVolta = null;
                 }
@@ -786,20 +787,29 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
                 const sec = model.value.sections[sectionIndex];
                 const splitAt = measureIndex - sec.measures[0].index; // convert to local index
                 if (splitAt > 0 && splitAt < sec.measures.length) {
+                    // Find which row boundary the split falls on, then slice lineBreaks there.
+                    let splitRow = 0;
+                    if (sec.lineBreaks?.length) {
+                        let cum = 0;
+                        for (let r = 0; r < sec.lineBreaks.length; r++) {
+                            cum += sec.lineBreaks[r];
+                            if (cum >= splitAt) { splitRow = r; break; }
+                        }
+                    }
+                    const newBreaks = sec.lineBreaks?.splice(splitRow + 1) ?? null;
                     // Create new section with measures after split point
                     const newSec = {
                         id: hint.newSectionId || '',
                         name: hint.newSectionName || '',
-                        lineBreaks: null,
+                        lineBreaks: newBreaks?.length ? newBreaks : null,
                         measures: sec.measures.splice(splitAt),
                     };
-                    // Reset line breaks for both sections
-                    _resetUniformLineBreaks(sec);
-                    _resetUniformLineBreaks(newSec);
+                    if (!newSec.lineBreaks) _resetUniformLineBreaks(newSec);
                     // Insert new section after current
                     model.value.sections.splice(sectionIndex + 1, 0, newSec);
                     // Re-index globally
                     _reindexGlobalMeasures();
+                    _restampStructuralFlags();
                 }
             }
 
@@ -810,6 +820,7 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
                 model.value.sections.splice(sectionIndex, 1);
                 // Re-index globally
                 _reindexGlobalMeasures();
+                _restampStructuralFlags();
             }
         }
     }
@@ -1112,6 +1123,39 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
         return sec.lineBreaks[0];
     }
 
+    /** Grow the row that owns `localMi` by 1, leaving all other rows unchanged. */
+    function _growRowAt(sec, localMi) {
+        if (!sec.lineBreaks?.length) return;
+        let cumulative = 0;
+        for (let r = 0; r < sec.lineBreaks.length; r++) {
+            cumulative += sec.lineBreaks[r];
+            if (localMi < cumulative) {
+                sec.lineBreaks[r]++;
+                return;
+            }
+        }
+        // Fell past all rows — grow the last one
+        sec.lineBreaks[sec.lineBreaks.length - 1]++;
+    }
+
+    /** Shrink the row that owns `localMi` by 1; remove the row entry if it hits 0. */
+    function _shrinkRowAt(sec, localMi) {
+        if (!sec.lineBreaks?.length) return;
+        let cumulative = 0;
+        for (let r = 0; r < sec.lineBreaks.length; r++) {
+            cumulative += sec.lineBreaks[r];
+            if (localMi < cumulative) {
+                sec.lineBreaks[r]--;
+                if (sec.lineBreaks[r] <= 0) sec.lineBreaks.splice(r, 1);
+                return;
+            }
+        }
+        // Fell past all rows — shrink the last one
+        const last = sec.lineBreaks.length - 1;
+        sec.lineBreaks[last]--;
+        if (sec.lineBreaks[last] <= 0) sec.lineBreaks.splice(last, 1);
+    }
+
     function insertMeasureAfter(si, mi) {
         const sec = model.value.sections[si];
         if (!sec) return;
@@ -1120,11 +1164,9 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
         const newMeasure = _makeEmptyMeasure(sec.measures.length);
 
         sec.measures.splice(insertAt, 0, newMeasure);
-
-        // Use smart distribution to maintain proper bar layout
-        _smartDistributeLineBreaks(sec, _getCurrentBarsPerRow(sec));
-
+        _growRowAt(sec, mi); // grow the row that contains the insertion point
         _reindexGlobalMeasures();
+        _restampStructuralFlags();
     }
 
     function insertMeasureBefore(si, mi) {
@@ -1135,23 +1177,19 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
         const newMeasure = _makeEmptyMeasure(sec.measures.length);
 
         sec.measures.splice(insertAt, 0, newMeasure);
-
-        // Use smart distribution to maintain proper bar layout
-        _smartDistributeLineBreaks(sec, _getCurrentBarsPerRow(sec));
-
+        _growRowAt(sec, mi); // grow the row that contains the insertion point
         _reindexGlobalMeasures();
+        _restampStructuralFlags();
     }
 
     function deleteMeasure(si, mi) {
         const sec = model.value.sections[si];
         if (!sec || sec.measures.length <= 1) return;
 
+        _shrinkRowAt(sec, mi); // shrink before splice so the index is still valid
         sec.measures.splice(mi, 1);
-
-        // Use smart distribution to maintain proper bar layout
-        _smartDistributeLineBreaks(sec, _getCurrentBarsPerRow(sec));
-
         _reindexGlobalMeasures();
+        _restampStructuralFlags();
     }
 
     function addMeasureToSection(si) {
@@ -1184,6 +1222,7 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
         };
         model.value.sections.push(newSec);
         _reindexGlobalMeasures();
+        _restampStructuralFlags();
     }
 
     function deleteSection(si) {
@@ -1191,6 +1230,7 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
         if (si >= 0 && si < model.value.sections.length) {
             model.value.sections.splice(si, 1);
             _reindexGlobalMeasures();
+            _restampStructuralFlags();
         }
     }
 
@@ -1224,16 +1264,21 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
             }
         }
 
+        // Split the lineBreaks array at the row boundary rather than recomputing.
+        // sec keeps rows 0..ri (inclusive); newSec gets rows ri+1..end.
+        const splicePoint = ri + 1;
+        const newBreaks = sec.lineBreaks.splice(splicePoint);
+
         const newSec = {
             id: nextId,
             name: '',
-            lineBreaks: null,
+            lineBreaks: newBreaks.length ? newBreaks : null,
             measures: sec.measures.splice(splitAtMi),
         };
-        _smartDistributeLineBreaks(sec, _getCurrentBarsPerRow(sec));
-        _smartDistributeLineBreaks(newSec, _getCurrentBarsPerRow(sec));
+        if (!newSec.lineBreaks) _smartDistributeLineBreaks(newSec, _getCurrentBarsPerRow(sec));
         model.value.sections.splice(si + 1, 0, newSec);
         _reindexGlobalMeasures();
+        _restampStructuralFlags();
     }
 
     /**
@@ -1272,6 +1317,7 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
             if (sec?.lineBreaks?.length) _smartDistributeLineBreaks(sec, _getCurrentBarsPerRow(sec));
         });
         _reindexGlobalMeasures();
+        _restampStructuralFlags();
     }
 
     function moveMeasure(si, fromMi, toMi) {
@@ -1284,6 +1330,7 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
         if (sec.lineBreaks) _smartDistributeLineBreaks(sec, _getCurrentBarsPerRow(sec));
 
         _reindexGlobalMeasures();
+        _restampStructuralFlags();
     }
 
     /**
@@ -1304,6 +1351,54 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
                 globalIdx++;
             });
         });
+    }
+
+    /**
+     * Re-stamp repeatStart/repeatEnd/volta/voltaStart/voltaEnd on all live
+     * measures from the current repeatMarkers and voltaEndings refs.
+     * Must be called after any structural mutation (insert/delete/move)
+     * so the flags stay aligned with the new global indices.
+     */
+    function _restampStructuralFlags() {
+        const allMeasures = [];
+        model.value.sections.forEach(sec => sec.measures.forEach(m => allMeasures.push(m)));
+
+        const rm = repeatMarkers.value || {};
+        const ve = voltaEndings.value  || {};
+
+        // Reset all flags first
+        allMeasures.forEach(m => {
+            m.repeatStart = rm[m.index]?.start || false;
+            m.repeatEnd   = rm[m.index]?.end   || false;
+            m.volta       = null;
+            m.voltaStart  = false;
+            m.voltaEnd    = false;
+        });
+
+        // Re-populate volta flags
+        if (Object.keys(ve).length) {
+            let activeVolta = null;
+            for (const m of allMeasures) {
+                const entry = ve[m.index.toString()];
+                if (entry?.type === 'start') {
+                    activeVolta = { number: entry.number, text: entry.text || `${entry.number}.` };
+                    m.voltaStart = true;
+                }
+                if (activeVolta) {
+                    m.volta = { ...activeVolta };
+                }
+                const stopEntry = entry?.type === 'stop' ? entry : ve[m.index + '_stop'];
+                if (stopEntry?.type === 'stop') {
+                    m.voltaEnd  = true;
+                    activeVolta = null;
+                }
+            }
+            if (activeVolta !== null) {
+                for (let i = allMeasures.length - 1; i >= 0; i--) {
+                    if (allMeasures[i].volta) { allMeasures[i].voltaEnd = true; break; }
+                }
+            }
+        }
     }
 
     /**

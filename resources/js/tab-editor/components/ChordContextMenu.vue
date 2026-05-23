@@ -39,11 +39,11 @@
       <div class="sbn-cm-group">
         <button class="sbn-context-menu-item" @click="action('copy-measure')">
           <span class="sbn-cm-icon">📋</span>
-          <span class="sbn-context-menu-label">Copy bar</span>
+          <span class="sbn-context-menu-label">{{ selectionBarCount > 1 ? `Copy ${selectionBarCount} bars` : 'Copy bar' }}</span>
         </button>
         <button class="sbn-context-menu-item" @click="action('cut-measure')">
           <span class="sbn-cm-icon">✂️</span>
-          <span class="sbn-context-menu-label">Cut bar</span>
+          <span class="sbn-context-menu-label">{{ selectionBarCount > 1 ? `Cut ${selectionBarCount} bars` : 'Cut bar' }}</span>
         </button>
         <button
           class="sbn-context-menu-item"
@@ -62,15 +62,15 @@
       <div class="sbn-cm-group">
         <button class="sbn-context-menu-item" @click="action('insert-bar-before')">
           <span class="sbn-cm-icon">⬅️</span>
-          <span class="sbn-context-menu-label">Insert bar before</span>
+          <span class="sbn-context-menu-label">{{ selectionBarCount > 1 ? `Insert ${selectionBarCount} bars before` : 'Insert bar before' }}</span>
         </button>
         <button class="sbn-context-menu-item" @click="action('insert-bar-after')">
           <span class="sbn-cm-icon">➡️</span>
-          <span class="sbn-context-menu-label">Insert bar after</span>
+          <span class="sbn-context-menu-label">{{ selectionBarCount > 1 ? `Insert ${selectionBarCount} bars after` : 'Insert bar after' }}</span>
         </button>
         <button class="sbn-context-menu-item danger" @click="action('delete-bar')">
           <span class="sbn-cm-icon">🗑️</span>
-          <span class="sbn-context-menu-label">Delete bar</span>
+          <span class="sbn-context-menu-label">{{ selectionBarCount > 1 ? `Delete ${selectionBarCount} bars` : 'Delete bar' }}</span>
         </button>
       </div>
 
@@ -129,7 +129,8 @@ const props = defineProps({
   top:          { type: Number,  default: 0 },
   left:         { type: Number,  default: 0 },
   contextData:  { type: Object,  default: () => ({}) },
-  hasClipboard: { type: Boolean, default: false },
+  hasClipboard:     { type: Boolean, default: false },
+  selectionBarCount: { type: Number,  default: 1 },
   // True when the immediately preceding measure is the voltaEnd of a bracket,
   // so we can offer "Extend bracket to here".
   nearVoltaEnd: { type: Boolean, default: false },

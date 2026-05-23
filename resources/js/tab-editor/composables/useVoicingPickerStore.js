@@ -373,6 +373,13 @@ function applyVoicing(v) {
         }
     }
 
+    // If opened from tab with no prior chord name, treat as a specific-slot assign
+    // using tabSrc coordinates rather than a global rename.
+    const tabSrcForAssign = (!keyMatch && store._tabSource && !oldName) ? store._tabSource : null;
+    if (tabSrcForAssign) {
+        affectedGis.push(tabSrcForAssign.globalMeasureIndex);
+    }
+
     _undo.wrapCommand('Assign voicing', affectedGis, () => {
         if (!_model.value.chordVoicings) _model.value.chordVoicings = {};
         const cv = _model.value.chordVoicings;
@@ -396,6 +403,24 @@ function applyVoicing(v) {
                 const newKey = `${newName}@${keyMatch[1]}.${keyMatch[2]}`;
                 if (cv[assignKey] !== undefined) delete cv[assignKey];
                 cv[newKey] = { frets: v.frets, position: v.position, fingers: v.fingers ?? '000000' };
+            } else if (tabSrcForAssign) {
+                // Tab-originated assign with no prior chord name — write name into specific slot
+                const gi = tabSrcForAssign.globalMeasureIndex;
+                const ci = tabSrcForAssign.chordIndex;
+                let g = 0;
+                outer2: for (const sec of _model.value.sections) {
+                    for (const m of sec.measures) {
+                        if (g === gi) {
+                            if (!m.chordNames) m.chordNames = [];
+                            while (m.chordNames.length <= ci) m.chordNames.push('');
+                            m.chordNames[ci] = newName;
+                            break outer2;
+                        }
+                        g++;
+                    }
+                }
+                const newKey = `${newName}@${gi}.${ci}`;
+                cv[newKey] = { frets: v.frets, position: v.position, fingers: v.fingers ?? '000000' };
             } else {
                 // Global rename: update all instances of oldName
                 for (const sec of _model.value.sections) {
@@ -410,6 +435,12 @@ function applyVoicing(v) {
                 if (cv[oldName] !== undefined) delete cv[oldName];
                 cv[newName] = { frets: v.frets, position: v.position, fingers: v.fingers ?? '000000' };
             }
+        } else if (tabSrcForAssign) {
+            // Tab-originated, name unchanged (still empty or same) — just write the voicing key
+            const gi = tabSrcForAssign.globalMeasureIndex;
+            const ci = tabSrcForAssign.chordIndex;
+            const newKey = newName ? `${newName}@${gi}.${ci}` : null;
+            if (newKey) cv[newKey] = { frets: v.frets, position: v.position, fingers: v.fingers ?? '000000' };
         } else {
             // Name unchanged — straightforward assignment
             cv[assignKey] = { frets: v.frets, position: v.position, fingers: v.fingers ?? '000000' };
@@ -441,6 +472,7 @@ function applyVoicing(v) {
             chordName:          newName,
             frets:              v.frets,
             position:           v.position,
+            skipIfTabExists:    true,
         });
     }
 

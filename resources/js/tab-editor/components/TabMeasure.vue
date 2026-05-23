@@ -23,7 +23,7 @@
                 >
                     <input
                         v-if="renamingCi === ci"
-                        ref="renameInput"
+                        :ref="el => { renameInputEl = el }"
                         class="sbn-ve-chord-name-input sbn-tab-chord-rename-input"
                         :value="renameValue"
                         @input="renameValue = $event.target.value"
@@ -41,9 +41,10 @@
                             'sbn-tab-chord-name--clickable': !readOnly || allowChordClick,
                             'is-active': activeChordIndex === ci
                         }"
-                        :title="readOnly ? name : 'Click to change voicing for ' + name"
+                        :title="readOnly ? name : 'Click: voicing · Double-click: rename'"
                         v-html="formatChord(name)"
                         @click.stop="onChordNameClick(name, ci)"
+                        @dblclick.stop="onChordNameDblClick(ci)"
                         @contextmenu.prevent.stop="onChordNameContextMenu($event, name, ci)"
                     ></span>
                 </span>
@@ -288,20 +289,20 @@ const transportPlaying     = inject('transportPlaying',    null);
 const tapCursor            = inject('tapCursor', null);
 const videoSyncMap         = inject('videoSyncMap', null);
 const inlineRenameTarget   = inject('inlineRenameTarget', null);
+const triggerInlineRename  = inject('triggerInlineRename', null);
 const setChordNameFn       = inject('setChordName', null);
 
 // ── Inline chord rename ───────────────────────────────────────────────────────
-const renameInput    = ref(null);
+let renameInputEl    = null;  // set via callback ref — avoids v-for array issue
 const renamingCi     = ref(null);   // chord index currently being renamed, or null
 const renameValue    = ref('');
 
 watch(inlineRenameTarget, (target) => {
-    if (target && target.gi === props.measure.index) {
+    if (target && target.source === 'tab' && target.gi === props.measure.index) {
         renameValue.value = props.chordNames[target.ci] || '';
         renamingCi.value  = target.ci;
-        nextTick(() => { renameInput.value?.focus(); renameInput.value?.select(); });
+        nextTick(() => { renameInputEl?.focus(); renameInputEl?.select(); });
     } else {
-        // Target moved to a different measure or was cleared — cancel any open input
         renamingCi.value = null;
     }
 });
@@ -636,14 +637,21 @@ const svgContent = computed(() => {
     return html;
 });
 
+let _chordClickTimer = null;
+
 function onChordNameClick(chordName, chordIndex) {
-    // In read-only mode, still emit if allowChordClick is true (for viewer selection)
     if (props.readOnly && !props.allowChordClick) return;
-    emit('chord-click', {
-        measureIndex: props.measure.index,
-        chordIndex,
-        chordName,
-    });
+    // Delay to let dblclick cancel this before opening the voicing picker
+    _chordClickTimer = setTimeout(() => {
+        _chordClickTimer = null;
+        emit('chord-click', { measureIndex: props.measure.index, chordIndex, chordName });
+    }, 220);
+}
+
+function onChordNameDblClick(chordIndex) {
+    if (props.readOnly) return;
+    if (_chordClickTimer) { clearTimeout(_chordClickTimer); _chordClickTimer = null; }
+    triggerInlineRename?.(props.measure.index, chordIndex);
 }
 
 /** Click on the "?" placeholder — bar has no chord yet, open name picker. */

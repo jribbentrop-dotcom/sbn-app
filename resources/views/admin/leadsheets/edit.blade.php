@@ -25,7 +25,7 @@
     <form id="save-as-exercise-form" method="POST" action="{{ route('admin.exercises.from-leadsheet', $leadsheet) }}" style="display:inline;">
         @csrf
         <button type="button" class="sbn-btn sbn-btn-secondary"
-                @click="saveAndCopyToExercise($el)">
+                onclick="window.dispatchEvent(new CustomEvent('sbn-save-as-exercise'))">
             → Save as Exercise
         </button>
     </form>
@@ -1380,6 +1380,8 @@ function leadsheetEditor() {
                 this.markDirty();
             });
 
+            window.addEventListener('sbn-save-as-exercise', () => this.saveAndCopyToExercise());
+
             if (this.leadsheetId) {
                 this.loadExistingData();
             }
@@ -2326,7 +2328,7 @@ function leadsheetEditor() {
             this.saving = false;
         },
 
-        async saveAndCopyToExercise(btn) {
+        async saveAndCopyToExercise() {
             if (!confirm('Save leadsheet and copy to Exercises?')) return;
             if (this.dirty || this.itemId) {
                 await this.save();

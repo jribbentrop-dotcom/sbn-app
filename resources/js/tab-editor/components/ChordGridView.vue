@@ -20,6 +20,7 @@
       :left="ctxMenuLeft"
       :context-data="ctxMenuData"
       :has-clipboard="clipboard ? clipboard.hasClipboard.value : false"
+      :selection-bar-count="selectionBarCount"
       :near-volta-end="nearVoltaEnd"
       @action="onContextMenuAction"
     />
@@ -94,7 +95,12 @@ function _voltaEndBefore(gi) {
   return null;
 }
 
-const nearVoltaEnd = computed(() => ctxVoltaEndGi.value !== null);
+const nearVoltaEnd = computed(() => ctxVoltaEndGi.value !== null)
+
+const selectionBarCount = computed(() => {
+  const sel = gridSelection?.selection?.value ?? [];
+  return new Set(sel.map(s => s.gi)).size || 1;
+});
 
 // ── Grid click — close pickers on bare-grid click ────────────────────────────
 
@@ -136,32 +142,67 @@ function onContextMenuAction(actionId, data) {
       break;
 
     // Clipboard
-    case 'copy-measure':
-      clipboard?.copyMeasure(gi);
+    case 'copy-measure': {
+      const sel = gridSelection?.selection?.value ?? [];
+      const selGis = [...new Set(sel.map(s => s.gi))];
+      if (selGis.length > 1) {
+        clipboard?.copySelection(sel);
+      } else {
+        clipboard?.copyMeasure(gi);
+      }
       break;
+    }
 
-    case 'cut-measure':
-      clipboard?.cutMeasure(gi);
+    case 'cut-measure': {
+      const sel = gridSelection?.selection?.value ?? [];
+      const selGis = [...new Set(sel.map(s => s.gi))];
+      if (selGis.length > 1) {
+        clipboard?.cutSelection(sel, (s) => ops?.deleteChords(s));
+      } else {
+        clipboard?.cutMeasure(gi);
+      }
       gridSelection?.clearSelection();
       break;
+    }
 
     case 'paste-measure':
       clipboard?.pasteMeasure(gi);
       break;
 
     // Structural
-    case 'insert-bar-before':
-      ops?.insertBarBefore(si, mi);
+    case 'insert-bar-before': {
+      const sel = gridSelection?.selection?.value ?? [];
+      const selGis = [...new Set(sel.map(s => s.gi))];
+      if (selGis.length > 1) {
+        ops?.insertBarsBeforeGi(Math.min(...selGis), selGis.length);
+      } else {
+        ops?.insertBarBefore(si, mi);
+      }
       break;
+    }
 
-    case 'insert-bar-after':
-      ops?.insertBarAfter(si, mi);
+    case 'insert-bar-after': {
+      const sel = gridSelection?.selection?.value ?? [];
+      const selGis = [...new Set(sel.map(s => s.gi))];
+      if (selGis.length > 1) {
+        ops?.insertBarsAfterGi(Math.max(...selGis), selGis.length);
+      } else {
+        ops?.insertBarAfter(si, mi);
+      }
       break;
+    }
 
-    case 'delete-bar':
-      ops?.deleteBar(gi);
+    case 'delete-bar': {
+      const sel = gridSelection?.selection?.value ?? [];
+      const selGis = [...new Set(sel.map(s => s.gi))];
+      if (selGis.length > 1) {
+        ops?.deleteBars(selGis);
+      } else {
+        ops?.deleteBar(gi);
+      }
       gridSelection?.clearSelection();
       break;
+    }
 
     // Section
     case 'duplicate-section':
@@ -217,7 +258,12 @@ let _cleanupKeys = null;
 onMounted(() => {
   if (gridSelection?.setupKeyboardHandlers) {
     _cleanupKeys = gridSelection.setupKeyboardHandlers((sel) => {
-      ops?.deleteChords(sel);
+      const selGis = [...new Set(sel.map(s => s.gi))];
+      if (selGis.length > 1) {
+        ops?.deleteBars(selGis);
+      } else {
+        ops?.deleteChords(sel);
+      }
       gridSelection.clearSelection();
     });
   }

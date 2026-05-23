@@ -2586,6 +2586,36 @@
     white-space: nowrap;
 }
 
+/* Bars-per-row control */
+.sbn-ve-section-bpr {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.sbn-ve-section-bpr span {
+    font-size: 11px;
+    color: var(--clr-text-muted);
+}
+
+.sbn-ve-section-bpr input[type="number"] {
+    width: 42px;
+    padding: 2px 4px;
+    font-size: 12px;
+    font-family: var(--font-body);
+    background: var(--clr-surface);
+    color: var(--clr-text);
+    border: 1px solid var(--clr-border);
+    border-radius: 4px;
+    outline: none;
+    text-align: center;
+}
+
+.sbn-ve-section-bpr input[type="number"]:focus {
+    border-color: var(--clr-accent);
+}
+
 /* Section body */
 .sbn-ve-section-body {
     background: var(--clr-surface);

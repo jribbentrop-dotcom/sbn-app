@@ -540,6 +540,42 @@ export function useChordGridOps(model, undo, tabModel) {
     }
 
     /**
+     * Insert `count` empty bars after global index gi (all in one undo step).
+     */
+    function insertBarsAfterGi(gi, count) {
+        if (!model.value || count < 1) return;
+        undo.wrapCommand(`Insert ${count} bars`, [], () => {
+            for (let i = 0; i < count; i++) {
+                // Re-resolve each time since indices shift after each insert
+                const coord = _globalToLocal(gi + i);
+                if (coord) tabModel.insertMeasureAfter(coord.si, coord.mi);
+            }
+        }, {
+            serializeModel: tabModel.serializeModel,
+            deserializeModel: tabModel.deserializeModel,
+            afterApply: _dispatchSync,
+        });
+    }
+
+    /**
+     * Insert `count` empty bars before global index gi (all in one undo step).
+     */
+    function insertBarsBeforeGi(gi, count) {
+        if (!model.value || count < 1) return;
+        undo.wrapCommand(`Insert ${count} bars`, [], () => {
+            for (let i = 0; i < count; i++) {
+                // Always insert at same gi — each insert pushes previous ones forward
+                const coord = _globalToLocal(gi);
+                if (coord) tabModel.insertMeasureBefore(coord.si, coord.mi);
+            }
+        }, {
+            serializeModel: tabModel.serializeModel,
+            deserializeModel: tabModel.deserializeModel,
+            afterApply: _dispatchSync,
+        });
+    }
+
+    /**
      * Delete the bar at global index gi.
      *
      * @param {number} gi — global measure index
@@ -711,6 +747,15 @@ export function useChordGridOps(model, undo, tabModel) {
         if (!m) return;
         undo.wrapCommand('Set Volta End', [gi], () => {
             m.voltaEnd = true;
+            // Clear any trailing bars that were part of this bracket
+            let i = gi + 1;
+            while (true) {
+                const next = _findMeasureByGi(i);
+                if (!next || !next.volta || next.voltaStart) break;
+                next.volta     = null;
+                next.voltaEnd  = false;
+                i++;
+            }
         });
         _dispatchSync();
     }
@@ -807,6 +852,8 @@ export function useChordGridOps(model, undo, tabModel) {
         // Pattern B
         insertBarAfter,
         insertBarBefore,
+        insertBarsAfterGi,
+        insertBarsBeforeGi,
         deleteBar,
         deleteBars,
         moveBar,

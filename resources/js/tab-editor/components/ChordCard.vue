@@ -20,7 +20,7 @@
         @click.stop
         @pointerdown.stop
       />
-      <span v-else v-html="formattedChordName"></span>
+      <span v-else v-html="formattedChordName || '<span class=\'sbn-ve-chord-name-empty\'>?</span>'"></span>
     </div>
 
     <!-- Diagram area — drag to move, click opens voicing picker -->
@@ -124,7 +124,7 @@ const editing   = ref(false);
 const editValue = ref('');
 
 watch(inlineRenameTarget, (target) => {
-  if (target && target.gi === gi.value && target.ci === ci.value) {
+  if (target && target.source !== 'tab' && target.gi === gi.value && target.ci === ci.value) {
     editValue.value = props.chord.name || '';
     editing.value = true;
     nextTick(() => { nameInput.value?.focus(); nameInput.value?.select(); });
@@ -186,6 +186,12 @@ const renderedDiagram = computed(() => {
 function onBodyClick(event) {
   gridSelection?.handleClick(gi.value, ci.value, event);
   seekToMeasure?.(gi.value, ci.value);
+  // Empty name — open inline edit immediately so the slot is reachable
+  if (!props.readOnly && setChordName && !props.chord.name && !editing.value) {
+    editValue.value = '';
+    editing.value = true;
+    nextTick(() => { nameInput.value?.focus(); });
+  }
 }
 
 /** Click on the chord name text → select + seek, then activate inline edit in editor mode */
