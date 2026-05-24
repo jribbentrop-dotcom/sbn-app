@@ -107,6 +107,7 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::delete('/exercises/{exercise}', [AdminExerciseController::class, 'destroy'])->name('exercises.destroy');
     Route::get('/exercises/{exercise}/data', [AdminExerciseController::class, 'apiData'])->name('exercises.data');
     Route::post('/exercises/from-leadsheet/{leadsheet}', [AdminExerciseController::class, 'createFromLeadsheet'])->name('exercises.from-leadsheet');
+    Route::post('/exercises/from-leadsheet/{leadsheet}/slice', [AdminExerciseController::class, 'createFromLeadsheetSlice'])->name('exercises.from-leadsheet-slice');
 
     // Shop Orders (admin view)
     Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');

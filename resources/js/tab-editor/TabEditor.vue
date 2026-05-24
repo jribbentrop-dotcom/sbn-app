@@ -1592,6 +1592,26 @@ function onKeydown(e) {
         return;
     }
 
+    // ── Shift+↑/↓: select all events at the current beat (same tickInMeasure) ──
+    if (e.shiftKey && cursor.value.mode === 'navigate'
+        && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+        const mi = cursor.value.measureIndex;
+        const ei = cursor.value.eventIndex;
+        const m  = allMeasures.value[mi];
+        if (!m) return;
+        const v1 = m.events.filter(ev => (ev.voice ?? 1) === 1).sort((a, b) => a.tick - b.tick);
+        const curEv = v1[ei];
+        if (!curEv) return;
+        const beatTick = curEv.tickInMeasure ?? 0;
+        const beatIds = v1
+            .filter(ev => (ev.tickInMeasure ?? 0) === beatTick)
+            .map(ev => ev.id);
+        setSelectedEvents(beatIds);
+        _noteSelAnchorIdx.value = null;
+        return;
+    }
+
     // Escape: clear note selection
     if (e.key === 'Escape' && hasNoteSelection.value) {
         clearNoteSelection();
@@ -2236,6 +2256,10 @@ function onMeasureContextMenu({ measureIndex, event }) {
             { id: 'toggleRepeatEnd',   label: m?.repeatEnd   ? 'Remove End Repeat'   : 'End Repeat',   group: 'structure' },
             { id: 'deleteBar',       label: 'Delete bar', danger: true, group: 'danger' },
         );
+        if (window.__sbnLeadsheet?.id) {
+            items.push({ divider: true, group: 'exercise' });
+            items.push({ id: 'saveAsExercise', label: 'Save bar as exercise', group: 'exercise' });
+        }
     } else {
         items.push(
             { id: 'copy', label: `Copy selection (${indices.length} bars)`,   shortcut: 'Ctrl+C', group: 'clipboard' },
@@ -2245,6 +2269,10 @@ function onMeasureContextMenu({ measureIndex, event }) {
             { id: 'insertBarsBefore', label: `Insert ${indices.length} bars before`, group: 'structure' },
             { id: 'deleteSelection', label: `Delete ${indices.length} bars`, danger: true, group: 'danger' },
         );
+        if (window.__sbnLeadsheet?.id) {
+            items.push({ divider: true, group: 'exercise' });
+            items.push({ id: 'saveAsExercise', label: `Save ${indices.length} bars as exercise`, group: 'exercise' });
+        }
     }
 
     if (typeof window.showContextMenu === 'function') {
@@ -2401,6 +2429,63 @@ function handleTabContextAction(actionId, measureIndex, chordIndex = 0, clickBea
         case 'paste':
             handlePaste();
             break;
+        case 'saveAsExercise':
+            handleSaveAsExercise(measureIndex);
+            break;
+    }
+}
+
+async function handleSaveAsExercise(contextMeasureIndex) {
+    const leadsheetId = window.__sbnLeadsheet?.id;
+    if (!leadsheetId) return;
+
+    const indices = hasNoteSelection.value
+        ? getSelectedMeasureIndices()
+        : [contextMeasureIndex];
+    if (!indices.length) return;
+
+    const firstGi = Math.min(...indices);
+    const lastGi  = Math.max(...indices);
+    const defaultTitle = `${model.value?.title ?? ''} (bars ${firstGi + 1}–${lastGi + 1})`.trim();
+    const title = window.prompt('Exercise title:', defaultTitle);
+    if (title === null) return; // cancelled
+
+    const token = document.querySelector('meta[name="csrf-token"]')?.content;
+    try {
+        const resp = await fetch(`/admin/exercises/from-leadsheet/${leadsheetId}/slice`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+            body: JSON.stringify({ measure_indices: indices, title: title || defaultTitle }),
+        });
+        const raw = await resp.text();
+        console.log('[saveAsExercise] status', resp.status, 'body:', raw);
+        if (!resp.ok) {
+            let msg = raw;
+            try { const j = JSON.parse(raw); msg = j.message || JSON.stringify(j.errors ?? j); } catch {}
+            alert('Save as exercise failed (' + resp.status + '):\n' + msg);
+            return;
+        }
+        const data = JSON.parse(raw);
+        if (data.success) {
+            if (typeof window.sbnToast === 'function') {
+                window.sbnToast(data.message, 'success');
+                // Second toast with clickable link (innerHTML, not textContent)
+                const t = document.createElement('div');
+                t.className = 'sbn-toast sbn-toast-success';
+                t.style.cssText = 'position:fixed;bottom:60px;right:16px;z-index:9999;padding:10px 18px;border-radius:8px;font-size:14px;cursor:pointer;';
+                t.innerHTML = '<a href="' + data.editUrl + '" target="_blank" style="color:inherit;text-decoration:underline;">Open exercise →</a>';
+                document.body.appendChild(t);
+                setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 5000);
+            } else {
+                if (confirm(data.message + '\n\nOpen exercise in new tab?')) {
+                    window.open(data.editUrl, '_blank');
+                }
+            }
+        } else {
+            alert('Error: ' + (data.message || 'Unknown error'));
+        }
+    } catch (e) {
+        alert('Network error saving exercise.');
     }
 }
 

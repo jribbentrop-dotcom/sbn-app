@@ -33,10 +33,11 @@ export function useVideoSync(model, { wrapCommand, playingMeasureIndex, transpor
     const _sequence = () => (typeof getSequence === 'function' ? (getSequence() || []) : []);
 
     // ── State ─────────────────────────────────────────────────
-    const videoId      = ref('');
-    const videoType    = ref('youtube'); // 'youtube' | 'hosted'
-    const mappings     = ref([]);        // [{ measureIndex, videoTime }] sorted by measureIndex
-    const sidebarOpen  = ref(false);     // independent of viewMode
+    const videoId          = ref('');
+    const videoType        = ref('youtube'); // 'youtube' | 'hosted'
+    const mappings         = ref([]);        // [{ measureIndex, videoTime }] sorted by measureIndex
+    const videoTimeOffset  = ref(0);         // non-zero for sliced exercises: absolute video start time
+    const sidebarOpen      = ref(false);     // independent of viewMode
 
     // Current video time (driven by VideoPlayer timeupdate, not transport)
     const videoTime    = ref(0);
@@ -176,11 +177,16 @@ export function useVideoSync(model, { wrapCommand, playingMeasureIndex, transpor
     // ── Serialization ─────────────────────────────────────────
 
     function getVideoSync() {
+        const offset = videoTimeOffset.value || 0;
         return {
-            videoId:     videoId.value,
-            videoType:   videoType.value,
-            mappings:    mappings.value.map(m => ({ ...m })),
-            audioSource: audioSource.value,
+            videoId:          videoId.value,
+            videoType:        videoType.value,
+            mappings:         mappings.value.map(m => ({
+                measureIndex: m.measureIndex,
+                videoTime:    m.videoTime - offset,
+            })),
+            audioSource:      audioSource.value,
+            ...(offset ? { videoTimeOffset: offset } : {}),
         };
     }
 
@@ -189,8 +195,10 @@ export function useVideoSync(model, { wrapCommand, playingMeasureIndex, transpor
         videoId.value   = data.videoId   ?? '';
         videoType.value = data.videoType ?? 'youtube';
         audioSource.value = data.audioSource ?? 'synth';
+        const offset = typeof data.videoTimeOffset === 'number' ? data.videoTimeOffset : 0;
+        videoTimeOffset.value = offset;
         mappings.value  = Array.isArray(data.mappings)
-            ? data.mappings.map(m => ({ measureIndex: m.measureIndex, videoTime: m.videoTime }))
+            ? data.mappings.map(m => ({ measureIndex: m.measureIndex, videoTime: m.videoTime + offset }))
             : [];
     }
 
