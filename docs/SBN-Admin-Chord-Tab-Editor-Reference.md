@@ -372,6 +372,7 @@ Both chord and tab views support multi-bar selection for clipboard and structura
 | T | Toggle tie |
 | A | Insert rest after cursor event |
 | Shift+←/→ | Extend note selection (within measure) |
+| Shift+↑/↓ | Select all events at the current beat (same `tickInMeasure`) — column-select across strings |
 | Shift+click measure | Extend bar selection across measures |
 | Ctrl+C/X/V | Copy/cut/paste (note-level, single bar, or multi-bar depending on selection) |
 | Ctrl+Z / Ctrl+Shift+Z | Undo/redo (unified — covers chord grid + tab + voicings) |
@@ -674,7 +675,8 @@ All paths land in the same editor. Storage contract is identical regardless of h
 | From Jazz Standards DB | ✅ Shipped | "+ New leadsheet" → "From progression" → Jazz Standards tab |
 | From saved progression | ✅ Shipped | "+ New leadsheet" → "From progression" → Saved Progression tab |
 | Rhythm-aware materialization | ✅ Shipped | Layout step of progression modal → Rhythm pattern select |
-| Save as exercise | ✅ Shipped | Edit page → "→ Save as Exercise" button |
+| Save as exercise (full) | ✅ Shipped | Edit page → "→ Save as Exercise" button |
+| Save bar selection as exercise | ✅ Shipped | Right-click any bar or multi-bar selection → "Save bar(s) as exercise" |
 | LLM song lookup | ✅ Shipped / ⚠️ Maintenance mode | "+ New leadsheet" → "From song lookup" |
 | Audio transcription | ⚠️ Experimental | Embedded in song lookup modal |
 
@@ -719,7 +721,17 @@ All paths land in the same editor. Storage contract is identical regardless of h
 
 ### Exercises
 
-Exercises live in `sbn_exercises` (separate table from `sbn_leadsheets`). Created via the editor's **"→ Save as Exercise"** button → `Admin\ExerciseController::createFromLeadsheet()`. Exercise edit page uses the same `TabEditor.vue` via `exerciseEditor()` Alpine function. Full detail (sbn-sheet tag, SheetMiniPlayer, API, LessonPalette) in [SBN-Course-Reference.md §9](SBN-Course-Reference.md).
+Exercises live in `sbn_exercises` (separate table from `sbn_leadsheets`). Exercise edit page uses the same `TabEditor.vue` via `exerciseEditor()` Alpine function. Full detail (sbn-sheet tag, SheetMiniPlayer, API, LessonPalette) in [SBN-Course-Reference.md §9](SBN-Course-Reference.md).
+
+**Full-copy:** "→ Save as Exercise" button → `Admin\ExerciseController::createFromLeadsheet()` — copies the entire leadsheet.
+
+**Bar-slice:** right-click any bar or multi-bar selection (only shown on leadsheets, not exercises) → "Save bar(s) as exercise" → title prompt → `POST /admin/exercises/from-leadsheet/{id}/slice`.
+
+Slice logic (`ExerciseController::createFromLeadsheetSlice`):
+- Accepts `measure_indices[]` (gi values from the Vue model).
+- Iterates `content_json.sections[].measures[]` **positionally** (no `index` field in stored JSON) to find the selected bars; rebases each measure's event `tick` and `measureIdx` to start at 0.
+- If `videoSync` is present: filters mappings to the selected gi range, offsets `measureIndex` by `-firstGi` and `videoTime` by `-firstVideoTime`. Stores the raw offset as `videoSync.videoTimeOffset`.
+- `useVideoSync.setVideoSync()` adds `videoTimeOffset` back to every `videoTime` in memory so all interpolation runs on absolute YouTube timestamps unchanged. `getVideoSync()` subtracts it back out on save — the stored format always has times relative to the slice start plus the offset field.
 
 ### LLM song lookup (L3) — maintenance mode
 
