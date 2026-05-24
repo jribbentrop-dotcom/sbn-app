@@ -13,7 +13,7 @@ interface Props {
     onChordClick?: (() => void) | null;
 }
 
-const props = withDefaults(defineProps<Props>(), { mini: false, detail: false, showRoot: false, onChordClick: null });
+const props = withDefaults(defineProps<Props>(), { mini: false, detail: false, showRoot: true, onChordClick: null });
 
 const formattedName = computed(() => {
     // Normally cards show quality + extensions only (no root) — the library
@@ -28,8 +28,8 @@ const formattedName = computed(() => {
 
     // Mapping: DB quality key → [displayed quality, displayed core extension]
     const qualityMap: Record<string, [string, string]> = {
-        'maj':   ['major', ''],
-        'min':   ['minor', ''],
+        'maj':   ['', ''],
+        'min':   ['m', ''],
         'aug':   ['aug', ''],
         'dim':   ['°',   ''],
         '5':     ['',    '5'],

@@ -768,6 +768,40 @@
     position: relative;
 }
 
+/* Play button — overlaid at bottom-centre of diagram, shown on card hover */
+.sbn-card-diagram .sbn-play-btn {
+    position: absolute;
+    top: 90%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 24px;
+    height: 24px;
+    opacity: 0;
+    background: var(--clr-red);
+    border-color: var(--clr-red);
+    color: var(--clr-white);
+    transition: opacity 0.15s var(--ease), transform 0.15s var(--ease);
+    pointer-events: none;
+}
+
+.sbn-chord-card:hover .sbn-card-diagram .sbn-play-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.sbn-chord-card--detail .sbn-card-diagram .sbn-play-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.sbn-card-diagram .sbn-play-btn:hover {
+    transform: translate(-50%, -50%) scale(1.15);
+}
+
+.sbn-card-diagram .sbn-play-btn.is-playing {
+    transform: translate(-50%, -50%) scale(1.15);
+}
+
 /* Arpeggio dot ping animation */
 @keyframes sbnDotPing {
     0%   { transform: scale(1);   fill: var(--clr-red); }
@@ -781,25 +815,12 @@
     transform-box: fill-box;
 }
 
-/* Thin the fret/string lines in the SVG via CSS stroke override */
-.sbn-card-diagram :deep(svg) {
-    width: 100%;
-    height: auto;
-}
-
-.sbn-card-diagram :deep(svg line) {
-    stroke-width: 0.35;
-}
-
-.sbn-card-diagram :deep(svg line[stroke-width="0.9"]) {
-    stroke-width: 0.6;
-}
-
 /* Footer */
 .sbn-card-footer {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
+    gap: 3px;
     padding-top: 4px;
     margin-top: 0;
     border-top: 1px solid var(--clr-surface-2);
@@ -810,46 +831,149 @@
     padding: 10px;
 }
 
-.sbn-chords-grid .sbn-card-pop {
-    padding: 1px 4px;
-    font-size: 8px;
-}
 
-.sbn-chords-grid .sbn-diff-star {
-    font-size: 8px;
-}
-
-/* Popularity pill */
+/* Popularity badge base + tiers */
 .sbn-card-pop {
     display: inline-block;
-    padding: 2px 7px;
-    border-radius: 999px;
-    font-size: 0.6em;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 9px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.4px;
     white-space: nowrap;
 }
 
-.sbn-pop-occasional { background: var(--clr-surface-2); color: var(--clr-text-muted); }
-.sbn-pop-common     { background: #ebf8ff; color: var(--clr-style-jazz); }
-.sbn-pop-essential  { background: var(--clr-accent-bg); color: var(--clr-red); }
-.sbn-pop-iconic     { background: #fffff0; color: var(--clr-style-gold); }
+.sbn-pop-occasional { background: var(--clr-surface-2);          color: var(--clr-text-muted);  }
+.sbn-pop-common     { background: rgba(59, 130, 246, 0.1);        color: var(--clr-style-jazz);  }
+.sbn-pop-essential  { background: var(--clr-accent-bg);           color: var(--clr-accent);      }
+.sbn-pop-iconic     { background: rgba(214, 158, 46, 0.12);       color: var(--clr-style-gold);  }
 
 /* Difficulty stars */
 .sbn-card-diff {
     display: inline-flex;
     gap: 1px;
+    align-items: center;
 }
 
 .sbn-diff-star {
-    font-size: 0.65em;
+    font-size: 9px;
     color: var(--clr-border);
     line-height: 1;
 }
 
 .sbn-diff-star.filled {
     color: var(--clr-red);
+}
+
+/* Hover controls (play + optional info) */
+.sbn-card-hover-controls {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+    opacity: 0;
+    transform: translateY(-50%) translateX(10px);
+    transition: opacity 0.2s var(--ease),
+        transform 0.2s var(--ease);
+    pointer-events: none;
+}
+
+.sbn-chord-card:hover .sbn-card-hover-controls,
+.sbn-chord-card--detail .sbn-card-hover-controls {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+    pointer-events: auto;
+}
+
+.sbn-play-btn,
+.sbn-info-btn {
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--clr-border);
+    background: var(--clr-white);
+    color: var(--clr-text-muted);
+    cursor: pointer;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s var(--ease);
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.sbn-play-btn:hover {
+    transform: scale(1.15);
+}
+
+.sbn-play-btn.is-playing {
+    transform: scale(1.15);
+}
+
+.sbn-info-btn:hover {
+    background: var(--clr-surface-2);
+    color: var(--clr-accent);
+    border-color: var(--clr-accent-border);
+}
+
+.sbn-play-btn:focus-visible,
+.sbn-info-btn:focus-visible {
+    outline: 2px solid var(--clr-accent);
+    outline-offset: 1px;
+}
+
+/* DOM-based dot/barre ping animations (legacy HTML renderer) */
+@keyframes sbn-dot-ping {
+    0%   { transform: translate(-50%, -50%) scale(1);    opacity: 0.85; }
+    35%  { transform: translate(-50%, -50%) scale(1.55); opacity: 1;    }
+    70%  { transform: translate(-50%, -50%) scale(1.2);  opacity: 0.95; }
+    100% { transform: translate(-50%, -50%) scale(1);    opacity: 0.85; }
+}
+
+@keyframes sbn-barre-ping {
+    0%   { opacity: 0.85; }
+    35%  { opacity: 1; transform: translateY(-50%) scaleY(1.3); }
+    100% { opacity: 0.85; transform: translateY(-50%) scaleY(1); }
+}
+
+.sbn-finger-position.sbn-dot-ping {
+    animation: sbn-dot-ping 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+.sbn-barre.sbn-dot-ping {
+    animation: sbn-barre-ping 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+/* Touch devices: always show play button */
+@media (hover: none) {
+    .sbn-card-hover-controls {
+        opacity: 1;
+        transform: translateY(-50%) translateX(0);
+        pointer-events: auto;
+    }
+
+    .sbn-card-diagram .sbn-play-btn {
+        opacity: 1;
+        pointer-events: auto;
+    }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .sbn-chord-card,
+    .sbn-card-hover-controls,
+    .sbn-play-btn,
+    .sbn-info-btn {
+        transition: none;
+    }
+
+    .sbn-chord-card:hover {
+        transform: none;
+    }
 }
 
 

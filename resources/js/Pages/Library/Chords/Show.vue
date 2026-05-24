@@ -129,7 +129,6 @@ const activeAlias = computed(() => activeAliasIdx.value >= 0 ? props.aliases[act
 // Merged view: fret shape always from chord, name/quality/extensions from active alias when set
 const activeQuality    = computed(() => activeAlias.value?.quality    ?? props.chord.quality);
 const activeExtensions = computed(() => activeAlias.value?.extensions ?? props.chord.extensions ?? '');
-const activeRootNote   = computed(() => activeAlias.value?.root_note  ?? props.chord.root_note ?? '');
 
 // Chord passed to ChordCard — overlay all alias fields when active
 const displayChord = computed(() => {
@@ -199,7 +198,7 @@ function formatNote(n: string): string {
 }
 
 const qualityMap: Record<string, [string, string]> = {
-    'maj': ['', 'major'], 'min': ['m', ''], 'aug': ['aug', ''], 'dim': ['°', ''],
+    'maj': ['', ''], 'min': ['m', ''], 'aug': ['aug', ''], 'dim': ['°', ''],
     '5': ['', '5'], 'sus4': ['sus', '4'], 'sus2': ['sus', '2'], 'add9': ['', 'add9'],
     'maj7': ['maj', '7'], 'm7': ['m', '7'], 'dom7': ['', '7'], 'm7b5': ['m', '7♭5'],
     'o7': ['°', '7'], 'maj6': ['maj', '6'], 'm6': ['m', '6'],
@@ -737,11 +736,12 @@ const formattedChordName = computed(() => {
 /* ── Sibling voicings ── */
 .sbn-chord-detail-siblings {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(120px, 140px));
     gap: 12px;
     padding-top: 4px;
     overflow: visible;
 }
+
 
 .sbn-chord-detail-sibling-card {
     text-decoration: none;

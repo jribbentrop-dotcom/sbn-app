@@ -46,11 +46,18 @@
         >
           <div class="stage-sec-bar-num">{{ (measure.globalIndex ?? mi) + 1 }}</div>
           <div class="stage-sec-measure-chords">
-            <ClassicChordCard
+            <div
               v-for="(name, ci) in (measure.chordNames || [])" :key="ci"
-              :chord-name="name"
-              :voicing="getVoicingAt(measure, ci)"
-            />
+              class="stage-chord-card"
+            >
+              <div class="stage-chord-name" v-html="formatChordHtml(name)"></div>
+              <div
+                v-if="getVoicingAt(measure, ci)"
+                class="stage-chord-diagram"
+                v-html="renderDiagram(getVoicingAt(measure, ci))"
+              ></div>
+              <div v-else class="stage-chord-empty"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -90,7 +97,7 @@
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue';
-import ClassicChordCard from '@/Components/ChordDiagram/ClassicChordCard.vue';
+import { formatChordHtml } from '@/tab-editor/utils/chordFormat.js';
 import TabMeasure from '@/tab-editor/components/TabMeasure.vue';
 
 const props = defineProps({
@@ -149,6 +156,11 @@ function getVoicingAt(measure, ci) {
   if (!name) return null;
   const gi = measure.globalIndex ?? 0;
   return props.chordVoicings?.[`${name}@${gi}.${ci}`] ?? props.chordVoicings?.[name] ?? null;
+}
+
+function renderDiagram(voicing) {
+  if (!voicing || typeof window.sbnRenderDiagramSVG !== 'function') return '';
+  return window.sbnRenderDiagramSVG(voicing, { dotColor: 'var(--stage-accent)', showFingers: true });
 }
 
 // ── Tab helpers ──────────────────────────────────────────────────────────────
@@ -371,6 +383,41 @@ function isNextTabMeasureFirstOfSection(index) {
 .stage-sec-measure-chords {
   display: flex;
   gap: 8px;
+}
+
+.stage-chord-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  width: 72px;
+}
+
+.stage-chord-name {
+  font-family: var(--stage-font-chord);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--stage-text);
+  --sbn-chord-color: var(--stage-text);
+  text-align: center;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.stage-chord-name :deep(.sbn-chord-accidental) { font-size: 0.75em; vertical-align: 0.15em; }
+.stage-chord-name :deep(.sbn-chord-quality)    { font-size: 0.7em; font-style: italic; font-weight: 400; }
+.stage-chord-name :deep(.sbn-chord-ext)        { font-size: 0.6em; vertical-align: 0.5em; font-weight: 600; }
+
+.stage-chord-diagram :deep(svg) {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.stage-chord-empty {
+  width: 100%;
+  height: 80px;
 }
 
 /* ── Tab panel ── */

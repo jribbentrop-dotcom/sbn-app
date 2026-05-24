@@ -201,7 +201,13 @@ function delay(ms: number): Promise<void> {
     return new Promise(r => setTimeout(r, ms));
 }
 
-const nutOrPosition = computed(() => shownStartFret.value);
+const nutOrPosition = computed(() => {
+    const data = props.chord.diagram_data;
+    const posFrets = (data.positions ?? []).map(p => p.fret);
+    const barreFrets = (data.barres ?? []).map(b => b.fret);
+    const maxFret = Math.max(0, ...posFrets, ...barreFrets);
+    return (maxFret > 0 && maxFret <= 4) ? 1 : shownStartFret.value;
+});
 </script>
 
 <template>
@@ -210,7 +216,7 @@ const nutOrPosition = computed(() => shownStartFret.value);
         :viewBox="`0 0 ${W} ${H}`"
         width="100%"
     >
-        <!-- Nut or position number -->
+        <!-- Nut for position 1; position label otherwise -->
         <rect
             v-if="nutOrPosition <= 1"
             :x="LEFT - 1"
@@ -221,7 +227,8 @@ const nutOrPosition = computed(() => shownStartFret.value);
             rx="0.5"
         />
         <text
-            v-else
+            v-if="nutOrPosition > 1"
+
             x="1"
             :y="TOP + FRET_SP / 2 + 4"
             font-size="10"

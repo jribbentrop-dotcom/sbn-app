@@ -7,8 +7,8 @@ import { chordDiagramToEvents } from '../../audio/adapters/chordDiagramToEvents.
 import { buildPitchMap, findResolutionPairs, arrowColor } from './guideToneResolution.js';
 
 const QUALITY_MAP: Record<string, [string, string]> = {
-    'maj':   ['major', ''],
-    'min':   ['minor', ''],
+    'maj':   ['', ''],
+    'min':   ['m', ''],
     'aug':   ['aug',   ''],
     'dim':   ['°',     ''],
     '5':     ['',      '5'],

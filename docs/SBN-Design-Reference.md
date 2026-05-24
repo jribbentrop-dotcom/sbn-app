@@ -293,7 +293,7 @@ renderMiniDiagram(voicing) { return sbnRenderDiagramSVG(voicing); }
 ### HTML fretboard renderer
 
 Used in the chord library where rich display modes (fingering/notes/functions) are needed.
-Defined in `sbn-design-system.css §2b`. Rendered by `sbnRenderFretboard()` + `sbnHydrateFretboard()`.
+Defined in `sbn-design-system.css §2b`. CSS for dots, barres, and ping animations lives in `chord-library.css`.
 
 ```html
 <!-- Structure rendered by sbnRenderFretboard(data) -->
@@ -306,49 +306,38 @@ Defined in `sbn-design-system.css §2b`. Rendered by `sbnRenderFretboard()` + `s
 </div>
 ```
 
-```javascript
-// After inserting HTML into DOM:
-sbnHydrateAll(container);        // batch — finds all [data-diagram]:not([data-sbn-rendered])
-sbnHydrateFretboard(el, data);   // single element
-```
-
 **Legacy aliases:** `.sbn-fb-*` class names from the old renderer still work via aliases in
 `chords.css` — but all new code should use `.sbn-fretboard-*` / `.sbn-fret-row` / `.sbn-string-space` / `.sbn-finger-position` / `.sbn-barre`.
 
 ### Full chord card (`.sbn-chord-card`) — Phase 8
 
-Defined in `sbn-design-system.css §2c`. Full public-facing card with name, diagram, footer
-(popularity pill + difficulty stars), and hover controls (play button, optional info button).
+**CSS split:** Shell only (position, background, shadow, hover lift, size variants) is in `sbn-design-system.css §2c`. All card internals (name, diagram, footer, play button, badges, stars, animations) are in `chord-library.css`.
 
 ```html
 <div class="sbn-chord-card">
-  <div class="sbn-card-chord-name"><!-- chord name --></div>
-  <div class="sbn-card-diagram"><!-- diagram --></div>
-  <div class="sbn-card-footer">
-    <div class="sbn-card-footer-left">
-      <span class="sbn-card-pop sbn-pop-essential">Core</span>
-    </div>
-    <div class="sbn-card-footer-right">
-      <span class="sbn-card-diff">
-        <span class="sbn-diff-star filled">★</span>
-        <span class="sbn-diff-star filled">★</span>
-        <span class="sbn-diff-star">★</span>
-      </span>
-    </div>
+  <div class="sbn-card-chord-name"><!-- chord name HTML --></div>
+  <div class="sbn-card-diagram">
+    <!-- diagram (ChordDiagram.vue / sbnRenderDiagramSVG) -->
+    <button class="sbn-play-btn">▶</button>  <!-- overlaid bottom-centre, shown on hover -->
   </div>
-  <div class="sbn-card-hover-controls">
-    <button class="sbn-play-btn">▶</button>
+  <div class="sbn-card-footer">  <!-- column-stacked: pop badge on top, stars below -->
+    <span class="sbn-card-pop sbn-pop-essential">Core</span>
+    <span class="sbn-card-diff">
+      <span class="sbn-diff-star filled">★</span>
+      <span class="sbn-diff-star filled">★</span>
+      <span class="sbn-diff-star">★</span>
+    </span>
   </div>
 </div>
 
 <!-- Variants -->
-<div class="sbn-chord-card sbn-chord-card--detail">...</div>  <!-- larger, no hover lift -->
+<div class="sbn-chord-card sbn-chord-card--detail">...</div>  <!-- larger, no hover lift, play btn always visible -->
 <div class="sbn-chord-card sbn-chord-card--mini">...</div>    <!-- compact, no footer -->
 ```
 
 **Popularity pill classes:** `sbn-pop-occasional`, `sbn-pop-common`, `sbn-pop-essential`, `sbn-pop-iconic`
 
-**Play button:** wire via `opts.onPlay` callback in `SbnChordCard.createCard()` (from WP component, pending port). The `sbn-dot-ping` / `sbn-barre-ping` animation classes are ready for arpeggio feedback.
+**Play button:** absolutely positioned inside `.sbn-card-diagram` (bottom-centre, `top: 90%`). Red fill, white icon, 24px. Hidden until card hover; always visible on `--detail` cards and touch devices. Arpeggio feedback: `sbn-dot-ping` (SVG dots via `sbnDotPing` keyframe) and `sbn-barre-ping` / `sbn-finger-position.sbn-dot-ping` (HTML renderer). All animations in `chord-library.css`.
 
 ### Sizing in context
 
