@@ -117,7 +117,7 @@ class CourseController extends Controller
         $chordSlugs = [];
         $rhythmTags = [];   // one entry per <sbn-rhythm> tag: { slug, videoSnippet }
         $progressionTags = []; // one entry per <sbn-progression> tag: { slug, key, videoSnippet }
-        $lessonConcept = null;
+        $lessonConcepts = [];
         if ($activeLesson) {
             $canView = $hasAccess || $activeLesson->is_preview;
             $lessonData = $this->serializeLesson($activeLesson, withContent: $canView);
@@ -126,9 +126,19 @@ class CourseController extends Controller
                 $chordSlugs = array_values(array_unique($matches[1] ?? []));
                 $rhythmTags = $this->parseRhythmTags($activeLesson->content);
                 $progressionTags = $this->parseProgressionTags($activeLesson->content);
-            }
-            if ($activeLesson->concept_slug) {
-                $lessonConcept = $edu->topic('concept', $activeLesson->concept_slug)?->toArray();
+
+                // Collect sbn-widget slugs in document order (deduped), resolve
+                // each to its concept topic for the sidebar expanders.
+                preg_match_all('/<sbn-widget\b[^>]*\bslug="([^"]+)"/i', $activeLesson->content, $widgetMatches);
+                $seenWidgets = [];
+                foreach ($widgetMatches[1] as $widgetSlug) {
+                    if (isset($seenWidgets[$widgetSlug])) continue;
+                    $seenWidgets[$widgetSlug] = true;
+                    $topic = $edu->topic('concept', $widgetSlug);
+                    if ($topic) {
+                        $lessonConcepts[] = $topic->toArray();
+                    }
+                }
             }
         }
 
@@ -213,7 +223,7 @@ class CourseController extends Controller
             'lesson'        => $lessonData,
             'hasAccess'     => $hasAccess,
             'chordSlugs'    => $chordSlugs,
-            'lessonConcept' => $lessonConcept,
+            'lessonConcepts' => $lessonConcepts,
             'rhythms'       => $rhythms,
             'progressions'  => $progressions,
         ]);
@@ -323,8 +333,7 @@ class CourseController extends Controller
     {
         return [
             ...$this->serializeLessonStub($lesson),
-            'content'      => $withContent ? $lesson->content : null,
-            'concept_slug' => $lesson->concept_slug,
+            'content' => $withContent ? $lesson->content : null,
         ];
     }
 }

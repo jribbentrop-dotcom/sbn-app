@@ -119,6 +119,7 @@
 .sbn-chip[data-type="rhythm"]      { background: #fef3e2; border-color: #f5d28c; }
 .sbn-chip[data-type="progression"] { background: #eaf4ea; border-color: #9fcf9f; }
 .sbn-chip[data-type="song"]        { background: #f4eafd; border-color: #c89fdf; }
+.sbn-chip[data-type="widget"]      { background: #fde8f0; border-color: #f5b3cc; }
 
 .sbn-chip-label { pointer-events: none; }
 

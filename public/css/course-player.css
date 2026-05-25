@@ -358,6 +358,16 @@
 
 .vC-prose { flex: 1; }
 
+/* Edu widget embedded in lesson body — matches theory-card presentation */
+.vC-prose sbn-widget.sbn-widget-embed {
+    display: block;
+    margin: 1.5rem 0;
+    border: 1px solid var(--clr-border);
+    border-radius: 0.875rem;
+    overflow: hidden;
+    max-width: 480px;
+}
+
 /* Subsection chunk visibility — controlled via JS */
 .sbn-subsection-chunk { display: none; }
 .sbn-subsection-chunk.is-active { display: block; }
@@ -373,43 +383,15 @@
 .vC-lesson-html ul li { margin-bottom: 8px; }
 
 /* --------------------------------------------------------------------------
-   Rhythm Embed Polish (Vintage Card Style)
+   Rhythm Embed — layout only (frame styles live in sbn-design-system.css)
    -------------------------------------------------------------------------- */
 .sbn-rhythm-embed-wrap {
     margin: 32px auto;
     max-width: 640px;
 }
 
-.sbn-pattern-row {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 16px 18px;
-    background: var(--clr-white);
-    border: 1px solid var(--clr-border);
-    border-right: 3px solid var(--row-color, var(--clr-border));
-    border-bottom: 3px solid var(--row-color, var(--clr-border));
-    border-radius: var(--radius);
-    transition: box-shadow 0.15s var(--ease), transform 0.15s var(--ease);
-}
-
-.sbn-pattern-row:hover {
-    box-shadow: 3px 3px 0 var(--row-color, var(--clr-border));
-    transform: translate(-1px, -1px);
-}
-
-.sbn-pattern-row--bossa     { --row-color: var(--clr-style-bossa); }
-.sbn-pattern-row--jazz      { --row-color: var(--clr-style-jazz); }
-.sbn-pattern-row--samba     { --row-color: var(--clr-style-samba); }
-.sbn-pattern-row--latin     { --row-color: var(--clr-style-latin); }
-.sbn-pattern-row--blues     { --row-color: var(--clr-style-blues); }
-.sbn-pattern-row--pop       { --row-color: var(--clr-style-pop); }
-.sbn-pattern-row--classical { --row-color: var(--clr-style-classical); }
-.sbn-pattern-row--gold      { --row-color: var(--clr-style-gold); }
-.sbn-pattern-row--general   { --row-color: var(--clr-style-general); }
-
 /* --------------------------------------------------------------------------
-   Chord Embed Polish (Library Consistent Style)
+   Chord Embed — layout only (card styles live in sbn-design-system.css)
    -------------------------------------------------------------------------- */
 .sbn-chord-embed {
     display: inline-block;
@@ -441,18 +423,6 @@
     gap: 6px;
 }
 
-.sbn-badge {
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    background: var(--clr-surface-2);
-    color: var(--clr-text-muted);
-}
-
-.sbn-badge-muted {
-    background: var(--clr-surface-3);
-}
 
 /* Locked lesson CTA */
 .vC-lock-cta {

@@ -120,23 +120,13 @@
                 </div>
             </div>
 
-            <div class="sbn-editor-card">
-                <div class="sbn-editor-card-header"><h2>Edu concept</h2></div>
-                <div class="sbn-editor-card-body">
-                    <div class="sbn-form-group">
-                        <label for="concept_slug">Concept slug</label>
-                        <input type="text" id="concept_slug" name="concept_slug" class="sbn-search-input" style="padding-left:14px;"
-                               value="{{ old('concept_slug', $lesson->concept_slug) }}"
-                               placeholder="e.g. triad, voice-leading">
-                        <p class="sbn-form-hint">Shows a "Learn more" expander in the practice companion. Leave blank for none.</p>
-                    </div>
-                </div>
-            </div>
 
             <div class="sbn-editor-card">
                 <div class="sbn-editor-card-header"><h2>Insert component</h2></div>
                 <div class="sbn-editor-card-body" style="padding:0;">
-                    <div id="lesson-palette" data-lesson-id="{{ $lesson->id }}"></div>
+                    <div id="lesson-palette"
+                         data-lesson-id="{{ $lesson->id }}"
+                         data-widgets="{{ json_encode($widgetList) }}"></div>
                 </div>
             </div>
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 
-type NodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'media';
+type NodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'media' | 'widget';
 
 interface SnippetRef { id: string; label: string; key?: string | null }
 interface PaletteItem {
@@ -21,6 +21,7 @@ const TABS: { type: NodeType; label: string }[] = [
     { type: 'progression', label: 'Progression' },
     { type: 'sheet',       label: 'Exercise' },
     { type: 'song',        label: 'Song' },
+    { type: 'widget',      label: 'Widget' },
     { type: 'media',       label: 'Media' },
 ];
 
@@ -30,8 +31,12 @@ const API: Record<NodeType, string> = {
     progression: '/api/sbn/progressions',
     sheet:       '/api/sbn/exercises',
     song:        '/api/sbn/songs',
+    widget:      '',
     media:       '',
 };
+
+// Static widget list injected by the server via data-widgets on the mount node.
+const widgetItems = ref<PaletteItem[]>([]);
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -57,6 +62,14 @@ const ROOTS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const searchInputRef = ref<HTMLInputElement | null>(null);
 
 onMounted(() => {
+    // Load static widget list injected by server
+    const mountEl = document.getElementById('lesson-palette');
+    try {
+        const raw = mountEl?.dataset.widgets ?? '[]';
+        widgetItems.value = (JSON.parse(raw) as { slug: string; title: string }[])
+            .map(w => ({ slug: w.slug, label: w.title }));
+    } catch { widgetItems.value = []; }
+
     (window as any).__sbnPalette = async (type: NodeType) => {
         activeTab.value = type;
         await nextTick();
@@ -78,6 +91,14 @@ async function doSearch() {
     loading.value  = true;
     errorMsg.value = '';
     try {
+        if (activeTab.value === 'widget') {
+            const q = query.value.toLowerCase();
+            results.value = q
+                ? widgetItems.value.filter(w => w.label.toLowerCase().includes(q))
+                : widgetItems.value;
+            loading.value = false;
+            return;
+        }
         if (activeTab.value === 'media') {
             const lessonId = document.getElementById('lesson-palette')?.dataset.lessonId;
             if (!lessonId) {
@@ -134,8 +155,8 @@ watch(activeTab, () => { query.value = ''; results.value = []; selectedSlug.valu
 // ── Insert ────────────────────────────────────────────────────────────────────
 
 function insert(item: PaletteItem) {
-    // Media and Exercise have no config — insert straight away.
-    if (activeTab.value === 'media' || activeTab.value === 'sheet') {
+    // Media, Exercise, and Widget have no config — insert straight away.
+    if (activeTab.value === 'media' || activeTab.value === 'sheet' || activeTab.value === 'widget') {
         doInsert(item.slug);
         return;
     }

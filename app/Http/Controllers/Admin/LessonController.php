@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\LessonRequest;
 use App\Models\Course;
 use App\Models\Lesson;
+use App\Services\EduContentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,12 +15,13 @@ use Illuminate\View\View;
 
 class LessonController extends Controller
 {
-    public function create(Course $course): View
+    public function create(Course $course, EduContentService $edu): View
     {
-        $lesson = new Lesson(['course_id' => $course->id, 'status' => 'publish', 'sort_order' => $course->lessons()->max('sort_order') + 1]);
-        $isNew  = true;
+        $lesson     = new Lesson(['course_id' => $course->id, 'status' => 'publish', 'sort_order' => $course->lessons()->max('sort_order') + 1]);
+        $isNew      = true;
+        $widgetList = $this->widgetList($edu);
 
-        return view('admin.lessons.edit', compact('course', 'lesson', 'isNew'));
+        return view('admin.lessons.edit', compact('course', 'lesson', 'isNew', 'widgetList'));
     }
 
     public function store(LessonRequest $request, Course $course): RedirectResponse
@@ -36,12 +38,13 @@ class LessonController extends Controller
             ->with('success', 'Lesson created.');
     }
 
-    public function edit(Lesson $lesson): View
+    public function edit(Lesson $lesson, EduContentService $edu): View
     {
-        $course = $lesson->course;
-        $isNew  = false;
+        $course     = $lesson->course;
+        $isNew      = false;
+        $widgetList = $this->widgetList($edu);
 
-        return view('admin.lessons.edit', compact('course', 'lesson', 'isNew'));
+        return view('admin.lessons.edit', compact('course', 'lesson', 'isNew', 'widgetList'));
     }
 
     public function update(LessonRequest $request, Lesson $lesson): RedirectResponse
@@ -121,5 +124,16 @@ class LessonController extends Controller
         }, $files);
 
         return response()->json(['images' => $images]);
+    }
+
+    /** Returns [{slug, title}] for the widget palette, sorted by title. */
+    private function widgetList(EduContentService $edu): array
+    {
+        $list = [];
+        foreach ($edu->topics('concept') as $slug => $topic) {
+            $list[] = ['slug' => $slug, 'title' => $topic->title];
+        }
+        usort($list, fn($a, $b) => strcmp($a['title'], $b['title']));
+        return $list;
     }
 }

@@ -28,7 +28,7 @@ const props = defineProps<{
   activeSoundSource?: 'sheet' | null;
   selectedChord?: SelectedChord | null;
   chordSlugs?: string[];
-  lessonConcept?: { slug: string; title: string; body_html: string; has_widgets: boolean } | null;
+  lessonConcepts?: { slug: string; title: string; body_html: string; has_widgets: boolean }[];
   rhythms?: RhythmOption[];
   progressions?: ProgressionOption[];
 }>();
@@ -264,22 +264,20 @@ function decreaseBpm(): void { bpm.value = Math.max(40, bpm.value - 2); }
 function increaseBpm(): void { bpm.value = Math.min(240, bpm.value + 2); }
 function setBpmPreset(val: number): void { bpm.value = val; }
 
-// ── Lesson concept expander ───────────────────────────────────────────────────
-const conceptBodyEl = ref<HTMLElement | null>(null);
-let conceptMounted = false;
+// ── Lesson concept expanders (one per sbn-widget in the lesson) ───────────────
+const conceptBodyEls = ref<Record<string, HTMLElement | null>>({});
+const conceptsMounted = ref<Record<string, boolean>>({});
 
-function onConceptToggle(event: Event): void {
+function onConceptToggle(event: Event, slug: string): void {
   if (!(event.target as HTMLDetailsElement).open) return;
-  if (!props.lessonConcept?.has_widgets) return;
-  if (conceptMounted) return;
-  conceptMounted = true;
-  if (conceptBodyEl.value) {
-    mountSbnNodes(conceptBodyEl.value);
-  }
+  if (conceptsMounted.value[slug]) return;
+  conceptsMounted.value[slug] = true;
+  const el = conceptBodyEls.value[slug];
+  if (el) mountSbnNodes(el);
 }
 
-// Reset mount flag when lesson changes so a new concept gets a fresh mount.
-watch(() => props.lesson?.slug, () => { conceptMounted = false; });
+// Reset mount flags when the lesson changes.
+watch(() => props.lesson?.slug, () => { conceptsMounted.value = {}; });
 </script>
 
 <template>
@@ -407,12 +405,13 @@ watch(() => props.lesson?.slug, () => { conceptMounted = false; });
 
 
     <details
-      v-if="lessonConcept"
+      v-for="concept in (lessonConcepts ?? [])"
+      :key="concept.slug"
       class="vC-concept-expander"
-      @toggle="onConceptToggle"
+      @toggle="onConceptToggle($event, concept.slug)"
     >
-      <summary>Learn more: {{ lessonConcept.title }}</summary>
-      <div ref="conceptBodyEl" v-html="lessonConcept.body_html" />
+      <summary>Learn more: {{ concept.title }}</summary>
+      <div :ref="el => { conceptBodyEls[concept.slug] = el as HTMLElement | null }" v-html="concept.body_html" />
     </details>
 
     <div class="vC-transport">

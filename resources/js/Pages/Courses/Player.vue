@@ -45,7 +45,7 @@ const props = defineProps<{
   lesson: LessonData | null;
   hasAccess: boolean;
   chordSlugs?: string[];
-  lessonConcept?: { slug: string; title: string; body_html: string; has_widgets: boolean } | null;
+  lessonConcepts?: { slug: string; title: string; body_html: string; has_widgets: boolean }[];
   rhythms?: RhythmOption[];
   progressions?: ProgressionOption[];
 }>();
@@ -156,7 +156,7 @@ watch(() => props.lesson?.slug, () => {
         :selected-chord="selectedChord"
         :chord-slugs="props.chordSlugs ?? []"
         :active-sound-source="activeSoundSource"
-        :lesson-concept="props.lessonConcept ?? null"
+        :lesson-concepts="props.lessonConcepts ?? []"
         :rhythms="props.rhythms ?? []"
         :progressions="props.progressions ?? []"
         @select-chord="onChordSelect"

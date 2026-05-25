@@ -15,7 +15,7 @@ import { Extension } from '@tiptap/core';
 import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion';
 import { type Editor }  from '@tiptap/core';
 
-type NodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'image' | 'youtube';
+type NodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'image' | 'youtube' | 'widget';
 
 interface SlashItem { label: string; type: NodeType; shortcut: string }
 
@@ -25,6 +25,7 @@ const ITEMS: SlashItem[] = [
     { label: 'Progression', type: 'progression',  shortcut: '⇧P' },
     { label: 'Sheet',       type: 'sheet',        shortcut: '⇧S' },
     { label: 'Song',        type: 'song',         shortcut: '⇧L' },
+    { label: 'Widget',      type: 'widget',       shortcut: '⇧W' },
     { label: 'Image',       type: 'image',        shortcut: '⇧M' },
     { label: 'YouTube',     type: 'youtube',      shortcut: '' },
 ];
