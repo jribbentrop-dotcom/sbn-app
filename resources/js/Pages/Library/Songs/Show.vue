@@ -53,6 +53,15 @@ const categoryStyle = computed(() => getCategoryStyle(props.song.styleSlug));
 const categoryColor = computed(() => getCategoryColor(props.song.styleSlug));
 const styleLabel    = computed(() => (props.song.styleSlug ?? 'song').replace(/-/g, ' '));
 
+const songPopularityTier = computed(() => {
+  const p = props.song.popularity ?? 0;
+  if (p >= 11) return { tier: 'iconic',     label: 'Iconic' };
+  if (p >= 6)  return { tier: 'essential',  label: 'Essential' };
+  if (p >= 3)  return { tier: 'common',     label: 'Common' };
+  if (p >= 1)  return { tier: 'occasional', label: 'Rare' };
+  return null;
+});
+
 function chordShowUrl(chord: any): string {
   const base = `/library/chords/${chord.slug}`;
   const root = chord.root_note ?? '';
@@ -80,7 +89,8 @@ function chordShowUrl(chord: any): string {
         <!-- Left: text -->
         <div class="sbn-ss-hero-text">
           <div class="sbn-ss-hero-badges">
-            <span class="sbn-badge sbn-ss-badge-style">{{ styleLabel }}</span>
+            <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': categoryColor }">{{ styleLabel }}</span>
+            <span v-if="songPopularityTier" class="sbn-card-pop" :class="`sbn-pop-${songPopularityTier.tier}`">{{ songPopularityTier.label }}</span>
           </div>
 
           <h1 class="sbn-ss-title">{{ song.title }}</h1>
@@ -141,8 +151,14 @@ function chordShowUrl(chord: any): string {
             class="sbn-ss-prog-item"
           >
             <div class="sbn-ss-prog-name">{{ prog.name }}</div>
-            <div class="sbn-ss-prog-numerals">{{ prog.numeralsDisplay }}</div>
-            <span :class="['sbn-prog-row-cat-badge', 'sbn-prog-cat-' + String(prog.category || 'general').toLowerCase()]">
+            <div class="sbn-numeral-chip-row">
+              <span
+                v-for="n in prog.numeralsDisplay.split('–').map(s => s.trim()).filter(Boolean)"
+                :key="n"
+                class="sbn-numeral-chip"
+              >{{ n }}</span>
+            </div>
+            <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(prog.category) }">
               {{ prog.category }}
             </span>
           </Link>
@@ -208,20 +224,11 @@ function chordShowUrl(chord: any): string {
 .sbn-ss-hero-badges {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin-bottom: 12px;
 }
 
-.sbn-ss-badge-style {
-  background: color-mix(in srgb, var(--category-color) 14%, white);
-  color: var(--category-color);
-  border: 1px solid color-mix(in srgb, var(--category-color) 30%, white);
-  font-size: 0.75em;
-  font-weight: 600;
-  text-transform: capitalize;
-  padding: 3px 10px;
-  border-radius: var(--radius-sm);
-}
 
 .sbn-ss-hero-image {
   position: relative;
@@ -268,6 +275,7 @@ function chordShowUrl(chord: any): string {
   color: var(--clr-text-muted);
   margin: 0 0 16px;
 }
+
 
 .sbn-ss-meta {
   display: flex;
@@ -369,12 +377,6 @@ function chordShowUrl(chord: any): string {
   margin-bottom: 2px;
 }
 
-.sbn-ss-prog-numerals {
-  font-size: 0.8em;
-  color: var(--clr-text-muted);
-  font-family: Georgia, serif;
-  margin-bottom: 6px;
-}
 
 /* ── Rhythm section title link ───────────────────────────────────────────── */
 

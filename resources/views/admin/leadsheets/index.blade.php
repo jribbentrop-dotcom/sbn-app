@@ -192,7 +192,7 @@
                         <td class="col-key">
                             @php $keyVal = ($currentTab === 'leadsheets') ? $ls->song_key : $ls->key_center; @endphp
                             @if($keyVal)
-                                <span class="sbn-badge sbn-badge-accent">{{ $keyVal }}</span>
+                                <span class="sbn-badge sbn-badge-muted">{{ $keyVal }}</span>
                             @else
                                 —
                             @endif

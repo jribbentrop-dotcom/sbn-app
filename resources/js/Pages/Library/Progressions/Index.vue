@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
+import { getCategoryColor } from '@/composables/useCategoryColors';
 
 defineOptions({ layout: PublicLayout });
 
@@ -88,12 +89,11 @@ const filteredProgressions = computed(() => {
 const totalFiltered = computed(() => filteredProgressions.value.length);
 
 // ── Popularity tier calculation ───────────────────────────────
-function getPopularityTier(songCount: number): string {
-    if (songCount >= 10) return 'iconic';
-    if (songCount >= 5) return 'famous';
-    if (songCount >= 2) return 'common';
-    if (songCount === 1) return 'known';
-    return 'rare';
+function getPopularityTier(songCount: number): { tier: string; label: string } {
+    if (songCount >= 10) return { tier: 'iconic',     label: 'Iconic' };
+    if (songCount >= 5)  return { tier: 'essential',  label: 'Essential' };
+    if (songCount >= 2)  return { tier: 'common',     label: 'Common' };
+    return                      { tier: 'occasional', label: 'Rare' };
 }
 
 // ── Example search queries ─────────────────────────────────────
@@ -129,14 +129,6 @@ function setExampleQuery(query: string) {
     search.value = query;
 }
 
-// ── Category color classes ─────────────────────────────────────
-function getCategoryClass(category: string): string {
-    return `sbn-prog-cat-${category}`;
-}
-
-function getTonalityClass(tonality: string): string {
-    return `sbn-prog-tonality-${tonality}`;
-}
 </script>
 
 <template>
@@ -208,7 +200,7 @@ function getTonalityClass(tonality: string): string {
                     <div 
                         v-for="(progression, index) in filteredProgressions"
                         :key="progression.id"
-                        :class="['sbn-prog-row', getCategoryClass(progression.category)]"
+                        class="sbn-prog-row"
                         :id="`prog-${progression.id}`"
                         :data-id="progression.id"
                         :data-rank="index + 1"
@@ -229,19 +221,20 @@ function getTonalityClass(tonality: string): string {
                         <div class="sbn-prog-row-body">
                             <!-- Top badges -->
                             <div class="sbn-prog-row-top">
-                                <span :class="['sbn-prog-row-cat-badge', getCategoryClass(progression.category)]">
+                                <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(progression.category) }">
                                     {{ categoryLabels[progression.category] || progression.category }}
                                 </span>
-                                <span 
+                                <span
                                     v-if="progression.tonality && progression.tonality !== 'both'"
-                                    :class="['sbn-prog-tonality-badge', getTonalityClass(progression.tonality)]"
+                                    class="sbn-badge"
+                                    :class="progression.tonality === 'major' ? 'sbn-badge-tonality-major' : 'sbn-badge-tonality-minor'"
                                 >
                                     {{ progression.tonality === 'major' ? 'Major' : 'Minor' }}
                                 </span>
-                                <span 
+                                <span
                                     v-for="tag in progression.tags.slice(0, 3)"
                                     :key="tag"
-                                    class="sbn-prog-tag-chip"
+                                    class="sbn-badge sbn-badge-muted"
                                 >
                                     {{ tag }}
                                 </span>
@@ -259,7 +252,7 @@ function getTonalityClass(tonality: string): string {
                                 <span 
                                     v-for="(numeral, idx) in progression.numeralsDisplay.split('–')"
                                     :key="idx"
-                                    class="sbn-prog-numeral-chip"
+                                    class="sbn-numeral-chip"
                                 >
                                     <span class="sbn-chord-symbol">{{ numeral }}</span>
                                 </span>
@@ -267,7 +260,11 @@ function getTonalityClass(tonality: string): string {
 
                             <!-- Popularity phrase -->
                             <p v-if="progression.songCount > 0" class="sbn-prog-row-popularity-phrase">
-                                This is an <span class="sbn-prog-tier-label">{{ getPopularityTier(progression.songCount) }}</span>
+                                This is
+                                <span
+                                    class="sbn-card-pop"
+                                    :class="`sbn-pop-${getPopularityTier(progression.songCount).tier}`"
+                                >{{ getPopularityTier(progression.songCount).label }}</span>
                                 chord progression that appears in
                                 <strong>{{ progression.songCount }} song{{ progression.songCount !== 1 ? 's' : '' }}</strong>
                                 in the library.
@@ -303,11 +300,8 @@ function getTonalityClass(tonality: string): string {
                         <button
                             v-for="category in categories"
                             :key="category"
-                            :class="[
-                                'sbn-prog-sidebar-option',
-                                `sbn-prog-cat-opt-${category}`,
-                                { 'sbn-filter-active': fCategory === category }
-                            ]"
+                            :class="['sbn-prog-sidebar-option', { 'sbn-filter-active': fCategory === category }]"
+                            :style="{ '--cat-clr': getCategoryColor(category) }"
                             @click="fCategory = fCategory === category ? '' : category"
                         >
                             {{ categoryLabels[category] || category }}
@@ -608,48 +602,6 @@ function getTonalityClass(tonality: string): string {
     margin-bottom: 6px;
 }
 
-.sbn-prog-row-cat-badge {
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: 10px;
-    display: inline-block;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-jazz      { background: #e3f2fd; color: #1565c0; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-blues     { background: #fce4ec; color: #c62828; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-pop       { background: #e0f2f1; color: #00695c; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-modal     { background: #ede7f6; color: #4527a0; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-classical { background: #e8f5e9; color: #2e7d32; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-latin     { background: linear-gradient(135deg, #ff8c42, #e65100); color: #fff; }
-
-.sbn-prog-tonality-badge {
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: 10px;
-    display: inline-block;
-}
-
-.sbn-prog-tonality-badge.sbn-prog-tonality-major { background: #fef9c3; color: #854d0e; }
-.sbn-prog-tonality-badge.sbn-prog-tonality-minor { background: #ede9fe; color: #4c1d95; }
-
-.sbn-prog-tag-chip {
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: 10px;
-    background: #f3f4f6;
-    color: #6b7280;
-    border: 1px solid #e5e7eb;
-    display: inline-block;
-}
 
 .sbn-prog-row-title {
     font-size: 20px;
@@ -678,18 +630,6 @@ function getTonalityClass(tonality: string): string {
     margin-bottom: 10px;
 }
 
-.sbn-prog-numeral-chip {
-    display: inline-block;
-    background: #f3f4f6;
-    border: 1px solid #e5e7eb;
-    border-radius: 5px;
-    padding: 4px 9px;
-    font-size: 13px;
-    line-height: 1.4;
-    color: #374151;
-    font-family: 'Georgia', 'Times New Roman', serif;
-    letter-spacing: 0.01em;
-}
 
 .sbn-prog-row-popularity-phrase {
     font-size: 13px;
@@ -698,10 +638,6 @@ function getTonalityClass(tonality: string): string {
     margin: 0;
 }
 
-.sbn-prog-tier-label {
-    font-weight: 700;
-    color: #374151;
-}
 
 .sbn-prog-row-read-more {
     display: inline-flex;
@@ -804,32 +740,25 @@ function getTonalityClass(tonality: string): string {
 }
 
 .sbn-prog-sidebar-option.sbn-filter-active {
-    background: #1a202c;
-    border-color: #1a202c;
+    background: var(--cat-clr, var(--clr-text));
+    border-color: var(--cat-clr, var(--clr-text));
     color: #fff;
 }
 
 .sbn-prog-sidebar-option.sbn-filter-active:hover {
-    background: #e85d3b;
-    border-color: #e85d3b;
+    background: color-mix(in srgb, var(--cat-clr, var(--clr-text)) 80%, #000);
+    border-color: color-mix(in srgb, var(--cat-clr, var(--clr-text)) 80%, #000);
 }
 
-.sbn-prog-cat-opt-jazz.sbn-filter-active      { background: #1565c0; border-color: #1565c0; }
-.sbn-prog-cat-opt-blues.sbn-filter-active     { background: #c62828; border-color: #c62828; }
-.sbn-prog-cat-opt-pop.sbn-filter-active       { background: #00695c; border-color: #00695c; }
-.sbn-prog-cat-opt-modal.sbn-filter-active     { background: #4527a0; border-color: #4527a0; }
-.sbn-prog-cat-opt-classical.sbn-filter-active { background: #2e7d32; border-color: #2e7d32; }
-.sbn-prog-cat-opt-latin.sbn-filter-active     { background: #e65100; border-color: #e65100; }
-
 .sbn-sort-active {
-    background: #1a202c;
-    border-color: #1a202c;
+    background: var(--clr-text);
+    border-color: var(--clr-text);
     color: #fff;
 }
 
 .sbn-sort-active:hover {
-    background: #e85d3b;
-    border-color: #e85d3b;
+    background: var(--clr-gradient);
+    border-color: transparent;
 }
 
 .sbn-prog-sidebar-clear {

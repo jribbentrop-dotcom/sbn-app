@@ -203,66 +203,6 @@
     margin-top: 4px;
 }
 
-/* ── Badges ──────────────────────────────────────────────── */
-.sbn-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 700;
-    line-height: 1.4;
-}
-.sbn-badge-accent {
-    background: var(--clr-accent-bg);
-    color: var(--clr-accent-dim);
-    border: 1px solid var(--clr-accent-border);
-}
-
-/* ── Buttons ─────────────────────────────────────────────── */
-.sbn-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
-    font-size: 13px;
-    font-weight: 600;
-    font-family: var(--font-body);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--clr-border);
-    background: var(--clr-surface);
-    color: var(--clr-text);
-    cursor: pointer;
-    transition: all 0.15s var(--ease);
-    text-decoration: none;
-    line-height: 1.4;
-}
-.sbn-btn:hover {
-    border-color: var(--clr-accent);
-    color: var(--clr-accent);
-}
-.sbn-btn-primary {
-    background: var(--clr-gradient);
-    color: #fff;
-    border-color: transparent;
-}
-.sbn-btn-primary:hover {
-    background: var(--clr-gradient-hover);
-    color: #fff;
-}
-.sbn-btn-xs {
-    padding: 3px 8px;
-    font-size: 11px;
-}
-.sbn-btn-danger {
-    color: var(--clr-error);
-    border-color: transparent;
-    background: none;
-}
-.sbn-btn-danger:hover {
-    color: #fff;
-    background: var(--clr-error);
-    border-color: var(--clr-error);
-}
 
 /* ── Empty state ─────────────────────────────────────────── */
 .sbn-empty-state {
@@ -375,7 +315,7 @@
 .sbn-toast-success { background: var(--clr-success,  #22c55e); }
 .sbn-toast-error   { background: var(--clr-error,    #ef4444); }
 .sbn-toast-info    { background: var(--clr-text,     #1e1e2e); }
-.sbn-toast-warn    { background: var(--clr-accent,   #f39c12); }
+.sbn-toast-warn    { background: var(--clr-gradient); }
 
 /* Confirm toast — two-button variant (Phase 7-int Step 3) */
 .sbn-toast-confirm {
@@ -1348,10 +1288,3 @@
     justify-content: flex-end;
 }
 
-/* sbn-btn-danger (for tap mode active state) */
-.sbn-btn-danger {
-    background: var(--clr-danger, #ef4444);
-    color: #fff;
-    border-color: transparent;
-}
-.sbn-btn-danger:hover { opacity: 0.9; }

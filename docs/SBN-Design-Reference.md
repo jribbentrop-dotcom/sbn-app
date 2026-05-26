@@ -6,20 +6,67 @@
 
 ---
 
-## LOAD ORDER (admin layout)
+## LOAD ORDER
+
+### Admin layout (`admin.blade.php`)
 
 ```html
-<!-- In admin.blade.php <head>, in this exact order: -->
 <link rel="stylesheet" href="{{ asset('css/sbn-design-system.css') }}">
 <link rel="stylesheet" href="{{ asset('css/chord-symbols.css') }}">
 <link rel="stylesheet" href="{{ asset('css/admin2.css') }}">
-<!-- Then page-specific module CSS via @stack('styles') -->
-
-<!-- JS: load chords.js on any page that shows chord diagrams -->
+<!-- Page-specific module CSS via @stack('styles') -->
 <script src="{{ asset('js/chords.js') }}"></script>
 ```
 
-The frontend layout (Phase 8+) must also load `sbn-design-system.css` and `chords.js` first.
+### Frontend layout (`app.blade.php`, `welcome.blade.php`)
+
+```html
+<link rel="stylesheet" href="{{ asset('css/sbn-design-system.css') }}">
+<link rel="stylesheet" href="{{ asset('css/chord-symbols.css') }}">
+<!-- Vite bundles resources/css/app.css which imports: -->
+<!--   resources/css/frontend/base.css   (--sbn-* aliases + WooCommerce overrides) -->
+<!--   resources/css/frontend/header.css (nav/header layout) -->
+<!--   resources/css/frontend/mega-menu.css (mega menu layout) -->
+@vite(['resources/js/app.ts'])
+<script src="{{ asset('js/chords.js') }}"></script>
+```
+
+`sbn-design-system.css` must load before everything else on all layouts.
+
+---
+
+## THEME SYSTEM
+
+The app has two switchable themes. The default is **modern**.
+
+```html
+<!-- Default (set on all four layout files) -->
+<html lang="en" data-theme="modern">
+
+<!-- Switch to vintage -->
+<html lang="en" data-theme="vintage">
+```
+
+### Modern (default)
+
+- Card frames: `1px solid var(--clr-border)`, hover shifts border to `var(--clr-text-muted)`
+- No shadows, no transforms, no color on hover
+- Clean, neutral, minimal
+
+### Vintage
+
+Activated by `[data-theme="vintage"]` overrides at the bottom of `sbn-design-system.css`.
+
+- Rhythm cards: thick right+bottom border in `--row-color`, diagonal lift on hover
+- Chord cards: offset shadow frame, `translateY(-2px)` on hover
+- Pattern rows: thick right+bottom border in `--row-color`, diagonal lift on hover
+- Progression viewer: thick right+bottom border in `--prog-color` on hover
+
+### Critical architectural rule
+
+**Card frame styles must live as global classes in `sbn-design-system.css`.** Vue `<style scoped>` blocks add a unique attribute hash (`[data-v-abc123]`) to every selector, which means `[data-theme]` attribute selectors can never reach into scoped styles. If a card frame is defined in a scoped block, it cannot be theme-switched.
+
+**Rule:** Vue component scoped styles may only contain layout and structural styles (flex, grid, padding, positioning). Card frames — borders, shadows, hover transitions — always go in the design system as global classes.
 
 ---
 
@@ -62,7 +109,7 @@ All defined in `sbn-design-system.css :root`. Module CSS files reference these �
 |---|---|
 | `--clr-text` | Primary text, headings |
 | `--clr-text-dim` | Secondary text |
-| `--clr-text-muted` | Placeholders, labels, hints |
+| `--clr-text-muted` | `#8896a4` — placeholders, labels, neutral hover border |
 
 ### Semantic
 | Variable | Color |
@@ -70,11 +117,27 @@ All defined in `sbn-design-system.css :root`. Module CSS files reference these �
 | `--clr-success` | `#10b981` green |
 | `--clr-warning` | `#f39c12` orange (same as accent) |
 | `--clr-error` | `#ef4444` red |
-| `--clr-red` | `#e74c3c` — finger dots in diagrams |
+| `--clr-danger` | alias for `--clr-error` |
+| `--clr-red` | `#e74c3c` — finger dots in diagrams, gradient end |
+
+### Border / Shadow
+| Variable | Usage |
+|---|---|
+| `--clr-border` | Default card/input border |
+| `--clr-shadow-sm` | Subtle shadow |
+| `--clr-shadow` | Standard shadow |
+| `--clr-shadow-lg` | Prominent shadow |
+
+### Radius
+| Variable | Value | Usage |
+|---|---|---|
+| `--radius-sm` | `6px` | Small elements: diagram cards, badges, inputs |
+| `--radius` | `10px` | Standard cards, buttons |
+| `--radius-lg` | `16px` | Large panels |
+
+Do not use `--radius-md` — it was removed. The mid-size token is `--radius`.
 
 ### Music Style Colors
-Used for category badges and any style-specific UI:
-
 | Variable | Color | Style |
 |---|---|---|
 | `--clr-style-bossa` | orange `#f39c12` | Bossa Nova |
@@ -85,6 +148,10 @@ Used for category badges and any style-specific UI:
 | `--clr-style-pop` | pink `#ec4899` | Pop |
 | `--clr-style-classical` | slate `#64748b` | Classical |
 | `--clr-style-gold` | gold `#d69e2e` | Featured / Iconic |
+
+### Token namespace
+
+`--sbn-*` names in `resources/css/frontend/base.css` are **aliases only** — they point to `--clr-*` tokens. Do not add new `--sbn-*` tokens. All new tokens go under `--clr-*`, `--radius-*`, `--font-*`, or `--ease`.
 
 ---
 
@@ -134,48 +201,107 @@ Do not add this override anywhere else — it is scoped to the chord grid contai
 
 ---
 
-## VINTAGE OFFSET CARD STYLE
+## CARD SYSTEM
 
-**Established 2026-05-09.** A tactile, music-forward card variant used in library listings.
+All library and UI cards share a single frame system defined in `sbn-design-system.css`. The modern default is a thin neutral border with a muted hover. The vintage theme overrides these at the bottom of the same file.
 
-The key idea: a bold right + bottom border in the category colour, with a matching
-box-shadow offset on hover. The card appears to lift off the page diagonally — a nod to
-vintage music print design.
+### Standard card (`.sbn-card`)
 
-### CSS recipe
+Generic white bordered panel. Used for page sections, detail wrappers, admin panels.
 
-```css
-.my-card {
-  border: 1px solid var(--clr-border);
-  border-right:  3px solid var(--row-color, var(--clr-border));
-  border-bottom: 3px solid var(--row-color, var(--clr-border));
-  border-radius: var(--radius);
-  background: var(--clr-white);
-  transition: box-shadow 0.15s, transform 0.15s;
-}
-
-.my-card:hover {
-  box-shadow: 3px 3px 0 var(--row-color, var(--clr-border));
-  transform: translate(-1px, -1px);
-}
-
-/* One modifier per styleSlug sets --row-color */
-.my-card--bossa  { --row-color: var(--clr-style-bossa); }
-.my-card--jazz   { --row-color: var(--clr-style-jazz); }
-.my-card--samba  { --row-color: var(--clr-style-samba); }
-.my-card--latin  { --row-color: var(--clr-style-latin); }
-.my-card--blues  { --row-color: var(--clr-style-blues); }
-.my-card--pop    { --row-color: var(--clr-style-pop); }
-.my-card--classical { --row-color: var(--clr-style-classical); }
-.my-card--gold   { --row-color: var(--clr-style-gold); }
+```html
+<div class="sbn-card">...</div>
+<div class="sbn-card-lg">...</div>       <!-- large, form pages -->
+<div class="sbn-card-section">...</div>  <!-- compact section -->
 ```
 
-### Rules
-- Only the **right and bottom** edges are bold — not all four sides.
-- The hover `box-shadow` colour must match the border colour exactly (no blur, no spread).
-- `transform: translate(-1px, -1px)` keeps the visual "stamp" effect tight — do not increase.
-- Use `--row-color` (or any CSS custom property) to avoid repeating the colour value.
-- Currently used in: `Pages/Library/Rhythms/Index.vue` (`.sbn-pattern-row`).
+Hover shifts `border-color` to `--clr-text-muted`. No shadow, no transform.
+
+### Chord card (`.sbn-chord-card`)
+
+Full public library card (play button, popularity badge, difficulty stars).
+
+**CSS split:** Shell (border, hover, radius, background) is in `sbn-design-system.css §2c`. All card internals (name, diagram, footer, play button, badges) are in `chord-library.css`.
+
+```html
+<div class="sbn-chord-card">
+  <div class="sbn-card-chord-name"><!-- chord name HTML --></div>
+  <div class="sbn-card-diagram">
+    <button class="sbn-play-btn">▶</button>
+  </div>
+  <div class="sbn-card-footer">
+    <span class="sbn-card-pop sbn-pop-essential">Core</span>
+    <span class="sbn-card-diff">
+      <span class="sbn-diff-star filled">★</span>
+      <span class="sbn-diff-star filled">★</span>
+      <span class="sbn-diff-star">★</span>
+    </span>
+  </div>
+</div>
+
+<!-- Variants -->
+<div class="sbn-chord-card sbn-chord-card--detail">...</div>  <!-- larger, play btn always visible -->
+<div class="sbn-chord-card sbn-chord-card--mini">...</div>    <!-- compact, no footer -->
+```
+
+**Popularity pill classes:** `sbn-pop-occasional`, `sbn-pop-common`, `sbn-pop-essential`, `sbn-pop-iconic`
+
+### Rhythm card (`.sbn-rhythm-card`)
+
+Used in the rhythm library grid. Frame defined globally in `sbn-design-system.css §2d`.
+
+```html
+<div class="sbn-rhythm-card">...</div>
+```
+
+Vue component scoped styles in `RhythmCard.vue` only contain `position: relative; overflow: hidden` — the frame is global so the vintage theme can reach it.
+
+### Pattern row (`.sbn-pattern-row`)
+
+Used in the course player and rhythm detail page for rhythm pattern listings. Frame defined globally in `sbn-design-system.css §2e`.
+
+```html
+<div class="sbn-pattern-row sbn-pattern-row--bossa">...</div>
+```
+
+Color modifiers set `--row-color` which the vintage theme uses for the thick border:
+
+```html
+sbn-pattern-row--bossa | --jazz | --samba | --latin | --blues | --pop | --classical | --gold
+```
+
+### Diagram card shells (`.sbn-diagram-card` / `.sbn-vp-card`)
+
+Base shells for chord diagram display. No fixed width — size always controlled by parent grid.
+
+```html
+<!-- Non-interactive display -->
+<div class="sbn-diagram-card">...</div>
+
+<!-- Clickable (voicing picker, selectable) -->
+<div class="sbn-vp-card">...</div>
+<div class="sbn-vp-card is-selected">...</div>
+<div class="sbn-vp-card sbn-vp-card--current">...</div>
+<div class="sbn-vp-card sbn-vp-card--from-tab">...</div>
+```
+
+Border radius: `--radius-sm` (6px). Never add a `width` — size via parent grid.
+
+### Progression viewer (`.sbn-prog-viewer`)
+
+The frame-less shell for `ChordProgressionViewer.vue`. Wrap in `.sbn-card` if a panel frame is needed. The vintage theme adds a thick right+bottom hover border via `[data-theme="vintage"] .sbn-prog-viewer`.
+
+---
+
+## VINTAGE OFFSET CARD STYLE (theme reference)
+
+The vintage card aesthetic — bold right+bottom border in category colour, diagonal lift on hover — is now a **theme variant**, not the active default. It activates automatically when `<html data-theme="vintage">` is set.
+
+The `--row-color` custom property drives the colour on rhythm cards and pattern rows. Set it via modifier classes (`.sbn-pattern-row--bossa`, etc.) or via inline style.
+
+Do not hand-code the vintage frame CSS in components or module files. It lives exclusively in the `[data-theme="vintage"]` block at the bottom of `sbn-design-system.css`.
+
+The `vintageCard` prop has been **removed** from `RhythmPattern.vue`, `ChordProgressionViewer.vue`, and `mountSbnNodes.ts`. Do not re-add it.
 
 ---
 
@@ -238,40 +364,7 @@ Currently used in: `Pages/Library/Rhythms/Index.vue`.
 ### Key principle: cards have NO fixed width
 
 Size is always controlled by the **parent grid**, never by the card itself. Use CSS grid
-`minmax()` / `repeat()` / `fr` units on the container to size cards. This means the same
-card class works in any context just by changing the grid definition.
-
-### Base card shell (`.sbn-diagram-card` / `.sbn-vp-card`)
-
-Defined in `sbn-design-system.css §2`. Both classes share the same visual base.
-`.sbn-vp-card` adds `cursor: pointer` and `position: relative` for the checkmark.
-
-```html
-<!-- Non-interactive display (library, chord grid) -->
-<div class="sbn-diagram-card">
-  <!-- SVG or HTML fretboard goes here -->
-</div>
-
-<!-- Clickable (voicing picker, any selectable card) -->
-<div class="sbn-vp-card">
-  <!-- SVG diagram goes here -->
-</div>
-
-<!-- Selected state -->
-<div class="sbn-vp-card is-selected">...</div>
-
-<!-- Modifier variants -->
-<div class="sbn-vp-card sbn-vp-card--current">...</div>   <!-- exact tab match (blue) -->
-<div class="sbn-vp-card sbn-vp-card--from-tab">...</div>  <!-- from-tab, no library match -->
-```
-
-**Visual spec:**
-- Background: always `--clr-white`
-- Border: `1px solid --clr-border`
-- Hover border: `--clr-accent-border` + `--clr-shadow-sm`
-- Selected: `border-color: --clr-accent` + `0 0 0 2px --clr-accent-bg` glow + `✓` checkmark
-- Border radius: `--radius-sm` (6px)
-- Width: **none** — set by parent grid
+`minmax()` / `repeat()` / `fr` units on the container to size cards.
 
 ### SVG diagram renderer
 
@@ -286,7 +379,7 @@ const svg = sbnRenderDiagramSVG(voicing);
 renderMiniDiagram(voicing) { return sbnRenderDiagramSVG(voicing); }
 ```
 
-**Fret string encoding:** Fret strings use hex encoding for frets ≥ 10: `a`=10, `b`=11, `c`=12, etc. Example: `"accaaa @10"` = frets 10,12,12,10,10,10 at position 10. The parser in `sbnParseFretString()` uses `parseInt(c, 16)` for the ≤6 char path. The shortcode `[sbn_voicings]` block uses this format.
+**Fret string encoding:** Fret strings use hex encoding for frets ≥ 10: `a`=10, `b`=11, `c`=12, etc. The parser in `sbnParseFretString()` uses `parseInt(c, 16)`.
 
 **Never pass a pixel size argument** — sizing is CSS-only via the card shell width.
 
@@ -296,7 +389,6 @@ Used in the chord library where rich display modes (fingering/notes/functions) a
 Defined in `sbn-design-system.css §2b`. CSS for dots, barres, and ping animations lives in `chord-library.css`.
 
 ```html
-<!-- Structure rendered by sbnRenderFretboard(data) -->
 <div class="sbn-diagram-card">
   <div class="sbn-chord-fretboard"
        data-diagram='{"positions":[...]}'
@@ -306,38 +398,7 @@ Defined in `sbn-design-system.css §2b`. CSS for dots, barres, and ping animatio
 </div>
 ```
 
-**Legacy aliases:** `.sbn-fb-*` class names from the old renderer still work via aliases in
-`chords.css` — but all new code should use `.sbn-fretboard-*` / `.sbn-fret-row` / `.sbn-string-space` / `.sbn-finger-position` / `.sbn-barre`.
-
-### Full chord card (`.sbn-chord-card`) — Phase 8
-
-**CSS split:** Shell only (position, background, shadow, hover lift, size variants) is in `sbn-design-system.css §2c`. All card internals (name, diagram, footer, play button, badges, stars, animations) are in `chord-library.css`.
-
-```html
-<div class="sbn-chord-card">
-  <div class="sbn-card-chord-name"><!-- chord name HTML --></div>
-  <div class="sbn-card-diagram">
-    <!-- diagram (ChordDiagram.vue / sbnRenderDiagramSVG) -->
-    <button class="sbn-play-btn">▶</button>  <!-- overlaid bottom-centre, shown on hover -->
-  </div>
-  <div class="sbn-card-footer">  <!-- column-stacked: pop badge on top, stars below -->
-    <span class="sbn-card-pop sbn-pop-essential">Core</span>
-    <span class="sbn-card-diff">
-      <span class="sbn-diff-star filled">★</span>
-      <span class="sbn-diff-star filled">★</span>
-      <span class="sbn-diff-star">★</span>
-    </span>
-  </div>
-</div>
-
-<!-- Variants -->
-<div class="sbn-chord-card sbn-chord-card--detail">...</div>  <!-- larger, no hover lift, play btn always visible -->
-<div class="sbn-chord-card sbn-chord-card--mini">...</div>    <!-- compact, no footer -->
-```
-
-**Popularity pill classes:** `sbn-pop-occasional`, `sbn-pop-common`, `sbn-pop-essential`, `sbn-pop-iconic`
-
-**Play button:** absolutely positioned inside `.sbn-card-diagram` (bottom-centre, `top: 90%`). Red fill, white icon, 24px. Hidden until card hover; always visible on `--detail` cards and touch devices. Arpeggio feedback: `sbn-dot-ping` (SVG dots via `sbnDotPing` keyframe) and `sbn-barre-ping` / `sbn-finger-position.sbn-dot-ping` (HTML renderer). All animations in `chord-library.css`.
+**Legacy aliases:** `.sbn-fb-*` class names still work via aliases in `chords.css` — all new code should use `.sbn-fretboard-*` / `.sbn-fret-row` / `.sbn-string-space` / `.sbn-finger-position` / `.sbn-barre`.
 
 ### Sizing in context
 
@@ -356,30 +417,30 @@ Defined in `sbn-design-system.css §2b`. CSS for dots, barres, and ping animatio
 
 ### Key Features
 - **Integrated Metadata**: Automatically renders Name, Category, Key, and Roman Numerals.
-- **Style-Aware Coloring**: Uses the progression's category (Jazz, Latin, etc.) to apply design-system compliant colors to labels and diagram dots.
+- **Style-Aware Coloring**: Uses the progression's category to apply design-system compliant colors.
 - **Interactive Playback**: Inline global play button and per-chord preview support.
-- **Vintage Card Style**: Supports the premium "Vintage" aesthetic with accented right/bottom borders.
 
 ### Component Usage (Vue 3)
 
 ```vue
 <ChordProgressionViewer
-    :chords="tiles"          // Array of { chordName, diagramData, numeral? }
+    :chords="tiles"          <!-- Array of { chordName, diagramData, numeral? } -->
     :name="prog.name"
     :category="prog.category"
     :key-label="prog.key"
     :numerals="prog.numerals"
     :color="getCategoryColor(prog.category)"
-    :vintage-card="true"
     :interactive="true"
     :compact="false"
 />
 ```
 
+Note: `:vintage-card` prop has been **removed**. Theme is controlled globally via `data-theme` on `<html>`.
+
 ### Standard Implementation Locations
 1. **Progression Detail Page**: `resources/js/Pages/Library/Progressions/Show.vue`
 2. **Chord Detail Page**: `resources/js/Pages/Library/Chords/Show.vue`
-3. **Song Detail Page**: `resources/js/Pages/Library/Songs/Show.vue` (for detected progressions)
+3. **Song Detail Page**: `resources/js/Pages/Library/Songs/Show.vue`
 
 ### Logic Pattern
 Every implementation should use the unified resolution pipeline:
@@ -389,11 +450,55 @@ Every implementation should use the unified resolution pipeline:
 
 ---
 
+## PLAY BUTTON (`.sbn-play-btn`)
+
+Global circular transport button. Defined in `sbn-design-system.css §3b`. Used in rhythm players, progression viewer, and the leadsheet transport bar.
+
+### Color system
+
+Set `--play-color` on the **parent wrapper** to tint the button for a category. If not set, falls back to `--clr-accent` (orange). For the transport bar, `--play-color` is pinned to `#f39c12` (orange) and `--play-bg-playing` to `var(--clr-gradient)` so page-level accent overrides cannot bleed in.
+
+```html
+<!-- Default: orange -->
+<button class="sbn-play-btn" :class="{ 'is-playing': playing }">
+  <svg>...</svg>
+</button>
+
+<!-- Category-tinted: set --play-color on the wrapper -->
+<div :style="{ '--play-color': categoryColor }">
+  <button class="sbn-play-btn" :class="{ 'is-playing': playing }">...</button>
+</div>
+```
+
+### States
+
+| State | Appearance |
+|---|---|
+| Default | White bg, `--play-color` border + icon |
+| Hover | Faint `--play-color` tint bg, scale 1.08 |
+| Playing | Solid `--play-bg-playing` (or `--play-color`) fill, white icon, glow ring |
+
+### Size overrides
+
+| Context | Class | Size |
+|---|---|---|
+| Default | `.sbn-play-btn` | 36×36px |
+| RhythmStrip | `.sbn-rhythm-strip-play` | 32×32px (scoped) |
+| RhythmPattern mini | `.is-mini .sbn-rhythm-play-btn` | 30×30px (scoped) |
+| Transport bar | `.sbn-transport-play` | 48×48px |
+
+### Rules
+
+- Always use SVG icons — never emoji or text characters.
+- Never redefine color/state in scoped styles — only size and margin offsets are allowed.
+- Components that pass a `color` prop must set `--play-color` on the wrapper alongside any other color variables (`--strip-color`, `--prog-color`).
+- Do not override `--clr-accent` at page level to change play button color — it breaks the transport bar and other components. Use `--play-color` on the specific wrapper instead.
+
 ---
 
 ## BUTTONS
 
-Base class `.sbn-btn` is always required. Add one color modifier.
+Base class `.sbn-btn` is always required. Add one color modifier. Defined exclusively in `sbn-design-system.css` — do not redefine in module CSS files.
 
 ```html
 <!-- Primary — orange/red gradient. Main CTAs. -->
@@ -444,11 +549,11 @@ The canonical tab bar for **main view switching** — leadsheet editor, and any 
 **Visual spec:**
 - Tab bar background: `--clr-surface-3` (grey tray)
 - Tab bar has a full border + rounded top corners, `border-bottom: none`
-- A `box-shadow: 0 1px 0 0 var(--clr-border)` hairline runs across the bottom — this is the shared edge with the content below
+- A `box-shadow: 0 1px 0 0 var(--clr-border)` hairline runs across the bottom
 - Each tab sits `bottom: -1px` to overlap that hairline
-- Active tab: white bg (`--clr-white`), full border, `border-bottom-color: --clr-white` to punch through the hairline
-- Active tab accent: `::before` pseudo-element, `height: 3px`, `background: var(--clr-gradient)` (orange→red)
-- Content panels have `border-top: none` — the hairline serves as the divider
+- Active tab: white bg, full border, `border-bottom-color: --clr-white` to punch through the hairline
+- Active tab accent: `::before` pseudo-element, `height: 3px`, `background: var(--clr-gradient)`
+- Content panels have `border-top: none`
 
 ```html
 <div class="sbn-ve-tabs">
@@ -467,6 +572,8 @@ The canonical tab bar for **main view switching** — leadsheet editor, and any 
 ---
 
 ## BADGES
+
+Defined exclusively in `sbn-design-system.css`. Do not redefine in module CSS files.
 
 ```html
 <!-- Neutral -->
@@ -495,29 +602,6 @@ The canonical tab bar for **main view switching** — leadsheet editor, and any 
 
 ---
 
-## CARDS / PANELS
-
-```html
-<!-- Standard card -->
-<div class="sbn-card">...</div>
-
-<!-- Large card (form pages) -->
-<div class="sbn-card-lg">...</div>
-
-<!-- Compact section card -->
-<div class="sbn-card-section">...</div>
-
-<!-- Dimmed surface (metadata, hints) -->
-<div class="sbn-surface-dim">...</div>
-
-<!-- Info callout (accent left border) -->
-<div class="sbn-callout">
-  Tip: use Shell voicings for clarity in trio settings.
-</div>
-```
-
----
-
 ## FORM ELEMENTS
 
 ```html
@@ -531,20 +615,41 @@ The canonical tab bar for **main view switching** — leadsheet editor, and any 
 
 ---
 
-## EXISTING GLOBAL COMPONENTS (already defined in admin2.css)
+## EXISTING GLOBAL COMPONENTS
 
-These are in `admin2.css` and already available everywhere. Do not redefine:
+Components defined in `sbn-design-system.css` and available everywhere. Do not redefine in module files.
 
-| Class | Location | Description |
+| Class | Description |
+|---|---|
+| `.sbn-btn` + variants | Buttons — all variants and sizes |
+| `.sbn-badge` + variants | Inline badges — all semantic and style variants |
+| `.sbn-card`, `.sbn-card-lg`, `.sbn-card-section` | Panel cards |
+| `.sbn-chord-card` + variants | Full chord library card shell |
+| `.sbn-rhythm-card` | Rhythm library grid card frame |
+| `.sbn-pattern-row` + modifiers | Rhythm pattern row (course player + library) |
+| `.sbn-diagram-card`, `.sbn-vp-card` | Chord diagram card shells |
+| `.sbn-back-link` | Back navigation link |
+| `.sbn-surface-dim` | Dimmed surface (metadata, hints) |
+| `.sbn-callout` | Info callout (accent left border) |
+
+Components defined in `admin2.css` (admin layout only):
+
+| Class | Description |
+|---|---|
+| `.sbn-table`, `.sbn-table-wrap` | Standard data table |
+| `.sbn-filter-bar`, `.sbn-search-input`, `.sbn-search-wrap` | Filter row above tables |
+| `.sbn-pagination` | Page nav |
+| `.sbn-empty` | Empty state container |
+| `.sbn-flash` | Server-side flash messages |
+| `.sbn-content-layout`, `.sbn-context-panel` | Two-column layout with right sticky panel |
+| `.sbn-stat-card` | Admin dashboard stat card |
+
+Other globally loaded:
+
+| Class | File | Description |
 |---|---|---|
-| `.sbn-table`, `.sbn-table-wrap` | `admin2.css` | Standard data table |
-| `.sbn-filter-bar`, `.sbn-search-input`, `.sbn-search-wrap` | `admin2.css` | Filter row above tables |
-| `.sbn-badge`, `.sbn-badge-accent`, `.sbn-badge-muted` | `admin2.css` + design-system | Inline badges |
-| `.sbn-pagination` | `admin2.css` | Page nav |
-| `.sbn-toast` | `leadsheets.css` | JS toast (use `sbnToast(msg, type)` from `chords.js`) |
-| `.sbn-empty` | `admin2.css` | Empty state container |
-| `.sbn-flash` | `admin2.css` | Server-side flash messages |
-| `.sbn-content-layout`, `.sbn-context-panel` | `admin2.css` | Two-column layout with right sticky panel |
+| `.sbn-toast` | `leadsheets.css` | JS toast — use `sbnToast(msg, type)` from `chords.js` |
+| `.sbn-chord-symbol` + parts | `chord-symbols.css` | Chord name typography |
 
 ---
 
@@ -563,23 +668,21 @@ These are in `admin2.css` and already available everywhere. Do not redefine:
 
 ### leadsheets.css
 - Leadsheet index table, filter bar, stat row
-- All leadsheet editor styles (extracted from inline `<style>` 2026-04-08)
+- All leadsheet editor styles
 - **Beat-grid layout** (chord grid, 2026-04-18):
-  - `.sbn-ve-grid .sbn-ve-measure-content` — `position: relative; min-height: 148px; padding-bottom: 18px` (dot row reserved)
+  - `.sbn-ve-grid .sbn-ve-measure-content` — `position: relative; min-height: 148px; padding-bottom: 18px`
   - `.sbn-ve-beat-grid` — absolute bottom layer, `height: 18px`, holds dot elements
-  - `.sbn-ve-beat-tick` — 9px circle, centred at `(b-0.5)/bpm * 100%` (NOT at beat edge); beat-1 = 11px
-  - `.sbn-ve-beat-tick.beat-active` — orange fill + `sbn-beat-pulse` keyframe animation (driven by `transportBeat`)
-  - `.sbn-ve-grid .sbn-ve-chord` — `position: absolute; top: 0; bottom: 18px; justify-content: flex-start; padding-top: 8px`
+  - `.sbn-ve-beat-tick` — 9px circle, centred at `(b-0.5)/bpm * 100%`; `.beat-active` — orange fill + `sbn-beat-pulse` animation
 - Chord grid overrides: `.sbn-ve-grid .sbn-ve-chord-name`
 - Card sizing in grid: `.sbn-ve-chord-diagram .sbn-diagram-card { max-width: 80px; padding: 2px 4px }`
-- Density tier diagram sizing: `.double` (64px), `.multi` (52px), `.dense` (36px) — scoped to `.sbn-ve-grid`
-- Density tier chord name sizing: double=17px, multi=14px, dense=10px (single inherits DS 20px base)
+- Density tier diagram sizing: `.double` (64px), `.multi` (52px), `.dense` (36px)
+- Density tier chord name sizing: double=17px, multi=14px, dense=10px
 - SVG aspect ratio: `.sbn-chord-svg { aspect-ratio: 80/95 }`
-- Playback active chord: `.sbn-ve-chord.is-active { box-shadow: inset 0 0 0 2px var(--clr-accent); background: none }` — frame only
-- Tab playback metronome column: `.sbn-tab-metronome-col { fill: var(--clr-accent); opacity: 0.1 }` — same geometry as `.sbn-cursor-sel-col` (half-width 9px, rx 3, stringAreaTop-4 to bottom)
-- Tab playback beat note: `.sbn-tab-note-text.sbn-beat-active { fill: #ef4444 !important }` — red, overrides hover/is-active
-- Tab playing measure: `.sbn-tab-measure--playing { background: none; box-shadow: none }` — no frame, metronome column is sole indicator
-- Paste target: `.sbn-ve-chord.is-paste-target` blue tint + `.sbn-ve-chord.is-paste-target .sbn-diagram-card { background: transparent }`
+- Playback active chord: `.sbn-ve-chord.is-active { box-shadow: inset 0 0 0 2px var(--clr-accent) }`
+- Tab playback metronome column: `.sbn-tab-metronome-col { fill: var(--clr-accent); opacity: 0.1 }`
+- Tab playback beat note: `.sbn-tab-note-text.sbn-beat-active { fill: #ef4444 !important }`
+- Tab playing measure: `.sbn-tab-measure--playing { background: none; box-shadow: none }`
+- Paste target: `.sbn-ve-chord.is-paste-target` blue tint
 - Toast: `.sbn-toast`, `.sbn-toast-*`
 
 ### progressions.css
@@ -587,22 +690,22 @@ These are in `admin2.css` and already available everywhere. Do not redefine:
 - `.sbn-prog-tonality` — small tonality label (major/minor)
 - `.sbn-prog-numerals` — mono Roman numeral display
 - `.sbn-occ-*` — occurrence list (collapsible per-song groups)
-- `.sbn-cat-badge` — dynamic color badge via `--cat-clr`
+- Note: `.sbn-cat-badge` was moved to `sbn-design-system.css` (badge centralisation 2026-05-25)
 
 ### voicings.css
 - Voicing crossref page: stats, draft cards, draft groups
 - `.sbn-draft-card` — similar to `.sbn-diagram-card` but with meta row and actions
 
 ### progression-builder.css
-Migrated to design system tokens in grid-polish session. Safe to use as style reference.
-- `.sbn-pb-row` — flex row, no border (grid borders removed)
+- `.sbn-pb-row` — flex row, no border
 - `.sbn-pb-row .sbn-ve-chord-diagram .sbn-diagram-card` — `max-width: 80px; padding: 2px 4px`
 - `.sbn-pb-numeral` — Roman numeral below chord name
-- Bar numbers (`.sbn-pb-measure-num`) and VL score badges removed from builder grid markup and CSS
 
-## CHORD GRID INTERACTION MODEL (established grid-polish session, updated diagram-polish session)
+---
 
-Both the leadsheet chord grid and progression builder grid share the same base visual system from `sbn-design-system.css §8`. Module CSS adds page-specific sizing only.
+## CHORD GRID INTERACTION MODEL
+
+Both the leadsheet chord grid and progression builder grid share the same base visual system from `sbn-design-system.css §8`.
 
 ### Hover and selection frames
 
@@ -618,44 +721,32 @@ Both the leadsheet chord grid and progression builder grid share the same base v
 
 **Rules:**
 - No background tints on hover — orange frame only.
-- Playback tracking (`is-active`): frame only, no background — content stays fully readable.
-- Selection (`is-selected`): solid blue outline + moderate bg tint covering the full card including diagram area.
-- Chord selection uses `.is-selected` outline on `.sbn-ve-chord` cards — NOT on `.sbn-ve-measure`.
-- `.sbn-ve-measure.is-selected` (old measure-level box-shadow) is no longer used — selection lives on chord cards only.
-- `::before` and `::after` on `.sbn-ve-measure` are fully reserved for barlines. Never use them for selection, drag, or any other visual effect.
-- Drop gap uses `padding` (not `margin`) so the measure's hit area stays intact for `dragover` events.
+- `::before` and `::after` on `.sbn-ve-measure` are fully reserved for barlines.
+- Drop gap uses `padding` (not `margin`) so the measure's hit area stays intact.
+- Selection lives on chord cards (`.sbn-ve-chord`) — NOT on `.sbn-ve-measure`.
 
-### Barlines (established diagram-polish session)
+### Barlines
 
 Barlines use pseudo-elements on `.sbn-ve-measure`, defined in `sbn-design-system.css §8`:
 
 ```css
-/* Right barline — every measure */
 .sbn-ve-measure::after {
     content: ''; position: absolute;
     right: 0; top: 10%; height: 70%; width: 1px;
     background: var(--clr-text-muted);
 }
-
-/* Left barline — every measure */
 .sbn-ve-measure::before {
     content: ''; position: absolute;
     left: 0; top: 10%; height: 70%; width: 1px;
     background: var(--clr-text-muted);
 }
-
-/* Opening barline — thicker on first measure of each row */
 .sbn-ve-row .sbn-ve-measure:first-of-type::before,
 .sbn-pb-row .sbn-ve-measure:first-of-type::before {
     width: 2px;
 }
 ```
 
-**Critical:** `::before` and `::after` on `.sbn-ve-measure` are fully reserved for barlines. Never use them for selection frames or other visual effects.
-
-### Chord density tiers (established diagram-polish session)
-
-Four density tiers, set via Alpine `:class` binding in `edit.blade.php`:
+### Chord density tiers
 
 | Class | Condition | Chord name | Diagram max-width |
 |-------|-----------|------------|-------------------|
@@ -663,46 +754,6 @@ Four density tiers, set via Alpine `:class` binding in `edit.blade.php`:
 | `.double` | exactly 2 chords | 18px | 64px |
 | `.multi` | 3–4 chords | 15px | 52px |
 | `.dense` | 5+ chords | 12px | 36px |
-
-Diagram card sizing rules in `leadsheets.css`, scoped to `.sbn-ve-grid`. Chord name sizing rules also in `leadsheets.css`. DS base (`§8`) defines the unsized default.
-
-### Grid border structure
-
-Section headers retain their accent border-bottom (orange). Section body has no outer border — content flows cleanly. Barlines are pseudo-elements only (see above). No `border-right` on `.sbn-ve-measure` itself.
-
-### Copy/paste target
-
-`.sbn-ve-chord.is-paste-target` gets a blue tint background (`rgba(59,130,246,0.08)`). The diagram card within gets `background: transparent` so the tint shows through without doubling.
-
-### Card sizing in grid
-
-```css
-/* leadsheets.css — leadsheet grid (single chord, no density class) */
-.sbn-ve-chord-diagram .sbn-diagram-card { max-width: 80px; padding: 2px 4px; }
-
-/* progression-builder.css — builder grid */
-.sbn-pb-row .sbn-ve-chord-diagram .sbn-diagram-card { max-width: 80px; padding: 2px 4px; }
-```
-
-SVG is always wrapped in `div.sbn-diagram-card` inside `.sbn-ve-chord-diagram`. Never bare SVG directly in `.sbn-ve-chord-diagram`. Never pass a pixel size to `sbnRenderDiagramSVG()`.
-
-### Grid-interact Phase 1 — DONE (April 2026)
-
-Implemented in `edit.blade.php` + `sbn-design-system.css` + new `public/js/sbn-context-menu.js` + `public/js/sbn-grid-ops.js`.
-
-1. **Right-click context menu** ✓ — `showContextMenu()` vanilla singleton; `buildMenuItems('leadsheet', state)` config-driven; all chord + measure + batch ops wired; hover action buttons removed
-2. **Two-tier selection model** ✓ — `selection: [{si,mi,ci}]` per chord-card; Ctrl+Click, Shift+Click, Ctrl+A, Escape, Delete all work; `.sbn-ve-selected` frame on chord cards
-3. **Measure drag-to-reorder** ✓ — within section only; custom ghost via `setDragImage()`; gap indicator via `padding` + border; `moveMeasure()` updates selection + fires `_emitChordsChanged()`
-4. **Shift+drag mouse batch selection** ✓ — `mousedown`+`mouseenter` extends range; `_mouseSelectMoved` flag suppresses post-drag click
-
-### Grid-interact Phase 2 — DEFERRED to tab editor UX session
-
-- **Measure drag cross-section** — needs `sbn-tab-structure-request` bridge
-- **Measure drag tab sync** — `moveMeasure()` fires `patchChordNames()` only; Vue measure order not updated
-- **Chord-level drag** — reorder within measure (A) + move between measures (B); needs beat redistribution design
-- **Tab editor context menu** — `buildMenuItems('tab', state)` stub exists; needs `useMeasureSelection.js` + `sbn-tab-structure-request` handler in `useAlpineBridge.js`
-- **Undo for chord grid** — copy `useUndo.js` pattern; `takeSnapshot()` wraps `markDirty()`
-- **Volta index invalidation on drag** — `parsed.voltaEndings` keyed by global index; moving measures breaks it
 
 ---
 
@@ -722,15 +773,13 @@ Video sync is a single-video-per-leadsheet feature. The sync data lives in `json
 }
 ```
 
-`audioSource` is also persisted (not an authoring preference — it determines which clock drives playback on reload).
-
 ### Files
 
 | File | Role |
 |------|------|
 | `resources/js/tab-editor/composables/useVideoSync.js` | All sync state + authoring mutations |
 | `resources/js/tab-editor/components/VideoSyncEditor.vue` | Sidebar UI: video ID, player, tap controls, rate buttons, mapping table |
-| `resources/js/Components/Library/Video/VideoEmbed.vue` | Shared YouTube / hosted `<video>` wrapper; emits `timeupdate` at 60fps via rAF (formerly `tab-editor/components/VideoPlayer.vue`) |
+| `resources/js/Components/Library/Video/VideoEmbed.vue` | Shared YouTube / hosted `<video>` wrapper; emits `timeupdate` at 60fps via rAF |
 | `resources/js/tab-editor/components/SyncPointBadge.vue` | Draggable orange circle overlay on measure barlines |
 | `resources/js/tab-editor/TabEditor.vue` | Provides inject keys; wires VideoSyncEditor events; transport logic |
 
@@ -738,40 +787,19 @@ Video sync is a single-video-per-leadsheet feature. The sync data lives in `json
 
 | Key | Type | Value |
 |-----|------|-------|
-| `videoSyncMap` | `ComputedRef<Map<measureIndex, {videoTime, markerIndex}> \| null>` | `null` when sidebar closed; populated map when open |
-| `nudgeSyncMapping` | `(measureIndex: number, delta: number) => void` | Adjusts a mapping's `videoTime` by `delta` seconds, undoable |
+| `videoSyncMap` | `ComputedRef<Map<measureIndex, {videoTime, markerIndex}> \| null>` | `null` when sidebar closed |
+| `nudgeSyncMapping` | `(measureIndex: number, delta: number) => void` | Adjusts a mapping's `videoTime`, undoable |
 | `tapCursor` | `ComputedRef<number>` | Currently targeted measure for tap-to-mark |
 | `seekToMeasure` | `(gi: number) => void` | Seeks audio + video to measure `gi` |
 
 ### Clock modes
-
-Two mutually exclusive clock modes:
 
 | Mode | Condition | Clock source |
 |------|-----------|--------------|
 | **Video master** | `audioSource === 'video'` AND `videoId` set | YouTube rAF loop → `videoMeasureIndex` → `transportBeat` |
 | **Synth master** | otherwise | Tone.js scheduler → `currentBeat` → `transportBeat` |
 
-`isVideoMaster = computed(() => audioSource.value === 'video' && hasVideo.value)`
-
-Audio source auto-switches: opening the Video sidebar sets source to `'video'`; closing it sets `'synth'`.
-
-### D1 — Playback sync
-
-- `VideoEmbed.vue` runs a `requestAnimationFrame` loop calling `player.getCurrentTime()` and emitting `timeupdate` at ~60fps.
-- `useVideoSync.onVideoTimeUpdate(time)` converts seconds → fractional `videoMeasureIndex` via binary-search interpolation.
-- `transportBeat = videoMeasureIndex * beatsPerMeasure` feeds the score cursor.
-- Seeking a measure in video-master mode calls `videoSync.measureToVideoTime(gi)` → `player.seekTo(t)`.
-
-### D2 — Authoring
-
-**Tap-to-mark flow:**
-1. User opens Video sidebar (auto-switches to video master), presses Play.
-2. Presses `M` at each downbeat — records `{ measureIndex: tapCursor, videoTime: currentVideoTime }`, advances `tapCursor`.
-3. `Shift+M` un-taps: removes last mapping, rewinds `tapCursor` by 1 (`useVideoSync.untap()`).
-4. All mutations go through `wrapCommand` → single Ctrl+Z undoes each tap.
-
-**Keyboard shortcuts (VideoSyncEditor.vue `onKeydown`):**
+### D2 — Authoring keyboard shortcuts
 
 | Key | Action |
 |-----|--------|
@@ -782,49 +810,14 @@ Audio source auto-switches: opening the Video sidebar sets source to `'video'`; 
 | `Shift+←` / `Shift+→` | Nudge video −/+ 10s |
 | `,` / `.` | Decrease / increase playback rate |
 
-Guard: fires only when focused element is not `<input>` or `<textarea>`.
-
-**Playback rate:** buttons 0.25×–1.5×; session-local only (not persisted). YouTube's rate change does not affect `getCurrentTime()` units — rAF loop keeps working unchanged.
-
-**Distribute:** `useVideoSync.distributeMarkers()` linearly interpolates all unmapped measures between first and last marker. Single undoable command (`wrapCommand` with empty measure list).
-
-**Tempo warnings:** adjacent mappings that imply < 0.1s or > 5s per measure are flagged in red in the sidebar table. Non-blocking.
-
 ### SyncPointBadge
 
-`resources/js/tab-editor/components/SyncPointBadge.vue`
+22px circle, orange→red radial gradient, white bold number, `ew-resize` cursor. Centered on measure's left barline (`left: 0; transform: translateX(-50%)`).
 
-Rendered inside `ChordMeasure.vue` and `TabMeasure.vue` when `videoSyncMap` has an entry for that measure.
-
-```vue
-<SyncPointBadge
-    :marker-index="syncPoint.markerIndex"   <!-- 0-based, displayed as 1-based -->
-    :video-time="syncPoint.videoTime"        <!-- seconds -->
-    :measure-index="globalIdx"
-    context="chord"                          <!-- 'chord' | 'tab' -->
-/>
-```
-
-**Positioning:**
-- `left: 0; transform: translateX(-50%)` — centered on the measure's left barline
-- Chord view (`context="chord"`): `top: 6px` — near top of chord measure cell
-- Tab view (`context="tab"`): `top: 57px` — between D and G strings (27px chord bar + 30px SVG midpoint; G string y=25, D string y=35 inside SVG)
-
-**Interaction:**
-- **Click** (drag delta < 0.001s): calls `seekToMeasure(measureIndex)`
-- **Drag** (horizontal only): live-updates `displayTime`; on release commits via `nudgeSyncMapping(measureIndex, delta)` (undoable)
-- `SECS_PER_PX = 0.05` — 50ms per pixel of drag
-
-**Visual:** 22px circle, orange→red radial gradient, white bold number, `ew-resize` cursor.
-
-### Transport: park vs reset
-
-`onTransportReset({ toZero = false })`:
-- **First ⏹ press while playing:** pauses, keeps beat position ("parked"). ⏹ button gains `is-parked` class.
-- **Second ⏹ press while stopped** (or `Escape`): resets to beat 0 and clears events cache.
-- Video master mode: first press pauses video, second press seeks to 0:00 and clears `videoMeasureIndex`.
-
-Video resume (`Space` while paused): `videoSync.playerRef.value?.seekTo(videoSync.videoTime.value)` then `.play()`. `videoTime` is preserved through pause (not cleared on `onVideoPlayStateChange`).
+- Chord view: `top: 6px`
+- Tab view: `top: 57px`
+- Click: `seekToMeasure(measureIndex)`
+- Drag: live-updates time; on release commits via `nudgeSyncMapping` (undoable). `SECS_PER_PX = 0.05`.
 
 ---
 
@@ -832,13 +825,19 @@ Video resume (`Space` while paused): `videoSync.playerRef.value?.seekTo(videoSyn
 
 1. **Never hardcode color hex values** in module CSS. Use `--clr-*` variables.
 2. **Never redefine** `:root` color tokens in module CSS files.
-3. **Never create** a new button style. Use `.sbn-btn` + modifier.
-4. **Chord names** always go through `chord()` (PHP) or `sbnFormatChordHtml()` (JS).
-5. **Diagram cards** always use white background — `.sbn-diagram-card` or `.sbn-vp-card`. Never add a `width` to these classes — size via parent grid.
-6. **SVG diagrams** never have hardcoded dimensions or a background rect — use `sbnRenderDiagramSVG()` which produces a transparent-bg fluid SVG.
-7. **CSS class prefix:** all classes must start with `sbn-`. No bare element selectors.
-8. **New module CSS files:** scope all selectors to a module-specific prefix (e.g., `.sbn-pb-*` for progression builder). Add a comment at the top stating which file in `admin.blade.php` loads it.
-9. **Music style colors** use `--clr-style-*` variables or `.sbn-badge-style-*` classes.
+3. **Never create** a new button style. Use `.sbn-btn` + modifier from the design system.
+4. **Never create** a new badge style. Use `.sbn-badge` + modifier from the design system.
+5. **Chord names** always go through `chord()` (PHP) or `sbnFormatChordHtml()` (JS).
+6. **Diagram cards** always use white background — `.sbn-diagram-card` or `.sbn-vp-card`. Never add a `width` — size via parent grid.
+7. **SVG diagrams** never have hardcoded dimensions or a background rect — use `sbnRenderDiagramSVG()`.
+8. **CSS class prefix:** all classes must start with `sbn-`. No bare element selectors.
+9. **New module CSS files:** scope all selectors to a module-specific prefix (e.g., `.sbn-pb-*`). Add a comment stating which layout file loads it.
+10. **Music style colors** use `--clr-style-*` variables or `.sbn-badge-style-*` classes.
+11. **Card frames must be global.** Vue `<style scoped>` cannot be reached by `[data-theme]` selectors. Card frames (borders, shadows, hover transitions) belong in `sbn-design-system.css` as global classes. Scoped styles may only contain layout/structural rules.
+12. **No `--radius-md`** — this token does not exist. Use `--radius` (10px) as the mid-size token.
+13. **No new `--sbn-*` tokens** — `--sbn-*` in `frontend/base.css` are aliases only. New tokens go under `--clr-*`, `--radius-*`, `--font-*`, or `--ease`.
+14. **Never override `--clr-accent` at page level.** It cascades into play buttons, transport bars, beat markers, and every other accent-colored component. To tint a specific component for a category, set `--play-color` (play buttons) or the component's own context variable on that wrapper only.
+15. **Play button scoped styles: size and margin only.** Never redeclare color, border, background, or transition in a scoped play button rule — those live exclusively in `sbn-design-system.css §3b`.
 
 ---
 
@@ -846,18 +845,34 @@ Video resume (`Space` while paused): `videoSync.playerRef.value?.seekTo(videoSyn
 
 ```
 public/css/
-  sbn-design-system.css   ← tokens + base components (load first)
-                            §2   card system: .sbn-diagram-card, .sbn-vp-card (no fixed width)
+  sbn-design-system.css   ← tokens + ALL card frames + base components (load first on every layout)
+                            §2   diagram card shells: .sbn-diagram-card, .sbn-vp-card
                             §2b  HTML fretboard: .sbn-fretboard-*, .sbn-finger-position, .sbn-barre
-                            §2c  full chord card: .sbn-chord-card (Phase 8)
+                            §2c  full chord card: .sbn-chord-card (shell only)
+                            §2d  rhythm card: .sbn-rhythm-card (frame — global for theme switching)
+                            §2e  pattern row: .sbn-pattern-row + style modifiers
+                            §3   buttons: .sbn-btn + all variants
+                            §3b  play button: .sbn-play-btn — global circular transport button
+                            §4   badges: .sbn-badge + all variants
+                            §8   chord grid: .sbn-ve-measure, barlines, hover/selection frames
+                            [data-theme="vintage"] overrides at bottom of file
   chord-symbols.css       ← chord name typography (load second, global)
-  admin2.css              ← admin shell: sidebar, topbar, layout (load third)
+  admin2.css              ← admin shell: sidebar, topbar, tables, layout (admin only)
+  chord-library.css       ← chord card internals: name, diagram, footer, play btn, badges, animations
   chords.css              ← chord library extensions + legacy sbn-fb-* aliases
   leadsheets.css          ← leadsheets module + all editor styles
   progressions.css        ← progressions module
+  progression-library.css ← progression library page
   rhythms.css             ← rhythm patterns module
   voicings.css            ← voicing crossref module
-  progression-builder.css ← progression builder (migrated to DS tokens in grid-polish session)
+  progression-builder.css ← progression builder
+
+resources/css/
+  app.css                 ← imports frontend/ partials (processed by Vite)
+  frontend/
+    base.css              ← public site base reset + --sbn-* aliases to --clr-* + WooCommerce overrides
+    header.css            ← public nav/header layout only
+    mega-menu.css         ← mega menu layout only
 
 public/js/
   chords.js               ← chord diagram renderers + fretboard hydration + toast
@@ -866,10 +881,11 @@ public/js/
 
 ## ADDING NEW STYLES
 
-When Claude adds CSS for a new feature:
+When adding CSS for a new feature:
 1. Check this document — does a component already cover this?
 2. If extending an existing component, add a modifier class (e.g., `.sbn-diagram-card--compact`).
-3. If creating something genuinely new, add it to the appropriate module CSS file with `sbn-[module]-[element]` naming.
-4. If the new component will be used across multiple modules, add it to `sbn-design-system.css` and document it here.
-5. Never use `!important` except to override third-party styles.
-6. Never add a `width` to `.sbn-diagram-card` or `.sbn-vp-card` — always size via parent grid.
+3. If the new component will appear in multiple modules, add it to `sbn-design-system.css` and document it here.
+4. If it is page-specific, add it to the appropriate module CSS file with `sbn-[module]-[element]` naming.
+5. If the new component is a card frame that must be theme-switchable, it **must** go in `sbn-design-system.css` as a global class with its vintage override in the `[data-theme="vintage"]` block.
+6. Never use `!important` except to override third-party styles.
+7. Never add a `width` to `.sbn-diagram-card` or `.sbn-vp-card` — always size via parent grid.

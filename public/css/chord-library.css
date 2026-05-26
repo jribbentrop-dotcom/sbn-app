@@ -334,7 +334,7 @@
     margin-top: 16px;
     padding: 14px 16px;
     background: var(--clr-surface-2);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius);
     animation: sbnFadeSlideIn 0.4s ease both;
 }
 
@@ -529,8 +529,7 @@
 }
 
 .sbn-archetype-tile:hover {
-    border-color: var(--clr-red);
-    transform: translateY(-2px);
+    border-color: var(--clr-text-muted);
     background: var(--clr-white);
 }
 
@@ -832,22 +831,7 @@
 }
 
 
-/* Popularity badge base + tiers */
-.sbn-card-pop {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 9px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-    white-space: nowrap;
-}
-
-.sbn-pop-occasional { background: var(--clr-surface-2);          color: var(--clr-text-muted);  }
-.sbn-pop-common     { background: rgba(59, 130, 246, 0.1);        color: var(--clr-style-jazz);  }
-.sbn-pop-essential  { background: var(--clr-accent-bg);           color: var(--clr-accent);      }
-.sbn-pop-iconic     { background: rgba(214, 158, 46, 0.12);       color: var(--clr-style-gold);  }
+/* Popularity badge — defined in sbn-design-system.css (.sbn-card-pop + .sbn-pop-*) */
 
 /* Difficulty stars */
 .sbn-card-diff {
@@ -889,7 +873,8 @@
     pointer-events: auto;
 }
 
-.sbn-play-btn,
+/* .sbn-play-btn base is in sbn-design-system.css §3b — chord-card overlay overrides below */
+
 .sbn-info-btn {
     width: 38px;
     height: 38px;
@@ -904,14 +889,6 @@
     transition: all 0.15s var(--ease);
     padding: 0;
     flex-shrink: 0;
-}
-
-.sbn-play-btn:hover {
-    transform: scale(1.15);
-}
-
-.sbn-play-btn.is-playing {
-    transform: scale(1.15);
 }
 
 .sbn-info-btn:hover {

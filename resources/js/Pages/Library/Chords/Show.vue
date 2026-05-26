@@ -160,6 +160,15 @@ const formattedActiveName = computed(() => {
     return html;
 });
 
+const chordPopularityTier = computed(() => {
+    const p = props.chord.popularity ?? 0;
+    if (p >= 11) return { tier: 'iconic',     label: 'Iconic' };
+    if (p >= 6)  return { tier: 'essential',  label: 'Essential' };
+    if (p >= 3)  return { tier: 'common',     label: 'Common' };
+    if (p >= 1)  return { tier: 'occasional', label: 'Rare' };
+    return null;
+});
+
 const eduV     = computed(() => voicingEdu[props.chord.voicing_category] ?? null);
 const eduInv   = computed(() => props.chord.inversion && props.chord.inversion !== 'root' ? (inversionEdu[props.chord.inversion] ?? null) : null);
 
@@ -385,7 +394,13 @@ const formattedChordName = computed(() => {
                             :style="{ '--prog-color': getCategoryColor(prog.category) }"
                         >
                             <span class="sbn-chord-detail-prog-name">{{ prog.name }}</span>
-                            <span class="sbn-chord-detail-prog-numerals">{{ prog.numeralsDisplay }}</span>
+                            <div class="sbn-numeral-chip-row">
+                                <span
+                                    v-for="n in prog.numeralsDisplay.split('–').map(s => s.trim()).filter(Boolean)"
+                                    :key="n"
+                                    class="sbn-numeral-chip"
+                                >{{ n }}</span>
+                            </div>
                         </Link>
                     </li>
                 </ul>
@@ -725,12 +740,6 @@ const formattedChordName = computed(() => {
     font-weight: 600;
     color: var(--clr-text);
     font-size: 14px;
-}
-.sbn-chord-detail-prog-numerals {
-    font-family: var(--font-chord, 'Crimson Text', Georgia, serif);
-    font-size: 13px;
-    color: var(--prog-color, var(--clr-accent));
-    letter-spacing: 0.04em;
 }
 
 /* ── Sibling voicings ── */

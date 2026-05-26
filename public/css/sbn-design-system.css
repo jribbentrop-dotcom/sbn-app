@@ -46,17 +46,21 @@
     --clr-accent-bg: rgba(243, 156, 18, 0.08);
     --clr-accent-border: rgba(243, 156, 18, 0.25);
 
-    /* ── Gradient (orange→red — buttons, avatar, highlights) */
+    /* ── Gradient (orange→red — primary buttons, avatar, highlights) */
     --clr-gradient: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%);
     --clr-gradient-hover: linear-gradient(135deg, #e67e22 0%, #c0392b 100%);
     --clr-red: #e74c3c;
+
+    /* ── Soft gradient (orange→peach — secondary buttons, bossa badges) */
+    --clr-gradient-soft: linear-gradient(135deg, #f39c12 0%, color-mix(in srgb, #f39c12 60%, white) 100%);
+    --clr-gradient-soft-hover: linear-gradient(135deg, #e67e22 0%, color-mix(in srgb, #e67e22 60%, white) 100%);
 
     /* ── Semantic ──────────────────────────────────────── */
     --clr-success: #10b981;
     --clr-warning: #f39c12;
     /* same as accent intentionally */
     --clr-error: #ef4444;
-    --clr-danger: #ef4444;       /* alias — use either name */
+    --clr-danger: var(--clr-error);
     --clr-primary: #3b82f6;      /* blue — same as mod-leadsheet */
     --clr-star: #ffc107;
 
@@ -395,13 +399,10 @@
 .sbn-chord-card {
     position: relative;
     background: var(--clr-white);
-    border: 1px solid transparent;
+    border: 1px solid var(--clr-border);
     border-radius: var(--radius);
     padding: 16px;
-    box-shadow: 1px 1px 0 var(--clr-border);
-    transition: box-shadow 0.2s var(--ease),
-        transform 0.2s var(--ease),
-        background 0.2s var(--ease);
+    transition: border-color 0.15s var(--ease);
     cursor: pointer;
     overflow: visible;
     display: flex;
@@ -410,9 +411,7 @@
 }
 
 .sbn-chord-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 3px 3px 0 rgba(54, 131, 255, 0.35);
-    background: rgba(183, 211, 255, 0.06);
+    border-color: var(--clr-text-muted);
 }
 
 .sbn-chord-card:focus-visible {
@@ -432,9 +431,7 @@
 }
 
 .sbn-chord-card--detail:hover {
-    transform: none;
-    box-shadow: 1px 1px 0 var(--clr-border);
-    background: var(--clr-white);
+    border-color: var(--clr-border);
 }
 
 /* Mini variant */
@@ -442,6 +439,54 @@
     padding: 8px 10px;
     border-radius: var(--radius-sm);
 }
+
+/* ──────────────────────────────────────────────────────────
+   2d. RHYTHM CARD  (.sbn-rhythm-card)
+   ──────────────────────────────────────────────────────────
+   Library grid card. Vintage override at end of file.      */
+
+.sbn-rhythm-card {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    padding: 16px;
+    transition: border-color 0.15s var(--ease);
+}
+
+.sbn-rhythm-card:hover {
+    border-color: var(--clr-text-muted);
+}
+
+/* ──────────────────────────────────────────────────────────
+   2e. RHYTHM PATTERN ROW  (.sbn-pattern-row)
+   ──────────────────────────────────────────────────────────
+   Frame + hover styles. Layout (margin, max-width) stays
+   in course-player.css. Vintage override at end of file.   */
+
+.sbn-pattern-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 18px;
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    transition: border-color 0.15s var(--ease);
+}
+
+.sbn-pattern-row:hover {
+    border-color: var(--clr-text-muted);
+}
+
+.sbn-pattern-row--bossa     { --row-color: var(--clr-style-bossa); }
+.sbn-pattern-row--jazz      { --row-color: var(--clr-style-jazz); }
+.sbn-pattern-row--samba     { --row-color: var(--clr-style-samba); }
+.sbn-pattern-row--latin     { --row-color: var(--clr-style-latin); }
+.sbn-pattern-row--blues     { --row-color: var(--clr-style-blues); }
+.sbn-pattern-row--pop       { --row-color: var(--clr-style-pop); }
+.sbn-pattern-row--classical { --row-color: var(--clr-style-classical); }
+.sbn-pattern-row--gold      { --row-color: var(--clr-style-gold); }
+.sbn-pattern-row--general   { --row-color: var(--clr-style-general); }
 
 
     /* ── Category Badges (Standardized) ──────────────────
@@ -473,7 +518,7 @@
     .sbn-cat-badge--general   { --cat-clr: var(--clr-style-general); }
 
     /* Aliases for common legacy names */
-    .sbn-cat-badge--brazilian  { --cat-clr: var(--clr-style-bossa); }
+    .sbn-cat-badge--brazilian  { --cat-clr: var(--clr-style-samba); }
     .sbn-cat-badge--bossa-nova { --cat-clr: var(--clr-style-bossa); }
     .sbn-cat-badge--cuban      { --cat-clr: var(--clr-style-cuban); }
     .sbn-cat-badge--modal      { --cat-clr: var(--clr-mod-progression); }
@@ -533,81 +578,6 @@
     }
 
 
-/* Category Badges */
-.sbn-prog-row-cat-badge {
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    padding: 3px 10px;
-    border-radius: 12px;
-    display: inline-block;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-jazz {
-    background: #e3f2fd;
-    color: #1565c0;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-blues {
-    background: #fce4ec;
-    color: #c62828;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-pop {
-    background: #e0f2f1;
-    color: #00695c;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-modal {
-    background: #ede7f6;
-    color: #4527a0;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-classical {
-    background: #e8f5e9;
-    color: #2e7d32;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-latin {
-    background: linear-gradient(135deg, #ff8c42, #e65100);
-    color: #fff;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-cuban {
-    background: linear-gradient(135deg, #ff8c42, #e65100);
-    color: #fff;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-bossa-nova {
-    background: #fee2e2;
-    color: #991b1b;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-bossa {
-    background: #fee2e2;
-    color: #991b1b;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-samba {
-    background: #fef3c7;
-    color: #92400e;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-brazilian {
-    background: #fef3c7;
-    color: #92400e;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-general {
-    background: #f3f4f6;
-    color: #4b5563;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-other {
-    background: #f3f4f6;
-    color: #4b5563;
-}
 
 /* ──────────────────────────────────────────────────────────
    3. BUTTONS
@@ -673,16 +643,30 @@
     border-color: var(--clr-border);
 }
 
+/* Outlined — white bg, border. Neutral action (formerly secondary). */
+.sbn-btn-outlined {
+    background: var(--clr-white);
+    color: var(--clr-text);
+    border: 1px solid var(--clr-border);
+}
+
+.sbn-btn-outlined:hover {
+    background: var(--clr-surface-3);
+    border-color: var(--clr-text-muted);
+    color: var(--clr-text);
+}
+
 /* Accent ghost — transparent bg, accent color text. Subtle but branded. */
 .sbn-btn-accent {
     background: var(--clr-accent-bg);
-    color: var(--clr-accent);
+    color: var(--clr-accent-dim);
     border: 1px solid var(--clr-accent-border);
 }
 
 .sbn-btn-accent:hover {
-    background: rgba(243, 156, 18, 0.14);
-    color: var(--clr-accent-dim);
+    background: var(--clr-gradient-soft);
+    color: var(--clr-text);
+    border-color: transparent;
 }
 
 /* Danger — red. Destructive actions only. */
@@ -785,6 +769,49 @@
 
 
 /* ──────────────────────────────────────────────────────────
+   3b. PLAY BUTTON  (.sbn-play-btn)
+   ──────────────────────────────────────────────────────────
+   Circular transport button used in rhythm and progression players.
+   Set --play-color on the parent wrapper to tint for a category.
+   Falls back to the orange-red gradient when no color is set.
+   ────────────────────────────────────────────────────────── */
+
+.sbn-play-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1.5px solid var(--play-color, var(--clr-accent));
+    background: var(--clr-white);
+    color: var(--play-color, var(--clr-accent));
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    padding: 0;
+    transition: background 0.15s var(--ease), border-color 0.15s var(--ease),
+                color 0.15s var(--ease), box-shadow 0.15s var(--ease),
+                transform 0.15s var(--ease);
+}
+
+.sbn-play-btn:hover {
+    border-color: var(--play-color, var(--clr-accent));
+    background: color-mix(in srgb, var(--play-color, var(--clr-accent)) 10%, transparent);
+    transform: scale(1.08);
+}
+
+.sbn-play-btn.is-playing {
+    background: var(--play-bg-playing, var(--play-color, var(--clr-accent)));
+    border-color: var(--play-color, var(--clr-accent));
+    color: var(--clr-white);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--play-color, var(--clr-accent)) 20%, transparent);
+}
+
+.sbn-play-btn:focus-visible {
+    outline: 2px solid var(--play-color, var(--clr-accent));
+    outline-offset: 2px;
+}
+
+/* ──────────────────────────────────────────────────────────
    4. BADGES
    ──────────────────────────────────────────────────────────
    Small labels for status, category, count, key, etc.
@@ -837,53 +864,114 @@
 }
 
 /* ── Music style badges ───────────────────────────────────
+   Tinted pill using the style color token.
    Use: <span class="sbn-badge sbn-badge-style-bossa">Bossa Nova</span>
-   These are for labeling song/progression categories.      */
+   Aliases: -brazilian → -bossa, -bossa-nova → -bossa, -cuban → own token  */
 
 .sbn-badge-style-bossa {
-    background: rgba(243, 156, 18, 0.10);
-    color: #d97706;
-    border: 1px solid rgba(243, 156, 18, 0.25);
+    background: var(--clr-gradient-soft);
+    color: var(--clr-text);
+    border: none;
 }
 
 .sbn-badge-style-jazz {
-    background: rgba(59, 130, 246, 0.10);
-    color: #2563eb;
-    border: 1px solid rgba(59, 130, 246, 0.25);
+    background: color-mix(in srgb, var(--clr-style-jazz) 12%, transparent);
+    color: color-mix(in srgb, var(--clr-style-jazz) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-jazz) 28%, transparent);
 }
 
 .sbn-badge-style-samba {
-    background: rgba(16, 185, 129, 0.10);
-    color: #059669;
-    border: 1px solid rgba(16, 185, 129, 0.25);
+    background: color-mix(in srgb, var(--clr-style-samba) 12%, transparent);
+    color: color-mix(in srgb, var(--clr-style-samba) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-samba) 28%, transparent);
 }
 
 .sbn-badge-style-latin {
-    background: rgba(139, 92, 246, 0.10);
-    color: #7c3aed;
-    border: 1px solid rgba(139, 92, 246, 0.25);
+    background: color-mix(in srgb, var(--clr-style-latin) 12%, transparent);
+    color: color-mix(in srgb, var(--clr-style-latin) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-latin) 28%, transparent);
+}
+
+.sbn-badge-style-cuban {
+    background: color-mix(in srgb, var(--clr-style-cuban) 12%, transparent);
+    color: color-mix(in srgb, var(--clr-style-cuban) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-cuban) 28%, transparent);
 }
 
 .sbn-badge-style-blues {
-    background: rgba(99, 102, 241, 0.10);
-    color: #4f46e5;
-    border: 1px solid rgba(99, 102, 241, 0.25);
+    background: color-mix(in srgb, var(--clr-style-blues) 12%, transparent);
+    color: color-mix(in srgb, var(--clr-style-blues) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-blues) 28%, transparent);
 }
 
 .sbn-badge-style-pop {
-    background: rgba(236, 72, 153, 0.10);
-    color: #db2777;
-    border: 1px solid rgba(236, 72, 153, 0.25);
+    background: color-mix(in srgb, var(--clr-style-pop) 12%, transparent);
+    color: color-mix(in srgb, var(--clr-style-pop) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-pop) 28%, transparent);
 }
 
 .sbn-badge-style-classical {
-    background: rgba(100, 116, 139, 0.10);
-    color: #475569;
-    border: 1px solid rgba(100, 116, 139, 0.25);
+    background: color-mix(in srgb, var(--clr-style-classical) 12%, transparent);
+    color: color-mix(in srgb, var(--clr-style-classical) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-classical) 28%, transparent);
+}
+
+.sbn-badge-style-gold {
+    background: color-mix(in srgb, var(--clr-style-gold) 12%, transparent);
+    color: color-mix(in srgb, var(--clr-style-gold) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-gold) 28%, transparent);
+}
+
+.sbn-badge-style-general {
+    background: color-mix(in srgb, var(--clr-style-general) 12%, transparent);
+    color: color-mix(in srgb, var(--clr-style-general) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-general) 28%, transparent);
+}
+
+/* Aliases */
+.sbn-badge-style-brazilian { background: color-mix(in srgb, var(--clr-style-samba) 12%, transparent); color: color-mix(in srgb, var(--clr-style-samba) 80%, #000); border: 1px solid color-mix(in srgb, var(--clr-style-samba) 28%, transparent); }
+.sbn-badge-style-bossa-nova { background: var(--clr-gradient-soft); color: var(--clr-text); border: none; }
+
+/* Filled variant — solid bg + white text, for header/hero contexts.
+   Use: <span class="sbn-badge sbn-badge-style-bossa sbn-badge-style-filled"> */
+.sbn-badge-style-filled {
+    background: var(--_style-clr, var(--clr-style-default));
+    color: #fff;
+    border-color: transparent;
+}
+.sbn-badge-style-bossa.sbn-badge-style-filled    { background: var(--clr-gradient-soft); color: var(--clr-text); border-color: transparent; }
+.sbn-badge-style-jazz.sbn-badge-style-filled     { --_style-clr: var(--clr-style-jazz); }
+.sbn-badge-style-samba.sbn-badge-style-filled    { --_style-clr: var(--clr-style-samba); }
+.sbn-badge-style-latin.sbn-badge-style-filled    { --_style-clr: var(--clr-style-latin); }
+.sbn-badge-style-cuban.sbn-badge-style-filled    { --_style-clr: var(--clr-style-cuban); }
+.sbn-badge-style-blues.sbn-badge-style-filled    { --_style-clr: var(--clr-style-blues); }
+.sbn-badge-style-pop.sbn-badge-style-filled      { --_style-clr: var(--clr-style-pop); }
+.sbn-badge-style-classical.sbn-badge-style-filled{ --_style-clr: var(--clr-style-classical); }
+.sbn-badge-style-gold.sbn-badge-style-filled     { --_style-clr: var(--clr-style-gold); }
+.sbn-badge-style-general.sbn-badge-style-filled  { --_style-clr: var(--clr-style-general); }
+.sbn-badge-style-brazilian.sbn-badge-style-filled{ --_style-clr: var(--clr-style-samba); }
+.sbn-badge-style-bossa-nova.sbn-badge-style-filled{ background: var(--clr-gradient-soft); color: var(--clr-text); border-color: transparent; }
+
+/* ── Rhythm grid-type badges ──────────────────────────────
+   Use: <span class="sbn-badge sbn-badge-grid-eighth">eighth</span>
+   sixteenth is the default grid — no badge needed.          */
+
+.sbn-badge-grid-eighth {
+    background: color-mix(in srgb, var(--clr-style-jazz) 10%, transparent);
+    color: color-mix(in srgb, var(--clr-style-jazz) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-jazz) 22%, transparent);
+}
+
+.sbn-badge-grid-triplet {
+    background: color-mix(in srgb, var(--clr-style-samba) 10%, transparent);
+    color: color-mix(in srgb, var(--clr-style-samba) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-samba) 22%, transparent);
 }
 
 /* Dynamic category badge — set --cat-clr on the element.
-   Used for progression categories where color is data-driven. */
+   Used for progression/rhythm categories where color is data-driven.
+   Tinted:  <span class="sbn-cat-badge" style="--cat-clr:#f39c12">Bossa Nova</span>
+   Filled gradient: add .sbn-cat-badge-filled — uses gradient from --cat-clr  */
 .sbn-cat-badge {
     display: inline-flex;
     align-items: center;
@@ -894,6 +982,106 @@
     background: color-mix(in srgb, var(--cat-clr, #6b7280) 10%, transparent);
     color: var(--cat-clr, #6b7280);
     border: 1px solid color-mix(in srgb, var(--cat-clr, #6b7280) 20%, transparent);
+}
+
+.sbn-cat-badge.sbn-cat-badge-filled {
+    background: linear-gradient(135deg, var(--cat-clr, #6b7280) 0%, color-mix(in srgb, var(--cat-clr, #6b7280) 60%, white) 100%);
+    color: #fff;
+    border-color: transparent;
+}
+
+/* ── Progression row category badge ─────────────────────────
+   Compact uppercase label inside progression list rows.
+   Uses .sbn-cat-badge sizing but slightly smaller font.
+   Set --cat-clr dynamically from useCategoryColors.         */
+.sbn-prog-row-cat-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 7px;
+    border-radius: 100px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    background: color-mix(in srgb, var(--cat-clr, #6b7280) 12%, transparent);
+    color: var(--cat-clr, #6b7280);
+    border: 1px solid color-mix(in srgb, var(--cat-clr, #6b7280) 22%, transparent);
+}
+
+/* ── Progression tonality badge ──────────────────────────── */
+.sbn-badge-tonality-major {
+    background: color-mix(in srgb, var(--clr-style-gold) 12%, transparent);
+    color: color-mix(in srgb, var(--clr-style-gold) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-gold) 25%, transparent);
+}
+
+/* ── Popularity badge ────────────────────────────────────────
+   Base: .sbn-card-pop   Tiers: .sbn-pop-{occasional|common|essential|iconic}
+   Used on: ChordCard footer, chord detail page, progression rows, song detail  */
+.sbn-card-pop {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+}
+.sbn-pop-occasional { background: var(--clr-surface-2);                                               color: var(--clr-text-dim); }
+.sbn-pop-common     { background: color-mix(in srgb, var(--clr-style-jazz) 10%, transparent);         color: color-mix(in srgb, var(--clr-style-jazz) 80%, #000); }
+.sbn-pop-essential  { background: var(--clr-gradient-soft); color: #fff; font-weight: 700; }
+.sbn-pop-iconic     { background: linear-gradient(135deg, var(--clr-style-gold) 0%, color-mix(in srgb, var(--clr-style-gold) 70%, #fff) 100%); color: #fff; font-weight: 800; }
+
+/* ── Roman numeral chip ───────────────────────────────────────
+   Shared across: progression list rows, chord detail page,
+   song detail page, leadsheet EduPanel, ChordProgressionViewer.
+   Interactive (clickable) version: add .sbn-numeral-chip--btn   */
+.sbn-numeral-chip {
+    display: inline-block;
+    background: var(--clr-surface-2, #f3f4f6);
+    border: 1px solid var(--clr-border);
+    border-radius: 5px;
+    padding: 3px 9px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--clr-text-dim, #374151);
+    font-family: 'Georgia', 'Times New Roman', serif;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
+/* Flex row wrapper for a sequence of numeral chips */
+.sbn-numeral-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+/* Button / interactive variant — used in ChordProgressionViewer chord row */
+.sbn-numeral-chip--btn {
+    cursor: pointer;
+    border-bottom-width: 2px;
+    border-right-width: 2px;
+    transition: background 0.12s, border-color 0.12s;
+}
+.sbn-numeral-chip--btn:hover {
+    background: var(--clr-border);
+}
+.sbn-numeral-chip--btn.active {
+    background: var(--clr-border);
+    border-color: var(--clr-text-muted);
+    border-bottom-color: var(--clr-text);
+    border-right-color: var(--clr-text);
+    color: var(--clr-text);
+}
+
+.sbn-badge-tonality-minor {
+    background: color-mix(in srgb, var(--clr-style-latin) 12%, transparent);
+    color: color-mix(in srgb, var(--clr-style-latin) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-latin) 25%, transparent);
 }
 
 /* Count badge (number in a circle/pill) */
@@ -930,6 +1118,11 @@
     border: 1px solid var(--clr-border);
     border-radius: var(--radius);
     padding: 20px 24px;
+    transition: border-color 0.15s var(--ease);
+}
+
+.sbn-card:hover {
+    border-color: var(--clr-text-muted);
 }
 
 /* Larger card (form pages, detail views) */
@@ -989,7 +1182,7 @@
 
 .sbn-card-link:hover {
     background: var(--clr-surface-3);
-    border-color: var(--clr-accent);
+    border-color: var(--clr-text-muted);
 }
 
 
@@ -3005,39 +3198,18 @@
     margin: 0;
 }
 
-/* Play button: large circular accent */
+/* Transport always uses orange-red regardless of page accent overrides.
+   Pinned to root token values — not var() references — so page-level
+   --clr-accent overrides (e.g. leadsheet blue) cannot bleed in. */
+.sbn-transport-bar {
+    --play-color: #f39c12;
+    --play-bg-playing: var(--clr-gradient);
+}
+
+/* Play button — size override only; color/state from global .sbn-play-btn */
 .sbn-transport-play {
-    flex-shrink: 0;
     width: 48px;
     height: 48px;
-    padding: 0;
-    border: none;
-    border-radius: 50%;
-    background: var(--clr-gradient, linear-gradient(135deg, #f39c12 0%, #e74c3c 100%));
-    cursor: pointer;
-    font-size: 22px;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.15s var(--ease), filter 0.15s var(--ease);
-}
-
-.sbn-transport-play:hover {
-    transform: scale(1.05);
-    filter: brightness(1.1);
-}
-
-.sbn-transport-play:active {
-    transform: scale(0.95);
-}
-
-.sbn-transport-play.is-playing {
-    background: var(--clr-text-muted, #8896a4);
-}
-
-.sbn-transport-play.is-playing:hover {
-    background: var(--clr-text-dim, #5a5a5a);
 }
 
 /* Seek section */
@@ -3214,7 +3386,6 @@
         order: 2;
         width: 44px;
         height: 44px;
-        font-size: 16px;
     }
 
     .sbn-transport-stop {
@@ -3296,5 +3467,82 @@
 }
 
 .sbn-back-link:hover {
-    color: var(--category-color, var(--clr-accent, #e85d3b));
+    color: var(--clr-text-muted);
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   THEME: VINTAGE
+   Overrides for [data-theme="vintage"] on <html>.
+   Default theme is "modern" — this block only activates when switched.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Rhythm card */
+[data-theme="vintage"] .sbn-rhythm-card {
+    border: 1px solid var(--clr-border);
+    border-right: 3px solid var(--row-color, var(--clr-border));
+    border-bottom: 3px solid var(--row-color, var(--clr-border));
+    transition: box-shadow 0.15s var(--ease), transform 0.15s var(--ease);
+}
+
+[data-theme="vintage"] .sbn-rhythm-card:hover {
+    box-shadow: 3px 3px 0 var(--row-color, var(--clr-border));
+    transform: translate(-1px, -1px);
+    border-color: var(--row-color, var(--clr-border));
+}
+
+/* Chord card — offset shadow frame */
+[data-theme="vintage"] .sbn-chord-card {
+    border-color: transparent;
+    box-shadow: 1px 1px 0 var(--clr-border);
+}
+
+[data-theme="vintage"] .sbn-chord-card:hover {
+    border-color: transparent;
+    box-shadow: 3px 3px 0 rgba(54, 131, 255, 0.35);
+    transform: translateY(-2px);
+}
+
+[data-theme="vintage"] .sbn-chord-card--detail:hover {
+    transform: none;
+    box-shadow: 1px 1px 0 var(--clr-border);
+}
+
+/* Progression viewer hover */
+[data-theme="vintage"] .sbn-prog-viewer:not(.sbn-prog-viewer--compact):hover {
+    border-right: 3px solid var(--prog-color, var(--clr-accent));
+    border-bottom: 3px solid var(--prog-color, var(--clr-accent));
+}
+
+/* Rhythm pattern row — thick right+bottom border frame */
+[data-theme="vintage"] .sbn-pattern-row {
+    border: 1px solid var(--clr-border);
+    border-right: 3px solid var(--row-color, var(--clr-border));
+    border-bottom: 3px solid var(--row-color, var(--clr-border));
+    border-left: 1px solid var(--clr-border);
+    transition: box-shadow 0.15s var(--ease), transform 0.15s var(--ease);
+}
+
+[data-theme="vintage"] .sbn-pattern-row:hover {
+    box-shadow: 3px 3px 0 var(--row-color, var(--clr-border));
+    transform: translate(-1px, -1px);
+}
+
+/* Pulse glow on playing rhythm/progression players */
+[data-theme="vintage"] .sbn-rhythm-pattern.is-playing {
+    animation: sbn-pulse-card-strip 1.5s ease-in-out infinite;
+}
+
+[data-theme="vintage"] .sbn-prog-viewer.is-playing {
+    animation: sbn-pulse-card-prog 1.5s ease-in-out infinite;
+}
+
+@keyframes sbn-pulse-card-strip {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--strip-color, var(--clr-accent)) 15%, transparent); }
+    50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--strip-color, var(--clr-accent)) 15%, transparent); }
+}
+
+@keyframes sbn-pulse-card-prog {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--prog-color, var(--clr-accent)) 15%, transparent); }
+    50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--prog-color, var(--clr-accent)) 15%, transparent); }
 }

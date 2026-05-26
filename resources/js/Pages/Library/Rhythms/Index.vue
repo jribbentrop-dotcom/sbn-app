@@ -147,7 +147,7 @@ const filteredGrouped = computed(() => {
                   <span class="sbn-pattern-row-badges">
                     <span class="sbn-badge sbn-badge-muted">{{ pattern.timeSignature }}</span>
                     <span class="sbn-badge sbn-badge-muted">{{ pattern.bpm }} BPM</span>
-                    <span v-if="pattern.gridType !== 'sixteenth'" class="sbn-badge" :class="`sbn-badge-${pattern.gridType}`">{{ pattern.gridType }}</span>
+                    <span v-if="pattern.gridType !== 'sixteenth'" class="sbn-badge" :class="`sbn-badge-grid-${pattern.gridType}`">{{ pattern.gridType }}</span>
                   </span>
                 </div>
                 <p v-if="pattern.description" class="sbn-pattern-row-desc">{{ pattern.description }}</p>
@@ -293,17 +293,14 @@ const filteredGrouped = computed(() => {
   padding: 12px 14px;
   background: var(--clr-white);
   border: 1px solid var(--clr-border);
-  border-right: 3px solid var(--row-color, var(--clr-border));
-  border-bottom: 3px solid var(--row-color, var(--clr-border));
   border-radius: var(--radius);
   text-decoration: none;
   color: inherit;
-  transition: box-shadow 0.15s, transform 0.15s;
+  transition: border-color 0.15s var(--ease);
 }
 
 .sbn-pattern-row:hover {
-  box-shadow: 3px 3px 0 var(--row-color, var(--clr-border));
-  transform: translate(-1px, -1px);
+  border-color: var(--clr-text-muted);
 }
 
 .sbn-pattern-row--bossa     { --row-color: var(--clr-style-bossa); }
@@ -330,13 +327,6 @@ const filteredGrouped = computed(() => {
   overflow: hidden;
 }
 
-.sbn-badge {
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
 .sbn-pattern-row-head {
   display: flex;
   align-items: center;
@@ -355,29 +345,6 @@ const filteredGrouped = computed(() => {
   display: flex;
   gap: 5px;
   flex-wrap: wrap;
-}
-
-.sbn-badge {
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  background: var(--clr-surface-2);
-  color: var(--clr-text-muted);
-}
-
-.sbn-badge-muted {
-  background: var(--clr-surface-3);
-}
-
-.sbn-badge-eighth {
-  background: #ebf8ff;
-  color: var(--clr-style-jazz);
-}
-
-.sbn-badge-triplet {
-  background: #f0fdf4;
-  color: var(--clr-style-samba);
 }
 
 /* No results */

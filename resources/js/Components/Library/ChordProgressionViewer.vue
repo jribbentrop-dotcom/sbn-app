@@ -68,7 +68,6 @@ export interface ChordProgressionViewerProps {
     /** @deprecated Arrows are removed in the Living Fretboard redesign; kept for prop compatibility. */
     showFlowArrows?: boolean;
     color?: string | null;
-    vintageCard?: boolean;
     name?: string;
     category?: string;
     numerals?: string;
@@ -101,7 +100,6 @@ const props = withDefaults(defineProps<ChordProgressionViewerProps>(), {
     compact: false,
     showFlowArrows: true,
     color: null,
-    vintageCard: false,
     name: '',
     category: '',
     numerals: '',
@@ -555,11 +553,10 @@ function onFocusOut(e: FocusEvent) {
         class="sbn-prog-viewer"
         :class="{
             'sbn-prog-viewer--compact': compact,
-            'sbn-vintage-card': vintageCard,
             'is-playing': showAsPlaying,
         }"
         :data-size="sizeAttr"
-        :style="color ? { '--prog-color': color } : {}"
+        :style="color ? { '--prog-color': color, '--play-color': color } : {}"
         tabindex="0"
         @focusin="onFocusIn"
         @focusout="onFocusOut"
@@ -569,13 +566,16 @@ function onFocusOut(e: FocusEvent) {
             <div class="head-left">
                 <h4 v-if="name" class="head-title" v-html="name" />
                 <div v-if="category || keyLabel" class="head-meta">
-                    <span v-if="category" class="badge badge-category">{{ category }}</span>
-                    <span v-if="keyLabel" class="badge badge-key">Key of {{ keyLabel }}</span>
+                    <span v-if="category" class="sbn-badge badge-category">{{ category }}</span>
+                    <span v-if="keyLabel" class="sbn-badge sbn-badge-muted">Key of {{ keyLabel }}</span>
                 </div>
             </div>
-            <div v-if="numerals" class="pro-badge">
-                <span class="tag">PRO</span>
-                <span class="body">{{ numerals.replace(/,/g, ' – ') }}</span>
+            <div v-if="numerals" class="head-numerals">
+                <span
+                    v-for="n in numerals.split(/[,–]/).map(s => s.trim()).filter(Boolean)"
+                    :key="n"
+                    class="sbn-numeral-chip"
+                >{{ n }}</span>
             </div>
         </div>
 
@@ -583,7 +583,7 @@ function onFocusOut(e: FocusEvent) {
         <div class="stage">
             <button
                 v-if="interactive && canPlayAll()"
-                class="play-btn"
+                class="sbn-play-btn play-btn"
                 :class="{ 'is-playing': showAsPlaying }"
                 :aria-label="showAsPlaying ? 'Stop progression' : 'Play progression'"
                 @click="togglePlayback"
@@ -677,7 +677,7 @@ function onFocusOut(e: FocusEvent) {
                 v-for="(chord, i) in chords"
                 :key="i"
                 type="button"
-                class="chord-badge"
+                class="sbn-numeral-chip sbn-numeral-chip--btn"
                 :class="{ active: i === activeIndex }"
                 @click="goTo(i)"
             >
@@ -696,7 +696,7 @@ function onFocusOut(e: FocusEvent) {
     border-radius: var(--radius);
     padding: 12px 14px 10px;
     outline: none;
-    transition: box-shadow 0.3s ease;
+    transition: border-color 0.15s var(--ease);
 }
 
 .sbn-prog-inner {
@@ -726,10 +726,6 @@ function onFocusOut(e: FocusEvent) {
     --stage-gap: 8px;
 }
 
-.sbn-prog-viewer.sbn-vintage-card {
-    border-right: 3px solid var(--prog-color);
-    border-bottom: 3px solid var(--prog-color);
-}
 
 .sbn-prog-viewer--compact {
     padding: 18px 20px 16px;
@@ -766,15 +762,6 @@ function onFocusOut(e: FocusEvent) {
     flex-wrap: wrap;
     align-items: center;
 }
-.badge {
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    background: transparent;
-    border: 1px solid var(--clr-border);
-    color: var(--clr-text-muted);
-}
 .badge-category {
     background: color-mix(in srgb, var(--prog-color) 18%, transparent);
     border-color: transparent;
@@ -782,27 +769,11 @@ function onFocusOut(e: FocusEvent) {
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
-.pro-badge {
-    display: inline-flex;
-    align-items: stretch;
-    border: 1px solid var(--clr-border);
-    border-radius: 4px;
-    overflow: hidden;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
+.head-numerals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
     flex-shrink: 0;
-}
-.pro-badge .tag {
-    background: var(--clr-text);
-    color: var(--clr-white);
-    padding: 3px 7px;
-}
-.pro-badge .body {
-    padding: 3px 9px;
-    background: var(--clr-white);
-    color: var(--clr-text);
-    font-weight: 500;
 }
 
 /* Stage */
@@ -811,27 +782,10 @@ function onFocusOut(e: FocusEvent) {
     align-items: center;
     gap: var(--stage-gap);
 }
+/* Size driven by responsive CSS vars — color/state from global .sbn-play-btn */
 .play-btn {
     width: var(--btn-size);
     height: var(--btn-size);
-    border-radius: 50%;
-    background: var(--clr-white);
-    border: 1.5px solid var(--prog-color);
-    color: var(--prog-color);
-    display: grid;
-    place-items: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    flex-shrink: 0;
-    padding: 0;
-}
-.play-btn:hover {
-    background: color-mix(in srgb, var(--prog-color) 18%, transparent);
-}
-.play-btn.is-playing {
-    background: var(--prog-color);
-    color: var(--clr-white);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--prog-color) 18%, transparent);
 }
 .play-btn svg {
     width: var(--btn-icon);
@@ -937,46 +891,10 @@ function onFocusOut(e: FocusEvent) {
     gap: 6px;
     margin-top: 10px;
 }
-.chord-badge {
-    font-size: 11px;
-    font-weight: 600;
-    font-family: var(--font-body, system-ui, sans-serif);
-    letter-spacing: 0.03em;
-    color: var(--prog-color);
-    background: color-mix(in srgb, var(--prog-color) 10%, transparent);
-    border: 1px solid color-mix(in srgb, var(--prog-color) 25%, transparent);
-    border-right-width: 2px;
-    border-bottom-width: 2px;
-    border-radius: 4px;
-    padding: 2px 9px;
-    white-space: nowrap;
-    cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
-    line-height: 1.6;
-}
-.chord-badge:hover {
-    background: color-mix(in srgb, var(--prog-color) 18%, transparent);
-}
-.chord-badge.active {
-    background: color-mix(in srgb, var(--prog-color) 22%, transparent);
-    border-color: color-mix(in srgb, var(--prog-color) 55%, transparent);
-    border-right-color: var(--prog-color);
-    border-bottom-color: var(--prog-color);
-}
-
-/* Pulse when playing */
-.sbn-prog-viewer.is-playing {
-    animation: pulse-card 1.5s ease-in-out infinite;
-}
-@keyframes pulse-card {
-    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--prog-color) 15%, transparent); }
-    50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--prog-color) 15%, transparent); }
-}
-
 /* Responsive */
 @media (max-width: 640px) {
     .sbn-prog-viewer { padding: 16px 14px 14px; }
     .head { flex-direction: column; align-items: flex-start; }
-    .pro-badge { font-size: 10px; }
+    .head-numerals { flex-wrap: wrap; }
 }
 </style>

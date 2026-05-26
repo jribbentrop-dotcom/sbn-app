@@ -70,7 +70,7 @@ const inversionLabel = computed(() => {
 const popularityTier = computed(() => {
     const p = props.chord.popularity ?? 0;
     if (p >= 11) return { tier: 'iconic',     label: 'Iconic' };
-    if (p >= 6)  return { tier: 'essential',  label: 'Core' };
+    if (p >= 6)  return { tier: 'essential',  label: 'Essential' };
     if (p >= 3)  return { tier: 'common',     label: 'Common' };
     if (p >= 1)  return { tier: 'occasional', label: 'Rare' };
     return null;

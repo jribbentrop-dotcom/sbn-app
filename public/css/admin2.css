@@ -15,8 +15,8 @@ body.sbn-admin-body {
     overflow-x: hidden;
 }
 
-a { color: var(--clr-accent); text-decoration: none; }
-a:hover { color: var(--clr-accent-dim); }
+a { color: var(--clr-accent-dim); text-decoration: none; }
+a:hover { color: var(--clr-text); }
 code { font-family: var(--font-mono); }
 
 
@@ -59,6 +59,7 @@ code { font-family: var(--font-mono); }
 }
 
 .sbn-nav-item {
+    position: relative;
     display: flex; align-items: center; gap: 12px;
     padding: 9px 12px; border-radius: var(--radius-sm);
     color: var(--clr-text-dim); font-size: 13.5px; font-weight: 500;
@@ -80,6 +81,26 @@ code { font-family: var(--font-mono); }
 }
 .sbn-nav-icon svg { width: 18px; height: 18px; }
 .sbn-nav-text { overflow: hidden; }
+.sbn-nav-badge {
+    display: inline-block;
+    background: var(--clr-gradient);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 0 6px;
+    border-radius: 8px;
+    line-height: 16px;
+    margin-left: 6px;
+    min-width: 16px;
+    text-align: center;
+}
+.sbn-nav-badge-dot {
+    position: absolute;
+    top: 8px; right: 8px;
+    width: 7px; height: 7px;
+    background: var(--clr-gradient);
+    border-radius: 50%;
+}
 
 .sbn-sidebar-toggle {
     padding: 14px 0;
@@ -272,7 +293,7 @@ code { font-family: var(--font-mono); }
     transition: border-color 0.2s, transform 0.2s;
 }
 .sbn-stat-card:hover {
-    border-color: var(--clr-accent-border); transform: translateY(-1px);
+    border-color: var(--clr-text-muted);
 }
 .sbn-stat-icon {
     display: flex; align-items: center; justify-content: center;
@@ -321,36 +342,18 @@ code { font-family: var(--font-mono); }
 .sbn-phase.completed .sbn-phase-num { background: var(--clr-success); color: #fff; }
 .sbn-phase.completed .sbn-phase-label { color: var(--clr-success); }
 .sbn-phase.active { border-color: var(--clr-accent-border); background: var(--clr-accent-bg); }
-.sbn-phase.active .sbn-phase-num { background: var(--clr-accent); color: #fff; }
-.sbn-phase.active .sbn-phase-label { color: var(--clr-accent); }
+.sbn-phase.active .sbn-phase-num { background: var(--clr-gradient); color: #fff; }
+.sbn-phase.active .sbn-phase-label { color: var(--clr-accent-dim); }
 
 
 /* -- SHARED: Tables, Buttons, Filters -------------------- */
+
 
 .sbn-page-header {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 24px;
 }
 
-.sbn-btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 9px 18px; border: none; border-radius: var(--radius-sm);
-    font-family: var(--font-body); font-size: 13px; font-weight: 600;
-    cursor: pointer; transition: all 0.15s var(--ease);
-    text-decoration: none;
-}
-.sbn-btn-primary { background: var(--clr-gradient); color: #fff; }
-.sbn-btn-primary:hover { background: var(--clr-gradient-hover); color: #fff; transform: translateY(-1px); }
-.sbn-btn-secondary {
-    background: var(--clr-white); color: var(--clr-text);
-    border: 1px solid var(--clr-border);
-}
-.sbn-btn-secondary:hover { background: var(--clr-surface-3); border-color: var(--clr-text-muted); }
-.sbn-btn-danger {
-    background: rgba(239, 68, 68, 0.06); color: var(--clr-error);
-    border: 1px solid rgba(239, 68, 68, 0.15);
-}
-.sbn-btn-danger:hover { background: rgba(239, 68, 68, 0.12); }
 
 .sbn-table-wrap {
     background: var(--clr-white);
@@ -380,16 +383,6 @@ code { font-family: var(--font-mono); }
 .sbn-text-dim { color: var(--clr-text-dim); }
 .sbn-text-muted { color: var(--clr-text-muted); }
 
-.sbn-badge {
-    display: inline-flex; align-items: center;
-    padding: 3px 10px; border-radius: 100px;
-    font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
-}
-.sbn-badge-accent {
-    background: var(--clr-accent-bg); color: var(--clr-accent);
-    border: 1px solid var(--clr-accent-border);
-}
-.sbn-badge-muted { background: var(--clr-surface-3); color: var(--clr-text-muted); }
 
 .sbn-filter-bar {
     display: flex; align-items: center; gap: 12px;
@@ -445,7 +438,7 @@ code { font-family: var(--font-mono); }
     color: var(--clr-text-dim); transition: all 0.15s;
 }
 .sbn-pagination a:hover { background: var(--clr-surface-3); color: var(--clr-text); }
-.sbn-pagination .active { background: var(--clr-accent); color: #fff; font-weight: 700; }
+.sbn-pagination .active { background: var(--clr-gradient); color: #fff; font-weight: 700; }
 
 
 /* -- TOAST (for rhythm module + future AJAX) ------------- */
@@ -460,7 +453,7 @@ code { font-family: var(--font-mono); }
 .sbn-toast-success { background: var(--clr-success); }
 .sbn-toast-error   { background: var(--clr-error); }
 .sbn-toast-info    { background: var(--clr-text); }
-.sbn-toast-warn    { background: var(--clr-accent, #f39c12); }
+.sbn-toast-warn    { background: var(--clr-gradient); }
 
 /* Confirm toast — two-button variant (Phase 7-int Step 3) */
 .sbn-toast-confirm {

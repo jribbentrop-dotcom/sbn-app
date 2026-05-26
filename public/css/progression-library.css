@@ -48,7 +48,7 @@
 }
 
 .sbn-prog-lib-search-box:focus-within {
-    border-color: #e85d3b;
+    border-color: var(--clr-red);
 }
 
 .sbn-prog-search-icon {
@@ -59,7 +59,7 @@
 }
 
 .sbn-prog-lib-search-box:focus-within .sbn-prog-search-icon {
-    color: #e85d3b;
+    color: var(--clr-red);
 }
 
 .sbn-prog-search-input {
@@ -94,7 +94,7 @@
 }
 
 .sbn-prog-search-clear:hover {
-    background: #e85d3b;
+    background: var(--clr-red);
     color: #fff;
 }
 
@@ -126,8 +126,8 @@
 }
 
 .sbn-prog-example-btn:hover {
-    border-color: #e85d3b;
-    color: #e85d3b;
+    border-color: var(--clr-red);
+    color: var(--clr-red);
     background: #fff8f5;
 }
 
@@ -171,8 +171,8 @@
 }
 
 .sbn-prog-clear-filters:hover {
-    color: #e85d3b;
-    border-color: #e85d3b;
+    color: var(--clr-red);
+    border-color: var(--clr-red);
     background: #fff8f5;
 }
 
@@ -187,16 +187,16 @@
     align-items: flex-start;
     gap: 16px;
     padding: 20px 20px 20px 0;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    background: #fff;
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    background: var(--clr-white);
     margin-bottom: 8px;
     transition: border-color 0.15s;
     cursor: default;
 }
 
 .sbn-prog-row:hover {
-    border-color: #e85d3b;
+    border-color: var(--clr-text-muted);
 }
 
 .sbn-prog-row-rank {
@@ -288,7 +288,7 @@
 }
 
 .sbn-prog-row-link:hover { 
-    color: #e85d3b; 
+    color: var(--clr-red); 
     text-decoration: none; 
 }
 
@@ -334,7 +334,7 @@
     gap: 4px;
     font-size: 13px;
     font-weight: 600;
-    color: #e85d3b;
+    color: var(--clr-red);
     text-decoration: none;
     margin-top: 6px;
     transition: color 0.12s;
@@ -425,8 +425,8 @@
 }
 
 .sbn-prog-sidebar-option:hover {
-    border-color: #e85d3b;
-    color: #e85d3b;
+    border-color: var(--clr-red);
+    color: var(--clr-red);
     background: #fff8f5;
 }
 
@@ -437,8 +437,8 @@
 }
 
 .sbn-prog-sidebar-option.sbn-filter-active:hover {
-    background: #e85d3b;
-    border-color: #e85d3b;
+    background: var(--clr-red);
+    border-color: var(--clr-red);
 }
 
 /* Category Filter Active States */
@@ -457,8 +457,8 @@
 }
 
 .sbn-sort-active:hover {
-    background: #e85d3b;
-    border-color: #e85d3b;
+    background: var(--clr-red);
+    border-color: var(--clr-red);
 }
 
 /* Clear All Button */
@@ -477,8 +477,8 @@
 }
 
 .sbn-prog-sidebar-clear:hover {
-    border-color: #e85d3b;
-    color: #e85d3b;
+    border-color: var(--clr-red);
+    color: var(--clr-red);
     background: #fff8f5;
 }
 
@@ -610,7 +610,7 @@
 }
 
 .sbn-prog-song-link:hover {
-    color: #e85d3b;
+    color: var(--clr-red);
 }
 
 .sbn-prog-back-link {
@@ -625,7 +625,7 @@
 }
 
 .sbn-prog-back-link:hover {
-    color: #e85d3b;
+    color: var(--clr-red);
 }
 
 .sbn-prog-back-link svg {

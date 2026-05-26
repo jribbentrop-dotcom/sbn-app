@@ -36,12 +36,7 @@ function tempoLabel(bpm: number | null): string {
   return 'Fast';
 }
 
-function popularityLabel(pop: number | null): string {
-  if (!pop || pop <= 1) return 'Rare';
-  if (pop <= 3)          return 'Common';
-  if (pop <= 6)          return 'Essential';
-  return 'Iconic';
-}
+
 </script>
 
 <template>
@@ -57,10 +52,9 @@ function popularityLabel(pop: number | null): string {
       >
       <div v-else class="sbn-song-card-fallback"></div>
 
-      <!-- Top row: style badge (left) + popularity (right) -->
+      <!-- Top row: style badge -->
       <div class="sbn-song-card-badge-row">
         <span class="sbn-song-badge-style">{{ styleLabel }}</span>
-        <span class="sbn-song-badge-pop">{{ popularityLabel(song.popularity) }}</span>
       </div>
 
       <!-- Bottom: key + tempo pills -->
@@ -161,20 +155,6 @@ function popularityLabel(pop: number | null): string {
   color: var(--clr-text);
 }
 
-.sbn-song-badge-pop {
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  font-size: 0.7em;
-  font-weight: 600;
-  background: transparent;
-  color: var(--clr-white);
-  transition: background 0.3s var(--ease);
-}
-
-.sbn-song-card:hover .sbn-song-badge-pop {
-  background: var(--clr-white);
-  color: var(--clr-text);
-}
 
 /* Bottom meta row */
 .sbn-song-card-meta-row {

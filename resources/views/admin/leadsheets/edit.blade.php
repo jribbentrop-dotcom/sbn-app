@@ -221,6 +221,41 @@
                         @endforeach
                     </select>
                 </div>
+                <div class="sbn-vp-meta-field">
+                    <span class="sbn-vp-meta-label">Style</span>
+                    <select class="sbn-vp-meta-select" x-model="genre" @change="markDirty()">
+                        <option value="">— auto from rhythm —</option>
+                        <option value="bossa-nova">Bossa Nova</option>
+                        <option value="samba">Samba</option>
+                        <option value="jazz">Jazz</option>
+                        <option value="blues">Blues</option>
+                        <option value="latin">Latin</option>
+                        <option value="cuban">Cuban</option>
+                        <option value="pop">Pop / Rock</option>
+                        <option value="classical">Classical</option>
+                    </select>
+                </div>
+                <div class="sbn-vp-meta-field">
+                    <span class="sbn-vp-meta-label">Popularity</span>
+                    <select class="sbn-vp-meta-select" x-model.number="popularity" @change="markDirty()">
+                        <option value="0">— unset —</option>
+                        <option value="1">Rare (1)</option>
+                        <option value="3">Common (3)</option>
+                        <option value="6">Essential (6)</option>
+                        <option value="11">Iconic (11)</option>
+                    </select>
+                </div>
+                <div class="sbn-vp-meta-field">
+                    <span class="sbn-vp-meta-label">Difficulty</span>
+                    <select class="sbn-vp-meta-select" x-model.number="difficulty" @change="markDirty()">
+                        <option value="0">— unset —</option>
+                        <option value="1">1 — Beginner</option>
+                        <option value="2">2 — Early Intermediate</option>
+                        <option value="3">3 — Intermediate</option>
+                        <option value="4">4 — Late Intermediate</option>
+                        <option value="5">5 — Advanced</option>
+                    </select>
+                </div>
             </div>
             </div>
         </div>
@@ -1286,6 +1321,9 @@ function leadsheetEditor() {
         typeLabel: @json(isset($isExercise) && $isExercise ? 'Exercise' : 'Leadsheet'),
         leadsheetId: @json($leadsheet->id ?? $exercise->id ?? null),
         rhythmSlug: '{{ $leadsheet->rhythm ?? $exercise->rhythm ?? '' }}',
+        genre: '{{ $leadsheet->genre ?? $exercise->genre ?? '' }}',
+        popularity: {{ $leadsheet->popularity ?? $exercise->popularity ?? 0 }},
+        difficulty: {{ $leadsheet->difficulty ?? $exercise->difficulty ?? 0 }},
         description: '{{ isset($leadsheet) ? addslashes($leadsheet->description ?? '') : (isset($exercise) ? addslashes($exercise->description ?? '') : '') }}',
         barsPerRow: 4,
         collapsedSections: {},
@@ -2291,7 +2329,10 @@ function leadsheetEditor() {
                         description: this.description,
                         harmony_notes: '',
                         form_notes: '',
-                        voicing_notes: ''
+                        voicing_notes: '',
+                        genre: this.genre || null,
+                        popularity: this.popularity || 0,
+                        difficulty: this.difficulty || 0,
                     };
 
                 const resp = await fetch(url, {

@@ -127,7 +127,7 @@ function lessonIndex(slug: string): number {
   <aside v-else class="vC-nav" :style="{ '--genre-color': genreColor }">
     <div class="vC-nav-hero">
       <div class="vC-nav-hero-top">
-        <span class="sbn-badge" :style="{ background: `color-mix(in srgb, ${genreColor} 14%, white)`, color: genreColor }">
+        <span class="sbn-cat-badge" :style="{ '--cat-clr': genreColor }">
           {{ course.primaryGenre ?? 'Course' }}
         </span>
         <button

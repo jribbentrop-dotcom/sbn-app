@@ -196,27 +196,6 @@
     justify-content: center;
 }
 
-.sbn-btn-sm {
-    display: inline-flex;
-    align-items: center;
-    padding: 3px 8px;
-    font-size: 11px;
-    font-weight: 500;
-    font-family: var(--font-body);
-    border: 1px solid var(--clr-border);
-    border-radius: 4px;
-    background: var(--clr-white);
-    color: var(--clr-text-dim);
-    cursor: pointer;
-    text-decoration: none;
-    transition: all 0.12s;
-}
-
-.sbn-btn-sm:hover {
-    background: var(--clr-surface-3);
-    border-color: var(--clr-text-muted);
-    color: var(--clr-text);
-}
 
 .sbn-btn-sm-danger {
     color: var(--clr-error);
@@ -735,10 +714,6 @@
     gap: 12px;
 }
 
-.sbn-btn-lg {
-    padding: 12px 28px;
-    font-size: 14px;
-}
 
 
 /* -- 5-COLUMN GRID (alias form) -------------------------- */
@@ -996,7 +971,7 @@
 }
 
 .sbn-draft-card:hover {
-    border-color: var(--clr-accent-border);
+    border-color: var(--clr-text-muted);
 }
 
 .sbn-draft-card-header {
@@ -1042,12 +1017,6 @@
 }
 
 
-/* -- Extra-small button variant -------------------------- */
-
-.sbn-btn-xs {
-    padding: 4px 10px;
-    font-size: 11px;
-}
 
 
 /* -- Nav badge — see admin2.css for .sbn-nav-badge styles -- */

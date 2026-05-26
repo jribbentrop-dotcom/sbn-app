@@ -225,7 +225,7 @@
 }
 
 .sbn-draft-card:hover {
-    border-color: var(--clr-accent-border);
+    border-color: var(--clr-text-muted);
 }
 
 .sbn-draft-card-header {

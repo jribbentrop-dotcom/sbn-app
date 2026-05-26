@@ -1,6 +1,6 @@
-@import './legacy/base.css';
-@import './legacy/header.css';
-@import './legacy/mega-menu.css';
+@import './frontend/base.css';
+@import './frontend/header.css';
+@import './frontend/mega-menu.css';
 
 @tailwind base;
 @tailwind components;

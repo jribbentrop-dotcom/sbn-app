@@ -37,7 +37,7 @@ const categoryStyle = computed(() => getCategoryStyle(props.pattern.styleSlug));
         <span
           v-if="pattern.gridType !== 'sixteenth'"
           class="sbn-badge"
-          :class="`sbn-badge-${pattern.gridType}`"
+          :class="`sbn-badge-grid-${pattern.gridType}`"
         >
           {{ pattern.gridType }}
         </span>
@@ -64,18 +64,7 @@ const categoryStyle = computed(() => getCategoryStyle(props.pattern.styleSlug));
 <style scoped>
 .sbn-rhythm-card {
   position: relative;
-  background: var(--clr-white);
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius);
-  padding: 16px;
-  transition: transform 0.25s var(--ease), border-color 0.2s, box-shadow 0.2s;
   overflow: hidden;
-}
-
-.sbn-rhythm-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--category-color, var(--clr-red));
-  box-shadow: var(--clr-shadow);
 }
 
 .sbn-rhythm-card-link {
@@ -119,29 +108,6 @@ const categoryStyle = computed(() => getCategoryStyle(props.pattern.styleSlug));
   gap: 6px;
   margin-bottom: 12px;
   flex-wrap: wrap;
-}
-
-.sbn-badge {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  background: var(--clr-surface-2);
-  color: var(--clr-text-muted);
-}
-
-.sbn-badge-muted {
-  background: var(--clr-surface-3);
-}
-
-.sbn-badge-eighth {
-  background: #ebf8ff;
-  color: var(--clr-style-jazz);
-}
-
-.sbn-badge-triplet {
-  background: #f0fdf4;
-  color: var(--clr-style-samba);
 }
 
 /* Preview area */

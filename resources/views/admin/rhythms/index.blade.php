@@ -137,7 +137,7 @@
                     <button class="sbn-prog-cat-pill" 
                             :class="filterCat === '{{ $cat }}' && 'is-active'"
                             @click="filterCat = '{{ $cat }}'"
-                            style="--pill-clr: {{ $cat === 'brazilian' ? 'var(--clr-style-bossa)' : ($cat === 'jazz' ? 'var(--clr-style-jazz)' : ($cat === 'latin' ? 'var(--clr-style-latin)' : 'var(--clr-style-general)')) }}">
+                            style="--pill-clr: {{ $cat === 'brazilian' ? 'var(--clr-style-samba)' : ($cat === 'jazz' ? 'var(--clr-style-jazz)' : ($cat === 'latin' ? 'var(--clr-style-latin)' : 'var(--clr-style-general)')) }}">
                         {{ ucfirst($cat) }}
                     </button>
                 @endforeach
@@ -248,7 +248,7 @@
 
             getCatColor(cat) {
                 const colors = {
-                    'brazilian': 'var(--clr-style-bossa)',
+                    'brazilian': 'var(--clr-style-samba)',
                     'jazz':      'var(--clr-style-jazz)',
                     'latin':     'var(--clr-style-latin)',
                     'blues':     'var(--clr-style-blues)',

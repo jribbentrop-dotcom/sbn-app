@@ -767,12 +767,6 @@ provide('globalIndexOf', (si, mi) => {
   margin: 0 auto;
   padding: 40px 20px 80px;
   background: white;
-
-  /* Override accent to leadsheet blue throughout this page */
-  --clr-accent:        #3b82f6;
-  --clr-accent-dim:    #2563eb;
-  --clr-accent-bg:     rgba(59, 130, 246, 0.08);
-  --clr-accent-border: rgba(59, 130, 246, 0.25);
 }
 
 .sbn-leadsheet-viewer.is-embedded {

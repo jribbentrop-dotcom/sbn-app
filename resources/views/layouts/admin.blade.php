@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" x-data="{ sidebarOpen: true, sidebarCollapsed: localStorage.getItem('sbn_sidebar') === 'collapsed' }"
+<html lang="en" data-theme="modern" x-data="{ sidebarOpen: true, sidebarCollapsed: localStorage.getItem('sbn_sidebar') === 'collapsed' }"
       x-init="$watch('sidebarCollapsed', val => localStorage.setItem('sbn_sidebar', val ? 'collapsed' : 'open'))">
 <head>
     <meta charset="UTF-8">
@@ -14,13 +14,7 @@
     <link rel="stylesheet" href="{{ asset('css/sbn-design-system.css') }}">
     <link rel="stylesheet" href="{{ asset('css/admin2.css') }}?v={{ filemtime(public_path('css/admin2.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/chord-symbols.css') }}">
-    <style>
-        /* Nav badge (sidebar — needs to be global, not module CSS) */
-        .sbn-nav-item { position: relative; }
-        .sbn-nav-badge { display:inline-block; background:var(--clr-accent)!important; color:#fff!important; font-size:10px; font-weight:700; padding:0 6px; border-radius:8px; line-height:16px; margin-left:6px; min-width:16px; text-align:center; }
-        .sbn-nav-badge-dot { position:absolute; top:8px; right:8px; width:7px; height:7px; background:var(--clr-accent); border-radius:50%; }
-    </style>
-    @stack('styles')
+@stack('styles')
 </head>
 <body class="sbn-admin-body">
 

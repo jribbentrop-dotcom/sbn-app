@@ -14,27 +14,20 @@
    ========================================================================== */
 
 :root {
-    /* Brand Colors */
-    --sbn-orange: #f39c12;
-    --sbn-red: #e74c3c;
-    --sbn-gradient: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%);
-    --sbn-gradient-hover: linear-gradient(135deg, #e67e22 0%, #c0392b 100%);
-    --sbn-dark: #2c3e50;
-    --sbn-text: #5a5a5a;
-    --sbn-light: #f7fafc;
-    --sbn-border: #e2e8f0;
-    
-    /* Spacing & Sizing */
-    --sbn-radius: 12px;
-    --sbn-radius-sm: 8px;
-    --sbn-shadow: 0 10px 40px rgba(0,0,0,0.15);
-    --sbn-shadow-hover: 0 6px 20px rgba(0,0,0,0.25);
-    
-    /* Mega Menu (can be overridden) */
-    --mega-col-gap: 28px;
-    --mega-padding: 28px;
-    --mega-header-size: 11px;
-    --mega-item-size: 13px;
+    /* Aliases — sbn-design-system.css is the source of truth for all values.
+       These names are used by header.css and mega-menu.css (public frontend layer). */
+    --sbn-orange: var(--clr-accent);
+    --sbn-red: var(--clr-red);
+    --sbn-gradient: var(--clr-gradient);
+    --sbn-gradient-hover: var(--clr-gradient-hover);
+    --sbn-dark: var(--clr-text);
+    --sbn-text: var(--clr-text-dim);
+    --sbn-light: var(--clr-surface-2);
+    --sbn-border: var(--clr-border);
+    --sbn-radius: var(--radius);
+    --sbn-radius-sm: var(--radius-sm);
+    --sbn-shadow: var(--clr-shadow-lg);
+    --sbn-shadow-hover: var(--clr-shadow-lg);
 }
 
 /* ==========================================================================

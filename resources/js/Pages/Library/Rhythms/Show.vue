@@ -47,8 +47,9 @@ watch(() => props.pattern.slug, () => {
         <Link href="/library/rhythms" class="sbn-back-link">← Back to Rhythm Library</Link>
         <h1 class="sbn-rhythm-show-title">{{ pattern.name }}</h1>
         <div class="sbn-rhythm-show-meta">
-          <span class="sbn-category-badge">{{ pattern.category }}</span>
-          <span class="sbn-meta-badge">{{ pattern.gridType }}</span>
+          <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(pattern.styleSlug) }">{{ pattern.category }}</span>
+          <span v-if="pattern.gridType !== 'sixteenth'" class="sbn-badge" :class="`sbn-badge-grid-${pattern.gridType}`">{{ pattern.gridType }}</span>
+          <span v-else class="sbn-badge sbn-badge-muted">{{ pattern.gridType }}</span>
         </div>
       </header>
 
@@ -56,12 +57,11 @@ watch(() => props.pattern.slug, () => {
       <div class="sbn-rhythm-show-content">
         <!-- Full pattern display -->
         <div class="sbn-rhythm-show-main">
-          <div class="sbn-rhythm-pattern-section">
+          <div class="sbn-rhythm-pattern-section sbn-card">
             <RhythmPattern
               :pattern="pattern"
               :playable="true"
               :mini="false"
-              :vintage-card="true"
               :demo-url="pattern.demoUrl"
               :color="getCategoryColor(pattern.styleSlug)"
             >
@@ -154,26 +154,6 @@ watch(() => props.pattern.slug, () => {
   flex-wrap: wrap;
 }
 
-.sbn-category-badge {
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: var(--category-color, var(--clr-red));
-  color: var(--clr-white);
-}
-
-.sbn-meta-badge {
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  background: var(--clr-surface-2);
-  color: var(--clr-text-muted);
-}
-
 /* Content layout */
 .sbn-rhythm-show-content {
   display: grid;
@@ -181,7 +161,7 @@ watch(() => props.pattern.slug, () => {
   gap: 32px;
 }
 
-/* Rhythm Pattern Section — Container for the RhythmPattern card */
+/* Rhythm Pattern Section — layout only, frame comes from .sbn-card */
 .sbn-rhythm-pattern-section {
   margin-bottom: 32px;
 }

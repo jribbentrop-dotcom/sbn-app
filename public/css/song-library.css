@@ -220,9 +220,8 @@
 }
 
 .sbn-back-link:hover {
-    border-color: var(--clr-red);
-    color: var(--clr-red);
-    background: var(--clr-accent-bg);
+    border-color: var(--clr-text-muted);
+    color: var(--clr-text);
     text-decoration: none;
 }
 

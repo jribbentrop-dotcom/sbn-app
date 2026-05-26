@@ -352,18 +352,6 @@
 
 /* ── Edit Form ───────────────────────────────────────────── */
 
-.sbn-back-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--clr-text-muted);
-    margin-bottom: 16px;
-}
-.sbn-back-link:hover {
-    color: var(--clr-text);
-}
 
 .sbn-form-card {
     background: var(--clr-white);

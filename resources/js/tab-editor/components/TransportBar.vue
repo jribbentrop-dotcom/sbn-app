@@ -2,11 +2,19 @@
     <div class="sbn-transport-bar" v-if="totalBeats > 0">
         <!-- ▶/⏸ Play / Pause toggle -->
         <button
-            class="sbn-transport-play"
+            class="sbn-play-btn sbn-transport-play"
             :class="{ 'is-playing': isPlaying }"
             @click="$emit('toggle')"
             :title="isPlaying ? 'Pause (Space)' : currentBeat > 0 ? 'Resume (Space)' : 'Play (Space)'"
-        >{{ isPlaying ? '⏸' : '▶' }}</button>
+        >
+            <svg v-if="isPlaying" width="16" height="16" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+                <rect x="2" y="2" width="3" height="8" />
+                <rect x="7" y="2" width="3" height="8" />
+            </svg>
+            <svg v-else width="16" height="16" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+                <path d="M3 2l7 4-7 4z" />
+            </svg>
+        </button>
 
         <div class="sbn-transport-seek">
             <input

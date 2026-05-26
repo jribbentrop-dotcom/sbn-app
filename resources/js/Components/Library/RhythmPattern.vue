@@ -70,8 +70,6 @@ interface Props {
   demoUrl?: string | null;
   /** Tint colour for cells. Defaults to var(--clr-accent). */
   color?: string | null;
-  /** Apply SBN vintage card styling (background, border-accent). Defaults to false. */
-  vintageCard?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -81,7 +79,6 @@ const props = withDefaults(defineProps<Props>(), {
   showMeta: undefined,
   demoUrl: null,
   color: null,
-  vintageCard: false,
 });
 
 // Reactive state
@@ -221,12 +218,11 @@ defineExpose({ play, stop, toggle });
 <template>
   <div
     class="sbn-rhythm-pattern"
-    :class="{ 
-      'is-mini': mini, 
+    :class="{
+      'is-mini': mini,
       'is-playing': isPlaying,
-      'sbn-vintage-card': vintageCard
     }"
-    :style="color ? { '--strip-color': color, '--strip-color-accent': color } : {}"
+    :style="color ? { '--strip-color': color, '--strip-color-accent': color, '--play-color': color } : {}"
     role="img"
     :aria-label="`${pattern.name}: ${pattern.timeSignature} pattern`"
   >
@@ -356,22 +352,12 @@ defineExpose({ play, stop, toggle });
   gap: 16px;
 }
 
-/* Rhythm-specific: strip color theming + alignment offset */
+/* Alignment offset only — color/state handled by global .sbn-play-btn */
 .sbn-rhythm-play-btn {
-  color: var(--strip-color, var(--clr-accent));
   margin-top: 24px;
 }
 
-.sbn-rhythm-play-btn:hover {
-  color: var(--strip-color, var(--clr-accent));
-  border-color: var(--strip-color, var(--clr-accent));
-}
-
-.sbn-rhythm-play-btn.is-playing {
-  background: var(--strip-color, var(--clr-accent));
-  border-color: var(--strip-color, var(--clr-accent));
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--strip-color, var(--clr-accent)) 20%, transparent);
-}
+.is-mini .sbn-rhythm-play-btn { margin-top: 18px; }
 
 /* Grid */
 .sbn-rhythm-grid-container {
@@ -489,7 +475,7 @@ defineExpose({ play, stop, toggle });
 .is-mini .sbn-rhythm-cell.is-rest { height: 4px; }
 .is-mini .sbn-rhythm-row-thumb { height: 8px; }
 .is-mini .sbn-rhythm-cell-thumb { height: 8px; }
-.is-mini .sbn-rhythm-play-btn { width: 30px; height: 30px; margin-top: 18px; min-width: unset; }
+.is-mini .sbn-rhythm-play-btn { width: 30px; height: 30px; min-width: unset; }
 .is-mini .sbn-row-label { width: 44px; font-size: 10px; }
 
 /* Truncation / Fade */
@@ -560,32 +546,6 @@ defineExpose({ play, stop, toggle });
   opacity: 1;
 }
 
-/* Vintage Card Variant */
-.sbn-rhythm-pattern.sbn-vintage-card {
-  background: var(--clr-white);
-  border: 1px solid var(--clr-border);
-  border-right: 3px solid var(--strip-color, var(--clr-accent));
-  border-bottom: 3px solid var(--strip-color, var(--clr-accent));
-  border-radius: var(--radius);
-  padding: 20px;
-  box-shadow: 2px 2px 0 rgba(0,0,0,0.02);
-  transition: all 0.3s ease;
-}
-
-.sbn-rhythm-pattern.sbn-vintage-card:hover {
-  box-shadow: 3px 3px 0 var(--strip-color, var(--clr-accent));
-  transform: translate(-1px, -1px);
-  border-color: var(--strip-color, var(--clr-accent));
-}
-
-.sbn-rhythm-pattern.is-playing {
-  animation: pulse-card 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse-card {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--strip-color, var(--clr-accent)) 15%, transparent); }
-  50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--strip-color, var(--clr-accent)) 15%, transparent); }
-}
 
 @media (max-width: 640px) {
   .sbn-rhythm-pattern-eyebrow { flex-direction: column; align-items: flex-start; gap: 8px; }

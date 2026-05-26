@@ -452,7 +452,7 @@
                                 <tr>
                                     <td><code>{{ $occ->section_id }}</code></td>
                                     <td>
-                                        <span class="sbn-prog-cat-badge" style="--cat-clr: {{ \App\Models\ChordProgression::CATEGORY_COLORS[$occ->category] ?? '#6b7280' }}">
+                                        <span class="sbn-cat-badge" style="--cat-clr: {{ \App\Models\ChordProgression::CATEGORY_COLORS[$occ->category] ?? '#6b7280' }}">
                                             {{ $occ->category }}
                                         </span>
                                         {{ $occ->prog_name }}

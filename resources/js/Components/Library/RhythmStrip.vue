@@ -207,7 +207,7 @@ defineExpose({ play, stop, toggle });
   <div
     class="sbn-rhythm-strip"
     :class="{ 'is-playing': isPlaying, 'is-mini': mini }"
-    :style="color ? { '--strip-color': color, '--strip-color-accent': color } : {}"
+    :style="color ? { '--strip-color': color, '--strip-color-accent': color, '--play-color': color } : {}"
     role="img"
     :aria-label="`${pattern.name}: ${pattern.timeSignature} pattern`"
   >
@@ -224,7 +224,7 @@ defineExpose({ play, stop, toggle });
       <button
         v-if="playable"
         type="button"
-        class="sbn-rhythm-strip-play"
+        class="sbn-play-btn sbn-rhythm-strip-play"
         :class="{ 'is-playing': showPlayingIcon }"
         @click.stop="toggle"
         :aria-label="showPlayingIcon ? 'Stop' : 'Play'"
@@ -296,33 +296,10 @@ defineExpose({ play, stop, toggle });
   gap: 10px;
 }
 
-/* Play button - Circular & Premium */
+/* Play button — size only; color/state handled by global .sbn-play-btn */
 .sbn-rhythm-strip-play {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
-  border: 1px solid var(--clr-border);
-  background: var(--clr-white);
-  cursor: pointer;
-  color: var(--strip-color, var(--clr-accent));
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  padding: 0;
-}
-
-.sbn-rhythm-strip-play:hover {
-  color: var(--strip-color, var(--clr-accent));
-  border-color: var(--strip-color, var(--clr-accent));
-  transform: scale(1.1);
-}
-
-.sbn-rhythm-strip-play.is-playing {
-  background: var(--strip-color, var(--clr-accent));
-  border-color: var(--strip-color, var(--clr-accent));
-  color: var(--clr-white);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--strip-color, var(--clr-accent)) 20%, transparent);
 }
 
 /* Cells container — two stacked rows */

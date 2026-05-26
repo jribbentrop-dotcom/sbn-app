@@ -1,27 +1,10 @@
 /*
  * Soul Bossa Nova - Header & Mega Menu
- * Ported from legacy WordPress theme with design system integration
- *
- * This file provides CSS variables that bridge legacy --sbn-* names
-to the new design system --clr-* names, plus all header and mega menu styles.
+ * Public frontend nav layer. All --sbn-* and --clr-* tokens come from
+ * sbn-design-system.css (loaded first) via frontend/base.css aliases.
  */
 
-/* ==========================================================================
-   CSS VARIABLE BRIDGE (Legacy → Design System)
-   ========================================================================== */
-
 :root {
-    /* Map legacy --sbn-* to new design system --clr-* */
-    --sbn-dark: var(--clr-text);
-    --sbn-text: var(--clr-text-dim);
-    --sbn-orange: var(--clr-accent);
-    --sbn-red: var(--clr-red);
-    --sbn-border: var(--clr-border);
-    --sbn-light: var(--clr-surface-2);
-    --sbn-gradient: var(--clr-gradient);
-    --sbn-radius: var(--radius);
-    --sbn-radius-sm: var(--radius-sm);
-
     /* Mega menu specific variables */
     --mega-col-gap: 28px;
     --mega-padding: 28px;

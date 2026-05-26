@@ -85,7 +85,6 @@ const propsFor: Record<NodeType, (data: any, el: HTMLElement) => Record<string, 
     keyLabel:     d.key ?? '',
     color:        d.progression?.styleSlug ? getCategoryColor(d.progression.styleSlug) : null,
     interactive:  true,
-    vintageCard:  true,
   }),
   sheet:       (d, el) => ({ exercise: d, onChordSelect: (el as any).__onChordSelect ?? null }),
 };

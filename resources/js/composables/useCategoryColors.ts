@@ -9,11 +9,12 @@ const SLUG_TO_TOKEN: Record<string, string> = {
     'iconic':     '--clr-style-gold',
     'general':    '--clr-style-general',
     // Aliases & extra mappings
+    'bossa':      '--clr-style-bossa',
     'cuban':      '--clr-style-cuban',
-    'brazilian':  '--clr-style-bossa',
+    'brazilian':  '--clr-style-samba',
     // Progression category mappings
-    'modal':      '--clr-style-pop',      // Modal uses pop colors
-    'other':      '--clr-style-bossa',    // Other uses default bossa color
+    'modal':      '--clr-style-pop',
+    'other':      '--clr-style-general',
 };
 
 export const STYLE_SLUGS = new Set(Object.keys(SLUG_TO_TOKEN));

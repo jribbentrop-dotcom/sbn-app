@@ -82,14 +82,6 @@ const chords = computed((): ProgressionChord[] => {
     }));
 });
 
-// ── Category color classes ─────────────────────────────────────
-function getCategoryClass(category: string): string {
-    return `sbn-prog-cat-${category}`;
-}
-
-function getTonalityClass(tonality: string): string {
-    return `sbn-prog-tonality-${tonality}`;
-}
 
 const n = parseInt(new URLSearchParams(window.location.search).get('highlight') ?? '', 10);
 const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
@@ -109,19 +101,20 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
                 </p>
                 
                 <div class="sbn-prog-detail-badges">
-                    <span :class="['sbn-prog-row-cat-badge', getCategoryClass(progression.category)]">
+                    <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(progression.category) }">
                         {{ categoryLabel }}
                     </span>
-                    <span 
+                    <span
                         v-if="tonalityLabel"
-                        :class="['sbn-prog-tonality-badge', getTonalityClass(progression.tonality || '')]"
+                        class="sbn-badge"
+                        :class="progression.tonality === 'major' ? 'sbn-badge-tonality-major' : 'sbn-badge-tonality-minor'"
                     >
                         {{ tonalityLabel }}
                     </span>
-                    <span 
+                    <span
                         v-for="tag in progression.tags.slice(0, 5)"
                         :key="tag"
-                        class="sbn-prog-tag-chip"
+                        class="sbn-badge sbn-badge-muted"
                     >
                         {{ tag }}
                     </span>
@@ -201,11 +194,17 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
                             :href="`/library/progressions/${sibling.slug}`"
                             class="sbn-prog-related-link"
                         >
-                            <span :class="['sbn-prog-row-cat-badge', getCategoryClass(sibling.category)]">
+                            <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(sibling.category) }">
                                 {{ categoryLabels[sibling.category] || sibling.category }}
                             </span>
                             <span class="sbn-prog-related-name">{{ sibling.name }}</span>
-                            <span class="sbn-prog-related-numerals">{{ sibling.numeralsDisplay }}</span>
+                            <div class="sbn-numeral-chip-row">
+                                <span
+                                    v-for="n in sibling.numeralsDisplay.split('–').map(s => s.trim()).filter(Boolean)"
+                                    :key="n"
+                                    class="sbn-numeral-chip"
+                                >{{ n }}</span>
+                            </div>
                         </Link>
                     </div>
                 </div>
@@ -367,11 +366,6 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
     color: #1a202c;
 }
 
-.sbn-prog-detail-section .sbn-prog-related-numerals {
-    font-size: 14px;
-    color: #6b7280;
-    font-family: 'Georgia', 'Times New Roman', serif;
-}
 
 /* Related Progressions (sidebar - not used anymore but keeping for reference) */
 .sbn-prog-detail-sidebar .sbn-prog-related-list {
@@ -405,71 +399,7 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
     color: #1a202c;
 }
 
-.sbn-prog-detail-sidebar .sbn-prog-related-numerals {
-    font-size: 12px;
-    color: #6b7280;
-    font-family: 'Georgia', 'Times New Roman', serif;
-}
 
-/* Category Badges (same as index page) */
-.sbn-prog-row-cat-badge {
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: 10px;
-    display: inline-block;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-jazz      { background: #e3f2fd; color: #1565c0; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-blues     { background: #fce4ec; color: #c62828; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-pop       { background: #e0f2f1; color: #00695c; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-modal     { background: #ede7f6; color: #4527a0; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-classical { background: #e8f5e9; color: #2e7d32; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-latin     { background: linear-gradient(135deg, #ff8c42, #e65100); color: #fff; }
-
-/* Tonality Badges */
-.sbn-prog-tonality-badge {
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: 10px;
-    display: inline-block;
-}
-
-.sbn-prog-tonality-badge.sbn-prog-tonality-major { background: #fef9c3; color: #854d0e; }
-.sbn-prog-tonality-badge.sbn-prog-tonality-minor { background: #ede9fe; color: #4c1d95; }
-
-/* Tag Chips */
-.sbn-prog-tag-chip {
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: 10px;
-    background: #f3f4f6;
-    color: #6b7280;
-    border: 1px solid #e5e7eb;
-    display: inline-block;
-}
-
-/* Numerals */
-.sbn-prog-numeral-chip {
-    display: inline-block;
-    background: #f3f4f6;
-    border: 1px solid #e5e7eb;
-    border-radius: 5px;
-    padding: 6px 12px;
-    font-size: 16px;
-    line-height: 1.4;
-    color: #374151;
-    font-family: 'Georgia', 'Times New Roman', serif;
-    letter-spacing: 0.01em;
-}
 
 .sbn-chord-symbol {
     font-family: 'Georgia', 'Times New Roman', serif;

@@ -110,15 +110,6 @@ function isSectionOpen(title: string): boolean {
 
 const totalSections = computed(() => grouped.value.length);
 
-// Genre badge colour (inline style approach matching existing components)
-function badgeStyle(genre: string) {
-  const color = getCategoryColor(genre);
-  return {
-    background: `color-mix(in srgb, ${color} 14%, white)`,
-    color,
-    borderColor: `color-mix(in srgb, ${color} 30%, white)`,
-  };
-}
 </script>
 
 <template>
@@ -134,30 +125,30 @@ function badgeStyle(genre: string) {
     <!-- ── Hero ──────────────────────────────────────────────────────────── -->
     <header class="sbn-cs-hero">
       <!-- Colour accent bar -->
-      <div class="sbn-cs-hero-bar" :style="{ background: genreColor }" />
+      <div class="sbn-cs-hero-bar" />
 
       <div class="sbn-cs-hero-body">
         <!-- Left: text content -->
         <div class="sbn-cs-hero-text">
           <div class="sbn-cs-hero-badges">
-            <span class="sbn-badge sbn-cs-badge-genre" :style="badgeStyle(course.primaryGenre ?? '')">
+            <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(course.primaryGenre ?? '') }">
               {{ genreLabel }}
             </span>
             <span
               v-for="genre in course.genres.slice(1)"
               :key="genre"
-              class="sbn-badge sbn-cs-badge-genre"
-              :style="badgeStyle(genre)"
+              class="sbn-cat-badge sbn-cat-badge-filled"
+              :style="{ '--cat-clr': getCategoryColor(genre) }"
             >
               {{ genre.replace(/-/g, ' ') }}
             </span>
-            <span class="sbn-badge sbn-cs-badge-level">
+            <span class="sbn-badge sbn-badge-muted">
               <span class="sbn-cs-stars">
                 <span v-for="i in 5" :key="i" :class="i <= stars ? 'star-on' : 'star-off'">★</span>
               </span>
               {{ levelLabel }}
             </span>
-            <span v-if="course.isFree" class="sbn-badge sbn-cs-badge-free">Free</span>
+            <span v-if="course.isFree" class="sbn-badge sbn-badge-success">Free</span>
           </div>
 
           <h1 class="sbn-cs-title">{{ course.title }}</h1>
@@ -409,6 +400,7 @@ function badgeStyle(genre: string) {
   margin: 0 auto;
   padding: 24px 24px 80px;
   --category-color: var(--clr-style-bossa);
+  --category-gradient: linear-gradient(135deg, var(--category-color) 0%, color-mix(in srgb, var(--category-color) 60%, white) 100%);
 }
 
 /* ── Breadcrumb ────────────────────────────────────────────────────────────── */
@@ -435,7 +427,7 @@ function badgeStyle(genre: string) {
 
 .sbn-cs-hero-bar {
   height: 5px;
-  background: var(--category-color);
+  background: var(--category-gradient);
 }
 
 .sbn-cs-hero-body {
@@ -454,25 +446,6 @@ function badgeStyle(genre: string) {
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 14px;
-}
-
-.sbn-cs-badge-genre {
-  border: 1px solid transparent;
-  text-transform: capitalize;
-  font-size: 11px;
-}
-.sbn-cs-badge-level {
-  background: var(--clr-surface-3);
-  color: var(--clr-text-dim);
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-}
-.sbn-cs-badge-free {
-  background: rgba(16, 185, 129, 0.12);
-  color: var(--clr-success);
-  font-size: 11px;
 }
 
 .sbn-cs-stars { display: inline-flex; gap: 1px; }
@@ -564,7 +537,7 @@ function badgeStyle(genre: string) {
 .sbn-cs-hero-fallback {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, var(--category-color) 0%, color-mix(in srgb, var(--category-color) 50%, white) 100%);
+  background: var(--category-gradient);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -823,10 +796,11 @@ function badgeStyle(genre: string) {
 /* CTA card */
 .sbn-cs-cta-card {
   --genre-color: var(--clr-style-bossa);
+  --genre-gradient: linear-gradient(135deg, var(--genre-color) 0%, color-mix(in srgb, var(--genre-color) 60%, white) 100%);
 }
 .sbn-cs-cta-card-bar {
   height: 4px;
-  background: var(--genre-color);
+  background: var(--genre-gradient);
 }
 .sbn-cs-cta-card-body {
   padding: 18px;

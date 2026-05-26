@@ -81,9 +81,15 @@
             class="sbn-edu-progression-link"
           >
             <div class="sbn-edu-progression-name">{{ progression.name }}</div>
-            <div class="sbn-edu-progression-numerals">{{ progression.numeralsDisplay }}</div>
+            <div class="sbn-numeral-chip-row">
+              <span
+                v-for="n in progression.numeralsDisplay.split('–').map(s => s.trim()).filter(Boolean)"
+                :key="n"
+                class="sbn-numeral-chip"
+              >{{ n }}</span>
+            </div>
             <div style="margin-top: 6px;">
-              <span :class="['sbn-prog-row-cat-badge', 'sbn-prog-cat-' + String(progression.category || 'general').toLowerCase()]">
+              <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(progression.category) }">
                 {{ progression.category }}
               </span>
             </div>
@@ -100,6 +106,7 @@
 
 <script setup>
 import { computed, ref } from 'vue';
+import { getCategoryColor } from '@/composables/useCategoryColors';
 import { mountSbnNodes } from '@/lib/mountSbnNodes';
 
 // Import chord formatting utilities (reuse from tab-editor)
@@ -388,12 +395,6 @@ const filteredProgressions = computed(() => {
   margin-bottom: 4px;
 }
 
-.sbn-edu-progression-numerals {
-  font-size: 13px;
-  color: var(--clr-accent);
-  font-family: monospace;
-  margin-bottom: 4px;
-}
 
 .sbn-edu-progression-category {
   font-size: 11px;
