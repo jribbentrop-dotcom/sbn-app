@@ -305,6 +305,52 @@ The `vintageCard` prop has been **removed** from `RhythmPattern.vue`, `ChordProg
 
 ---
 
+## BREADCRUMB + DETAIL HERO
+
+**Established 2026-05-26.** All detail/show pages use a two-part visual header: a gradient breadcrumb band above a flat-top bordered white box.
+
+### Breadcrumb (`Breadcrumb.vue`)
+
+```vue
+<!-- Category colour variant (library detail pages) -->
+<Breadcrumb
+  :segments="[{ label: 'Song Library', href: '/library/songs' }, { label: song.title }]"
+  :color="categoryColor"
+/>
+
+<!-- Brand gradient variant (no category, e.g. chord detail) -->
+<Breadcrumb
+  :segments="[{ label: 'Chord Library', href: '/library/chords' }, { label: chord.name }]"
+/>
+```
+
+- `segments` — array of `{ label, href? }`. Last segment (no `href`) renders as the current page.
+- `color` — hex or CSS value for the category gradient. Omit to use the orange→red brand gradient.
+- Renders `<nav class="sbn-breadcrumb sbn-breadcrumb--cat | --brand">`.
+- Top radius only (`border-radius: var(--radius) var(--radius) 0 0`), `margin-bottom: 0` — designed to sit flush above `.sbn-detail-hero`.
+
+### Detail hero (`.sbn-detail-hero`)
+
+Global utility class in `sbn-design-system.css`. Apply to the first content box directly after `<Breadcrumb>` to connect it flush:
+
+```html
+<header class="sbn-prog-detail-header sbn-detail-hero">...</header>
+<div class="sbn-chord-identity sbn-detail-hero">...</div>
+```
+
+Properties provided by `.sbn-detail-hero`:
+- `background: var(--clr-white)`
+- `border: 1px solid var(--clr-border)`
+- `border-top: none` (connects to breadcrumb bottom edge)
+- `border-radius: 0 0 var(--radius) var(--radius)`
+- `margin-bottom: 32px`
+
+**Rule:** Scoped styles must NOT redeclare `border`, `border-top`, or `border-radius` on hero elements — add `sbn-detail-hero` to the element instead.
+
+Currently applied to: `.sbn-chord-identity` (Chords/Show), `.sbn-cs-hero` (Courses/Show), `.sbn-ss-hero` (Songs/Show), `.sbn-prog-detail-header` (Progressions/Show), `.sbn-rhythm-show-header` (Rhythms/Show), `.sbn-product-main` (Shop/Show).
+
+---
+
 ## CATEGORY GRADIENT HEADER
 
 **Established 2026-05-09.** Full-colour gradient pill for section headings in library listings.
@@ -630,6 +676,8 @@ Components defined in `sbn-design-system.css` and available everywhere. Do not r
 | `.sbn-rhythm-card` | Rhythm library grid card frame |
 | `.sbn-pattern-row` + modifiers | Rhythm pattern row (course player + library) |
 | `.sbn-diagram-card`, `.sbn-vp-card` | Chord diagram card shells |
+| `.sbn-breadcrumb` + `--cat` / `--brand` | Gradient breadcrumb band (use `Breadcrumb.vue`) |
+| `.sbn-detail-hero` | Flat-top bordered white box that connects flush beneath breadcrumb |
 | `.sbn-back-link` | Back navigation link |
 | `.sbn-surface-dim` | Dimmed surface (metadata, hints) |
 | `.sbn-callout` | Info callout (accent left border) |
@@ -856,6 +904,8 @@ public/css/
                             §3   buttons: .sbn-btn + all variants
                             §3b  play button: .sbn-play-btn — global circular transport button
                             §4   badges: .sbn-badge + all variants
+                            §5   breadcrumb: .sbn-breadcrumb, --cat, --brand, sub-classes
+                            §5b  detail hero: .sbn-detail-hero — flat-top bordered white box
                             §8   chord grid: .sbn-ve-measure, barlines, hover/selection frames
                             [data-theme="vintage"] overrides at bottom of file
   chord-symbols.css       ← chord name typography (load second, global)
