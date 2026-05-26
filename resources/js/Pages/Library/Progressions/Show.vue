@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
+import BackNav from '@/Components/BackNav.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
 import SongLink from '@/Components/Library/SongLink.vue';
@@ -92,7 +93,7 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
         <div class="sbn-prog-detail-container">
             <!-- Header -->
             <header class="sbn-prog-detail-header">
-                <Link href="/library/progressions" class="sbn-back-link">← Back to Progressions</Link>
+                <BackNav library-href="/library/progressions" library-label="Progressions" />
                 <h1 class="sbn-prog-detail-title">{{ progression.name }}</h1>
                 <p class="sbn-prog-detail-subtitle">
                     {{ categoryLabel }} chord progression

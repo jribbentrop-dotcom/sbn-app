@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Link } from '@inertiajs/vue3';
+import BackNav from '@/Components/BackNav.vue';
 import { mountSbnNodes } from '@/lib/mountSbnNodes';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
@@ -249,10 +250,7 @@ const formattedChordName = computed(() => {
 <template>
     <div class="sbn-page-detail sbn-chord-detail">
 
-        <!-- Back Link -->
-        <div style="margin-bottom: 24px;">
-          <Link href="/library/chords" class="sbn-back-link">← Back to Chord Library</Link>
-        </div>
+        <BackNav library-href="/library/chords" library-label="Chord Library" />
 
         <!-- ════ IDENTITY PANEL ════ -->
         <div class="sbn-chord-identity">

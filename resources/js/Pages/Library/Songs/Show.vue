@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
+import BackNav from '@/Components/BackNav.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { getCategoryStyle, getCategoryColor } from '@/composables/useCategoryColors';
 
@@ -76,10 +77,7 @@ function chordShowUrl(chord: any): string {
 <template>
   <div class="sbn-page-detail sbn-song-show" :style="categoryStyle">
 
-    <!-- Back link -->
-    <div style="margin-bottom: 24px;">
-      <Link href="/library/songs" class="sbn-btn sbn-btn-secondary sbn-btn-sm">← Back to Library</Link>
-    </div>
+    <BackNav library-href="/library/songs" library-label="Song Library" />
 
     <!-- ── Hero ──────────────────────────────────────────────────────────── -->
     <header class="sbn-ss-hero">

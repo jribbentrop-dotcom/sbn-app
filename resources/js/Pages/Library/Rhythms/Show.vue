@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { Link } from '@inertiajs/vue3';
+import BackNav from '@/Components/BackNav.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmPattern from '@/Components/Library/RhythmPattern.vue';
 import RhythmCard from '@/Components/Library/RhythmCard.vue';
@@ -44,7 +45,7 @@ watch(() => props.pattern.slug, () => {
     <div class="sbn-rhythm-show-container">
       <!-- Header -->
       <header class="sbn-rhythm-show-header" :style="categoryStyle">
-        <Link href="/library/rhythms" class="sbn-back-link">← Back to Rhythm Library</Link>
+        <BackNav library-href="/library/rhythms" library-label="Rhythm Library" />
         <h1 class="sbn-rhythm-show-title">{{ pattern.name }}</h1>
         <div class="sbn-rhythm-show-meta">
           <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(pattern.styleSlug) }">{{ pattern.category }}</span>
