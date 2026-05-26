@@ -254,6 +254,7 @@ const formattedChordName = computed(() => {
 
         <!-- ════ IDENTITY PANEL ════ -->
         <div class="sbn-chord-identity">
+            <div class="sbn-chord-identity-bar"></div>
 
             <!-- Left: diagram + intervals + tension -->
             <div class="sbn-chord-identity-left">
@@ -451,6 +452,17 @@ const formattedChordName = computed(() => {
     border: 1px solid var(--clr-border);
     border-radius: var(--radius);
     padding: 28px;
+    overflow: hidden;
+    position: relative;
+}
+
+.sbn-chord-identity-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background: var(--clr-gradient);
 }
 
 /* Left column */

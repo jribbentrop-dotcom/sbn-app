@@ -90,7 +90,6 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 
 <template>
     <div class="sbn-page-detail sbn-prog-detail-page">
-        <div class="sbn-prog-detail-container">
             <!-- Header -->
             <header class="sbn-prog-detail-header">
                 <Breadcrumb :segments="[{ label: 'Progressions', href: '/library/progressions' }, { label: progression.name }]" />
@@ -210,30 +209,22 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
                     </div>
                 </div>
             </section>
-        </div>
     </div>
 </template>
 
 <style scoped>
 
-.sbn-prog-detail-container {
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
 /* Header */
 .sbn-prog-detail-header {
     margin-bottom: 32px;
     padding-bottom: 24px;
-    border-bottom: 3px solid #e85d3b;
+    border-bottom: 3px solid var(--clr-accent);
 }
-
-
 
 .sbn-prog-detail-title {
     font-size: 36px;
     font-weight: 900;
-    color: #1a202c;
+    color: var(--clr-text);
     margin: 0 0 12px;
     letter-spacing: -0.02em;
     line-height: 1.1;
@@ -241,7 +232,7 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 
 .sbn-prog-detail-subtitle {
     font-size: 18px;
-    color: #718096;
+    color: var(--clr-text-muted);
     margin: 0 0 16px;
     font-weight: 400;
     line-height: 1.5;
