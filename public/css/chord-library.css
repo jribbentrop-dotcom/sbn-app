@@ -364,6 +364,12 @@
 }
 .sbn-drop-link:hover { opacity: 0.7; }
 
+/* Shell voicings blurb modifier */
+.sbn-shell-blurb p em {
+    font-style: italic;
+    color: var(--clr-text);
+}
+
 @keyframes sbnFadeSlideIn {
     from { opacity: 0; transform: translateY(6px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -463,6 +469,11 @@
     visibility: hidden;
 }
 
+/* Shell-level exited tiles — fully removed from flex flow so remaining tiles centre naturally */
+.sbn-tile--shell-gone {
+    display: none;
+}
+
 /* Phase 2 & 4: gather/spread — transition driven by inline style on the element */
 .sbn-tile--gather,
 .sbn-tile--spreading {
@@ -540,6 +551,7 @@
     color: var(--clr-text);
     margin-bottom: 6px;
     font-family: var(--font-chord);
+    text-align: center;
 }
 
 .sbn-archetype-tile-diagram {
@@ -614,6 +626,40 @@
 @keyframes sbnDrawerOpen {
     from { opacity: 0; transform: translateY(-6px); }
     to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Barré chromatic grid — 12 positions */
+.sbn-barre-drawer-intro {
+    font-size: 0.78em;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--clr-text-muted);
+    margin: 0 0 10px;
+}
+
+.sbn-barre-chromatic-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.sbn-barre-chromatic-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    text-decoration: none;
+    width: 72px;
+}
+
+.sbn-barre-chromatic-item:hover .sbn-chord-svg { opacity: 0.75; }
+
+.sbn-barre-chromatic-name {
+    font-size: 0.78em;
+    font-weight: 600;
+    color: var(--clr-text);
+    text-align: center;
 }
 
 .sbn-drawer-cards {
@@ -888,8 +934,8 @@
 
 .sbn-info-btn:hover {
     background: var(--clr-surface-2);
-    color: var(--clr-accent);
-    border-color: var(--clr-accent-border);
+    color: var(--clr-text);
+    border-color: var(--clr-text-muted);
 }
 
 .sbn-play-btn:focus-visible,

@@ -61,8 +61,8 @@
 }
 
 .sbn-prog-tab.is-active {
-    color: var(--clr-accent);
-    border-bottom-color: var(--clr-accent);
+    color: var(--clr-text);
+    border-bottom-color: var(--clr-text);
 }
 
 .sbn-prog-tab-count {
@@ -80,43 +80,12 @@
 }
 
 .sbn-prog-tab.is-active .sbn-prog-tab-count {
-    background: var(--clr-accent-bg);
-    color: var(--clr-accent);
+    background: var(--clr-surface-3);
+    color: var(--clr-text-muted);
 }
 
 /* ── Category Pills ──────────────────────────────────────── */
 
-.sbn-prog-cat-pills {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    flex: 1;
-}
-
-.sbn-prog-cat-pill {
-    display: inline-flex;
-    align-items: center;
-    padding: 5px 14px;
-    border-radius: 100px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--clr-text-muted);
-    background: var(--clr-white);
-    border: 1px solid var(--clr-border);
-    text-decoration: none;
-    transition: all 0.15s;
-}
-
-.sbn-prog-cat-pill:hover {
-    color: var(--clr-text);
-    border-color: var(--clr-text-muted);
-}
-
-.sbn-prog-cat-pill.is-active {
-    background: var(--pill-clr, var(--clr-accent));
-    border-color: var(--pill-clr, var(--clr-accent));
-    color: #fff;
-}
 
 /* ── Library Table ───────────────────────────────────────── */
 
@@ -159,8 +128,8 @@
     border-radius: var(--radius-sm);
     font-size: 12px;
     font-weight: 700;
-    background: var(--clr-accent-bg);
-    color: var(--clr-accent);
+    background: var(--clr-surface-3);
+    color: var(--clr-text);
     font-variant-numeric: tabular-nums;
 }
 
@@ -174,32 +143,6 @@
     gap: 4px;
 }
 
-.sbn-btn-sm {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--clr-border);
-    background: var(--clr-white);
-    color: var(--clr-text-muted);
-    cursor: pointer;
-    transition: all 0.15s;
-    text-decoration: none;
-}
-
-.sbn-btn-sm:hover {
-    background: var(--clr-surface-3);
-    color: var(--clr-text);
-    border-color: var(--clr-text-muted);
-}
-
-.sbn-btn-sm-danger:hover {
-    background: rgba(239, 68, 68, 0.06);
-    color: var(--clr-error);
-    border-color: rgba(239, 68, 68, 0.3);
-}
 
 /* ── Sortable Column Headers ─────────────────────────────── */
 
@@ -231,7 +174,7 @@
 }
 .sbn-sort-arrow.is-active {
     opacity: 1;
-    color: var(--clr-accent);
+    color: var(--clr-text);
 }
 .sbn-sort-arrow.is-asc {
     transform: rotate(180deg);
@@ -509,9 +452,9 @@
     border-radius: 100px;
     font-size: 12px;
     font-weight: 600;
-    background: var(--clr-accent-bg);
-    color: var(--clr-accent);
-    border: 1px solid var(--clr-accent-border);
+    background: var(--clr-surface-3);
+    color: var(--clr-text);
+    border: 1px solid var(--clr-border);
 }
 
 .sbn-tag-remove {
@@ -554,9 +497,9 @@
     border-color: var(--clr-text-muted);
 }
 .sbn-tag-preset.is-active {
-    background: var(--clr-accent-bg);
-    color: var(--clr-accent);
-    border-color: var(--clr-accent-border);
+    background: var(--clr-surface-3);
+    color: var(--clr-text);
+    border-color: var(--clr-text-muted);
 }
 
 .sbn-tags-custom {
@@ -636,10 +579,5 @@
 @media (max-width: 640px) {
     .sbn-prog-stats {
         grid-template-columns: 1fr 1fr;
-    }
-    .sbn-prog-cat-pills {
-        overflow-x: auto;
-        flex-wrap: nowrap;
-        padding-bottom: 4px;
     }
 }

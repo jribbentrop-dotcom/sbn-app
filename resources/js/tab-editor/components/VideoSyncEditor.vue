@@ -614,12 +614,6 @@ onUnmounted(() => { document.removeEventListener('keydown', onKeydown); });
     color: var(--clr-text-muted);
 }
 
-/* Armed state of the "set downbeat" button — waiting for a tab-note click. */
-.sbn-downbeat-tool .sbn-btn-warning {
-    background: var(--clr-accent, #f39c12);
-    border-color: var(--clr-accent, #f39c12);
-    color: #fff;
-}
 
 .sbn-downbeat-error {
     font-size: 11px;

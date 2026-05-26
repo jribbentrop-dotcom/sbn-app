@@ -77,4 +77,11 @@ class CourseController extends Controller
         return redirect()->route('admin.courses.index')
             ->with('success', 'Course deleted.');
     }
+
+    public function updateStatus(Request $request, Course $course): \Illuminate\Http\JsonResponse
+    {
+        $validated = $request->validate(['status' => 'required|in:draft,publish']);
+        $course->update(['status' => $validated['status']]);
+        return response()->json(['success' => true, 'status' => $course->status]);
+    }
 }

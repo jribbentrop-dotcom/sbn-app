@@ -40,7 +40,7 @@
                             <td style="cursor:grab; color:var(--clr-text-muted); text-align:center;">⠿</td>
                             <td style="color:var(--clr-text-muted); font-size:12px;">{{ $loop->iteration }}</td>
                             <td>
-                                <a href="{{ route('admin.lessons.edit', $lesson) }}" style="font-weight:600; color:var(--clr-text);">{{ $lesson->title }}</a>
+                                <a href="{{ route('admin.lessons.edit', $lesson) }}" class="sbn-table-title">{{ $lesson->title }}</a>
                                 <div style="font-size:11px; color:var(--clr-text-muted);">{{ $lesson->slug }}</div>
                             </td>
                             <td x-data="{ editing: false, val: @js($lesson->section_title) }" style="font-size:12px; position:relative;">
@@ -57,24 +57,28 @@
                                        @blur="saveField('{{ route('admin.lessons.update-field', $lesson) }}', 'section_title', val); editing = false"
                                        style="width:100%; padding:2px 6px; font-size:12px; border:1.5px solid var(--clr-accent); border-radius:4px; outline:none; background:#fff;">
                             </td>
-                            <td>
-                                <span class="sbn-badge {{ $lesson->status === 'publish' ? 'sbn-badge-success' : 'sbn-badge-muted' }}">
-                                    {{ $lesson->status }}
-                                </span>
+                            <td x-data="{ status: '{{ $lesson->status }}' }">
+                                <button @click="fetch('{{ route('admin.lessons.updateStatus', $lesson) }}', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }, body: JSON.stringify({ status: status === 'publish' ? 'draft' : 'publish' }) }).then(r => r.json()).then(d => { if (d.success) status = d.status })"
+                                        class="sbn-badge sbn-status-toggle"
+                                        :class="status === 'publish' ? 'sbn-badge-success' : 'sbn-badge-muted'"
+                                        :title="status === 'publish' ? 'Published — click to unpublish' : 'Draft — click to publish'"
+                                        x-text="status">
+                                </button>
                             </td>
                             <td>
                                 @if($lesson->is_preview)
                                     <span class="sbn-badge sbn-badge-muted">Preview</span>
                                 @endif
                             </td>
-                            <td style="text-align:right; white-space:nowrap;">
-                                <a href="{{ route('admin.lessons.edit', $lesson) }}" class="sbn-btn sbn-btn-ghost sbn-btn-sm">Edit</a>
+                            <td style="text-align:right;">
                                 <form method="POST" action="{{ route('admin.lessons.destroy', $lesson) }}"
                                       style="display:inline;"
                                       x-data
                                       @submit.prevent="if(confirm('Delete this lesson?')) $el.submit()">
                                     @csrf @method('DELETE')
-                                    <button type="submit" class="sbn-btn sbn-btn-ghost sbn-btn-sm" style="color:var(--clr-danger);">Del</button>
+                                    <button type="submit" class="sbn-btn-delete" title="Delete">
+                                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9h8l1-9"/></svg>
+                                    </button>
                                 </form>
                             </td>
                         </tr>

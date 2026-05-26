@@ -127,6 +127,13 @@ class LessonController extends Controller
     }
 
     /** Returns [{slug, title}] for the widget palette, sorted by title. */
+    public function updateStatus(Request $request, Lesson $lesson): JsonResponse
+    {
+        $validated = $request->validate(['status' => 'required|in:draft,publish']);
+        $lesson->update(['status' => $validated['status']]);
+        return response()->json(['success' => true, 'status' => $lesson->status]);
+    }
+
     private function widgetList(EduContentService $edu): array
     {
         $list = [];

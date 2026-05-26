@@ -367,43 +367,5 @@ window.blankModal = function() {
     margin: 0;
 }
 
-.sbn-btn {
-    padding: 8px 16px;
-    border: 1px solid #d1d5db;
-    background: white;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-}
-
-.sbn-btn:hover {
-    background: #f9fafb;
-}
-
-.sbn-btn-primary {
-    background: #3b82f6;
-    color: white;
-    border-color: #3b82f6;
-}
-
-.sbn-btn-primary:hover {
-    background: #2563eb;
-}
-
-.sbn-btn-danger {
-    background: #dc2626;
-    color: white;
-    border-color: #dc2626;
-}
-
-.sbn-btn-danger:hover {
-    background: #b91c1c;
-}
-
-.sbn-btn-xs {
-    padding: 4px 8px;
-    font-size: 12px;
-}
 </style>
 @endpush

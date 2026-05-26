@@ -41,13 +41,14 @@ class ChordProgression extends Model
     ];
 
     public const CATEGORY_COLORS = [
-        'jazz'      => '#3b82f6', // Blue
-        'blues'     => '#6366f1', // Indigo
-        'pop'       => '#ec4899', // Pink
-        'modal'     => '#ec4899', // Modal uses pop colors
-        'classical' => '#64748b', // Slate
-        'latin'     => '#8b5cf6', // Purple
-        'other'     => '#f39c12', // Orange (Bossa)
+        'jazz'      => 'var(--clr-style-jazz)',
+        'blues'     => 'var(--clr-style-blues)',
+        'pop'       => 'var(--clr-style-pop)',
+        'modal'     => 'var(--clr-style-pop)',
+        'classical' => 'var(--clr-style-classical)',
+        'latin'     => 'var(--clr-style-latin)',
+        'bossa'     => 'var(--clr-style-bossa)',
+        'other'     => 'var(--clr-style-general)',
     ];
 
     /* ── Preset Tags ────────────────────────────────────────── */
@@ -123,7 +124,7 @@ class ChordProgression extends Model
      */
     public function getCategoryColorAttribute(): string
     {
-        return self::CATEGORY_COLORS[$this->category] ?? '#6b7280';
+        return self::CATEGORY_COLORS[$this->category] ?? 'var(--clr-style-general)';
     }
 
     /* ── Query Helpers ──────────────────────────────────────── */

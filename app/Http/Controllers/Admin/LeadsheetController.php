@@ -52,6 +52,7 @@ class LeadsheetController extends Controller
         $search = $request->get('search');
         $key = $request->get('key');
         $composer = $request->get('composer');
+        $style = $request->get('style');
 
         if ($currentTab === 'exercises') {
             $query = \App\Models\Exercise::query();
@@ -76,6 +77,23 @@ class LeadsheetController extends Controller
             if ($composer) {
                 $query->where('composer', $composer);
             }
+            if ($style) {
+                $stylePrefixes = [
+                    'bossa'     => ['bossa'],
+                    'samba'     => ['samba'],
+                    'jazz'      => ['jazz', 'swing'],
+                    'latin'     => ['latin', 'afro-cuban'],
+                    'blues'     => ['blues'],
+                    'pop'       => ['pop', 'ballad'],
+                    'classical' => ['classical'],
+                ];
+                $prefixes = $stylePrefixes[$style] ?? [$style];
+                $query->where(function ($q) use ($prefixes) {
+                    foreach ($prefixes as $prefix) {
+                        $q->orWhere('rhythm', $prefix)->orWhere('rhythm', 'like', $prefix . '-%');
+                    }
+                });
+            }
             $items = $query->orderBy('title')->paginate(25)->withQueryString();
         }
 
@@ -85,6 +103,7 @@ class LeadsheetController extends Controller
         
         $keys = Leadsheet::getDistinctKeys();
         $composers = Leadsheet::getDistinctComposers();
+        $styles = Leadsheet::getDistinctStyles();
         $rhythms = RhythmPattern::orderBy('category')->orderBy('name')->get();
         $cloneSources = Leadsheet::orderBy('title')->get(['id', 'title', 'composer']);
         $progressions = \App\Models\ChordProgression::orderBy('category')->orderBy('name')->get(['id', 'name', 'category', 'numerals', 'tonality']);
@@ -96,6 +115,7 @@ class LeadsheetController extends Controller
             'stats'         => $stats,
             'keys'          => $keys,
             'composers'     => $composers,
+            'styles'        => $styles,
             'rhythms'       => $rhythms,
             'cloneSources'  => $cloneSources,
             'progressions'  => $progressions,
@@ -774,6 +794,9 @@ class LeadsheetController extends Controller
             'harmony_notes'     => $validated['harmony_notes'] ?? '',
             'form_notes'        => $validated['form_notes'] ?? '',
             'voicing_notes'     => $validated['voicing_notes'] ?? '',
+            'genre'             => $validated['genre'] ?? null,
+            'popularity'        => $validated['popularity'] ?? $leadsheet->popularity,
+            'difficulty'        => $validated['difficulty'] ?? $leadsheet->difficulty,
         ]);
 
         // Re-index voicing → DB chord associations whenever shortcode changes.
@@ -1326,6 +1349,9 @@ class LeadsheetController extends Controller
             'harmony_notes'     => 'nullable|string|max:5000',
             'form_notes'        => 'nullable|string|max:5000',
             'voicing_notes'     => 'nullable|string|max:5000',
+            'genre'             => 'nullable|string|max:50',
+            'popularity'        => 'nullable|integer|min:0|max:100',
+            'difficulty'        => 'nullable|integer|min:0|max:5',
         ]);
     }
 

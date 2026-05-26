@@ -95,7 +95,7 @@
     white-space: nowrap;
 }
 .sbn-filter-clear:hover {
-    color: var(--clr-accent);
+    color: var(--clr-text);
 }
 
 /* ── Table ───────────────────────────────────────────────── */
@@ -141,7 +141,7 @@
 .col-time        { width: 50px; text-align: center; }
 .col-measures    { width: 50px; text-align: center; }
 .col-description { width: auto; }
-.col-actions     { width: 100px; white-space: nowrap; text-align: right; }
+.col-actions     { width: 40px; text-align: right; }
 
 /* ── Title link ──────────────────────────────────────────── */
 .sbn-ls-title {
@@ -150,7 +150,7 @@
     text-decoration: none;
 }
 .sbn-ls-title:hover {
-    color: var(--clr-accent);
+    color: var(--clr-text);
 }
 
 /* ── Quick-edit description ──────────────────────────────── */
@@ -181,7 +181,7 @@
     opacity: 1;
 }
 .sbn-ls-desc-edit:hover {
-    color: var(--clr-accent);
+    color: var(--clr-text);
 }
 .sbn-ls-desc-textarea {
     width: 100%;
@@ -1246,7 +1246,7 @@
 }
 .sbn-vsync-table-row:last-child { border-bottom: none; }
 .sbn-vsync-table-row:hover { background: var(--clr-hover, rgba(0,0,0,0.04)); }
-.sbn-vsync-table-row.is-active { background: rgba(var(--clr-accent-rgb, 243,156,18), 0.08); }
+.sbn-vsync-table-row.is-active { background: var(--clr-accent-bg); }
 .sbn-vsync-bar-num {
     font-size: 11px;
     font-weight: 600;

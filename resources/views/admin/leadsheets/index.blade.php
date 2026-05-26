@@ -60,41 +60,6 @@
             background: none;
         }
 
-        .sbn-tabs {
-            display: flex;
-            gap: 2px;
-            border-bottom: 1px solid #e5e7eb;
-            margin-bottom: 24px;
-        }
-
-        .sbn-tab {
-            padding: 10px 20px;
-            font-weight: 600;
-            font-size: 14px;
-            color: #6b7280;
-            text-decoration: none;
-            border-bottom: 2px solid transparent;
-            margin-bottom: -1px;
-            transition: all 0.2s;
-        }
-
-        .sbn-tab:hover {
-            color: #374151;
-            background: #f9fafb;
-        }
-
-        .sbn-tab.active {
-            color: var(--clr-primary, #2563eb);
-            border-bottom-color: var(--clr-primary, #2563eb);
-        }
-
-        .sbn-status-toggle {
-            cursor: pointer;
-            border: 1px solid transparent;
-            font: inherit;
-            transition: filter 0.12s;
-        }
-        .sbn-status-toggle:hover { filter: brightness(0.95); }
     </style>
 @endpush
 
@@ -133,10 +98,24 @@
         </a>
     </div>
 
+    {{-- Style filter pills --}}
+    @if($currentTab === 'leadsheets')
+    <div class="sbn-prog-cat-pills" style="margin-bottom: 16px;">
+        <a href="{{ route('admin.leadsheets.index', array_merge(request()->except('style'), ['tab' => $currentTab])) }}"
+           class="sbn-prog-cat-pill {{ !request('style') ? 'is-active' : '' }}">All</a>
+        @foreach($styles as $slug)
+        <a href="{{ route('admin.leadsheets.index', array_merge(request()->except('style'), ['tab' => $currentTab, 'style' => $slug])) }}"
+           class="sbn-prog-cat-pill {{ request('style') === $slug ? 'is-active' : '' }}"
+           style="--pill-clr: var(--clr-style-{{ $slug }})">{{ ucfirst($slug) }}</a>
+        @endforeach
+    </div>
+    @endif
+
     {{-- Filter bar --}}
     <div class="sbn-filter-bar">
         <form method="GET" action="{{ route('admin.leadsheets.index') }}" class="sbn-filter-form">
             <input type="hidden" name="tab" value="{{ $currentTab }}">
+            @if(request('style'))<input type="hidden" name="style" value="{{ request('style') }}">@endif
             <div class="sbn-search-wrap">
                 <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
                 <input type="text" name="search" class="sbn-search-input" placeholder="Search by title or composer…" value="{{ request('search') }}">
@@ -153,7 +132,7 @@
                     <option value="{{ $c }}" {{ request('composer') === $c ? 'selected' : '' }}>{{ $c }}</option>
                 @endforeach
             </select>
-            @if(request()->hasAny(['search', 'key', 'composer']))
+            @if(request()->hasAny(['search', 'key', 'composer', 'style']))
                 <a href="{{ route('admin.leadsheets.index', ['tab' => $currentTab]) }}" class="sbn-filter-clear">Clear</a>
             @endif
         </form>
@@ -265,14 +244,11 @@
                             </div>
                         </td>
                         <td class="col-actions">
-                            @if($currentTab === 'leadsheets')
-                                <a href="{{ route('admin.leadsheets.edit', $ls) }}" class="sbn-btn sbn-btn-xs">Edit</a>
-                            @else
-                                <a href="{{ route('admin.exercises.edit', $ls) }}" class="sbn-btn sbn-btn-xs">Edit</a>
-                            @endif
-                            <button class="sbn-btn sbn-btn-xs sbn-btn-danger"
+                            <button class="sbn-btn-delete"
                                 @click="deleteItem({{ $ls->id }}, '{{ addslashes($ls->title) }}', '{{ $currentTab }}')"
-                                title="Delete">×</button>
+                                title="Delete">
+                                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9h8l1-9"/></svg>
+                            </button>
                         </td>
                     </tr>
                     @endforeach

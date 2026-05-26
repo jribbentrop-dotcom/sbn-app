@@ -80,7 +80,7 @@
 }
 
 .sbn-voicing-header:hover {
-    color: var(--clr-accent);
+    color: var(--clr-text);
 }
 
 /* Only show bottom border + margin when expanded */
@@ -197,16 +197,6 @@
 }
 
 
-.sbn-btn-sm-danger {
-    color: var(--clr-error);
-    border-color: rgba(239, 68, 68, 0.2);
-}
-
-.sbn-btn-sm-danger:hover {
-    background: rgba(239, 68, 68, 0.06);
-    border-color: rgba(239, 68, 68, 0.35);
-    color: var(--clr-error);
-}
 
 
 /* -- MINI FRETBOARD -------------------------------------- */
@@ -804,37 +794,21 @@
    TABS (Library / Unmatched Voicings)
    =========================================================== */
 
-.sbn-tabs {
-    display: flex;
-    gap: 0;
-    border-bottom: 2px solid var(--clr-border);
-    margin-bottom: 20px;
-}
-
+/* chords tabs use <button> + sbn-tab-active; base .sbn-tabs/.sbn-tab in admin2.css */
 .sbn-tab {
-    padding: 10px 20px;
-    font-size: 13px;
-    font-weight: 600;
-    font-family: var(--font-body);
-    color: var(--clr-text-muted);
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
     margin-bottom: -2px;
     cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
     display: flex;
     align-items: center;
     gap: 6px;
 }
 
-.sbn-tab:hover {
-    color: var(--clr-text);
-}
-
 .sbn-tab-active {
-    color: var(--clr-accent);
-    border-bottom-color: var(--clr-accent);
+    color: var(--clr-text);
+    border-bottom-color: var(--clr-text);
 }
 
 .sbn-tab-count {
@@ -875,7 +849,7 @@
 }
 
 .sbn-section-toggle:hover .sbn-section-toggle-label {
-    color: var(--clr-accent);
+    color: var(--clr-text);
 }
 
 .sbn-section-toggle-label {

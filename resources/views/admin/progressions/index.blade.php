@@ -49,20 +49,6 @@
         gap: 6px;
         flex-shrink: 0;
     }
-    .sbn-btn-analysis {
-        display: inline-flex; align-items: center; gap: 5px;
-        font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 5px;
-        border: none; cursor: pointer; white-space: nowrap;
-        background: linear-gradient(135deg, var(--clr-accent), var(--clr-accent-dark, #c0392b));
-        color: white;
-        transition: opacity 0.15s, box-shadow 0.15s;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-    }
-    .sbn-btn-analysis:hover { opacity: 0.9; box-shadow: 0 2px 6px rgba(0,0,0,0.18); }
-    .sbn-btn-analysis.is-active {
-        background: var(--clr-text);
-        box-shadow: none;
-    }
 
     /* ── Inline Analysis Panel (reuses leadsheet analysis styles) ── */
     .sbn-analysis-inline {
@@ -253,7 +239,7 @@
                 @foreach($categories as $cat)
                     <a href="{{ route('admin.progressions.index', ['category' => $cat]) }}"
                        class="sbn-prog-cat-pill {{ $category === $cat ? 'is-active' : '' }}"
-                       style="--pill-clr: {{ \App\Models\ChordProgression::CATEGORY_COLORS[$cat] ?? '#6b7280' }}">
+                       style="--pill-clr: {{ \App\Models\ChordProgression::CATEGORY_COLORS[$cat] ?? 'var(--clr-style-general)' }}">
                         {{ ucfirst($cat) }}
                     </a>
                 @endforeach
@@ -306,7 +292,7 @@
                         <template x-for="prog in sorted" :key="prog.id">
                         <tr x-data="{ deleting: false }">
                             <td>
-                                <strong x-text="prog.name"></strong>
+                                <a :href="prog.edit_url" class="sbn-table-title" x-text="prog.name"></a>
                                 <template x-if="prog.featured">
                                     <span class="sbn-badge sbn-badge-accent" style="margin-left: 6px; font-size: 10px;">Featured</span>
                                 </template>
@@ -342,22 +328,13 @@
                                     <span class="sbn-prog-song-none">—</span>
                                 </template>
                             </td>
-                            <td>
-                                <div class="sbn-prog-actions">
-                                    <a :href="prog.edit_url" class="sbn-btn-sm" title="Edit">
-                                        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
-                                        </svg>
-                                    </a>
-                                    <button class="sbn-btn-sm sbn-btn-sm-danger"
-                                            :disabled="deleting"
-                                            @click="if(confirm('Delete \'' + prog.name + '\'?\n\nThis also removes all detected occurrences.')) { deleting = true; sbnDelete(prog.id, $el); }"
-                                            title="Delete">
-                                        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                                        </svg>
-                                    </button>
-                                </div>
+                            <td style="text-align:right;">
+                                <button class="sbn-btn-delete"
+                                        :disabled="deleting"
+                                        @click="if(confirm('Delete \'' + prog.name + '\'?\n\nThis also removes all detected occurrences.')) { deleting = true; sbnDelete(prog.id, $el); }"
+                                        title="Delete">
+                                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9h8l1-9"/></svg>
+                                </button>
                             </td>
                         </tr>
                         </template>
@@ -452,7 +429,7 @@
                                 <tr>
                                     <td><code>{{ $occ->section_id }}</code></td>
                                     <td>
-                                        <span class="sbn-cat-badge" style="--cat-clr: {{ \App\Models\ChordProgression::CATEGORY_COLORS[$occ->category] ?? '#6b7280' }}">
+                                        <span class="sbn-cat-badge" style="--cat-clr: {{ \App\Models\ChordProgression::CATEGORY_COLORS[$occ->category] ?? 'var(--clr-style-general)' }}">
                                             {{ $occ->category }}
                                         </span>
                                         {{ $occ->prog_name }}

@@ -50,23 +50,27 @@
                     </td>
                     <td>
                         @foreach($course->genres ?? [] as $genre)
-                            <span class="sbn-badge sbn-badge-muted" style="margin-right:3px;">{{ $genre }}</span>
+                            <span class="sbn-cat-badge sbn-cat-badge--{{ $genre }}" style="margin-right:3px;">{{ $genre }}</span>
                         @endforeach
                     </td>
-                    <td>
-                        <span class="sbn-badge {{ $course->status === 'publish' ? 'sbn-badge-success' : 'sbn-badge-muted' }}">
-                            {{ $course->status }}
-                        </span>
+                    <td x-data="{ status: '{{ $course->status }}' }">
+                        <button @click="fetch('{{ route('admin.courses.updateStatus', $course) }}', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }, body: JSON.stringify({ status: status === 'publish' ? 'draft' : 'publish' }) }).then(r => r.json()).then(d => { if (d.success) status = d.status })"
+                                class="sbn-badge sbn-status-toggle"
+                                :class="status === 'publish' ? 'sbn-badge-success' : 'sbn-badge-muted'"
+                                :title="status === 'publish' ? 'Published — click to unpublish' : 'Draft — click to publish'"
+                                x-text="status">
+                        </button>
                     </td>
                     <td class="sbn-text-dim">{{ $course->lessons_count }}</td>
-                    <td style="text-align:right; white-space:nowrap;">
-                        <a href="{{ route('admin.courses.edit', $course) }}" class="sbn-btn sbn-btn-ghost sbn-btn-sm">Edit</a>
+                    <td style="text-align:right;">
                         <form method="POST" action="{{ route('admin.courses.destroy', $course) }}"
                               style="display:inline;"
                               x-data
                               @submit.prevent="if(confirm('Delete this course and all its lessons?')) $el.submit()">
                             @csrf @method('DELETE')
-                            <button type="submit" class="sbn-btn sbn-btn-ghost sbn-btn-sm" style="color:var(--clr-danger);">Delete</button>
+                            <button type="submit" class="sbn-btn-delete" title="Delete">
+                                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9h8l1-9"/></svg>
+                            </button>
                         </form>
                     </td>
                 </tr>

@@ -165,7 +165,7 @@
                     <template x-for="p in filtered" :key="p.id">
                         <tr x-data="{ deleting: false }">
                             <td>
-                                <a :href="'{{ route('admin.rhythms.index') }}/' + p.id + '/edit'" class="sbn-title-link">
+                                <a :href="'{{ route('admin.rhythms.index') }}/' + p.id + '/edit'" class="sbn-table-title">
                                     <strong x-text="p.name"></strong>
                                 </a>
                             </td>
@@ -185,13 +185,12 @@
                                 </div>
                             </td>
 
-                            <td>
-                                <div style="display: flex; gap: 6px;">
-                                    <a :href="'{{ route('admin.rhythms.index') }}/' + p.id + '/edit'" class="sbn-btn-sm" title="Edit">✎</a>
-                                    <button class="sbn-btn-sm sbn-btn-sm-danger" 
-                                            @click="if(confirm('Delete pattern?')) deletePattern(p.id, $el)"
-                                            title="Delete">×</button>
-                                </div>
+                            <td style="text-align:right;">
+                                <button class="sbn-btn-delete"
+                                        @click="if(confirm('Delete pattern?')) deletePattern(p.id, $el)"
+                                        title="Delete">
+                                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9h8l1-9"/></svg>
+                                </button>
                             </td>
                         </tr>
                     </template>

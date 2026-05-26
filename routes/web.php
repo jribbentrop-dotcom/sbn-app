@@ -87,12 +87,14 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::get('/courses/{course}/edit', [AdminCourseController::class, 'edit'])->name('courses.edit');
     Route::put('/courses/{course}', [AdminCourseController::class, 'update'])->name('courses.update');
     Route::delete('/courses/{course}', [AdminCourseController::class, 'destroy'])->name('courses.destroy');
+    Route::post('/courses/{course}/status', [AdminCourseController::class, 'updateStatus'])->name('courses.updateStatus');
 
     Route::get('/courses/{course}/lessons/create', [AdminLessonController::class, 'create'])->name('courses.lessons.create');
     Route::post('/courses/{course}/lessons', [AdminLessonController::class, 'store'])->name('courses.lessons.store');
     Route::get('/lessons/{lesson}/edit', [AdminLessonController::class, 'edit'])->name('lessons.edit');
     Route::put('/lessons/{lesson}', [AdminLessonController::class, 'update'])->name('lessons.update');
     Route::delete('/lessons/{lesson}', [AdminLessonController::class, 'destroy'])->name('lessons.destroy');
+    Route::post('/lessons/{lesson}/status', [AdminLessonController::class, 'updateStatus'])->name('lessons.updateStatus');
     Route::post('/courses/{course}/lessons/reorder', [AdminLessonController::class, 'reorder'])->name('courses.lessons.reorder');
     Route::post('/lessons/{lesson}/update-field', [AdminLessonController::class, 'updateField'])->name('lessons.update-field');
     Route::post('/lessons/{lesson}/upload-image', [AdminLessonController::class, 'uploadImage'])->name('lessons.upload-image');

@@ -489,39 +489,6 @@
 .sbn-pattern-row--general   { --row-color: var(--clr-style-general); }
 
 
-    /* ── Category Badges (Standardized) ──────────────────
-       Consolidated version of the old .sbn-prog-row-cat-badge
-       classes. Now uses design system tokens strictly.    */
-    .sbn-cat-badge {
-        display: inline-flex;
-        align-items: center;
-        padding: 2px 10px;
-        border-radius: 100px;
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.02em;
-        text-transform: capitalize;
-        background: color-mix(in srgb, var(--cat-clr, var(--clr-text-muted)) 10%, transparent);
-        color: var(--cat-clr, var(--clr-text-muted));
-        border: 1px solid color-mix(in srgb, var(--cat-clr, var(--clr-text-muted)) 20%, transparent);
-    }
-
-    /* Style modifiers for --cat-clr */
-    .sbn-cat-badge--jazz      { --cat-clr: var(--clr-style-jazz); }
-    .sbn-cat-badge--bossa     { --cat-clr: var(--clr-style-bossa); }
-    .sbn-cat-badge--samba     { --cat-clr: var(--clr-style-samba); }
-    .sbn-cat-badge--latin     { --cat-clr: var(--clr-style-latin); }
-    .sbn-cat-badge--blues     { --cat-clr: var(--clr-style-blues); }
-    .sbn-cat-badge--pop       { --cat-clr: var(--clr-style-pop); }
-    .sbn-cat-badge--classical { --cat-clr: var(--clr-style-classical); }
-    .sbn-cat-badge--gold      { --cat-clr: var(--clr-style-gold); }
-    .sbn-cat-badge--general   { --cat-clr: var(--clr-style-general); }
-
-    /* Aliases for common legacy names */
-    .sbn-cat-badge--brazilian  { --cat-clr: var(--clr-style-samba); }
-    .sbn-cat-badge--bossa-nova { --cat-clr: var(--clr-style-bossa); }
-    .sbn-cat-badge--cuban      { --cat-clr: var(--clr-style-cuban); }
-    .sbn-cat-badge--modal      { --cat-clr: var(--clr-mod-progression); }
 
     /* ── Song Link (app-wide) ────────────────────────────
        Canonical row for linking to a song from any library
@@ -979,9 +946,11 @@
     border-radius: 100px;
     font-size: 11px;
     font-weight: 600;
-    background: color-mix(in srgb, var(--cat-clr, #6b7280) 10%, transparent);
-    color: var(--cat-clr, #6b7280);
-    border: 1px solid color-mix(in srgb, var(--cat-clr, #6b7280) 20%, transparent);
+    letter-spacing: 0.02em;
+    text-transform: capitalize;
+    background: color-mix(in srgb, var(--cat-clr, var(--clr-text-muted)) 10%, transparent);
+    color: var(--cat-clr, var(--clr-text-muted));
+    border: 1px solid color-mix(in srgb, var(--cat-clr, var(--clr-text-muted)) 20%, transparent);
 }
 
 .sbn-cat-badge.sbn-cat-badge-filled {
@@ -989,6 +958,21 @@
     color: #fff;
     border-color: transparent;
 }
+
+/* Style slug modifiers */
+.sbn-cat-badge--jazz      { --cat-clr: var(--clr-style-jazz); }
+.sbn-cat-badge--bossa     { --cat-clr: var(--clr-style-bossa); }
+.sbn-cat-badge--samba     { --cat-clr: var(--clr-style-samba); }
+.sbn-cat-badge--latin     { --cat-clr: var(--clr-style-latin); }
+.sbn-cat-badge--blues     { --cat-clr: var(--clr-style-blues); }
+.sbn-cat-badge--pop       { --cat-clr: var(--clr-style-pop); }
+.sbn-cat-badge--classical { --cat-clr: var(--clr-style-classical); }
+.sbn-cat-badge--gold      { --cat-clr: var(--clr-style-gold); }
+.sbn-cat-badge--general   { --cat-clr: var(--clr-style-general); }
+.sbn-cat-badge--brazilian  { --cat-clr: var(--clr-style-samba); }
+.sbn-cat-badge--bossa-nova { --cat-clr: var(--clr-style-bossa); }
+.sbn-cat-badge--cuban      { --cat-clr: var(--clr-style-cuban); }
+.sbn-cat-badge--modal      { --cat-clr: var(--clr-mod-progression); }
 
 /* ── Progression row category badge ─────────────────────────
    Compact uppercase label inside progression list rows.

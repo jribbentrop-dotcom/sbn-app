@@ -27,20 +27,7 @@
         font-size: 13px;
     }
     .sbn-occ-song-actions { display: flex; gap: 6px; flex-shrink: 0; }
-    .sbn-btn-analysis {
-        display: inline-flex; align-items: center; gap: 5px;
-        font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 5px;
-        border: none; cursor: pointer; white-space: nowrap;
-        background: linear-gradient(135deg, var(--clr-accent), var(--clr-accent-dark, #c0392b));
-        color: white;
-        transition: opacity 0.15s, box-shadow 0.15s;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-    }
-    .sbn-btn-analysis:hover { opacity: 0.9; box-shadow: 0 2px 6px rgba(0,0,0,0.18); }
-    .sbn-btn-analysis.is-active {
-        background: var(--clr-text);
-        box-shadow: none;
-    }
+
     /* Analysis panel — inline reuse */
     .sbn-analysis-inline { border-top: 1px solid var(--clr-border); padding-top: 16px; margin-top: 10px; }
     .sbn-analysis-panel { padding: 0; }
@@ -114,13 +101,7 @@
     .sbn-alt-variant-num { width: 100%; }
     .sbn-alt-variant-actions { margin-top: 8px; display: flex; justify-content: flex-end; }
     .sbn-section-subtitle { font-size: 14px; font-weight: 700; color: var(--clr-text); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
-    .sbn-btn-remove-alt {
-        color: var(--clr-text-muted);
-        background: none; border: none; cursor: pointer;
-        font-size: 11px; font-weight: 600;
-    }
-    .sbn-btn-remove-alt:hover { color: var(--clr-accent); }
-    </style>
+</style>
 @endpush
 
 @section('content')

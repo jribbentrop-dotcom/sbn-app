@@ -374,6 +374,43 @@ class Leadsheet extends Model
     }
 
     /**
+     * Get all distinct style slugs present in the table (for filter pills).
+     * Maps raw rhythm values through the same prefix logic as getStyleSlugAttribute.
+     */
+    public static function getDistinctStyles(): array
+    {
+        $map = [
+            'bossa'      => 'bossa',
+            'bossa-nova' => 'bossa',
+            'samba'      => 'samba',
+            'jazz'       => 'jazz',
+            'swing'      => 'jazz',
+            'latin'      => 'latin',
+            'afro-cuban' => 'latin',
+            'blues'      => 'blues',
+            'pop'        => 'pop',
+            'ballad'     => 'pop',
+            'classical'  => 'classical',
+        ];
+
+        $rhythms = static::whereNotNull('rhythm')->where('rhythm', '!=', '')->distinct()->pluck('rhythm');
+
+        $styles = [];
+        foreach ($rhythms as $rhythm) {
+            $slug = $map[$rhythm] ?? null;
+            if (!$slug) {
+                foreach ($map as $prefix => $style) {
+                    if (str_starts_with($rhythm, $prefix)) { $slug = $style; break; }
+                }
+            }
+            if ($slug) $styles[$slug] = true;
+        }
+
+        $ordered = ['bossa', 'samba', 'jazz', 'latin', 'blues', 'pop', 'classical'];
+        return array_values(array_filter($ordered, fn($s) => isset($styles[$s])));
+    }
+
+    /**
      * Get all unique composers (for filter dropdown).
      */
     public static function getDistinctComposers(): array
