@@ -247,7 +247,7 @@ const formattedChordName = computed(() => {
 </script>
 
 <template>
-    <div class="sbn-chord-detail">
+    <div class="sbn-page-detail sbn-chord-detail">
 
         <!-- Back Link -->
         <div style="margin-bottom: 24px;">
@@ -440,12 +440,6 @@ const formattedChordName = computed(() => {
 </template>
 
 <style scoped>
-/* ── Page wrapper ── */
-.sbn-chord-detail {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 24px 20px 80px;
-}
 
 
 

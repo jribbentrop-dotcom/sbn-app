@@ -74,7 +74,7 @@ function chordShowUrl(chord: any): string {
 </script>
 
 <template>
-  <div class="sbn-song-show" :style="categoryStyle">
+  <div class="sbn-page-detail sbn-song-show" :style="categoryStyle">
 
     <!-- Back link -->
     <div style="margin-bottom: 24px;">
@@ -189,10 +189,7 @@ function chordShowUrl(chord: any): string {
 
 <style scoped>
 .sbn-song-show {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 30px 20px 80px;
-  --category-color: var(--clr-style-default);
+--category-color: var(--clr-style-default);
   --category-gradient: linear-gradient(
     135deg,
     var(--category-color) 0%,
@@ -395,9 +392,7 @@ function chordShowUrl(chord: any): string {
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 768px) {
-  .sbn-song-show { padding: 20px 16px 60px; }
-
-  .sbn-ss-hero-body { grid-template-columns: 1fr; }
+.sbn-ss-hero-body { grid-template-columns: 1fr; }
 
   .sbn-ss-hero-image {
     min-height: 180px;

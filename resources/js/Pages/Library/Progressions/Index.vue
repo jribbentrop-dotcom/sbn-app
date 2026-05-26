@@ -132,7 +132,7 @@ function setExampleQuery(query: string) {
 </script>
 
 <template>
-    <div class="sbn-prog-lib" id="sbn-prog-lib">
+    <div class="sbn-page sbn-prog-lib" id="sbn-prog-lib">
         <!-- Page Header -->
         <div class="sbn-prog-lib-page-header">
             <h1 class="sbn-prog-lib-page-title">Chord Progression Library</h1>
@@ -378,13 +378,6 @@ function setExampleQuery(query: string) {
 </template>
 
 <style scoped>
-/* Legacy progression library styles - these will be supplemented by the external CSS */
-.sbn-prog-lib {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 20px 80px;
-}
-
 .sbn-prog-lib-page-header {
     text-align: center;
     margin-bottom: 40px;

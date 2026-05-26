@@ -8,11 +8,6 @@
    PAGE SHELL
    ============================================================ */
 
-.sbn-chord-library-main {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 40px 20px 80px;
-}
 
 /* ── Header ── */
 .sbn-library-header {
@@ -996,8 +991,7 @@
 }
 
 @media (max-width: 768px) {
-    .sbn-chord-library-main { padding: 24px 16px 60px; }
-    .sbn-library-title { font-size: 1.8em; }
+.sbn-library-title { font-size: 1.8em; }
     .sbn-chords-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
     .sbn-archetype-tiles { gap: 6px; }
     .sbn-archetype-tile { min-width: 76px; padding: 8px 8px 6px; }

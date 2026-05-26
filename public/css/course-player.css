@@ -8,12 +8,6 @@
    1. Archive / Overview pages (unchanged)
    -------------------------------------------------------------------------- */
 
-.sbn-course-library-main,
-.sbn-course-show-main {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 40px 20px 80px;
-}
 
 .sbn-courses-grid,
 .sbn-courses-carousel {

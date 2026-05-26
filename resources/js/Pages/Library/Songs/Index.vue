@@ -74,7 +74,7 @@ function rhythmLabel(slug: string): string {
 </script>
 
 <template>
-  <div class="sbn-song-library-main">
+  <div class="sbn-page sbn-song-library-main">
 
     <!-- ── Header ── -->
     <header class="sbn-library-header">

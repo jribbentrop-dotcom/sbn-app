@@ -1,11 +1,5 @@
 /* Legacy Progression Library Styles - Exact Copy from Original */
 
-/* Page Shell */
-.sbn-prog-lib {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 20px 80px;
-}
 
 .sbn-prog-lib-page-header {
     text-align: center;
@@ -504,10 +498,7 @@
 }
 
 @media (max-width: 600px) {
-    .sbn-prog-lib { 
-        padding: 0 12px 48px; 
-    }
-    .sbn-prog-lib-page-title { 
+.sbn-prog-lib-page-title { 
         font-size: 28px; 
     }
     .sbn-prog-row-rank { 

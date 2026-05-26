@@ -9,11 +9,6 @@
    PAGE SHELL
    ============================================================ */
 
-.sbn-song-library-main {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 40px 20px 80px;
-}
 
 /* Search examples */
 .sbn-search-examples {
@@ -230,8 +225,7 @@
 }
 
 @media (max-width: 768px) {
-    .sbn-song-library-main { padding: 24px 16px 60px; }
-    .sbn-songs-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.sbn-songs-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
     .sbn-song-show-title { font-size: 1.5em; }
     .sbn-song-show-header-body { padding: 18px 20px; }
 }

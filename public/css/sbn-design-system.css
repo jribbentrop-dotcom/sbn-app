@@ -3454,6 +3454,25 @@
 
 
 /* 13. GLOBAL COMPONENTS */
+
+/* Page containers — shared across all frontend library pages */
+/* Index / listing pages (songs, chords, rhythms, progressions, courses) */
+.sbn-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+}
+/* Detail / show pages (single item view) */
+.sbn-page-detail {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+}
+@media (max-width: 768px) {
+    .sbn-page       { padding: 24px 16px 60px; }
+    .sbn-page-detail { padding: 24px 16px 60px; }
+}
+
 /* Back Link (Unified style for all library return links) */
 .sbn-back-link {
     display: inline-block;

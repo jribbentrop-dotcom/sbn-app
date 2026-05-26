@@ -113,7 +113,7 @@ const totalSections = computed(() => grouped.value.length);
 </script>
 
 <template>
-  <div class="sbn-course-show" :style="heroStyle">
+  <div class="sbn-page-detail sbn-course-show" :style="heroStyle">
 
     <!-- ── Breadcrumb ─────────────────────────────────────────────────────── -->
     <div class="sbn-cs-crumb">
@@ -396,9 +396,6 @@ const totalSections = computed(() => grouped.value.length);
 <style scoped>
 /* ── Page wrapper ──────────────────────────────────────────────────────────── */
 .sbn-course-show {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 24px 24px 80px;
   --category-color: var(--clr-style-bossa);
   --category-gradient: linear-gradient(135deg, var(--category-color) 0%, color-mix(in srgb, var(--category-color) 60%, white) 100%);
 }
@@ -936,8 +933,7 @@ const totalSections = computed(() => grouped.value.length);
 }
 
 @media (max-width: 600px) {
-  .sbn-course-show { padding: 16px 16px 60px; }
-  .sbn-cs-lesson-row { grid-template-columns: 22px 1fr 14px; }
+.sbn-cs-lesson-row { grid-template-columns: 22px 1fr 14px; }
   .sbn-cs-lesson-subs,
   .sbn-cs-preview-pill { display: none; }
 }

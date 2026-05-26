@@ -40,7 +40,7 @@ const grouped = computed(() => {
 </script>
 
 <template>
-  <main class="sbn-course-library-main">
+  <main class="sbn-page sbn-course-library-main">
     <header class="sbn-library-header">
       <h1 class="sbn-library-title">Course Library</h1>
       <p class="sbn-library-subtitle">Structured pathways from basics to advanced performance skills.</p>

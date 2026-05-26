@@ -621,6 +621,8 @@ Components defined in `sbn-design-system.css` and available everywhere. Do not r
 
 | Class | Description |
 |---|---|
+| `.sbn-page` | Library index page shell — `max-width: 1400px`, `padding: 40px 20px 80px` |
+| `.sbn-page-detail` | Detail/show page shell — `max-width: 1100px`, `padding: 40px 20px 80px` |
 | `.sbn-btn` + variants | Buttons — all variants and sizes |
 | `.sbn-badge` + variants | Inline badges — all semantic and style variants |
 | `.sbn-card`, `.sbn-card-lg`, `.sbn-card-section` | Panel cards |

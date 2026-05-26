@@ -71,7 +71,7 @@ const filteredGrouped = computed(() => {
 </script>
 
 <template>
-  <div class="sbn-rhythm-library-main">
+  <div class="sbn-page sbn-rhythm-library-main">
     <!-- ── Header ── -->
     <header class="sbn-library-header">
       <h1 class="sbn-library-title">Rhythm Patterns</h1>
@@ -231,13 +231,6 @@ const filteredGrouped = computed(() => {
 </template>
 
 <style scoped>
-/* Page shell */
-.sbn-rhythm-library-main {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 40px 20px 80px;
-}
-
 /* Category sections */
 .sbn-category-section {
   margin-bottom: 32px;

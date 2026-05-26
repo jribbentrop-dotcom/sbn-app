@@ -433,7 +433,7 @@ function dropLabelFor(barreFamily: BarreFamily): string {
 </script>
 
 <template>
-    <div class="sbn-chord-library-main">
+    <div class="sbn-page sbn-chord-library-main">
 
         <!-- ── Header ── -->
         <header class="sbn-library-header">

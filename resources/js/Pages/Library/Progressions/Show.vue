@@ -88,7 +88,7 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 </script>
 
 <template>
-    <div class="sbn-prog-detail-page">
+    <div class="sbn-page-detail sbn-prog-detail-page">
         <div class="sbn-prog-detail-container">
             <!-- Header -->
             <header class="sbn-prog-detail-header">
@@ -214,12 +214,6 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 </template>
 
 <style scoped>
-/* Layout matching rhythm show page */
-.sbn-prog-detail-page {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 40px 20px 80px;
-}
 
 .sbn-prog-detail-container {
     max-width: 1200px;

@@ -40,7 +40,7 @@ watch(() => props.pattern.slug, () => {
 </script>
 
 <template>
-  <div class="sbn-rhythm-show">
+  <div class="sbn-page-detail sbn-rhythm-show">
     <div class="sbn-rhythm-show-container">
       <!-- Header -->
       <header class="sbn-rhythm-show-header" :style="categoryStyle">
@@ -121,11 +121,6 @@ watch(() => props.pattern.slug, () => {
 </template>
 
 <style scoped>
-.sbn-rhythm-show {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 40px 20px 80px;
-}
 
 .sbn-rhythm-show-container {
   max-width: 1200px;
