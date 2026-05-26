@@ -92,7 +92,7 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
     <div class="sbn-page-detail sbn-prog-detail-page">
         <Breadcrumb :segments="[{ label: 'Progressions', href: '/library/progressions' }, { label: progression.name }]" :color="getCategoryColor(progression.category)" />
             <!-- Header -->
-            <header class="sbn-prog-detail-header">
+            <header class="sbn-prog-detail-header sbn-detail-hero">
                 <h1 class="sbn-prog-detail-title">{{ progression.name }}</h1>
                 <p class="sbn-prog-detail-subtitle">
                     {{ categoryLabel }} chord progression
@@ -216,9 +216,8 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 
 /* Header */
 .sbn-prog-detail-header {
+    padding: 24px 28px;
     margin-bottom: 32px;
-    padding-bottom: 24px;
-    border-bottom: 3px solid var(--clr-accent);
 }
 
 .sbn-prog-detail-title {

@@ -253,7 +253,7 @@ const formattedChordName = computed(() => {
         <Breadcrumb :segments="[{ label: 'Chord Library', href: '/library/chords' }, { label: chord.name }]" />
 
         <!-- ════ IDENTITY PANEL ════ -->
-        <div class="sbn-chord-identity">
+        <div class="sbn-chord-identity sbn-detail-hero">
 
             <!-- Left: diagram + intervals + tension -->
             <div class="sbn-chord-identity-left">
@@ -448,8 +448,6 @@ const formattedChordName = computed(() => {
     gap: 48px;
     align-items: start;
     margin-bottom: 56px;
-    border: 1px solid var(--clr-border);
-    border-radius: var(--radius);
     padding: 28px;
 }
 

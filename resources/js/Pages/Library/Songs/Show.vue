@@ -80,7 +80,7 @@ function chordShowUrl(chord: any): string {
     <Breadcrumb :segments="[{ label: 'Song Library', href: '/library/songs' }, { label: song.title }]" :color="categoryColor" />
 
     <!-- ── Hero ──────────────────────────────────────────────────────────── -->
-    <header class="sbn-ss-hero">
+    <header class="sbn-ss-hero sbn-detail-hero">
 
       <div class="sbn-ss-hero-body">
         <!-- Left: text -->
@@ -197,9 +197,6 @@ function chordShowUrl(chord: any): string {
 /* ── Hero ────────────────────────────────────────────────────────────────── */
 
 .sbn-ss-hero {
-  background: var(--clr-white);
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius);
   overflow: hidden;
   margin-bottom: 32px;
 }

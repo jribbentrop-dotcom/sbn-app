@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import Breadcrumb from '@/Components/Breadcrumb.vue';
 import ProductCard from '@/Components/Shop/ProductCard.vue';
 import ProductPrice from '@/Components/Shop/ProductPrice.vue';
 import CartDrawer from '@/Components/Shop/CartDrawer.vue';
 import { useCart } from '@/composables/useCart';
-import { useCategoryColors, getStyleSlug } from '@/composables/useCategoryColors';
+import { useCategoryColors, getStyleSlug, getCategoryColor } from '@/composables/useCategoryColors';
 import type { Product } from '@/types/shop';
 
 interface Props {
@@ -52,6 +53,18 @@ const styleCategory = computed(() => {
     return slug ? props.product.categories.find(c => c.slug === slug) ?? null : null;
 });
 
+const breadcrumbColor = computed(() => {
+    const slug = getStyleSlug(props.product.categories);
+    return getCategoryColor(slug);
+});
+
+const breadcrumbSegments = computed(() => {
+    const segs: { label: string; href?: string }[] = [{ label: 'Shop', href: '/shop' }];
+    if (styleCategory.value) segs.push({ label: styleCategory.value.name, href: `/shop/category/${styleCategory.value.slug}` });
+    segs.push({ label: props.product.title });
+    return segs;
+});
+
 // ── Notation types ───────────────────────────────────────────
 const notationRaw = computed(() => attr('notation').toLowerCase());
 const hasStandard  = computed(() => notationRaw.value.includes('standard') || notationRaw.value.includes('notation'));
@@ -76,19 +89,10 @@ const hasAnyFeature = computed(() =>
 
         <div class="sbn-single-product" :style="pageStyle">
 
-            <!-- Breadcrumb -->
-            <nav class="sbn-breadcrumb">
-                <ul>
-                    <li><Link href="/shop">Shop</Link></li>
-                    <li v-if="styleCategory">
-                        <Link :href="`/shop/category/${styleCategory.slug}`">{{ styleCategory.name }}</Link>
-                    </li>
-                    <li>{{ product.title }}</li>
-                </ul>
-            </nav>
+            <Breadcrumb :segments="breadcrumbSegments" :color="breadcrumbColor" />
 
             <!-- Two-column main -->
-            <div class="sbn-product-main">
+            <div class="sbn-product-main sbn-detail-hero">
 
                 <!-- Left: sticky gallery -->
                 <div class="sbn-product-gallery">
@@ -251,11 +255,18 @@ const hasAnyFeature = computed(() =>
     );
 }
 
+/* Breadcrumb bleeds to shell edges and connects flush to content below */
+.sbn-single-product > .sbn-breadcrumb {
+    margin: -20px -20px 0;
+    border-radius: var(--radius) var(--radius) 0 0;
+}
+
 /* ── Two-column main ────────────────────────────────────────── */
 .sbn-product-main {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 50px;
+    padding: 28px;
     margin-bottom: 50px;
     align-items: start;
 }

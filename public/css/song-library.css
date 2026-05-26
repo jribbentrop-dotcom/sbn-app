@@ -67,33 +67,6 @@
     padding: 32px 20px 80px;
 }
 
-.sbn-song-breadcrumb {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.82em;
-    color: var(--clr-text-muted);
-    margin-bottom: 24px;
-}
-
-.sbn-breadcrumb-link {
-    color: var(--clr-text-muted);
-    text-decoration: none;
-    transition: color 0.15s;
-}
-
-.sbn-breadcrumb-link:hover {
-    color: var(--clr-red);
-}
-
-.sbn-breadcrumb-sep {
-    color: var(--clr-border);
-}
-
-.sbn-breadcrumb-current {
-    color: var(--clr-text-dim);
-    font-weight: 500;
-}
 
 .sbn-song-show-header {
     background: var(--clr-white);

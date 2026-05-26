@@ -43,17 +43,15 @@ watch(() => props.pattern.slug, () => {
 <template>
   <div class="sbn-page-detail sbn-rhythm-show">
     <Breadcrumb :segments="[{ label: 'Rhythm Library', href: '/library/rhythms' }, { label: pattern.name }]" :color="getCategoryColor(pattern.styleSlug)" />
+    <header class="sbn-rhythm-show-header sbn-detail-hero" :style="categoryStyle">
+      <h1 class="sbn-rhythm-show-title">{{ pattern.name }}</h1>
+      <div class="sbn-rhythm-show-meta">
+        <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(pattern.styleSlug) }">{{ pattern.category }}</span>
+        <span v-if="pattern.gridType !== 'sixteenth'" class="sbn-badge" :class="`sbn-badge-grid-${pattern.gridType}`">{{ pattern.gridType }}</span>
+        <span v-else class="sbn-badge sbn-badge-muted">{{ pattern.gridType }}</span>
+      </div>
+    </header>
     <div class="sbn-rhythm-show-container">
-      <!-- Header -->
-      <header class="sbn-rhythm-show-header" :style="categoryStyle">
-        <h1 class="sbn-rhythm-show-title">{{ pattern.name }}</h1>
-        <div class="sbn-rhythm-show-meta">
-          <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(pattern.styleSlug) }">{{ pattern.category }}</span>
-          <span v-if="pattern.gridType !== 'sixteenth'" class="sbn-badge" :class="`sbn-badge-grid-${pattern.gridType}`">{{ pattern.gridType }}</span>
-          <span v-else class="sbn-badge sbn-badge-muted">{{ pattern.gridType }}</span>
-        </div>
-      </header>
-
       <!-- Main content -->
       <div class="sbn-rhythm-show-content">
         <!-- Full pattern display -->
@@ -130,9 +128,8 @@ watch(() => props.pattern.slug, () => {
 
 /* Header */
 .sbn-rhythm-show-header {
+  padding: 24px 28px;
   margin-bottom: 32px;
-  padding-bottom: 24px;
-  border-bottom: 3px solid var(--category-color, var(--clr-red));
 }
 
 

@@ -43,8 +43,8 @@
     /* ── Accent (orange — primary brand color) ──────────── */
     --clr-accent: #f39c12;
     --clr-accent-dim: #e67e22;
-    --clr-accent-bg: rgba(243, 156, 18, 0.08);
-    --clr-accent-border: rgba(243, 156, 18, 0.25);
+    --clr-accent-bg: #eef1f5;
+    --clr-accent-border: #e2e8f0;
 
     /* ── Gradient (orange→red — primary buttons, avatar, highlights) */
     --clr-gradient: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%);
@@ -2340,7 +2340,7 @@
     border-color: var(--clr-accent);
     border-width: 2px;
     border-radius: var(--radius);
-    background: var(--clr-accent-bg, rgba(243, 156, 18, 0.06));
+    background: var(--clr-accent-bg);
 }
 
 
@@ -3494,19 +3494,13 @@
 .sbn-breadcrumb--brand {
     background: var(--clr-gradient);
 }
-/* Bordered hero/card directly after breadcrumb: remove top border and round only the bottom */
-.sbn-breadcrumb + .sbn-card,
-.sbn-breadcrumb + .sbn-chord-identity,
-.sbn-breadcrumb + .sbn-cs-hero,
-.sbn-breadcrumb + .sbn-ss-hero {
+/* Detail hero — white bordered box that connects flush beneath the breadcrumb */
+.sbn-detail-hero {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
     border-top: none;
     border-radius: 0 0 var(--radius) var(--radius);
     margin-bottom: 32px;
-}
-/* Unbounded sections after breadcrumb: just add breathing room */
-.sbn-breadcrumb + .sbn-rhythm-show-container,
-.sbn-breadcrumb + .sbn-prog-detail-header {
-    margin-top: 28px;
 }
 .sbn-breadcrumb-link,
 .sbn-breadcrumb-sep,

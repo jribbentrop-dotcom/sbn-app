@@ -119,7 +119,7 @@ const totalSections = computed(() => grouped.value.length);
     <Breadcrumb :segments="[{ label: 'Courses', href: '/courses' }, { label: course.title }]" :color="genreColor" />
 
     <!-- ── Hero ──────────────────────────────────────────────────────────── -->
-    <header class="sbn-cs-hero">
+    <header class="sbn-cs-hero sbn-detail-hero">
 
       <div class="sbn-cs-hero-body">
         <!-- Left: text content -->
@@ -397,9 +397,6 @@ const totalSections = computed(() => grouped.value.length);
 
 /* ── Hero ──────────────────────────────────────────────────────────────────── */
 .sbn-cs-hero {
-  background: var(--clr-white);
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius);
   overflow: hidden;
   margin-bottom: 28px;
 }

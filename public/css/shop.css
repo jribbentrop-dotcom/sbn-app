@@ -110,52 +110,6 @@
     gap: 20px;
 }
 
-/* ── 4. Breadcrumb ────────────────────────────────────────── */
-
-.sbn-breadcrumb {
-    background: var(--category-gradient);
-    padding: 15px 25px;
-    border-radius: var(--radius);
-    margin-bottom: 25px;
-    color: var(--clr-white);
-}
-
-.sbn-breadcrumb ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.sbn-breadcrumb li {
-    font-size: 0.9em;
-    color: rgba(255, 255, 255, 0.9);
-}
-
-.sbn-breadcrumb li a {
-    color: var(--clr-white);
-    text-decoration: none;
-    font-weight: 500;
-}
-
-.sbn-breadcrumb li a:hover { opacity: 0.8; }
-
-.sbn-breadcrumb li:last-child {
-    color: var(--clr-white);
-    font-weight: 600;
-}
-
-.sbn-breadcrumb li::after {
-    content: "›";
-    margin-left: 10px;
-    opacity: 0.7;
-}
-
-.sbn-breadcrumb li:last-child::after { display: none; }
-
 /* ── 5. Shared Shop Components ────────────────────────────── */
 
 /* Pagination */
