@@ -78,7 +78,7 @@ function chordShowUrl(chord: any): string {
 
     <!-- Back link -->
     <div style="margin-bottom: 24px;">
-      <Link href="/library/songs" class="sbn-back-link">← Back to Library</Link>
+      <Link href="/library/songs" class="sbn-btn sbn-btn-secondary sbn-btn-sm">← Back to Library</Link>
     </div>
 
     <!-- ── Hero ──────────────────────────────────────────────────────────── -->

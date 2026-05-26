@@ -207,24 +207,6 @@
     line-height: 1.55;
 }
 
-.sbn-back-link {
-    display: inline-block;
-    padding: 8px 20px;
-    border: 1px solid var(--clr-border);
-    border-radius: var(--radius-sm);
-    font-size: 0.85em;
-    font-weight: 600;
-    color: var(--clr-text-dim);
-    text-decoration: none;
-    transition: border-color 0.15s, color 0.15s, background 0.15s;
-}
-
-.sbn-back-link:hover {
-    border-color: var(--clr-text-muted);
-    color: var(--clr-text);
-    text-decoration: none;
-}
-
 /* ============================================================
    RESPONSIVE
    ============================================================ */
