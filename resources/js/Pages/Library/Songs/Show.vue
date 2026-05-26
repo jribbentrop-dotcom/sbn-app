@@ -77,11 +77,10 @@ function chordShowUrl(chord: any): string {
 <template>
   <div class="sbn-page-detail sbn-song-show" :style="categoryStyle">
 
-    <Breadcrumb :segments="[{ label: 'Song Library', href: '/library/songs' }, { label: song.title }]" />
+    <Breadcrumb :segments="[{ label: 'Song Library', href: '/library/songs' }, { label: song.title }]" :color="categoryColor" />
 
     <!-- ── Hero ──────────────────────────────────────────────────────────── -->
     <header class="sbn-ss-hero">
-      <div class="sbn-ss-hero-bar" :style="{ background: categoryColor }" />
 
       <div class="sbn-ss-hero-body">
         <!-- Left: text -->
@@ -204,8 +203,6 @@ function chordShowUrl(chord: any): string {
   overflow: hidden;
   margin-bottom: 32px;
 }
-
-.sbn-ss-hero-bar { height: 5px; }
 
 .sbn-ss-hero-body {
   display: grid;

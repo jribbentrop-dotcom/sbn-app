@@ -90,9 +90,9 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 
 <template>
     <div class="sbn-page-detail sbn-prog-detail-page">
+        <Breadcrumb :segments="[{ label: 'Progressions', href: '/library/progressions' }, { label: progression.name }]" :color="getCategoryColor(progression.category)" />
             <!-- Header -->
             <header class="sbn-prog-detail-header">
-                <Breadcrumb :segments="[{ label: 'Progressions', href: '/library/progressions' }, { label: progression.name }]" />
                 <h1 class="sbn-prog-detail-title">{{ progression.name }}</h1>
                 <p class="sbn-prog-detail-subtitle">
                     {{ categoryLabel }} chord progression
@@ -270,16 +270,16 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 .sbn-prog-detail-section-title {
     font-size: 20px;
     font-weight: 700;
-    color: #1a202c;
+    color: var(--clr-text);
     margin: 0 0 16px;
-    border-bottom: 2px solid #e2e8f0;
+    border-bottom: 2px solid var(--clr-border);
     padding-bottom: 8px;
 }
 
 .sbn-prog-detail-section-count {
     font-size: 14px;
     font-weight: 400;
-    color: #718096;
+    color: var(--clr-text-muted);
     margin-left: 8px;
 }
 
@@ -293,7 +293,7 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 .sbn-prog-detail-description {
     font-size: 16px;
     line-height: 1.7;
-    color: #4a5568;
+    color: var(--clr-text-muted);
     margin-bottom: 32px;
 }
 
@@ -306,9 +306,9 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 
 /* Sidebar */
 .sbn-sidebar-section {
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
     padding: 20px;
     margin-bottom: 20px;
 }
@@ -316,7 +316,7 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 .sbn-sidebar-section h3 {
     font-size: 16px;
     font-weight: 600;
-    color: #1a202c;
+    color: var(--clr-text);
     margin: 0 0 16px;
 }
 
@@ -328,14 +328,14 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 }
 
 .sbn-prog-detail-section .sbn-prog-related-item {
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm);
     padding: 16px;
     transition: border-color 0.12s;
 }
 
 .sbn-prog-detail-section .sbn-prog-related-item:hover {
-    border-color: #e85d3b;
+    border-color: var(--clr-accent);
 }
 
 .sbn-prog-detail-section .sbn-prog-related-link {
@@ -349,43 +349,8 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 .sbn-prog-detail-section .sbn-prog-related-name {
     font-size: 16px;
     font-weight: 600;
-    color: #1a202c;
+    color: var(--clr-text);
 }
-
-
-/* Related Progressions (sidebar - not used anymore but keeping for reference) */
-.sbn-prog-detail-sidebar .sbn-prog-related-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.sbn-prog-detail-sidebar .sbn-prog-related-item {
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 12px;
-    transition: border-color 0.12s;
-}
-
-.sbn-prog-detail-sidebar .sbn-prog-related-item:hover {
-    border-color: #e85d3b;
-}
-
-.sbn-prog-detail-sidebar .sbn-prog-related-link {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    text-decoration: none;
-    color: inherit;
-}
-
-.sbn-prog-detail-sidebar .sbn-prog-related-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: #1a202c;
-}
-
-
 
 .sbn-chord-symbol {
     font-family: 'Georgia', 'Times New Roman', serif;
@@ -397,21 +362,17 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
         flex-direction: column;
         gap: 30px;
     }
-    
+
     .sbn-prog-detail-sidebar {
         width: 100%;
     }
 }
 
 @media (max-width: 768px) {
-    .sbn-prog-detail-page {
-        padding: 0 16px 60px;
-    }
-    
     .sbn-prog-detail-title {
         font-size: 28px;
     }
-    
+
     .sbn-prog-detail-subtitle {
         font-size: 16px;
     }

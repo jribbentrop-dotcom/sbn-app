@@ -116,12 +116,10 @@ const totalSections = computed(() => grouped.value.length);
 <template>
   <div class="sbn-page-detail sbn-course-show" :style="heroStyle">
 
-    <Breadcrumb :segments="[{ label: 'Courses', href: '/courses' }, { label: course.title }]" />
+    <Breadcrumb :segments="[{ label: 'Courses', href: '/courses' }, { label: course.title }]" :color="genreColor" />
 
     <!-- ── Hero ──────────────────────────────────────────────────────────── -->
     <header class="sbn-cs-hero">
-      <!-- Colour accent bar -->
-      <div class="sbn-cs-hero-bar" />
 
       <div class="sbn-cs-hero-body">
         <!-- Left: text content -->
@@ -404,11 +402,6 @@ const totalSections = computed(() => grouped.value.length);
   border-radius: var(--radius);
   overflow: hidden;
   margin-bottom: 28px;
-}
-
-.sbn-cs-hero-bar {
-  height: 5px;
-  background: var(--category-gradient);
 }
 
 .sbn-cs-hero-body {

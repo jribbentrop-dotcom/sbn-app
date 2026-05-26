@@ -3473,30 +3473,57 @@
     .sbn-page-detail { padding: 24px 16px 60px; }
 }
 
-/* Breadcrumb */
+/* Breadcrumb — gradient header band */
 .sbn-breadcrumb {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     font-size: 13px;
-    margin-bottom: 20px;
+    font-weight: 500;
+    padding: 10px 20px;
+    border-radius: var(--radius) var(--radius) 0 0;
+    margin-bottom: 0;
 }
-.sbn-breadcrumb-link {
-    color: var(--clr-text-muted);
+/* Category variant — uses --breadcrumb-clr set via inline style */
+.sbn-breadcrumb--cat {
+    background: linear-gradient(100deg,
+        var(--breadcrumb-clr),
+        color-mix(in srgb, var(--breadcrumb-clr) 60%, white));
+}
+/* Brand variant — orange→red gradient, no category */
+.sbn-breadcrumb--brand {
+    background: var(--clr-gradient);
+}
+/* Bordered hero/card directly after breadcrumb: remove top border and round only the bottom */
+.sbn-breadcrumb + .sbn-card,
+.sbn-breadcrumb + .sbn-chord-identity,
+.sbn-breadcrumb + .sbn-cs-hero,
+.sbn-breadcrumb + .sbn-ss-hero {
+    border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    margin-bottom: 32px;
+}
+/* Unbounded sections after breadcrumb: just add breathing room */
+.sbn-breadcrumb + .sbn-rhythm-show-container,
+.sbn-breadcrumb + .sbn-prog-detail-header {
+    margin-top: 28px;
+}
+.sbn-breadcrumb-link,
+.sbn-breadcrumb-sep,
+.sbn-breadcrumb-current {
+    color: rgba(255, 255, 255, 0.85);
     text-decoration: none;
-    transition: color 0.15s;
 }
 .sbn-breadcrumb-link:hover {
-    color: var(--clr-text);
-}
-.sbn-breadcrumb-sep {
-    color: var(--clr-text-muted);
-    opacity: 0.4;
-    user-select: none;
+    color: #fff;
 }
 .sbn-breadcrumb-current {
-    color: var(--clr-text);
-    font-weight: 500;
+    color: #fff;
+    font-weight: 600;
+}
+.sbn-breadcrumb-sep {
+    opacity: 0.55;
+    user-select: none;
 }
 
 /* Back Link (Unified style for all library return links) */

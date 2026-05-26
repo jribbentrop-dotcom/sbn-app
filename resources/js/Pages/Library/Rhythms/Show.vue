@@ -42,10 +42,10 @@ watch(() => props.pattern.slug, () => {
 
 <template>
   <div class="sbn-page-detail sbn-rhythm-show">
+    <Breadcrumb :segments="[{ label: 'Rhythm Library', href: '/library/rhythms' }, { label: pattern.name }]" :color="getCategoryColor(pattern.styleSlug)" />
     <div class="sbn-rhythm-show-container">
       <!-- Header -->
       <header class="sbn-rhythm-show-header" :style="categoryStyle">
-        <Breadcrumb :segments="[{ label: 'Rhythm Library', href: '/library/rhythms' }, { label: pattern.name }]" />
         <h1 class="sbn-rhythm-show-title">{{ pattern.name }}</h1>
         <div class="sbn-rhythm-show-meta">
           <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(pattern.styleSlug) }">{{ pattern.category }}</span>
