@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { Link } from '@inertiajs/vue3';
-import BackNav from '@/Components/BackNav.vue';
+import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
@@ -116,7 +116,7 @@ const totalSections = computed(() => grouped.value.length);
 <template>
   <div class="sbn-page-detail sbn-course-show" :style="heroStyle">
 
-    <BackNav library-href="/courses" library-label="All Courses" />
+    <Breadcrumb :segments="[{ label: 'Courses', href: '/courses' }, { label: course.title }]" />
 
     <!-- ── Hero ──────────────────────────────────────────────────────────── -->
     <header class="sbn-cs-hero">

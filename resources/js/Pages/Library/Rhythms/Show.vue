@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { Link } from '@inertiajs/vue3';
-import BackNav from '@/Components/BackNav.vue';
+import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmPattern from '@/Components/Library/RhythmPattern.vue';
 import RhythmCard from '@/Components/Library/RhythmCard.vue';
@@ -45,7 +45,7 @@ watch(() => props.pattern.slug, () => {
     <div class="sbn-rhythm-show-container">
       <!-- Header -->
       <header class="sbn-rhythm-show-header" :style="categoryStyle">
-        <BackNav library-href="/library/rhythms" library-label="Rhythm Library" />
+        <Breadcrumb :segments="[{ label: 'Rhythm Library', href: '/library/rhythms' }, { label: pattern.name }]" />
         <h1 class="sbn-rhythm-show-title">{{ pattern.name }}</h1>
         <div class="sbn-rhythm-show-meta">
           <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(pattern.styleSlug) }">{{ pattern.category }}</span>
