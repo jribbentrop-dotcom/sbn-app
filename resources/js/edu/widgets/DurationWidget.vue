@@ -117,10 +117,10 @@ const arcControl = BAR_Y - 26;
 
       <!-- Dot tab -->
       <svg v-if="tab === 'dot'" width="100%" :viewBox="`0 0 ${BAR_MAX_W + 20} ${SVG_H}`" style="display:block">
-        <rect :x="barX" :y="BAR_Y" :width="baseW" :height="BAR_H" rx="4" fill="#1e1e28"
+        <rect :x="barX" :y="BAR_Y" :width="baseW" :height="BAR_H" rx="4" fill="rgba(255,255,255,0.75)"
           style="transition: width 0.4s cubic-bezier(0.34,1.2,0.64,1)" />
         <text :x="barX + baseW / 2" :y="BAR_Y - 8" text-anchor="middle"
-          font-family="'DM Mono', monospace" font-size="8" fill="rgba(30,30,40,0.4)"
+          font-family="'DM Mono', monospace" font-size="8" fill="rgba(255,255,255,0.55)"
         >{{ dotEx.base }}</text>
 
         <template v-if="showDot">
@@ -133,9 +133,9 @@ const arcControl = BAR_Y - 26;
             style="animation: durFadeIn 0.3s ease forwards"
           >= {{ totalLabel(dotEx.totalFraction) }} note</text>
           <!-- Bracket -->
-          <line :x1="barX"             :y1="BAR_Y - 2"  :x2="barX"             :y2="BAR_Y - 16" stroke="rgba(30,30,40,0.15)" stroke-width="1" />
-          <line :x1="barX + totalW + 3" :y1="BAR_Y - 2" :x2="barX + totalW + 3" :y2="BAR_Y - 16" stroke="rgba(30,30,40,0.15)" stroke-width="1" />
-          <line :x1="barX"             :y1="BAR_Y - 16" :x2="barX + totalW + 3" :y2="BAR_Y - 16" stroke="rgba(30,30,40,0.15)" stroke-width="1" />
+          <line :x1="barX"             :y1="BAR_Y - 2"  :x2="barX"             :y2="BAR_Y - 16" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
+          <line :x1="barX + totalW + 3" :y1="BAR_Y - 2" :x2="barX + totalW + 3" :y2="BAR_Y - 16" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
+          <line :x1="barX"             :y1="BAR_Y - 16" :x2="barX + totalW + 3" :y2="BAR_Y - 16" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
         </template>
       </svg>
 
@@ -143,21 +143,21 @@ const arcControl = BAR_Y - 26;
       <svg v-else width="100%" :viewBox="`0 0 ${BAR_MAX_W + 20} ${SVG_H}`" style="display:block">
         <template v-if="showBarline">
           <line :x1="barlineX" :y1="BAR_Y - 8" :x2="barlineX" :y2="BAR_Y + BAR_H + 8"
-            stroke="rgba(30,30,40,0.2)" stroke-width="1.5" />
+            stroke="rgba(255,255,255,0.18)" stroke-width="1.5" />
           <text :x="barlineX - 4" :y="BAR_Y - 12" text-anchor="end"
-            font-family="'DM Mono', monospace" font-size="7" fill="rgba(30,30,40,0.2)">bar 1</text>
+            font-family="'DM Mono', monospace" font-size="7" fill="rgba(255,255,255,0.2)">bar 1</text>
           <text :x="barlineX + 4" :y="BAR_Y - 12" text-anchor="start"
-            font-family="'DM Mono', monospace" font-size="7" fill="rgba(30,30,40,0.2)">bar 2</text>
+            font-family="'DM Mono', monospace" font-size="7" fill="rgba(255,255,255,0.2)">bar 2</text>
         </template>
 
-        <rect :x="xA" :y="BAR_Y" :width="wA" :height="BAR_H" rx="4" fill="#1e1e28" />
+        <rect :x="xA" :y="BAR_Y" :width="wA" :height="BAR_H" rx="4" fill="rgba(255,255,255,0.75)" />
         <text :x="xA + wA / 2" :y="BAR_Y + BAR_H + 14" text-anchor="middle"
-          font-family="'DM Mono', monospace" font-size="8" fill="rgba(30,30,40,0.35)"
+          font-family="'DM Mono', monospace" font-size="8" fill="rgba(255,255,255,0.85)"
         >{{ tieEx.noteA.name }}</text>
 
-        <rect :x="xB" :y="BAR_Y" :width="wB" :height="BAR_H" rx="4" fill="rgba(30,30,40,0.25)" />
+        <rect :x="xB" :y="BAR_Y" :width="wB" :height="BAR_H" rx="4" fill="rgba(255,255,255,0.2)" />
         <text :x="xB + wB / 2" :y="BAR_Y + BAR_H + 14" text-anchor="middle"
-          font-family="'DM Mono', monospace" font-size="8" fill="rgba(30,30,40,0.25)"
+          font-family="'DM Mono', monospace" font-size="8" fill="rgba(255,255,255,0.5)"
         >{{ tieEx.noteB.name }}</text>
 
         <path
@@ -198,7 +198,7 @@ const arcControl = BAR_Y - 26;
 <style scoped>
 .dur-card {
   width: 100%;
-  background: #ffffff;
+  background: #0f0f17;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -210,22 +210,22 @@ const arcControl = BAR_Y - 26;
 
 .dur-header { width: 100%; display: flex; align-items: center; justify-content: space-between; }
 .dur-title {
-  font-family: 'DM Mono', monospace; font-size: 0.6rem;
-  letter-spacing: 0.15em; text-transform: uppercase; color: rgba(30,30,40,0.35);
+  font-family: 'DM Mono', monospace; font-size: 0.7rem;
+  letter-spacing: 0.15em; text-transform: uppercase; color: rgba(255,255,255,0.65);
 }
 
-.dur-tabs { display: flex; background: rgba(0,0,0,0.05); border-radius: 999px; padding: 2px; gap: 2px; }
+.dur-tabs { display: flex; background: rgba(255,255,255,0.08); border-radius: 999px; padding: 3px; gap: 2px; border: 1px solid rgba(255,255,255,0.12); }
 .dur-tab {
-  font-family: 'DM Mono', monospace; font-size: 0.58rem; letter-spacing: 0.08em;
-  padding: 0.22rem 0.65rem; border-radius: 999px; border: none;
-  background: transparent; color: rgba(30,30,40,0.4); cursor: pointer; transition: all 0.25s ease;
+  font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.08em;
+  padding: 0.32rem 0.85rem; border-radius: 999px; border: none;
+  background: transparent; color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.25s ease;
 }
-.dur-tab.active { background: #ffffff; color: rgba(30,30,40,0.8); box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+.dur-tab.active { background: rgba(255,255,255,0.92); color: #0f0f17; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
 
 .dur-visual {
   width: 100%;
-  background: rgba(0,0,0,0.015);
-  border: 1px solid rgba(0,0,0,0.05);
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
   border-radius: 0.75rem;
   overflow: hidden;
   transition: opacity 0.2s ease;
@@ -233,36 +233,36 @@ const arcControl = BAR_Y - 26;
 
 .dur-dot-toggle { width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.6rem; }
 .dur-dot-btn {
-  font-family: 'DM Mono', monospace; font-size: 0.58rem; letter-spacing: 0.08em;
-  padding: 0.25rem 0.85rem; border-radius: 999px;
-  border: 1px solid rgba(0,0,0,0.12); background: transparent;
-  color: rgba(30,30,40,0.4); cursor: pointer; transition: all 0.2s ease;
+  font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.08em;
+  padding: 0.32rem 1rem; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s ease;
 }
-.dur-dot-btn.on { background: #f59e0b; border-color: #f59e0b; color: #ffffff; }
+.dur-dot-btn.on { background: #f59e0b; border-color: transparent; color: #0f0f17; }
 
 .dur-explanation {
   font-family: system-ui, sans-serif;
   font-size: 0.82rem; line-height: 1.65;
-  color: rgba(30,30,40,0.5); text-align: center; padding: 0 0.25rem; min-height: 3.5rem;
+  color: rgba(255,255,255,0.85); text-align: center; padding: 0 0.25rem; min-height: 3.5rem;
 }
 
 .dur-nav { display: flex; align-items: center; gap: 1.25rem; }
 .dur-arrow {
-  background: none; border: 1px solid rgba(0,0,0,0.12); color: rgba(30,30,40,0.35);
-  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.65);
+  width: 34px; height: 34px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; font-size: 0.85rem; transition: all 0.2s ease;
 }
-.dur-arrow:hover:not(:disabled) { border-color: rgba(0,0,0,0.25); color: rgba(30,30,40,0.7); }
+.dur-arrow:hover:not(:disabled) { border-color: rgba(255,255,255,0.22); color: rgba(255,255,255,0.85); }
 .dur-arrow:disabled { opacity: 0.2; cursor: default; }
 
 .dur-stepdots { display: flex; gap: 5px; align-items: center; }
-.dur-stepdot { width: 5px; height: 5px; border-radius: 50%; background: rgba(0,0,0,0.12); transition: all 0.3s ease; }
+.dur-stepdot { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.12); transition: all 0.3s ease; }
 .dur-stepdot.active { width: 14px; border-radius: 3px; background: #f59e0b; }
 
 .dur-context-label {
-  font-family: 'DM Mono', monospace; font-size: 0.55rem; letter-spacing: 0.12em;
-  text-transform: uppercase; color: rgba(30,30,40,0.25); align-self: flex-start; padding-left: 0.25rem;
+  font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.12em;
+  text-transform: uppercase; color: rgba(255,255,255,0.5); align-self: flex-start; padding-left: 0.25rem;
 }
 
 @keyframes durBarGrow { from { width: 0; opacity: 0; } to { opacity: 1; } }

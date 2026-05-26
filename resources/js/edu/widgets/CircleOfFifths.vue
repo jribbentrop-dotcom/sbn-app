@@ -19,8 +19,8 @@ const selectedIndex = ref<number | null>(
 const CX = 200;
 const CY = 200;
 const OUTER_R = 180;   // outer edge of a segment
-const MAJOR_R = 130;   // radius where major key label sits
-const MINOR_R = 90;    // radius where relative minor label sits
+const MAJOR_R = 152;   // radius where major key label sits
+const MINOR_R = 118;   // radius where relative minor label sits
 const INNER_R = 60;    // inner edge of a segment (creates the donut hole)
 
 function toRad(deg: number) { return (deg * Math.PI) / 180; }
@@ -142,7 +142,6 @@ const infoText = computed(() => {
         :class="['cof-label-major', selectedIndex === seg.index ? 'cof-label--selected' : '']"
         text-anchor="middle"
         dominant-baseline="middle"
-        @click="selectKey(seg.index)"
       >{{ seg.key }}</text>
 
       <!-- Relative minor labels (inner ring) -->
@@ -154,7 +153,6 @@ const infoText = computed(() => {
         :class="['cof-label-minor', selectedIndex === seg.index ? 'cof-label--selected' : '']"
         text-anchor="middle"
         dominant-baseline="middle"
-        @click="selectKey(seg.index)"
       >{{ seg.relMinor }}</text>
 
       <!-- Centre circle -->
@@ -177,86 +175,83 @@ const infoText = computed(() => {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 12px;
-  background: var(--clr-surface-2, #f7fafc);
-  border: 1px solid var(--clr-border, #e2e8f0);
+  padding: 4px;
+  background: #0f0f17;
   border-radius: var(--radius, 10px);
   font-family: var(--font-body, system-ui, sans-serif);
   user-select: none;
 }
 
 .cof-svg {
-  max-width: 360px;
+  max-width: 420px;
   cursor: pointer;
   display: block;
 }
 
 /* Base segment */
 .cof-seg {
-  fill: var(--clr-surface, #fff);
-  stroke: var(--clr-surface-2, #f7fafc);
-  stroke-width: 0;
-  transition: fill 0.15s var(--ease, ease);
+  fill: rgba(255,255,255,0.05);
+  stroke: #0f0f17;
+  stroke-width: 2;
+  transition: fill 0.15s ease;
 }
 
 .cof-seg:hover {
-  fill: var(--clr-accent-bg, rgba(243, 156, 18, 0.08));
+  fill: rgba(255,255,255,0.12);
 }
 
 .cof-seg:focus {
   outline: none;
-  fill: var(--clr-accent-bg, rgba(243, 156, 18, 0.08));
+  fill: rgba(255,255,255,0.12);
 }
 
-/* Selected key */
-.cof-seg--selected {
-  fill: var(--clr-accent, #f39c12);
-}
-
-.cof-seg--selected:hover {
-  fill: var(--clr-accent-dim, #e67e22);
+/* Selected key — higher specificity beats :hover */
+.cof-seg.cof-seg--selected,
+.cof-seg.cof-seg--selected:hover,
+.cof-seg.cof-seg--selected:focus {
+  fill: rgba(255,255,255,0.88) !important;
 }
 
 /* Divider lines */
 .cof-dividers line {
-  stroke: var(--clr-border, #e2e8f0);
+  stroke: rgba(255,255,255,0.08);
   stroke-width: 1;
 }
 
 /* Major key text */
 .cof-label-major {
-  font-size: 13px;
+  font-size: 20px;
   font-weight: 700;
-  fill: var(--clr-text, #2c3e50);
+  fill: rgba(255,255,255,0.9);
   cursor: pointer;
   pointer-events: none;
 }
 
 /* Minor key text */
 .cof-label-minor {
-  font-size: 10px;
-  font-weight: 400;
-  fill: var(--clr-text-muted, #8896a4);
+  font-size: 13px;
+  font-weight: 500;
+  fill: rgba(255,255,255,0.65);
   cursor: pointer;
   pointer-events: none;
 }
 
 /* Labels on selected segment */
 .cof-label--selected {
-  fill: var(--clr-surface, #fff);
+  fill: #0f0f17;
 }
 
 /* Centre circle */
 .cof-center {
-  fill: var(--clr-surface-2, #f7fafc);
-  stroke: var(--clr-border, #e2e8f0);
+  fill: #0f0f17;
+  stroke: rgba(255,255,255,0.1);
   stroke-width: 1;
 }
 
 .cof-center-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  fill: var(--clr-text-muted, #8896a4);
+  fill: rgba(255,255,255,0.65);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   pointer-events: none;
@@ -267,9 +262,9 @@ const infoText = computed(() => {
   min-height: 20px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--clr-text, #2c3e50);
+  color: rgba(255,255,255,0.85);
   opacity: 0;
-  transition: opacity 0.2s var(--ease, ease);
+  transition: opacity 0.2s ease;
 }
 
 .cof-info--visible {

@@ -137,7 +137,7 @@ function onTouchEnd(e: TouchEvent) {
 .cfi-card {
   width: 100%;
   min-height: 520px;
-  background: #ffffff;
+  background: #0f0f17;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -171,37 +171,38 @@ function onTouchEnd(e: TouchEvent) {
 
 .cfi-key-label {
   font-family: 'DM Mono', monospace;
-  font-size: 0.6rem;
+  font-size: 0.7rem;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: rgba(30,30,40,0.35);
+  color: rgba(255,255,255,0.65);
 }
 
 .cfi-mode-toggle {
   display: flex;
-  background: rgba(0,0,0,0.05);
+  background: rgba(255,255,255,0.08);
   border-radius: 999px;
-  padding: 2px;
+  padding: 3px;
   gap: 2px;
+  border: 1px solid rgba(255,255,255,0.12);
 }
 
 .cfi-mode-btn {
   font-family: 'DM Mono', monospace;
-  font-size: 0.55rem;
+  font-size: 0.65rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  padding: 0.25rem 0.6rem;
+  padding: 0.32rem 0.75rem;
   border-radius: 999px;
   border: none;
   cursor: pointer;
   transition: all 0.25s ease;
   background: transparent;
-  color: rgba(30,30,40,0.4);
+  color: rgba(255,255,255,0.6);
 }
 .cfi-mode-btn.active {
-  background: #ffffff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-  color: rgba(30,30,40,0.8);
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  color: #0f0f17;
 }
 
 .cfi-numeral-wrap {
@@ -228,7 +229,7 @@ function onTouchEnd(e: TouchEvent) {
   font-family: 'DM Mono', monospace;
   font-size: 1rem;
   font-weight: 300;
-  color: rgba(30,30,40,0.4);
+  color: rgba(255,255,255,0.55);
   letter-spacing: 0.05em;
   margin-bottom: 1.25rem;
 }
@@ -236,7 +237,7 @@ function onTouchEnd(e: TouchEvent) {
 .cfi-pill {
   display: inline-block;
   font-family: 'DM Mono', monospace;
-  font-size: 0.6rem;
+  font-size: 0.7rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   padding: 0.3rem 0.85rem;
@@ -250,7 +251,7 @@ function onTouchEnd(e: TouchEvent) {
   font-family: system-ui, sans-serif;
   font-size: 0.82rem;
   line-height: 1.65;
-  color: rgba(30,30,40,0.55);
+  color: rgba(255,255,255,0.85);
   text-align: center;
   padding: 0 0.25rem;
 }
@@ -264,10 +265,10 @@ function onTouchEnd(e: TouchEvent) {
 }
 
 .cfi-arrow {
-  background: none;
-  border: 1px solid rgba(0,0,0,0.12);
-  color: rgba(30,30,40,0.35);
-  width: 36px; height: 36px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.65);
+  width: 38px; height: 38px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -276,13 +277,13 @@ function onTouchEnd(e: TouchEvent) {
   font-size: 0.9rem;
   transition: all 0.2s ease;
 }
-.cfi-arrow:hover { border-color: rgba(0,0,0,0.25); color: rgba(30,30,40,0.7); }
+.cfi-arrow:hover { border-color: rgba(255,255,255,0.22); color: rgba(255,255,255,0.85); }
 
 .cfi-dots { display: flex; gap: 5px; align-items: center; }
 .cfi-dot {
   width: 5px; height: 5px;
   border-radius: 50%;
-  background: rgba(0,0,0,0.12);
+  background: rgba(255,255,255,0.12);
   transition: all 0.3s ease;
 }
 .cfi-dot.active { width: 14px; border-radius: 3px; }

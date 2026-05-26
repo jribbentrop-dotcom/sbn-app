@@ -47,10 +47,10 @@ const ROLE_COLOR: Record<string, string> = {
   root:    '#f59e0b',
   third:   '#3b82f6',
   fifth:   '#10b981',
-  second:  '#1e1e28',
-  fourth:  '#1e1e28',
-  sixth:   '#1e1e28',
-  seventh: '#1e1e28',
+  second:  'rgba(255,255,255,0.6)',
+  fourth:  'rgba(255,255,255,0.6)',
+  sixth:   'rgba(255,255,255,0.6)',
+  seventh: 'rgba(255,255,255,0.6)',
 };
 
 const DOT_R   = 12;
@@ -76,8 +76,8 @@ function switchQuality(q: 'major' | 'minor') {
 }
 
 function dotFill(note: ScaleDegree) {
-  if (showPenta.value && !note.pentatonic) return 'rgba(0,0,0,0.06)';
-  return ROLE_COLOR[note.role] || '#1e1e28';
+  if (showPenta.value && !note.pentatonic) return 'rgba(255,255,255,0.08)';
+  return ROLE_COLOR[note.role] || 'rgba(255,255,255,0.6)';
 }
 function dotRadius(note: ScaleDegree) {
   return showPenta.value && !note.pentatonic ? DOT_R * 0.5 : DOT_R;
@@ -93,8 +93,8 @@ const LEGEND_ITEMS = [
   { color: '#f59e0b', label: 'Root' },
   { color: '#3b82f6', label: '3rd' },
   { color: '#10b981', label: '5th' },
-  { color: '#1e1e28', label: 'Other' },
-  { color: 'rgba(0,0,0,0.06)', label: 'Removed', dashed: true },
+  { color: 'rgba(255,255,255,0.6)', label: 'Other' },
+  { color: 'rgba(255,255,255,0.08)', label: 'Removed', dashed: true },
 ];
 </script>
 
@@ -121,7 +121,7 @@ const LEGEND_ITEMS = [
       <!-- Dot stack -->
       <svg :width="SVG_W" :height="svgH" :viewBox="`0 0 ${SVG_W} ${svgH}`" style="flex-shrink:0; overflow:visible">
         <line :x1="DOT_X" :y1="DOT_R" :x2="DOT_X" :y2="svgH - DOT_R"
-          stroke="rgba(0,0,0,0.06)" stroke-width="1.5"
+          stroke="rgba(255,255,255,0.08)" stroke-width="1.5"
         />
 
         <g
@@ -132,7 +132,7 @@ const LEGEND_ITEMS = [
           <!-- Ghost ring on dropped notes -->
           <circle v-if="isDropped(note)"
             :cx="DOT_X" :cy="dotY(i, total)" :r="DOT_R"
-            fill="none" stroke="rgba(0,0,0,0.12)" stroke-width="1" stroke-dasharray="3 3"
+            fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1" stroke-dasharray="3 3"
           />
 
           <!-- Main dot -->
@@ -145,7 +145,7 @@ const LEGEND_ITEMS = [
           <!-- Inner highlight -->
           <circle v-if="!isDropped(note)"
             :cx="DOT_X" :cy="dotY(i, total)" :r="DOT_R * 0.35"
-            fill="rgba(255,255,255,0.6)" style="pointer-events:none"
+            fill="rgba(255,255,255,0.85)" style="pointer-events:none"
           />
 
           <!-- Degree label -->
@@ -153,7 +153,7 @@ const LEGEND_ITEMS = [
             :x="DOT_X - DOT_R - 6" :y="dotY(i, total) + 4"
             text-anchor="end" font-family="'DM Mono', monospace"
             :font-size="isDropped(note) ? '7' : '8'"
-            :fill="isDropped(note) ? 'rgba(0,0,0,0.2)' : ROLE_COLOR[note.role] || '#1e1e28'"
+            :fill="isDropped(note) ? 'rgba(255,255,255,0.2)' : ROLE_COLOR[note.role] || 'rgba(255,255,255,0.6)'"
             style="transition: fill 0.35s ease"
           >{{ note.degree }}</text>
 
@@ -161,7 +161,7 @@ const LEGEND_ITEMS = [
           <line v-if="isDropped(note)"
             :x1="DOT_X - DOT_R - 14" :y1="dotY(i, total)"
             :x2="DOT_X - 2"          :y2="dotY(i, total)"
-            stroke="rgba(0,0,0,0.15)" stroke-width="0.75"
+            stroke="rgba(255,255,255,0.18)" stroke-width="0.75"
           />
         </g>
       </svg>
@@ -179,7 +179,7 @@ const LEGEND_ITEMS = [
       <div v-for="item in LEGEND_ITEMS" :key="item.label" class="pt-legend-item">
         <div class="pt-legend-dot" :style="{
           background: item.color,
-          border: (item as any).dashed ? '1px dashed rgba(0,0,0,0.2)' : 'none',
+          border: (item as any).dashed ? '1px dashed rgba(255,255,255,0.2)' : 'none',
         }" />
         <span class="pt-legend-text">{{ item.label }}</span>
       </div>
@@ -201,7 +201,7 @@ const LEGEND_ITEMS = [
 <style scoped>
 .pt-card {
   width: 100%;
-  background: #ffffff;
+  background: #0f0f17;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -213,64 +213,64 @@ const LEGEND_ITEMS = [
 
 .pt-header { width: 100%; display: flex; align-items: center; justify-content: space-between; }
 .pt-title {
-  font-family: 'DM Mono', monospace; font-size: 0.6rem;
-  letter-spacing: 0.15em; text-transform: uppercase; color: rgba(30,30,40,0.35);
+  font-family: 'DM Mono', monospace; font-size: 0.7rem;
+  letter-spacing: 0.15em; text-transform: uppercase; color: rgba(255,255,255,0.65);
 }
 .pt-quality-pills { display: flex; gap: 3px; }
 .pt-pill {
-  font-family: 'DM Mono', monospace; font-size: 0.58rem; letter-spacing: 0.08em;
-  padding: 0.22rem 0.55rem; border-radius: 999px;
-  border: 1px solid rgba(0,0,0,0.1); background: transparent;
-  color: rgba(30,30,40,0.4); cursor: pointer; transition: all 0.2s ease;
+  font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.08em;
+  padding: 0.32rem 0.65rem; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s ease;
 }
-.pt-pill:hover { border-color: rgba(0,0,0,0.2); color: rgba(30,30,40,0.7); }
-.pt-pill.active { background: #1e1e28; color: #ffffff; border-color: #1e1e28; }
+.pt-pill:hover { border-color: rgba(255,255,255,0.35); color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.12); }
+.pt-pill.active { background: rgba(255,255,255,0.92); color: #0f0f17; border-color: transparent; }
 
 .pt-body { display: flex; align-items: center; gap: 1.5rem; width: 100%; }
 .pt-info { flex: 1; display: flex; flex-direction: column; gap: 0.6rem; }
 
 .pt-scale-label {
   font-family: 'Cormorant Garamond', serif; font-size: 1.4rem; font-weight: 300;
-  line-height: 1.1; color: #1e1e28; transition: opacity 0.3s ease; min-height: 3rem;
+  line-height: 1.1; color: rgba(255,255,255,0.85); transition: opacity 0.3s ease; min-height: 3rem;
 }
 .pt-count {
-  font-family: 'DM Mono', monospace; font-size: 0.6rem;
-  letter-spacing: 0.1em; color: rgba(30,30,40,0.3);
+  font-family: 'DM Mono', monospace; font-size: 0.7rem;
+  letter-spacing: 0.1em; color: rgba(255,255,255,0.65);
 }
 .pt-blurb {
   font-family: system-ui, sans-serif;
-  font-size: 0.82rem; line-height: 1.6; color: rgba(30,30,40,0.5);
+  font-size: 0.82rem; line-height: 1.6; color: rgba(255,255,255,0.85);
   min-height: 4.5rem; transition: opacity 0.25s ease;
 }
 
 .pt-toggle-wrap { width: 100%; display: flex; align-items: center; gap: 0.75rem; }
 .pt-toggle-label {
-  font-family: 'DM Mono', monospace; font-size: 0.58rem;
+  font-family: 'DM Mono', monospace; font-size: 0.7rem;
   letter-spacing: 0.1em; text-transform: uppercase;
-  color: rgba(30,30,40,0.35); flex: 1; transition: color 0.3s ease;
+  color: rgba(255,255,255,0.65); flex: 1; transition: color 0.3s ease;
 }
 .pt-toggle-label.active { color: #f59e0b; }
 
 .pt-toggle {
-  width: 42px; height: 24px; border-radius: 999px;
-  background: rgba(0,0,0,0.08); border: none; cursor: pointer;
+  width: 48px; height: 28px; border-radius: 999px;
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); cursor: pointer;
   position: relative; transition: background 0.3s ease; flex-shrink: 0;
 }
-.pt-toggle.on { background: #f59e0b; }
+.pt-toggle.on { background: #f59e0b; border-color: transparent; }
 .pt-toggle-knob {
   position: absolute; top: 3px; left: 3px;
-  width: 18px; height: 18px; border-radius: 50%;
-  background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.4);
   transition: transform 0.3s cubic-bezier(0.34,1.2,0.64,1);
 }
-.pt-toggle.on .pt-toggle-knob { transform: translateX(18px); }
+.pt-toggle.on .pt-toggle-knob { transform: translateX(20px); }
 
 .pt-legend { display: flex; gap: 0.75rem; align-items: center; width: 100%; }
 .pt-legend-item { display: flex; align-items: center; gap: 4px; }
 .pt-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .pt-legend-text {
-  font-family: 'DM Mono', monospace; font-size: 0.5rem;
-  letter-spacing: 0.1em; text-transform: uppercase; color: rgba(30,30,40,0.35);
+  font-family: 'DM Mono', monospace; font-size: 0.65rem;
+  letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.65);
 }
 
 @media (prefers-reduced-motion: reduce) {

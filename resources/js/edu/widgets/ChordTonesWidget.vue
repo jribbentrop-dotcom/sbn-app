@@ -198,7 +198,7 @@ function isOptionActive(opt: OptionTone) {
           style="transition: height 0.4s ease; overflow: visible"
         >
           <line :x1="DOT_X" :y1="DOT_R" :x2="DOT_X" :y2="svgH - DOT_R"
-            stroke="rgba(0,0,0,0.06)" stroke-width="1.5"
+            stroke="rgba(255,255,255,0.08)" stroke-width="1.5"
           />
           <g
             v-for="(note, i) in visibleNotes"
@@ -258,7 +258,7 @@ function isOptionActive(opt: OptionTone) {
 <style scoped>
 .ct-card {
   width: 100%;
-  background: #ffffff;
+  background: #0f0f17;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -273,18 +273,18 @@ function isOptionActive(opt: OptionTone) {
 .ct-header { width: 100%; display: flex; align-items: center; justify-content: space-between; }
 .ct-title {
   font-family: 'DM Mono', monospace;
-  font-size: 0.6rem; letter-spacing: 0.15em;
-  text-transform: uppercase; color: rgba(30,30,40,0.35);
+  font-size: 0.7rem; letter-spacing: 0.15em;
+  text-transform: uppercase; color: rgba(255,255,255,0.65);
 }
 .ct-pills { display: flex; gap: 3px; }
 .ct-pill {
-  font-family: 'DM Mono', monospace; font-size: 0.58rem; letter-spacing: 0.08em;
-  padding: 0.22rem 0.55rem; border-radius: 999px;
-  border: 1px solid rgba(0,0,0,0.1); background: transparent;
-  color: rgba(30,30,40,0.4); cursor: pointer; transition: all 0.2s ease;
+  font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.08em;
+  padding: 0.32rem 0.65rem; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s ease;
 }
-.ct-pill:hover { border-color: rgba(0,0,0,0.2); color: rgba(30,30,40,0.7); }
-.ct-pill.active { background: #1e1e28; color: #ffffff; border-color: #1e1e28; }
+.ct-pill:hover { border-color: rgba(255,255,255,0.35); color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.12); }
+.ct-pill.active { background: rgba(255,255,255,0.92); color: #0f0f17; border-color: transparent; }
 
 .ct-body { display: flex; align-items: center; gap: 1.25rem; width: 100%; }
 .ct-dot-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
@@ -293,7 +293,7 @@ function isOptionActive(opt: OptionTone) {
 .ct-symbol {
   font-family: 'Cormorant Garamond', serif;
   font-weight: 300; line-height: 1; letter-spacing: -0.02em;
-  color: #1e1e28; min-height: 3rem; transition: all 0.3s ease;
+  color: rgba(255,255,255,0.9); min-height: 3rem; transition: all 0.3s ease;
 }
 .ct-symbol.short  { font-size: 3rem; }
 .ct-symbol.medium { font-size: 2.2rem; }
@@ -302,34 +302,34 @@ function isOptionActive(opt: OptionTone) {
 .ct-character {
   font-family: system-ui, sans-serif;
   font-size: 0.82rem; line-height: 1.6;
-  color: rgba(30,30,40,0.5); min-height: 4rem; transition: opacity 0.25s ease;
+  color: rgba(255,255,255,0.85); min-height: 4rem; transition: opacity 0.25s ease;
 }
 
 .ct-options-wrap { width: 100%; min-height: 1.5rem; }
 .ct-options-label {
-  font-family: 'DM Mono', monospace; font-size: 0.55rem;
+  font-family: 'DM Mono', monospace; font-size: 0.65rem;
   letter-spacing: 0.12em; text-transform: uppercase;
-  color: rgba(30,30,40,0.25); margin-bottom: 0.4rem;
+  color: rgba(255,255,255,0.5); margin-bottom: 0.4rem;
 }
 .ct-options-pills { display: flex; gap: 4px; flex-wrap: wrap; }
 .ct-option-pill {
-  font-family: 'DM Mono', monospace; font-size: 0.58rem; letter-spacing: 0.06em;
-  padding: 0.2rem 0.55rem; border-radius: 999px;
-  border: 1px solid rgba(0,0,0,0.12); background: transparent;
-  color: rgba(30,30,40,0.45); cursor: pointer; transition: all 0.2s ease;
+  font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.06em;
+  padding: 0.32rem 0.65rem; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s ease;
 }
-.ct-option-pill:hover { border-color: rgba(0,0,0,0.25); color: rgba(30,30,40,0.7); }
-.ct-option-pill.active { background: rgba(239,68,68,0.08); border-color: #ef4444; color: #ef4444; }
+.ct-option-pill:hover { border-color: rgba(255,255,255,0.35); color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.12); }
+.ct-option-pill.active { background: rgba(239,68,68,0.85); border-color: transparent; color: #ffffff; }
 
 .ct-ext-row { display: flex; gap: 3px; width: 100%; justify-content: center; }
 .ct-ext-pill {
-  font-family: 'DM Mono', monospace; font-size: 0.55rem; letter-spacing: 0.06em;
-  padding: 0.22rem 0.5rem; border-radius: 999px;
-  border: 1px solid rgba(0,0,0,0.08); background: transparent;
-  color: rgba(30,30,40,0.35); cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
+  font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.06em;
+  padding: 0.32rem 0.65rem; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
 }
-.ct-ext-pill:hover { border-color: rgba(0,0,0,0.2); color: rgba(30,30,40,0.65); }
-.ct-ext-pill.active { background: #1e1e28; color: #ffffff; border-color: #1e1e28; }
+.ct-ext-pill:hover { border-color: rgba(255,255,255,0.35); color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.12); }
+.ct-ext-pill.active { background: rgba(255,255,255,0.92); color: #0f0f17; border-color: transparent; }
 
 @keyframes dotPop {
   0%   { transform: scale(0); opacity: 0; }

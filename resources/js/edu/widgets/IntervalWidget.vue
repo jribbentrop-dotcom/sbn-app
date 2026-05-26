@@ -196,14 +196,14 @@ const SEMITONES_LIST = Array.from({ length: 12 }, (_, i) => i + 1);
           <line v-for="s in SEMITONES_LIST" :key="s"
             :x1="DOT_X - 8" :y1="intervalY(s)"
             :x2="DOT_X + 8" :y2="intervalY(s)"
-            :stroke="s === interval.semitones ? color : 'rgba(0,0,0,0.07)'"
+            :stroke="s === interval.semitones ? color : 'rgba(255,255,255,0.08)'"
             :stroke-width="s === interval.semitones ? 1.5 : 1"
             style="transition: stroke 0.3s ease"
           />
 
           <!-- Axis line -->
           <line :x1="DOT_X" :y1="TOP_Y - DOT_R - 4" :x2="DOT_X" :y2="ROOT_Y + DOT_R + 4"
-            stroke="rgba(0,0,0,0.06)" stroke-width="1.5"
+            stroke="rgba(255,255,255,0.07)" stroke-width="1.5"
           />
 
           <!-- Span line -->
@@ -214,10 +214,10 @@ const SEMITONES_LIST = Array.from({ length: 12 }, (_, i) => i + 1);
           />
 
           <!-- Root dot -->
-          <circle :cx="DOT_X" :cy="ROOT_Y" :r="DOT_R" fill="#1e1e28" />
-          <circle :cx="DOT_X" :cy="ROOT_Y" :r="DOT_R * 0.35" fill="rgba(255,255,255,0.5)" />
+          <circle :cx="DOT_X" :cy="ROOT_Y" :r="DOT_R" fill="rgba(255,255,255,0.7)" />
+          <circle :cx="DOT_X" :cy="ROOT_Y" :r="DOT_R * 0.35" fill="rgba(15,15,23,0.5)" />
           <text :x="DOT_X + DOT_R + 6" :y="ROOT_Y + 4"
-            font-family="'DM Mono', monospace" font-size="10" fill="rgba(30,30,40,0.4)">C</text>
+            font-family="'DM Mono', monospace" font-size="10" fill="rgba(255,255,255,0.7)">C</text>
 
           <!-- Upper dot (draggable) -->
           <circle
@@ -283,7 +283,7 @@ const SEMITONES_LIST = Array.from({ length: 12 }, (_, i) => i + 1);
 <style scoped>
 .iv-card {
   width: 100%;
-  background: #ffffff;
+  background: #0f0f17;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -308,12 +308,12 @@ const SEMITONES_LIST = Array.from({ length: 12 }, (_, i) => i + 1);
   margin-bottom: 1.25rem; z-index: 1;
 }
 .iv-title {
-  font-family: 'DM Mono', monospace; font-size: 0.6rem;
-  letter-spacing: 0.15em; text-transform: uppercase; color: rgba(30,30,40,0.35);
+  font-family: 'DM Mono', monospace; font-size: 0.7rem;
+  letter-spacing: 0.15em; text-transform: uppercase; color: rgba(255,255,255,0.65);
 }
 .iv-semitone {
-  font-family: 'DM Mono', monospace; font-size: 0.6rem;
-  letter-spacing: 0.08em; color: rgba(30,30,40,0.3); transition: opacity 0.2s;
+  font-family: 'DM Mono', monospace; font-size: 0.7rem;
+  letter-spacing: 0.08em; color: rgba(255,255,255,0.65); transition: opacity 0.2s;
 }
 
 .iv-content {
@@ -329,26 +329,26 @@ const SEMITONES_LIST = Array.from({ length: 12 }, (_, i) => i + 1);
 }
 .iv-name {
   font-family: 'DM Mono', monospace; font-size: 0.65rem;
-  letter-spacing: 0.06em; color: rgba(30,30,40,0.45);
+  letter-spacing: 0.06em; color: rgba(255,255,255,0.85);
   text-transform: uppercase; line-height: 1.4;
 }
 .iv-character {
   font-family: system-ui, sans-serif;
-  font-size: 0.82rem; line-height: 1.6; color: rgba(30,30,40,0.5); margin-top: 0.25rem;
+  font-size: 0.82rem; line-height: 1.6; color: rgba(255,255,255,0.85); margin-top: 0.25rem;
 }
 
 .iv-nav { display: flex; align-items: center; gap: 1.25rem; margin-top: 0.5rem; z-index: 1; }
 .iv-arrow {
-  background: none; border: 1px solid rgba(0,0,0,0.12); color: rgba(30,30,40,0.35);
-  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.65);
+  width: 34px; height: 34px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; font-size: 0.85rem; transition: all 0.2s ease;
 }
-.iv-arrow:hover:not(:disabled) { border-color: rgba(0,0,0,0.25); color: rgba(30,30,40,0.7); }
+.iv-arrow:hover:not(:disabled) { border-color: rgba(255,255,255,0.22); color: rgba(255,255,255,0.85); }
 .iv-arrow:disabled { opacity: 0.2; cursor: default; }
 
 .iv-stepdots { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; max-width: 120px; justify-content: center; }
-.iv-stepdot { width: 4px; height: 4px; border-radius: 50%; background: rgba(0,0,0,0.12); transition: all 0.3s ease; flex-shrink: 0; }
+.iv-stepdot { width: 4px; height: 4px; border-radius: 50%; background: rgba(255,255,255,0.12); transition: all 0.3s ease; flex-shrink: 0; }
 .iv-stepdot.active { width: 12px; border-radius: 2px; }
 
 .iv-fade-wrap { transition: opacity 0.2s ease, transform 0.2s ease; }

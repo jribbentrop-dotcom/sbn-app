@@ -243,17 +243,18 @@ watch(activePairKey, () => {
   flex-direction: column;
   gap: 10px;
   padding: 12px;
+  background: #0f0f17;
   font-family: var(--font-body, system-ui, sans-serif);
 }
 
 /* ── Strings ─────────────────────────────────────────────────────────────── */
 .vl-string {
-  stroke: var(--clr-border, #e2e8f0);
+  stroke: rgba(255,255,255,0.12);
   stroke-width: 1;
 }
 
 .vl-string--bass {
-  stroke: var(--clr-text-dim, #9ca3af);
+  stroke: rgba(255,255,255,0.22);
   stroke-width: 1.5;
 }
 
@@ -261,7 +262,7 @@ watch(activePairKey, () => {
 .vl-curve {
   fill: none;
   stroke-width: 1.5;
-  opacity: 0.45;
+  opacity: 0.55;
   stroke-linecap: round;
   transition: d 0.45s cubic-bezier(0.34, 1.2, 0.64, 1), opacity 0.2s;
 }
@@ -292,7 +293,7 @@ watch(activePairKey, () => {
 .vl-chord-label {
   font-size: 10px;
   font-weight: 600;
-  fill: var(--clr-text-muted, #8896a4);
+  fill: rgba(255,255,255,0.65);
 }
 
 /* ── Badges ──────────────────────────────────────────────────────────────── */
@@ -304,26 +305,28 @@ watch(activePairKey, () => {
 }
 
 .vl-badge {
-  padding: 3px 10px;
+  padding: 0.32rem 0.75rem;
   border-radius: 999px;
-  border: 1px solid var(--clr-border, #e2e8f0);
-  background: transparent;
-  color: var(--clr-text-muted, #8896a4);
-  font-size: 11px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.6);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
 .vl-badge:hover {
-  border-color: var(--clr-accent, #f39c12);
-  color: var(--clr-accent, #f39c12);
+  border-color: rgba(255,255,255,0.35);
+  color: rgba(255,255,255,0.9);
+  background: rgba(255,255,255,0.12);
 }
 
 .vl-badge.active {
-  background: var(--clr-accent, #f39c12);
-  border-color: var(--clr-accent, #f39c12);
-  color: #000;
+  background: rgba(255,255,255,0.92);
+  border-color: transparent;
+  color: #0f0f17;
 }
 
 /* ── Dot pulse animation ─────────────────────────────────────────────────── */

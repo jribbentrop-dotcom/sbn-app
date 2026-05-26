@@ -85,7 +85,7 @@ const SHAPES: Shape[] = [
 
 const ROOT_COLOR  = '#f59e0b';
 const ROOT_STROKE = '#d97706';
-const OTHER_FILL  = '#1e1e28';
+const OTHER_FILL  = 'rgba(255,255,255,0.75)';
 
 const VIEW_W = 260;
 const VIEW_H = 158;
@@ -200,14 +200,14 @@ const stripW = (N_FRETS_VISIBLE / TOTAL_FRETS) * 232;
         <!-- String labels -->
         <text v-for="(label, i) in ['E','A','D','G','B','e']" :key="'sl'+i"
           x="10" :y="stringY(i) + 4" text-anchor="middle"
-          font-family="'DM Mono', monospace" font-size="7" fill="rgba(30,30,40,0.3)"
+          font-family="'DM Mono', monospace" font-size="7" fill="rgba(255,255,255,0.6)"
         >{{ label }}</text>
 
         <!-- Mute markers -->
         <template v-for="(n, i) in shape.notes" :key="'mute'+i">
           <text v-if="n.fret === null"
             :x="PAD_LEFT_NECK - 8" :y="stringY(n.string) + 4" text-anchor="middle"
-            font-family="'DM Mono', monospace" font-size="9" fill="rgba(30,30,40,0.3)"
+            font-family="'DM Mono', monospace" font-size="9" fill="rgba(255,255,255,0.6)"
           >×</text>
         </template>
 
@@ -219,7 +219,7 @@ const stripW = (N_FRETS_VISIBLE / TOTAL_FRETS) * 232;
             <line v-for="f in fretLines" :key="'fl'+f"
               :x1="fretToNeckX(f)" :y1="PAD_TOP"
               :x2="fretToNeckX(f)" :y2="VIEW_H - PAD_BOTTOM"
-              :stroke="f === 0 ? '#1e1e28' : 'rgba(0,0,0,0.1)'"
+              :stroke="f === 0 ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.08)'"
               :stroke-width="f === 0 ? 3 : 1"
             />
 
@@ -227,28 +227,28 @@ const stripW = (N_FRETS_VISIBLE / TOTAL_FRETS) * 232;
             <line v-for="s in N_STRINGS" :key="'str'+s"
               :x1="fretToNeckX(0)" :y1="stringY(s-1)"
               :x2="fretToNeckX(TOTAL_FRETS)" :y2="stringY(s-1)"
-              stroke="rgba(0,0,0,0.18)"
+              stroke="rgba(255,255,255,0.2)"
               :stroke-width="[2, 1.6, 1.3, 1, 0.8, 0.8][s-1]"
             />
 
             <!-- Position markers -->
             <circle v-for="m in MARKERS" :key="'mk'+m"
               :cx="fretToNeckX(m) - FRET_GAP / 2" :cy="VIEW_H / 2"
-              r="3.5" fill="rgba(0,0,0,0.07)"
+              r="3.5" fill="rgba(255,255,255,0.07)"
             />
 
             <!-- Fret numbers -->
             <text v-for="f in [1,3,5,7,9,12]" :key="'fn'+f"
               :x="fretToNeckX(f) - FRET_GAP / 2" :y="VIEW_H - 3"
               text-anchor="middle" font-family="'DM Mono', monospace" font-size="7"
-              fill="rgba(30,30,40,0.22)"
+              fill="rgba(255,255,255,0.35)"
             >{{ f }}</text>
 
             <!-- Barre -->
             <rect v-if="shape.barre"
               :x="fretToNeckX(shape.barre) - FRET_GAP" :y="PAD_TOP"
               :width="FRET_GAP" :height="VIEW_H - PAD_TOP - PAD_BOTTOM"
-              fill="rgba(30,30,40,0.04)" rx="2"
+              fill="rgba(255,255,255,0.04)" rx="2"
             />
 
             <!-- Window highlight -->
@@ -278,7 +278,7 @@ const stripW = (N_FRETS_VISIBLE / TOTAL_FRETS) * 232;
                     :cx="fretToNeckX(n.fret!) - FRET_GAP / 2"
                     :cy="stringY(n.string)"
                     :r="DOT_R * 0.35"
-                    fill="rgba(255,255,255,0.75)"
+                    fill="rgba(15,15,23,0.6)"
                   />
                 </g>
               </template>
@@ -297,12 +297,12 @@ const stripW = (N_FRETS_VISIBLE / TOTAL_FRETS) * 232;
             <rect x="14" y="0" width="232" height="20" />
           </clipPath>
         </defs>
-        <path d="M 0,2 L 14,4 L 14,16 L 0,18 Q -4,10 0,2 Z" fill="#1e1e28" />
+        <path d="M 0,2 L 14,4 L 14,16 L 0,18 Q -4,10 0,2 Z" fill="rgba(255,255,255,0.15)" />
         <g v-for="(t, i) in [0.25, 0.5, 0.75]" :key="'peg'+i">
           <line :x1="-2" :y1="2 + t * 16 - 5" :x2="-7" :y2="2 + t * 16 - 5" stroke="rgba(255,255,255,0.2)" stroke-width="1" />
-          <circle cx="-7" :cy="2 + t * 16 - 5" r="1.5" fill="rgba(255,255,255,0.25)" />
+          <circle cx="-7" :cy="2 + t * 16 - 5" r="1.5" fill="rgba(255,255,255,0.6)" />
         </g>
-        <rect x="14" y="4" width="232" height="12" rx="2" fill="#1e1e28" />
+        <rect x="14" y="4" width="232" height="12" rx="2" fill="rgba(255,255,255,0.1)" />
         <rect x="14" y="3" width="2.5" height="14" rx="1" fill="#f59e0b" />
         <line v-for="i in TOTAL_FRETS" :key="'sf'+i"
           :x1="14 + (i / TOTAL_FRETS) * 232" y1="4"
@@ -336,7 +336,7 @@ const stripW = (N_FRETS_VISIBLE / TOTAL_FRETS) * 232;
 <style scoped>
 .caged-card {
   width: 100%;
-  background: #ffffff;
+  background: #0f0f17;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -356,43 +356,43 @@ const stripW = (N_FRETS_VISIBLE / TOTAL_FRETS) * 232;
 
 .caged-title {
   font-family: 'DM Mono', monospace;
-  font-size: 0.6rem;
+  font-size: 0.7rem;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: rgba(30,30,40,0.35);
+  color: rgba(255,255,255,0.65);
 }
 
 .caged-pills { display: flex; gap: 3px; }
 
 .caged-pill {
   font-family: 'DM Mono', monospace;
-  font-size: 0.6rem;
+  font-size: 0.65rem;
   letter-spacing: 0.08em;
-  padding: 0.22rem 0.52rem;
+  padding: 0.32rem 0.65rem;
   border-radius: 999px;
-  border: 1px solid rgba(0,0,0,0.1);
-  background: transparent;
-  color: rgba(30,30,40,0.4);
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.6);
   cursor: pointer;
   transition: all 0.2s ease;
 }
-.caged-pill:hover { border-color: rgba(0,0,0,0.2); color: rgba(30,30,40,0.7); }
-.caged-pill.active { background: #1e1e28; color: #f59e0b; border-color: #1e1e28; }
+.caged-pill:hover { border-color: rgba(255,255,255,0.35); color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.12); }
+.caged-pill.active { background: rgba(255,255,255,0.92); color: #0f0f17; border-color: transparent; }
 
 .caged-svg-wrap {
   width: 100%;
   position: relative;
   border-radius: 0.75rem;
   overflow: hidden;
-  background: #ffffff;
-  border: 1px solid rgba(0,0,0,0.06);
+  background: #0a0a12;
+  border: 1px solid rgba(255,255,255,0.06);
 }
 
 .caged-explanation {
   font-family: system-ui, sans-serif;
   font-size: 0.82rem;
   line-height: 1.6;
-  color: rgba(30,30,40,0.5);
+  color: rgba(255,255,255,0.85);
   text-align: center;
   padding: 0 0.5rem;
   min-height: 2.8rem;
@@ -403,11 +403,11 @@ const stripW = (N_FRETS_VISIBLE / TOTAL_FRETS) * 232;
 .caged-nav { display: flex; align-items: center; gap: 1.25rem; }
 
 .caged-arrow {
-  background: none;
-  border: 1px solid rgba(0,0,0,0.12);
-  color: rgba(30,30,40,0.35);
-  width: 32px;
-  height: 32px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.65);
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -416,7 +416,7 @@ const stripW = (N_FRETS_VISIBLE / TOTAL_FRETS) * 232;
   font-size: 0.85rem;
   transition: all 0.2s ease;
 }
-.caged-arrow:hover:not(:disabled) { border-color: rgba(0,0,0,0.25); color: rgba(30,30,40,0.7); }
+.caged-arrow:hover:not(:disabled) { border-color: rgba(255,255,255,0.22); color: rgba(255,255,255,0.85); }
 .caged-arrow:disabled { opacity: 0.2; cursor: default; }
 
 .caged-stepdots { display: flex; gap: 5px; align-items: center; }
@@ -424,7 +424,7 @@ const stripW = (N_FRETS_VISIBLE / TOTAL_FRETS) * 232;
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: rgba(0,0,0,0.12);
+  background: rgba(255,255,255,0.12);
   transition: all 0.3s ease;
 }
 .caged-stepdot.active { width: 14px; border-radius: 3px; background: #f59e0b; }
