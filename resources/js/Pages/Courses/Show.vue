@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { Link } from '@inertiajs/vue3';
+import BackNav from '@/Components/BackNav.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
@@ -115,12 +116,7 @@ const totalSections = computed(() => grouped.value.length);
 <template>
   <div class="sbn-page-detail sbn-course-show" :style="heroStyle">
 
-    <!-- ── Breadcrumb ─────────────────────────────────────────────────────── -->
-    <div class="sbn-cs-crumb">
-      <Link href="/learn">All courses</Link>
-      <span class="sbn-cs-crumb-sep">›</span>
-      <span>{{ course.title }}</span>
-    </div>
+    <BackNav library-href="/courses" library-label="All Courses" />
 
     <!-- ── Hero ──────────────────────────────────────────────────────────── -->
     <header class="sbn-cs-hero">
@@ -400,18 +396,6 @@ const totalSections = computed(() => grouped.value.length);
   --category-gradient: linear-gradient(135deg, var(--category-color) 0%, color-mix(in srgb, var(--category-color) 60%, white) 100%);
 }
 
-/* ── Breadcrumb ────────────────────────────────────────────────────────────── */
-.sbn-cs-crumb {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--clr-text-muted);
-  margin-bottom: 20px;
-}
-.sbn-cs-crumb a { color: var(--clr-text-muted); text-decoration: none; }
-.sbn-cs-crumb a:hover { color: var(--clr-accent-dim); }
-.sbn-cs-crumb-sep { opacity: 0.5; }
 
 /* ── Hero ──────────────────────────────────────────────────────────────────── */
 .sbn-cs-hero {

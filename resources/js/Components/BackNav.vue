@@ -9,29 +9,17 @@ const props = defineProps<{
 }>()
 
 const nav = useBackNav(props.libraryHref, props.libraryLabel, props.prevTitle)
+const target = nav.prev ?? nav.library
 </script>
 
 <template>
-  <div class="sbn-back-nav">
-    <Link
-      v-if="nav.prev"
-      :href="nav.prev.href"
-      class="sbn-btn sbn-btn-secondary sbn-btn-sm"
-    >← {{ nav.prev.label }}</Link>
-    <Link
-      :href="nav.library.href"
-      class="sbn-back-link"
-      :class="{ 'sbn-back-link--solo': !nav.prev }"
-    >← {{ nav.library.label }}</Link>
-  </div>
+  <Link :href="target.href" class="sbn-btn sbn-btn-secondary sbn-btn-sm sbn-back-btn">
+    ← {{ target.label }}
+  </Link>
 </template>
 
 <style scoped>
-.sbn-back-nav {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
+.sbn-back-btn {
   margin-bottom: 24px;
 }
 </style>
