@@ -24,6 +24,7 @@
 | Reverse voicing lookup (identify_from_frets) | Done | `ChordShapeCalculator.php` |
 | HarmonicContext + ProgressionBuilder services | Done | `app/Services/` |
 | Progression builder admin UI | Done | `admin/progressions/builder.blade.php` |
+| Fretboard diagrams (CRUD + interactive editor) | Done | `admin/fretboards/` — see [SBN-Fretboard-Reference.md](SBN-Fretboard-Reference.md) |
 | Tab viewer + design system restructure | Done | `TabEditor.vue` |
 | Interactive tab editor (Vue 3 / Vite) | Done | `resources/js/tab-editor/` |
 | Tab ↔ chord sync + `<harmony>` in writer | Done | `useChordSync.js` / `musicXmlWriter.js` |

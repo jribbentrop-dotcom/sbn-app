@@ -11,6 +11,7 @@
  *   <sbn-song        slug="…">
  *   <sbn-youtube     id="…" start="…">        ← attrs only, no fetch
  *   <sbn-widget      slug="…" …attrs>        ← edu interactive, no fetch
+ *   <sbn-fretboard   slug="…">               ← vanilla JS hydration via chords.js
  */
 
 import { createApp, h, type App } from 'vue';
@@ -218,6 +219,33 @@ export async function mountSbnNodes(
       .catch((err) => {
         console.warn(`[mountSbnNodes] Failed to mount <sbn-widget slug="${slug}">:`, err);
         el.innerHTML = `<span class="sbn-node-error">widget: ${slug}</span>`;
+      });
+
+    tasks.push(task);
+  });
+
+  // ── <sbn-fretboard> — fetch then hydrate via vanilla JS (chords.js) ────────
+  container.querySelectorAll<HTMLElement>('sbn-fretboard').forEach((el) => {
+    const slug = el.getAttribute('slug') ?? '';
+    if (!slug) return;
+
+    const task = fetch(`/api/sbn/fretboards/${slug}`, { headers: { Accept: 'application/json' } })
+      .then((r) => {
+        if (!r.ok) throw new Error(`fretboard fetch failed: ${r.status}`);
+        return r.json();
+      })
+      .then((data: any) => {
+        // sbnHydrateFretboard is a global from public/js/chords.js
+        if (typeof (window as any).sbnHydrateFretboard === 'function') {
+          (window as any).sbnHydrateFretboard(el, data);
+        } else {
+          console.warn('[mountSbnNodes] sbnHydrateFretboard not found — is chords.js loaded?');
+          el.innerHTML = `<span class="sbn-node-error">fretboard: ${slug} (renderer unavailable)</span>`;
+        }
+      })
+      .catch((err) => {
+        console.warn(`[mountSbnNodes] Failed to load <sbn-fretboard slug="${slug}">:`, err);
+        el.innerHTML = `<span class="sbn-node-error">fretboard: ${slug}</span>`;
       });
 
     tasks.push(task);

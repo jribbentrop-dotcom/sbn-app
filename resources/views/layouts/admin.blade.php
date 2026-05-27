@@ -42,6 +42,7 @@
                 <x-admin.nav-item route="admin.chords.index" icon="chord" label="Chord Diagrams" :badge="$pendingDraftsCount ?? null" />
                 <x-admin.nav-item route="admin.progressions.index" icon="progression" label="Progressions" />
                 <x-admin.nav-item route="admin.rhythms.index" icon="rhythm" label="Rhythm Patterns" />
+                <x-admin.nav-item route="admin.fretboards.index" icon="chord" label="Fretboards" />
                 <x-admin.nav-item route="admin.courses.index" icon="leadsheet" label="Courses" />
             </div>
             <div class="sbn-nav-section">

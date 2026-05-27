@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 
-type NodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'media' | 'widget';
+type NodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'media' | 'widget' | 'fretboard';
 
 interface SnippetRef { id: string; label: string; key?: string | null }
 interface PaletteItem {
@@ -20,6 +20,7 @@ const TABS: { type: NodeType; label: string }[] = [
     { type: 'rhythm',      label: 'Rhythm' },
     { type: 'progression', label: 'Progression' },
     { type: 'sheet',       label: 'Exercise' },
+    { type: 'fretboard',   label: 'Fretboard' },
     { type: 'song',        label: 'Song' },
     { type: 'widget',      label: 'Widget' },
     { type: 'media',       label: 'Media' },
@@ -30,6 +31,7 @@ const API: Record<NodeType, string> = {
     rhythm:      '/api/sbn/rhythms',
     progression: '/api/sbn/progressions',
     sheet:       '/api/sbn/exercises',
+    fretboard:   '/api/sbn/fretboards',
     song:        '/api/sbn/songs',
     widget:      '',
     media:       '',
@@ -155,8 +157,8 @@ watch(activeTab, () => { query.value = ''; results.value = []; selectedSlug.valu
 // ── Insert ────────────────────────────────────────────────────────────────────
 
 function insert(item: PaletteItem) {
-    // Media, Exercise, and Widget have no config — insert straight away.
-    if (activeTab.value === 'media' || activeTab.value === 'sheet' || activeTab.value === 'widget') {
+    // Media, Exercise, Widget, and Fretboard have no config — insert straight away.
+    if (activeTab.value === 'media' || activeTab.value === 'sheet' || activeTab.value === 'widget' || activeTab.value === 'fretboard') {
         doInsert(item.slug);
         return;
     }

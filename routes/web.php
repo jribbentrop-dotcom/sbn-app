@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\CourseController as AdminCourseController;
 use App\Http\Controllers\Admin\LessonController as AdminLessonController;
 use App\Http\Controllers\Admin\ExerciseController as AdminExerciseController;
 use App\Http\Controllers\Library\ExerciseController as ExerciseLibraryController;
+use App\Http\Controllers\Admin\AdminFretboardController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -110,6 +111,14 @@ Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::get('/exercises/{exercise}/data', [AdminExerciseController::class, 'apiData'])->name('exercises.data');
     Route::post('/exercises/from-leadsheet/{leadsheet}', [AdminExerciseController::class, 'createFromLeadsheet'])->name('exercises.from-leadsheet');
     Route::post('/exercises/from-leadsheet/{leadsheet}/slice', [AdminExerciseController::class, 'createFromLeadsheetSlice'])->name('exercises.from-leadsheet-slice');
+
+    // Fretboard Diagrams (admin CRUD)
+    Route::get('/fretboards', [AdminFretboardController::class, 'index'])->name('fretboards.index');
+    Route::get('/fretboards/create', [AdminFretboardController::class, 'create'])->name('fretboards.create');
+    Route::post('/fretboards', [AdminFretboardController::class, 'store'])->name('fretboards.store');
+    Route::get('/fretboards/{fretboard}/edit', [AdminFretboardController::class, 'edit'])->name('fretboards.edit');
+    Route::put('/fretboards/{fretboard}', [AdminFretboardController::class, 'update'])->name('fretboards.update');
+    Route::delete('/fretboards/{fretboard}', [AdminFretboardController::class, 'destroy'])->name('fretboards.destroy');
 
     // Shop Orders (admin view)
     Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
@@ -224,6 +233,8 @@ Route::prefix('api/sbn')->name('api.sbn.')->group(function () {
     Route::get('/rhythms/{slug}',      [RhythmLibraryController::class,      'apiShow'])->name('rhythms.show');
     Route::get('/progressions/{slug}', [ProgressionLibraryController::class, 'apiShow'])->name('progressions.show');
     Route::get('/exercises/{slug}',    [ExerciseLibraryController::class,    'apiShow'])->name('exercises.show');
+    Route::get('/fretboards',          [AdminFretboardController::class,     'apiSearch'])->name('fretboards.search');
+    Route::get('/fretboards/{slug}',   [AdminFretboardController::class,     'apiShow'])->name('fretboards.show');
     Route::get('/songs/{leadsheet:slug}/viewer-data', [SongLibraryController::class, 'apiViewerData'])->name('songs.viewer-data');
 
     // Search (used by admin palette — must be before /{slug} wildcards)

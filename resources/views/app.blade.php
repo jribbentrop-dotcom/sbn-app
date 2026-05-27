@@ -14,10 +14,12 @@
         <link rel="stylesheet" href="{{ asset('css/chord-symbols.css') }}">
         <link rel="stylesheet" href="{{ asset('css/shop.css') }}">
         <link rel="stylesheet" href="{{ asset('css/chord-library.css') }}">
+        <link rel="stylesheet" href="{{ asset('css/chord-library-chrome.css') }}">
         <link rel="stylesheet" href="{{ asset('css/rhythm-library.css') }}">
         <link rel="stylesheet" href="{{ asset('css/progression-library.css') }}">
         <link rel="stylesheet" href="{{ asset('css/song-library.css') }}">
         <link rel="stylesheet" href="{{ asset('css/course-player.css') }}">
+        <link rel="stylesheet" href="{{ asset('css/fretboard.css') }}">
         <script src="{{ asset('js/chords.js') }}"></script>
 
         <!-- Scripts & Styles -->

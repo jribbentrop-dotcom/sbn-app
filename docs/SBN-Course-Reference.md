@@ -42,6 +42,7 @@ Stored in `content` as plain HTML. Always require explicit closing tags (`<sbn-f
 | `<sbn-sheet>` | yes | `slug` (required), `key` (optional, default `C`) | [`SheetMiniPlayer.vue`](../resources/js/Components/Course/SheetMiniPlayer.vue) — see §9 |
 | `<sbn-song>` | no — link only | `slug` (required), `label` (optional, default = slug) | none — see §5.2 |
 | `<sbn-youtube>` | yes (no fetch) | `id` (required), `start` (optional, seconds) | inline `<iframe>` to `youtube-nocookie.com` |
+| `<sbn-fretboard>` | yes (vanilla JS, no Vue) | `slug` (required) | `sbnHydrateFretboard()` in `public/js/chords.js` — see [SBN-Fretboard-Reference.md](SBN-Fretboard-Reference.md) |
 
 **Attr semantics:**
 
@@ -49,6 +50,7 @@ Stored in `content` as plain HTML. Always require explicit closing tags (`<sbn-f
 - `<sbn-progression key="Bb">` — runs the progression builder in that key, returns voiced tiles.
 - `<sbn-sheet key="G">` — fetches from `/api/sbn/exercises/{slug}?key=G`; key is advisory (transposition). See §9.
 - `<sbn-song label="…">` — text shown in the link. If absent, slug is shown.
+- `<sbn-fretboard slug="…">` — no extra attrs; all display options (mode, theme, guide tones, RH fingers) are baked into the stored record.
 
 ---
 
@@ -62,6 +64,7 @@ Public, no auth. Defined in [`routes/web.php`](../routes/web.php) under `Route::
 | GET | `/api/sbn/rhythms/{slug}` | Mount payload for `<sbn-rhythm>` | Pattern object — `RhythmCard`'s `pattern` prop |
 | GET | `/api/sbn/progressions/{slug}?key=Bb&pass2=1` | Mount payload for `<sbn-progression>` | `{ progression, key, chords: [{chordName, diagramData, beats, slug}] }` |
 | GET | `/api/sbn/songs/{slug}/viewer-data` | Used by future leadsheet embed (not by `<sbn-song>` link) | Full leadsheet viewer payload via `LeadsheetViewerService` |
+| GET | `/api/sbn/fretboards/{slug}` | Mount payload for `<sbn-fretboard>` | Full fretboard record — see [SBN-Fretboard-Reference.md §6](SBN-Fretboard-Reference.md#6-course-tag--sbn-fretboard) |
 | GET | `/api/sbn/{type}` | Palette search (admin) | `{ results: […] }` |
 
 Controllers: [`ChordLibraryController::apiShow`](../app/Http/Controllers/Library/ChordLibraryController.php), [`ProgressionLibraryController::apiShow`](../app/Http/Controllers/Library/ProgressionLibraryController.php), [`RhythmLibraryController::apiShow`](../app/Http/Controllers/Library/RhythmLibraryController.php), [`SongLibraryController::apiViewerData`](../app/Http/Controllers/Library/SongLibraryController.php).

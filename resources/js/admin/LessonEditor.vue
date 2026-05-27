@@ -10,9 +10,9 @@ import { hasSelection } from './editorSelection';
 
 // ── SBN chip node factory ────────────────────────────────────────────────────
 
-type SbnNodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'widget';
+type SbnNodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'widget' | 'fretboard';
 
-const SBN_TYPES: SbnNodeType[] = ['chord', 'rhythm', 'progression', 'sheet', 'song', 'widget'];
+const SBN_TYPES: SbnNodeType[] = ['chord', 'rhythm', 'progression', 'sheet', 'song', 'widget', 'fretboard'];
 
 const LABELS: Record<SbnNodeType, string> = {
     chord:       'chord',
@@ -21,6 +21,7 @@ const LABELS: Record<SbnNodeType, string> = {
     sheet:       'sheet',
     song:        'song',
     widget:      'widget',
+    fretboard:   'fretboard',
 };
 
 // Attribute objects may carry parseHTML/renderHTML so a camelCase TipTap attr
@@ -46,6 +47,7 @@ const ATTRS: Record<SbnNodeType, Record<string, AttrSpec>> = {
     sheet:       { slug: { default: '' }, key:   { default: 'C' } },
     song:        { slug: { default: '' }, label: { default: '' } },
     widget:      { slug: { default: '' } },
+    fretboard:   { slug: { default: '' } },
 };
 
 function makeSbnNode(type: SbnNodeType) {
@@ -290,6 +292,7 @@ const SHORTCUT_MAP: Record<string, string> = {
     r: 'rhythm',
     p: 'progression',
     s: 'sheet',
+    f: 'fretboard',
     l: 'song',
     w: 'widget',
     m: 'media',
