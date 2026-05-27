@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\CourseRequest;
 use App\Models\Course;
 use App\Models\Product;
+use App\Models\SbnTag;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -32,11 +33,12 @@ class CourseController extends Controller
 
     public function create(): View
     {
-        $course   = new Course;
-        $products = Product::orderBy('name')->get(['id', 'name', 'slug']);
-        $isNew    = true;
+        $course       = new Course;
+        $products     = Product::orderBy('name')->get(['id', 'name', 'slug']);
+        $isNew        = true;
+        $existingTags = '';
 
-        return view('admin.courses.create', compact('course', 'products', 'isNew'));
+        return view('admin.courses.create', compact('course', 'products', 'isNew', 'existingTags'));
     }
 
     public function store(CourseRequest $request): RedirectResponse
@@ -48,6 +50,7 @@ class CourseController extends Controller
         }
 
         $course = Course::create($data);
+        $this->syncTags($course, $request->tagSlugs());
 
         return redirect()->route('admin.courses.edit', $course)
             ->with('success', 'Course created.');
@@ -56,15 +59,17 @@ class CourseController extends Controller
     public function edit(Course $course): View
     {
         $course->load('lessons');
-        $products = Product::orderBy('name')->get(['id', 'name', 'slug']);
-        $isNew    = false;
+        $products     = Product::orderBy('name')->get(['id', 'name', 'slug']);
+        $isNew        = false;
+        $existingTags = $course->tags()->pluck('slug')->implode(',');
 
-        return view('admin.courses.edit', compact('course', 'products', 'isNew'));
+        return view('admin.courses.edit', compact('course', 'products', 'isNew', 'existingTags'));
     }
 
     public function update(CourseRequest $request, Course $course): RedirectResponse
     {
-        $course->update($request->validated());
+        $course->update($request->courseData());
+        $this->syncTags($course, $request->tagSlugs());
 
         return redirect()->route('admin.courses.edit', $course)
             ->with('success', 'Course saved.');
@@ -76,6 +81,15 @@ class CourseController extends Controller
 
         return redirect()->route('admin.courses.index')
             ->with('success', 'Course deleted.');
+    }
+
+    private function syncTags(Course $course, array $slugs): void
+    {
+        $ids = collect($slugs)->map(
+            fn ($slug) => SbnTag::findOrCreateBySlug($slug)->id
+        )->all();
+
+        $course->tags()->sync($ids);
     }
 
     public function updateStatus(Request $request, Course $course): \Illuminate\Http\JsonResponse

@@ -30,6 +30,7 @@ interface Song {
   measureCount: number | null;
   popularity: number | null;
   coverImagePath: string | null;
+  tags: string[];
 }
 
 interface ProgressionRef {
@@ -88,6 +89,7 @@ function chordShowUrl(chord: any): string {
           <div class="sbn-ss-hero-badges">
             <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': categoryColor }">{{ styleLabel }}</span>
             <span v-if="songPopularityTier" class="sbn-card-pop" :class="`sbn-pop-${songPopularityTier.tier}`">{{ songPopularityTier.label }}</span>
+            <span v-for="tag in (song.tags ?? [])" :key="tag" class="sbn-hashtag">#{{ tag }}</span>
           </div>
 
           <h1 class="sbn-ss-title">{{ song.title }}</h1>

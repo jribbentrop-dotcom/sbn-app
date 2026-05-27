@@ -21,8 +21,9 @@ class CourseRequest extends FormRequest
             'slug'                => ['required', 'string', 'max:255', 'regex:/^[a-z0-9\-]+$/', Rule::unique('sbn_courses', 'slug')->ignore($courseId)],
             'excerpt'             => ['nullable', 'string'],
             'description'         => ['nullable', 'string'],
-            'genres_raw'          => ['nullable', 'string'],
-            'levels_raw'          => ['nullable', 'string'],
+            'category'            => ['nullable', 'string', \Illuminate\Validation\Rule::in(\App\Models\ChordProgression::CATEGORIES)],
+            'tags'                => ['nullable', 'string', 'max:500'],
+            'levels_raw'          => ['nullable', 'string', Rule::in(['','basic','early-intermediate','intermediate','late-intermediate','advanced'])],
             'topics_raw'          => ['nullable', 'string'],
             'is_free'             => ['boolean'],
             'product_id'          => ['nullable', 'integer', 'exists:sbn_products,id'],
@@ -40,6 +41,15 @@ class CourseRequest extends FormRequest
         ]);
     }
 
+    /** Return tag slugs as a clean array (separate from model data). */
+    public function tagSlugs(): array
+    {
+        return array_values(array_filter(
+            array_map('trim', explode(',', $this->input('tags', ''))),
+            fn ($s) => $s !== ''
+        ));
+    }
+
     /** Return data ready to pass to Course::create/update. */
     public function courseData(): array
     {
@@ -47,11 +57,10 @@ class CourseRequest extends FormRequest
             ? array_values(array_filter(array_map('trim', explode(',', $raw))))
             : [];
 
-        $data = $this->safe()->except(['genres_raw', 'levels_raw', 'topics_raw']);
+        $data = $this->safe()->except(['genres_raw', 'levels_raw', 'topics_raw', 'tags']);
 
         return array_merge($data, [
-            'genres' => $split($this->input('genres_raw')),
-            'levels' => $split($this->input('levels_raw')),
+            'levels' => $this->input('levels_raw') ? [$this->input('levels_raw')] : [],
             'topics' => $split($this->input('topics_raw')),
         ]);
     }

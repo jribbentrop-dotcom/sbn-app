@@ -91,26 +91,32 @@ class ChordLibraryController extends Controller
 			];
 		}
 
-		// Barré families: the 4 transferable shapes (E/Em/A/Am) transposed to
-		// their canonical first-position barré root — F for E-shape, Bb for A-shape.
+		// Barré families: the 4 transferable shapes (E/Em/A/Am).
+		// Tile shown at G (E-shape) and B (A-shape) — clean 2nd-fret positions.
+		// Drawer shows all 12 chromatic positions of the plain triad.
 		$barreFamilyConfig = [
-			'archetype-e'  => ['root' => 'F',  'label' => 'F'],
-			'archetype-em' => ['root' => 'F',  'label' => 'Fm'],
-			'archetype-a'  => ['root' => 'Bb', 'label' => 'B♭'],
-			'archetype-am' => ['root' => 'Bb', 'label' => 'B♭m'],
+			'archetype-e'  => ['root' => 'G',  'label' => 'G'],
+			'archetype-em' => ['root' => 'G',  'label' => 'Gm'],
+			'archetype-a'  => ['root' => 'C',  'label' => 'C'],
+			'archetype-am' => ['root' => 'C',  'label' => 'Cm'],
 		];
+
+		// Chromatic roots in order, using sharps for black keys.
+		$chromaticRoots = ['E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B', 'C', 'C#', 'D', 'D#'];
 
 		$barreFamilies = [];
 		foreach ($barreFamilyConfig as $familyKey => $config) {
 			$root = $config['root'];
 
-			// Fetch the family's diagrams and serialize at the barré root.
-			$chords = ChordDiagram::query()
+			// Fetch the family's diagrams and serialize at the tile root.
+			$allDiagrams = ChordDiagram::query()
 				->where('voicing_category', 'archetype')
 				->where('shape_family', $familyKey)
 				->orderBy('sort_order')
 				->orderByRaw('popularity DESC NULLS LAST')
-				->get()
+				->get();
+
+			$chords = $allDiagrams
 				->map(fn ($c) => $this->chordSerializer->serialize($c, $root))
 				->values()
 				->all();
@@ -124,32 +130,175 @@ class ChordLibraryController extends Controller
 				);
 			}
 
+			// All 12 chromatic positions of the plain triad for the drawer.
+			$triads = $allDiagrams->filter(
+				fn ($c) => ($c->quality === $primaryQ && empty($c->extensions))
+			);
+			$triad = $triads->first();
+			$chromaticChords = $triad
+				? collect($chromaticRoots)
+					->map(fn ($r) => $this->chordSerializer->serialize($triad, $r))
+					->values()
+					->all()
+				: [];
+
 			$barreFamilies[] = [
-				'key'    => $familyKey . '-barre',
-				'label'  => $config['label'],
-				'root'   => $root,
-				'chords' => $chords,
+				'key'             => $familyKey . '-barre',
+				'label'           => $config['label'],
+				'root'            => $root,
+				'chords'          => $chords,
+				'chromaticChords' => $chromaticChords,
 			];
 		}
 
 		// Drop2/Drop3 target voicings for level-3 animation:
 		// each barré family morphs to its corresponding jazz voicing.
-		// F/Fm (E-shape) → drop3 root-on-e  (ids 33, 46)
-		// Bb/Bbm (A-shape) → drop2 root-on-a (ids 44, 24)
+		// G/Gm (E-shape) → drop3 root-on-e  (ids 33, 46) at G
+		// C/Cm (A-shape) → drop2 root-on-a (ids 44, 24) at C
+		//
+		// inversions: explicit list in order [root, inv1, inv2, inv3].
+		// Some inversions are stored under an alias (different quality in DB);
+		// those entries carry 'quality', 'inversion', 'inversion_label' overrides.
 		$dropTargetMap = [
-			'archetype-e-barre'  => ['id' => 33, 'root' => 'F',  'label' => 'Fmaj7'],
-			'archetype-em-barre' => ['id' => 46, 'root' => 'F',  'label' => 'Fm7'],
-			'archetype-a-barre'  => ['id' => 44, 'root' => 'Bb', 'label' => 'B♭maj7'],
-			'archetype-am-barre' => ['id' => 24, 'root' => 'Bb', 'label' => 'B♭m7'],
+			'archetype-e-barre' => [
+				'id' => 33, 'root' => 'G', 'label' => 'Gmaj7',
+				'inversions' => [
+					['id' => 33],
+					['id' => 104],
+					['id' => 304],
+					['id' => 303, 'octave_up' => true],
+				],
+			],
+			'archetype-em-barre' => [
+				'id' => 46, 'root' => 'G', 'label' => 'Gm7',
+				'inversions' => [
+					['id' => 46],
+					// ID 185 (Maj6 Drop3 Root E) is Gm7 1st inv as alias
+					['id' => 185, 'quality' => 'm7', 'inversion' => 'inv1', 'inversion_label' => '1st Inversion'],
+					// ID 87 (Maj6 Drop3 1st Inv Root E) is Gm7 2nd inv as alias
+					['id' => 87,  'quality' => 'm7', 'inversion' => 'inv2', 'inversion_label' => '2nd Inversion'],
+					['id' => 310],
+				],
+			],
+			'archetype-a-barre' => [
+				'id' => 44, 'root' => 'C', 'label' => 'Cmaj7',
+				'inversions' => [
+					['id' => 44],
+					['id' => 305],
+					['id' => 257],
+					['id' => 307, 'octave_up' => true],
+				],
+			],
+			'archetype-am-barre' => [
+				'id' => 24, 'root' => 'C', 'label' => 'Cm7',
+				'inversions' => [
+					['id' => 24],
+					['id' => 47],
+					['id' => 309],
+					['id' => 308, 'octave_up' => true],
+				],
+			],
 		];
-		$dropIds = array_column($dropTargetMap, 'id');
-		$dropDiagrams = ChordDiagram::whereIn('id', $dropIds)->get()->keyBy('id');
+
+		// Collect all referenced IDs and load in one query
+		$allDropInvIds = [];
+		foreach ($dropTargetMap as $config) {
+			$allDropInvIds[] = $config['id'];
+			foreach ($config['inversions'] as $inv) {
+				$allDropInvIds[] = $inv['id'];
+			}
+		}
+		$dropDiagrams = ChordDiagram::whereIn('id', array_unique($allDropInvIds))->get()->keyBy('id');
+
+		// Shift all fret positions up by one octave (used for 3rd inversions that
+		// otherwise resolve to open/first-position, keeping the neck view ascending).
+		// Any open strings that are already represented in positions at fret 0 get
+		// shifted with everything else; the open[] array is cleared. start_fret is
+		// recomputed from the actual minimum fret so the renderer window covers all dots.
+		$shiftOctave = function (array $chord): array {
+			$d = $chord['diagram_data'];
+
+			// Promote any open[] strings not already in positions (fret 0 entry)
+			$positionedStrings = array_map(fn ($p) => $p['string'], $d['positions']);
+			foreach ($d['open'] ?? [] as $str) {
+				if (! in_array($str, $positionedStrings)) {
+					$d['positions'][] = ['string' => $str, 'fret' => 0, 'finger' => null];
+				}
+			}
+			$d['open'] = [];
+
+			$d['positions'] = array_map(
+				fn ($p) => array_merge($p, ['fret' => $p['fret'] + 12]),
+				$d['positions']
+			);
+			$d['barres'] = array_map(
+				fn ($b) => array_merge($b, ['fret' => $b['fret'] + 12]),
+				$d['barres']
+			);
+
+			$chord['diagram_data'] = $d;
+
+			// Recompute start_fret from the actual minimum fret across all positions/barres
+			$frets = array_map(fn ($p) => $p['fret'], $d['positions']);
+			foreach ($d['barres'] as $b) { $frets[] = $b['fret']; }
+			$chord['start_fret'] = $frets ? min($frets) : $chord['start_fret'] + 12;
+
+			return $chord;
+		};
 
 		$dropFamilies = [];
 		foreach ($dropTargetMap as $familyKey => $config) {
 			$diagram = $dropDiagrams->get($config['id']);
 			if (! $diagram) continue;
+
+			$inversions = [];
+			foreach ($config['inversions'] as $invConfig) {
+				$invDiagram = $dropDiagrams->get($invConfig['id']);
+				if (! $invDiagram) continue;
+
+				if (isset($invConfig['quality'])) {
+					// Alias inversion: stored under a different quality, override metadata
+					$serialized = $this->chordSerializer->serializeAs(
+						$invDiagram,
+						$config['root'],
+						$invConfig['quality'],
+						$invConfig['inversion'],
+						$invConfig['inversion_label'],
+					);
+				} else {
+					$serialized = $this->chordSerializer->serialize($invDiagram, $config['root']);
+				}
+
+				if (!empty($invConfig['octave_up'])) {
+					$serialized = $shiftOctave($serialized);
+				}
+
+				$inversions[] = $serialized;
+			}
+
 			$dropFamilies[$familyKey] = [
+				'label'      => $config['label'],
+				'chord'      => $this->chordSerializer->serialize($diagram, $config['root']),
+				'inversions' => $inversions,
+			];
+		}
+
+		// Shell voicings for level-4 animation:
+		// The two centred drop voicings (Fmaj7 / Fm7) lose their highest dot → shell.
+		// from = the drop voicing already shown; to = the shell version at the same root.
+		// E-shape shells: maj7-shell-roote (id 37) and m7-shell-roote (id 36).
+		$shellTargetMap = [
+			'archetype-e-barre'  => ['id' => 37, 'root' => 'G',  'label' => 'Gmaj7 shell'],
+			'archetype-em-barre' => ['id' => 36, 'root' => 'G',  'label' => 'Gm7 shell'],
+		];
+		$shellIds = array_column($shellTargetMap, 'id');
+		$shellDiagrams = ChordDiagram::whereIn('id', $shellIds)->get()->keyBy('id');
+
+		$shellFamilies = [];
+		foreach ($shellTargetMap as $familyKey => $config) {
+			$diagram = $shellDiagrams->get($config['id']);
+			if (! $diagram) continue;
+			$shellFamilies[$familyKey] = [
 				'label' => $config['label'],
 				'chord' => $this->chordSerializer->serialize($diagram, $config['root']),
 			];
@@ -169,6 +318,10 @@ class ChordLibraryController extends Controller
 			'archetypeFamilies' => $families,
 			'barreFamilies'     => $barreFamilies,
 			'dropFamilies'      => $dropFamilies,
+			'shellFamilies'     => $shellFamilies,
+			'shellF7'           => ($f7Shell = ChordDiagram::find(73))
+				? $this->chordSerializer->serialize($f7Shell, 'G')
+				: null,
 			'otherChords'       => $otherChords,
 			'voicingCategories' => ChordDiagram::VOICING_CATEGORIES,
 			'chordQualities'    => ChordDiagram::CHORD_QUALITIES,

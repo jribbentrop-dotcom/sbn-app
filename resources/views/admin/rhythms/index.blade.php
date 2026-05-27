@@ -134,11 +134,20 @@
             <div class="sbn-prog-cat-pills">
                 <button class="sbn-prog-cat-pill" :class="!filterCat && 'is-active'" @click="filterCat = ''">All</button>
                 @foreach($categories as $cat)
-                    <button class="sbn-prog-cat-pill" 
+                    @php
+                        $pillClr = match($cat) {
+                            'bossa-nova' => 'var(--clr-style-bossa)',
+                            'jazz'       => 'var(--clr-style-jazz)',
+                            'classical'  => 'var(--clr-style-classical)',
+                            'pop'        => 'var(--clr-style-pop)',
+                            default      => 'var(--clr-style-bossa)',
+                        };
+                    @endphp
+                    <button class="sbn-prog-cat-pill"
                             :class="filterCat === '{{ $cat }}' && 'is-active'"
                             @click="filterCat = '{{ $cat }}'"
-                            style="--pill-clr: {{ $cat === 'brazilian' ? 'var(--clr-style-samba)' : ($cat === 'jazz' ? 'var(--clr-style-jazz)' : ($cat === 'latin' ? 'var(--clr-style-latin)' : 'var(--clr-style-general)')) }}">
-                        {{ ucfirst($cat) }}
+                            style="--pill-clr: {{ $pillClr }}">
+                        {{ \App\Models\ChordProgression::CATEGORY_LABELS[$cat] ?? ucfirst($cat) }}
                     </button>
                 @endforeach
             </div>
@@ -170,9 +179,9 @@
                                 </a>
                             </td>
                             <td>
-                                <span class="sbn-cat-badge" 
+                                <span class="sbn-cat-badge sbn-cat-badge-filled"
                                       :style="'--cat-clr:' + getCatColor(p.category)"
-                                      x-text="p.category || 'general'"></span>
+                                      x-text="p.category"></span>
                             </td>
                             <td class="sbn-text-dim">
                                 <span x-text="p.time_signature"></span><br>
@@ -247,13 +256,12 @@
 
             getCatColor(cat) {
                 const colors = {
-                    'brazilian': 'var(--clr-style-samba)',
-                    'jazz':      'var(--clr-style-jazz)',
-                    'latin':     'var(--clr-style-latin)',
-                    'blues':     'var(--clr-style-blues)',
-                    'general':   'var(--clr-text-muted)'
+                    'bossa-nova': 'var(--clr-style-bossa)',
+                    'jazz':       'var(--clr-style-jazz)',
+                    'classical':  'var(--clr-style-classical)',
+                    'pop':        'var(--clr-style-pop)',
                 };
-                return colors[cat] || colors.general;
+                return colors[cat] || 'var(--clr-style-bossa)';
             }
         };
     }

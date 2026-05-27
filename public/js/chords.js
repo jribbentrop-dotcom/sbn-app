@@ -161,8 +161,14 @@ function sbnRenderDiagramSVG(voicing, opts) {
     // regardless of what start_fret says (start_fret is sometimes set to the
     // minimum fretted note rather than the true grid anchor).
     var maxFret = 0;
-    frets.forEach(function(f) { if (f !== 'x' && f > maxFret) maxFret = f; });
-    if (maxFret > 0 && maxFret <= 4) position = 1;
+    var hasOpen = false;
+    frets.forEach(function(f) {
+        if (f === 0) hasOpen = true;
+        else if (f !== 'x' && f > maxFret) maxFret = f;
+    });
+    // Force nut only when all fretted notes fit in frets 1-4 AND there are open strings.
+    // A movable shape with no open strings at low frets should show a position marker.
+    if (maxFret > 0 && maxFret <= 4 && hasOpen) position = 1;
 
     // Fixed coordinate system — CSS scales via width="100%"
     var W = 88, H = 95;
@@ -302,6 +308,20 @@ function sbnToast(message, type) {
         toast.style.transform = 'translateY(16px)';
         setTimeout(function() { toast.remove(); }, 300);
     }, 3000);
+}
+
+// ─────────────────────────────────────────────────────────────
+// BATCH HYDRATE
+// ─────────────────────────────────────────────────────────────
+
+function sbnHydrateAll(container) {
+    var root = container || document;
+    root.querySelectorAll('[data-diagram]').forEach(function(el) {
+        try {
+            var data = JSON.parse(el.getAttribute('data-diagram'));
+            sbnHydrateFretboard(el, data);
+        } catch (e) {}
+    });
 }
 
 // ─────────────────────────────────────────────────────────────

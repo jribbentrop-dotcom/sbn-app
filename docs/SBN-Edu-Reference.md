@@ -160,14 +160,13 @@ Every widget follows these rules (see `TriadBuilder.vue` as the reference):
   prefix (`tb-`, `cof-`, `d2-`, `vl-`).
 - Own lazy chunk via the registry thunk.
 
-**Light-background widgets** (the six design-session imports: `caged-system`,
-`chord-function`, `chord-tones`, `note-duration`, `interval-explorer`,
-`pentatonic-scales`) carry `background: #ffffff` on their root element and use
-hardcoded light-palette colors internally. They are standalone-card designs
-migrated from a React/JSX design session. Large display elements (numerals,
-chord symbols) use Cormorant Garamond; body/explanation text uses `system-ui`
-for readability. On the `/theory` page they fill the card width naturally
-(`width: 100%; box-sizing: border-box`) with no wrapper needed.
+**All widgets share a deep dark theme** — `background: #0f0f17` on the root element. Consistent design tokens across all 10 widgets:
+
+- **Badge pills**: DM Mono `0.65rem`, `rgba(255,255,255,0.08)` bg, `rgba(255,255,255,0.18)` border; active state = `rgba(255,255,255,0.92)` bg + `#0f0f17` text.
+- **Body/explanation text**: `rgba(255,255,255,0.85)` at `0.82rem`, `line-height: 1.6`.
+- **Muted labels** (titles, counts, context): `rgba(255,255,255,0.65)` at `0.7rem`, DM Mono.
+- **SVG structural lines** (strings, axes): `rgba(255,255,255,0.08–0.22)`.
+- Large display elements (chord symbols, numerals) use Cormorant Garamond; body/explanation uses `system-ui`.
 
 ---
 
@@ -197,14 +196,14 @@ for readability. On the `/theory` page they fill the card width naturally
 - **Badge pills** (not dropdowns) select the active state. Switching quality/mode: the relevant dot slides to its new position (spring easing, slight overshoot) and briefly pulses to mark the voice that moved.
 - `prefers-reduced-motion` disables all animations.
 
-`CircleOfFifths` is a clickable 12-segment SVG donut (polar geometry, no charting library); each segment shows a major key + its relative minor.
+`CircleOfFifths` is a clickable 12-segment SVG donut (polar geometry, no charting library); each segment shows a major key + its relative minor. Selected segment fills white (`rgba(255,255,255,0.88)`) and persists after mouse-leave (`.cof-seg.cof-seg--selected` specificity beats `:hover`). Major labels sit at r=152 (near the outer edge at r=180); minor labels at r=118 (close to majors). Hover fills `rgba(255,255,255,0.12)`.
 
 ### Voice-leading widget
 
 `VoiceLeading` uses a horizontal string-lane layout (6 lines, top = high E):
 
 - Two dot columns, one per chord. Dots are role-colored; note name inside.
-- **Bezier curves** connect matching roles across the two chords — control points pulled to center so arcs are visible even for unison motion. Curve opacity 0.45 so dots read first.
+- **Bezier curves** connect matching roles across the two chords — control points pulled to center so arcs are visible even for unison motion. Curve opacity 0.55 on dark bg so dots still read first.
 - **Steep curve = big leap, flat curve = smooth motion** — the teaching point is readable at a glance.
 - Three preset pairs: Imaj7→VIm7 (smooth), IIm7→V7 (contrary motion), V7→Imaj7 (tritone resolution).
 - `transition: d` on paths animates the curve morph in supporting browsers (Chrome, Firefox, Safari 16+).

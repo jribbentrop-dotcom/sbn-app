@@ -230,12 +230,10 @@
     display: inline-block;
 }
 
-.sbn-prog-row-cat-badge.sbn-prog-cat-jazz      { background: #e3f2fd; color: #1565c0; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-blues     { background: #fce4ec; color: #c62828; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-pop       { background: #e0f2f1; color: #00695c; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-modal     { background: #ede7f6; color: #4527a0; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-classical { background: #e8f5e9; color: #2e7d32; }
-.sbn-prog-row-cat-badge.sbn-prog-cat-latin     { background: linear-gradient(135deg, #ff8c42, #e65100); color: #fff; }
+.sbn-prog-row-cat-badge.sbn-prog-cat-bossa-nova { background: color-mix(in srgb, var(--clr-style-bossa) 12%, transparent); color: color-mix(in srgb, var(--clr-style-bossa) 80%, #000); }
+.sbn-prog-row-cat-badge.sbn-prog-cat-jazz       { background: color-mix(in srgb, var(--clr-style-jazz) 12%, transparent);  color: color-mix(in srgb, var(--clr-style-jazz) 80%, #000); }
+.sbn-prog-row-cat-badge.sbn-prog-cat-classical  { background: color-mix(in srgb, var(--clr-style-classical) 12%, transparent); color: color-mix(in srgb, var(--clr-style-classical) 80%, #000); }
+.sbn-prog-row-cat-badge.sbn-prog-cat-pop        { background: color-mix(in srgb, var(--clr-style-pop) 12%, transparent);  color: color-mix(in srgb, var(--clr-style-pop) 80%, #000); }
 
 /* Tonality Badges */
 .sbn-prog-tonality-badge {

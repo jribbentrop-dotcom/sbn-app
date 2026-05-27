@@ -49,6 +49,7 @@ watch(() => props.pattern.slug, () => {
         <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(pattern.styleSlug) }">{{ pattern.category }}</span>
         <span v-if="pattern.gridType !== 'sixteenth'" class="sbn-badge" :class="`sbn-badge-grid-${pattern.gridType}`">{{ pattern.gridType }}</span>
         <span v-else class="sbn-badge sbn-badge-muted">{{ pattern.gridType }}</span>
+        <span v-for="tag in (pattern.tags ?? [])" :key="tag" class="sbn-hashtag">#{{ tag }}</span>
       </div>
     </header>
     <div class="sbn-rhythm-show-container">

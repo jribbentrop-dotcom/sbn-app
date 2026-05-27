@@ -13,9 +13,6 @@
       x-init="init()">
     @csrf
 
-    {{-- Hidden JSON arrays built from comma-separated inputs --}}
-    <input type="hidden" name="genres"  x-bind:value="JSON.stringify(arrayField('genres_raw'))">
-    <input type="hidden" name="levels"  x-bind:value="JSON.stringify(arrayField('levels_raw'))">
     <input type="hidden" name="topics"  x-bind:value="JSON.stringify(arrayField('topics_raw'))">
 
     @include('admin.courses._form')
@@ -32,6 +29,8 @@ function courseForm() {
     return {
         form: { title: '', slug: '' },
         manualSlug: false,
+        courseTags: [],
+
         init() {
             this.form.title = document.getElementById('title').value;
             this.form.slug  = document.getElementById('slug').value;

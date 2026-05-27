@@ -21,13 +21,13 @@ class CourseController extends Controller
             ->get()
             ->map(fn ($course) => $this->serializeCourse($course));
 
-        $genres = $courses->pluck('primaryGenre')->unique()->filter()->values();
+        $categories = collect(\App\Models\ChordProgression::CATEGORIES);
         $levels = ['basic', 'early-intermediate', 'intermediate', 'late-intermediate', 'advanced'];
 
         return Inertia::render('Courses/Index', [
-            'courses' => $courses,
-            'genres' => $genres,
-            'levels' => $levels,
+            'courses'    => $courses,
+            'categories' => $categories,
+            'levels'     => $levels,
         ]);
     }
 
@@ -303,8 +303,8 @@ class CourseController extends Controller
             'slug' => $course->slug,
             'title' => $course->title,
             'excerpt' => $course->excerpt,
-            'genres' => $course->genres ?? [],
-            'levels' => $course->levels ?? [],
+            'category'     => $course->category,
+            'levels'       => $course->levels ?? [],
             'primaryGenre' => $course->primary_genre,
             'primaryLevel' => $course->primary_level,
             'topics' => $course->topics ?? [],

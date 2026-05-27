@@ -196,19 +196,16 @@
                            x-model="parsed.timeSignature" @input="markDirty()">
                 </div>
                 <div class="sbn-vp-meta-field">
-                    <span class="sbn-vp-meta-label">Bars/row</span>
-                    <select class="sbn-vp-meta-input" x-model.number="barsPerRow"
-                            @change="markDirty()"
-                            style="font-family:var(--font-body);font-weight:600;">
-                        <option value="2">2</option>
-                        <option value="3">3</option>
-                        <option value="4">4</option>
-                        <option value="5">5</option>
-                        <option value="6">6</option>
-                        <option value="8">8</option>
+                    <span class="sbn-vp-meta-label">Style</span>
+                    <select class="sbn-vp-meta-select" x-model="genre" @change="markDirty()">
+                        <option value="">— auto —</option>
+                        <option value="bossa-nova">Bossa Nova</option>
+                        <option value="jazz">Jazz</option>
+                        <option value="classical">Classical</option>
+                        <option value="pop">Pop</option>
                     </select>
                 </div>
-                <div class="sbn-vp-meta-field sbn-vp-meta-rhythm">
+                <div class="sbn-vp-meta-field sbn-vp-meta-rhythm" style="grid-column:span 2;">
                     <span class="sbn-vp-meta-label">Rhythm</span>
                     <select class="sbn-vp-meta-select" x-model="rhythmSlug" @change="markDirty()">
                         <option value="">None</option>
@@ -219,20 +216,6 @@
                                 @endforeach
                             </optgroup>
                         @endforeach
-                    </select>
-                </div>
-                <div class="sbn-vp-meta-field">
-                    <span class="sbn-vp-meta-label">Style</span>
-                    <select class="sbn-vp-meta-select" x-model="genre" @change="markDirty()">
-                        <option value="">— auto from rhythm —</option>
-                        <option value="bossa-nova">Bossa Nova</option>
-                        <option value="samba">Samba</option>
-                        <option value="jazz">Jazz</option>
-                        <option value="blues">Blues</option>
-                        <option value="latin">Latin</option>
-                        <option value="cuban">Cuban</option>
-                        <option value="pop">Pop / Rock</option>
-                        <option value="classical">Classical</option>
                     </select>
                 </div>
                 <div class="sbn-vp-meta-field">
@@ -256,6 +239,37 @@
                         <option value="5">5 — Advanced</option>
                     </select>
                 </div>
+
+                {{-- ── Hashtags ─────────────────────────────────── --}}
+                <div class="sbn-vp-meta-field" style="grid-column:span 2; flex-direction:column; align-items:flex-start; gap:6px;">
+                    <span class="sbn-vp-meta-label">Hashtags</span>
+                    <div class="sbn-tags-active" x-show="leadsheetTags.length > 0">
+                        <template x-for="tag in leadsheetTags" :key="tag">
+                            <span class="sbn-tag-chip">
+                                #<span x-text="tag"></span>
+                                <button type="button" class="sbn-tag-remove"
+                                        @click="leadsheetTags = leadsheetTags.filter(t => t !== tag); markDirty()">&times;</button>
+                            </span>
+                        </template>
+                    </div>
+                    <div class="sbn-tags-none" x-show="leadsheetTags.length === 0">No hashtags yet</div>
+                    <div class="sbn-tags-palette">
+                        @foreach(\App\Models\Leadsheet::PRESET_TAGS as $preset)
+                        <button type="button" class="sbn-tag-preset"
+                                :class="{ 'is-active': leadsheetTags.includes('{{ $preset }}') }"
+                                @click="leadsheetTags.includes('{{ $preset }}') ? (leadsheetTags = leadsheetTags.filter(t => t !== '{{ $preset }}')) : leadsheetTags.push('{{ $preset }}'); markDirty()">#{{ $preset }}</button>
+                        @endforeach
+                    </div>
+                    <div class="sbn-tags-custom">
+                        <input type="text" placeholder="custom tag…" style="font-size:12px;"
+                               @keydown.enter.prevent="
+                                   const v = $el.value.trim().toLowerCase().replace(/\s+/g,'-');
+                                   if(v && !leadsheetTags.includes(v)){ leadsheetTags.push(v); markDirty(); }
+                                   $el.value = '';
+                               ">
+                    </div>
+                </div>
+
             </div>
             </div>
         </div>
@@ -1324,6 +1338,7 @@ function leadsheetEditor() {
         genre: '{{ $leadsheet->genre ?? $exercise->genre ?? '' }}',
         popularity: {{ $leadsheet->popularity ?? $exercise->popularity ?? 0 }},
         difficulty: {{ $leadsheet->difficulty ?? $exercise->difficulty ?? 0 }},
+        leadsheetTags: @json($existingTags ?? '') ? @json($existingTags ?? '').split(',').map(t => t.trim()).filter(Boolean) : [],
         description: '{{ isset($leadsheet) ? addslashes($leadsheet->description ?? '') : (isset($exercise) ? addslashes($exercise->description ?? '') : '') }}',
         barsPerRow: 4,
         collapsedSections: {},
@@ -2333,6 +2348,7 @@ function leadsheetEditor() {
                         genre: this.genre || null,
                         popularity: this.popularity || 0,
                         difficulty: this.difficulty || 0,
+                        tags: this.leadsheetTags.join(','),
                     };
 
                 const resp = await fetch(url, {

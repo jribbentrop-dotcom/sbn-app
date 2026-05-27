@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Leadsheet;
 use App\Models\RhythmPattern;
+use App\Models\SbnTag;
 use App\Models\JazzStandard;
 use App\Models\ChordProgression;
 use App\Services\ChordShapeCalculator;
@@ -79,13 +80,10 @@ class LeadsheetController extends Controller
             }
             if ($style) {
                 $stylePrefixes = [
-                    'bossa'     => ['bossa'],
-                    'samba'     => ['samba'],
-                    'jazz'      => ['jazz', 'swing'],
-                    'latin'     => ['latin', 'afro-cuban'],
-                    'blues'     => ['blues'],
-                    'pop'       => ['pop', 'ballad'],
-                    'classical' => ['classical'],
+                    'bossa-nova' => ['bossa-nova', 'bossa'],
+                    'jazz'       => ['jazz'],
+                    'classical'  => ['classical'],
+                    'pop'        => ['pop'],
                 ];
                 $prefixes = $stylePrefixes[$style] ?? [$style];
                 $query->where(function ($q) use ($prefixes) {
@@ -132,6 +130,7 @@ class LeadsheetController extends Controller
             'leadsheet'      => null,
             'rhythms'        => $rhythms,
             'rhythmPatterns' => $rhythmPatterns,
+            'existingTags'   => '',
         ]);
     }
 
@@ -139,10 +138,12 @@ class LeadsheetController extends Controller
     {
         $rhythms        = RhythmPattern::orderBy('category')->orderBy('name')->get();
         $rhythmPatterns = $rhythms->mapWithKeys(fn ($r) => [$r->slug => $r->toPlayerData()]);
+        $existingTags   = $leadsheet->tags()->pluck('slug')->implode(',');
         return view('admin.leadsheets.edit', [
             'leadsheet'      => $leadsheet,
             'rhythms'        => $rhythms,
             'rhythmPatterns' => $rhythmPatterns,
+            'existingTags'   => $existingTags,
         ]);
     }
 
@@ -182,6 +183,8 @@ class LeadsheetController extends Controller
             $crossref = app(VoicingCrossref::class);
             $crossref->processLeadsheet($leadsheet);
         }
+
+        $this->syncTags($leadsheet, $this->parseTagSlugs($request->input('tags', '')));
 
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'id' => $leadsheet->id, 'message' => 'Leadsheet created.']);
@@ -805,6 +808,8 @@ class LeadsheetController extends Controller
             $crossref->processLeadsheet($leadsheet->fresh());
         }
 
+        $this->syncTags($leadsheet, $this->parseTagSlugs($request->input('tags', '')));
+
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'id' => $leadsheet->id, 'message' => 'Leadsheet updated.']);
         }
@@ -1352,7 +1357,20 @@ class LeadsheetController extends Controller
             'genre'             => 'nullable|string|max:50',
             'popularity'        => 'nullable|integer|min:0|max:100',
             'difficulty'        => 'nullable|integer|min:0|max:5',
+            'tags'              => 'nullable|string|max:500',
         ]);
+    }
+
+    private function syncTags(Leadsheet $leadsheet, array $slugs): void
+    {
+        $ids = collect($slugs)->map(fn ($s) => SbnTag::findOrCreateBySlug($s)->id)->all();
+        $leadsheet->tags()->sync($ids);
+    }
+
+    private function parseTagSlugs(?string $raw): array
+    {
+        if (!$raw) return [];
+        return array_values(array_filter(array_map('trim', explode(',', $raw)), fn ($s) => $s !== ''));
     }
 
     private function countMeasures(array $parsed): int

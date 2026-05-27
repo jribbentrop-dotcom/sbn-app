@@ -187,16 +187,13 @@ class ProgressionLibraryController extends Controller
     private function mapCategoryToStyleSlug(string $category): string
     {
         $mapping = [
-            'jazz' => 'jazz',
-            'blues' => 'blues',
-            'pop' => 'pop',
-            'modal' => 'pop', // Modal uses pop colors
-            'classical' => 'classical',
-            'latin' => 'latin',
-            'other' => 'bossa', // Other uses default bossa color
+            'bossa-nova' => 'bossa-nova',
+            'jazz'       => 'jazz',
+            'classical'  => 'classical',
+            'pop'        => 'pop',
         ];
 
-        return $mapping[$category] ?? 'bossa';
+        return $mapping[$category] ?? 'bossa-nova';
     }
 
     private function getAllTags(): array

@@ -1,30 +1,20 @@
 const SLUG_TO_TOKEN: Record<string, string> = {
     'bossa-nova': '--clr-style-bossa',
     'jazz':       '--clr-style-jazz',
-    'samba':      '--clr-style-samba',
-    'latin':      '--clr-style-latin',
-    'blues':      '--clr-style-blues',
-    'pop':        '--clr-style-pop',
     'classical':  '--clr-style-classical',
-    'iconic':     '--clr-style-gold',
-    'general':    '--clr-style-general',
-    // Aliases & extra mappings
+    'pop':        '--clr-style-pop',
+    // legacy alias still present in older data
     'bossa':      '--clr-style-bossa',
-    'cuban':      '--clr-style-cuban',
-    'brazilian':  '--clr-style-samba',
-    // Progression category mappings
-    'modal':      '--clr-style-pop',
-    'other':      '--clr-style-general',
 };
+
+export const CANONICAL_CATEGORIES = ['bossa-nova', 'jazz', 'classical', 'pop'] as const;
+export type CategorySlug = typeof CANONICAL_CATEGORIES[number];
 
 export const STYLE_SLUGS = new Set(Object.keys(SLUG_TO_TOKEN));
 
 export function getCategoryColor(slug: string | undefined): string {
     if (!slug) return 'var(--clr-style-default)';
-    
-    const cleanSlug = slug.toLowerCase().trim();
-    const token = SLUG_TO_TOKEN[cleanSlug] || '--clr-style-default';
-    
+    const token = SLUG_TO_TOKEN[slug.toLowerCase().trim()] || '--clr-style-default';
     return `var(${token})`;
 }
 

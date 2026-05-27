@@ -49,9 +49,11 @@
                         <div class="sbn-text-muted" style="font-size:11px;">{{ $course->slug }}</div>
                     </td>
                     <td>
-                        @foreach($course->genres ?? [] as $genre)
-                            <span class="sbn-cat-badge sbn-cat-badge--{{ $genre }}" style="margin-right:3px;">{{ $genre }}</span>
-                        @endforeach
+                        @if($course->category)
+                            <span class="sbn-cat-badge sbn-cat-badge-filled sbn-cat-badge--{{ $course->category }}">
+                                {{ \App\Models\ChordProgression::CATEGORY_LABELS[$course->category] ?? $course->category }}
+                            </span>
+                        @endif
                     </td>
                     <td x-data="{ status: '{{ $course->status }}' }">
                         <button @click="fetch('{{ route('admin.courses.updateStatus', $course) }}', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }, body: JSON.stringify({ status: status === 'publish' ? 'draft' : 'publish' }) }).then(r => r.json()).then(d => { if (d.success) status = d.status })"

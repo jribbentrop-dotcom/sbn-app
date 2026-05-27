@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 class Leadsheet extends Model
 {
@@ -33,6 +34,8 @@ class Leadsheet extends Model
         'form_notes',
         'voicing_notes',
         'popularity',
+        'difficulty',
+        'genre',
         'cover_image_path',
         'status',
     ];
@@ -156,31 +159,32 @@ class Leadsheet extends Model
         }
 
         $map = [
-            'bossa'      => 'bossa',
-            'bossa-nova' => 'bossa',
-            'samba'      => 'samba',
+            'bossa-nova' => 'bossa-nova',
+            'bossa'      => 'bossa-nova',
             'jazz'       => 'jazz',
-            'swing'      => 'jazz',
-            'latin'      => 'latin',
-            'afro-cuban' => 'latin',
-            'blues'      => 'blues',
-            'pop'        => 'pop',
-            'ballad'     => 'pop',
             'classical'  => 'classical',
+            'pop'        => 'pop',
         ];
 
         if (isset($map[$rhythm])) {
             return $map[$rhythm];
         }
 
-        // Prefix match (e.g. "bossa-nova-variation" → "bossa")
+        // Prefix match (e.g. "bossa-nova-variation" → "bossa-nova")
         foreach ($map as $prefix => $style) {
             if (str_starts_with($rhythm, $prefix)) {
                 return $style;
             }
         }
 
-        return 'bossa';
+        return 'bossa-nova';
+    }
+
+    public const PRESET_TAGS = ['blues', 'modal', 'latin', 'cuban', 'brazilian', 'swing', 'afro-cuban', 'ballad', 'samba'];
+
+    public function tags(): MorphToMany
+    {
+        return $this->morphToMany(SbnTag::class, 'taggable', 'sbn_taggables', 'taggable_id', 'tag_id');
     }
 
     /**
@@ -380,17 +384,11 @@ class Leadsheet extends Model
     public static function getDistinctStyles(): array
     {
         $map = [
-            'bossa'      => 'bossa',
-            'bossa-nova' => 'bossa',
-            'samba'      => 'samba',
+            'bossa-nova' => 'bossa-nova',
+            'bossa'      => 'bossa-nova',
             'jazz'       => 'jazz',
-            'swing'      => 'jazz',
-            'latin'      => 'latin',
-            'afro-cuban' => 'latin',
-            'blues'      => 'blues',
-            'pop'        => 'pop',
-            'ballad'     => 'pop',
             'classical'  => 'classical',
+            'pop'        => 'pop',
         ];
 
         $rhythms = static::whereNotNull('rhythm')->where('rhythm', '!=', '')->distinct()->pluck('rhythm');
@@ -406,7 +404,7 @@ class Leadsheet extends Model
             if ($slug) $styles[$slug] = true;
         }
 
-        $ordered = ['bossa', 'samba', 'jazz', 'latin', 'blues', 'pop', 'classical'];
+        $ordered = ['bossa-nova', 'jazz', 'classical', 'pop'];
         return array_values(array_filter($ordered, fn($s) => isset($styles[$s])));
     }
 

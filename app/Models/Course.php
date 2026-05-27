@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 class Course extends Model
 {
@@ -13,12 +14,16 @@ class Course extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
-        'genres'   => 'array',
-        'levels'   => 'array',
-        'topics'   => 'array',
-        'is_free'  => 'boolean',
-        'wp_id'    => 'integer',
+        'levels'     => 'array',
+        'topics'     => 'array',
+        'is_free'    => 'boolean',
+        'wp_id'      => 'integer',
         'sort_order' => 'integer',
+    ];
+
+    public const PRESET_TAGS = [
+        'blues', 'modal', 'latin', 'cuban', 'brazilian',
+        'swing', 'fingerpicking', 'chord voicings', 'sight reading',
     ];
 
     // =========================================================================
@@ -35,6 +40,11 @@ class Course extends Model
         return $this->belongsTo(Product::class);
     }
 
+    public function tags(): MorphToMany
+    {
+        return $this->morphToMany(SbnTag::class, 'taggable', 'sbn_taggables', 'taggable_id', 'tag_id');
+    }
+
     // =========================================================================
     // SCOPES
     // =========================================================================
@@ -44,9 +54,9 @@ class Course extends Model
         return $query->where('status', 'publish');
     }
 
-    public function scopeByGenre($query, string $genre)
+    public function scopeByCategory($query, string $category)
     {
-        return $query->whereJsonContains('genres', $genre);
+        return $query->where('category', $category);
     }
 
     public function scopeByLevel($query, string $level)
@@ -60,7 +70,7 @@ class Course extends Model
 
     public function getPrimaryGenreAttribute(): ?string
     {
-        return $this->genres[0] ?? $this->style ?? null;
+        return $this->category ?? $this->style ?? null;
     }
 
     public function getPrimaryLevelAttribute(): ?string

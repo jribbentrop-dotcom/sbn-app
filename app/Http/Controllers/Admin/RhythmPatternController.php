@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\RhythmPattern;
+use App\Models\SbnTag;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -29,8 +30,9 @@ class RhythmPatternController extends Controller
     {
         $pattern = new RhythmPattern();
         return view('admin.rhythms.edit', [
-            'pattern' => $pattern,
-            'isNew'   => true,
+            'pattern'      => $pattern,
+            'isNew'        => true,
+            'existingTags' => '',
         ]);
     }
 
@@ -39,9 +41,12 @@ class RhythmPatternController extends Controller
      */
     public function edit(RhythmPattern $rhythm)
     {
+        $existingTags = $rhythm->tags()->pluck('slug')->implode(',');
+
         return view('admin.rhythms.edit', [
-            'pattern' => $rhythm,
-            'isNew'   => false,
+            'pattern'      => $rhythm,
+            'isNew'        => false,
+            'existingTags' => $existingTags,
         ]);
     }
 
@@ -50,14 +55,14 @@ class RhythmPatternController extends Controller
      */
     public function store(Request $request)
     {
-        $data = $this->validatePattern($request);
+        [$data, $tagSlugs] = $this->validatePattern($request);
 
-        // Auto-generate slug from name if blank
         if (empty($data['slug'])) {
             $data['slug'] = Str::slug($data['name']);
         }
 
         $pattern = RhythmPattern::create($data);
+        $this->syncTags($pattern, $tagSlugs);
 
         return response()->json([
             'success' => true,
@@ -72,13 +77,14 @@ class RhythmPatternController extends Controller
      */
     public function update(Request $request, RhythmPattern $rhythm)
     {
-        $data = $this->validatePattern($request, $rhythm->id);
+        [$data, $tagSlugs] = $this->validatePattern($request, $rhythm->id);
 
         if (empty($data['slug'])) {
             $data['slug'] = Str::slug($data['name']);
         }
 
         $rhythm->update($data);
+        $this->syncTags($rhythm, $tagSlugs);
 
         return response()->json([
             'success' => true,
@@ -137,9 +143,6 @@ class RhythmPatternController extends Controller
 
     private function validatePattern(Request $request, ?int $excludeId = null): array
     {
-        // The video-snippet widget submits its library as a JSON string in a
-        // hidden field (classic form POST). Decode it to an array before
-        // validation so the per-snippet rules can apply.
         if ($request->filled('video_snippets') && is_string($request->input('video_snippets'))) {
             $decoded = json_decode($request->input('video_snippets'), true);
             $request->merge(['video_snippets' => is_array($decoded) ? $decoded : []]);
@@ -152,7 +155,8 @@ class RhythmPatternController extends Controller
                 Rule::unique('sbn_rhythm_patterns', 'slug')->ignore($excludeId),
             ],
             'description'    => 'nullable|string|max:1000',
-            'category'       => 'nullable|string|max:50',
+            'category'       => ['nullable', 'string', Rule::in(RhythmPattern::CATEGORIES)],
+            'tags'           => 'nullable|string|max:500',
             'time_signature' => 'nullable|string|in:2/4,3/4,4/4,6/8',
             'beats'          => 'nullable|integer|min:2|max:64',
             'grid_type'      => 'nullable|string|in:eighth,sixteenth,triplet',
@@ -180,7 +184,22 @@ class RhythmPatternController extends Controller
             $data['time_signature'] ?? '4/4'
         );
 
-        return $data;
+        $tagSlugs = array_filter(
+            array_map('trim', explode(',', $data['tags'] ?? '')),
+            fn ($s) => $s !== ''
+        );
+        unset($data['tags']);
+
+        return [$data, array_values($tagSlugs)];
+    }
+
+    private function syncTags(RhythmPattern $pattern, array $slugs): void
+    {
+        $ids = collect($slugs)->map(
+            fn ($slug) => SbnTag::findOrCreateBySlug($slug)->id
+        )->all();
+
+        $pattern->tags()->sync($ids);
     }
 
     /**

@@ -90,12 +90,19 @@ function diagramDataToFingerString(data: ChordDiagramData['diagram_data']): stri
 
 watchEffect(() => {
     if (typeof (window as any).sbnRenderDiagramSVG === 'function') {
+        const data = props.chord.diagram_data;
+        const posFrets = (data.positions ?? []).map(p => p.fret);
+        const barreFrets = (data.barres ?? []).map(b => b.fret);
+        const maxFret = Math.max(0, ...posFrets, ...barreFrets);
+        const hasOpen = (data.open ?? []).length > 0 || posFrets.some(f => f === 0);
+        // Nut only when all frets ≤ 4 AND there are open strings (movable shapes at low frets get a position marker)
+        const displayPosition = (maxFret > 0 && maxFret <= 4 && hasOpen) ? 1 : (props.chord.start_fret ?? 1);
         const voicing = {
-            frets:       diagramDataToFretString(props.chord.diagram_data),
-            fret_string: diagramDataToFretString(props.chord.diagram_data),
-            position:    props.chord.start_fret ?? 1,
-            start_fret:  props.chord.start_fret ?? 1,
-            fingers:     diagramDataToFingerString(props.chord.diagram_data),
+            frets:       diagramDataToFretString(data),
+            fret_string: diagramDataToFretString(data),
+            position:    displayPosition,
+            start_fret:  displayPosition,
+            fingers:     diagramDataToFingerString(data),
         };
         
         const gtLabels = props.showGuideTones ? (props.chord.interval_labels ?? null) : null;

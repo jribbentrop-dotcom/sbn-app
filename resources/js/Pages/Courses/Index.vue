@@ -15,7 +15,7 @@ interface CourseData {
 
 const props = defineProps<{
   courses: CourseData[];
-  genres: string[];
+  categories: string[];
   levels: string[];
 }>();
 
@@ -68,9 +68,9 @@ const grouped = computed(() => {
 
       <aside class="sbn-filter-sidebar">
         <div class="sbn-sidebar-section">
-          <span class="sbn-sidebar-label">Genre</span>
+          <span class="sbn-sidebar-label">Category</span>
           <div class="sbn-sidebar-options">
-            <button v-for="genre in genres" :key="genre" type="button" :class="['sbn-sidebar-option', { active: filterGenre === genre }]" @click="filterGenre = filterGenre === genre ? '' : genre">{{ genre }}</button>
+            <button v-for="cat in categories" :key="cat" type="button" :class="['sbn-sidebar-option', { active: filterGenre === cat }]" @click="filterGenre = filterGenre === cat ? '' : cat">{{ cat.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }}</button>
           </div>
         </div>
         <div class="sbn-sidebar-section">

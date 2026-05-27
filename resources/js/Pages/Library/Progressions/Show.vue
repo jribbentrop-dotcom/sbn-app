@@ -47,13 +47,10 @@ const props = defineProps<Props>();
 
 // ── Category labels ─────────────────────────────────────────
 const categoryLabels: Record<string, string> = {
-    'jazz': 'Jazz',
-    'blues': 'Blues',
-    'pop': 'Pop / Rock',
-    'modal': 'Modal',
-    'classical': 'Classical',
-    'latin': 'Latin',
-    'other': 'Other',
+    'bossa-nova': 'Bossa Nova',
+    'jazz':       'Jazz',
+    'classical':  'Classical',
+    'pop':        'Pop',
 };
 
 // ── Computed properties ───────────────────────────────────────
@@ -114,10 +111,8 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
                     <span
                         v-for="tag in progression.tags.slice(0, 5)"
                         :key="tag"
-                        class="sbn-badge sbn-badge-muted"
-                    >
-                        {{ tag }}
-                    </span>
+                        class="sbn-hashtag"
+                    >#{{ tag }}</span>
                 </div>
             </header>
 

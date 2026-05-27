@@ -15,15 +15,11 @@ class RhythmLibraryController extends Controller
      * case-insensitively against the pattern's category column.
      */
     private const CATEGORY_TO_STYLE = [
-        'brazilian'   => 'samba',
-        'bossa nova'  => 'bossa',
-        'bossa'       => 'bossa',
-        'jazz'        => 'jazz',
-        'latin'       => 'latin',
-        'cuban'       => 'cuban',
-        'blues'       => 'blues',
-        'classical'   => 'classical',
-        'general'     => 'general',
+        'bossa-nova' => 'bossa-nova',
+        'bossa'      => 'bossa-nova',
+        'jazz'       => 'jazz',
+        'classical'  => 'classical',
+        'pop'        => 'pop',
     ];
 
     public function index()
@@ -98,6 +94,7 @@ class RhythmLibraryController extends Controller
             'percTop' => $pattern->perc_top,
             'percBass' => $pattern->perc_bass,
             'demoUrl' => $pattern->mp3_file ? '/audio/rhythm-demos/' . $pattern->mp3_file : null,
+            'tags'    => $pattern->tags()->pluck('slug')->all(),
         ];
     }
 

@@ -43,13 +43,10 @@ const fSort = ref(props.activeFilters.sort || 'popularity');
 
 // ── Category labels ─────────────────────────────────────────
 const categoryLabels: Record<string, string> = {
-    'jazz': 'Jazz',
-    'blues': 'Blues',
-    'pop': 'Pop / Rock',
-    'modal': 'Modal',
-    'classical': 'Classical',
-    'latin': 'Latin',
-    'other': 'Other',
+    'bossa-nova': 'Bossa Nova',
+    'jazz':       'Jazz',
+    'classical':  'Classical',
+    'pop':        'Pop',
 };
 
 // ── Filtered and sorted progressions ─────────────────────────────
@@ -234,10 +231,8 @@ function setExampleQuery(query: string) {
                                 <span
                                     v-for="tag in progression.tags.slice(0, 3)"
                                     :key="tag"
-                                    class="sbn-badge sbn-badge-muted"
-                                >
-                                    {{ tag }}
-                                </span>
+                                    class="sbn-hashtag"
+                                >#{{ tag }}</span>
                             </div>
 
                             <!-- Title -->
@@ -319,7 +314,7 @@ function setExampleQuery(query: string) {
                             class="sbn-prog-sidebar-option"
                             @click="() => {}"
                         >
-                            {{ tag }}
+                            #{{ tag }}
                         </button>
                         <p v-if="tags.length === 0" class="sbn-prog-tags-empty-note">
                             Add keyword tags to progressions in the admin to enable this filter.

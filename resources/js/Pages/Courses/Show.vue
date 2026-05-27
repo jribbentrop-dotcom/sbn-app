@@ -28,7 +28,7 @@ interface CourseData {
   slug: string;
   title: string;
   excerpt: string | null;
-  genres: string[];
+  category: string | null;
   levels: string[];
   topics: string[];
   primaryGenre: string | null;
@@ -125,16 +125,8 @@ const totalSections = computed(() => grouped.value.length);
         <!-- Left: text content -->
         <div class="sbn-cs-hero-text">
           <div class="sbn-cs-hero-badges">
-            <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(course.primaryGenre ?? '') }">
+            <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(course.category ?? '') }">
               {{ genreLabel }}
-            </span>
-            <span
-              v-for="genre in course.genres.slice(1)"
-              :key="genre"
-              class="sbn-cat-badge sbn-cat-badge-filled"
-              :style="{ '--cat-clr': getCategoryColor(genre) }"
-            >
-              {{ genre.replace(/-/g, ' ') }}
             </span>
             <span class="sbn-badge sbn-badge-muted">
               <span class="sbn-cs-stars">

@@ -82,28 +82,13 @@
     --clr-mod-rhythm: #10b981;
     --clr-mod-voicing: #ec4899;
 
-    /* ── Music style colors ──────────────────────────────
+    /* ── Music style colors — 4 canonical categories ────────
        Used for category badges, pill filters, progression
        dots, chord-diagram tints, and shop card accents.   */
-    --clr-style-bossa: #f39c12;
-    /* orange — bossa nova      */
-    --clr-style-jazz: #3b82f6;
-    /* blue   — jazz            */
-    --clr-style-samba: #10b981;
-    /* green  — samba           */
-    --clr-style-latin: #8b5cf6;
-    --clr-style-cuban: #0050a4;
-    /* purple — latin           */
-    --clr-style-blues: #6366f1;
-    /* indigo — blues           */
-    --clr-style-pop: #ec4899;
-    /* pink   — pop             */
-    --clr-style-classical: #64748b;
-    /* slate  — classical       */
-    --clr-style-gold: #d69e2e;
-    /* gold   — iconic/featured */
-    --clr-style-general: #94a3b8;
-    /* dark grey — general rhythms */
+    --clr-style-bossa: #f39c12;       /* orange — bossa nova  */
+    --clr-style-jazz: #3b82f6;        /* blue   — jazz        */
+    --clr-style-classical: #10b981;   /* green  — classical   */
+    --clr-style-pop: #ec4899;         /* pink   — pop         */
 
     /* Fallback when slug is unknown */
     --clr-style-default: var(--clr-style-bossa);
@@ -478,15 +463,11 @@
     border-color: var(--clr-text-muted);
 }
 
-.sbn-pattern-row--bossa     { --row-color: var(--clr-style-bossa); }
-.sbn-pattern-row--jazz      { --row-color: var(--clr-style-jazz); }
-.sbn-pattern-row--samba     { --row-color: var(--clr-style-samba); }
-.sbn-pattern-row--latin     { --row-color: var(--clr-style-latin); }
-.sbn-pattern-row--blues     { --row-color: var(--clr-style-blues); }
-.sbn-pattern-row--pop       { --row-color: var(--clr-style-pop); }
-.sbn-pattern-row--classical { --row-color: var(--clr-style-classical); }
-.sbn-pattern-row--gold      { --row-color: var(--clr-style-gold); }
-.sbn-pattern-row--general   { --row-color: var(--clr-style-general); }
+.sbn-pattern-row--bossa-nova { --row-color: var(--clr-style-bossa); }
+.sbn-pattern-row--bossa      { --row-color: var(--clr-style-bossa); }
+.sbn-pattern-row--jazz       { --row-color: var(--clr-style-jazz); }
+.sbn-pattern-row--classical  { --row-color: var(--clr-style-classical); }
+.sbn-pattern-row--pop        { --row-color: var(--clr-style-pop); }
 
 
 
@@ -802,6 +783,15 @@
     color: var(--clr-text-muted);
 }
 
+/* Plain hashtag — #ballad #modal — no pill, just monospace text */
+.sbn-hashtag {
+    font-size: 12px;
+    color: var(--clr-text);
+    font-family: var(--font-mono, monospace);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
 /* Accent (orange) — general highlight */
 .sbn-badge-accent {
     background: var(--clr-accent-bg);
@@ -830,11 +820,11 @@
     border: 1px solid rgba(239, 68, 68, 0.15);
 }
 
-/* ── Music style badges ───────────────────────────────────
+/* ── Music style badges — 4 canonical categories ──────────
    Tinted pill using the style color token.
-   Use: <span class="sbn-badge sbn-badge-style-bossa">Bossa Nova</span>
-   Aliases: -brazilian → -bossa, -bossa-nova → -bossa, -cuban → own token  */
+   Use: <span class="sbn-badge sbn-badge-style-bossa-nova">Bossa Nova</span> */
 
+.sbn-badge-style-bossa-nova,
 .sbn-badge-style-bossa {
     background: var(--clr-gradient-soft);
     color: var(--clr-text);
@@ -847,28 +837,10 @@
     border: 1px solid color-mix(in srgb, var(--clr-style-jazz) 28%, transparent);
 }
 
-.sbn-badge-style-samba {
-    background: color-mix(in srgb, var(--clr-style-samba) 12%, transparent);
-    color: color-mix(in srgb, var(--clr-style-samba) 80%, #000);
-    border: 1px solid color-mix(in srgb, var(--clr-style-samba) 28%, transparent);
-}
-
-.sbn-badge-style-latin {
-    background: color-mix(in srgb, var(--clr-style-latin) 12%, transparent);
-    color: color-mix(in srgb, var(--clr-style-latin) 80%, #000);
-    border: 1px solid color-mix(in srgb, var(--clr-style-latin) 28%, transparent);
-}
-
-.sbn-badge-style-cuban {
-    background: color-mix(in srgb, var(--clr-style-cuban) 12%, transparent);
-    color: color-mix(in srgb, var(--clr-style-cuban) 80%, #000);
-    border: 1px solid color-mix(in srgb, var(--clr-style-cuban) 28%, transparent);
-}
-
-.sbn-badge-style-blues {
-    background: color-mix(in srgb, var(--clr-style-blues) 12%, transparent);
-    color: color-mix(in srgb, var(--clr-style-blues) 80%, #000);
-    border: 1px solid color-mix(in srgb, var(--clr-style-blues) 28%, transparent);
+.sbn-badge-style-classical {
+    background: color-mix(in srgb, var(--clr-style-classical) 12%, transparent);
+    color: color-mix(in srgb, var(--clr-style-classical) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-classical) 28%, transparent);
 }
 
 .sbn-badge-style-pop {
@@ -877,47 +849,18 @@
     border: 1px solid color-mix(in srgb, var(--clr-style-pop) 28%, transparent);
 }
 
-.sbn-badge-style-classical {
-    background: color-mix(in srgb, var(--clr-style-classical) 12%, transparent);
-    color: color-mix(in srgb, var(--clr-style-classical) 80%, #000);
-    border: 1px solid color-mix(in srgb, var(--clr-style-classical) 28%, transparent);
-}
-
-.sbn-badge-style-gold {
-    background: color-mix(in srgb, var(--clr-style-gold) 12%, transparent);
-    color: color-mix(in srgb, var(--clr-style-gold) 80%, #000);
-    border: 1px solid color-mix(in srgb, var(--clr-style-gold) 28%, transparent);
-}
-
-.sbn-badge-style-general {
-    background: color-mix(in srgb, var(--clr-style-general) 12%, transparent);
-    color: color-mix(in srgb, var(--clr-style-general) 80%, #000);
-    border: 1px solid color-mix(in srgb, var(--clr-style-general) 28%, transparent);
-}
-
-/* Aliases */
-.sbn-badge-style-brazilian { background: color-mix(in srgb, var(--clr-style-samba) 12%, transparent); color: color-mix(in srgb, var(--clr-style-samba) 80%, #000); border: 1px solid color-mix(in srgb, var(--clr-style-samba) 28%, transparent); }
-.sbn-badge-style-bossa-nova { background: var(--clr-gradient-soft); color: var(--clr-text); border: none; }
-
 /* Filled variant — solid bg + white text, for header/hero contexts.
-   Use: <span class="sbn-badge sbn-badge-style-bossa sbn-badge-style-filled"> */
+   Use: <span class="sbn-badge sbn-badge-style-jazz sbn-badge-style-filled"> */
 .sbn-badge-style-filled {
     background: var(--_style-clr, var(--clr-style-default));
     color: #fff;
     border-color: transparent;
 }
+.sbn-badge-style-bossa-nova.sbn-badge-style-filled,
 .sbn-badge-style-bossa.sbn-badge-style-filled    { background: var(--clr-gradient-soft); color: var(--clr-text); border-color: transparent; }
 .sbn-badge-style-jazz.sbn-badge-style-filled     { --_style-clr: var(--clr-style-jazz); }
-.sbn-badge-style-samba.sbn-badge-style-filled    { --_style-clr: var(--clr-style-samba); }
-.sbn-badge-style-latin.sbn-badge-style-filled    { --_style-clr: var(--clr-style-latin); }
-.sbn-badge-style-cuban.sbn-badge-style-filled    { --_style-clr: var(--clr-style-cuban); }
-.sbn-badge-style-blues.sbn-badge-style-filled    { --_style-clr: var(--clr-style-blues); }
-.sbn-badge-style-pop.sbn-badge-style-filled      { --_style-clr: var(--clr-style-pop); }
 .sbn-badge-style-classical.sbn-badge-style-filled{ --_style-clr: var(--clr-style-classical); }
-.sbn-badge-style-gold.sbn-badge-style-filled     { --_style-clr: var(--clr-style-gold); }
-.sbn-badge-style-general.sbn-badge-style-filled  { --_style-clr: var(--clr-style-general); }
-.sbn-badge-style-brazilian.sbn-badge-style-filled{ --_style-clr: var(--clr-style-samba); }
-.sbn-badge-style-bossa-nova.sbn-badge-style-filled{ background: var(--clr-gradient-soft); color: var(--clr-text); border-color: transparent; }
+.sbn-badge-style-pop.sbn-badge-style-filled      { --_style-clr: var(--clr-style-pop); }
 
 /* ── Rhythm grid-type badges ──────────────────────────────
    Use: <span class="sbn-badge sbn-badge-grid-eighth">eighth</span>
@@ -930,9 +873,9 @@
 }
 
 .sbn-badge-grid-triplet {
-    background: color-mix(in srgb, var(--clr-style-samba) 10%, transparent);
-    color: color-mix(in srgb, var(--clr-style-samba) 80%, #000);
-    border: 1px solid color-mix(in srgb, var(--clr-style-samba) 22%, transparent);
+    background: color-mix(in srgb, var(--clr-style-classical) 10%, transparent);
+    color: color-mix(in srgb, var(--clr-style-classical) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-classical) 22%, transparent);
 }
 
 /* Dynamic category badge — set --cat-clr on the element.
@@ -948,6 +891,7 @@
     font-weight: 600;
     letter-spacing: 0.02em;
     text-transform: capitalize;
+    white-space: nowrap;
     background: color-mix(in srgb, var(--cat-clr, var(--clr-text-muted)) 10%, transparent);
     color: var(--cat-clr, var(--clr-text-muted));
     border: 1px solid color-mix(in srgb, var(--cat-clr, var(--clr-text-muted)) 20%, transparent);
@@ -959,20 +903,12 @@
     border-color: transparent;
 }
 
-/* Style slug modifiers */
-.sbn-cat-badge--jazz      { --cat-clr: var(--clr-style-jazz); }
+/* Style slug modifiers — 4 canonical categories */
+.sbn-cat-badge--bossa-nova,
 .sbn-cat-badge--bossa     { --cat-clr: var(--clr-style-bossa); }
-.sbn-cat-badge--samba     { --cat-clr: var(--clr-style-samba); }
-.sbn-cat-badge--latin     { --cat-clr: var(--clr-style-latin); }
-.sbn-cat-badge--blues     { --cat-clr: var(--clr-style-blues); }
-.sbn-cat-badge--pop       { --cat-clr: var(--clr-style-pop); }
+.sbn-cat-badge--jazz      { --cat-clr: var(--clr-style-jazz); }
 .sbn-cat-badge--classical { --cat-clr: var(--clr-style-classical); }
-.sbn-cat-badge--gold      { --cat-clr: var(--clr-style-gold); }
-.sbn-cat-badge--general   { --cat-clr: var(--clr-style-general); }
-.sbn-cat-badge--brazilian  { --cat-clr: var(--clr-style-samba); }
-.sbn-cat-badge--bossa-nova { --cat-clr: var(--clr-style-bossa); }
-.sbn-cat-badge--cuban      { --cat-clr: var(--clr-style-cuban); }
-.sbn-cat-badge--modal      { --cat-clr: var(--clr-mod-progression); }
+.sbn-cat-badge--pop       { --cat-clr: var(--clr-style-pop); }
 
 /* ── Progression row category badge ─────────────────────────
    Compact uppercase label inside progression list rows.
@@ -995,9 +931,9 @@
 
 /* ── Progression tonality badge ──────────────────────────── */
 .sbn-badge-tonality-major {
-    background: color-mix(in srgb, var(--clr-style-gold) 12%, transparent);
-    color: color-mix(in srgb, var(--clr-style-gold) 80%, #000);
-    border: 1px solid color-mix(in srgb, var(--clr-style-gold) 25%, transparent);
+    background: color-mix(in srgb, #d69e2e 12%, transparent);
+    color: color-mix(in srgb, #d69e2e 80%, #000);
+    border: 1px solid color-mix(in srgb, #d69e2e 25%, transparent);
 }
 
 /* ── Popularity badge ────────────────────────────────────────
@@ -1016,7 +952,7 @@
 .sbn-pop-occasional { background: var(--clr-surface-2);                                               color: var(--clr-text-dim); }
 .sbn-pop-common     { background: color-mix(in srgb, var(--clr-style-jazz) 10%, transparent);         color: color-mix(in srgb, var(--clr-style-jazz) 80%, #000); }
 .sbn-pop-essential  { background: var(--clr-gradient-soft); color: #fff; font-weight: 700; }
-.sbn-pop-iconic     { background: linear-gradient(135deg, var(--clr-style-gold) 0%, color-mix(in srgb, var(--clr-style-gold) 70%, #fff) 100%); color: #fff; font-weight: 800; }
+.sbn-pop-iconic     { background: linear-gradient(135deg, #d69e2e 0%, color-mix(in srgb, #d69e2e 70%, #fff) 100%); color: #fff; font-weight: 800; }
 
 /* ── Roman numeral chip ───────────────────────────────────────
    Shared across: progression list rows, chord detail page,
@@ -1063,9 +999,9 @@
 }
 
 .sbn-badge-tonality-minor {
-    background: color-mix(in srgb, var(--clr-style-latin) 12%, transparent);
-    color: color-mix(in srgb, var(--clr-style-latin) 80%, #000);
-    border: 1px solid color-mix(in srgb, var(--clr-style-latin) 25%, transparent);
+    background: color-mix(in srgb, var(--clr-style-jazz) 12%, transparent);
+    color: color-mix(in srgb, var(--clr-style-jazz) 80%, #000);
+    border: 1px solid color-mix(in srgb, var(--clr-style-jazz) 25%, transparent);
 }
 
 /* Count badge (number in a circle/pill) */

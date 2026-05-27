@@ -55,6 +55,7 @@ export interface RhythmPatternWithMeta extends RhythmPatternData {
   category: string;
   styleSlug: string;
   demoUrl?: string | null;
+  tags?: string[];
   /** Optional real-world example video synced to this pattern. */
   videoSnippet?: VideoSnippet | null;
 }

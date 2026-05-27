@@ -20,17 +20,21 @@ interface BarreFamily {
     label: string;
     root: string;
     chords: ChordDiagramData[];
+    chromaticChords: ChordDiagramData[];
 }
 
 interface DropTarget {
     label: string;
     chord: ChordDiagramData;
+    inversions: ChordDiagramData[];
 }
 
 interface Props {
     archetypeFamilies: ArchetypeFamily[];
     barreFamilies: BarreFamily[];
     dropFamilies: Record<string, DropTarget>;
+    shellFamilies: Record<string, DropTarget>;
+    shellF7: ChordDiagramData | null;
     otherChords: ChordDiagramData[];
     voicingCategories: Record<string, string>;
     chordQualities: Record<string, string>;
@@ -144,6 +148,11 @@ async function exitBarreMode() {
     activeFamily.value = null;
     dropMode.value = false;
     dropAnimating.value = false;
+    shellExiting.value = false;
+    shellMode.value = false;
+    shellAnimating.value = false;
+    shellDone.value = false;
+    shellTileTranslates.value = {};
     panelPhase.value = 'exiting';
     await delay(400);
     showBarreContent.value = false;
@@ -156,6 +165,7 @@ async function exitBarreMode() {
 function delay(ms: number): Promise<void> {
     return new Promise(r => setTimeout(r, ms));
 }
+
 
 // ── Archetype drawer ───────────────────────────────────────
 const activeFamily = ref<string | null>(null);
@@ -430,6 +440,108 @@ function dropTargetFor(barreFamily: BarreFamily): ChordDiagramData | null {
 function dropLabelFor(barreFamily: BarreFamily): string {
     return props.dropFamilies[barreFamily.key]?.label ?? barreFamily.label;
 }
+
+// ── Shell voicing level ───────────────────────────────────────────────────
+// Level 4: the two centred drop voicings (Fmaj7 / Fm7) lose their highest
+// dot, revealing the shell voicing beneath.
+// shellExiting: Bb tiles are fading out (brief phase before shellMode)
+// shellMode:    only E-shape tiles remain, showing drop voicings
+// shellAnimating: the dot-removal animation is running
+// shellDone:    animation complete, shell blurb is visible
+const shellExiting   = ref(false);
+const shellMode      = ref(false);
+const shellAnimating = ref(false);
+const shellDone      = ref(false);
+
+// Which barre tile indices show E-shape (keep) vs A-shape (exit) for shell level.
+// barreFamilies order: [E, Em, A, Am] → indices 0,1 keep; 2,3 exit.
+const SHELL_EXIT_INDICES = new Set([2, 3]);
+const SHELL_KEEP_INDICES = new Set([0, 1]);
+
+function shellTileClass(idx: number): Record<string, boolean> {
+    if (SHELL_EXIT_INDICES.has(idx)) {
+        // Keep sbn-tile--exit during exiting (animation running) and after
+        // (forwards fill holds opacity:0). Add sbn-tile--shell-gone once
+        // shellMode commits so the tile also leaves the flex flow.
+        return {
+            'sbn-tile--exit':        true,
+            'sbn-tile--shell-gone':  shellMode.value || shellDone.value,
+        };
+    }
+    return {};
+}
+
+// Translate E-shape tiles to center (reuse same FLIP pattern as barré gather)
+const shellTileTranslates = ref<Record<number, string>>({});
+
+function computeShellGatherTranslates(): Record<number, string> {
+    if (!tilesRowRef.value) return {};
+    const rowRect    = tilesRowRef.value.getBoundingClientRect();
+    const rowCenterX = rowRect.left + rowRect.width / 2;
+    const allTiles   = Array.from(tilesRowRef.value.querySelectorAll<HTMLElement>('.sbn-archetype-tile'));
+    const keepTiles  = allTiles.filter((_, i) => SHELL_KEEP_INDICES.has(i));
+    if (!keepTiles.length) return {};
+
+    const tileW = keepTiles[0].getBoundingClientRect().width;
+    const gap   = 10;
+    // Target layout is 3 tiles (Fmaj7 | F7 | Fm7) — compute positions for
+    // slots 0 and 2 so Fmaj7/Fm7 land in their final spots immediately.
+    const totalTiles = 3;
+    const total  = totalTiles * tileW + (totalTiles - 1) * gap;
+    const startX = rowCenterX - total / 2;
+
+    const result: Record<number, string> = {};
+    // keepTiles[0] = Fmaj7 → slot 0, keepTiles[1] = Fm7 → slot 1, F7 → slot 2
+    const slots = [0, 1];
+    keepTiles.forEach((el, ci) => {
+        const rect   = el.getBoundingClientRect();
+        const currCx = rect.left + rect.width / 2;
+        const slot   = slots[ci];
+        const destCx = startX + slot * (tileW + gap) + tileW / 2;
+        result[ci] = `translateX(${(destCx - currCx).toFixed(1)}px)`;
+    });
+    return result;
+}
+
+async function enterShellMode() {
+    if (!dropMode.value || shellMode.value || shellAnimating.value) return;
+    activeFamily.value = null;
+
+    // 1 — fade out Bb tiles (A/Am-shape, indices 2 & 3)
+    shellExiting.value = true;
+    await delay(480);
+
+    // 2 — slide remaining two tiles to center
+    shellTileTranslates.value = computeShellGatherTranslates();
+    await delay(540);
+
+    // 3 — commit shell mode; Bb tiles disappear from DOM via v-if filter.
+    //     Keep translates so Fmaj7/Fm7 stay at their 3-tile slot positions.
+    shellMode.value = true;
+    shellExiting.value = false;
+    await delay(200);
+
+    // 4 — run the dot-removal animation
+    shellAnimating.value = true;
+    await delay(800);
+    shellAnimating.value = false;
+
+    // 5 — clear translates and reveal F7 atomically: Fmaj7/Fm7 are already
+    //     in their final flex positions once translates drop (flexbox centres
+    //     3 tiles naturally), and F7 fades in to fill the middle slot.
+    shellTileTranslates.value = {};
+    shellDone.value = true;
+}
+
+function shellTargetFor(barreFamily: BarreFamily): ChordDiagramData | null {
+    return props.shellFamilies[barreFamily.key]?.chord ?? null;
+}
+
+// In shell mode, the AnimatedChordDiagram source is the drop voicing;
+// its target is the shell voicing. We show it only for keep-indices.
+function isShellKeep(idx: number): boolean {
+    return SHELL_KEEP_INDICES.has(idx);
+}
 </script>
 
 <template>
@@ -501,14 +613,19 @@ function dropLabelFor(barreFamily: BarreFamily): string {
                     <div class="sbn-archetype-panel-header">
                         <div>
                             <p class="sbn-archetype-panel-title">
-                                {{ dropMode ? '4-Part 7th Chords' : barreMode ? 'Common Barré Shapes' : 'Archetypes' }}
+                                {{ shellMode ? 'Shell Voicings'
+                                    : dropMode ? '4-Part 7th Chords'
+                                    : barreMode ? 'Common Barré Shapes'
+                                    : 'Archetypes' }}
                             </p>
                             <p class="sbn-archetype-panel-subtitle">
-                                {{ dropMode
-                                    ? 'Drop voicings spread the 7th chord across the neck — the gateway to jazz harmony'
-                                    : barreMode
-                                        ? 'E and A shapes moved up the neck — the same fingering, any root'
-                                        : 'The 8 fundamental open-position shapes' }}
+                                {{ shellMode
+                                    ? '3-note structures — the ideal platform for adding extensions on top'
+                                    : dropMode
+                                            ? 'Drop voicings spread the 7th chord across the neck — the gateway to jazz harmony'
+                                            : barreMode
+                                                ? 'E and A shapes moved up the neck — the same fingering, any root'
+                                                : 'The 8 fundamental open-position shapes' }}
                             </p>
                         </div>
                         <button v-if="barreMode" class="sbn-barre-back-btn" @click="exitBarreMode">
@@ -522,14 +639,17 @@ function dropLabelFor(barreFamily: BarreFamily): string {
                          Only after barreMode commits do we switch to barreFamilies. -->
                     <div ref="tilesRowRef" class="sbn-archetype-tiles" :class="{ 'sbn-tiles--animating': panelPhase !== 'idle' }">
                         <button
-                            v-for="(family, idx) in (barreMode ? barreFamilies : archetypeFamilies)"
+                            v-for="(family, idx) in (barreMode ? barreFamilies : archetypeFamilies).filter((_, i) => !(shellMode || shellDone) || !SHELL_EXIT_INDICES.has(i))"
                             :key="family.key"
                             class="sbn-archetype-tile"
-                            :class="[{ active: activeFamily === family.key }, tileClass(idx)]"
+                            :class="[{ active: activeFamily === family.key }, shellExiting ? shellTileClass(idx) : tileClass(idx)]"
                             :style="{
                                 '--tile-i': idx,
-                                transition: panelPhase === 'gathering' ? 'transform 0.5s cubic-bezier(0.4,0,0.2,1)' : undefined,
-                                transform: (MORPH_INDICES.has(idx) && tileTranslates[idx]) ? tileTranslates[idx] : undefined,
+                                transition: (panelPhase === 'gathering' || (shellExiting && isShellKeep(idx)))
+                                    ? 'transform 0.5s cubic-bezier(0.4,0,0.2,1)' : undefined,
+                                transform: (shellExiting || shellMode || shellAnimating)
+                                    ? (isShellKeep(idx) && shellTileTranslates[idx] ? shellTileTranslates[idx] : undefined)
+                                    : (MORPH_INDICES.has(idx) && tileTranslates[idx] ? tileTranslates[idx] : undefined),
                             }"
                             :disabled="panelPhase !== 'idle'"
                             @click="toggleFamily(family.key)"
@@ -564,9 +684,16 @@ function dropLabelFor(barreFamily: BarreFamily): string {
 
                             <!-- Diagram -->
                             <div class="sbn-archetype-tile-diagram sbn-tile-diagram-wrap">
+                                <!-- Shell mode: AnimatedChordDiagram with drop→shell target (keep tiles only) -->
+                                <AnimatedChordDiagram
+                                    v-if="shellMode && isShellKeep(idx) && family.chords[0]"
+                                    :chord="dropTargetFor(family as BarreFamily) ?? family.chords[0]"
+                                    :target-chord="shellTargetFor(family as BarreFamily)"
+                                    :animating="shellAnimating"
+                                />
                                 <!-- Barré mode: AnimatedChordDiagram so dots can morph to drop voicings -->
                                 <AnimatedChordDiagram
-                                    v-if="barreMode && family.chords[0]"
+                                    v-else-if="barreMode && family.chords[0]"
                                     :chord="family.chords[0]"
                                     :target-chord="dropTargetFor(family as BarreFamily)"
                                     :animating="dropAnimating"
@@ -587,9 +714,26 @@ function dropLabelFor(barreFamily: BarreFamily): string {
                             </div>
 
                             <span class="sbn-tile-hint">
-                                {{ activeFamily === family.key ? 'collapse' : `${family.chords.length} voicings` }}
+                                <template v-if="activeFamily === family.key">collapse</template>
+                                <template v-else-if="dropMode">{{ (dropFamilies[family.key]?.inversions?.length ?? 0) }} inversions</template>
+                                <template v-else>{{ family.chords.length }} voicings</template>
                             </span>
                         </button>
+
+                        <!-- G7 shell — appears after dot animation, sits alongside Gmaj7 and Gm7 -->
+                        <button
+                            v-if="shellDone && shellF7"
+                            class="sbn-archetype-tile"
+                            style="animation: sbnFadeSlideIn 0.4s ease both;"
+                            @click="$inertia.visit(chordShowUrl(shellF7!))"
+                        >
+                            <span class="sbn-archetype-tile-name">G7</span>
+                            <div class="sbn-archetype-tile-diagram sbn-tile-diagram-wrap">
+                                <ChordDiagram :chord="shellF7" />
+                            </div>
+                            <span class="sbn-tile-hint">shell</span>
+                        </button>
+
                     </div>
 
                     <!-- Connector -->
@@ -601,9 +745,40 @@ function dropLabelFor(barreFamily: BarreFamily): string {
 
                     <!-- Drawer -->
                     <div v-if="activeFamily" class="sbn-archetype-drawer">
-                        <div class="sbn-drawer-cards">
+                        <!-- Drop mode: inversions of the selected drop voicing -->
+                        <template v-if="dropMode">
+                            <p class="sbn-barre-drawer-intro">All inversions — same chord, different string sets</p>
+                            <div class="sbn-barre-chromatic-grid">
+                                <Link
+                                    v-for="chord in dropFamilies[activeFamily]?.inversions"
+                                    :key="chord.id"
+                                    :href="chordShowUrl(chord)"
+                                    class="sbn-barre-chromatic-item"
+                                >
+                                    <ChordDiagram :chord="chord" />
+                                    <span class="sbn-barre-chromatic-name">{{ chord.inversion_label }}</span>
+                                </Link>
+                            </div>
+                        </template>
+                        <!-- Barré mode: 12 chromatic positions to show movable shape concept -->
+                        <template v-else-if="barreMode">
+                            <p class="sbn-barre-drawer-intro">Same shape — every root</p>
+                            <div class="sbn-barre-chromatic-grid">
+                                <Link
+                                    v-for="chord in barreFamilies.find(f => f.key === activeFamily)?.chromaticChords"
+                                    :key="chord.root_note"
+                                    :href="chordShowUrl(chord)"
+                                    class="sbn-barre-chromatic-item"
+                                >
+                                    <ChordDiagram :chord="chord" />
+                                    <span class="sbn-barre-chromatic-name">{{ chord.name }}</span>
+                                </Link>
+                            </div>
+                        </template>
+                        <!-- Archetype mode: voicing cards -->
+                        <div v-else class="sbn-drawer-cards">
                             <Link
-                                v-for="chord in (barreMode ? barreFamilies : archetypeFamilies).find(f => f.key === activeFamily)?.chords"
+                                v-for="chord in archetypeFamilies.find(f => f.key === activeFamily)?.chords"
                                 :key="chord.id"
                                 :href="chordShowUrl(chord)"
                             >
@@ -626,8 +801,8 @@ function dropLabelFor(barreFamily: BarreFamily): string {
                         </button>
                     </div>
 
-                    <!-- Drop mode blurb (shown after animation completes) -->
-                    <div v-if="dropMode" class="sbn-drop-blurb">
+                    <!-- Drop mode blurb (shown after animation completes, before shell level) -->
+                    <div v-if="dropMode && !shellMode && !shellExiting" class="sbn-drop-blurb">
                         <p>
                             These are <strong>drop voicings</strong> — 4-part 7th chords with one voice
                             lowered an octave to spread across the strings.
@@ -636,6 +811,27 @@ function dropLabelFor(barreFamily: BarreFamily): string {
                         <div class="sbn-drop-blurb-links">
                             <button class="sbn-drop-link" @click="fVoicing = 'drop2'">Browse Drop 2 →</button>
                             <button class="sbn-drop-link" @click="fVoicing = 'drop3'">Browse Drop 3 →</button>
+                        </div>
+                    </div>
+
+                    <!-- Shell level CTA (shown after drop animation, before entering shell mode) -->
+                    <div v-if="dropMode && !shellMode && !shellExiting && !shellDone" class="sbn-archetype-next">
+                        <button class="sbn-archetype-next-btn" @click="enterShellMode">
+                            Next level: Shell Voicings →
+                        </button>
+                    </div>
+
+                    <!-- Shell done blurb -->
+                    <div v-if="shellDone" class="sbn-drop-blurb sbn-shell-blurb">
+                        <p>
+                            <strong>One step back, two steps forward.</strong>
+                            Shell voicings strip a drop voicing down to its 3 essential tones —
+                            root, 3rd and 7th. This lean structure leaves the top strings free,
+                            making it the ideal platform to <em>add extension tones on top</em>:
+                            a 9th here, a 13th there. Every jazz guitarist's secret weapon.
+                        </p>
+                        <div class="sbn-drop-blurb-links">
+                            <button class="sbn-drop-link" @click="fVoicing = 'shell'">Browse Shell Voicings →</button>
                         </div>
                     </div>
 

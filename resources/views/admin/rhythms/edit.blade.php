@@ -39,15 +39,12 @@
                 <div class="sbn-form-row sbn-form-row-3">
                     <div class="sbn-form-group">
                         <label for="category">Category</label>
-                        <input type="text" id="category" class="sbn-search-input" style="padding-left: 14px;"
-                               x-model="form.category"
-                               list="cat-list" placeholder="e.g. brazilian">
-                        <datalist id="cat-list">
-                            <option value="brazilian">
-                            <option value="jazz">
-                            <option value="latin">
-                            <option value="general">
-                        </datalist>
+                        <select id="category" class="sbn-select" style="width: 100%;"
+                                x-model="form.category">
+                            @foreach(\App\Models\RhythmPattern::CATEGORIES as $cat)
+                                <option value="{{ $cat }}">{{ \App\Models\RhythmPattern::CATEGORY_LABELS[$cat] }}</option>
+                            @endforeach
+                        </select>
                     </div>
                     <div class="sbn-form-group">
                         <label for="time_signature">Time Signature</label>
@@ -74,6 +71,44 @@
                     <textarea id="description" class="sbn-search-input" style="padding-left: 14px; resize: vertical;" rows="2"
                               x-model="form.description"
                               placeholder="Brief description of this pattern"></textarea>
+                </div>
+
+                {{-- Hashtags --}}
+                <div class="sbn-form-group">
+                    <label>Hashtags</label>
+                    <input type="hidden" x-bind:value="tags.join(',')" x-ref="tagsInput">
+
+                    <div class="sbn-tags-active">
+                        <template x-if="tags.length === 0">
+                            <span class="sbn-tags-none">No hashtags yet — click below to add</span>
+                        </template>
+                        <template x-for="tag in tags" :key="tag">
+                            <span class="sbn-tag-chip">
+                                <span x-text="'#' + tag"></span>
+                                <button type="button" class="sbn-tag-remove" @click="removeTag(tag)">×</button>
+                            </span>
+                        </template>
+                    </div>
+
+                    <p class="sbn-field-hint" style="margin: 8px 0 4px;">Click to add:</p>
+                    <div class="sbn-tags-palette">
+                        @foreach(\App\Models\RhythmPattern::PRESET_TAGS as $preset)
+                            <button type="button"
+                                    class="sbn-tag-preset"
+                                    :class="tags.includes('{{ $preset }}') && 'is-active'"
+                                    @click="toggleTag('{{ $preset }}')">
+                                #{{ $preset }}
+                            </button>
+                        @endforeach
+                    </div>
+
+                    <div class="sbn-tags-custom">
+                        <input type="text" class="sbn-input" placeholder="Custom hashtag…" style="max-width: 200px;"
+                               x-ref="customTag"
+                               @keydown.enter.prevent="addCustomTag()">
+                        <button type="button" class="sbn-btn sbn-btn-secondary" style="padding: 7px 14px;" @click="addCustomTag()">Add</button>
+                    </div>
+                    <p class="sbn-field-hint">Hashtags are cross-site — clicking one shows all content tagged with it.</p>
                 </div>
 
                 <hr style="border: none; border-top: 1px solid var(--clr-border); margin: 20px 0;">
@@ -327,12 +362,27 @@
     }
 
     function rhythmEditor() {
+        const savedTags = @json($existingTags ?? '');
+
         return {
+            tags: savedTags ? savedTags.split(',').map(t => t.trim()).filter(Boolean) : [],
+
+            toggleTag(tag) {
+                const idx = this.tags.indexOf(tag);
+                idx === -1 ? this.tags.push(tag) : this.tags.splice(idx, 1);
+            },
+            removeTag(tag) { this.tags = this.tags.filter(t => t !== tag); },
+            addCustomTag() {
+                const val = this.$refs.customTag.value.trim().toLowerCase();
+                if (val && !this.tags.includes(val)) this.tags.push(val);
+                this.$refs.customTag.value = '';
+            },
+
             form: {
                 name:           @json($pattern->name ?? ''),
                 slug:           @json($pattern->slug ?? ''),
                 description:    @json($pattern->description ?? ''),
-                category:       @json($pattern->category ?? 'general'),
+                category:       @json($pattern->category ?? 'bossa-nova'),
                 time_signature: @json($pattern->time_signature ?? '4/4'),
                 default_bpm:    {{ $pattern->default_bpm ?? 120 }},
                 grid_type:      @json($pattern->grid_type ?? 'sixteenth'),
@@ -503,7 +553,7 @@
                             'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
                             'Accept': 'application/json',
                         },
-                        body: JSON.stringify({ ...this.form, beats: this.totalBeats }),
+                        body: JSON.stringify({ ...this.form, beats: this.totalBeats, tags: this.tags.join(',') }),
                     });
 
                     const data = await res.json();

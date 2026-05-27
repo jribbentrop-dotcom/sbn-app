@@ -141,7 +141,7 @@
                     <select id="prog_category" name="category" class="sbn-select sbn-select-full">
                         @foreach(\App\Models\ChordProgression::CATEGORIES as $cat)
                             <option value="{{ $cat }}" {{ old('category', $progression->category ?? 'jazz') === $cat ? 'selected' : '' }}>
-                                {{ ucfirst($cat) }}
+                                {{ \App\Models\ChordProgression::CATEGORY_LABELS[$cat] ?? ucwords(str_replace('-', ' ', $cat)) }}
                             </option>
                         @endforeach
                     </select>
@@ -232,19 +232,19 @@
                 <p class="sbn-field-hint">Comma-separated genre tags shown on the public detail page.</p>
             </div>
 
-            {{-- ── Tags ──────────────────────────────────────────── --}}
+            {{-- ── Hashtags ──────────────────────────────────────── --}}
             <div class="sbn-field">
-                <label class="sbn-label">Keywords / Tags</label>
+                <label class="sbn-label">Hashtags</label>
                 <input type="hidden" name="tags" :value="tags.join(',')">
 
                 {{-- Active tags as removable chips --}}
                 <div class="sbn-tags-active">
                     <template x-if="tags.length === 0">
-                        <span class="sbn-tags-none">No tags yet — click below to add</span>
+                        <span class="sbn-tags-none">No hashtags yet — click below to add</span>
                     </template>
                     <template x-for="tag in tags" :key="tag">
                         <span class="sbn-tag-chip">
-                            <span x-text="tag.replace(/\b\w/g, c => c.toUpperCase())"></span>
+                            <span x-text="'#' + tag"></span>
                             <button type="button" class="sbn-tag-remove" @click="removeTag(tag)">×</button>
                         </span>
                     </template>
@@ -258,19 +258,19 @@
                                 class="sbn-tag-preset"
                                 :class="tags.includes('{{ $preset }}') && 'is-active'"
                                 @click="toggleTag('{{ $preset }}')">
-                            {{ ucwords($preset) }}
+                            #{{ $preset }}
                         </button>
                     @endforeach
                 </div>
 
                 {{-- Custom tag input --}}
                 <div class="sbn-tags-custom">
-                    <input type="text" class="sbn-input" placeholder="Custom tag…" style="max-width: 200px;"
+                    <input type="text" class="sbn-input" placeholder="Custom hashtag…" style="max-width: 200px;"
                            x-ref="customTag"
                            @keydown.enter.prevent="addCustomTag()">
                     <button type="button" class="sbn-btn sbn-btn-secondary" style="padding: 7px 14px;" @click="addCustomTag()">Add</button>
                 </div>
-                <p class="sbn-field-hint">Tags appear as filter buttons on the public Progression Library page.</p>
+                <p class="sbn-field-hint">Hashtags are cross-site — clicking one shows all songs, progressions, rhythms and courses tagged with it.</p>
             </div>
 
             {{-- ── Row: Sort Order + Featured ────────────────────── --}}

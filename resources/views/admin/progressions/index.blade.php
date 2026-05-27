@@ -166,13 +166,11 @@
         color: white;
         text-transform: uppercase;
     }
-    .sbn-analysis-match-cat.cat-jazz { background: #8b5cf6; }
-    .sbn-analysis-match-cat.cat-blues { background: #3b82f6; }
-    .sbn-analysis-match-cat.cat-pop { background: #ec4899; }
-    .sbn-analysis-match-cat.cat-modal { background: #10b981; }
-    .sbn-analysis-match-cat.cat-classical { background: #f59e0b; }
-    .sbn-analysis-match-cat.cat-latin { background: #ef4444; }
-    .sbn-analysis-match-cat.cat-other { background: #6b7280; }
+    .sbn-analysis-match-cat.cat-bossa-nova { background: var(--clr-style-bossa); }
+    .sbn-analysis-match-cat.cat-jazz       { background: var(--clr-style-jazz); }
+    .sbn-analysis-match-cat.cat-classical  { background: var(--clr-style-classical); }
+    .sbn-analysis-match-cat.cat-pop        { background: var(--clr-style-pop); }
+    .sbn-analysis-match-cat               { background: var(--clr-text-muted); }
     .sbn-analysis-match-name { color: var(--clr-text); }
     .sbn-analysis-match-measures { color: var(--clr-text-muted); font-weight: 400; }
     .sbn-analysis-match-confidence { font-size: 10px; color: var(--clr-text-dim); }
@@ -239,8 +237,8 @@
                 @foreach($categories as $cat)
                     <a href="{{ route('admin.progressions.index', ['category' => $cat]) }}"
                        class="sbn-prog-cat-pill {{ $category === $cat ? 'is-active' : '' }}"
-                       style="--pill-clr: {{ \App\Models\ChordProgression::CATEGORY_COLORS[$cat] ?? 'var(--clr-style-general)' }}">
-                        {{ ucfirst($cat) }}
+                       style="--pill-clr: {{ \App\Models\ChordProgression::CATEGORY_COLORS[$cat] ?? 'var(--clr-style-bossa)' }}">
+                        {{ \App\Models\ChordProgression::CATEGORY_LABELS[$cat] ?? ucfirst($cat) }}
                     </a>
                 @endforeach
             </div>
@@ -301,9 +299,8 @@
                                 </template>
                             </td>
                             <td>
-                                <span class="sbn-cat-badge" :style="'--cat-clr:' + prog.cat_color">
-                                    <span x-text="prog.category"></span>
-                                </span>
+                                <span class="sbn-cat-badge sbn-cat-badge-filled" :style="'--cat-clr:' + prog.cat_color"
+                                      x-text="prog.category"></span>
                                 <template x-if="prog.tonality !== 'both'">
                                     <span class="sbn-prog-tonality" x-text="prog.tonality"></span>
                                 </template>

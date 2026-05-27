@@ -206,7 +206,9 @@ const nutOrPosition = computed(() => {
     const posFrets = (data.positions ?? []).map(p => p.fret);
     const barreFrets = (data.barres ?? []).map(b => b.fret);
     const maxFret = Math.max(0, ...posFrets, ...barreFrets);
-    return (maxFret > 0 && maxFret <= 4) ? 1 : shownStartFret.value;
+    const hasOpen = (data.open ?? []).length > 0 || posFrets.some(f => f === 0);
+    // Nut only when all frets ≤ 4 AND there are open strings (movable shapes at low frets get a position marker)
+    return (maxFret > 0 && maxFret <= 4 && hasOpen) ? 1 : shownStartFret.value;
 });
 </script>
 
@@ -260,20 +262,6 @@ const nutOrPosition = computed(() => {
             stroke-width="0.4"
             opacity="0.5"
         />
-
-        <!-- Muted (×) markers -->
-        <g v-for="s in shownMuted" :key="`x${s}`">
-            <line
-                :x1="strX(s) - 3" :y1="TOP - 11"
-                :x2="strX(s) + 3" :y2="TOP - 5"
-                stroke="var(--clr-text)" stroke-width="0.9" stroke-linecap="round"
-            />
-            <line
-                :x1="strX(s) - 3" :y1="TOP - 5"
-                :x2="strX(s) + 3" :y2="TOP - 11"
-                stroke="var(--clr-text)" stroke-width="0.9" stroke-linecap="round"
-            />
-        </g>
 
         <!-- Open (○) markers -->
         <circle

@@ -104,9 +104,19 @@
         <a href="{{ route('admin.leadsheets.index', array_merge(request()->except('style'), ['tab' => $currentTab])) }}"
            class="sbn-prog-cat-pill {{ !request('style') ? 'is-active' : '' }}">All</a>
         @foreach($styles as $slug)
+        @php
+            $pillClr = match($slug) {
+                'bossa-nova', 'bossa' => 'var(--clr-style-bossa)',
+                'jazz'                => 'var(--clr-style-jazz)',
+                'classical'           => 'var(--clr-style-classical)',
+                'pop'                 => 'var(--clr-style-pop)',
+                default               => 'var(--clr-style-bossa)',
+            };
+            $pillLabel = \App\Models\ChordProgression::CATEGORY_LABELS[$slug] ?? ucfirst($slug);
+        @endphp
         <a href="{{ route('admin.leadsheets.index', array_merge(request()->except('style'), ['tab' => $currentTab, 'style' => $slug])) }}"
            class="sbn-prog-cat-pill {{ request('style') === $slug ? 'is-active' : '' }}"
-           style="--pill-clr: var(--clr-style-{{ $slug }})">{{ ucfirst($slug) }}</a>
+           style="--pill-clr: {{ $pillClr }}">{{ $pillLabel }}</a>
         @endforeach
     </div>
     @endif
@@ -148,7 +158,7 @@
                         <th class="col-key">Key</th>
                         <th class="col-tempo">BPM</th>
                         <th class="col-time">Time</th>
-                        <th class="col-measures">Bars</th>
+                        <th class="col-style" style="width:110px;">Style</th>
                         @if($currentTab === 'leadsheets')
                             <th class="col-status">Status</th>
                         @endif
@@ -178,7 +188,26 @@
                         </td>
                         <td class="col-tempo sbn-text-muted">{{ ($currentTab === 'leadsheets' ? $ls->tempo : $ls->bpm_default) ?: '—' }}</td>
                         <td class="col-time sbn-text-muted">{{ ($currentTab === 'leadsheets' ? $ls->time_signature : $ls->time_sig) ?: '4/4' }}</td>
-                        <td class="col-measures sbn-text-muted">{{ $ls->measure_count ?: '—' }}</td>
+                        <td class="col-style">
+                            @if($currentTab === 'leadsheets')
+                                @php
+                                    $styleSlug = $ls->style_slug;
+                                    $styleCat = match($styleSlug) {
+                                        'bossa-nova', 'bossa' => 'var(--clr-style-bossa)',
+                                        'jazz'                => 'var(--clr-style-jazz)',
+                                        'classical'           => 'var(--clr-style-classical)',
+                                        'pop'                 => 'var(--clr-style-pop)',
+                                        default               => 'var(--clr-style-bossa)',
+                                    };
+                                    $styleLabel = \App\Models\ChordProgression::CATEGORY_LABELS[$styleSlug]
+                                        ?? \App\Models\ChordProgression::CATEGORY_LABELS[$ls->genre ?? '']
+                                        ?? null;
+                                @endphp
+                                @if($styleLabel)
+                                    <span class="sbn-cat-badge sbn-cat-badge-filled" style="--cat-clr: {{ $styleCat }}">{{ $styleLabel }}</span>
+                                @endif
+                            @endif
+                        </td>
                         @if($currentTab === 'leadsheets')
                         <td class="col-status">
                             <button type="button"

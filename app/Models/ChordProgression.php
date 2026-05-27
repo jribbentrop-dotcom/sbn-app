@@ -37,18 +37,21 @@ class ChordProgression extends Model
     /* ── Categories ─────────────────────────────────────────── */
 
     public const CATEGORIES = [
-        'jazz', 'blues', 'pop', 'modal', 'classical', 'latin', 'other',
+        'jazz', 'bossa-nova', 'classical', 'pop',
+    ];
+
+    public const CATEGORY_LABELS = [
+        'jazz'      => 'Jazz',
+        'bossa-nova'=> 'Bossa Nova',
+        'classical' => 'Classical',
+        'pop'       => 'Pop',
     ];
 
     public const CATEGORY_COLORS = [
         'jazz'      => 'var(--clr-style-jazz)',
-        'blues'     => 'var(--clr-style-blues)',
-        'pop'       => 'var(--clr-style-pop)',
-        'modal'     => 'var(--clr-style-pop)',
+        'bossa-nova'=> 'var(--clr-style-bossa)',
         'classical' => 'var(--clr-style-classical)',
-        'latin'     => 'var(--clr-style-latin)',
-        'bossa'     => 'var(--clr-style-bossa)',
-        'other'     => 'var(--clr-style-general)',
+        'pop'       => 'var(--clr-style-pop)',
     ];
 
     /* ── Preset Tags ────────────────────────────────────────── */

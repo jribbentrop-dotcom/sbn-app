@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 class RhythmPattern extends Model
 {
@@ -39,7 +40,7 @@ class RhythmPattern extends Model
      * Attribute defaults for new patterns.
      */
     protected $attributes = [
-        'category'       => 'general',
+        'category'       => 'pop',
         'time_signature' => '4/4',
         'beats'          => 8,
         'grid_type'      => 'sixteenth',
@@ -64,6 +65,35 @@ class RhythmPattern extends Model
         'sort_order'     => 'integer',
         'video_snippets' => 'array',
     ];
+
+    // ──────────────────────────────────────────
+    // Constants
+    // ──────────────────────────────────────────
+
+    public const CATEGORIES = [
+        'jazz', 'bossa-nova', 'classical', 'pop',
+    ];
+
+    public const CATEGORY_LABELS = [
+        'jazz'      => 'Jazz',
+        'bossa-nova'=> 'Bossa Nova',
+        'classical' => 'Classical',
+        'pop'       => 'Pop',
+    ];
+
+    public const PRESET_TAGS = [
+        'blues', 'modal', 'latin', 'cuban', 'brazilian',
+        'swing', 'afro-cuban', 'ballad', 'samba',
+    ];
+
+    // ──────────────────────────────────────────
+    // Relations
+    // ──────────────────────────────────────────
+
+    public function tags(): MorphToMany
+    {
+        return $this->morphToMany(SbnTag::class, 'taggable', 'sbn_taggables', 'taggable_id', 'tag_id');
+    }
 
     // ──────────────────────────────────────────
     // Scopes
@@ -117,7 +147,7 @@ class RhythmPattern extends Model
             'timeSignature' => $this->time_signature,
             'percTop'       => $this->perc_top,
             'percBass'      => $this->perc_bass,
-            'styleSlug'     => \Illuminate\Support\Str::slug($this->category) ?: 'general',
+            'styleSlug'     => $this->category ?: 'pop',
             'demoUrl'       => $this->mp3_file ? asset('audio/rhythm-demos/' . $this->mp3_file) : null,
         ];
     }

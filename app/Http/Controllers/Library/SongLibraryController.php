@@ -71,11 +71,12 @@ class SongLibraryController extends Controller
             'tempo'         => $song->tempo,
             'timeSignature' => $song->time_signature,
             'rhythm'        => $song->rhythm,
-            'styleSlug'     => $this->rhythmToStyleSlug($song->rhythm),
+            'styleSlug'     => $song->genre ?? $this->rhythmToStyleSlug($song->rhythm),
             'description'   => $song->description ? Str::limit(strip_tags($song->description), 120) : null,
             'popularity'      => $song->popularity,
             'measureCount'    => $song->measure_count,
             'coverImagePath'  => $song->cover_image_path ? '/images/songs/' . $song->cover_image_path : null,
+            'tags'            => $song->tags()->pluck('slug')->all(),
         ];
     }
 
@@ -248,9 +249,10 @@ class SongLibraryController extends Controller
                 'rhythmName'    => $rhythmPattern?->name ?? $leadsheet->rhythm,
                 'rhythmCategory'=> $rhythmPattern?->category ?? 'general',
                 'rhythmData'    => $rhythmPattern ? $rhythmPattern->toPlayerData() : null,
-                'styleSlug'     => $this->rhythmToStyleSlug($leadsheet->rhythm),
+                'styleSlug'     => $leadsheet->genre ?? $this->rhythmToStyleSlug($leadsheet->rhythm),
                 'measureCount'    => $leadsheet->measure_count,
                 'popularity'      => $leadsheet->popularity,
+                'difficulty'      => $leadsheet->difficulty,
                 'coverImagePath'  => $leadsheet->cover_image_path ? '/images/songs/' . $leadsheet->cover_image_path : null,
             ],
             'chordNames'   => $chordNames,
