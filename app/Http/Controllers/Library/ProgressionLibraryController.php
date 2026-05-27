@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ChordDiagram;
 use App\Models\ChordProgression;
 use App\Models\Leadsheet;
+use App\Repositories\CourseRepository;
 use App\Services\ChordSerializer;
 use App\Services\ChordShapeCalculator;
 use App\Services\HarmonicContext;
@@ -20,6 +21,7 @@ class ProgressionLibraryController extends Controller
         protected HarmonicContext $harmonicContext,
         protected ChordShapeCalculator $shapeCalculator,
         protected ChordSerializer $chordSerializer,
+        protected CourseRepository $courseRepo,
     ) {
     }
 
@@ -126,11 +128,14 @@ class ProgressionLibraryController extends Controller
             ];
         }, $built['selections']);
 
+        $courses = $this->courseRepo->relatedTo($progression, $progression->category);
+
         return Inertia::render('Library/Progressions/Show', [
             'progression' => $this->serializeProgression($progression),
             'songs'       => $songs,
             'siblings'    => $siblings,
             'tiles'       => $tiles,
+            'courses'     => $courses,
         ]);
     }
 

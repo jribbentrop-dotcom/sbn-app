@@ -542,6 +542,127 @@ Set `--play-color` on the **parent wrapper** to tint the button for a category. 
 
 ---
 
+## LIBRARY LINK COMPONENTS
+
+**Established 2026-05-27.** Canonical Vue components for cross-linking library entities. Never hand-roll song/progression rows on show pages — use these.
+
+### `ProgressionLink.vue` (`Components/Library/ProgressionLink.vue`)
+
+Row component for linking to a progression from any page. Left colour stripe keyed to category.
+
+```vue
+<!-- Basic usage -->
+<ProgressionLink :progression="prog" />
+
+<!-- From chord detail page — pins chord + slot into query string -->
+<ProgressionLink :progression="{ ...prog, pinnedChordSlug: chord.slug, pinnedSlot: 0 }" />
+```
+
+**`ProgressionLinkData` interface** (exported from the component):
+```ts
+interface ProgressionLinkData {
+    id: number; slug: string; name: string; category: string;
+    numeralsDisplay: string;
+    pinnedChordSlug?: string | null;   // appends ?chord=<slug>&highlight=<slot>
+    pinnedSlot?: number | null;
+}
+```
+
+CSS: `.sbn-prog-link` in `sbn-design-system.css`. Uses `--prog-clr` for the left border stripe. Do not redeclare in scoped styles.
+
+### `SongLink.vue` (`Components/Library/SongLink.vue`)
+
+Canonical type source only — not rendered on show pages. Import the type when you need `SongLinkData`. Render `SongShelfCard` instead for display.
+
+**`SongLinkData` interface** (matches `Leadsheet::toLinkArray()`):
+```ts
+interface SongLinkData {
+    id: number; slug: string; title: string; styleSlug: string;
+    coverImagePath: string | null; composer: string | null; popularity: number | null;
+}
+```
+
+### `SongShelfCard.vue` (`Components/Library/SongShelfCard.vue`)
+
+130px square image card for use inside `<MediaShelf>`. Hover slides up title + composer + popularity tier. Accepts `SongShelfCardData` (= `SongLinkData`).
+
+### `CourseShelfCard.vue` (`Components/Course/CourseShelfCard.vue`)
+
+Same 130px square structure as `SongShelfCard`. Top row: genre badge + star difficulty (always visible). Hover overlay: title + lesson count + level label.
+
+**`CourseShelfCardData` interface**:
+```ts
+interface CourseShelfCardData {
+    id: number; slug: string; title: string; primaryGenre: string | null;
+    primaryLevel: string | null; lessonCount: number; featuredImagePath: string | null;
+}
+```
+
+Backend serializer: `Course::toShelfArray()`.
+
+### `MediaShelf.vue` (`Components/Library/MediaShelf.vue`)
+
+Horizontal scroll container with `‹ ›` nav buttons. `scroll-snap-type: x mandatory`. All direct children get `scroll-snap-align: start`.
+
+```vue
+<!-- Title prop — renders heading + nav buttons -->
+<MediaShelf title="Related Courses">
+    <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
+</MediaShelf>
+
+<!-- #heading slot — for custom markup (e.g. chord detail with "View all →" link) -->
+<MediaShelf>
+    <template #heading>
+        <h2>Songs with Cmaj7</h2>
+        <Link href="/library/songs">View all →</Link>
+    </template>
+    <SongShelfCard v-for="song in songs" :key="song.id" :song="song" />
+</MediaShelf>
+```
+
+---
+
+## CATEGORY GRADIENT UTILITY
+
+**Established 2026-05-27.** Avoids repeating the 5-line `--category-color` / `--category-gradient` block in every card component.
+
+Add `.sbn-has-category-gradient` to any element. Then `getCategoryStyle()` sets `--category-color` via inline style and `var(--category-gradient)` is available to all children.
+
+```vue
+<div class="sbn-my-card sbn-has-category-gradient" :style="getCategoryStyle(styleSlug)">
+    <div class="fallback" />  <!-- background: var(--category-gradient) -->
+</div>
+```
+
+Currently applied to: `SongShelfCard`, `CourseShelfCard`, `.sbn-song-show` (Songs/Show hero).
+
+**Rule:** Do not re-declare `--category-color` / `--category-gradient` in scoped component styles. Add `sbn-has-category-gradient` to the element instead.
+
+---
+
+## CHORD URL BUILDER (`composables/useChordUrl.ts`)
+
+**Established 2026-05-27.** Single source of truth for building chord detail page URLs.
+
+```ts
+import { chordShowUrl } from '@/composables/useChordUrl';
+
+// In template or computed:
+chordShowUrl(chord)   // → "/library/chords/cmaj7-drop2?root=F%23"
+```
+
+Rules encoded in `chordShowUrl(chord: ChordUrlShape)`:
+- Rootless voicings → always `?root=C`
+- Transposed shapes (`transposed_from != null`) → `?root=<encoded>`
+- Any non-C root → `?root=<encoded>`
+- C-root shapes → no param
+
+**Never build chord URLs by hand** — `encodeURIComponent` is required for `#`/`b` in root names.
+
+Currently used in: `Pages/Library/Songs/Show.vue`, `Pages/Library/Chords/Index.vue`, `Pages/Top10/BossaNovaChords.vue`.
+
+---
+
 ## BUTTONS
 
 Base class `.sbn-btn` is always required. Add one color modifier. Defined exclusively in `sbn-design-system.css` — do not redefine in module CSS files.

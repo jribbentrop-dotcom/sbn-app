@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Link } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
-import SongLink from '@/Components/Library/SongLink.vue';
+import ProgressionLink from '@/Components/Library/ProgressionLink.vue';
+import MediaShelf from '@/Components/Library/MediaShelf.vue';
+import SongShelfCard from '@/Components/Library/SongShelfCard.vue';
+import CourseShelfCard from '@/Components/Course/CourseShelfCard.vue';
+import type { CourseShelfCardData } from '@/Components/Course/CourseShelfCard.vue';
 import type { ProgressionChord } from '@/Components/Library/ChordProgressionViewer.vue';
-import type { SongLinkData } from '@/Components/Library/SongLink.vue';
 import { getCategoryColor } from '@/composables/useCategoryColors';
 
 interface ProgressionTile {
@@ -18,7 +20,15 @@ interface ProgressionTile {
 
 defineOptions({ layout: PublicLayout });
 
-type SongData = SongLinkData;
+interface SongData {
+    id: number;
+    slug: string;
+    title: string;
+    styleSlug: string;
+    coverImagePath: string | null;
+    composer: string | null;
+    popularity: number | null;
+}
 
 interface ProgressionData {
     id: number;
@@ -41,6 +51,7 @@ interface Props {
     songs: SongData[];
     siblings: ProgressionData[];
     tiles: ProgressionTile[];
+    courses: CourseShelfCardData[];
 }
 
 const props = defineProps<Props>();
@@ -118,90 +129,62 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 
             <!-- Main content -->
             <div class="sbn-prog-detail-content">
-                <!-- Main content area -->
-                <div class="sbn-prog-detail-main">
-                    <!-- Chord Progression Viewer -->
-                    <section v-if="tiles.length" class="sbn-prog-detail-section">
-                        <ChordProgressionViewer
-                            :chords="chords"
-                            :interactive="true"
-                            :show-flow-arrows="true"
-                            :name="progression.name"
-                            :category="progression.category"
-                            :key-label="`Standard Root`"
-                            :numerals="progression.numeralsDisplay"
-                            :color="getCategoryColor(progression.category)"
-                            :vintage-card="true"
-                            :initial-index="highlightIndex"
-                        />
-                    </section>
+                <!-- Chord Progression Viewer -->
+                <section v-if="tiles.length" class="sbn-prog-detail-section">
+                    <ChordProgressionViewer
+                        :chords="chords"
+                        :interactive="true"
+                        :show-flow-arrows="true"
+                        :name="progression.name"
+                        :category="progression.category"
+                        :key-label="`Standard Root`"
+                        :numerals="progression.numeralsDisplay"
+                        :color="getCategoryColor(progression.category)"
+                        :vintage-card="true"
+                        :initial-index="highlightIndex"
+                    />
+                </section>
 
-
-                    <!-- Description -->
-                    <section v-if="hasDescription" class="sbn-prog-detail-section">
-                        <h2 class="sbn-prog-detail-section-title">Description</h2>
-                        <div class="sbn-prog-detail-description">
-                            {{ progression.description }}
-                        </div>
-                    </section>
-
-                    <!-- Typical Genres -->
-                    <section v-if="hasGenres" class="sbn-prog-detail-section">
-                        <h2 class="sbn-prog-detail-section-title">Typical Genres</h2>
-                        <div class="sbn-prog-detail-description">
-                            {{ progression.typicalGenres }}
-                        </div>
-                    </section>
-
-                    <!-- Songs Featuring This Progression will be in sidebar -->
-                </div>
-
-                <!-- Sidebar with songs -->
-                <aside class="sbn-prog-detail-sidebar">
-                    <div class="sbn-sidebar-section">
-                        <h3>Songs Featuring This Progression
-                            <span v-if="hasSongs" class="sbn-prog-detail-section-count">({{ songs.length }})</span>
-                        </h3>
-                        
-                        <ul v-if="hasSongs" class="sbn-prog-songs-list">
-                            <li v-for="song in songs" :key="song.id">
-                                <SongLink :song="song" />
-                            </li>
-                        </ul>
-                        
-                        <p v-else class="sbn-prog-detail-description">
-                            No songs in our library currently feature this progression.
-                        </p>
+                <!-- Description -->
+                <section v-if="hasDescription" class="sbn-prog-detail-section">
+                    <h2 class="sbn-prog-detail-section-title">Description</h2>
+                    <div class="sbn-prog-detail-description">
+                        {{ progression.description }}
                     </div>
-                </aside>
+                </section>
+
+                <!-- Typical Genres -->
+                <section v-if="hasGenres" class="sbn-prog-detail-section">
+                    <h2 class="sbn-prog-detail-section-title">Typical Genres</h2>
+                    <div class="sbn-prog-detail-description">
+                        {{ progression.typicalGenres }}
+                    </div>
+                </section>
+
+                <!-- Songs featuring this progression -->
+                <section v-if="hasSongs" class="sbn-prog-detail-section">
+                    <MediaShelf :title="`Songs featuring this progression (${songs.length})`">
+                        <SongShelfCard v-for="song in songs" :key="song.id" :song="song" />
+                    </MediaShelf>
+                </section>
+
+                <!-- Related Courses -->
+                <section v-if="courses && courses.length" class="sbn-prog-detail-section">
+                    <MediaShelf title="Related Courses">
+                        <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
+                    </MediaShelf>
+                </section>
             </div>
 
             <!-- Related Progressions at bottom -->
             <section v-if="hasSiblings" class="sbn-prog-detail-section">
                 <h2 class="sbn-prog-detail-section-title">More {{ categoryLabel }} progressions</h2>
                 <div class="sbn-prog-related-list">
-                    <div 
+                    <ProgressionLink
                         v-for="sibling in siblings.slice(0, 6)"
                         :key="sibling.id"
-                        class="sbn-prog-related-item"
-                    >
-                        <Link 
-                            :href="`/library/progressions/${sibling.slug}`"
-                            class="sbn-prog-related-link"
-                        >
-                            <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(sibling.category) }">
-                                {{ categoryLabels[sibling.category] || sibling.category }}
-                            </span>
-                            <span class="sbn-prog-related-name">{{ sibling.name }}</span>
-                            <div class="sbn-numeral-chip-row">
-                                <span
-                                    v-for="n in sibling.numeralsDisplay.split('–').map(s => s.trim()).filter(Boolean)"
-                                    :key="n"
-                                    class="sbn-numeral-chip"
-                                >{{ n }}</span>
-                            </div>
-                        </Link>
-                    </div>
+                        :progression="sibling"
+                    />
                 </div>
             </section>
     </div>
@@ -240,20 +223,9 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
     margin-bottom: 24px;
 }
 
-/* Two-column layout */
+/* Main content — single column now that songs moved to a shelf */
 .sbn-prog-detail-content {
-    display: flex;
-    gap: 40px;
-}
-
-.sbn-prog-detail-main {
-    flex: 1;
-    min-width: 0;
-}
-
-.sbn-prog-detail-sidebar {
-    width: 320px;
-    flex-shrink: 0;
+    display: block;
 }
 
 /* Main content sections */
@@ -291,76 +263,13 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
     margin-bottom: 32px;
 }
 
-/* Songs list — rows rendered by SongLink.vue / sbn-design-system.css */
-.sbn-prog-songs-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-/* Sidebar */
-.sbn-sidebar-section {
-    background: var(--clr-white);
-    border: 1px solid var(--clr-border);
-    border-radius: var(--radius);
-    padding: 20px;
-    margin-bottom: 20px;
-}
-
-.sbn-sidebar-section h3 {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--clr-text);
-    margin: 0 0 16px;
-}
-
-/* Related Progressions (bottom section) */
+/* Related Progressions (rows rendered by ProgressionLink.vue) */
 .sbn-prog-detail-section .sbn-prog-related-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 16px;
-}
-
-.sbn-prog-detail-section .sbn-prog-related-item {
-    border: 1px solid var(--clr-border);
-    border-radius: var(--radius-sm);
-    padding: 16px;
-    transition: border-color 0.12s;
-}
-
-.sbn-prog-detail-section .sbn-prog-related-item:hover {
-    border-color: var(--clr-accent);
-}
-
-.sbn-prog-detail-section .sbn-prog-related-link {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    text-decoration: none;
-    color: inherit;
+    gap: 6px;
 }
 
-.sbn-prog-detail-section .sbn-prog-related-name {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--clr-text);
-}
-
-.sbn-chord-symbol {
-    font-family: 'Georgia', 'Times New Roman', serif;
-}
-
-/* Responsive */
-@media (max-width: 1024px) {
-    .sbn-prog-detail-content {
-        flex-direction: column;
-        gap: 30px;
-    }
-
-    .sbn-prog-detail-sidebar {
-        width: 100%;
-    }
-}
 
 @media (max-width: 768px) {
     .sbn-prog-detail-title {

@@ -54,6 +54,64 @@ Stored in `content` as plain HTML. Always require explicit closing tags (`<sbn-f
 
 ---
 
+## 3b. Library cross-linking
+
+**Established 2026-05-27.** Every library show page (song, progression, rhythm, chord) displays a "Related Courses" shelf. Matching is done by `CourseRepository` — not FK joins.
+
+### `CourseRepository` (`app/Repositories/CourseRepository.php`)
+
+Two-tier matching strategy:
+
+1. **Tier 1 — tag match**: courses sharing ≥1 tag with the entity (via `sbn_taggables` polymorphic join). Requires both the entity and a course to be tagged. Returns up to `$limit` results ordered by `sort_order`.
+2. **Tier 2 — category fallback**: if tier 1 produces nothing, fall back to courses whose `category` column matches the entity's genre/category string.
+
+```php
+// Standard call — entity has tags() relation (Leadsheet, RhythmPattern, ChordProgression)
+$courses = $this->courseRepo->relatedTo($entity, $entityCategory, limit: 6);
+
+// Fallback call — entity has no tags() (ChordDiagram: use songs' dominant style as proxy)
+$courses = $this->courseRepo->relatedByCategory($categoryString, limit: 6);
+```
+
+Both methods return `Collection` of `Course::toShelfArray()` arrays.
+
+### `Course::toShelfArray()`
+
+Compact serializer for shelf tiles (parallel to `Leadsheet::toLinkArray()`):
+```php
+['id', 'slug', 'title', 'primaryGenre', 'primaryLevel', 'lessonCount', 'featuredImagePath']
+```
+
+### Category normalisation
+
+Course categories use full slugs. Style slugs on library entities may differ:
+
+| Entity style slug | Course category passed to repo |
+|---|---|
+| `bossa` | `bossa-nova` |
+| `samba` | `bossa-nova` |
+| `jazz` | `jazz` |
+| anything else | as-is |
+
+Normalisation is applied in `SongLibraryController` and `ChordLibraryController`. Rhythm and Progression controllers pass `$pattern->category` / `$progression->category` directly (already full slugs).
+
+### Polymorphic tags requirement
+
+Entities passed to `relatedTo()` must have a `tags()` MorphToMany relation. Currently implemented on: `Leadsheet`, `RhythmPattern`, `ChordProgression`. `ChordDiagram` has no tags — use `relatedByCategory()`.
+
+### Frontend rendering
+
+Each show page receives `courses: CourseShelfCardData[]` as an Inertia prop. Rendered as:
+```vue
+<MediaShelf title="Related Courses" v-if="courses && courses.length">
+    <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
+</MediaShelf>
+```
+
+See [SBN-Design-Reference.md § Library Link Components](SBN-Design-Reference.md) for `CourseShelfCard` and `MediaShelf` docs.
+
+---
+
 ## 4. JSON API
 
 Public, no auth. Defined in [`routes/web.php`](../routes/web.php) under `Route::prefix('api/sbn')`.

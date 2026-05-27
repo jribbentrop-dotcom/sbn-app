@@ -4,9 +4,14 @@ import { Link } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { getCategoryStyle, getCategoryColor } from '@/composables/useCategoryColors';
+import { chordShowUrl } from '@/composables/useChordUrl';
 
 import ChordCard from '@/Components/Library/ChordCard.vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
+import ProgressionLink from '@/Components/Library/ProgressionLink.vue';
+import MediaShelf from '@/Components/Library/MediaShelf.vue';
+import CourseShelfCard from '@/Components/Course/CourseShelfCard.vue';
+import type { CourseShelfCardData } from '@/Components/Course/CourseShelfCard.vue';
 
 defineOptions({ layout: PublicLayout });
 
@@ -47,6 +52,7 @@ interface Props {
   chordNames: string[];
   chords: any[];
   progressions: ProgressionRef[];
+  courses: CourseShelfCardData[];
 }
 
 const props = defineProps<Props>();
@@ -64,19 +70,10 @@ const songPopularityTier = computed(() => {
   return null;
 });
 
-function chordShowUrl(chord: any): string {
-  const base = `/library/chords/${chord.slug}`;
-  const root = chord.root_note ?? '';
-  const isRootless = chord.voicing_category === 'rootless';
-  const hasRoot    = chord.transposed_from != null;
-  if (isRootless) return `${base}?root=C`;
-  if (hasRoot || (root && root !== 'C')) return `${base}?root=${encodeURIComponent(root)}`;
-  return base;
-}
 </script>
 
 <template>
-  <div class="sbn-page-detail sbn-song-show" :style="categoryStyle">
+  <div class="sbn-page-detail sbn-song-show sbn-has-category-gradient" :style="categoryStyle">
 
     <Breadcrumb :segments="[{ label: 'Song Library', href: '/library/songs' }, { label: song.title }]" :color="categoryColor" />
 
@@ -143,24 +140,11 @@ function chordShowUrl(chord: any): string {
       <div v-if="progressions.length" class="sbn-ss-section sbn-ss-col">
         <h2 class="sbn-ss-section-title">Progressions in this song</h2>
         <div class="sbn-ss-prog-list">
-          <Link
+          <ProgressionLink
             v-for="prog in progressions"
             :key="prog.id"
-            :href="`/library/progressions/${prog.slug}`"
-            class="sbn-ss-prog-item"
-          >
-            <div class="sbn-ss-prog-name">{{ prog.name }}</div>
-            <div class="sbn-numeral-chip-row">
-              <span
-                v-for="n in prog.numeralsDisplay.split('–').map(s => s.trim()).filter(Boolean)"
-                :key="n"
-                class="sbn-numeral-chip"
-              >{{ n }}</span>
-            </div>
-            <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(prog.category) }">
-              {{ prog.category }}
-            </span>
-          </Link>
+            :progression="prog"
+          />
         </div>
       </div>
 
@@ -183,18 +167,20 @@ function chordShowUrl(chord: any): string {
 
     </div>
 
+    <!-- ── Related Courses ──────────────────────────────────────────────── -->
+    <div v-if="courses && courses.length" class="sbn-ss-section">
+      <MediaShelf title="Related Courses">
+        <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
+      </MediaShelf>
+    </div>
+
   </div>
 </template>
 
 <style scoped>
-.sbn-song-show {
---category-color: var(--clr-style-default);
-  --category-gradient: linear-gradient(
-    135deg,
-    var(--category-color) 0%,
-    color-mix(in srgb, var(--category-color) 60%, white) 100%
-  );
-}
+/* --category-color and --category-gradient come from .sbn-has-category-gradient
+   (sbn-design-system.css). getCategoryStyle() sets --category-color inline. */
+.sbn-song-show {}
 
 /* ── Hero ────────────────────────────────────────────────────────────────── */
 
@@ -340,32 +326,12 @@ function chordShowUrl(chord: any): string {
 
 .sbn-ss-col { margin-bottom: 0; }
 
-/* ── Progression list (EduPanel style) ───────────────────────────────────── */
+/* ── Progression list (rows rendered by ProgressionLink.vue) ─────────────── */
 
 .sbn-ss-prog-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-}
-
-.sbn-ss-prog-item {
-  display: block;
-  text-decoration: none;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--clr-border);
-  background: var(--clr-white);
-}
-
-.sbn-ss-prog-item:hover {
-  background: var(--clr-surface-2);
-}
-
-.sbn-ss-prog-name {
-  font-weight: 600;
-  font-size: 0.9em;
-  color: var(--clr-text);
-  margin-bottom: 2px;
+  gap: 6px;
 }
 
 

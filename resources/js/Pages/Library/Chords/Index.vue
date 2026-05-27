@@ -6,6 +6,7 @@ import ChordCard from '@/Components/Library/ChordCard.vue';
 import ChordDiagram from '@/Components/Library/ChordDiagram.vue';
 import AnimatedChordDiagram from '@/Components/Library/AnimatedChordDiagram.vue';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
+import { chordShowUrl } from '@/composables/useChordUrl';
 
 defineOptions({ layout: PublicLayout });
 
@@ -29,12 +30,22 @@ interface DropTarget {
     inversions: ChordDiagramData[];
 }
 
+interface ShellRelatedGroup {
+    label: string;
+    chords: ChordDiagramData[];
+}
+
+interface ShellTarget {
+    label: string;
+    chord: ChordDiagramData;
+    related: ShellRelatedGroup[];
+}
+
 interface Props {
     archetypeFamilies: ArchetypeFamily[];
     barreFamilies: BarreFamily[];
     dropFamilies: Record<string, DropTarget>;
-    shellFamilies: Record<string, DropTarget>;
-    shellF7: ChordDiagramData | null;
+    shellFamilies: Record<string, ShellTarget>;
     otherChords: ChordDiagramData[];
     voicingCategories: Record<string, string>;
     chordQualities: Record<string, string>;
@@ -400,16 +411,6 @@ function clearFilters() {
 // Build the detail page URL, carrying root context when relevant:
 // - transposed search results always carry their root
 // - rootless voicings default to C
-// - everything else (archetypes, other shapes stored at C) needs no param
-function chordShowUrl(chord: ChordDiagramData): string {
-    const base = `/library/chords/${chord.slug}`;
-    const root = chord.root_note ?? '';
-    const isRootless = chord.voicing_category === 'rootless';
-    const hasRoot = (chord as any).transposed_from != null;
-    if (isRootless) return `${base}?root=C`;
-    if (hasRoot || (root && root !== 'C')) return `${base}?root=${encodeURIComponent(root)}`;
-    return base;
-}
 
 // Active tile count depends on which panel is showing (for drawer connector calc)
 const activeTileCount = computed(() =>
@@ -484,20 +485,16 @@ function computeShellGatherTranslates(): Record<number, string> {
 
     const tileW = keepTiles[0].getBoundingClientRect().width;
     const gap   = 10;
-    // Target layout is 3 tiles (Fmaj7 | F7 | Fm7) — compute positions for
-    // slots 0 and 2 so Fmaj7/Fm7 land in their final spots immediately.
-    const totalTiles = 3;
+    // Target layout is 2 tiles (Gmaj7 | Gm7) centred in the row.
+    const totalTiles = 2;
     const total  = totalTiles * tileW + (totalTiles - 1) * gap;
     const startX = rowCenterX - total / 2;
 
     const result: Record<number, string> = {};
-    // keepTiles[0] = Fmaj7 → slot 0, keepTiles[1] = Fm7 → slot 1, F7 → slot 2
-    const slots = [0, 1];
     keepTiles.forEach((el, ci) => {
         const rect   = el.getBoundingClientRect();
         const currCx = rect.left + rect.width / 2;
-        const slot   = slots[ci];
-        const destCx = startX + slot * (tileW + gap) + tileW / 2;
+        const destCx = startX + ci * (tileW + gap) + tileW / 2;
         result[ci] = `translateX(${(destCx - currCx).toFixed(1)}px)`;
     });
     return result;
@@ -515,8 +512,11 @@ async function enterShellMode() {
     shellTileTranslates.value = computeShellGatherTranslates();
     await delay(540);
 
-    // 3 — commit shell mode; Bb tiles disappear from DOM via v-if filter.
-    //     Keep translates so Fmaj7/Fm7 stay at their 3-tile slot positions.
+    // 3 — commit shell mode and drop translates atomically.
+    //     Exit tiles leave the DOM via the v-if filter; keep tiles have their
+    //     inline transform cleared in the same tick so flexbox centres them
+    //     immediately with no second slide.
+    shellTileTranslates.value = {};
     shellMode.value = true;
     shellExiting.value = false;
     await delay(200);
@@ -525,11 +525,6 @@ async function enterShellMode() {
     shellAnimating.value = true;
     await delay(800);
     shellAnimating.value = false;
-
-    // 5 — clear translates and reveal F7 atomically: Fmaj7/Fm7 are already
-    //     in their final flex positions once translates drop (flexbox centres
-    //     3 tiles naturally), and F7 fades in to fill the middle slot.
-    shellTileTranslates.value = {};
     shellDone.value = true;
 }
 
@@ -541,6 +536,52 @@ function shellTargetFor(barreFamily: BarreFamily): ChordDiagramData | null {
 // its target is the shell voicing. We show it only for keep-indices.
 function isShellKeep(idx: number): boolean {
     return SHELL_KEEP_INDICES.has(idx);
+}
+
+// ── Stepper ───────────────────────────────────────────────
+const steps = [
+    { n: 1, label: 'Open shapes' },
+    { n: 2, label: 'Barré' },
+    { n: 3, label: 'Drop voicings' },
+    { n: 4, label: 'Shell' },
+    { n: 5, label: 'Extensions', upcoming: true },  // ready for L5
+];
+
+const currentLevel = computed(() => {
+    if (shellMode.value || shellDone.value) return 4;
+    if (dropMode.value)                      return 3;
+    if (barreMode.value)                     return 2;
+    return 1;
+});
+
+function exitDropMode() {
+    activeFamily.value = null;
+    shellExiting.value = false;
+    shellMode.value = false;
+    shellAnimating.value = false;
+    shellDone.value = false;
+    shellTileTranslates.value = {};
+    dropAnimating.value = false;
+    dropMode.value = false;
+}
+
+function exitShellMode() {
+    activeFamily.value = null;
+    shellExiting.value = false;
+    shellMode.value = false;
+    shellAnimating.value = false;
+    shellDone.value = false;
+    shellTileTranslates.value = {};
+}
+
+function jumpToLevel(n: number) {
+    // Allow jumping BACKWARD only — forward is gated through the animation pipeline.
+    if (panelPhase.value !== 'idle') return;
+    if (shellExiting.value || shellAnimating.value) return;
+    if (n >= currentLevel.value) return;
+    if (n === 1) exitBarreMode();
+    if (n === 2) exitDropMode();
+    if (n === 3) exitShellMode();
 }
 </script>
 
@@ -609,6 +650,33 @@ function isShellKeep(idx: number): boolean {
                 <!-- Archetype / Barré panel (hidden during search/filter) -->
                 <div v-if="!hasFilters && archetypeFamilies.length" class="sbn-archetype-panel">
 
+                    <!-- ── Stepper ── -->
+                    <nav class="sbn-stepper" aria-label="Chord progression levels">
+                        <template v-for="(step, i) in steps" :key="step.n">
+                            <span
+                                v-if="i > 0"
+                                class="sbn-stepper-track"
+                                :class="{
+                                    'is-on':       currentLevel >= step.n,
+                                    'is-upcoming': step.upcoming,
+                                }"
+                            />
+                            <button
+                                class="sbn-stepper-pill"
+                                :class="{
+                                    'is-current':  currentLevel === step.n,
+                                    'is-done':     currentLevel >  step.n,
+                                    'is-upcoming': step.upcoming,
+                                }"
+                                :disabled="step.upcoming || step.n > currentLevel"
+                                @click="jumpToLevel(step.n)"
+                            >
+                                <span class="sbn-stepper-n">{{ step.n }}</span>
+                                <span class="sbn-stepper-l">{{ step.label }}</span>
+                            </button>
+                        </template>
+                    </nav>
+
                     <!-- ── Panel header (switches title/subtitle/back btn) ── -->
                     <div class="sbn-archetype-panel-header">
                         <div>
@@ -628,9 +696,6 @@ function isShellKeep(idx: number): boolean {
                                                 : 'The 8 fundamental open-position shapes' }}
                             </p>
                         </div>
-                        <button v-if="barreMode" class="sbn-barre-back-btn" @click="exitBarreMode">
-                            ← Archetypes
-                        </button>
                     </div>
 
                     <!-- ── Unified tile row ── -->
@@ -720,20 +785,6 @@ function isShellKeep(idx: number): boolean {
                             </span>
                         </button>
 
-                        <!-- G7 shell — appears after dot animation, sits alongside Gmaj7 and Gm7 -->
-                        <button
-                            v-if="shellDone && shellF7"
-                            class="sbn-archetype-tile"
-                            style="animation: sbnFadeSlideIn 0.4s ease both;"
-                            @click="$inertia.visit(chordShowUrl(shellF7!))"
-                        >
-                            <span class="sbn-archetype-tile-name">G7</span>
-                            <div class="sbn-archetype-tile-diagram sbn-tile-diagram-wrap">
-                                <ChordDiagram :chord="shellF7" />
-                            </div>
-                            <span class="sbn-tile-hint">shell</span>
-                        </button>
-
                     </div>
 
                     <!-- Connector -->
@@ -745,57 +796,63 @@ function isShellKeep(idx: number): boolean {
 
                     <!-- Drawer -->
                     <div v-if="activeFamily" class="sbn-archetype-drawer">
+                        <!-- Shell mode: all related voicings in one row -->
+                        <template v-if="shellMode || shellDone">
+                            <div class="sbn-drawer-cards">
+                                <ChordCard
+                                    v-for="chord in shellFamilies[activeFamily]?.related.flatMap(g => g.chords)"
+                                    :key="chord.id"
+                                    :chord="chord"
+                                    :show-root="true"
+                                />
+                            </div>
+                        </template>
                         <!-- Drop mode: inversions of the selected drop voicing -->
-                        <template v-if="dropMode">
+                        <template v-else-if="dropMode">
                             <p class="sbn-barre-drawer-intro">All inversions — same chord, different string sets</p>
-                            <div class="sbn-barre-chromatic-grid">
-                                <Link
+                            <div class="sbn-drawer-cards">
+                                <ChordCard
                                     v-for="chord in dropFamilies[activeFamily]?.inversions"
                                     :key="chord.id"
-                                    :href="chordShowUrl(chord)"
-                                    class="sbn-barre-chromatic-item"
-                                >
-                                    <ChordDiagram :chord="chord" />
-                                    <span class="sbn-barre-chromatic-name">{{ chord.inversion_label }}</span>
-                                </Link>
+                                    :chord="chord"
+                                    :show-root="true"
+                                />
                             </div>
                         </template>
                         <!-- Barré mode: 12 chromatic positions to show movable shape concept -->
                         <template v-else-if="barreMode">
                             <p class="sbn-barre-drawer-intro">Same shape — every root</p>
-                            <div class="sbn-barre-chromatic-grid">
-                                <Link
+                            <div class="sbn-drawer-cards">
+                                <ChordCard
                                     v-for="chord in barreFamilies.find(f => f.key === activeFamily)?.chromaticChords"
                                     :key="chord.root_note"
-                                    :href="chordShowUrl(chord)"
-                                    class="sbn-barre-chromatic-item"
-                                >
-                                    <ChordDiagram :chord="chord" />
-                                    <span class="sbn-barre-chromatic-name">{{ chord.name }}</span>
-                                </Link>
+                                    :chord="chord"
+                                    :show-root="true"
+                                />
                             </div>
                         </template>
                         <!-- Archetype mode: voicing cards -->
                         <div v-else class="sbn-drawer-cards">
-                            <Link
+                            <ChordCard
                                 v-for="chord in archetypeFamilies.find(f => f.key === activeFamily)?.chords"
                                 :key="chord.id"
-                                :href="chordShowUrl(chord)"
-                            >
-                                <ChordCard :chord="chord" />
-                            </Link>
+                                :chord="chord"
+                            />
                         </div>
                     </div>
 
                     <!-- Next-level CTA (archetype mode only) -->
                     <div v-if="!barreMode" class="sbn-archetype-next">
                         <button class="sbn-archetype-next-btn" :disabled="panelPhase !== 'idle'" @click="enterBarreMode">
-                            Next level: 4 Common Barré Shapes →
+                            Next level: Barré Shapes →
                         </button>
                     </div>
 
                     <!-- Drop level CTA (barré mode, not yet in drop mode) -->
                     <div v-if="barreMode && !dropMode && !dropAnimating" class="sbn-archetype-next">
+                        <button class="sbn-barre-back-btn" :disabled="panelPhase !== 'idle'" @click="exitBarreMode">
+                            ← Open Shapes
+                        </button>
                         <button class="sbn-archetype-next-btn" :disabled="panelPhase !== 'idle'" @click="enterDropMode">
                             Next level: Drop Voicings →
                         </button>
@@ -816,8 +873,18 @@ function isShellKeep(idx: number): boolean {
 
                     <!-- Shell level CTA (shown after drop animation, before entering shell mode) -->
                     <div v-if="dropMode && !shellMode && !shellExiting && !shellDone" class="sbn-archetype-next">
+                        <button class="sbn-barre-back-btn" @click="exitDropMode">
+                            ← Barré Shapes
+                        </button>
                         <button class="sbn-archetype-next-btn" @click="enterShellMode">
                             Next level: Shell Voicings →
+                        </button>
+                    </div>
+
+                    <!-- Shell done back button -->
+                    <div v-if="shellDone" class="sbn-archetype-next">
+                        <button class="sbn-barre-back-btn" @click="exitShellMode">
+                            ← Drop Voicings
                         </button>
                     </div>
 

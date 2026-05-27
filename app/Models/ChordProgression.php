@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Support\Facades\DB;
 
 class ChordProgression extends Model
@@ -77,6 +78,13 @@ class ChordProgression extends Model
         'tritone substitution',
         'turnaround',
     ];
+
+    /* ── Relations ─────────────────────────────────────────── */
+
+    public function tags(): MorphToMany
+    {
+        return $this->morphToMany(SbnTag::class, 'taggable', 'sbn_taggables', 'taggable_id', 'tag_id');
+    }
 
     /* ── Scopes ─────────────────────────────────────────────── */
 

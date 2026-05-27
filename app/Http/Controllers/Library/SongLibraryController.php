@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Library;
 use App\Http\Controllers\Controller;
 use App\Models\ChordProgression;
 use App\Models\Leadsheet;
+use App\Repositories\CourseRepository;
 use App\Services\ChordVoicingSearch;
 use App\Services\EduContentService;
 use App\Services\HarmonicContext;
@@ -18,7 +19,8 @@ class SongLibraryController extends Controller
     public function __construct(
         protected LeadsheetViewerService $viewerService,
         protected ProgressionBuilder $progressionBuilder,
-        protected HarmonicContext $harmonicContext
+        protected HarmonicContext $harmonicContext,
+        protected CourseRepository $courseRepo,
     ) {}
 
     /**
@@ -232,6 +234,14 @@ class SongLibraryController extends Controller
 
         $rhythmPattern = \App\Models\RhythmPattern::where('slug', $leadsheet->rhythm)->first();
 
+        // Normalise style_slug → course category (courses use full slugs like 'bossa-nova')
+        $rawStyle = $leadsheet->genre ?? $this->rhythmToStyleSlug($leadsheet->rhythm);
+        $songCourseCategory = match ($rawStyle) {
+            'bossa', 'samba' => 'bossa-nova',
+            default          => $rawStyle,
+        };
+        $courses = $this->courseRepo->relatedTo($leadsheet, $songCourseCategory);
+
         return Inertia::render('Library/Songs/Show', [
             'song' => [
                 'id'            => $leadsheet->id,
@@ -258,6 +268,7 @@ class SongLibraryController extends Controller
             'chordNames'   => $chordNames,
             'chords'       => $topChords,
             'progressions' => $progressions,
+            'courses'      => $courses,
         ]);
     }
 

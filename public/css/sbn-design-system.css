@@ -526,6 +526,46 @@
     }
 
 
+/* ── Progression link row ─────────────────────────────────
+   Rendered by Components/Library/ProgressionLink.vue.
+   Uses --prog-clr (set inline) for the left accent stripe.  */
+    .sbn-prog-link {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 10px 14px;
+        border-radius: var(--radius);
+        border: 1px solid var(--clr-border);
+        border-left: 3px solid var(--prog-clr, var(--clr-accent));
+        text-decoration: none;
+        background: var(--clr-white);
+        transition: background 0.15s ease;
+    }
+
+    .sbn-prog-link:hover {
+        background: var(--clr-surface-2);
+    }
+
+    .sbn-prog-link__name {
+        font-weight: 600;
+        font-size: 0.92em;
+        color: var(--clr-text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Chip row already has margin-bottom: 6px from sbn-numeral-chip-row;
+       suppress it inside a prog-link so the badge sits flush below */
+    .sbn-prog-link .sbn-numeral-chip-row {
+        margin-bottom: 0;
+    }
+
+    .sbn-prog-link .sbn-cat-badge {
+        align-self: flex-start;
+        margin-top: 2px;
+    }
+
 
 /* ──────────────────────────────────────────────────────────
    3. BUTTONS
@@ -876,6 +916,21 @@
     background: color-mix(in srgb, var(--clr-style-classical) 10%, transparent);
     color: color-mix(in srgb, var(--clr-style-classical) 80%, #000);
     border: 1px solid color-mix(in srgb, var(--clr-style-classical) 22%, transparent);
+}
+
+/* ── Category gradient utility ───────────────────────────────
+   Any element that needs the category-tinted gradient can add
+   .sbn-has-category-gradient. Set --category-color via inline
+   style (getCategoryStyle composable) or a parent class.
+   The --category-gradient custom property is then available to
+   children via background: var(--category-gradient).            */
+.sbn-has-category-gradient {
+    --category-color: var(--clr-style-default);
+    --category-gradient: linear-gradient(
+        135deg,
+        var(--category-color) 0%,
+        color-mix(in srgb, var(--category-color) 60%, white) 100%
+    );
 }
 
 /* Dynamic category badge — set --cat-clr on the element.

@@ -199,9 +199,10 @@ class Leadsheet extends Model
 
     /**
      * Compact payload for linking to this song from other library pages
-     * (chord / progression / rhythm detail). Shape consumed by SongLink.vue.
+     * (chord / progression / rhythm detail).
+     * Shape consumed by SongLink.vue and SongShelfCard.vue.
      *
-     * @return array{id:int,slug:string,title:string,styleSlug:string,coverImagePath:?string}
+     * @return array{id:int,slug:string,title:string,styleSlug:string,coverImagePath:?string,composer:?string,popularity:?int}
      */
     public function toLinkArray(): array
     {
@@ -211,6 +212,8 @@ class Leadsheet extends Model
             'title'          => $this->title,
             'styleSlug'      => $this->style_slug,
             'coverImagePath' => $this->cover_image_url,
+            'composer'       => $this->composer ?: null,
+            'popularity'     => $this->popularity,
         ];
     }
 

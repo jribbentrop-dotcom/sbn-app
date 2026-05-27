@@ -24,7 +24,11 @@ export const eduWidgets = {
   'chord-tones':        () => import('./ChordTonesWidget.vue'),
   'note-duration':      () => import('./DurationWidget.vue'),
   'interval-explorer':  () => import('./IntervalWidget.vue'),
-  'pentatonic-scales':  () => import('./PentatonicWidget.vue'),
+  'pentatonic-scales':      () => import('./PentatonicWidget.vue'),
+  'chord-quality-brightness': () => import('./ChordQualityBrightness.vue'),
+  'chord-quality-tree':       () => import('./ChordQualityTree.vue'),
+  'chord-extensions':         () => import('./ChordExtensionsWidget.vue'),
+  'scale-positions':          () => import('./ScalePositionsWidget.vue'),
 } as const;
 
 export type EduWidgetSlug = keyof typeof eduWidgets;

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Library;
 use App\Http\Controllers\Controller;
 use App\Models\Leadsheet;
 use App\Models\RhythmPattern;
+use App\Repositories\CourseRepository;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -46,6 +47,8 @@ class RhythmLibraryController extends Controller
         ]);
     }
 
+    public function __construct(protected CourseRepository $courseRepo) {}
+
     public function show(string $slug)
     {
         $pattern = RhythmPattern::where('slug', $slug)->firstOrFail();
@@ -66,10 +69,14 @@ class RhythmLibraryController extends Controller
             ->get()
             ->map(fn ($s) => $s->toLinkArray());
 
+        // Related courses: tag match first, then category fallback
+        $courses = $this->courseRepo->relatedTo($pattern, $pattern->category);
+
         return Inertia::render('Library/Rhythms/Show', [
             'pattern'  => $this->serializePattern($pattern),
             'siblings' => $siblings,
             'songs'    => $songs,
+            'courses'  => $courses,
         ]);
     }
 

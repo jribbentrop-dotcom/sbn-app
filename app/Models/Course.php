@@ -87,4 +87,23 @@ class Course extends Model
     {
         return !$this->is_free && $this->product_id !== null;
     }
+
+    /**
+     * Compact payload for linking to this course from library detail pages.
+     * Shape consumed by CourseShelfCard.vue.
+     *
+     * @return array{id:int,slug:string,title:string,primaryGenre:?string,primaryLevel:?string,lessonCount:int,featuredImagePath:?string}
+     */
+    public function toShelfArray(): array
+    {
+        return [
+            'id'               => $this->id,
+            'slug'             => $this->slug,
+            'title'            => $this->title,
+            'primaryGenre'     => $this->primary_genre,
+            'primaryLevel'     => $this->primary_level,
+            'lessonCount'      => $this->lesson_count,
+            'featuredImagePath' => $this->featured_image_path,
+        ];
+    }
 }

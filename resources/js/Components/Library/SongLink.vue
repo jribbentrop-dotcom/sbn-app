@@ -9,6 +9,8 @@ export interface SongLinkData {
   title: string;
   styleSlug: string;
   coverImagePath: string | null;
+  composer: string | null;
+  popularity: number | null;
 }
 
 const props = defineProps<{ song: SongLinkData }>();

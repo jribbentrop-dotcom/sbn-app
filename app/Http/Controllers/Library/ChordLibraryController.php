@@ -7,6 +7,7 @@ use App\Models\ChordDiagram;
 use App\Models\ChordDiagramAlias;
 use App\Models\ChordProgression;
 use App\Models\Leadsheet;
+use App\Repositories\CourseRepository;
 use App\Services\ChordSerializer;
 use App\Services\ChordShapeCalculator;
 use App\Services\ChordVoicingSearch;
@@ -24,6 +25,7 @@ class ChordLibraryController extends Controller
 		protected HarmonicContext $harmonicContext,
 		protected ChordShapeCalculator $shapeCalculator,
 		protected ChordSerializer $chordSerializer,
+		protected CourseRepository $courseRepo,
 	) {}
 
 	public function index()
@@ -284,23 +286,71 @@ class ChordLibraryController extends Controller
 		}
 
 		// Shell voicings for level-4 animation:
-		// The two centred drop voicings (Fmaj7 / Fm7) lose their highest dot → shell.
+		// The two centred drop voicings (Gmaj7 / Gm7) lose their highest dot → shell.
 		// from = the drop voicing already shown; to = the shell version at the same root.
 		// E-shape shells: maj7-shell-roote (id 37) and m7-shell-roote (id 36).
+		//
+		// related: drawer rows shown when the tile is tapped in shell mode.
+		// Gmaj7: row1=[G7(73), Gmaj6(80)], row2=[Cmaj7(31), C6(311)]
+		// Gm7:   row1=[Gm6(106)],           row2=[Cm6(312)]
 		$shellTargetMap = [
-			'archetype-e-barre'  => ['id' => 37, 'root' => 'G',  'label' => 'Gmaj7 shell'],
-			'archetype-em-barre' => ['id' => 36, 'root' => 'G',  'label' => 'Gm7 shell'],
+			'archetype-e-barre'  => [
+				'id' => 37, 'root' => 'G', 'label' => 'Gmaj7 shell',
+				'related' => [
+					['label' => 'Add a b7 or 6', 'chords' => [
+						['id' => 73,  'root' => 'G'],   // G7  (dom7 shell Root E)
+						['id' => 80,  'root' => 'G'],   // Gmaj6 (maj6 shell Root E)
+					]],
+					['label' => 'A-shape equivalent', 'chords' => [
+						['id' => 31,  'root' => 'C'],   // Cmaj7 (maj7 shell Root A)
+						['id' => 311, 'root' => 'C'],   // C6   (maj6 shell Root A)
+					]],
+				],
+			],
+			'archetype-em-barre' => [
+				'id' => 36, 'root' => 'G', 'label' => 'Gm7 shell',
+				'related' => [
+					['label' => 'Add a 6', 'chords' => [
+						['id' => 106, 'root' => 'G'],   // Gm6 (m6 shell Root E)
+					]],
+					['label' => 'A-shape equivalent', 'chords' => [
+						['id' => 312, 'root' => 'C'],   // Cm6 (m6 shell Root A)
+					]],
+				],
+			],
 		];
-		$shellIds = array_column($shellTargetMap, 'id');
-		$shellDiagrams = ChordDiagram::whereIn('id', $shellIds)->get()->keyBy('id');
+
+		// Collect all shell-related IDs in one query
+		$shellAllIds = [];
+		foreach ($shellTargetMap as $config) {
+			$shellAllIds[] = $config['id'];
+			foreach ($config['related'] as $group) {
+				foreach ($group['chords'] as $entry) {
+					$shellAllIds[] = $entry['id'];
+				}
+			}
+		}
+		$shellDiagrams = ChordDiagram::whereIn('id', array_unique($shellAllIds))->get()->keyBy('id');
 
 		$shellFamilies = [];
 		foreach ($shellTargetMap as $familyKey => $config) {
 			$diagram = $shellDiagrams->get($config['id']);
 			if (! $diagram) continue;
+
+			$relatedGroups = [];
+			foreach ($config['related'] as $group) {
+				$groupChords = [];
+				foreach ($group['chords'] as $entry) {
+					$d = $shellDiagrams->get($entry['id']);
+					if ($d) $groupChords[] = $this->chordSerializer->serialize($d, $entry['root']);
+				}
+				$relatedGroups[] = ['label' => $group['label'], 'chords' => $groupChords];
+			}
+
 			$shellFamilies[$familyKey] = [
-				'label' => $config['label'],
-				'chord' => $this->chordSerializer->serialize($diagram, $config['root']),
+				'label'   => $config['label'],
+				'chord'   => $this->chordSerializer->serialize($diagram, $config['root']),
+				'related' => $relatedGroups,
 			];
 		}
 
@@ -319,9 +369,6 @@ class ChordLibraryController extends Controller
 			'barreFamilies'     => $barreFamilies,
 			'dropFamilies'      => $dropFamilies,
 			'shellFamilies'     => $shellFamilies,
-			'shellF7'           => ($f7Shell = ChordDiagram::find(73))
-				? $this->chordSerializer->serialize($f7Shell, 'G')
-				: null,
 			'otherChords'       => $otherChords,
 			'voicingCategories' => ChordDiagram::VOICING_CATEGORIES,
 			'chordQualities'    => ChordDiagram::CHORD_QUALITIES,
@@ -439,6 +486,20 @@ class ChordLibraryController extends Controller
 		// light up an embedded <sbn-widget> if a quality body ever gains one.
 		$qualityTopic = $edu->qualityTopic($chord->quality);
 
+		// Related courses: chords are genre-agnostic, so derive a category from
+		// the songs that use this chord (most common style_slug → course category).
+		// Fall back to 'jazz' when no songs are present (jazz covers most chord theory).
+		$chordCourseCategory = $songs->isNotEmpty()
+			? ($songs->groupBy(fn ($s) => $s['styleSlug'] ?? 'jazz')
+				->map->count()->sortDesc()->keys()->first() ?? 'jazz')
+			: 'jazz';
+		// Normalise bossa/samba → bossa-nova to match course category values
+		$chordCourseCategory = match ($chordCourseCategory) {
+			'bossa', 'samba' => 'bossa-nova',
+			default          => $chordCourseCategory,
+		};
+		$courses = $this->courseRepo->relatedByCategory($chordCourseCategory);
+
 		return Inertia::render('Library/Chords/Show', [
 			'chord' => $this->chordSerializer->serialize($chord, $displayRoot),
 			'aliases' => $aliases,
@@ -446,6 +507,7 @@ class ChordLibraryController extends Controller
 			'songs' => $songs,
 			'progressions' => $progressions,
 			'qualityTopic' => $qualityTopic?->toArray(),
+			'courses' => $courses,
 		]);
 	}
 

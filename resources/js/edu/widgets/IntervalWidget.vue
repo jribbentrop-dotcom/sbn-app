@@ -300,7 +300,7 @@ const SEMITONES_LIST = Array.from({ length: 12 }, (_, i) => i + 1);
   transform: translateX(-50%);
   width: 180px; height: 180px;
   border-radius: 50%; pointer-events: none;
-  filter: blur(55px); opacity: 0.18; transition: background 0.5s ease;
+  filter: blur(55px); opacity: 0.32; transition: background 0.5s ease;
 }
 
 .iv-header {

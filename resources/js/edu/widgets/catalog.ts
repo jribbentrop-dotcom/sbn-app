@@ -75,6 +75,31 @@ export const widgetCatalog: WidgetEntry[] = [
     summary: 'Toggle between the 7-note diatonic scale and its 5-note pentatonic subset — see exactly which notes drop out and why.',
     tags: ['scales', 'melody', 'general'],
   },
+  {
+    slug: 'chord-quality-tree',
+    title: 'Chord Quality Tree',
+    summary: 'Two triads branch into five 7th-chord qualities — toggle between the parent triad and the full chord to see exactly which tone changes.',
+    tags: ['harmony', 'chords', 'general'],
+  },
+  {
+    slug: 'chord-extensions',
+    title: 'Chord Extensions',
+    summary: 'Stack thirds beyond the 7th — from 9ths through 13ths — across all five 7th-chord qualities, with option tones on dominant.',
+    tags: ['harmony', 'chords', 'general'],
+  },
+  {
+    slug: 'chord-quality-brightness',
+    title: 'Chord Quality & Brightness',
+    summary: 'Step through maj7 → dom7 → m7 → m7♭5 → dim7 and watch the colour tones descend — a visual map of harmonic brightness.',
+    tags: ['harmony', 'chords', 'general'],
+  },
+  {
+    slug: 'scale-positions',
+    title: 'Scale Positions',
+    summary: 'The five pentatonic boxes laid across the neck — switch between positions to see how the same scale tiles from the nut to the 12th fret.',
+    tags: ['guitar', 'scales', 'fretboard'],
+    defaultProps: { scale: 'minor-pentatonic', root: 'F', startPosition: 1 },
+  },
 ];
 
 /** All unique tags across the catalog, sorted alphabetically. */

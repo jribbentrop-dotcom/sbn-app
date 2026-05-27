@@ -184,6 +184,9 @@ Every widget follows these rules (see `TriadBuilder.vue` as the reference):
 | `note-duration` | `DurationWidget.vue` | Dotted and tied note durations — bar-grow reveal animations, tabbed between Dotted and Tied examples. |
 | `interval-explorer` | `IntervalWidget.vue` | All 12 intervals from C — upper dot is draggable on a pitch axis (mouse + touch), snaps to semitone, live colour update. |
 | `pentatonic-scales` | `PentatonicWidget.vue` | Diatonic ↔ pentatonic toggle — dropped degrees shrink and strike through, major and minor modes. |
+| `chord-quality-brightness` | `ChordQualityBrightness.vue` | maj7 → dom7 → m7 → m7♭5 → dim7 brightness spectrum — SVG pitch-dot stack slides and pulses on quality change, hue-tinted chrome tracks brightness. |
+| `chord-quality-tree` | `ChordQualityTree.vue` | Two triads branch into five 7th-chord qualities — Triad/7th-chord step toggle shows exactly which tone changes; qualities grouped by major/minor parent. |
+| `chord-extensions` | `ChordExtensionsWidget.vue` | Stack thirds beyond the 7th across all five qualities (maj7/dom7/m7/m7♭5/dim7) — per-quality extension steps, symbol updates live, option tones on dominant. |
 
 ### Shared pitch-dot visual language
 

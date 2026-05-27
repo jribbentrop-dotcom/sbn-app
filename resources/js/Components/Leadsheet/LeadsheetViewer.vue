@@ -3,7 +3,7 @@
     <!-- Header band (hidden when embedded) -->
     <div v-if="!embedded" class="sbn-leadsheet-header">
       <div class="sbn-leadsheet-back-section">
-        <a href="/library/songs" class="sbn-back-link">← Back to Library</a>
+        <Link href="/library/songs" class="sbn-back-link">← Back to Library</Link>
       </div>
 
       <div class="sbn-leadsheet-controls">
@@ -135,6 +135,7 @@
 
 <script setup>
 import { ref, computed, provide, watch, onMounted, onUnmounted } from 'vue';
+import { Link } from '@inertiajs/vue3';
 
 // Components
 import ChordGridView from '@/tab-editor/components/ChordGridView.vue';

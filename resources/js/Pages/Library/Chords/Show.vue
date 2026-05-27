@@ -5,10 +5,14 @@ import Breadcrumb from '@/Components/Breadcrumb.vue';
 import { mountSbnNodes } from '@/lib/mountSbnNodes';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
-import SongLink from '@/Components/Library/SongLink.vue';
+import ProgressionLink from '@/Components/Library/ProgressionLink.vue';
+import MediaShelf from '@/Components/Library/MediaShelf.vue';
+import SongShelfCard from '@/Components/Library/SongShelfCard.vue';
+import CourseShelfCard from '@/Components/Course/CourseShelfCard.vue';
+import type { CourseShelfCardData } from '@/Components/Course/CourseShelfCard.vue';
 import type { SongLinkData } from '@/Components/Library/SongLink.vue';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
-import { getCategoryColor } from '@/composables/useCategoryColors';
+
 
 interface ProgressionRef {
     id: number;
@@ -48,6 +52,7 @@ interface Props {
     songs: SongLinkData[];
     progressions: ProgressionRef[];
     qualityTopic?: QualityTopic | null;
+    courses: CourseShelfCardData[];
 }
 
 const props = defineProps<Props>();
@@ -386,38 +391,30 @@ const formattedChordName = computed(() => {
                 </div>
                 <ul class="sbn-chord-detail-progressions">
                     <li v-for="prog in progressions.slice(0, 4)" :key="prog.id">
-                        <Link
-                            :href="`/library/progressions/${prog.slug}?chord=${chord.slug}&highlight=${prog.pinnedSlot ?? 0}`"
-                            class="sbn-chord-detail-prog-link"
-                            :style="{ '--prog-color': getCategoryColor(prog.category) }"
-                        >
-                            <span class="sbn-chord-detail-prog-name">{{ prog.name }}</span>
-                            <div class="sbn-numeral-chip-row">
-                                <span
-                                    v-for="n in prog.numeralsDisplay.split('–').map(s => s.trim()).filter(Boolean)"
-                                    :key="n"
-                                    class="sbn-numeral-chip"
-                                >{{ n }}</span>
-                            </div>
-                        </Link>
+                        <ProgressionLink :progression="{ ...prog, pinnedChordSlug: chord.slug }" />
                     </li>
                 </ul>
             </div>
 
             <!-- ════ SONGS ════ -->
             <div v-if="songs.length" class="sbn-chord-detail-section">
-                <div class="sbn-chord-detail-section-heading-row">
-                    <h2 class="sbn-chord-detail-section-heading">Songs with <span v-html="formattedChordName" class="sbn-chord-detail-heading-chord" /></h2>
-                    <Link href="/library/songs" class="sbn-chord-detail-section-link">View all →</Link>
-                </div>
-                <ul class="sbn-chord-detail-songs">
-                    <li v-for="song in songs.slice(0, 4)" :key="song.id">
-                        <SongLink :song="song" />
-                    </li>
-                </ul>
+                <MediaShelf>
+                    <template #heading>
+                        <h2 class="sbn-chord-detail-section-heading">Songs with <span v-html="formattedChordName" class="sbn-chord-detail-heading-chord" /></h2>
+                        <Link href="/library/songs" class="sbn-chord-detail-section-link">View all →</Link>
+                    </template>
+                    <SongShelfCard v-for="song in songs" :key="song.id" :song="song" />
+                </MediaShelf>
             </div>
 
         </div><!-- .sbn-chord-detail-lower -->
+
+        <!-- ════ RELATED COURSES ════ -->
+        <div v-if="courses && courses.length" class="sbn-chord-detail-section">
+            <MediaShelf title="Related Courses">
+                <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
+            </MediaShelf>
+        </div>
 
         <!-- ════ OTHER VOICINGS ════ -->
         <div v-if="siblings.length" class="sbn-chord-detail-section sbn-chord-detail-other-voicings">
@@ -712,25 +709,6 @@ const formattedChordName = computed(() => {
     flex-direction: column;
     gap: 6px;
 }
-.sbn-chord-detail-prog-link {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 10px 14px;
-    border-radius: var(--radius);
-    border: 1px solid var(--clr-border);
-    border-left: 3px solid var(--prog-color, var(--clr-accent));
-    text-decoration: none;
-    transition: background 0.15s ease;
-}
-.sbn-chord-detail-prog-link:hover {
-    background: var(--clr-surface-2);
-}
-.sbn-chord-detail-prog-name {
-    font-weight: 600;
-    color: var(--clr-text);
-    font-size: 14px;
-}
 
 /* ── Sibling voicings ── */
 .sbn-chord-detail-siblings {
@@ -753,29 +731,6 @@ const formattedChordName = computed(() => {
     transform: translateY(-2px);
 }
 
-/* ── Songs ── (rows rendered by SongLink.vue / sbn-design-system.css) */
-.sbn-chord-detail-songs {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.sbn-chord-detail-songs li :deep(.sbn-song-link) {
-    border: 1px solid var(--clr-border);
-    border-left: 3px solid var(--cat-clr, var(--clr-accent));
-    border-radius: var(--radius);
-    padding: 10px 14px;
-}
-.sbn-chord-detail-songs li :deep(.sbn-song-link:hover) {
-    background: var(--clr-surface-2);
-}
-.sbn-chord-detail-songs li :deep(.sbn-song-link__img) {
-    width: 44px;
-    height: 44px;
-    border-radius: 6px;
-}
 
 /* ── Responsive ── */
 @media (max-width: 720px) {

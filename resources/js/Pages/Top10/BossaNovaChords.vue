@@ -7,6 +7,7 @@ import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
 import type { ProgressionChord } from '@/Components/Library/ChordProgressionViewer.vue';
 import { getCategoryColor } from '@/composables/useCategoryColors';
+import { chordShowUrl } from '@/composables/useChordUrl';
 
 defineOptions({ layout: PublicLayout });
 
@@ -125,8 +126,7 @@ function prevChord() {
 
 function goToChordLibrary(chord: ChordDiagramData) {
     if (!chord.slug) return;
-    const url = `/library/chords/${chord.slug}?root=${chord.root_note || 'C'}`;
-    router.visit(url);
+    router.visit(chordShowUrl(chord));
 }
 </script>
 

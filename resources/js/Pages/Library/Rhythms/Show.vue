@@ -5,7 +5,10 @@ import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmPattern from '@/Components/Library/RhythmPattern.vue';
 import RhythmCard from '@/Components/Library/RhythmCard.vue';
-import SongLink from '@/Components/Library/SongLink.vue';
+import MediaShelf from '@/Components/Library/MediaShelf.vue';
+import SongShelfCard from '@/Components/Library/SongShelfCard.vue';
+import CourseShelfCard from '@/Components/Course/CourseShelfCard.vue';
+import type { CourseShelfCardData } from '@/Components/Course/CourseShelfCard.vue';
 import type { RhythmPatternWithMeta } from '@/Components/Library/RhythmPattern.vue';
 import type { SongLinkData } from '@/Components/Library/SongLink.vue';
 import { getCategoryStyle, getCategoryColor } from '@/composables/useCategoryColors';
@@ -17,6 +20,7 @@ interface Props {
   pattern: RhythmPatternWithMeta;
   siblings: RhythmPatternWithMeta[];
   songs: SongLinkData[];
+  courses: CourseShelfCardData[];
 }
 
 const props = defineProps<Props>();
@@ -91,12 +95,16 @@ watch(() => props.pattern.slug, () => {
 
           <!-- Used in songs -->
           <div v-if="songs.length" class="sbn-pattern-songs">
-            <h2>Used in songs</h2>
-            <ul class="sbn-songs-list">
-              <li v-for="song in songs" :key="song.id">
-                <SongLink :song="song" />
-              </li>
-            </ul>
+            <MediaShelf title="Used in songs">
+              <SongShelfCard v-for="song in songs" :key="song.id" :song="song" />
+            </MediaShelf>
+          </div>
+
+          <!-- Related Courses -->
+          <div v-if="courses && courses.length" class="sbn-pattern-courses">
+            <MediaShelf title="Related Courses">
+              <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
+            </MediaShelf>
           </div>
         </div>
 
@@ -172,6 +180,11 @@ watch(() => props.pattern.slug, () => {
   margin-bottom: 24px;
 }
 
+/* Courses section */
+.sbn-pattern-courses {
+  margin-bottom: 24px;
+}
+
 .sbn-pattern-songs h2 {
   margin: 0 0 12px;
   font-size: 1.1em;
@@ -179,16 +192,6 @@ watch(() => props.pattern.slug, () => {
   color: var(--clr-text);
 }
 
-/* Rows rendered by SongLink.vue / sbn-design-system.css */
-.sbn-songs-list {
-  list-style: none;
-  padding: 4px;
-  margin: 0;
-  background: var(--clr-white);
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
 
 .sbn-pattern-description h2 {
   margin: 0 0 12px;
