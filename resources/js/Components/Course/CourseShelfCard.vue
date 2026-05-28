@@ -67,7 +67,7 @@ const levelLabel = computed(() => difficultyLabel(stars.value));
 <style scoped>
 .sbn-course-shelf-card {
     display: block;
-    width: 130px;
+    width: 160px;
     text-decoration: none;
     border-radius: var(--radius);
     overflow: hidden;

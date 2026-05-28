@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
-import { getCategoryStyle } from '@/composables/useCategoryColors';
+import { getCategoryStyle, difficultyLabel } from '@/composables/useCategoryColors';
 
 export interface SongCardData {
   id: number;
@@ -15,6 +15,7 @@ export interface SongCardData {
   styleSlug: string;
   description: string | null;
   popularity: number | null;
+  difficulty: number | null;
   measureCount: number | null;
   coverImagePath: string | null;
 }
@@ -26,6 +27,9 @@ const cardStyle = computed(() => getCategoryStyle(props.song.styleSlug));
 const styleLabel = computed(() =>
   (props.song.styleSlug ?? 'song').replace(/-/g, ' ')
 );
+
+const stars = computed(() => props.song.difficulty ?? 0);
+const level = computed(() => difficultyLabel(stars.value));
 
 function tempoLabel(bpm: number | null): string {
   if (!bpm) return '';
@@ -57,21 +61,24 @@ function tempoLabel(bpm: number | null): string {
         <span class="sbn-song-badge-style">{{ styleLabel }}</span>
       </div>
 
-      <!-- Bottom: key + tempo pills -->
-      <div class="sbn-song-card-meta-row">
-        <span v-if="song.songKey" class="sbn-song-pill">{{ song.songKey }}</span>
-        <span v-if="song.timeSignature" class="sbn-song-pill">{{ song.timeSignature }}</span>
-        <span v-if="song.tempo" class="sbn-song-pill">{{ tempoLabel(song.tempo) }}</span>
+
+<!-- View button -->
+      <div class="sbn-song-card-btn-wrap">
+        <span class="sbn-song-view-btn">View Song <span class="sbn-view-btn-arrow">→</span></span>
       </div>
 
-      <!-- Hover overlay -->
-      <div class="sbn-song-card-overlay">
-        <span class="sbn-song-view-btn">View Song</span>
-      </div>
     </Link>
 
     <!-- Card body -->
     <div class="sbn-song-card-body">
+      <div v-if="stars" class="sbn-song-card-level">
+        <span class="sbn-badge sbn-badge-muted">
+          <span class="sbn-song-card-stars">
+            <span v-for="i in 5" :key="i" :class="i <= stars ? 'star-filled' : 'star-empty'">★</span>
+          </span>
+          {{ level }}
+        </span>
+      </div>
       <h3 class="sbn-song-card-title">
         <Link :href="`/library/songs/${song.slug}`">{{ song.title }}</Link>
       </h3>
@@ -84,9 +91,10 @@ function tempoLabel(bpm: number | null): string {
 <style scoped>
 .sbn-song-card {
   background: var(--clr-white);
+  border: 1px solid var(--clr-border);
   border-radius: var(--radius);
-  overflow: hidden;
-  transition: box-shadow 0.3s var(--ease);
+  padding: 10px 10px 0;
+  transition: border-color 0.2s var(--ease);
   position: relative;
   --category-color: var(--clr-style-default);
   --category-gradient: linear-gradient(
@@ -97,17 +105,18 @@ function tempoLabel(bpm: number | null): string {
 }
 
 .sbn-song-card:hover {
-  box-shadow: var(--clr-shadow);
+  border-color: var(--clr-text-muted);
 }
 
-/* Hero area — 4:3 landscape */
+/* Hero area — 1:1 square */
 .sbn-song-card-image-wrap {
   display: block;
   position: relative;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   text-decoration: none;
   background: var(--clr-surface-2);
+  border-radius: var(--radius-sm);
 }
 
 .sbn-song-card-image {
@@ -150,69 +159,65 @@ function tempoLabel(bpm: number | null): string {
   transition: all 0.3s var(--ease);
 }
 
-.sbn-song-card:hover .sbn-song-badge-style {
-  background: var(--clr-white);
-  color: var(--clr-text);
-}
 
-
-/* Bottom meta row */
-.sbn-song-card-meta-row {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  right: 10px;
-  display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
-  z-index: 10;
-}
-
-.sbn-song-pill {
-  background: var(--clr-overlay-dark);
-  color: var(--clr-white);
-  font-size: 0.68em;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 999px;
-  transition: background 0.3s var(--ease);
-}
-
-.sbn-song-card:hover .sbn-song-pill {
-  background: color-mix(in srgb, var(--clr-white) 85%, transparent);
-  color: var(--clr-text);
-}
-
-/* Hover overlay */
-.sbn-song-card-overlay {
+/* View button */
+.sbn-song-card-btn-wrap {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--category-gradient);
-  opacity: 0;
-  transition: opacity 0.3s var(--ease);
   pointer-events: none;
   z-index: 5;
-}
-
-.sbn-song-card:hover .sbn-song-card-overlay {
-  opacity: 0.7;
-  pointer-events: auto;
 }
 
 .sbn-song-view-btn {
   background: var(--clr-white);
   color: var(--clr-text);
-  padding: 10px 24px;
+  padding: 8px 20px;
   border-radius: var(--radius-sm);
   font-weight: 600;
-  font-size: 0.85em;
-  pointer-events: none;
+  font-size: 0.82em;
+  letter-spacing: 0.02em;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(6px) scale(0.94);
+  transition: opacity 0.25s var(--ease), transform 0.25s var(--ease), box-shadow 0.2s var(--ease);
 }
 
+.sbn-song-card:hover .sbn-song-view-btn {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.sbn-song-view-btn:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+}
+
+.sbn-view-btn-arrow {
+  display: inline-block;
+  transition: transform 0.2s var(--ease);
+}
+
+.sbn-song-view-btn:hover .sbn-view-btn-arrow {
+  transform: translateX(4px);
+}
+
+
 /* Card body */
+.sbn-song-card-level {
+  margin-bottom: 8px;
+}
+
+.sbn-song-card-stars {
+  display: inline-flex;
+  gap: 1px;
+  margin-right: 4px;
+}
+
+.sbn-song-card-stars .star-filled { color: var(--clr-star); }
+.sbn-song-card-stars .star-empty  { color: var(--clr-border); }
+
 .sbn-song-card-body {
   padding: 12px 14px 14px;
 }

@@ -109,39 +109,34 @@ const songPopularityTier = computed(() => {
     <!-- ── Hero ──────────────────────────────────────────────────────────── -->
     <header class="sbn-ss-hero sbn-detail-hero">
 
-      <div class="sbn-ss-hero-body">
-        <!-- Left: text -->
-        <div class="sbn-ss-hero-text">
-          <div class="sbn-ss-hero-badges">
-            <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': categoryColor }">{{ styleLabel }}</span>
-            <span v-if="songPopularityTier" class="sbn-card-pop" :class="`sbn-pop-${songPopularityTier.tier}`">{{ songPopularityTier.label }}</span>
-            <span v-for="tag in (song.tags ?? [])" :key="tag" class="sbn-hashtag">#{{ tag }}</span>
-          </div>
+      <!-- Background image -->
+      <img v-if="song.coverImagePath" :src="song.coverImagePath" :alt="song.title" class="sbn-ss-hero-bg" />
+      <div v-else class="sbn-ss-hero-bg sbn-ss-hero-bg--fallback" />
+      <div class="sbn-ss-hero-overlay" />
 
-          <h1 class="sbn-ss-title">{{ song.title }}</h1>
-          <p v-if="song.composer" class="sbn-ss-composer">{{ song.composer }}</p>
-
-          <div class="sbn-ss-meta">
-            <span v-if="song.songKey"       class="sbn-song-meta-chip"><strong>Key</strong> {{ song.songKey }}</span>
-            <span v-if="song.tempo"         class="sbn-song-meta-chip"><strong>Tempo</strong> {{ song.tempo }} bpm</span>
-            <span v-if="song.timeSignature" class="sbn-song-meta-chip"><strong>Time</strong> {{ song.timeSignature }}</span>
-            <span v-if="song.rhythm"        class="sbn-song-meta-chip"><strong>Rhythm</strong> {{ song.rhythm }}</span>
-            <span v-if="song.measureCount"  class="sbn-song-meta-chip"><strong>Bars</strong> {{ song.measureCount }}</span>
-          </div>
-
-          <div class="sbn-ss-cta">
-            <Link :href="`/library/songs/${song.slug}/viewer`" class="sbn-btn sbn-btn-primary sbn-btn-lg">
-              Open in viewer →
-            </Link>
-          </div>
+      <!-- Text content -->
+      <div class="sbn-ss-hero-text">
+        <div class="sbn-ss-hero-badges">
+          <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': categoryColor }">{{ styleLabel }}</span>
+          <span v-if="songPopularityTier" class="sbn-card-pop" :class="`sbn-pop-${songPopularityTier.tier}`">{{ songPopularityTier.label }}</span>
+          <span v-for="tag in (song.tags ?? [])" :key="tag" class="sbn-hashtag">#{{ tag }}</span>
         </div>
 
-        <!-- Right: image or gradient -->
-        <div class="sbn-ss-hero-image">
-          <img v-if="song.coverImagePath" :src="song.coverImagePath" :alt="song.title" class="sbn-ss-hero-img" />
-          <div v-else class="sbn-ss-hero-fallback">
-            <span class="sbn-ss-hero-fallback-label">{{ styleLabel }}</span>
-          </div>
+        <h1 class="sbn-ss-title">{{ song.title }}</h1>
+        <p v-if="song.composer" class="sbn-ss-composer">{{ song.composer }}</p>
+
+        <div class="sbn-ss-meta">
+          <span v-if="song.songKey"       class="sbn-song-meta-chip"><strong>Key</strong> {{ song.songKey }}</span>
+          <span v-if="song.tempo"         class="sbn-song-meta-chip"><strong>Tempo</strong> {{ song.tempo }} bpm</span>
+          <span v-if="song.timeSignature" class="sbn-song-meta-chip"><strong>Time</strong> {{ song.timeSignature }}</span>
+          <span v-if="song.rhythm"        class="sbn-song-meta-chip"><strong>Rhythm</strong> {{ song.rhythm }}</span>
+          <span v-if="song.measureCount"  class="sbn-song-meta-chip"><strong>Bars</strong> {{ song.measureCount }}</span>
+        </div>
+
+        <div class="sbn-ss-cta">
+          <Link :href="`/library/songs/${song.slug}/viewer`" class="sbn-btn sbn-btn-primary sbn-btn-lg">
+            Open in viewer →
+          </Link>
         </div>
       </div>
     </header>
@@ -216,17 +211,48 @@ const songPopularityTier = computed(() => {
 /* ── Hero ────────────────────────────────────────────────────────────────── */
 
 .sbn-ss-hero {
+  position: relative;
   overflow: hidden;
   margin-bottom: 32px;
+  min-height: 260px;
+  display: flex;
+  align-items: center;
 }
 
-.sbn-ss-hero-body {
-  display: grid;
-  grid-template-columns: 1fr 260px;
+.sbn-ss-hero-bg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 20%;
+  right: -80px;
+  width: calc(80% + 80px);
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  z-index: 0;
+}
+
+.sbn-ss-hero-bg--fallback {
+  background: var(--category-gradient);
+}
+
+.sbn-ss-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    var(--clr-white) 30%,
+    color-mix(in srgb, var(--clr-white) 75%, transparent) 65%,
+    color-mix(in srgb, var(--clr-white) 20%, transparent) 100%
+  );
+  z-index: 1;
 }
 
 .sbn-ss-hero-text {
-  padding: 28px 32px;
+  position: relative;
+  z-index: 2;
+  padding: 36px 40px;
+  max-width: 620px;
 }
 
 .sbn-ss-hero-badges {
@@ -235,37 +261,6 @@ const songPopularityTier = computed(() => {
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
-}
-
-
-.sbn-ss-hero-image {
-  position: relative;
-  overflow: hidden;
-  min-height: 220px;
-}
-
-.sbn-ss-hero-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.sbn-ss-hero-fallback {
-  width: 100%;
-  height: 100%;
-  background: var(--category-gradient);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.sbn-ss-hero-fallback-label {
-  color: rgba(255,255,255,0.75);
-  font-size: 0.85em;
-  font-weight: 600;
-  text-transform: capitalize;
-  letter-spacing: 0.04em;
 }
 
 /* ── Shared typography ───────────────────────────────────────────────────── */
@@ -379,14 +374,15 @@ const songPopularityTier = computed(() => {
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 768px) {
-.sbn-ss-hero-body { grid-template-columns: 1fr; }
-
-  .sbn-ss-hero-image {
-    min-height: 180px;
-    order: -1;
+  .sbn-ss-hero { min-height: 200px; }
+  .sbn-ss-hero-overlay {
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--clr-white) 85%, transparent) 0%,
+      var(--clr-white) 100%
+    );
   }
-
-  .sbn-ss-hero-text { padding: 20px; }
+  .sbn-ss-hero-text { padding: 24px 20px; }
 
   .sbn-ss-title { font-size: 1.6em; }
 

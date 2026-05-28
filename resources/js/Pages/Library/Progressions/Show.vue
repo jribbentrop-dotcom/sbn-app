@@ -190,6 +190,7 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 }
 
 
+
 .sbn-prog-detail-description {
     font-size: 16px;
     line-height: 1.7;

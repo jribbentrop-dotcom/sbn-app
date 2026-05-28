@@ -43,29 +43,28 @@ const genreLabel = computed(() => (props.course.primaryGenre ?? 'Course').replac
       >
       <div v-else class="sbn-course-card-fallback"></div>
 
-      <!-- Top row: genre badge (left) + stars (right) -->
+      <!-- Top row: genre badge only -->
       <div class="sbn-course-card-badge-row">
         <span class="sbn-course-badge-genre">{{ genreLabel }}</span>
-        <span class="sbn-course-badge-stars" :title="levelLabel">
-          <span v-for="i in 5" :key="i" :class="i <= stars ? 'star-filled' : 'star-empty'">
-            {{ i <= stars ? '★' : '☆' }}
-          </span>
-        </span>
       </div>
 
-      <!-- Bottom: lesson count -->
-      <div class="sbn-course-card-meta-row">
-        <span class="sbn-course-pill">{{ course.lessonCount }} lessons</span>
-      </div>
 
-      <!-- Hover overlay -->
-      <div class="sbn-course-card-overlay">
-        <span class="sbn-course-view-btn">View Course</span>
+<!-- View button -->
+      <div class="sbn-course-card-btn-wrap">
+        <span class="sbn-course-view-btn">View Course <span class="sbn-view-btn-arrow">→</span></span>
       </div>
 
     </Link>
 
     <div class="sbn-course-card-body">
+      <div class="sbn-course-card-level">
+        <span class="sbn-badge sbn-badge-muted">
+          <span class="sbn-course-card-stars">
+            <span v-for="i in 5" :key="i" :class="i <= stars ? 'star-filled' : 'star-empty'">★</span>
+          </span>
+          {{ levelLabel }}
+        </span>
+      </div>
       <h3 class="sbn-course-card-title">
         <Link :href="`/learn/${course.slug}`">{{ course.title }}</Link>
       </h3>
@@ -77,9 +76,10 @@ const genreLabel = computed(() => (props.course.primaryGenre ?? 'Course').replac
 <style scoped>
 .sbn-course-card {
   background: var(--clr-white);
+  border: 1px solid var(--clr-border);
   border-radius: var(--radius);
   overflow: hidden;
-  transition: box-shadow 0.3s var(--ease);
+  transition: border-color 0.2s var(--ease);
   position: relative;
   --category-color: var(--clr-style-default);
   --category-gradient: linear-gradient(
@@ -90,14 +90,14 @@ const genreLabel = computed(() => (props.course.primaryGenre ?? 'Course').replac
 }
 
 .sbn-course-card:hover {
-  box-shadow: var(--clr-shadow);
+  border-color: var(--clr-text-muted);
 }
 
-/* Image area — 4:3 landscape */
+/* Image area — 1:1 square */
 .sbn-course-card-image-wrap {
   display: block;
   position: relative;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   text-decoration: none;
   background: var(--clr-surface-2);
@@ -144,87 +144,69 @@ const genreLabel = computed(() => (props.course.primaryGenre ?? 'Course').replac
   transition: all 0.3s var(--ease);
 }
 
-.sbn-course-card:hover .sbn-course-badge-genre {
-  background: var(--clr-white);
-  color: var(--clr-text);
-}
 
-.sbn-course-badge-stars {
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  font-size: 0.78em;
-  display: flex;
-  gap: 1px;
-  background: transparent;
-  transition: background 0.3s var(--ease);
-}
 
-.sbn-course-badge-stars .star-filled { color: var(--clr-star); }
-.sbn-course-badge-stars .star-empty  { color: var(--clr-border); }
 
-.sbn-course-card:hover .sbn-course-badge-stars {
-  background: var(--clr-white);
-}
-
-/* Bottom meta row */
-.sbn-course-card-meta-row {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  right: 10px;
-  display: flex;
-  gap: 6px;
-  z-index: 10;
-}
-
-.sbn-course-pill {
-  background: var(--clr-overlay-dark);
-  color: var(--clr-white);
-  font-size: 0.7em;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 999px;
-  transition: background 0.3s var(--ease);
-}
-
-.sbn-course-card:hover .sbn-course-pill {
-  background: color-mix(in srgb, var(--clr-white) 85%, transparent);
-  color: var(--clr-text);
-}
-
-/* Hover overlay */
-.sbn-course-card-overlay {
+/* View button */
+.sbn-course-card-btn-wrap {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--category-gradient);
-  opacity: 0;
-  transition: opacity 0.3s var(--ease);
   pointer-events: none;
   z-index: 5;
-}
-
-.sbn-course-card:hover .sbn-course-card-overlay {
-  opacity: 0.7;
-  pointer-events: auto;
 }
 
 .sbn-course-view-btn {
   background: var(--clr-white);
   color: var(--clr-text);
-  padding: 10px 24px;
+  padding: 8px 20px;
   border-radius: var(--radius-sm);
   font-weight: 600;
-  font-size: 0.85em;
-  pointer-events: none;
+  font-size: 0.82em;
+  letter-spacing: 0.02em;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(6px) scale(0.94);
+  transition: opacity 0.25s var(--ease), transform 0.25s var(--ease), box-shadow 0.2s var(--ease);
+}
+
+.sbn-course-card:hover .sbn-course-view-btn {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.sbn-course-view-btn:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+}
+
+.sbn-view-btn-arrow {
+  display: inline-block;
+  transition: transform 0.2s var(--ease);
+}
+
+.sbn-course-view-btn:hover .sbn-view-btn-arrow {
+  transform: translateX(4px);
 }
 
 /* Card body */
 .sbn-course-card-body {
   padding: 12px 14px 14px;
 }
+
+.sbn-course-card-level {
+  margin-bottom: 8px;
+}
+
+.sbn-course-card-stars {
+  display: inline-flex;
+  gap: 1px;
+  margin-right: 4px;
+}
+
+.sbn-course-card-stars .star-filled { color: var(--clr-star); }
+.sbn-course-card-stars .star-empty  { color: var(--clr-border); }
 
 .sbn-course-card-title {
   margin: 0 0 6px;

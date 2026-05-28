@@ -3507,7 +3507,8 @@
 /* ── Show-page section heading row ───────────────────────────
    .sbn-section-heading-row  — flex row: title left, link right
    .sbn-section-heading      — the h2 inside
-   .sbn-section-link         — the "View all →" muted link       */
+   .sbn-section-link         — the "View all →" muted link
+*/
 .sbn-section-heading-row {
     display: flex;
     align-items: baseline;

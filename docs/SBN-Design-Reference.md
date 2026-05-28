@@ -739,7 +739,7 @@ Backend: `RhythmPattern::styleSlug()` maps rhythm category → style slug for th
 
 `SongLink.vue` — type source only. Import `SongLinkData` when you need the interface. Do not render it directly.
 
-`SongShelfCard.vue` — 130px square image card for use inside `MediaShelf`. Hover slides up title + composer + popularity. Accepts `SongShelfCardData` (= `SongLinkData`). Add `noNav` prop to `ChordCard` when wrapping in `<Link>` to prevent double navigation.
+`SongShelfCard.vue` — 160px square image card for use inside `MediaShelf`. Hover slides up title + composer + popularity. Accepts `SongShelfCardData` (= `SongLinkData`). Add `noNav` prop to `ChordCard` when wrapping in `<Link>` to prevent double navigation.
 
 **`SongLinkData` interface** (matches `Leadsheet::toLinkArray()`):
 ```ts
@@ -751,7 +751,7 @@ interface SongLinkData {
 
 ### `CourseShelfCard.vue` (`Components/Course/CourseShelfCard.vue`)
 
-130px square card. Genre badge + difficulty always visible; hover overlay shows title + lesson count + level.
+160px square card. Genre badge always visible top-left; hover overlay slides up title + level label.
 
 **`CourseShelfCardData` interface:**
 ```ts
@@ -780,6 +780,56 @@ Backend serializer: `Course::toShelfArray()`.
 ```
 
 Props: `title` (string) — renders heading row. `viewAllHref` (string, optional) — renders "View all →" link on the right. No `#heading` slot — use `title` + `viewAllHref` props instead.
+
+---
+
+## LIBRARY INDEX CARDS
+
+**Updated 2026-05-28.**
+
+### `CourseCard.vue` (`Components/Course/CourseCard.vue`)
+
+Used in the course index grid (`sbn-courses-grid` / `sbn-courses-carousel`). 1:1 square image with inset padding on card. No overlay — hover reveals a white "View Course →" button that pops up from center. Border frame on card (`1px solid var(--clr-border)`), shifts to `var(--clr-text-muted)` on hover (no shadow).
+
+Card body: grey `sbn-badge sbn-badge-muted` with stars + `difficultyLabel` above the title. No lesson count.
+
+**Grid:** `repeat(3, 1fr)`, `gap: 24px`. Breakpoints: 2-col at ≤900px, 1-col at ≤600px. Defined in `public/css/course-player.css`.
+
+### `SongCard.vue` (`Components/Library/SongCard.vue`)
+
+Used in the song library grid (`sbn-songs-grid`). 1:1 square image, `padding: 10px 10px 0` on card so image floats inset with rounded corners. No overlay — hover scales image only. Button "View Song →" pops up on hover (no color tint behind it).
+
+Card body: grey `sbn-badge sbn-badge-muted` with stars + `difficultyLabel` above title (only shown when `difficulty` is set). No key/tempo/time pills.
+
+**`SongCardData` interface** includes `difficulty: number | null` — serialized by `SongLibraryController::serializeSong()`.
+
+**Grid:** `repeat(3, 1fr)`, `gap: 24px`. Breakpoints: 2-col at ≤900px, 1-col at ≤600px. Defined in `public/css/song-library.css`.
+
+---
+
+## SHOW PAGE HERO — FULL-BLEED IMAGE
+
+**Established 2026-05-28.** Song Show and Course Show use a full-bleed background image hero. The image is absolutely positioned, anchored right, and fades out via a left-to-right gradient overlay so text is always readable.
+
+```html
+<header class="sbn-ss-hero sbn-detail-hero">
+  <!-- Background image (or gradient fallback) -->
+  <img :src="imagePath" class="sbn-ss-hero-bg" />
+  <div class="sbn-ss-hero-overlay" />
+
+  <!-- Text content sits above at z-index 2 -->
+  <div class="sbn-ss-hero-text">...</div>
+</header>
+```
+
+Key CSS rules:
+- `.sbn-ss-hero-bg` — `position: absolute; top/bottom: 0; left: 20%; right: -80px; width: calc(80% + 80px); object-fit: cover` — image covers right ~80% and bleeds past the right border
+- `.sbn-ss-hero-overlay` — `linear-gradient(to right, white 30%, semi-transparent 65%, near-transparent 100%)` — fades the image from left
+- `.sbn-ss-hero-text` — `position: relative; z-index: 2; max-width: 620px`
+- Fallback (`--fallback` modifier): `background: var(--category-gradient)`
+- Mobile (≤768px): gradient flips to top→bottom
+
+Same pattern used in `Courses/Show.vue` with `.sbn-cs-hero-bg` / `.sbn-cs-hero-overlay` / `.sbn-cs-hero-text` class names.
 
 ---
 

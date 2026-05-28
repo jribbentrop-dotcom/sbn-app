@@ -122,9 +122,13 @@ const totalSections = computed(() => grouped.value.length);
     <!-- ── Hero ──────────────────────────────────────────────────────────── -->
     <header class="sbn-cs-hero sbn-detail-hero">
 
-      <div class="sbn-cs-hero-body">
-        <!-- Left: text content -->
-        <div class="sbn-cs-hero-text">
+      <!-- Background image -->
+      <img v-if="course.featuredImagePath" :src="course.featuredImagePath" :alt="course.title" class="sbn-cs-hero-bg" />
+      <div v-else class="sbn-cs-hero-bg sbn-cs-hero-bg--fallback" />
+      <div class="sbn-cs-hero-overlay" />
+
+      <!-- Text content -->
+      <div class="sbn-cs-hero-text">
           <div class="sbn-cs-hero-badges">
             <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(course.category ?? '') }">
               {{ genreLabel }}
@@ -181,19 +185,6 @@ const totalSections = computed(() => grouped.value.length);
           </div>
         </div>
 
-        <!-- Right: featured image or gradient tile -->
-        <div class="sbn-cs-hero-image">
-          <img
-            v-if="course.featuredImagePath"
-            :src="course.featuredImagePath"
-            :alt="course.title"
-            class="sbn-cs-hero-img"
-          />
-          <div v-else class="sbn-cs-hero-fallback">
-            <span class="sbn-cs-hero-fallback-label">{{ genreLabel }}</span>
-          </div>
-        </div>
-      </div>
     </header>
 
     <!-- ── Two-column body ───────────────────────────────────────────────── -->
@@ -380,18 +371,48 @@ const totalSections = computed(() => grouped.value.length);
 
 /* ── Hero ──────────────────────────────────────────────────────────────────── */
 .sbn-cs-hero {
+  position: relative;
   overflow: hidden;
   margin-bottom: 28px;
+  min-height: 280px;
+  display: flex;
+  align-items: center;
 }
 
-.sbn-cs-hero-body {
-  display: grid;
-  grid-template-columns: 1fr 280px;
-  gap: 0;
+.sbn-cs-hero-bg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 20%;
+  right: -80px;
+  width: calc(80% + 80px);
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  z-index: 0;
+}
+
+.sbn-cs-hero-bg--fallback {
+  background: var(--category-gradient);
+}
+
+.sbn-cs-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    var(--clr-white) 30%,
+    color-mix(in srgb, var(--clr-white) 75%, transparent) 65%,
+    color-mix(in srgb, var(--clr-white) 20%, transparent) 100%
+  );
+  z-index: 1;
 }
 
 .sbn-cs-hero-text {
-  padding: 28px 32px 28px;
+  position: relative;
+  z-index: 2;
+  padding: 36px 40px;
+  max-width: 640px;
 }
 
 /* Badges row */
@@ -476,35 +497,6 @@ const totalSections = computed(() => grouped.value.length);
   flex-wrap: wrap;
 }
 
-/* Hero image / fallback */
-.sbn-cs-hero-image {
-  position: relative;
-  overflow: hidden;
-  min-height: 240px;
-}
-.sbn-cs-hero-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.sbn-cs-hero-fallback {
-  width: 100%;
-  height: 100%;
-  background: var(--category-gradient);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.sbn-cs-hero-fallback-label {
-  font-family: var(--font-chord, Georgia, serif);
-  font-size: 22px;
-  font-weight: 600;
-  color: white;
-  text-transform: capitalize;
-  opacity: 0.85;
-  letter-spacing: 0.04em;
-}
 
 /* ── Two-column body ───────────────────────────────────────────────────────── */
 .sbn-cs-body {
@@ -841,15 +833,16 @@ const totalSections = computed(() => grouped.value.length);
 
 /* ── Responsive ────────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .sbn-cs-hero-body {
-    grid-template-columns: 1fr;
-  }
-  .sbn-cs-hero-image {
-    min-height: 180px;
-    order: -1;
+  .sbn-cs-hero { min-height: 220px; }
+  .sbn-cs-hero-overlay {
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--clr-white) 85%, transparent) 0%,
+      var(--clr-white) 100%
+    );
   }
   .sbn-cs-hero-text {
-    padding: 20px 20px 22px;
+    padding: 24px 20px;
   }
   .sbn-cs-body {
     grid-template-columns: 1fr;

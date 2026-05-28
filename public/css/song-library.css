@@ -49,9 +49,11 @@
 
 .sbn-songs-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
 }
+@media (max-width: 900px) { .sbn-songs-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .sbn-songs-grid { grid-template-columns: 1fr; } }
 
 /* ============================================================
    SONG CARD  — layout handled by SongCard.vue scoped styles

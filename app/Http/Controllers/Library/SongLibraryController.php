@@ -76,6 +76,7 @@ class SongLibraryController extends Controller
             'styleSlug'     => $song->genre ?? $this->rhythmToStyleSlug($song->rhythm),
             'description'   => $song->description ? Str::limit(strip_tags($song->description), 120) : null,
             'popularity'      => $song->popularity,
+            'difficulty'      => $song->difficulty,
             'measureCount'    => $song->measure_count,
             'coverImagePath'  => $song->cover_image_path ? '/images/songs/' . $song->cover_image_path : null,
             'tags'            => $song->tags()->pluck('slug')->all(),

@@ -59,7 +59,7 @@ const popularityTier = computed(() => {
 <style scoped>
 .sbn-song-shelf-card {
     display: block;
-    width: 130px;
+    width: 160px;
     text-decoration: none;
     border-radius: var(--radius);
     overflow: hidden;
