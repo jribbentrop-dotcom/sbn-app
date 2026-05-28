@@ -1,0 +1,520 @@
+/* Account / customer backend layout
+   Loaded after sbn-design-system.css. No hex literals — design tokens only. */
+
+.sbn-account-shell {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: var(--space-8, 2rem);
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: var(--space-8, 2rem) var(--space-6, 1.5rem);
+}
+
+@media (max-width: 900px) {
+    .sbn-account-shell {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ───── Sidebar ───── */
+
+.sbn-account-sidebar {
+    align-self: start;
+    position: sticky;
+    top: calc(var(--header-height, 102px) + 1rem);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4, 1rem);
+    padding: var(--space-5, 1.25rem);
+    background: var(--clr-surface-2);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+}
+
+.sbn-account-sidebar-header {
+    padding-bottom: var(--space-4, 1rem);
+    border-bottom: 1px solid var(--clr-border);
+}
+
+.sbn-account-greeting {
+    font-weight: 600;
+    color: var(--clr-text);
+}
+
+.sbn-account-email {
+    font-size: 0.85rem;
+    color: var(--clr-text-muted);
+    margin-top: 2px;
+    word-break: break-all;
+}
+
+.sbn-account-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sbn-account-nav-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+    border-radius: var(--radius-sm, 6px);
+    color: var(--clr-text);
+    text-decoration: none;
+    transition: background 0.15s var(--ease, ease);
+}
+
+.sbn-account-nav-link:hover {
+    background: var(--clr-surface-3);
+}
+
+.sbn-account-nav-link.is-active {
+    background: var(--clr-surface-3);
+    color: var(--clr-accent);
+    font-weight: 600;
+}
+
+.sbn-account-nav-link--muted {
+    color: var(--clr-text-muted);
+}
+
+.sbn-account-badge {
+    min-width: 22px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: var(--clr-accent);
+    color: var(--clr-bg);
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sbn-account-sidebar-footer {
+    margin-top: auto;
+    padding-top: var(--space-4, 1rem);
+    border-top: 1px solid var(--clr-border);
+}
+
+/* ───── Main column ───── */
+
+.sbn-account-main {
+    min-width: 0;
+}
+
+.sbn-account-pageheader {
+    margin-bottom: var(--space-6, 1.5rem);
+}
+
+.sbn-account-pageheader-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4, 1rem);
+    flex-wrap: wrap;
+}
+
+.sbn-account-pageheader h1 {
+    margin: 0 0 var(--space-2, 0.5rem);
+}
+
+.sbn-account-subtle {
+    color: var(--clr-text-muted);
+    font-size: 0.95rem;
+}
+
+.sbn-account-section {
+    margin-bottom: var(--space-8, 2rem);
+}
+
+.sbn-account-section-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: var(--space-4, 1rem);
+}
+
+.sbn-account-section-link {
+    color: var(--clr-accent);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.sbn-account-section-link:hover {
+    text-decoration: underline;
+}
+
+/* ───── Course shelf ───── */
+
+.sbn-account-shelf {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--space-5, 1.25rem);
+}
+
+/* ───── Empty states ───── */
+
+.sbn-account-empty {
+    padding: var(--space-8, 2rem);
+    background: var(--clr-surface-2);
+    border: 1px dashed var(--clr-border);
+    border-radius: var(--radius);
+    text-align: center;
+    color: var(--clr-text-muted);
+}
+
+.sbn-account-empty-cta {
+    display: inline-block;
+    margin-top: var(--space-3, 0.75rem);
+    color: var(--clr-accent);
+    text-decoration: none;
+}
+
+/* ───── Tables ───── */
+
+.sbn-account-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--clr-surface-2);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.sbn-account-table th,
+.sbn-account-table td {
+    padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+    text-align: left;
+    border-bottom: 1px solid var(--clr-border);
+}
+
+.sbn-account-table tr:last-child td { border-bottom: none; }
+
+.sbn-account-table th {
+    background: var(--clr-surface-3);
+    font-size: 0.85rem;
+    color: var(--clr-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.sbn-account-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    background: var(--clr-surface-3);
+    color: var(--clr-text-muted);
+}
+
+.sbn-account-status.is-paid { color: var(--clr-success, var(--clr-accent)); }
+.sbn-account-status.is-pending_stub { color: var(--clr-warning, var(--clr-text-muted)); }
+
+/* ───── Lists ───── */
+
+.sbn-account-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sbn-account-list li {
+    padding: var(--space-3, 0.75rem) 0;
+    border-bottom: 1px solid var(--clr-border);
+}
+
+.sbn-account-list li:last-child { border-bottom: none; }
+
+/* ───── Profile ───── */
+
+.sbn-account-avatar-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4, 1rem);
+}
+
+.sbn-account-avatar {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    background: var(--clr-surface-3);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sbn-account-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.sbn-account-avatar-fallback {
+    font-size: 2rem;
+    color: var(--clr-text-muted);
+}
+
+.sbn-account-upload {
+    display: inline-block;
+    cursor: pointer;
+    padding: var(--space-2, 0.5rem) var(--space-4, 1rem);
+    border-radius: var(--radius-sm, 6px);
+    background: var(--clr-surface-3);
+    color: var(--clr-text);
+}
+
+.sbn-account-upload input[type=file] { display: none; }
+
+.sbn-account-field {
+    display: block;
+    margin-bottom: var(--space-4, 1rem);
+}
+
+.sbn-account-field > span {
+    display: block;
+    margin-bottom: var(--space-2, 0.5rem);
+    font-size: 0.9rem;
+    color: var(--clr-text-muted);
+}
+
+.sbn-account-field input[type=text],
+.sbn-account-field textarea {
+    width: 100%;
+    padding: var(--space-3, 0.75rem);
+    background: var(--clr-bg);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm, 6px);
+    color: var(--clr-text);
+    font-family: inherit;
+    font-size: 1rem;
+}
+
+.sbn-account-field--inline {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 0.5rem);
+}
+
+.sbn-account-error {
+    color: var(--clr-danger, var(--clr-accent));
+    font-size: 0.85rem;
+    margin: 0.25rem 0 1rem;
+}
+
+/* ───── Chat ───── */
+
+.sbn-chat-shell {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: var(--space-4, 1rem);
+    height: calc(100vh - var(--header-height, 102px) - 8rem);
+    min-height: 480px;
+    background: var(--clr-surface-2);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+@media (max-width: 720px) {
+    .sbn-chat-shell {
+        grid-template-columns: 1fr;
+    }
+}
+
+.sbn-chat-list {
+    border-right: 1px solid var(--clr-border);
+    overflow-y: auto;
+}
+
+.sbn-chat-list-empty {
+    padding: var(--space-4, 1rem);
+    color: var(--clr-text-muted);
+    font-size: 0.9rem;
+}
+
+.sbn-chat-list-item {
+    display: block;
+    padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+    border-bottom: 1px solid var(--clr-border);
+    color: var(--clr-text);
+    text-decoration: none;
+    transition: background 0.12s var(--ease, ease);
+}
+
+.sbn-chat-list-item:hover { background: var(--clr-surface-3); }
+.sbn-chat-list-item.is-active { background: var(--clr-surface-3); border-left: 3px solid var(--clr-accent); }
+
+.sbn-chat-list-title {
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.sbn-chat-list-when {
+    font-size: 0.75rem;
+    color: var(--clr-text-muted);
+}
+
+.sbn-chat-pane {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.sbn-chat-scroller {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-4, 1rem);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2, 0.5rem);
+}
+
+.sbn-chat-empty,
+.sbn-chat-empty-pane {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--clr-text-muted);
+    text-align: center;
+    padding: var(--space-6, 1.5rem);
+}
+
+.sbn-chat-bubble-row {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.sbn-chat-bubble-row.is-mine {
+    justify-content: flex-end;
+}
+
+.sbn-chat-bubble {
+    max-width: 70%;
+    padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+    background: var(--clr-surface-3);
+    border-radius: 14px;
+}
+
+.sbn-chat-bubble-row.is-mine .sbn-chat-bubble {
+    background: var(--clr-accent);
+    color: var(--clr-bg);
+}
+
+.sbn-chat-bubble-body {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.sbn-chat-bubble-time {
+    font-size: 0.7rem;
+    opacity: 0.7;
+    margin-top: 4px;
+}
+
+.sbn-chat-composer {
+    border-top: 1px solid var(--clr-border);
+    padding: var(--space-3, 0.75rem);
+    background: var(--clr-surface-2);
+}
+
+.sbn-chat-composer-input {
+    width: 100%;
+    padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+    background: var(--clr-bg);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm, 6px);
+    color: var(--clr-text);
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: vertical;
+}
+
+.sbn-chat-composer-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: var(--space-2, 0.5rem);
+    gap: var(--space-3, 0.75rem);
+}
+
+.sbn-chat-composer-hint,
+.sbn-chat-composer-error {
+    font-size: 0.8rem;
+    color: var(--clr-text-muted);
+}
+
+.sbn-chat-composer-error { color: var(--clr-danger, var(--clr-accent)); }
+
+/* ───── Chat: community extensions ───── */
+
+.sbn-chat-shell--single { grid-template-columns: 1fr; }
+
+.sbn-chat-bubble-author {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--clr-text-muted);
+    margin-bottom: 2px;
+}
+
+.sbn-chat-bubble.is-deleted {
+    background: transparent;
+    border: 1px dashed var(--clr-border);
+    color: var(--clr-text-muted);
+}
+
+.sbn-chat-bubble-deleted {
+    font-style: italic;
+    color: var(--clr-text-muted);
+}
+
+.sbn-chat-bubble-delete {
+    margin-left: var(--space-2, 0.5rem);
+    background: none;
+    border: none;
+    color: inherit;
+    opacity: 0.6;
+    cursor: pointer;
+    font-size: inherit;
+    text-decoration: underline;
+    padding: 0;
+}
+.sbn-chat-bubble-delete:hover { opacity: 1; }
+
+.sbn-chat-readonly {
+    padding: var(--space-4, 1rem);
+    text-align: center;
+    color: var(--clr-text-muted);
+    border-top: 1px solid var(--clr-border);
+    background: var(--clr-surface-2);
+}
+
+.sbn-community-bar {
+    display: flex;
+    gap: var(--space-4, 1rem);
+    margin-bottom: var(--space-4, 1rem);
+}
+
+.sbn-community-bar button {
+    background: none;
+    border: 1px solid var(--clr-border);
+    padding: var(--space-2, 0.5rem) var(--space-4, 1rem);
+    border-radius: var(--radius-sm, 6px);
+    cursor: pointer;
+    color: var(--clr-text);
+}
+.sbn-community-bar button:hover { background: var(--clr-surface-3); }
+
+.sbn-community-banner {
+    display: inline-block;
+    margin-left: var(--space-2, 0.5rem);
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--clr-surface-3);
+    color: var(--clr-text);
+    font-size: 0.75rem;
+}

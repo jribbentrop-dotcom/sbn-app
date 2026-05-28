@@ -108,6 +108,9 @@ class CourseController extends Controller
         $activeLesson = $activeLesson ?? $allLessons->first();
 
         $hasAccess = $this->checkAccess($request, $course);
+        if ($hasAccess && $request->user()) {
+            app(\App\Services\CourseAccessService::class)->bumpLastAccessed($request->user(), $course);
+        }
 
         $lessonData = null;
         $chordSlugs = [];
@@ -287,9 +290,12 @@ class CourseController extends Controller
             return true;
         }
 
-        // Phase 12 hook: replace this development override with real purchase checks.
-        // Part B development keeps paid courses accessible so the player can be tested.
-        return true;
+        $user = $request->user();
+        if (!$user) {
+            return false;
+        }
+
+        return $user->owns($course);
     }
 
     private function serializeCourse(Course $course): array

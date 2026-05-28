@@ -56,6 +56,13 @@ class AppServiceProvider extends ServiceProvider
                 $count = \App\Models\VoicingDraft::pending()->count();
             }
             $view->with('pendingDraftsCount', $count > 0 ? $count : null);
+
+            $unread = null;
+            if (Schema::hasTable('messages') && auth()->check()) {
+                $unread = \App\Services\AccountService::unreadCountFor(auth()->user());
+                $unread = $unread > 0 ? $unread : null;
+            }
+            $view->with('adminUnreadCount', $unread);
         });
     }
 }

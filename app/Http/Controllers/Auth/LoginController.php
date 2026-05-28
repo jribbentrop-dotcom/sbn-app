@@ -11,7 +11,7 @@ class LoginController extends Controller
     public function show()
     {
         if (Auth::check()) {
-            return redirect()->route('admin.dashboard');
+            return redirect($this->landingFor(Auth::user()));
         }
         return view('auth.login');
     }
@@ -25,12 +25,19 @@ class LoginController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
-            return redirect()->intended(route('admin.dashboard'));
+            return redirect()->intended($this->landingFor(Auth::user()));
         }
 
         return back()->withErrors([
             'email' => 'Invalid credentials.',
         ])->onlyInput('email');
+    }
+
+    private function landingFor($user): string
+    {
+        return $user && $user->is_instructor
+            ? route('admin.dashboard')
+            : route('account.dashboard');
     }
 
     public function logout(Request $request)

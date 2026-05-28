@@ -48,6 +48,12 @@
             <div class="sbn-nav-section">
                 <span class="sbn-nav-label" x-show="!sidebarCollapsed" x-transition.opacity>Shop</span>
                 <x-admin.nav-item route="admin.orders.index" icon="leadsheet" label="Orders" />
+                <x-admin.nav-item route="admin.course-grants.index" icon="leadsheet" label="Course Grants" />
+            </div>
+            <div class="sbn-nav-section">
+                <span class="sbn-nav-label" x-show="!sidebarCollapsed" x-transition.opacity>Community</span>
+                <x-admin.nav-item route="admin.messages.index" icon="leadsheet" label="Messages" :badge="$adminUnreadCount ?? null" />
+                <x-admin.nav-item route="admin.community.show" icon="leadsheet" label="Community Channel" />
             </div>
             <div class="sbn-nav-section">
                 <span class="sbn-nav-label" x-show="!sidebarCollapsed" x-transition.opacity>Tools</span>

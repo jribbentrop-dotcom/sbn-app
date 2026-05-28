@@ -55,7 +55,7 @@ Each phase depends on the ones before it. Execute sequentially.
 - Dedicated wiring phase to avoid scattering "TODO: link to X once X exists" across earlier phases. All the small visual previews that one detail page needs from another (chord diagram preview on a progression card, progression preview on a chord card, etc.) land together.
 - Top10 is pure composition once 3/4/5/6 are stable.
 - Leadsheet (viewer) is the heaviest single phase. Held until all its component dependencies exist and the teaching-content surfaces have been shaken out.
-- Auth + payments last so we don't block feature development on Stripe plumbing; stubs earlier let us build UI without real money flow.
+- Auth + payments last so we don't block feature development on payment-provider plumbing; stubs earlier let us build UI without real money flow.
 
 ### Show-page scope policy (applies to phases 3, 4, 5, 6)
 
@@ -223,7 +223,7 @@ Component inventory entries are tagged:
 - Cart lives in localStorage via plain composable — no Pinia needed at this scale
 - Currency: charge always in EUR; USD is display-only via fixed conversion rate
 - Download grants are token-based (ULID), time-limited, work without auth
-- Guest checkout only — no auth required; real Stripe wired in Phase 12
+- Guest checkout only — no auth required; real payments (Lemon Squeezy) wired in Phase 12
 - Stub checkout creates `Order` with status `pending_stub`
 
 **Component inventory:**
@@ -242,7 +242,7 @@ Component inventory entries are tagged:
 
 **Backend:**
 - Laravel controllers returning Inertia responses with product data from existing tables.
-- No Stripe integration yet; checkout POSTs to a stub endpoint that just creates an "order" record with status `pending_stub`.
+- No payment-provider integration yet; checkout POSTs to a stub endpoint that just creates an "order" record with status `pending_stub`.
 
 **Legacy references:**
 - `sbn-course-player(legacywp)/flavor-starter/flavor-starter/woocommerce/archive-product.php` — catalog
@@ -254,7 +254,7 @@ Component inventory entries are tagged:
 **Known issues / deferred:**
 - ⚠️ PDF downloads require `--download-pdfs` flag run separately after metadata import (slow; hits WP server)
 - ⚠️ 75/80 products imported — 5 gap needs investigation on next import run
-- ⚠️ Real Stripe integration → Phase 12
+- ⚠️ Real payment integration (Lemon Squeezy) → Phase 12
 
 ---
 
@@ -1662,23 +1662,36 @@ Field notes:
 
 ---
 
-### Phase 12 — Auth + Payments
+### Phase 12 — Auth + Payments (Lemon Squeezy)
 
-**Deliverable:** Real auth flows (login, signup, password reset), Stripe wired to shop and course purchases, course access gated by ownership.
+**Deliverable:** Real auth flows (login, signup, password reset), Lemon Squeezy wired to shop and course purchases, course access gated by the `course_user` ownership pivot from the Customer Backend phase.
+
+**Provider decision (2026-05-28):** **Lemon Squeezy** as Merchant of Record. They collect, file, and remit EU VAT, US sales tax, and GST on our behalf — a meaningful win for a single-operator EU business selling globally to a low-ticket digital catalog. Cost is ~2% more than Stripe (~5% + 50¢ vs Stripe's ~2.9% + 30¢) in exchange for eliminating tax registration/filing entirely. Revisit Stripe if/when a subscription product with proration or seat-based billing lands.
+
+**Prerequisite:** Customer backend + community (phases A–E) shipped 2026-05-28; as-built reference: [SBN-Customer-Reference.md](SBN-Customer-Reference.md). It defines the `course_user` pivot, the manual-grant admin tool, `CourseAccessService::grantPurchase()` (the LS webhook entry point), and the empty-state UX that this phase activates.
 
 **Scope:**
-- Replace Phase 2 shop checkout stub with real Stripe.
-- Wire course purchase flow.
+- Install `lmsqueezy/laravel` (Laravel Cashier-style adapter).
+- Replace Phase 2 shop checkout stub: redirect cart → Lemon Squeezy hosted checkout, return on success.
+- Webhook handler `order_created` / `order_refunded` → flip `sbn_orders.status` from `pending_stub` to `paid` / `refunded`, write `course_user` row with `source='purchase'` and the `order_id`.
+- Wire course purchase flow: each `Course` ↔ LS product/variant ID column on `sbn_courses`.
 - Auth pages (Inertia versions of Laravel's auth scaffolding).
-- Membership / subscription handling if applicable.
+- Customer portal link in the Account area (LS-hosted; subscription/license management).
+
+**Explicitly NOT in scope:**
+- Tax calculation — handled by LS as MoR. No Stripe Tax / Taxually / Quaderno wiring.
+- Subscriptions with proration / seat-based billing — defer until a recurring product exists.
+- Custom invoice generation — LS issues VAT-compliant invoices; we surface the link.
 
 **Legacy references:**
 - `sbn-course-player(legacywp)/flavor-starter/flavor-starter/functions.php` — theme hooks (auth / redirects to review)
 - WP user DB — out of scope of this repo; migration handled separately, referenced here only as the source for user re-onboarding.
 
 **Done:**
-- Real payment flow works end-to-end in Stripe test mode.
-- Course access correctly gated.
+- Real payment flow works end-to-end against Lemon Squeezy test-mode store.
+- `course_user.source='purchase'` rows land via webhook, and the Account → My Courses page shows the purchased course without manual grant.
+- Course access correctly gated via existing `User::owns()` (no new gate logic — the Customer Backend already shipped it).
+- Refund webhook removes the `course_user` row (or sets `expires_at = now()` — TBD per UX).
 - Existing users from WP migrated or re-onboarded (separate migration task).
 
 ---
@@ -1750,7 +1763,7 @@ Each phase is one or more AI sessions. For each handoff:
 | Cinema view spec missing until Phase 10 | Placeholder noted; do not start Phase 10 until design exported from Claude design app. |
 | Admin accidentally migrated | Scope discipline: Inertia pages live only under `resources/js/Pages/`. Admin routes continue to return Blade views. |
 | SEO regression on Top10 (high-traffic pages) | Inertia head manager for meta tags; validate with crawler before DNS cutover. Consider SSR if needed (Phase 5 decision). |
-| Stripe/auth rework at end blocking launch | Stubs earlier let us ship internally without real payments. Phase 12 is strictly about wiring, not UX design. |
+| Payment-provider/auth rework at end blocking launch | Stubs earlier let us ship internally without real payments. Phase 12 is strictly about wiring Lemon Squeezy (MoR — no tax wiring needed), not UX design. |
 | Silent design drift from legacy | Section 4 policy: read listed legacy files before each phase, spot-check visually at end, document intentional deviations. |
 | Missing legacy references (e.g. Top10 React source) | Flagged per-phase as **TODO**; user to point to exact paths before that phase starts. |
 | Rhythm pattern renderer is the real unknown | Phase 4 budgets time for it explicitly; it is the biggest single new-component effort. Reference legacy `inc/rhythm-patterns/` + `sbn-percussion.js` for visual intent. |

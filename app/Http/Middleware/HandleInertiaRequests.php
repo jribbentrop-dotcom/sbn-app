@@ -35,10 +35,17 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $user ? [
+                    'id'            => $user->id,
+                    'name'          => $user->name,
+                    'email'         => $user->email,
+                    'is_instructor' => (bool) ($user->is_instructor ?? false),
+                ] : null,
             ],
             'cart' => [
                 'count' => session('cart.count', 0),
@@ -46,6 +53,9 @@ class HandleInertiaRequests extends Middleware
             'shop' => [
                 'usd_rate' => config('shop.usd_rate'),
             ],
+            'account' => fn () => $user ? [
+                'unread_count' => \App\Services\AccountService::unreadCountFor($user),
+            ] : null,
         ];
     }
 }

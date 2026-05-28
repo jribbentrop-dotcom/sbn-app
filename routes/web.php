@@ -21,12 +21,26 @@ use App\Http\Controllers\Library\ProgressionLibraryController;
 use App\Http\Controllers\Library\SongLibraryController;
 use App\Http\Controllers\Library\TheoryController;
 use App\Http\Controllers\CourseController;
+use App\Http\Controllers\Account\AccountController;
+use App\Http\Controllers\Account\MessageController;
+use App\Http\Controllers\CommunityController;
+use App\Http\Controllers\Admin\MessageController as AdminMessageController;
+use App\Http\Controllers\Admin\CommunityController as AdminCommunityController;
+use Illuminate\Support\Facades\Broadcast;
 use App\Http\Controllers\Admin\CourseController as AdminCourseController;
+use App\Http\Controllers\Admin\CourseGrantController;
 use App\Http\Controllers\Admin\LessonController as AdminLessonController;
 use App\Http\Controllers\Admin\ExerciseController as AdminExerciseController;
 use App\Http\Controllers\Library\ExerciseController as ExerciseLibraryController;
 use App\Http\Controllers\Admin\AdminFretboardController;
 use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| Broadcasting auth (Reverb private channels)
+|--------------------------------------------------------------------------
+*/
+Broadcast::routes(['middleware' => ['web', 'auth']]);
 
 /*
 |--------------------------------------------------------------------------
@@ -39,11 +53,58 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 /*
 |--------------------------------------------------------------------------
+| Account (logged-in customer area)
+|--------------------------------------------------------------------------
+*/
+Route::middleware('auth')->prefix('account')->name('account.')->group(function () {
+    Route::get('/', [AccountController::class, 'dashboard'])->name('dashboard');
+    Route::get('/courses', [AccountController::class, 'courses'])->name('courses');
+    Route::get('/orders', [AccountController::class, 'orders'])->name('orders');
+    Route::get('/orders/{token}', [AccountController::class, 'order'])->name('orders.show');
+    Route::get('/profile', [AccountController::class, 'profile'])->name('profile');
+    Route::patch('/profile', [AccountController::class, 'updateProfile'])->name('profile.update');
+    Route::post('/profile/avatar', [AccountController::class, 'uploadAvatar'])->name('profile.avatar');
+
+    Route::get('/messages', [MessageController::class, 'index'])->name('messages');
+    Route::post('/messages/start-dm', [MessageController::class, 'startDm'])->name('messages.start-dm');
+    Route::get('/messages/{conversation}', [MessageController::class, 'show'])->name('messages.show');
+    Route::get('/messages/{conversation}/fetch', [MessageController::class, 'fetch'])->name('messages.fetch');
+    Route::post('/messages/{conversation}', [MessageController::class, 'store'])->name('messages.store');
+    Route::delete('/messages/{conversation}/{message}', [MessageController::class, 'destroy'])->name('messages.destroy');
+    Route::patch('/messages/{conversation}/read', [MessageController::class, 'markRead'])->name('messages.read');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Community (auth required)
+|--------------------------------------------------------------------------
+*/
+Route::middleware('auth')->prefix('community')->name('community.')->group(function () {
+    Route::get('/', [CommunityController::class, 'show'])->name('show');
+    Route::post('/read-only', [CommunityController::class, 'toggleReadOnly'])->name('read-only');
+    Route::post('/mute', [CommunityController::class, 'toggleMute'])->name('mute');
+});
+
+/*
+|--------------------------------------------------------------------------
 | Admin (requires authentication)
 |--------------------------------------------------------------------------
 */
-Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+
+    Route::get('/course-grants', [CourseGrantController::class, 'index'])->name('course-grants.index');
+    Route::post('/course-grants', [CourseGrantController::class, 'store'])->name('course-grants.store');
+    Route::delete('/course-grants/{id}', [CourseGrantController::class, 'destroy'])->name('course-grants.destroy');
+
+    Route::get('/messages', [AdminMessageController::class, 'index'])->name('messages.index');
+    Route::post('/messages/{conversation}', [AdminMessageController::class, 'store'])->name('messages.store');
+    Route::delete('/messages/{conversation}/{message}', [AdminMessageController::class, 'destroy'])->name('messages.destroy');
+
+    Route::get('/community', [AdminCommunityController::class, 'show'])->name('community.show');
+    Route::post('/community', [AdminCommunityController::class, 'store'])->name('community.store');
+    Route::post('/community/read-only', [AdminCommunityController::class, 'toggleReadOnly'])->name('community.read-only');
+    Route::delete('/community/messages/{message}', [AdminCommunityController::class, 'destroyMessage'])->name('community.message.destroy');
 
     // Phase 5 — Leadsheets (full CRUD)
     Route::get('/leadsheets', [LeadsheetController::class, 'index'])->name('leadsheets.index');
