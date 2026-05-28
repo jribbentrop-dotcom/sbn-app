@@ -131,6 +131,19 @@ class RhythmPattern extends Model
             ->toArray();
     }
 
+    private const CATEGORY_TO_STYLE = [
+        'bossa-nova' => 'bossa-nova',
+        'bossa'      => 'bossa-nova',
+        'jazz'       => 'jazz',
+        'classical'  => 'classical',
+        'pop'        => 'pop',
+    ];
+
+    public function styleSlug(): string
+    {
+        return self::CATEGORY_TO_STYLE[$this->category] ?? 'pop';
+    }
+
     /**
      * Data array formatted for the leadsheet parser / frontend player.
      */

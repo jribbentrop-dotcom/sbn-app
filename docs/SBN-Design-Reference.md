@@ -244,6 +244,8 @@ Full public library card (play button, popularity badge, difficulty stars).
 <div class="sbn-chord-card sbn-chord-card--mini">...</div>    <!-- compact, no footer -->
 ```
 
+**`noNav` prop:** Pass `:no-nav="true"` (or `:noNav="true"`) when wrapping `ChordCard` in an Inertia `<Link>`. Without it the card's internal `window.open` fires alongside the link, opening a new tab.
+
 **Popularity pill classes:** `sbn-pop-occasional`, `sbn-pop-common`, `sbn-pop-essential`, `sbn-pop-iconic`
 
 ### Rhythm card (`.sbn-rhythm-card`)
@@ -542,37 +544,202 @@ Set `--play-color` on the **parent wrapper** to tint the button for a category. 
 
 ---
 
+## SHOW PAGE LAYOUT SYSTEM
+
+**Established 2026-05-28.** Shared layout utilities for all library detail (show) pages. Defined in `sbn-design-system.css`.
+
+### Two-column body (`.sbn-show-body`)
+
+All show pages use a header-above + two-column-below layout. The header (`sbn-detail-hero`) sits outside the grid; only the content+sidebar grid uses these classes.
+
+```html
+<!-- Full show page structure -->
+<div class="sbn-page-detail sbn-[entity]-show">
+    <Breadcrumb ... />
+    <header class="sbn-detail-hero sbn-[entity]-header">...</header>
+    <div class="sbn-show-body">
+        <div class="sbn-show-main">
+            <!-- main content sections -->
+        </div>
+        <aside class="sbn-show-sidebar">
+            <div class="sbn-show-sidebar-card">
+                <h3 class="sbn-show-sidebar-heading">Related items</h3>
+                <!-- link list -->
+            </div>
+        </aside>
+    </div>
+</div>
+```
+
+| Class | Role |
+|---|---|
+| `.sbn-show-body` | `grid: 1fr 320px`, `gap: 32px`, `align-items: start` |
+| `.sbn-show-main` | Left column — `min-width: 0` |
+| `.sbn-show-sidebar` | Right column — `min-width: 0`, `position: sticky; top: 80px` |
+| `.sbn-show-sidebar-card` | White bordered card inside sidebar — `padding: 20px` |
+| `.sbn-show-sidebar-heading` | Uppercase eyebrow label — `0.82em`, `700`, `uppercase`, `letter-spacing: 0.06em` |
+
+Responsive: at `max-width: 1024px` the grid collapses to single column and sidebar `position` resets to `static`.
+
+Currently applied to: `Progressions/Show.vue`, `Rhythms/Show.vue`.
+
+---
+
+## SHOW PAGE HERO HEADER
+
+**Established 2026-05-28.** Unified header anatomy for rhythm, progression, and song show pages. All use `.sbn-detail-hero` as the frame, with internal structure using shared design system classes.
+
+```html
+<header class="sbn-detail-hero sbn-[entity]-header" :style="{ '--category-color': color }">
+    <!-- 1. Top badge row: filled cat badge + popularity + hashtags -->
+    <div class="sbn-show-hero-badges">
+        <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': color }">Jazz</span>
+        <span class="sbn-card-pop sbn-pop-common">Common</span>
+        <span class="sbn-hashtag">#ii-V-I</span>
+    </div>
+    <!-- 2. Title -->
+    <h1 class="sbn-show-hero-title">II-V-I</h1>
+    <!-- 3. Optional subtitle (muted, one-liner) -->
+    <p class="sbn-show-hero-subtitle">Jazz chord progression • Major</p>
+    <!-- 4. Meta chip row (light grey key/value chips) -->
+    <div class="sbn-show-hero-meta">
+        <span class="sbn-meta-chip"><strong>Tonality</strong> Major</span>
+        <span class="sbn-meta-chip"><strong>Chords</strong> 3</span>
+    </div>
+</header>
+```
+
+| Class | Role |
+|---|---|
+| `.sbn-show-hero-badges` | Flex row, `gap: 8px`, `margin-bottom: 12px` |
+| `.sbn-show-hero-title` | `h1` — `2em`, `800`, `letter-spacing: -0.02em` |
+| `.sbn-show-hero-subtitle` | Muted one-liner — `1em`, `color: var(--clr-text-muted)` |
+| `.sbn-show-hero-meta` | Flex wrap chip row |
+| `.sbn-meta-chip` | Light grey chip — `background: var(--clr-surface-2)`, `0.82em`. Also aliased as `.sbn-song-meta-chip`. |
+
+---
+
+## SHOW PAGE SECTION HEADINGS
+
+**Established 2026-05-28.** Shared heading row pattern for all sections inside show pages. Replaces per-page scoped heading styles.
+
+```html
+<!-- Heading with "View all" link -->
+<div class="sbn-section-heading-row">
+    <h2 class="sbn-section-heading">Songs</h2>
+    <a href="/library/songs" class="sbn-section-link">View all →</a>
+</div>
+
+<!-- Heading only (no link) -->
+<div class="sbn-section-heading-row">
+    <h2 class="sbn-section-heading">Other Maj7 Voicings</h2>
+</div>
+```
+
+| Class | Role |
+|---|---|
+| `.sbn-section-heading-row` | Flex row, space-between, border-bottom `2px solid var(--clr-border)`, `margin-bottom: 16px` |
+| `.sbn-section-heading` | `1.05em`, `700`, `color: var(--clr-text)` |
+| `.sbn-section-link` | `0.85em`, muted, no-underline, `flex-shrink: 0` |
+
+`MediaShelf` uses these classes directly for its title row — do not re-implement per-page.
+
+---
+
+## HORIZONTAL CARD SCROLL ROW
+
+**Established 2026-05-28.** Shared pattern for horizontally scrollable card rows. Scroll buttons appear/hide based on actual overflow (driven by `ResizeObserver` + scroll event). Used for chord siblings on chord show, chords on song show, and inside `MediaShelf`.
+
+```html
+<div class="sbn-card-scroll-wrap" style="max-width: calc(4 * 110px + 3 * 12px)">
+    <div ref="scrollEl" class="sbn-card-scroll">
+        <a v-for="item in items" class="sbn-card-scroll-item" href="...">
+            <!-- card -->
+        </a>
+    </div>
+    <button v-show="canScrollLeft"  class="sbn-card-scroll-btn sbn-card-scroll-btn--prev" @click="scroll(-1)">‹</button>
+    <button v-show="canScrollRight" class="sbn-card-scroll-btn sbn-card-scroll-btn--next" @click="scroll(1)">›</button>
+</div>
+```
+
+| Class | Role |
+|---|---|
+| `.sbn-card-scroll-wrap` | `position: relative` — anchor for absolute buttons. Set `max-width` locally to cap visible cards. |
+| `.sbn-card-scroll` | Flex row, `overflow-x: auto`, `scroll-snap-type: x mandatory`, hidden scrollbar |
+| `.sbn-card-scroll-item` | `flex: 0 0 110px`, `scroll-snap-align: start` |
+| `.sbn-card-scroll-btn` | 28px circle button, `box-shadow: 0 1px 4px rgba(0,0,0,0.1)` |
+| `.sbn-card-scroll-btn--prev` | `left: -14px` |
+| `.sbn-card-scroll-btn--next` | `right: -14px` |
+
+**Scroll state pattern** (required in every component that uses manual buttons):
+```ts
+const canLeft  = ref(false);
+const canRight = ref(false);
+function updateScroll() {
+    const el = scrollEl.value;
+    if (!el) return;
+    canLeft.value  = el.scrollLeft > 0;
+    canRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+}
+// Wire to: el.addEventListener('scroll', updateScroll) + new ResizeObserver(updateScroll)
+```
+
+`MediaShelf` handles this internally — no extra setup needed when using that component.
+
+---
+
 ## LIBRARY LINK COMPONENTS
 
-**Established 2026-05-27.** Canonical Vue components for cross-linking library entities. Never hand-roll song/progression rows on show pages — use these.
+**Established 2026-05-27, extended 2026-05-28.** Canonical Vue components for cross-linking library entities. Never hand-roll entity rows on show pages — use these.
 
 ### `ProgressionLink.vue` (`Components/Library/ProgressionLink.vue`)
 
-Row component for linking to a progression from any page. Left colour stripe keyed to category.
+Row component for linking to a progression. Bordered card with left colour stripe keyed to category.
 
 ```vue
-<!-- Basic usage -->
 <ProgressionLink :progression="prog" />
-
-<!-- From chord detail page — pins chord + slot into query string -->
+<!-- From chord detail — pins chord + slot into query string -->
 <ProgressionLink :progression="{ ...prog, pinnedChordSlug: chord.slug, pinnedSlot: 0 }" />
 ```
 
-**`ProgressionLinkData` interface** (exported from the component):
+**`ProgressionLinkData` interface:**
 ```ts
 interface ProgressionLinkData {
     id: number; slug: string; name: string; category: string;
     numeralsDisplay: string;
-    pinnedChordSlug?: string | null;   // appends ?chord=<slug>&highlight=<slot>
+    pinnedChordSlug?: string | null;
     pinnedSlot?: number | null;
 }
 ```
 
-CSS: `.sbn-prog-link` in `sbn-design-system.css`. Uses `--prog-clr` for the left border stripe. Do not redeclare in scoped styles.
+CSS: `.sbn-prog-link` in `sbn-design-system.css`. Uses `--prog-clr` for the left border stripe.
 
-### `SongLink.vue` (`Components/Library/SongLink.vue`)
+### `RhythmLink.vue` (`Components/Library/RhythmLink.vue`)
 
-Canonical type source only — not rendered on show pages. Import the type when you need `SongLinkData`. Render `SongShelfCard` instead for display.
+**New 2026-05-28.** Row component for linking to a rhythm pattern. Bordered card with left colour stripe, name+meta header, and an inline `RhythmStrip`.
+
+```vue
+<RhythmLink :rhythm="rhythm" />
+```
+
+**`RhythmLinkData` interface:**
+```ts
+interface RhythmLinkData {
+    id: number; slug: string; name: string; category: string; styleSlug: string;
+    bpm: number; timeSignature: string;
+    playerData: RhythmPatternData;
+}
+```
+
+Backend: `RhythmPattern::styleSlug()` maps rhythm category → style slug for the color. Used in: rhythm show sidebar, course show sidebar.
+
+**Note on flat vs nested data:** `RhythmPatternWithMeta` (from rhythm library) is flat — pass as `{ ...sibling, playerData: sibling }`. `RhythmRef` (from course show) is already nested.
+
+### `SongLink.vue` / `SongShelfCard.vue`
+
+`SongLink.vue` — type source only. Import `SongLinkData` when you need the interface. Do not render it directly.
+
+`SongShelfCard.vue` — 130px square image card for use inside `MediaShelf`. Hover slides up title + composer + popularity. Accepts `SongShelfCardData` (= `SongLinkData`). Add `noNav` prop to `ChordCard` when wrapping in `<Link>` to prevent double navigation.
 
 **`SongLinkData` interface** (matches `Leadsheet::toLinkArray()`):
 ```ts
@@ -582,15 +749,11 @@ interface SongLinkData {
 }
 ```
 
-### `SongShelfCard.vue` (`Components/Library/SongShelfCard.vue`)
-
-130px square image card for use inside `<MediaShelf>`. Hover slides up title + composer + popularity tier. Accepts `SongShelfCardData` (= `SongLinkData`).
-
 ### `CourseShelfCard.vue` (`Components/Course/CourseShelfCard.vue`)
 
-Same 130px square structure as `SongShelfCard`. Top row: genre badge + star difficulty (always visible). Hover overlay: title + lesson count + level label.
+130px square card. Genre badge + difficulty always visible; hover overlay shows title + lesson count + level.
 
-**`CourseShelfCardData` interface**:
+**`CourseShelfCardData` interface:**
 ```ts
 interface CourseShelfCardData {
     id: number; slug: string; title: string; primaryGenre: string | null;
@@ -602,23 +765,21 @@ Backend serializer: `Course::toShelfArray()`.
 
 ### `MediaShelf.vue` (`Components/Library/MediaShelf.vue`)
 
-Horizontal scroll container with `‹ ›` nav buttons. `scroll-snap-type: x mandatory`. All direct children get `scroll-snap-align: start`.
+**Updated 2026-05-28.** Horizontal scroll container. Scroll buttons float on the track (absolutely positioned), appear/hide via `ResizeObserver`. Header uses `sbn-section-heading-row` / `sbn-section-heading` / `sbn-section-link` from the design system.
 
 ```vue
-<!-- Title prop — renders heading + nav buttons -->
-<MediaShelf title="Related Courses">
+<!-- With "View all" link -->
+<MediaShelf title="Related Courses" view-all-href="/learn">
     <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
 </MediaShelf>
 
-<!-- #heading slot — for custom markup (e.g. chord detail with "View all →" link) -->
-<MediaShelf>
-    <template #heading>
-        <h2>Songs with Cmaj7</h2>
-        <Link href="/library/songs">View all →</Link>
-    </template>
+<!-- Without link -->
+<MediaShelf title="Used in songs">
     <SongShelfCard v-for="song in songs" :key="song.id" :song="song" />
 </MediaShelf>
 ```
+
+Props: `title` (string) — renders heading row. `viewAllHref` (string, optional) — renders "View all →" link on the right. No `#heading` slot — use `title` + `viewAllHref` props instead.
 
 ---
 
@@ -799,6 +960,12 @@ Components defined in `sbn-design-system.css` and available everywhere. Do not r
 | `.sbn-diagram-card`, `.sbn-vp-card` | Chord diagram card shells |
 | `.sbn-breadcrumb` + `--cat` / `--brand` | Gradient breadcrumb band (use `Breadcrumb.vue`) |
 | `.sbn-detail-hero` | Flat-top bordered white box that connects flush beneath breadcrumb |
+| `.sbn-show-body` / `.sbn-show-main` / `.sbn-show-sidebar` | Two-column show page grid |
+| `.sbn-show-sidebar-card` / `.sbn-show-sidebar-heading` | Sidebar card frame + eyebrow label |
+| `.sbn-show-hero-badges` / `.sbn-show-hero-title` / `.sbn-show-hero-meta` | Show page hero header anatomy |
+| `.sbn-meta-chip` (alias: `.sbn-song-meta-chip`) | Light grey key/value chip |
+| `.sbn-section-heading-row` / `.sbn-section-heading` / `.sbn-section-link` | Section heading row with optional "View all →" |
+| `.sbn-card-scroll-wrap` / `.sbn-card-scroll` / `.sbn-card-scroll-item` / `.sbn-card-scroll-btn` | Horizontal card scroll row + prev/next buttons |
 | `.sbn-back-link` | Back navigation link |
 | `.sbn-surface-dim` | Dimmed surface (metadata, hints) |
 | `.sbn-callout` | Info callout (accent left border) |

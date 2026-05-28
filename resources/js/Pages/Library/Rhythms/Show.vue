@@ -4,7 +4,8 @@ import { Link } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmPattern from '@/Components/Library/RhythmPattern.vue';
-import RhythmCard from '@/Components/Library/RhythmCard.vue';
+import RhythmLink from '@/Components/Library/RhythmLink.vue';
+import type { RhythmLinkData } from '@/Components/Library/RhythmLink.vue';
 import MediaShelf from '@/Components/Library/MediaShelf.vue';
 import SongShelfCard from '@/Components/Library/SongShelfCard.vue';
 import CourseShelfCard from '@/Components/Course/CourseShelfCard.vue';
@@ -48,92 +49,87 @@ watch(() => props.pattern.slug, () => {
   <div class="sbn-page-detail sbn-rhythm-show">
     <Breadcrumb :segments="[{ label: 'Rhythm Library', href: '/library/rhythms' }, { label: pattern.name }]" :color="getCategoryColor(pattern.styleSlug)" />
     <header class="sbn-rhythm-show-header sbn-detail-hero" :style="categoryStyle">
-      <h1 class="sbn-rhythm-show-title">{{ pattern.name }}</h1>
-      <div class="sbn-rhythm-show-meta">
-        <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(pattern.styleSlug) }">{{ pattern.category }}</span>
-        <span v-if="pattern.gridType !== 'sixteenth'" class="sbn-badge" :class="`sbn-badge-grid-${pattern.gridType}`">{{ pattern.gridType }}</span>
-        <span v-else class="sbn-badge sbn-badge-muted">{{ pattern.gridType }}</span>
+      <div class="sbn-show-hero-badges">
+        <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(pattern.styleSlug) }">{{ pattern.category.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) }}</span>
         <span v-for="tag in (pattern.tags ?? [])" :key="tag" class="sbn-hashtag">#{{ tag }}</span>
       </div>
+      <h1 class="sbn-show-hero-title">{{ pattern.name }}</h1>
+      <div class="sbn-show-hero-meta">
+        <span class="sbn-meta-chip"><strong>Time</strong> {{ pattern.timeSignature }}</span>
+        <span class="sbn-meta-chip"><strong>Tempo</strong> {{ pattern.bpm }} bpm</span>
+        <span v-if="pattern.gridType !== 'sixteenth'" class="sbn-meta-chip"><strong>Grid</strong> {{ pattern.gridType }}</span>
+      </div>
     </header>
-    <div class="sbn-rhythm-show-container">
-      <!-- Main content -->
-      <div class="sbn-rhythm-show-content">
-        <!-- Full pattern display -->
-        <div class="sbn-rhythm-show-main">
-          <div class="sbn-rhythm-pattern-section sbn-card">
-            <RhythmPattern
-              :pattern="pattern"
-              :playable="true"
-              :mini="false"
-              :demo-url="pattern.demoUrl"
-              :color="getCategoryColor(pattern.styleSlug)"
-            >
-              <template v-if="pattern.demoUrl" #transport-extra>
-                <div class="sbn-blend-control">
-                  <span class="sbn-blend-label" :class="{ 'is-active': blend < 0.5 }">Samples</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    v-model.number="blend"
-                    class="sbn-blend-slider"
-                    aria-label="Blend between samples and demo audio"
-                  />
-                  <span class="sbn-blend-label" :class="{ 'is-active': blend >= 0.5 }">Demo</span>
-                </div>
-              </template>
-            </RhythmPattern>
-          </div>
+    <div class="sbn-show-body">
 
-          <!-- Description -->
-          <div v-if="pattern.description" class="sbn-pattern-description">
-            <h2>Description</h2>
-            <p>{{ pattern.description }}</p>
-          </div>
+      <!-- Left: main content -->
+      <div class="sbn-show-main">
 
-          <!-- Used in songs -->
-          <div v-if="songs.length" class="sbn-pattern-songs">
-            <MediaShelf title="Used in songs">
-              <SongShelfCard v-for="song in songs" :key="song.id" :song="song" />
-            </MediaShelf>
-          </div>
-
-          <!-- Related Courses -->
-          <div v-if="courses && courses.length" class="sbn-pattern-courses">
-            <MediaShelf title="Related Courses">
-              <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
-            </MediaShelf>
-          </div>
+        <div class="sbn-rhythm-pattern-section sbn-card">
+          <RhythmPattern
+            :pattern="pattern"
+            :playable="true"
+            :mini="false"
+            :demo-url="pattern.demoUrl"
+            :color="getCategoryColor(pattern.styleSlug)"
+          >
+            <template v-if="pattern.demoUrl" #transport-extra>
+              <div class="sbn-blend-control">
+                <span class="sbn-blend-label" :class="{ 'is-active': blend < 0.5 }">Samples</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  v-model.number="blend"
+                  class="sbn-blend-slider"
+                  aria-label="Blend between samples and demo audio"
+                />
+                <span class="sbn-blend-label" :class="{ 'is-active': blend >= 0.5 }">Demo</span>
+              </div>
+            </template>
+          </RhythmPattern>
         </div>
 
-        <!-- Sidebar with siblings -->
-        <aside class="sbn-rhythm-show-sidebar">
-          <div class="sbn-sidebar-section">
-            <h3>More {{ pattern.category }} patterns</h3>
-            <div v-if="siblings.length" class="sbn-siblings-list">
-              <RhythmCard
-                v-for="sibling in siblings"
-                :key="sibling.id"
-                :pattern="sibling"
-                :mini="true"
-              />
-            </div>
-            <p v-else class="sbn-empty-siblings">No other patterns in this category.</p>
-          </div>
-        </aside>
+        <div v-if="pattern.description" class="sbn-rhythm-section">
+          <h2 class="sbn-section-heading">Description</h2>
+          <p class="sbn-rhythm-section-body">{{ pattern.description }}</p>
+        </div>
+
+        <div v-if="songs.length" class="sbn-rhythm-section">
+          <MediaShelf title="Used in songs" view-all-href="/library/songs">
+            <SongShelfCard v-for="song in songs" :key="song.id" :song="song" />
+          </MediaShelf>
+        </div>
+
+        <div v-if="courses && courses.length" class="sbn-rhythm-section">
+          <MediaShelf title="Related Courses" view-all-href="/learn">
+            <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
+          </MediaShelf>
+        </div>
+
       </div>
+
+      <!-- Right: related patterns sidebar -->
+      <aside class="sbn-show-sidebar">
+        <div class="sbn-show-sidebar-card">
+          <h3 class="sbn-show-sidebar-heading">More {{ pattern.category.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) }} patterns</h3>
+          <div v-if="siblings.length" class="sbn-siblings-list">
+            <RhythmLink
+              v-for="sibling in siblings"
+              :key="sibling.id"
+              :rhythm="{ ...sibling, playerData: sibling }"
+            />
+          </div>
+          <p v-else class="sbn-empty-siblings">No other patterns in this category.</p>
+        </div>
+      </aside>
+
     </div>
   </div>
 </template>
 
 <style scoped>
-
-.sbn-rhythm-show-container {
-  max-width: 1200px;
-  margin: 0 auto;
-}
 
 /* Header */
 .sbn-rhythm-show-header {
@@ -142,137 +138,25 @@ watch(() => props.pattern.slug, () => {
 }
 
 
-
-.sbn-rhythm-show-title {
-  margin: 0 0 12px;
-  font-size: 2.2em;
-  font-weight: 700;
-  color: var(--clr-text);
-}
-
-.sbn-rhythm-show-meta {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-/* Content layout */
-.sbn-rhythm-show-content {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 32px;
-}
-
-/* Rhythm Pattern Section — layout only, frame comes from .sbn-card */
+/* Pattern section */
 .sbn-rhythm-pattern-section {
   margin-bottom: 32px;
 }
 
-/* Blend slider — handled by RhythmPattern :deep styles */
-
-/* Description section */
-.sbn-pattern-description {
-  margin-bottom: 24px;
-}
-
-/* Songs section */
-.sbn-pattern-songs {
-  margin-bottom: 24px;
-}
-
-/* Courses section */
-.sbn-pattern-courses {
-  margin-bottom: 24px;
-}
-
-.sbn-pattern-songs h2 {
-  margin: 0 0 12px;
-  font-size: 1.1em;
-  font-weight: 600;
-  color: var(--clr-text);
+/* Content sections */
+.sbn-rhythm-section {
+  margin-bottom: 32px;
 }
 
 
-.sbn-pattern-description h2 {
-  margin: 0 0 12px;
-  font-size: 1.1em;
-  font-weight: 600;
-  color: var(--clr-text);
-}
-
-.sbn-pattern-description p {
+.sbn-rhythm-section-body {
   margin: 0;
   font-size: 15px;
   line-height: 1.7;
   color: var(--clr-text-muted);
 }
 
-/* Details section */
-.sbn-pattern-details {
-  background: var(--clr-white);
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius);
-  padding: 20px;
-}
-
-.sbn-pattern-details h2 {
-  margin: 0 0 16px;
-  font-size: 1.1em;
-  font-weight: 600;
-  color: var(--clr-text);
-}
-
-.sbn-details-list {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-.sbn-detail-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--clr-surface-2);
-}
-
-.sbn-detail-row:last-child {
-  border-bottom: none;
-}
-
-.sbn-detail-row dt {
-  font-size: 13px;
-  color: var(--clr-text-muted);
-  font-weight: 500;
-}
-
-.sbn-detail-row dd {
-  font-size: 13px;
-  color: var(--clr-text);
-  font-weight: 600;
-  margin: 0;
-}
-
-/* Sidebar */
-.sbn-rhythm-show-sidebar {
-  position: sticky;
-  top: 80px;
-  align-self: start;
-}
-
-.sbn-sidebar-section {
-  background: var(--clr-white);
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius);
-  padding: 20px;
-}
-
-.sbn-sidebar-section h3 {
-  margin: 0 0 16px;
-  font-size: 0.95em;
-  font-weight: 600;
-  color: var(--clr-text);
-}
-
+/* Siblings list */
 .sbn-siblings-list {
   display: flex;
   flex-direction: column;
@@ -286,38 +170,9 @@ watch(() => props.pattern.slug, () => {
   font-style: italic;
 }
 
-/* Responsive */
-@media (max-width: 1024px) {
-  .sbn-rhythm-show-content {
-    grid-template-columns: 1fr;
-  }
-
-  .sbn-rhythm-show-sidebar {
-    position: static;
-    order: -1;
-  }
-
-  .sbn-siblings-list {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 @media (max-width: 768px) {
-  .sbn-rhythm-show {
-    padding: 24px 16px 60px;
-  }
-
   .sbn-rhythm-show-title {
     font-size: 1.8em;
-  }
-
-  .sbn-details-list {
-    grid-template-columns: 1fr;
-  }
-
-  .sbn-siblings-list {
-    grid-template-columns: 1fr;
   }
 }
 </style>

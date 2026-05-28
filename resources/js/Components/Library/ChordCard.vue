@@ -11,9 +11,10 @@ interface Props {
     detail?: boolean;
     showRoot?: boolean;
     onChordClick?: (() => void) | null;
+    noNav?: boolean;
 }
 
-const props = withDefaults(defineProps<Props>(), { mini: false, detail: false, showRoot: true, onChordClick: null });
+const props = withDefaults(defineProps<Props>(), { mini: false, detail: false, showRoot: true, onChordClick: null, noNav: false });
 
 const formattedName = computed(() => {
     // Normally cards show quality + extensions only (no root) — the library
@@ -96,6 +97,7 @@ onBeforeUnmount(() => {
 const cardRef = ref<HTMLElement | null>(null);
 
 function handleCardClick() {
+    if (props.noNav) return;
     if (props.onChordClick) {
         props.onChordClick();
         return;

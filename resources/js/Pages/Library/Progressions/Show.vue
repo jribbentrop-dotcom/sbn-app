@@ -56,7 +56,6 @@ interface Props {
 
 const props = defineProps<Props>();
 
-// ── Category labels ─────────────────────────────────────────
 const categoryLabels: Record<string, string> = {
     'bossa-nova': 'Bossa Nova',
     'jazz':       'Jazz',
@@ -64,33 +63,36 @@ const categoryLabels: Record<string, string> = {
     'pop':        'Pop',
 };
 
-// ── Computed properties ───────────────────────────────────────
-const categoryLabel = computed(() => {
-    return categoryLabels[props.progression.category] || props.progression.category;
-});
+const categoryLabel = computed(() => categoryLabels[props.progression.category] || props.progression.category);
 
 const tonalityLabel = computed(() => {
     if (!props.progression.tonality || props.progression.tonality === 'both') return '';
     return props.progression.tonality === 'major' ? 'Major' : 'Minor';
 });
 
-const hasSongs = computed(() => props.songs.length > 0);
-const hasSiblings = computed(() => props.siblings.length > 0);
-const hasDescription = computed(() => props.progression.description && props.progression.description.trim());
-const hasGenres = computed(() => props.progression.typicalGenres && props.progression.typicalGenres.trim());
-const hasTags = computed(() => props.progression.tags.length > 0);
+const popularityTier = computed(() => {
+    const n = props.progression.songCount ?? 0;
+    if (n >= 10) return { tier: 'iconic',     label: 'Iconic' };
+    if (n >= 5)  return { tier: 'essential',  label: 'Essential' };
+    if (n >= 2)  return { tier: 'common',     label: 'Common' };
+    if (n >= 1)  return { tier: 'occasional', label: 'Rare' };
+    return null;
+});
 
-// Convert tiles to chords for the viewer
-const chords = computed((): ProgressionChord[] => {
-    return props.tiles.map((tile) => ({
+const hasSongs      = computed(() => props.songs.length > 0);
+const hasSiblings   = computed(() => props.siblings.length > 0);
+const hasDescription = computed(() => props.progression.description && props.progression.description.trim());
+const hasGenres     = computed(() => props.progression.typicalGenres && props.progression.typicalGenres.trim());
+
+const chords = computed((): ProgressionChord[] =>
+    props.tiles.map((tile) => ({
         chordName: tile.chordName,
         diagramData: tile.diagramData,
         beats: 4,
         slug: tile.slug,
         numeral: tile.numeral ?? undefined,
-    }));
-});
-
+    }))
+);
 
 const n = parseInt(new URLSearchParams(window.location.search).get('highlight') ?? '', 10);
 const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
@@ -99,37 +101,25 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 <template>
     <div class="sbn-page-detail sbn-prog-detail-page">
         <Breadcrumb :segments="[{ label: 'Progressions', href: '/library/progressions' }, { label: progression.name }]" :color="getCategoryColor(progression.category)" />
-            <!-- Header -->
-            <header class="sbn-prog-detail-header sbn-detail-hero">
-                <h1 class="sbn-prog-detail-title">{{ progression.name }}</h1>
-                <p class="sbn-prog-detail-subtitle">
-                    {{ categoryLabel }} chord progression
-                    <span v-if="tonalityLabel"> • {{ tonalityLabel }}</span>
-                    <span v-if="progression.chordCount"> • {{ progression.chordCount }} chords</span>
-                </p>
-                
-                <div class="sbn-prog-detail-badges">
-                    <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(progression.category) }">
-                        {{ categoryLabel }}
-                    </span>
-                    <span
-                        v-if="tonalityLabel"
-                        class="sbn-badge"
-                        :class="progression.tonality === 'major' ? 'sbn-badge-tonality-major' : 'sbn-badge-tonality-minor'"
-                    >
-                        {{ tonalityLabel }}
-                    </span>
-                    <span
-                        v-for="tag in progression.tags.slice(0, 5)"
-                        :key="tag"
-                        class="sbn-hashtag"
-                    >#{{ tag }}</span>
-                </div>
-            </header>
 
-            <!-- Main content -->
-            <div class="sbn-prog-detail-content">
-                <!-- Chord Progression Viewer -->
+        <header class="sbn-prog-detail-header sbn-detail-hero" :style="{ '--category-color': getCategoryColor(progression.category) }">
+            <div class="sbn-show-hero-badges">
+                <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(progression.category) }">{{ categoryLabel }}</span>
+                <span v-if="popularityTier" class="sbn-card-pop" :class="`sbn-pop-${popularityTier.tier}`">{{ popularityTier.label }}</span>
+                <span v-for="tag in progression.tags.slice(0, 5)" :key="tag" class="sbn-hashtag">#{{ tag }}</span>
+            </div>
+            <h1 class="sbn-show-hero-title">{{ progression.name }}</h1>
+            <div class="sbn-show-hero-meta">
+                <span v-if="tonalityLabel" class="sbn-meta-chip"><strong>Tonality</strong> {{ tonalityLabel }}</span>
+                <span v-if="progression.chordCount" class="sbn-meta-chip"><strong>Chords</strong> {{ progression.chordCount }}</span>
+            </div>
+        </header>
+
+        <div class="sbn-show-body">
+
+            <!-- Left: main content -->
+            <div class="sbn-show-main">
+
                 <section v-if="tiles.length" class="sbn-prog-detail-section">
                     <ChordProgressionViewer
                         :chords="chords"
@@ -145,116 +135,60 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
                     />
                 </section>
 
-                <!-- Description -->
                 <section v-if="hasDescription" class="sbn-prog-detail-section">
-                    <h2 class="sbn-prog-detail-section-title">Description</h2>
-                    <div class="sbn-prog-detail-description">
-                        {{ progression.description }}
-                    </div>
+                    <h2 class="sbn-section-heading">Description</h2>
+                    <div class="sbn-prog-detail-description">{{ progression.description }}</div>
                 </section>
 
-                <!-- Typical Genres -->
                 <section v-if="hasGenres" class="sbn-prog-detail-section">
-                    <h2 class="sbn-prog-detail-section-title">Typical Genres</h2>
-                    <div class="sbn-prog-detail-description">
-                        {{ progression.typicalGenres }}
-                    </div>
+                    <h2 class="sbn-section-heading">Typical Genres</h2>
+                    <div class="sbn-prog-detail-description">{{ progression.typicalGenres }}</div>
                 </section>
 
-                <!-- Songs featuring this progression -->
                 <section v-if="hasSongs" class="sbn-prog-detail-section">
-                    <MediaShelf :title="`Songs featuring this progression (${songs.length})`">
+                    <MediaShelf title="Songs" view-all-href="/library/songs">
                         <SongShelfCard v-for="song in songs" :key="song.id" :song="song" />
                     </MediaShelf>
                 </section>
 
-                <!-- Related Courses -->
                 <section v-if="courses && courses.length" class="sbn-prog-detail-section">
-                    <MediaShelf title="Related Courses">
+                    <MediaShelf title="Related Courses" view-all-href="/learn">
                         <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
                     </MediaShelf>
                 </section>
+
             </div>
 
-            <!-- Related Progressions at bottom -->
-            <section v-if="hasSiblings" class="sbn-prog-detail-section">
-                <h2 class="sbn-prog-detail-section-title">More {{ categoryLabel }} progressions</h2>
-                <div class="sbn-prog-related-list">
-                    <ProgressionLink
-                        v-for="sibling in siblings.slice(0, 6)"
-                        :key="sibling.id"
-                        :progression="sibling"
-                    />
+            <!-- Right: related progressions sidebar -->
+            <aside v-if="hasSiblings" class="sbn-show-sidebar">
+                <div class="sbn-show-sidebar-card">
+                    <h3 class="sbn-show-sidebar-heading">More {{ categoryLabel }} progressions</h3>
+                    <div class="sbn-prog-related-list">
+                        <ProgressionLink
+                            v-for="sibling in siblings.slice(0, 8)"
+                            :key="sibling.id"
+                            :progression="sibling"
+                        />
+                    </div>
                 </div>
-            </section>
+            </aside>
+
+        </div>
     </div>
 </template>
 
 <style scoped>
 
-/* Header */
 .sbn-prog-detail-header {
     padding: 24px 28px;
     margin-bottom: 32px;
 }
 
-.sbn-prog-detail-title {
-    font-size: 36px;
-    font-weight: 900;
-    color: var(--clr-text);
-    margin: 0 0 12px;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
-}
 
-.sbn-prog-detail-subtitle {
-    font-size: 18px;
-    color: var(--clr-text-muted);
-    margin: 0 0 16px;
-    font-weight: 400;
-    line-height: 1.5;
-}
-
-.sbn-prog-detail-badges {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 24px;
-}
-
-/* Main content — single column now that songs moved to a shelf */
-.sbn-prog-detail-content {
-    display: block;
-}
-
-/* Main content sections */
 .sbn-prog-detail-section {
     margin-bottom: 40px;
 }
 
-.sbn-prog-detail-section-title {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--clr-text);
-    margin: 0 0 16px;
-    border-bottom: 2px solid var(--clr-border);
-    padding-bottom: 8px;
-}
-
-.sbn-prog-detail-section-count {
-    font-size: 14px;
-    font-weight: 400;
-    color: var(--clr-text-muted);
-    margin-left: 8px;
-}
-
-.sbn-prog-detail-numerals {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 24px;
-}
 
 .sbn-prog-detail-description {
     font-size: 16px;
@@ -263,21 +197,10 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
     margin-bottom: 32px;
 }
 
-/* Related Progressions (rows rendered by ProgressionLink.vue) */
-.sbn-prog-detail-section .sbn-prog-related-list {
+.sbn-prog-related-list {
     display: flex;
     flex-direction: column;
     gap: 6px;
 }
 
-
-@media (max-width: 768px) {
-    .sbn-prog-detail-title {
-        font-size: 28px;
-    }
-
-    .sbn-prog-detail-subtitle {
-        font-size: 16px;
-    }
-}
 </style>

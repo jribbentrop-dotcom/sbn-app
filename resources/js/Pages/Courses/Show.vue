@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
-import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
+import RhythmLink from '@/Components/Library/RhythmLink.vue';
 import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
 import { getCategoryColor, getCategoryStyle, difficultyLabel } from '@/composables/useCategoryColors';
 
@@ -55,6 +55,7 @@ interface RhythmRef {
   slug: string;
   name: string;
   category: string;
+  styleSlug: string;
   description: string | null;
   bpm: number;
   timeSignature: string;
@@ -322,21 +323,11 @@ const totalSections = computed(() => grouped.value.length);
           </div>
 
           <div class="sbn-cs-rhythm-list">
-            <div
+            <RhythmLink
               v-for="rhythm in rhythms"
               :key="rhythm.id"
-              class="sbn-cs-rhythm-row"
-            >
-              <div class="sbn-cs-rhythm-row-head">
-                <Link :href="`/library/rhythms/${rhythm.slug}`" class="sbn-cs-rhythm-row-info">
-                  <span class="sbn-cs-rhythm-name">{{ rhythm.name }}</span>
-                  <span class="sbn-cs-rhythm-meta">{{ rhythm.timeSignature }} · {{ rhythm.bpm }} bpm</span>
-                </Link>
-              </div>
-              <div class="sbn-cs-rhythm-strip-wrap">
-                <RhythmStrip :pattern="rhythm.playerData" playable />
-              </div>
-            </div>
+              :rhythm="rhythm"
+            />
           </div>
 
           <div class="sbn-cs-section-footer">
@@ -812,35 +803,8 @@ const totalSections = computed(() => grouped.value.length);
 .sbn-cs-rhythm-list {
   display: flex;
   flex-direction: column;
+  gap: 12px;
 }
-.sbn-cs-rhythm-row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--clr-border);
-}
-.sbn-cs-rhythm-row:last-child { border-bottom: 0; }
-
-.sbn-cs-rhythm-row-head { display: flex; align-items: center; gap: 8px; }
-
-.sbn-cs-rhythm-row-info {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  text-decoration: none;
-  flex: 1;
-  min-width: 0;
-}
-.sbn-cs-rhythm-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--clr-text);
-  transition: color 0.12s;
-}
-.sbn-cs-rhythm-row-info:hover .sbn-cs-rhythm-name { color: var(--clr-accent-dim); }
-.sbn-cs-rhythm-meta { font-size: 11px; color: var(--clr-text-muted); }
-.sbn-cs-rhythm-strip-wrap { width: 100%; }
 
 /* Section footer inside sidebar cards */
 .sbn-cs-sidebar-card .sbn-cs-section-footer {

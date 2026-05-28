@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import CourseCard from '@/Components/Course/CourseCard.vue';
+import PublicLayout from '@/Layouts/PublicLayout.vue';
 
 interface CourseData {
   id: number;
@@ -18,6 +19,8 @@ const props = defineProps<{
   categories: string[];
   levels: string[];
 }>();
+
+defineOptions({ layout: PublicLayout });
 
 const filterGenre = ref('');
 const filterLevel = ref('');

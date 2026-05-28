@@ -188,9 +188,6 @@ class SongLibraryController extends Controller
                 $seenPatterns[] = $pattern;
             }
             $topChords[] = $card;
-            if (count($topChords) >= 4) {
-                break;
-            }
         }
 
         // Progressions detected in this song

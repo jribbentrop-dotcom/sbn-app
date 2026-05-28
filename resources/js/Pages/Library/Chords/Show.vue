@@ -1,5 +1,17 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+
+const siblingsCanLeft  = ref(false);
+const siblingsCanRight = ref(false);
+
+function updateSiblingsScroll() {
+    const el = siblingsScrollEl.value;
+    if (!el) return;
+    siblingsCanLeft.value  = el.scrollLeft > 0;
+    siblingsCanRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+}
+
+let siblingsRo: ResizeObserver | null = null;
 import { Link } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import { mountSbnNodes } from '@/lib/mountSbnNodes';
@@ -57,6 +69,20 @@ interface Props {
 
 const props = defineProps<Props>();
 defineOptions({ layout: PublicLayout });
+
+const siblingsScrollEl = ref<HTMLElement | null>(null);
+function scrollSiblings(dir: 1 | -1) {
+    siblingsScrollEl.value?.scrollBy({ left: dir * 122, behavior: 'smooth' });
+}
+
+onMounted(() => {
+    const el = siblingsScrollEl.value;
+    if (!el) return;
+    el.addEventListener('scroll', updateSiblingsScroll, { passive: true });
+    siblingsRo = new ResizeObserver(updateSiblingsScroll);
+    siblingsRo.observe(el);
+    updateSiblingsScroll();
+});
 
 // ── Theory data (mirrors legacy sbn_chord_detail_theory) ─────────────────────
 const theoryMap: Record<string, { intervals: string; function: string; typical_context: string; related: string[]; tension: number }> = {
@@ -125,7 +151,11 @@ async function mountQualityBody(): Promise<void> {
 
 onMounted(mountQualityBody);
 watch(() => props.qualityTopic?.slug, mountQualityBody);
-onBeforeUnmount(() => { unmountQualityBody?.(); unmountQualityBody = null; });
+onBeforeUnmount(() => {
+    unmountQualityBody?.(); unmountQualityBody = null;
+    siblingsScrollEl.value?.removeEventListener('scroll', updateSiblingsScroll);
+    siblingsRo?.disconnect();
+});
 
 // ── Alias switcher ────────────────────────────────────────────────────────────
 // -1 = primary chord; 0..n = alias index
@@ -258,7 +288,7 @@ const formattedChordName = computed(() => {
         <Breadcrumb :segments="[{ label: 'Chord Library', href: '/library/chords' }, { label: chord.name }]" />
 
         <!-- ════ IDENTITY PANEL ════ -->
-        <div class="sbn-chord-identity sbn-detail-hero">
+        <div class="sbn-chord-identity sbn-detail-hero" :style="{ '--category-color': 'var(--clr-mod-chord)' }">
 
             <!-- Left: diagram + intervals + tension -->
             <div class="sbn-chord-identity-left">
@@ -381,54 +411,58 @@ const formattedChordName = computed(() => {
             </div><!-- .sbn-chord-identity-right -->
         </div><!-- .sbn-chord-identity -->
 
-        <div class="sbn-chord-detail-lower">
+        <!-- ════ PROGRESSIONS + SIBLINGS ════ -->
+        <div v-if="progressions.length || siblings.length" class="sbn-chord-detail-lower">
 
-            <!-- ════ PROGRESSIONS ════ -->
+            <div v-if="siblings.length" class="sbn-chord-detail-section">
+                <div class="sbn-section-heading-row">
+                    <h2 class="sbn-section-heading">Other <span class="sbn-chord-quality-label">{{ chord.quality_label }}</span> Voicings</h2>
+                </div>
+                <div class="sbn-card-scroll-wrap sbn-chord-siblings-wrap">
+                    <div ref="siblingsScrollEl" class="sbn-card-scroll">
+                        <Link
+                            v-for="sib in siblings"
+                            :key="sib.id"
+                            :href="`/library/chords/${sib.slug}`"
+                            class="sbn-card-scroll-item"
+                        >
+                            <ChordCard :chord="sib" mini :showRoot="true" :noNav="true" />
+                        </Link>
+                    </div>
+                    <button v-show="siblingsCanLeft"  class="sbn-card-scroll-btn sbn-card-scroll-btn--prev" @click="scrollSiblings(-1)" aria-label="Scroll left">‹</button>
+                    <button v-show="siblingsCanRight" class="sbn-card-scroll-btn sbn-card-scroll-btn--next" @click="scrollSiblings(1)"  aria-label="Scroll right">›</button>
+                </div>
+            </div>
+
             <div v-if="progressions.length" class="sbn-chord-detail-section">
-                <div class="sbn-chord-detail-section-heading-row">
-                    <h2 class="sbn-chord-detail-section-heading">Progressions with <span v-html="formattedChordName" class="sbn-chord-detail-heading-chord" /></h2>
-                    <Link href="/library/progressions" class="sbn-chord-detail-section-link">View all →</Link>
+                <div class="sbn-section-heading-row">
+                    <h2 class="sbn-section-heading">Progressions with <span v-html="formattedChordName" class="sbn-chord-detail-heading-chord" /></h2>
+                    <Link href="/library/progressions" class="sbn-section-link">View all →</Link>
                 </div>
                 <ul class="sbn-chord-detail-progressions">
-                    <li v-for="prog in progressions.slice(0, 4)" :key="prog.id">
+                    <li v-for="prog in progressions.slice(0, 2)" :key="prog.id">
                         <ProgressionLink :progression="{ ...prog, pinnedChordSlug: chord.slug }" />
                     </li>
                 </ul>
             </div>
 
-            <!-- ════ SONGS ════ -->
+        </div>
+
+        <!-- ════ SONGS + COURSES ════ -->
+        <div v-if="songs.length || (courses && courses.length)" class="sbn-chord-detail-lower">
+
             <div v-if="songs.length" class="sbn-chord-detail-section">
-                <MediaShelf>
-                    <template #heading>
-                        <h2 class="sbn-chord-detail-section-heading">Songs with <span v-html="formattedChordName" class="sbn-chord-detail-heading-chord" /></h2>
-                        <Link href="/library/songs" class="sbn-chord-detail-section-link">View all →</Link>
-                    </template>
+                <MediaShelf title="Songs" view-all-href="/library/songs">
                     <SongShelfCard v-for="song in songs" :key="song.id" :song="song" />
                 </MediaShelf>
             </div>
 
-        </div><!-- .sbn-chord-detail-lower -->
-
-        <!-- ════ RELATED COURSES ════ -->
-        <div v-if="courses && courses.length" class="sbn-chord-detail-section">
-            <MediaShelf title="Related Courses">
-                <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
-            </MediaShelf>
-        </div>
-
-        <!-- ════ OTHER VOICINGS ════ -->
-        <div v-if="siblings.length" class="sbn-chord-detail-section sbn-chord-detail-other-voicings">
-            <h2 class="sbn-chord-detail-section-heading">Other {{ chord.quality_label }} Voicings</h2>
-            <div class="sbn-chord-detail-siblings">
-                <Link
-                    v-for="sib in siblings"
-                    :key="sib.id"
-                    :href="`/library/chords/${sib.slug}`"
-                    class="sbn-chord-detail-sibling-card"
-                >
-                    <ChordCard :chord="sib" :showRoot="true" />
-                </Link>
+            <div v-if="courses && courses.length" class="sbn-chord-detail-section">
+                <MediaShelf title="Related Courses" view-all-href="/learn">
+                    <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
+                </MediaShelf>
             </div>
+
         </div>
 
     </div>
@@ -650,26 +684,13 @@ const formattedChordName = computed(() => {
     margin-bottom: 56px;
 }
 
-.sbn-chord-detail-other-voicings .sbn-chord-detail-siblings {
-    overflow: visible;
+
+.sbn-chord-quality-label {
+    font-family: var(--font-chord, 'Crimson Text', Georgia, serif);
+    font-size: 1.15em;
+    font-weight: 600;
 }
 
-.sbn-chord-detail-section-heading-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 24px;
-    padding-bottom: 12px;
-    border-bottom: 2px solid var(--clr-border);
-}
-
-.sbn-chord-detail-section-heading {
-    font-size: 1.1em;
-    font-weight: 700;
-    color: var(--clr-text);
-    margin: 0;
-}
 .sbn-chord-detail-heading-chord :deep(.sbn-chord-symbol) {
     font-family: var(--font-chord, 'Crimson Text', Georgia, serif);
     font-size: 1.15em;
@@ -679,22 +700,17 @@ const formattedChordName = computed(() => {
 .sbn-chord-detail-heading-chord :deep(.sbn-chord-quality) { font-size: 0.82em; }
 .sbn-chord-detail-heading-chord :deep(.sbn-chord-ext)     { font-size: 0.72em; font-weight: 600; vertical-align: super; line-height: 0; }
 
-.sbn-chord-detail-section-link {
-    font-size: 0.85em;
-    font-weight: 500;
-    color: var(--clr-text-muted);
-    text-decoration: none;
-    white-space: nowrap;
-    transition: color 0.15s;
-}
-.sbn-chord-detail-section-link:hover { color: var(--clr-text); }
-
 /* ── Lower two-column layout ── */
 .sbn-chord-detail-lower {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 32px;
     align-items: start;
+}
+
+.sbn-chord-detail-lower .sbn-section-heading-row {
+    min-height: 44px;
+    align-items: center;
 }
 @media (max-width: 720px) {
     .sbn-chord-detail-lower { grid-template-columns: 1fr; }
@@ -711,24 +727,8 @@ const formattedChordName = computed(() => {
 }
 
 /* ── Sibling voicings ── */
-.sbn-chord-detail-siblings {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 140px));
-    gap: 12px;
-    padding-top: 4px;
-    overflow: visible;
-}
-
-
-.sbn-chord-detail-sibling-card {
-    text-decoration: none;
-    display: block;
-    border-radius: var(--radius);
-    overflow: visible;
-    transition: transform 0.15s;
-}
-.sbn-chord-detail-sibling-card:hover {
-    transform: translateY(-2px);
+.sbn-chord-siblings-wrap {
+    max-width: calc(4 * 110px + 3 * 12px);
 }
 
 

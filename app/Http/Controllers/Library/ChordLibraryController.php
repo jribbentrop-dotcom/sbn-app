@@ -390,7 +390,6 @@ class ChordLibraryController extends Controller
 		$siblings = ChordDiagram::where('quality', $chord->quality)
 			->where('id', '!=', $chord->id)
 			->orderByDesc('popularity')
-			->limit(4)
 			->get()
 			->map(fn ($c) => $this->chordSerializer->serialize($c)); // siblings always at stored root (C)
 
@@ -401,7 +400,7 @@ class ChordLibraryController extends Controller
 			->select('sbn_leadsheets.id', 'sbn_leadsheets.slug', 'sbn_leadsheets.title', 'sbn_leadsheets.rhythm', 'sbn_leadsheets.popularity', 'sbn_leadsheets.cover_image_path')
 			->distinct()
 			->orderByDesc('sbn_leadsheets.popularity')
-			->limit(8)
+			->limit(4)
 			->get()
 			->map(fn ($s) => $s->toLinkArray());
 
@@ -498,7 +497,7 @@ class ChordLibraryController extends Controller
 			'bossa', 'samba' => 'bossa-nova',
 			default          => $chordCourseCategory,
 		};
-		$courses = $this->courseRepo->relatedByCategory($chordCourseCategory);
+		$courses = $this->courseRepo->relatedByCategory($chordCourseCategory, limit: 4);
 
 		return Inertia::render('Library/Chords/Show', [
 			'chord' => $this->chordSerializer->serialize($chord, $displayRoot),

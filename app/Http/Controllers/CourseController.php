@@ -54,11 +54,18 @@ class CourseController extends Controller
             ->limit(6)
             ->get(['id', 'slug', 'title', 'composer', 'song_key', 'tempo', 'rhythm']);
 
-        // Rhythm patterns relevant to this genre/category
-        $rhythmCategory = $this->genreToRhythmCategory($genre);
-        $rhythmPatterns = RhythmPattern::where('category', $rhythmCategory)
+        // Rhythm patterns actually used in this course — scan all published lesson content
+        $allLessonContent = $course->lessons()->published()->pluck('content');
+        $rhythmSlugs = [];
+        foreach ($allLessonContent as $content) {
+            if (!$content) continue;
+            preg_match_all('/<sbn-rhythm\b[^>]*\bslug="([^"]+)"/i', $content, $matches);
+            foreach ($matches[1] as $slug) {
+                $rhythmSlugs[$slug] = true;
+            }
+        }
+        $rhythmPatterns = RhythmPattern::whereIn('slug', array_keys($rhythmSlugs))
             ->orderBy('sort_order')
-            ->limit(4)
             ->get();
 
         return Inertia::render('Courses/Show', [
@@ -74,29 +81,18 @@ class CourseController extends Controller
                 'rhythm'   => $s->rhythm,
             ]),
             'rhythms'  => $rhythmPatterns->map(fn ($r) => [
-                'id'          => $r->id,
-                'slug'        => $r->slug,
-                'name'        => $r->name,
-                'category'    => $r->category,
-                'description' => $r->description,
-                'bpm'         => $r->default_bpm,
+                'id'            => $r->id,
+                'slug'          => $r->slug,
+                'name'          => $r->name,
+                'category'      => $r->category,
+                'styleSlug'     => $r->styleSlug(),
+                'bpm'           => $r->default_bpm,
                 'timeSignature' => $r->time_signature,
-                'playerData'  => $r->toPlayerData(),
+                'playerData'    => $r->toPlayerData(),
             ]),
         ]);
     }
 
-    /** Map genre slug → rhythm category stored in sbn_rhythm_patterns.category */
-    private function genreToRhythmCategory(string $genre): string
-    {
-        return match ($genre) {
-            'bossa-nova', 'samba' => 'brazilian',
-            'latin'               => 'latin',
-            'jazz'                => 'jazz',
-            'blues'               => 'blues',
-            default               => 'general',
-        };
-    }
 
     public function player(Request $request, Course $course, EduContentService $edu, ?Lesson $lesson = null)
     {

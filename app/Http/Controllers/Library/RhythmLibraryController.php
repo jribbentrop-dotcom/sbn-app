@@ -11,17 +11,6 @@ use Inertia\Inertia;
 
 class RhythmLibraryController extends Controller
 {
-    /**
-     * Map rhythm categories to music-style color tokens. Keys are matched
-     * case-insensitively against the pattern's category column.
-     */
-    private const CATEGORY_TO_STYLE = [
-        'bossa-nova' => 'bossa-nova',
-        'bossa'      => 'bossa-nova',
-        'jazz'       => 'jazz',
-        'classical'  => 'classical',
-        'pop'        => 'pop',
-    ];
 
     public function index()
     {
@@ -82,8 +71,7 @@ class RhythmLibraryController extends Controller
 
     public function serializePattern(RhythmPattern $pattern): array
     {
-        $categoryKey = strtolower(trim((string) ($pattern->category ?? '')));
-        $styleSlug = self::CATEGORY_TO_STYLE[$categoryKey] ?? 'pop';
+        $styleSlug = $pattern->styleSlug();
 
         return [
             'id' => $pattern->id,

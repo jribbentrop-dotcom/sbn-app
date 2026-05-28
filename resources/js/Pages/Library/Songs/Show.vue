@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
@@ -58,6 +58,35 @@ interface Props {
 const props = defineProps<Props>();
 
 const categoryStyle = computed(() => getCategoryStyle(props.song.styleSlug));
+
+const chordsScrollEl = ref<HTMLElement | null>(null);
+const chordsCanLeft  = ref(false);
+const chordsCanRight = ref(false);
+
+function updateChordsScroll() {
+  const el = chordsScrollEl.value;
+  if (!el) return;
+  chordsCanLeft.value  = el.scrollLeft > 0;
+  chordsCanRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+}
+
+function scrollChords(dir: 1 | -1) {
+  chordsScrollEl.value?.scrollBy({ left: dir * 122, behavior: 'smooth' });
+}
+
+let chordsRo: ResizeObserver | null = null;
+onMounted(() => {
+  const el = chordsScrollEl.value;
+  if (!el) return;
+  el.addEventListener('scroll', updateChordsScroll, { passive: true });
+  chordsRo = new ResizeObserver(updateChordsScroll);
+  chordsRo.observe(el);
+  updateChordsScroll();
+});
+onBeforeUnmount(() => {
+  chordsScrollEl.value?.removeEventListener('scroll', updateChordsScroll);
+  chordsRo?.disconnect();
+});
 const categoryColor = computed(() => getCategoryColor(props.song.styleSlug));
 const styleLabel    = computed(() => (props.song.styleSlug ?? 'song').replace(/-/g, ' '));
 
@@ -123,22 +152,24 @@ const songPopularityTier = computed(() => {
       <p class="sbn-ss-description">{{ song.description }}</p>
     </div>
 
-    <!-- ── Chords ─────────────────────────────────────────────────────────── -->
-    <div v-if="chords && chords.length" class="sbn-ss-section">
-      <h2 class="sbn-ss-section-title">Chords</h2>
-      <div class="sbn-ss-chords-grid">
-        <Link v-for="chord in chords" :key="chord.id" :href="chordShowUrl(chord)" style="text-decoration:none;">
-          <ChordCard :chord="chord" mini :show-root="true" />
-        </Link>
+    <!-- ── Chords + Progressions side by side ───────────────────────────── -->
+    <div v-if="(chords && chords.length) || progressions.length" class="sbn-ss-two-col">
+
+      <div v-if="chords && chords.length" class="sbn-ss-section sbn-ss-col">
+        <h2 class="sbn-ss-section-title">Chords</h2>
+        <div class="sbn-card-scroll-wrap">
+          <div ref="chordsScrollEl" class="sbn-card-scroll">
+            <Link v-for="chord in chords" :key="chord.id" :href="chordShowUrl(chord)" class="sbn-card-scroll-item">
+              <ChordCard :chord="chord" mini :show-root="true" :no-nav="true" />
+            </Link>
+          </div>
+          <button v-show="chordsCanLeft"  class="sbn-card-scroll-btn sbn-card-scroll-btn--prev" @click="scrollChords(-1)" aria-label="Scroll left">‹</button>
+          <button v-show="chordsCanRight" class="sbn-card-scroll-btn sbn-card-scroll-btn--next" @click="scrollChords(1)"  aria-label="Scroll right">›</button>
+        </div>
       </div>
-    </div>
 
-    <!-- ── Progressions + Rhythm side by side ────────────────────────────── -->
-    <div v-if="progressions.length || song.rhythmData" class="sbn-ss-two-col">
-
-      <!-- Progressions list -->
       <div v-if="progressions.length" class="sbn-ss-section sbn-ss-col">
-        <h2 class="sbn-ss-section-title">Progressions in this song</h2>
+        <h2 class="sbn-ss-section-title">Progressions</h2>
         <div class="sbn-ss-prog-list">
           <ProgressionLink
             v-for="prog in progressions"
@@ -148,28 +179,28 @@ const songPopularityTier = computed(() => {
         </div>
       </div>
 
-      <!-- Rhythm strip -->
-      <div v-if="song.rhythmData" class="sbn-ss-section sbn-ss-col">
-        <h2 class="sbn-ss-section-title">
-          Rhythm
-          <Link v-if="song.rhythm" :href="`/library/rhythms/${song.rhythm}`" class="sbn-ss-rhythm-link">
-            {{ song.rhythmName || song.rhythm }} →
-          </Link>
-        </h2>
-        <RhythmStrip
-          :pattern="song.rhythmData"
-          :tempo="song.tempo ?? undefined"
-          :playable="true"
-          :show-meta="true"
-          :color="categoryColor"
-        />
-      </div>
+    </div>
 
+    <!-- ── Rhythm ─────────────────────────────────────────────────────────── -->
+    <div v-if="song.rhythmData" class="sbn-ss-section">
+      <h2 class="sbn-ss-section-title">
+        Rhythm
+        <Link v-if="song.rhythm" :href="`/library/rhythms/${song.rhythm}`" class="sbn-ss-rhythm-link">
+          {{ song.rhythmName || song.rhythm }} →
+        </Link>
+      </h2>
+      <RhythmStrip
+        :pattern="song.rhythmData"
+        :tempo="song.tempo ?? undefined"
+        :playable="true"
+        :show-meta="true"
+        :color="categoryColor"
+      />
     </div>
 
     <!-- ── Related Courses ──────────────────────────────────────────────── -->
     <div v-if="courses && courses.length" class="sbn-ss-section">
-      <MediaShelf title="Related Courses">
+      <MediaShelf title="Related Courses" view-all-href="/learn">
         <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
       </MediaShelf>
     </div>
@@ -307,13 +338,9 @@ const songPopularityTier = computed(() => {
 
 /* ── Chords ──────────────────────────────────────────────────────────────── */
 
-.sbn-ss-chords-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
+.sbn-card-scroll-wrap {
+  max-width: calc(4 * 110px + 3 * 12px);
 }
-
-.sbn-ss-chords-grid > a { width: 120px; }
 
 /* ── Two-column layout ───────────────────────────────────────────────────── */
 

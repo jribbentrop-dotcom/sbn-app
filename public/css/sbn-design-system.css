@@ -3448,6 +3448,203 @@
     .sbn-page-detail { padding: 24px 16px 60px; }
 }
 
+/* ── Horizontal card scroll row ──────────────────────────────
+   .sbn-card-scroll-wrap  — outer positioner, clips to N cards wide
+   .sbn-card-scroll       — the scrollable flex row
+   .sbn-card-scroll-item  — each fixed-width card slot
+   .sbn-card-scroll-btn   — prev/next arrow buttons (show via JS v-if)   */
+.sbn-card-scroll-wrap {
+    position: relative;
+}
+
+.sbn-card-scroll {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+}
+
+.sbn-card-scroll::-webkit-scrollbar {
+    display: none;
+}
+
+.sbn-card-scroll-item {
+    flex: 0 0 110px;
+    text-decoration: none;
+    display: block;
+    scroll-snap-align: start;
+}
+
+.sbn-card-scroll-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--clr-border);
+    background: var(--clr-white);
+    color: var(--clr-text);
+    font-size: 1.2em;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    transition: background 0.12s;
+    z-index: 1;
+}
+
+.sbn-card-scroll-btn:hover { background: var(--clr-surface-2); }
+.sbn-card-scroll-btn--prev { left: -14px; }
+.sbn-card-scroll-btn--next { right: -14px; }
+
+/* ── Show-page section heading row ───────────────────────────
+   .sbn-section-heading-row  — flex row: title left, link right
+   .sbn-section-heading      — the h2 inside
+   .sbn-section-link         — the "View all →" muted link       */
+.sbn-section-heading-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--clr-border);
+}
+
+.sbn-section-heading {
+    font-size: 1.05em;
+    font-weight: 700;
+    color: var(--clr-text);
+    margin: 0;
+}
+
+.sbn-section-link {
+    font-size: 0.85em;
+    font-weight: 500;
+    color: var(--clr-text-muted);
+    text-decoration: none;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: color 0.15s;
+}
+
+.sbn-section-link:hover { color: var(--clr-text); }
+
+/* ── Show-page detail hero ────────────────────────────────────
+   Shared header anatomy used by rhythm, progression, song show.
+   .sbn-show-hero-badges  — top row: filled cat badge + extra badges + hashtags
+   .sbn-show-hero-title   — h1
+   .sbn-show-hero-subtitle — muted one-liner below title
+   .sbn-show-hero-meta    — light grey key/value chip row
+   .sbn-meta-chip         — individual chip (also aliased as .sbn-song-meta-chip) */
+.sbn-show-hero-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.sbn-show-hero-title {
+    font-size: 2em;
+    font-weight: 800;
+    color: var(--clr-text);
+    margin: 0 0 6px;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+}
+
+.sbn-show-hero-subtitle {
+    font-size: 1em;
+    color: var(--clr-text-muted);
+    margin: 0 0 14px;
+    font-weight: 400;
+    line-height: 1.5;
+}
+
+.sbn-show-hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 0;
+}
+
+.sbn-meta-chip,
+.sbn-song-meta-chip {
+    background: var(--clr-surface-2);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 0.82em;
+    color: var(--clr-text-muted);
+}
+
+.sbn-meta-chip strong,
+.sbn-song-meta-chip strong {
+    color: var(--clr-text);
+    margin-right: 4px;
+}
+
+/* ── Show-page two-column layout ─────────────────────────────
+   Used by progression, rhythm (and future chord/song) show pages.
+   .sbn-show-body       — grid wrapper (header sits above, outside)
+   .sbn-show-main       — left content column
+   .sbn-show-sidebar    — right sticky sidebar column
+   .sbn-show-sidebar-card  — framed card inside the sidebar
+   .sbn-show-sidebar-heading — uppercase eyebrow label              */
+.sbn-show-body {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 32px;
+    align-items: start;
+}
+
+.sbn-show-main,
+.sbn-show-sidebar {
+    min-width: 0;
+}
+
+.sbn-show-sidebar {
+    position: sticky;
+    top: 80px;
+}
+
+.sbn-show-sidebar-card {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.sbn-show-sidebar-card:last-child {
+    margin-bottom: 0;
+}
+
+.sbn-show-sidebar-heading {
+    font-size: 0.82em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--clr-text-muted);
+    margin: 0 0 12px;
+}
+
+@media (max-width: 1024px) {
+    .sbn-show-body {
+        grid-template-columns: 1fr;
+    }
+    .sbn-show-sidebar {
+        position: static;
+    }
+}
+
 /* Breadcrumb — gradient header band */
 .sbn-breadcrumb {
     display: flex;

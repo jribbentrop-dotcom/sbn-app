@@ -59,7 +59,10 @@ class ProgressionLibraryController extends Controller
 
     public function show(Request $request, string $slug)
     {
-        $progression = ChordProgression::where('slug', $slug)
+        $progression = ChordProgression::where('sbn_chord_progressions.slug', $slug)
+            ->leftJoin('sbn_progression_occurrences as occ', 'sbn_chord_progressions.id', '=', 'occ.progression_id')
+            ->selectRaw('sbn_chord_progressions.*, COUNT(DISTINCT occ.leadsheet_id) as song_count')
+            ->groupBy('sbn_chord_progressions.id')
             ->firstOrFail();
 
         // Get songs featuring this progression
@@ -67,6 +70,7 @@ class ProgressionLibraryController extends Controller
             ->join('sbn_progression_occurrences as o', 'sbn_leadsheets.id', '=', 'o.leadsheet_id')
             ->where('o.progression_id', $progression->id)
             ->select('sbn_leadsheets.id', 'sbn_leadsheets.slug', 'sbn_leadsheets.title', 'sbn_leadsheets.rhythm', 'sbn_leadsheets.cover_image_path')
+            ->distinct()
             ->orderBy('sbn_leadsheets.title')
             ->get()
             ->map(fn ($s) => $s->toLinkArray());
