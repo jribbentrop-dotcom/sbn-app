@@ -60,7 +60,10 @@ interface ChordAlias {
 interface Props {
     chord: ChordDiagramData;
     aliases: ChordAlias[];
+    aliasInversions?: Record<number, ChordDiagramData[]>;
+    initialAliasIdx?: number | null;
     siblings: ChordDiagramData[];
+    inversions: ChordDiagramData[];
     songs: SongLinkData[];
     progressions: ProgressionRef[];
     qualityTopic?: QualityTopic | null;
@@ -158,8 +161,16 @@ onBeforeUnmount(() => {
 });
 
 // ── Alias switcher ────────────────────────────────────────────────────────────
-// -1 = primary chord; 0..n = alias index
-const activeAliasIdx = ref(-1);
+// -1 = primary chord; 0..n = alias index.
+// Search-result deep-links land with `initialAliasIdx` set so the hero opens
+// already showing the searched alias instead of the parent chord. Inertia
+// reuses the page component across navigations, so we also watch the prop —
+// otherwise the initial ref value sticks across links and the second deep-link
+// silently shows the primary instead of the requested alias.
+const activeAliasIdx = ref(props.initialAliasIdx ?? -1);
+watch(() => props.initialAliasIdx, (v) => {
+    activeAliasIdx.value = v ?? -1;
+});
 const activeAlias = computed(() => activeAliasIdx.value >= 0 ? props.aliases[activeAliasIdx.value] : null);
 
 // Merged view: fret shape always from chord, name/quality/extensions from active alias when set
@@ -207,6 +218,64 @@ const chordPopularityTier = computed(() => {
 
 const eduV     = computed(() => voicingEdu[props.chord.voicing_category] ?? null);
 const eduInv   = computed(() => props.chord.inversion && props.chord.inversion !== 'root' ? (inversionEdu[props.chord.inversion] ?? null) : null);
+
+const INV_ORDER: Record<string, number> = { root: 0, inv1: 1, inv2: 2, inv3: 3 };
+
+// When an alias is active the inversion list swaps to the alias's identity
+// (its quality + extensions + reinterpreted root). The "self" entry is still
+// the current chord's diagram — same shape, just relabeled — so we keep
+// pushing props.chord on the list for the self-highlight.
+const activeInversions = computed<ChordDiagramData[]>(() => {
+    if (activeAliasIdx.value < 0) return props.inversions ?? [];
+    return props.aliasInversions?.[activeAliasIdx.value] ?? [];
+});
+
+// When an alias is active, the current diagram's inversion role under the
+// alias's identity differs from its native inversion_label. Derive from
+// the alias's interval_labels (first non-x token → slot).
+const ALIAS_SLOT_LABEL: Record<string, string> = {
+    root: 'Root Position', inv1: '1st Inversion', inv2: '2nd Inversion', inv3: '3rd Inversion',
+};
+function aliasInversionSlotFrontend(intervalLabels: string | null): string {
+    if (!intervalLabels) return 'root';
+    const tokens = intervalLabels.split(',').map(t => t.trim()).filter(t => t && t.toLowerCase() !== 'x');
+    if (!tokens.length) return 'root';
+    const norm = tokens[0].replace(/[#b]/g, '').toUpperCase();
+    if (norm === 'R' || norm === '1') return 'root';
+    if (norm === '3') return 'inv1';
+    if (norm === '5') return 'inv2';
+    if (norm === '7' || norm === '6') return 'inv3';
+    return 'root';
+}
+const activeSelfInversion = computed(() => {
+    if (!activeAlias.value) return props.chord.inversion ?? 'root';
+    return aliasInversionSlotFrontend(activeAlias.value.interval_labels);
+});
+const activeInversionLabel = computed(() => {
+    if (!activeAlias.value) return props.chord.inversion_label;
+    return ALIAS_SLOT_LABEL[activeSelfInversion.value] ?? props.chord.inversion_label;
+});
+
+const allInversions = computed(() => {
+    if (!activeInversions.value.length) return [];
+    // Build a synthetic "self" entry so the current diagram appears in the
+    // list at its alias-derived slot when an alias is active.
+    const selfEntry: ChordDiagramData = activeAlias.value
+        ? {
+            ...props.chord,
+            root_note: activeAlias.value.root_note,
+            quality: activeAlias.value.quality,
+            extensions: activeAlias.value.extensions,
+            bass_note: activeAlias.value.bass_note ?? '',
+            interval_labels: activeAlias.value.interval_labels ?? props.chord.interval_labels,
+            notes: activeAlias.value.notes ?? props.chord.notes,
+            inversion: activeSelfInversion.value,
+            inversion_label: activeInversionLabel.value,
+        }
+        : props.chord;
+    return [...activeInversions.value, selfEntry]
+        .sort((a, b) => (INV_ORDER[a.inversion] ?? 99) - (INV_ORDER[b.inversion] ?? 99));
+});
 
 const DROP2_CATEGORIES = new Set(['drop2', 'drop3']);
 const TRIAD_CATEGORIES = new Set(['closed_triads', 'spread_triads', 'archetype', 'closed']);
@@ -299,58 +368,15 @@ const formattedChordName = computed(() => {
 
                 <!-- Chord tone names -->
                 <div v-if="soundingNotes.length" class="sbn-chord-identity-intervals-row">
-                    <span
-                        v-for="n in soundingNotes"
-                        :key="n"
-                        class="sbn-iv"
-                    >{{ formatNote(n) }}</span>
+                    <span v-for="n in soundingNotes" :key="n" class="sbn-iv">
+                        {{ formatNote(n) }}
+                    </span>
                 </div>
 
             </div><!-- .sbn-chord-identity-left -->
 
-            <!-- Right: about + accordions -->
+            <!-- Right: accordions -->
             <div class="sbn-chord-identity-right">
-
-                <h2 class="sbn-chord-identity-about">
-                    About the <span v-html="formattedActiveName" /> chord
-                </h2>
-
-                <template v-if="activeAlias">
-                    <p class="sbn-chord-identity-description">
-                        {{ activeTheory?.typical_context ?? eduQ?.description ?? '' }}
-                    </p>
-                </template>
-                <template v-else-if="eduQ">
-                    <p class="sbn-chord-identity-description">
-                        {{ eduQ.description }}
-                        <span class="sbn-chord-identity-usage">{{ eduQ.usage }}</span>
-                    </p>
-                </template>
-                <template v-else-if="theory">
-                    <p class="sbn-chord-identity-description">{{ theory.typical_context }}</p>
-                </template>
-
-                <!-- Alias switcher — shown below description when aliases exist -->
-                <div v-if="aliases.length" class="sbn-alias-block">
-                    <p class="sbn-alias-blurb">
-                        This voicing can be interpreted as different chords depending on context.
-                        <Link v-if="activeQualityWidget" :href="`/theory?widget=${activeQualityWidget}`" class="sbn-alias-blurb-link">Learn more about alias voicings →</Link>
-                    </p>
-                </div>
-                <div v-if="aliases.length" class="sbn-alias-switcher">
-                    <button
-                        class="sbn-alias-btn"
-                        :class="{ active: activeAliasIdx === -1 }"
-                        @click="activeAliasIdx = -1"
-                    ><span v-html="formattedChordName" /></button>
-                    <button
-                        v-for="(alias, i) in aliases"
-                        :key="i"
-                        class="sbn-alias-btn"
-                        :class="{ active: activeAliasIdx === i }"
-                        @click="activeAliasIdx = i"
-                    ><span v-html="formatAliasName(alias)" /></button>
-                </div>
 
                 <!-- Quality body — rendered only when it embeds an <sbn-widget>;
                      mountSbnNodes turns the tag into a live component. -->
@@ -393,23 +419,82 @@ const formattedChordName = computed(() => {
                     </details>
 
                     <!-- Inversion row -->
-                    <details v-if="eduInv" class="sbn-accordion">
+                    <details v-if="eduInv || activeInversions.length" class="sbn-accordion">
                         <summary class="sbn-accordion-summary">
                             <span class="sbn-accordion-icon sbn-accordion-icon--inv">inv</span>
                             <span class="sbn-accordion-label">Inversion</span>
-                            <span class="sbn-accordion-value">{{ chord.inversion_label }}</span>
+                            <span class="sbn-accordion-value">{{ activeInversionLabel }}</span>
                             <span class="sbn-accordion-chevron">›</span>
                         </summary>
                         <div class="sbn-accordion-body">
-                            <p>{{ eduInv.desc }}</p>
-                            <p v-if="eduInv.context" class="sbn-accordion-tip">{{ eduInv.context }}</p>
+                            <p v-if="eduInv">{{ eduInv.desc }}</p>
+                            <p v-if="eduInv?.context" class="sbn-accordion-tip">{{ eduInv.context }}</p>
+                            <div v-if="allInversions.length" class="sbn-inversion-siblings">
+                                <p class="sbn-inversion-heading">All inversions of the <span v-html="formattedActiveName" /> chord</p>
+                                <div class="sbn-inversion-cards">
+                                    <component
+                                        :is="inv.id === chord.id ? 'span' : Link"
+                                        v-for="inv in allInversions"
+                                        :key="inv.id"
+                                        :href="inv.id !== chord.id ? `/library/chords/${inv.slug}` : undefined"
+                                        class="sbn-inversion-sibling"
+                                        :class="{ 'sbn-inversion-sibling--current': inv.id === chord.id }"
+                                    >
+                                        <ChordCard :chord="inv" mini :showRoot="true" :noNav="true" />
+                                        <span class="sbn-inversion-sibling-label">{{ inv.inversion_label }}</span>
+                                    </component>
+                                </div>
+                            </div>
                         </div>
                     </details>
 
                 </div>
 
+                <!-- Alias blurb + switcher — below accordions -->
+                <div v-if="aliases.length" class="sbn-alias-block">
+                    <p class="sbn-alias-blurb">
+                        This voicing can be interpreted as different chords depending on context.
+                        <Link v-if="activeQualityWidget" :href="`/theory?widget=${activeQualityWidget}`" class="sbn-alias-blurb-link">Learn more about alias voicings →</Link>
+                    </p>
+                </div>
+                <div v-if="aliases.length" class="sbn-alias-switcher">
+                    <button
+                        class="sbn-alias-btn"
+                        :class="{ active: activeAliasIdx === -1 }"
+                        @click="activeAliasIdx = -1"
+                    ><span v-html="formattedChordName" /></button>
+                    <button
+                        v-for="(alias, i) in aliases"
+                        :key="i"
+                        class="sbn-alias-btn"
+                        :class="{ active: activeAliasIdx === i }"
+                        @click="activeAliasIdx = i"
+                    ><span v-html="formatAliasName(alias)" /></button>
+                </div>
+
             </div><!-- .sbn-chord-identity-right -->
         </div><!-- .sbn-chord-identity -->
+
+        <!-- ════ ABOUT ════ -->
+        <div class="sbn-chord-about">
+            <h2 class="sbn-chord-identity-about">
+                About the <span v-html="formattedActiveName" /> chord
+            </h2>
+            <template v-if="activeAlias">
+                <p class="sbn-chord-identity-description">
+                    {{ activeTheory?.typical_context ?? eduQ?.description ?? '' }}
+                </p>
+            </template>
+            <template v-else-if="eduQ">
+                <p class="sbn-chord-identity-description">
+                    {{ eduQ.description }}
+                    <span class="sbn-chord-identity-usage">{{ eduQ.usage }}</span>
+                </p>
+            </template>
+            <template v-else-if="theory">
+                <p class="sbn-chord-identity-description">{{ theory.typical_context }}</p>
+            </template>
+        </div>
 
         <!-- ════ PROGRESSIONS + SIBLINGS ════ -->
         <div v-if="progressions.length || siblings.length" class="sbn-chord-detail-lower">
@@ -472,6 +557,11 @@ const formattedChordName = computed(() => {
 
 
 
+/* ── About section (below hero) ── */
+.sbn-chord-about {
+    margin-bottom: 40px;
+}
+
 /* ── Identity panel ── */
 .sbn-chord-identity {
     display: grid;
@@ -494,6 +584,7 @@ const formattedChordName = computed(() => {
 
 /* Alias block — blurb + switcher */
 .sbn-alias-block {
+    margin-top: 20px;
     margin-bottom: 12px;
 }
 .sbn-alias-blurb {
@@ -549,6 +640,48 @@ const formattedChordName = computed(() => {
     width: 100%;
 }
 
+/* Subtle shadow on diagram lines in the hero */
+.sbn-chord-identity-diagram :deep(.chord-diagram-svg svg) {
+    filter: drop-shadow(0 1px 2px rgba(15, 17, 23, 0.18));
+}
+
+/* Stronger shadow on dots only */
+.sbn-chord-identity-diagram :deep(.sbn-svg-dot) {
+    filter: drop-shadow(0 1px 2px rgba(15, 17, 23, 0.15));
+}
+
+/* Hero card lift */
+.sbn-chord-identity-diagram :deep(.sbn-chord-card) {
+    border-radius: 18px;
+    border-top: 3px solid var(--clr-mod-chord);
+    box-shadow:
+        0 12px 40px -8px rgba(15, 17, 23, 0.18),
+        0 4px 12px rgba(15, 17, 23, 0.06);
+    padding: 24px 20px 16px;
+    transition: box-shadow 0.2s ease;
+}
+
+.sbn-chord-identity-diagram :deep(.sbn-chord-card--detail:hover) {
+    border-color: var(--clr-mod-chord);
+    box-shadow:
+        0 16px 48px -8px rgba(15, 17, 23, 0.22),
+        0 6px 16px rgba(15, 17, 23, 0.08);
+}
+
+/* Bigger chord name in hero */
+.sbn-chord-identity-diagram :deep(.sbn-card-chord-name .sbn-chord-symbol) {
+    font-size: 2em;
+    letter-spacing: -0.01em;
+}
+
+.sbn-chord-identity-diagram :deep(.sbn-card-chord-name .sbn-chord-quality) {
+    font-size: 0.72em;
+}
+
+.sbn-chord-identity-diagram :deep(.sbn-card-chord-name .sbn-chord-ext) {
+    font-size: 0.62em;
+}
+
 /* Interval dots row */
 .sbn-chord-identity-intervals-row {
     display: flex;
@@ -558,14 +691,19 @@ const formattedChordName = computed(() => {
 }
 
 .sbn-iv {
-    display: inline-block;
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 0.8em;
-    font-weight: 600;
-    background: var(--clr-white);
-    border: 1px solid var(--clr-border);
-    color: var(--clr-text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 0.82em;
+    font-weight: 800;
+    background: var(--clr-red);
+    color: #fff;
+    border: none;
+    box-shadow: 0 1px 2px rgba(15, 17, 23, 0.15);
+    letter-spacing: -0.02em;
 }
 
 
@@ -678,6 +816,68 @@ const formattedChordName = computed(() => {
     text-decoration: none;
 }
 .sbn-accordion-explore:hover { text-decoration: underline; }
+
+/* Inversion sibling cards */
+.sbn-inversion-siblings {
+    margin-top: 12px;
+}
+
+.sbn-inversion-heading {
+    font-size: 0.8em;
+    font-weight: 600;
+    color: var(--clr-text-muted);
+    margin: 0 0 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.sbn-inversion-heading :deep(.sbn-chord-symbol) {
+    font-family: var(--font-chord, 'Crimson Text', Georgia, serif);
+    font-size: 1.1em;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.sbn-inversion-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.sbn-inversion-sibling {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.sbn-inversion-sibling :deep(.sbn-chord-card) {
+    width: 90px;
+    padding: 8px 8px 6px;
+}
+
+.sbn-inversion-sibling :deep(.sbn-card-chord-name .sbn-chord-symbol) {
+    font-size: 0.85em;
+}
+
+.sbn-inversion-sibling--current :deep(.sbn-chord-card) {
+    border-color: var(--clr-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--clr-primary) 20%, transparent);
+}
+
+.sbn-inversion-sibling-label {
+    font-size: 0.75em;
+    color: var(--clr-text-muted);
+    text-align: center;
+}
+
+.sbn-inversion-sibling--current .sbn-inversion-sibling-label {
+    color: var(--clr-primary);
+    font-weight: 600;
+}
 
 /* ── Section wrapper ── */
 .sbn-chord-detail-section {

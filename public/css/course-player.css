@@ -18,15 +18,7 @@
 @media (max-width: 900px)  { .sbn-courses-grid, .sbn-courses-carousel { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 600px)  { .sbn-courses-grid, .sbn-courses-carousel { grid-template-columns: 1fr; } }
 
-.sbn-course-genre-section { margin-bottom: 40px; }
-.sbn-course-genre-section h2 {
-    margin: 0 0 16px;
-    font-size: 1.15em; font-weight: 700;
-    color: var(--clr-text);
-    text-transform: capitalize;
-    padding-bottom: 8px;
-    border-bottom: 2px solid var(--clr-border);
-}
+/* .sbn-course-genre-section replaced by .sbn-lib-category-section in design system */
 
 .sbn-course-show-hero {
     background: var(--clr-white); border: 1px solid var(--clr-border);

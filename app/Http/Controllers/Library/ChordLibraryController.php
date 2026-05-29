@@ -387,11 +387,26 @@ class ChordLibraryController extends Controller
 			$displayRoot = null; // ignore invalid values
 		}
 
+		$storedRoot          = $chord->root_note ?? 'C';
+		$effectiveDisplayRoot = $displayRoot ?? $storedRoot;
+
 		$siblings = ChordDiagram::where('quality', $chord->quality)
 			->where('id', '!=', $chord->id)
 			->orderByDesc('popularity')
 			->get()
 			->map(fn ($c) => $this->chordSerializer->serialize($c)); // siblings always at stored root (C)
+
+		// Same-shape inversions: only for categories that have systematic inversions in the DB.
+		$inversions = $this->buildInversionsForIdentity(
+			voicingCategory: $chord->voicing_category,
+			quality: $chord->quality,
+			extensions: $chord->extensions,
+			rootString: $chord->root_string,
+			identityRoot: $storedRoot,
+			displayRoot: $effectiveDisplayRoot,
+			selfInversion: $chord->inversion ?? 'root',
+			excludeDiagramId: $chord->id,
+		);
 
 		// Leadsheets that use this chord (via sbn_voicing_usage)
 		$songs = Leadsheet::published()
@@ -443,8 +458,6 @@ class ChordLibraryController extends Controller
 		// Aliases: same fret shape, different musical reinterpretation.
 		// Aliases are stored relative to the chord's stored root (C). If the page
 		// is showing a transposed root, shift each alias root/bass by the same offset.
-		$storedRoot  = $chord->root_note ?? 'C';
-		$effectiveDisplayRoot = $displayRoot ?? $storedRoot;
 		$semitones   = ChordShapeCalculator::NOTE_SEMITONES;
 		$sharpNames  = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 		$flatNames   = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
@@ -460,11 +473,13 @@ class ChordLibraryController extends Controller
 			return $useFlats ? $flatNames[$target] : $sharpNames[$target];
 		};
 
-		$aliases = ChordDiagramAlias::where('diagram_id', $chord->id)
+		$aliasRows = ChordDiagramAlias::where('diagram_id', $chord->id)
 			->whereNotNull('alt_root_note')
 			->whereNotNull('alt_quality')
 			->orderBy('id')
-			->get()
+			->get();
+
+		$aliases = $aliasRows
 			->map(function ($a) use ($transposeNote) {
 				$root = $transposeNote($a->alt_root_note);
 				$bass = $transposeNote($a->alt_bass_note);
@@ -479,6 +494,55 @@ class ChordLibraryController extends Controller
 				];
 			})
 			->values();
+
+		// Per-alias inversion lists: an alias is just a re-labeling of the same
+		// physical shape, so the inversion POOL is the same as the primary view.
+		// Each entry just gets re-slotted under the alias's quality reading via
+		// the slot-offset rotation between primary and alias.
+		$inversionLabels = ['root' => 'Root Position', 'inv1' => '1st Inversion', 'inv2' => '2nd Inversion', 'inv3' => '3rd Inversion'];
+		$slotIndex = ['root' => 0, 'inv1' => 1, 'inv2' => 2, 'inv3' => 3];
+		$indexSlot = array_flip($slotIndex);
+		$triadQualities = ['maj', 'min'];
+
+		// Hydrate diagram models for the primary's inversion pool once.
+		$poolIds = $inversions->pluck('id')->filter()->unique()->all();
+		$poolDiagrams = ChordDiagram::whereIn('id', $poolIds)->get()->keyBy('id');
+
+		$aliasInversions = [];
+		foreach ($aliasRows as $i => $row) {
+			$aliasQuality = $row->alt_quality;
+			$aliasRoot    = $transposeNote($row->alt_root_note) ?? $row->alt_root_note;
+			$aliasSelf    = $this->aliasInversionSlot($row->interval_labels ?? '') ?? 'root';
+			$primarySelf  = $chord->inversion ?? 'root';
+
+			$expectedSlots = in_array($aliasQuality, $triadQualities) ? 3 : 4;
+
+			// Offset that maps primary slot → alias slot.
+			// e.g. primary inv2 ↔ alias root → offset = root - inv2 = -inv2 (mod 4).
+			$slotOffset = ($slotIndex[$aliasSelf] - $slotIndex[$primarySelf] + $expectedSlots) % $expectedSlots;
+
+			$list = [];
+			foreach ($inversions as $entry) {
+				$diagram = $poolDiagrams->get($entry['id']);
+				if (! $diagram) continue;
+
+				$entryPrimarySlot = $entry['inversion'] ?? 'root';
+				if (! isset($slotIndex[$entryPrimarySlot])) continue;
+
+				$entryAliasSlotIdx = ($slotIndex[$entryPrimarySlot] + $slotOffset) % $expectedSlots;
+				$entryAliasSlot    = $indexSlot[$entryAliasSlotIdx];
+
+				$list[] = $this->chordSerializer->serializeAs(
+					$diagram,
+					$aliasRoot,
+					$aliasQuality,
+					$entryAliasSlot,
+					$inversionLabels[$entryAliasSlot] ?? ucfirst($entryAliasSlot),
+				);
+			}
+
+			$aliasInversions[$i] = $list;
+		}
 
 		// Edu content for this chord's quality — description/usage prose for
 		// the identity section, plus body_html + has_widgets so the page can
@@ -499,15 +563,235 @@ class ChordLibraryController extends Controller
 		};
 		$courses = $this->courseRepo->relatedByCategory($chordCourseCategory, limit: 4);
 
+		// Search-result deep-link: when ?aliasQuality= is present, find an alias
+		// in the panel matching that identity so the page opens with it active.
+		// Only handles the "already-stored alias matches" case — search results
+		// reached via transposition (synthetic aliases at non-stored roots) are
+		// deferred until the broader enharmonic/transposition pass.
+		$initialAliasIdx = null;
+		$aliasQuality = $request->query('aliasQuality');
+		if ($aliasQuality && $effectiveDisplayRoot) {
+			$aliasExt  = (string) $request->query('aliasExt', '');
+			$aliasBass = (string) $request->query('aliasBass', '');
+			foreach ($aliases as $i => $a) {
+				if (($a['root_note'] ?? '') !== $effectiveDisplayRoot) continue;
+				if (($a['quality'] ?? '') !== $aliasQuality) continue;
+				if (((string) ($a['extensions'] ?? '')) !== $aliasExt) continue;
+				if (((string) ($a['bass_note'] ?? '')) !== $aliasBass) continue;
+				$initialAliasIdx = $i;
+				break;
+			}
+		}
+
 		return Inertia::render('Library/Chords/Show', [
 			'chord' => $this->chordSerializer->serialize($chord, $displayRoot),
 			'aliases' => $aliases,
+			'aliasInversions' => $aliasInversions,
+			'initialAliasIdx' => $initialAliasIdx,
 			'siblings' => $siblings,
+			'inversions' => $inversions,
 			'songs' => $songs,
 			'progressions' => $progressions,
 			'qualityTopic' => $qualityTopic?->toArray(),
 			'courses' => $courses,
 		]);
+	}
+
+	/**
+	 * Build the inversion list for a given chord identity. Used for the primary
+	 * chord and again for each alias so the alias switcher can swap the inversion
+	 * panel to the alias's own picture.
+	 *
+	 * Native query (same voicing_category + root_string + quality + extensions)
+	 * is augmented by a one-hop alias gap-fill: any alias row whose
+	 * (alt_quality, alt_root_note, alt_extensions) match this identity contributes
+	 * its parent diagram as an inversion candidate, slotted by the bass interval
+	 * read from interval_labels.
+	 */
+	protected function buildInversionsForIdentity(
+		string $voicingCategory,
+		string $quality,
+		?string $extensions,
+		?string $rootString,
+		string $identityRoot,
+		string $displayRoot,
+		string $selfInversion,
+		int $excludeDiagramId,
+	): \Illuminate\Support\Collection {
+		// Normalize: most rows store extensions as NULL, a few as ''. Treat both as
+		// "no extensions" so the native query matches via IS NULL OR = ''.
+		$normExt = ($extensions === null || $extensions === '') ? null : $extensions;
+		$invertibleCategories = ['closed_triads', 'spread_triads', 'drop2', 'drop3', 'closed'];
+		if (! in_array($voicingCategory, $invertibleCategories)) {
+			return collect();
+		}
+
+		$inversionOrder  = ['root' => 0, 'inv1' => 1, 'inv2' => 2, 'inv3' => 3];
+		$inversionLabels = ['root' => 'Root Position', 'inv1' => '1st Inversion', 'inv2' => '2nd Inversion', 'inv3' => '3rd Inversion'];
+
+		$nativeInvDiagrams = ChordDiagram::where('quality', $quality)
+			->where('voicing_category', $voicingCategory)
+			->where('root_string', $rootString)
+			->where(function ($q) use ($normExt) {
+				if ($normExt === null) {
+					$q->whereNull('extensions')->orWhere('extensions', '');
+				} else {
+					$q->where('extensions', $normExt);
+				}
+			})
+			->where('id', '!=', $excludeDiagramId)
+			->get();
+
+		$inversions = $nativeInvDiagrams
+			->map(fn ($c) => $this->chordSerializer->serialize($c, $displayRoot))
+			->values();
+
+		// Gap-fill: 7th chords expect 4 slots, triads expect 3.
+		$triadQualities = ['maj', 'min'];
+		$expectedSlots  = in_array($quality, $triadQualities) ? 3 : 4;
+
+		$filledSlots = [$selfInversion => true];
+		foreach ($inversions as $inv) {
+			$filledSlots[$inv['inversion'] ?? 'root'] = true;
+		}
+
+		$slotsByName  = ['root', 'inv1', 'inv2', 'inv3'];
+		$allowedSlots = array_slice($slotsByName, 0, $expectedSlots);
+		$missing      = array_values(array_diff($allowedSlots, array_keys($filledSlots)));
+
+		if (! empty($missing)) {
+			$aliasCandidates = ChordDiagramAlias::query()
+				->where('alt_quality', $quality)
+				->where('alt_root_note', $identityRoot)
+				->where(function ($q) use ($normExt) {
+					if ($normExt === null) {
+						$q->whereNull('alt_extensions')->orWhere('alt_extensions', '');
+					} else {
+						$q->where('alt_extensions', $normExt);
+					}
+				})
+				->whereHas('diagram', function ($q) use ($voicingCategory) {
+					$q->where('voicing_category', $voicingCategory);
+				})
+				->with('diagram')
+				->get();
+
+			foreach ($aliasCandidates as $alias) {
+				$parent = $alias->diagram;
+				if (! $parent || $parent->id === $excludeDiagramId) continue;
+
+				$slot = $this->aliasInversionSlot($alias->interval_labels ?? '');
+				if ($slot === null || ! in_array($slot, $missing, true)) continue;
+
+				$inversions->push($this->chordSerializer->serializeAs(
+					$parent,
+					$displayRoot,
+					$quality,
+					$slot,
+					$inversionLabels[$slot] ?? ucfirst($slot),
+				));
+
+				$missing = array_values(array_diff($missing, [$slot]));
+				if (empty($missing)) break;
+			}
+		}
+
+		// Phase 2 — alias-bridge ladder. Each alias of the current chord names
+		// the same shape as a different chord. That alias's NATIVE ladder is the
+		// pool of shape siblings that share its quality+category+root_string —
+		// every one of them is also playable as the current chord, at a slot
+		// determined by the bridge's slot offset.
+		//
+		// Slot mapping: the bridge alias itself sits at (primary_slot=selfInversion,
+		// alias_slot = read from alias.interval_labels under the alias's quality).
+		// The offset = primary - alias (mod 4) is a fixed rotation that maps any
+		// sibling's NATIVE inversion to its slot under the primary's reading.
+		$slotIndex = ['root' => 0, 'inv1' => 1, 'inv2' => 2, 'inv3' => 3];
+		$indexSlot = array_flip($slotIndex);
+
+		if ($inversions->count() + 1 < $expectedSlots) {
+			$bridgeAliases = ChordDiagramAlias::where('diagram_id', $excludeDiagramId)
+				->whereNotNull('alt_root_note')
+				->whereNotNull('alt_quality')
+				->get();
+
+			$claimedIds = $inversions->pluck('id')->push($excludeDiagramId)->all();
+
+			foreach ($bridgeAliases as $bridge) {
+				if ($inversions->count() + 1 >= $expectedSlots) break;
+
+				// Bridge anchor's slot under ALIAS reading — derived from the
+				// alias row's interval_labels (these describe the shape under
+				// the alias's quality, so the bass interval there names the
+				// alias's inversion of this anchor).
+				$aliasAnchorSlot = $this->aliasInversionSlot($bridge->interval_labels ?? '');
+				if ($aliasAnchorSlot === null) continue;
+
+				$slotOffset = ($slotIndex[$selfInversion] - $slotIndex[$aliasAnchorSlot] + $expectedSlots) % $expectedSlots;
+
+				$bridgeNormExt = ($bridge->alt_extensions === null || $bridge->alt_extensions === '')
+					? null : $bridge->alt_extensions;
+
+				$ladderSiblings = ChordDiagram::where('quality', $bridge->alt_quality)
+					->where('voicing_category', $voicingCategory)
+					->where('root_string', $rootString)
+					->where(function ($q) use ($bridgeNormExt) {
+						if ($bridgeNormExt === null) {
+							$q->whereNull('extensions')->orWhere('extensions', '');
+						} else {
+							$q->where('extensions', $bridgeNormExt);
+						}
+					})
+					->whereNotIn('id', $claimedIds)
+					->get();
+
+				foreach ($ladderSiblings as $sibling) {
+					if ($inversions->count() + 1 >= $expectedSlots) break;
+
+					$siblingNativeSlot = $sibling->inversion ?? 'root';
+					if (! isset($slotIndex[$siblingNativeSlot])) continue;
+
+					$primarySlotIdx = ($slotIndex[$siblingNativeSlot] + $slotOffset) % $expectedSlots;
+					$slot = $indexSlot[$primarySlotIdx];
+
+					$inversions->push($this->chordSerializer->serializeAs(
+						$sibling,
+						$displayRoot,
+						$quality,
+						$slot,
+						$inversionLabels[$slot] ?? ucfirst($slot),
+					));
+
+					$claimedIds[] = $sibling->id;
+				}
+			}
+		}
+
+		return $inversions
+			->sortBy(fn ($c) => $inversionOrder[$c['inversion'] ?? 'root'] ?? 99)
+			->values();
+	}
+
+	/**
+	 * Read an alias row's interval_labels and return the inversion slot
+	 * (root|inv1|inv2|inv3) based on the lowest non-'x' interval token.
+	 */
+	protected function aliasInversionSlot(string $intervalLabels): ?string
+	{
+		$tokens = array_values(array_filter(
+			explode(',', $intervalLabels),
+			fn ($t) => trim($t) !== '' && strtolower(trim($t)) !== 'x'
+		));
+		if (empty($tokens)) return null;
+
+		$norm = strtoupper(preg_replace('/[#b]/', '', trim($tokens[0])));
+		return match ($norm) {
+			'R', '1'  => 'root',
+			'3'       => 'inv1',
+			'5'       => 'inv2',
+			'7', '6'  => 'inv3',
+			default   => null,
+		};
 	}
 
 	/**

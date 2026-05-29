@@ -104,6 +104,22 @@ class RhythmPattern extends Model
         return $query->orderBy('category')->orderBy('sort_order')->orderBy('name');
     }
 
+    public static function withSongCounts(): \Illuminate\Support\Collection
+    {
+        return static::query()
+            ->select('sbn_rhythm_patterns.*')
+            ->selectRaw('COUNT(DISTINCT ls.id) as song_count')
+            ->leftJoin('sbn_leadsheets as ls', function ($join) {
+                $join->on('ls.rhythm', '=', 'sbn_rhythm_patterns.slug')
+                     ->where('ls.status', '=', 'publish');
+            })
+            ->groupBy('sbn_rhythm_patterns.id')
+            ->orderBy('sbn_rhythm_patterns.category')
+            ->orderBy('sbn_rhythm_patterns.sort_order')
+            ->orderBy('sbn_rhythm_patterns.name')
+            ->get();
+    }
+
     public function scopeCategory($query, string $category)
     {
         return $query->where('category', $category);

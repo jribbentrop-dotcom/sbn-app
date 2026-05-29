@@ -1,290 +1,8 @@
-/* Legacy Progression Library Styles - Exact Copy from Original */
+/* Progression Library — page-specific styles only.
+   Shared layout (header, search, sidebar, hitlist rows) lives in
+   sbn-design-system.css section 15 (.sbn-lib-*). */
 
-
-.sbn-prog-lib-page-header {
-    text-align: center;
-    margin-bottom: 40px;
-}
-
-.sbn-prog-lib-page-title {
-    font-size: 38px;
-    font-weight: 900;
-    color: #1a202c;
-    margin: 0 0 10px;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
-}
-
-.sbn-prog-lib-page-subtitle {
-    font-size: 17px;
-    color: #718096;
-    margin: 0 auto 32px;
-    font-weight: 400;
-    line-height: 1.6;
-    max-width: 600px;
-}
-
-/* Search */
-.sbn-prog-lib-search-wrap {
-    max-width: 640px;
-    margin: 0 auto;
-}
-
-.sbn-prog-lib-search-box {
-    display: flex;
-    align-items: center;
-    background: #fff;
-    border: 2px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 6px 6px 6px 20px;
-    transition: border-color 0.2s;
-    margin-bottom: 12px;
-}
-
-.sbn-prog-lib-search-box:focus-within {
-    border-color: var(--clr-red);
-}
-
-.sbn-prog-search-icon {
-    color: #a0aec0;
-    flex-shrink: 0;
-    margin-right: 12px;
-    transition: color 0.2s;
-}
-
-.sbn-prog-lib-search-box:focus-within .sbn-prog-search-icon {
-    color: var(--clr-red);
-}
-
-.sbn-prog-search-input {
-    flex: 1;
-    border: none;
-    outline: none;
-    font-size: 17px;
-    color: #2d3748;
-    background: transparent;
-    padding: 12px 0;
-    font-weight: 500;
-}
-
-.sbn-prog-search-input::placeholder {
-    color: #a0aec0;
-    font-weight: 400;
-}
-
-.sbn-prog-search-clear {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    border: none;
-    background: #f7fafc;
-    color: #718096;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s, color 0.15s;
-    flex-shrink: 0;
-}
-
-.sbn-prog-search-clear:hover {
-    background: var(--clr-red);
-    color: #fff;
-}
-
-.sbn-prog-search-examples {
-    font-size: 13px;
-    color: #718096;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px;
-    justify-content: center;
-}
-
-.sbn-prog-search-examples span {
-    font-weight: 600;
-    color: #4a5568;
-}
-
-.sbn-prog-example-btn {
-    padding: 4px 12px;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    background: #fff;
-    color: #4a5568;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: border-color 0.15s, color 0.15s, background 0.15s;
-}
-
-.sbn-prog-example-btn:hover {
-    border-color: var(--clr-red);
-    color: var(--clr-red);
-    background: #fff8f5;
-}
-
-/* Content Layout */
-.sbn-prog-content-wrapper {
-    display: flex;
-    gap: 24px;
-    align-items: flex-start;
-}
-
-.sbn-prog-list-container {
-    flex: 1;
-    min-width: 0;
-    order: 0;
-}
-
-.sbn-prog-list-status {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-    padding: 8px 0;
-}
-
-#sbn-prog-count-text {
-    font-size: 13px;
-    color: #718096;
-    font-weight: 500;
-}
-
-.sbn-prog-clear-filters {
-    border: 1px solid #e2e8f0;
-    background: none;
-    color: #718096;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 4px 10px;
-    border-radius: 6px;
-    transition: all 0.15s;
-}
-
-.sbn-prog-clear-filters:hover {
-    color: var(--clr-red);
-    border-color: var(--clr-red);
-    background: #fff8f5;
-}
-
-/* Progression Rows */
-.sbn-prog-list {
-    display: flex;
-    flex-direction: column;
-}
-
-.sbn-prog-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 16px;
-    padding: 20px 20px 20px 0;
-    border: 1px solid var(--clr-border);
-    border-radius: var(--radius);
-    background: var(--clr-white);
-    margin-bottom: 8px;
-    transition: border-color 0.15s;
-    cursor: default;
-}
-
-.sbn-prog-row:hover {
-    border-color: var(--clr-text-muted);
-}
-
-.sbn-prog-row-rank {
-    flex-shrink: 0;
-    width: 44px;
-    text-align: center;
-    font-size: 20px;
-    font-weight: 900;
-    color: #d1d5db;
-    padding-top: 2px;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.03em;
-    padding-left: 16px;
-}
-
-.sbn-prog-row-body {
-    flex: 1;
-    min-width: 0;
-}
-
-.sbn-prog-row-top {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 6px;
-}
-
-/* Category Badges */
-.sbn-prog-row-cat-badge {
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: 10px;
-    display: inline-block;
-}
-
-.sbn-prog-row-cat-badge.sbn-prog-cat-bossa-nova { background: color-mix(in srgb, var(--clr-style-bossa) 12%, transparent); color: color-mix(in srgb, var(--clr-style-bossa) 80%, #000); }
-.sbn-prog-row-cat-badge.sbn-prog-cat-jazz       { background: color-mix(in srgb, var(--clr-style-jazz) 12%, transparent);  color: color-mix(in srgb, var(--clr-style-jazz) 80%, #000); }
-.sbn-prog-row-cat-badge.sbn-prog-cat-classical  { background: color-mix(in srgb, var(--clr-style-classical) 12%, transparent); color: color-mix(in srgb, var(--clr-style-classical) 80%, #000); }
-.sbn-prog-row-cat-badge.sbn-prog-cat-pop        { background: color-mix(in srgb, var(--clr-style-pop) 12%, transparent);  color: color-mix(in srgb, var(--clr-style-pop) 80%, #000); }
-
-/* Tonality Badges */
-.sbn-prog-tonality-badge {
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: 10px;
-    display: inline-block;
-}
-
-.sbn-prog-tonality-badge.sbn-prog-tonality-major { background: #fef9c3; color: #854d0e; }
-.sbn-prog-tonality-badge.sbn-prog-tonality-minor { background: #ede9fe; color: #4c1d95; }
-
-/* Tag Chips */
-.sbn-prog-tag-chip {
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: 10px;
-    background: #f3f4f6;
-    color: #6b7280;
-    border: 1px solid #e5e7eb;
-    display: inline-block;
-}
-
-/* Row Title */
-.sbn-prog-row-title {
-    font-size: 20px;
-    font-weight: 800;
-    color: #111827;
-    margin: 0 0 8px;
-    line-height: 1.2;
-    letter-spacing: -0.01em;
-}
-
-.sbn-prog-row-link {
-    color: inherit;
-    text-decoration: none;
-    transition: color 0.12s;
-}
-
-.sbn-prog-row-link:hover { 
-    color: var(--clr-red); 
-    text-decoration: none; 
-}
-
-/* Numerals */
+/* ── Numeral chips ── */
 .sbn-prog-row-numerals {
     display: flex;
     flex-wrap: wrap;
@@ -294,217 +12,61 @@
 
 .sbn-prog-numeral-chip {
     display: inline-block;
-    background: #f3f4f6;
-    border: 1px solid #e5e7eb;
+    background: var(--clr-surface-2);
+    border: 1px solid var(--clr-border);
     border-radius: 5px;
     padding: 4px 9px;
     font-size: 13px;
     line-height: 1.4;
-    color: #374151;
+    color: var(--clr-text-dim);
     font-family: 'Georgia', 'Times New Roman', serif;
     letter-spacing: 0.01em;
 }
 
-
-/* Popularity Phrase */
-.sbn-prog-row-popularity-phrase {
-    font-size: 13px;
-    color: #6b7280;
-    line-height: 1.5;
-    margin: 0;
-}
-
+/* ── Popularity tier label ── */
 .sbn-prog-tier-label {
     font-weight: 700;
-    color: #374151;
+    color: var(--clr-text-dim);
 }
 
-/* Read More Link */
-.sbn-prog-row-read-more {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+/* ── Search example pills ── */
+.sbn-prog-search-examples {
     font-size: 13px;
-    font-weight: 600;
-    color: var(--clr-red);
-    text-decoration: none;
-    margin-top: 6px;
-    transition: color 0.12s;
-}
-
-.sbn-prog-row-read-more:hover {
-    color: #c0392b;
-    text-decoration: none;
-}
-
-.sbn-prog-row-read-more svg {
-    flex-shrink: 0;
-    transition: transform 0.12s;
-}
-
-.sbn-prog-row-read-more:hover svg {
-    transform: translateX(2px);
-}
-
-/* Empty State */
-.sbn-prog-lib-empty {
-    text-align: center;
-    color: #9ca3af;
-    font-size: 15px;
-    padding: 60px 0;
-}
-
-/* Filter Sidebar */
-.sbn-prog-filter-sidebar {
-    position: sticky;
-    top: 20px;
-    align-self: flex-start;
-    width: 220px;
-    min-width: 220px;
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 20px;
-    max-height: calc(100vh - 40px);
-    overflow-y: auto;
-    order: 1;
-}
-
-.sbn-prog-sidebar-header {
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #e2e8f0;
-}
-
-.sbn-prog-sidebar-header h3 {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 700;
-    color: #1a202c;
-}
-
-.sbn-prog-sidebar-section { 
-    margin-bottom: 20px; 
-}
-
-.sbn-prog-sidebar-label {
-    font-size: 10px;
-    font-weight: 700;
-    color: #718096;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin: 0 0 8px;
-    display: block;
-}
-
-.sbn-prog-sidebar-options {
+    color: var(--clr-text-muted);
     display: flex;
+    align-items: center;
     flex-wrap: wrap;
-    gap: 5px;
+    gap: 6px;
+    justify-content: center;
 }
 
-.sbn-prog-sidebar-option {
-    padding: 5px 10px;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    background: #fff;
-    color: #4a5568;
+.sbn-prog-search-examples span {
+    font-weight: 600;
+    color: var(--clr-text-dim);
+}
+
+.sbn-prog-example-btn {
+    padding: 4px 12px;
+    border: 1px solid var(--clr-border);
+    border-radius: 8px;
+    background: var(--clr-white);
+    color: var(--clr-text-dim);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.12s;
-    line-height: 1.2;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 
-.sbn-prog-sidebar-option:hover {
-    border-color: var(--clr-red);
-    color: var(--clr-red);
-    background: #fff8f5;
+.sbn-prog-example-btn:hover {
+    border-color: var(--clr-accent);
+    color: var(--clr-accent);
+    background: color-mix(in srgb, var(--clr-accent) 6%, transparent);
 }
 
-.sbn-prog-sidebar-option.sbn-filter-active {
-    background: #1a202c;
-    border-color: #1a202c;
-    color: #fff;
-}
-
-.sbn-prog-sidebar-option.sbn-filter-active:hover {
-    background: var(--clr-red);
-    border-color: var(--clr-red);
-}
-
-/* Category Filter Active States */
-.sbn-prog-cat-opt-jazz.sbn-filter-active      { background: #1565c0; border-color: #1565c0; }
-.sbn-prog-cat-opt-blues.sbn-filter-active     { background: #c62828; border-color: #c62828; }
-.sbn-prog-cat-opt-pop.sbn-filter-active       { background: #00695c; border-color: #00695c; }
-.sbn-prog-cat-opt-modal.sbn-filter-active     { background: #4527a0; border-color: #4527a0; }
-.sbn-prog-cat-opt-classical.sbn-filter-active { background: #2e7d32; border-color: #2e7d32; }
-.sbn-prog-cat-opt-latin.sbn-filter-active     { background: #e65100; border-color: #e65100; }
-
-/* Sort Active States */
-.sbn-sort-active {
-    background: #1a202c;
-    border-color: #1a202c;
-    color: #fff;
-}
-
-.sbn-sort-active:hover {
-    background: var(--clr-red);
-    border-color: var(--clr-red);
-}
-
-/* Clear All Button */
-.sbn-prog-sidebar-clear {
-    width: 100%;
-    padding: 9px;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    background: #fff;
-    color: #718096;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s;
-    margin-top: 4px;
-}
-
-.sbn-prog-sidebar-clear:hover {
-    border-color: var(--clr-red);
-    color: var(--clr-red);
-    background: #fff8f5;
-}
-
+/* ── Tags empty note ── */
 .sbn-prog-tags-empty-note {
     font-size: 11px;
-    color: #9ca3af;
+    color: var(--clr-text-muted);
     font-style: italic;
     margin: 0;
-}
-
-/* Responsive Design */
-@media (max-width: 900px) {
-    .sbn-prog-content-wrapper { 
-        flex-direction: column-reverse; 
-    }
-    .sbn-prog-filter-sidebar {
-        position: static;
-        width: 100%;
-        min-width: 0;
-        max-height: none;
-        order: 0;
-    }
-}
-
-@media (max-width: 600px) {
-.sbn-prog-lib-page-title { 
-        font-size: 28px; 
-    }
-    .sbn-prog-row-rank { 
-        width: 30px; 
-        font-size: 16px; 
-        padding-left: 12px; 
-    }
-    .sbn-prog-row-title { 
-        font-size: 17px; 
-    }
 }

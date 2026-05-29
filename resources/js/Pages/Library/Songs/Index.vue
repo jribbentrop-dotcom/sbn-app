@@ -77,27 +77,27 @@ function rhythmLabel(slug: string): string {
   <div class="sbn-page sbn-song-library-main">
 
     <!-- ── Header ── -->
-    <header class="sbn-library-header">
-      <h1 class="sbn-library-title">Song Library</h1>
-      <p class="sbn-library-subtitle">Explore bossa nova, samba, and jazz standards</p>
+    <div class="sbn-lib-page-header">
+      <h1 class="sbn-lib-page-title">Song Library</h1>
+      <p class="sbn-lib-page-subtitle">Explore bossa nova, samba, and jazz standards</p>
 
-      <div class="sbn-search-container">
-        <div class="sbn-search-box">
-          <svg class="sbn-search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <div class="sbn-lib-search-wrap">
+        <div class="sbn-lib-search-box">
+          <svg class="sbn-lib-search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
             <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2"/>
             <path d="M13 13L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
           <input
             v-model="search"
             type="text"
-            class="sbn-search-input"
+            class="sbn-lib-search-input"
             placeholder="Search songs, artists, chords..."
             autocomplete="off"
           >
           <button
             v-if="search"
             type="button"
-            class="sbn-search-clear"
+            class="sbn-lib-search-clear"
             aria-label="Clear search"
             @click="search = ''"
           >
@@ -107,26 +107,10 @@ function rhythmLabel(slug: string): string {
           </button>
         </div>
 
-        <div class="sbn-search-examples">
-          <span class="sbn-search-try">Try: </span>
-          <button
-            v-for="ex in examples"
-            :key="ex"
-            type="button"
-            class="sbn-example-btn"
-            @click="applyExample(ex)"
-          >{{ ex }}</button>
-        </div>
       </div>
-    </header>
+    </div>
 
     <!-- ── Count bar ── -->
-    <div class="sbn-count-bar">
-      <strong>{{ filtered.length }}</strong> of {{ totalCount }} songs
-      <button v-if="hasFilters" type="button" class="sbn-count-clear" @click="clearFilters">
-        Clear filters
-      </button>
-    </div>
 
     <!-- ── Content: grid + sidebar ── -->
     <div class="sbn-content-wrapper">
@@ -147,68 +131,72 @@ function rhythmLabel(slug: string): string {
       </div>
 
       <!-- Filter sidebar -->
-      <aside class="sbn-filter-sidebar">
-        <div class="sbn-sidebar-header">
+      <aside class="sbn-lib-filter-sidebar">
+        <div class="sbn-lib-sidebar-header">
           <h3>Filters</h3>
+          <span class="sbn-lib-sidebar-count">
+            <strong>{{ filtered.length }}</strong> of {{ totalCount }} songs
+            <button v-if="hasFilters" type="button" class="sbn-lib-clear-btn" @click="clearFilters">Clear</button>
+          </span>
         </div>
 
         <!-- Key -->
-        <div class="sbn-sidebar-section">
-          <span class="sbn-sidebar-label">Key</span>
-          <div class="sbn-sidebar-options">
+        <div class="sbn-lib-sidebar-section">
+          <span class="sbn-lib-sidebar-label">Key</span>
+          <div class="sbn-lib-sidebar-options">
             <button
               v-for="k in keys"
               :key="k"
               type="button"
-              :class="['sbn-sidebar-option', { active: fKey === k }]"
+              :class="['sbn-lib-sidebar-option', { 'sbn-filter-active': fKey === k }]"
               @click="fKey = fKey === k ? '' : k"
             >{{ k }}</button>
           </div>
         </div>
 
         <!-- Composer -->
-        <div class="sbn-sidebar-section">
-          <span class="sbn-sidebar-label">Composer</span>
-          <div class="sbn-sidebar-options">
+        <div class="sbn-lib-sidebar-section">
+          <span class="sbn-lib-sidebar-label">Composer</span>
+          <div class="sbn-lib-sidebar-options">
             <button
               v-for="c in composers"
               :key="c"
               type="button"
-              :class="['sbn-sidebar-option', { active: fComposer === c }]"
+              :class="['sbn-lib-sidebar-option', { 'sbn-filter-active': fComposer === c }]"
               @click="fComposer = fComposer === c ? '' : c"
             >{{ c }}</button>
           </div>
         </div>
 
         <!-- Rhythm -->
-        <div class="sbn-sidebar-section">
-          <span class="sbn-sidebar-label">Rhythm / Style</span>
-          <div class="sbn-sidebar-options">
+        <div class="sbn-lib-sidebar-section">
+          <span class="sbn-lib-sidebar-label">Rhythm / Style</span>
+          <div class="sbn-lib-sidebar-options">
             <button
               v-for="r in rhythms"
               :key="r"
               type="button"
-              :class="['sbn-sidebar-option', { active: fRhythm === r }]"
+              :class="['sbn-lib-sidebar-option', { 'sbn-filter-active': fRhythm === r }]"
               @click="fRhythm = fRhythm === r ? '' : r"
             >{{ rhythmLabel(r) }}</button>
           </div>
         </div>
 
         <!-- Tempo -->
-        <div class="sbn-sidebar-section">
-          <span class="sbn-sidebar-label">Tempo</span>
-          <div class="sbn-sidebar-options">
+        <div class="sbn-lib-sidebar-section">
+          <span class="sbn-lib-sidebar-label">Tempo</span>
+          <div class="sbn-lib-sidebar-options">
             <button
               v-for="t in [{ val: 'slow', label: 'Slow (< 100)' }, { val: 'medium', label: 'Medium (100–140)' }, { val: 'fast', label: 'Fast (> 140)' }]"
               :key="t.val"
               type="button"
-              :class="['sbn-sidebar-option', { active: fTempo === t.val }]"
+              :class="['sbn-lib-sidebar-option', { 'sbn-filter-active': fTempo === t.val }]"
               @click="fTempo = fTempo === t.val ? '' : t.val"
             >{{ t.label }}</button>
           </div>
         </div>
 
-        <button type="button" class="sbn-clear-filters-btn" @click="clearFilters">
+        <button type="button" class="sbn-lib-sidebar-clear" @click="clearFilters">
           Clear All Filters
         </button>
       </aside>

@@ -17,6 +17,8 @@ interface Props {
   color?: string | null;
   /** Compact variant — slimmer cells. */
   mini?: boolean;
+  /** Cap the number of cells rendered (e.g. show only 1 bar in a 2-bar pattern). */
+  maxBeats?: number | null;
   /**
    * Video-sync playhead, in seconds of an embedded recording. When non-null,
    * the highlighted cell is driven by the video clock instead of the audio
@@ -38,6 +40,7 @@ const props = withDefaults(defineProps<Props>(), {
   showMeta: false,
   color: null,
   mini: false,
+  maxBeats: null,
   videoPlayhead: null,
   videoStartSec: 0,
   videoBpm: undefined,
@@ -96,11 +99,15 @@ const showPlayingIcon = computed(() =>
   isVideoDriven.value ? props.videoPlaying : isPlaying.value,
 );
 
+const displayBeats = computed(() =>
+  props.maxBeats ? Math.min(props.pattern.beats, props.maxBeats) : props.pattern.beats
+);
+
 const fingersArray = computed(() =>
-  (props.pattern.fingers || '').padEnd(props.pattern.beats, '.').split('')
+  (props.pattern.fingers || '').padEnd(props.pattern.beats, '.').split('').slice(0, displayBeats.value)
 );
 const thumbArray = computed(() =>
-  (props.pattern.thumb || '').padEnd(props.pattern.beats, '.').split('')
+  (props.pattern.thumb || '').padEnd(props.pattern.beats, '.').split('').slice(0, displayBeats.value)
 );
 
 const hasThumb = computed(() =>
@@ -307,16 +314,19 @@ defineExpose({ play, stop, toggle });
   display: flex;
   flex-direction: column;
   gap: 3px;
-  flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .sbn-rhythm-strip-row {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 1fr;
+  grid-auto-columns: 20px;
   gap: 3px;
-  flex: 1;
+}
+
+.sbn-rhythm-strip.is-mini .sbn-rhythm-strip-row {
+  grid-auto-columns: 16px;
 }
 
 /* Fingers row — full-height cells */

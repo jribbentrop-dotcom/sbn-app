@@ -589,26 +589,26 @@ function jumpToLevel(n: number) {
     <div class="sbn-page sbn-chord-library-main">
 
         <!-- ── Header ── -->
-        <header class="sbn-library-header">
-            <h1 class="sbn-library-title">Chord Dictionary</h1>
-            <p class="sbn-library-subtitle">Search by chord name or browse by category</p>
+        <div class="sbn-lib-page-header">
+            <h1 class="sbn-lib-page-title">Chord Dictionary</h1>
+            <p class="sbn-lib-page-subtitle">Search by chord name or browse by category</p>
 
-            <div class="sbn-search-container">
-                <div class="sbn-search-box">
-                    <svg class="sbn-search-icon" width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <div class="sbn-lib-search-wrap">
+                <div class="sbn-lib-search-box">
+                    <svg class="sbn-lib-search-icon" width="18" height="18" viewBox="0 0 20 20" fill="none">
                         <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2"/>
                         <path d="M13 13L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                     </svg>
                     <input
                         v-model="search"
                         type="search"
-                        class="sbn-search-input"
+                        class="sbn-lib-search-input"
                         placeholder="Try: maj7, drop 2, rootless…"
                         autocomplete="off"
                     />
                     <button
                         v-if="search"
-                        class="sbn-search-clear"
+                        class="sbn-lib-search-clear"
                         @click="search = ''"
                         aria-label="Clear search"
                     >
@@ -618,27 +618,6 @@ function jumpToLevel(n: number) {
                     </button>
                 </div>
             </div>
-        </header>
-
-        <!-- ── Count bar ── -->
-        <div class="sbn-count-bar">
-            <span v-if="searchLoading">Searching…</span>
-            <span v-else-if="usingTransposeSearch">
-                <strong>{{ visibleCount }}</strong> voicings for <em>{{ search }}</em>
-            </span>
-            <span v-else-if="hasFilters">
-                Showing <strong>{{ visibleCount }}</strong> of {{ totalCount }} voicings
-            </span>
-            <span v-else>
-                <strong>{{ totalCount }}</strong> voicings
-            </span>
-            <button v-if="hasFilters" class="sbn-count-clear" @click="clearFilters">
-                Clear filters
-            </button>
-        </div>
-
-        <div v-if="searchError" class="sbn-count-bar" style="color: var(--clr-danger, #c00);">
-            Search failed: {{ searchError }}
         </div>
 
         <!-- ── Content wrapper: grid left, sidebar right ── -->
@@ -957,96 +936,104 @@ function jumpToLevel(n: number) {
             </div>
 
             <!-- Filter Sidebar -->
-            <aside class="sbn-filter-sidebar">
-                <div class="sbn-sidebar-header">
+            <aside class="sbn-lib-filter-sidebar">
+                <div class="sbn-lib-sidebar-header">
                     <h3>Filters</h3>
+                    <span class="sbn-lib-sidebar-count">
+                        <template v-if="searchLoading">Searching…</template>
+                        <template v-else-if="usingTransposeSearch"><strong>{{ visibleCount }}</strong> voicings for <em>{{ search }}</em></template>
+                        <template v-else-if="hasFilters"><strong>{{ visibleCount }}</strong> of {{ totalCount }} voicings</template>
+                        <template v-else><strong>{{ totalCount }}</strong> voicings</template>
+                        <span v-if="searchError" style="color: var(--clr-danger, #c00);">Search failed</span>
+                        <button v-if="hasFilters" class="sbn-lib-clear-btn" @click="clearFilters">Clear</button>
+                    </span>
                 </div>
 
                 <!-- Quality -->
-                <div class="sbn-sidebar-section">
-                    <span class="sbn-sidebar-label">Chord Quality</span>
-                    <div class="sbn-sidebar-options">
+                <div class="sbn-lib-sidebar-section">
+                    <span class="sbn-lib-sidebar-label">Chord Quality</span>
+                    <div class="sbn-lib-sidebar-options">
                         <button
                             v-for="q in allQualities"
                             :key="q.key"
-                            class="sbn-sidebar-option"
-                            :class="{ active: fQuality === q.key }"
+                            class="sbn-lib-sidebar-option"
+                            :class="{ 'sbn-filter-active': fQuality === q.key }"
                             @click="fQuality = fQuality === q.key ? '' : q.key"
                         >{{ q.key }}</button>
                     </div>
                 </div>
 
                 <!-- Voicing type -->
-                <div class="sbn-sidebar-section">
-                    <span class="sbn-sidebar-label">Voicing Type</span>
-                    <div class="sbn-sidebar-options">
+                <div class="sbn-lib-sidebar-section">
+                    <span class="sbn-lib-sidebar-label">Voicing Type</span>
+                    <div class="sbn-lib-sidebar-options">
                         <button
                             v-for="v in allVoicings"
                             :key="v.key"
-                            class="sbn-sidebar-option"
-                            :class="{ active: fVoicing === v.key }"
+                            class="sbn-lib-sidebar-option"
+                            :class="{ 'sbn-filter-active': fVoicing === v.key }"
                             @click="fVoicing = fVoicing === v.key ? '' : v.key"
                         >{{ v.label }}</button>
                     </div>
                 </div>
 
                 <!-- Popularity -->
-                <div class="sbn-sidebar-section">
-                    <span class="sbn-sidebar-label">Popularity</span>
-                    <div class="sbn-sidebar-options">
+                <div class="sbn-lib-sidebar-section">
+                    <span class="sbn-lib-sidebar-label">Popularity</span>
+                    <div class="sbn-lib-sidebar-options">
                         <button
                             v-for="p in popularityOptions"
                             :key="p.key"
-                            class="sbn-sidebar-option"
-                            :class="{ active: fPop === p.key }"
+                            class="sbn-lib-sidebar-option"
+                            :class="{ 'sbn-filter-active': fPop === p.key }"
                             @click="fPop = fPop === p.key ? '' : p.key"
                         >{{ p.label }}</button>
                     </div>
                 </div>
 
                 <!-- Difficulty -->
-                <div class="sbn-sidebar-section">
-                    <span class="sbn-sidebar-label">Difficulty</span>
-                    <div class="sbn-sidebar-options">
+                <div class="sbn-lib-sidebar-section">
+                    <span class="sbn-lib-sidebar-label">Difficulty</span>
+                    <div class="sbn-lib-sidebar-options">
                         <button
                             v-for="d in difficultyOptions"
                             :key="d.key"
-                            class="sbn-sidebar-option"
-                            :class="{ active: fDiff === d.key }"
+                            class="sbn-lib-sidebar-option"
+                            :class="{ 'sbn-filter-active': fDiff === d.key }"
                             @click="fDiff = fDiff === d.key ? '' : d.key"
                         >{{ d.label }}</button>
                     </div>
                 </div>
 
                 <!-- Inversions -->
-                <div v-if="allInversions.length" class="sbn-sidebar-section">
-                    <span class="sbn-sidebar-label">Inversion</span>
-                    <div class="sbn-sidebar-options">
+                <div v-if="allInversions.length" class="sbn-lib-sidebar-section">
+                    <span class="sbn-lib-sidebar-label">Inversion</span>
+                    <div class="sbn-lib-sidebar-options">
                         <button
                             v-for="inv in allInversions"
                             :key="inv.key"
-                            class="sbn-sidebar-option"
-                            :class="{ active: fInv === inv.key }"
+                            class="sbn-lib-sidebar-option"
+                            :class="{ 'sbn-filter-active': fInv === inv.key }"
                             @click="fInv = fInv === inv.key ? '' : inv.key"
                         >{{ inv.label }}</button>
                     </div>
                 </div>
 
                 <!-- Extensions -->
-                <div v-if="allExtensions.length" class="sbn-sidebar-section">
-                    <span class="sbn-sidebar-label">Extensions</span>
-                    <div class="sbn-sidebar-options">
+                <div v-if="allExtensions.length" class="sbn-lib-sidebar-section">
+                    <span class="sbn-lib-sidebar-label">Extensions</span>
+                    <div class="sbn-lib-sidebar-options">
                         <button
                             v-for="ext in allExtensions"
                             :key="ext"
-                            class="sbn-sidebar-option"
-                            :class="{ active: fExt === ext }"
+                            class="sbn-lib-sidebar-option"
+                            :class="{ 'sbn-filter-active': fExt === ext }"
                             @click="fExt = fExt === ext ? '' : ext"
                         >{{ ext }}</button>
                     </div>
                 </div>
 
-                <button v-if="hasFilters" class="sbn-clear-filters-btn" @click="clearFilters">
+                <button v-if="hasFilters" class="sbn-lib-sidebar-clear" @click="clearFilters">
                     Clear All Filters
                 </button>
             </aside>

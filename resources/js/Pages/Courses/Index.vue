@@ -22,14 +22,22 @@ const props = defineProps<{
 
 defineOptions({ layout: PublicLayout });
 
+const search      = ref('');
 const filterGenre = ref('');
 const filterLevel = ref('');
 
 const filtered = computed(() => props.courses.filter((course) => {
   if (filterGenre.value && course.primaryGenre !== filterGenre.value) return false;
   if (filterLevel.value && course.primaryLevel !== filterLevel.value) return false;
+  if (search.value.trim()) {
+    const q = search.value.toLowerCase();
+    const hay = [course.title, course.excerpt, course.primaryGenre].filter(Boolean).join(' ').toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
   return true;
 }));
+
+const hasFilters = computed(() => !!(search.value || filterGenre.value || filterLevel.value));
 
 const grouped = computed(() => {
   const groups: Record<string, CourseData[]> = {};
@@ -40,28 +48,59 @@ const grouped = computed(() => {
   }
   return groups;
 });
+
+function clearFilters() {
+  search.value      = '';
+  filterGenre.value = '';
+  filterLevel.value = '';
+}
 </script>
 
 <template>
   <main class="sbn-page sbn-course-library-main">
-    <header class="sbn-library-header">
-      <h1 class="sbn-library-title">Course Library</h1>
-      <p class="sbn-library-subtitle">Structured pathways from basics to advanced performance skills.</p>
-    </header>
+    <div class="sbn-lib-page-header">
+      <h1 class="sbn-lib-page-title">Course Library</h1>
+      <p class="sbn-lib-page-subtitle">Structured pathways from basics to advanced performance skills.</p>
 
-    <div class="sbn-count-bar">
-      <strong>{{ filtered.length }}</strong> courses
+      <div class="sbn-lib-search-wrap">
+        <div class="sbn-lib-search-box">
+          <svg class="sbn-lib-search-icon" width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M15 15l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          <input
+            v-model="search"
+            type="text"
+            class="sbn-lib-search-input"
+            placeholder="Search courses..."
+            autocomplete="off"
+          />
+          <button
+            v-if="search"
+            @click="search = ''"
+            class="sbn-lib-search-clear"
+            aria-label="Clear search"
+          >
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
 
-    <div class="sbn-content-wrapper">
-      <section class="sbn-results-container">
-        <div v-if="filterGenre || filterLevel" class="sbn-courses-grid">
+    <div class="sbn-lib-content-wrapper">
+      <section class="sbn-lib-list-container">
+        <div v-if="hasFilters" class="sbn-courses-grid">
           <CourseCard v-for="course in filtered" :key="course.id" :course="course" />
         </div>
 
         <template v-else>
-          <section v-for="(items, genre) in grouped" :key="genre" class="sbn-course-genre-section">
-            <h2>{{ String(genre).replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }}</h2>
+          <section v-for="(items, genre) in grouped" :key="genre" class="sbn-lib-category-section">
+            <h2 class="sbn-lib-category-header" :class="`sbn-lib-category-header--${genre}`">
+              {{ String(genre).replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }}
+              <span class="sbn-lib-category-count">{{ items.length }}</span>
+            </h2>
             <div class="sbn-courses-carousel">
               <CourseCard v-for="course in items" :key="course.id" :course="course" />
             </div>
@@ -69,19 +108,44 @@ const grouped = computed(() => {
         </template>
       </section>
 
-      <aside class="sbn-filter-sidebar">
-        <div class="sbn-sidebar-section">
-          <span class="sbn-sidebar-label">Category</span>
-          <div class="sbn-sidebar-options">
-            <button v-for="cat in categories" :key="cat" type="button" :class="['sbn-sidebar-option', { active: filterGenre === cat }]" @click="filterGenre = filterGenre === cat ? '' : cat">{{ cat.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }}</button>
+      <aside class="sbn-lib-filter-sidebar">
+        <div class="sbn-lib-sidebar-header">
+          <h3>Filter</h3>
+          <span class="sbn-lib-sidebar-count">
+            <strong>{{ filtered.length }}</strong> course{{ filtered.length !== 1 ? 's' : '' }}
+            <button v-if="hasFilters" type="button" class="sbn-lib-clear-btn" @click="clearFilters">Clear</button>
+          </span>
+        </div>
+
+        <div class="sbn-lib-sidebar-section">
+          <span class="sbn-lib-sidebar-label">Category</span>
+          <div class="sbn-lib-sidebar-options">
+            <button
+              v-for="cat in categories"
+              :key="cat"
+              type="button"
+              :class="['sbn-lib-sidebar-option', { 'sbn-filter-active': filterGenre === cat }]"
+              @click="filterGenre = filterGenre === cat ? '' : cat"
+            >{{ cat.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }}</button>
           </div>
         </div>
-        <div class="sbn-sidebar-section">
-          <span class="sbn-sidebar-label">Level</span>
-          <div class="sbn-sidebar-options">
-            <button v-for="level in levels" :key="level" type="button" :class="['sbn-sidebar-option', { active: filterLevel === level }]" @click="filterLevel = filterLevel === level ? '' : level">{{ level }}</button>
+
+        <div class="sbn-lib-sidebar-section">
+          <span class="sbn-lib-sidebar-label">Level</span>
+          <div class="sbn-lib-sidebar-options">
+            <button
+              v-for="level in levels"
+              :key="level"
+              type="button"
+              :class="['sbn-lib-sidebar-option', { 'sbn-filter-active': filterLevel === level }]"
+              @click="filterLevel = filterLevel === level ? '' : level"
+            >{{ level }}</button>
           </div>
         </div>
+
+        <button v-if="hasFilters" class="sbn-lib-sidebar-clear" @click="clearFilters">
+          Clear all filters
+        </button>
       </aside>
     </div>
   </main>

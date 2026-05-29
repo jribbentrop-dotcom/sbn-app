@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { ref, computed, watch } from 'vue';
+import { Link, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import type { RhythmPatternWithMeta } from '@/Components/Library/RhythmPattern.vue';
@@ -8,131 +8,234 @@ import { getCategoryColor } from '@/composables/useCategoryColors';
 
 defineOptions({ layout: PublicLayout });
 
+interface RhythmPatternWithCount extends RhythmPatternWithMeta {
+  songCount: number;
+  tags: string[];
+}
+
 interface Props {
-  patterns: RhythmPatternWithMeta[];
-  grouped: Record<string, RhythmPatternWithMeta[]>;
+  patterns: RhythmPatternWithCount[];
   categories: string[];
   timeSignatures: string[];
   gridTypes: string[];
   totalCount: number;
+  activeFilters: {
+    sort?: string;
+    search?: string;
+    category?: string;
+  };
 }
 
 const props = defineProps<Props>();
 
-// ── Filter state ───────────────────────────────────────────
-const search = ref('');
-const fCategory = ref('');
-const fTimeSig = ref('');
+// ── Filter state ────────────────────────────────────────
+const search    = ref(props.activeFilters.search   || '');
+const fCategory = ref(props.activeFilters.category || '');
+const fTimeSig  = ref('');
 const fGridType = ref('');
+const fSort     = ref(props.activeFilters.sort || 'popularity');
 
-// ── Client-side filtering ──────────────────────────────────
-function matchesFilters(p: RhythmPatternWithMeta): boolean {
-  // Text search
+// ── Client-side filtering ────────────────────────────────
+function matchesFilters(p: RhythmPatternWithCount): boolean {
   if (search.value.trim()) {
     const q = search.value.toLowerCase();
     const haystack = [p.name, p.category, p.description]
       .filter(Boolean).join(' ').toLowerCase();
     if (!haystack.includes(q)) return false;
   }
-
   if (fCategory.value && p.category !== fCategory.value) return false;
-  if (fTimeSig.value && p.timeSignature !== fTimeSig.value) return false;
-  if (fGridType.value && p.gridType !== fGridType.value) return false;
-
+  if (fTimeSig.value  && p.timeSignature !== fTimeSig.value)  return false;
+  if (fGridType.value && p.gridType      !== fGridType.value) return false;
   return true;
 }
 
 const filteredPatterns = computed(() => {
-  return props.patterns.filter(matchesFilters);
+  let result = props.patterns.filter(matchesFilters);
+  if (fSort.value === 'name') {
+    result = [...result].sort((a, b) => a.name.localeCompare(b.name));
+  } else if (fSort.value === 'category') {
+    result = [...result].sort((a, b) => a.category.localeCompare(b.category));
+  }
+  // popularity: server already sorted descending, preserve order
+  return result;
 });
 
 const hasFilters = computed(() =>
   !!(search.value || fCategory.value || fTimeSig.value || fGridType.value)
 );
 
-function clearFilters() {
-  search.value = '';
-  fCategory.value = '';
-  fTimeSig.value = '';
-  fGridType.value = '';
-}
+const isGroupedView = computed(() => fSort.value === 'category');
 
-// ── Grouped display ────────────────────────────────────────
+// ── Grouped display (category sort only) ────────────────
 const filteredGrouped = computed(() => {
-  const grouped: Record<string, RhythmPatternWithMeta[]> = {};
-  for (const pattern of filteredPatterns.value) {
-    if (!grouped[pattern.category]) {
-      grouped[pattern.category] = [];
-    }
-    grouped[pattern.category].push(pattern);
+  const grouped: Record<string, RhythmPatternWithCount[]> = {};
+  for (const p of filteredPatterns.value) {
+    if (!grouped[p.category]) grouped[p.category] = [];
+    grouped[p.category].push(p);
   }
   return grouped;
 });
+
+// ── Popularity tier ──────────────────────────────────────
+function getPopularityTier(count: number): { tier: string; label: string } {
+  if (count >= 10) return { tier: 'iconic',     label: 'Iconic' };
+  if (count >= 5)  return { tier: 'essential',  label: 'Essential' };
+  if (count >= 2)  return { tier: 'common',     label: 'Common' };
+  return                   { tier: 'occasional', label: 'Rare' };
+}
+
+// ── URL sync ─────────────────────────────────────────────
+watch([search, fCategory, fSort], () => {
+  const params: Record<string, string> = {};
+  if (search.value)                          params.search   = search.value;
+  if (fCategory.value)                       params.category = fCategory.value;
+  if (fSort.value && fSort.value !== 'popularity') params.sort = fSort.value;
+
+  router.get('/library/rhythms', params, { preserveState: true, replace: true });
+}, { deep: true });
+
+function clearFilters() {
+  search.value    = '';
+  fCategory.value = '';
+  fTimeSig.value  = '';
+  fGridType.value = '';
+  fSort.value     = 'popularity';
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  'bossa-nova': 'Bossa Nova',
+  'jazz':       'Jazz',
+  'classical':  'Classical',
+  'pop':        'Pop',
+};
+
 </script>
 
 <template>
   <div class="sbn-page sbn-rhythm-library-main">
-    <!-- ── Header ── -->
-    <header class="sbn-library-header">
-      <h1 class="sbn-library-title">Rhythm Patterns</h1>
-      <p class="sbn-library-subtitle">Browse and play percussion patterns</p>
 
-      <div class="sbn-search-container">
-        <div class="sbn-search-box">
-          <svg class="sbn-search-icon" width="18" height="18" viewBox="0 0 20 20" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2"/>
-            <path d="M13 13L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <!-- ── Header ── -->
+    <div class="sbn-lib-page-header">
+      <h1 class="sbn-lib-page-title">Rhythm Pattern Library</h1>
+      <p class="sbn-lib-page-subtitle">
+        Explore percussion and strumming patterns ranked by how often they appear in the song library.
+      </p>
+
+      <div class="sbn-lib-search-wrap">
+        <div class="sbn-lib-search-box">
+          <svg class="sbn-lib-search-icon" width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M15 15l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           </svg>
           <input
             v-model="search"
-            type="search"
-            class="sbn-search-input"
+            type="text"
+            class="sbn-lib-search-input"
             placeholder="Search patterns..."
             autocomplete="off"
           />
           <button
             v-if="search"
-            class="sbn-search-clear"
             @click="search = ''"
+            class="sbn-lib-search-clear"
             aria-label="Clear search"
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
           </button>
         </div>
       </div>
-    </header>
-
-    <!-- ── Count bar ── -->
-    <div class="sbn-count-bar">
-      <span v-if="hasFilters">
-        Showing <strong>{{ filteredPatterns.length }}</strong> of {{ totalCount }} patterns
-      </span>
-      <span v-else>
-        <strong>{{ totalCount }}</strong> patterns
-      </span>
-      <button v-if="hasFilters" class="sbn-count-clear" @click="clearFilters">
-        Clear filters
-      </button>
     </div>
 
     <!-- ── Content wrapper ── -->
-    <div class="sbn-content-wrapper">
-      <!-- Results -->
-      <div class="sbn-results-container">
-        <div v-if="filteredPatterns.length" class="sbn-patterns-by-category">
+    <div class="sbn-lib-content-wrapper">
+
+      <!-- ── Main list / grid ── -->
+      <div class="sbn-lib-list-container">
+
+        <!-- ── HITLIST VIEW (popularity / name sort) ── -->
+        <div v-if="!isGroupedView && filteredPatterns.length" class="sbn-lib-hitlist" role="list">
+          <div
+            v-for="(pattern, index) in filteredPatterns"
+            :key="pattern.id"
+            class="sbn-lib-row"
+            role="listitem"
+          >
+            <!-- Rank -->
+            <div class="sbn-hitlist-rank">{{ index + 1 }}</div>
+
+            <!-- Body -->
+            <div class="sbn-lib-row-body">
+              <!-- Top badges -->
+              <div class="sbn-lib-row-top">
+                <span
+                  class="sbn-cat-badge sbn-cat-badge-filled"
+                  :style="{ '--cat-clr': getCategoryColor(pattern.category) }"
+                >
+                  {{ CATEGORY_LABELS[pattern.category] || pattern.category }}
+                </span>
+                <span class="sbn-badge sbn-badge-muted">{{ pattern.timeSignature }}</span>
+                <span class="sbn-badge sbn-badge-muted">{{ pattern.bpm }} BPM</span>
+                <span
+                  v-if="pattern.gridType !== 'sixteenth'"
+                  class="sbn-badge"
+                  :class="`sbn-badge-grid-${pattern.gridType}`"
+                >{{ pattern.gridType }}</span>
+                <span v-for="tag in pattern.tags" :key="tag" class="sbn-hashtag">#{{ tag }}</span>
+              </div>
+
+              <!-- Title -->
+              <h3 class="sbn-lib-row-title">
+                <Link :href="`/library/rhythms/${pattern.slug}`" class="sbn-lib-row-link">
+                  {{ pattern.name }}
+                </Link>
+              </h3>
+
+              <!-- Description -->
+              <p v-if="pattern.description" class="sbn-lib-row-desc">{{ pattern.description }}</p>
+
+              <!-- RhythmStrip preview -->
+              <div class="sbn-rlib-row-strip">
+                <RhythmStrip :pattern="pattern" :show-meta="false" :color="getCategoryColor(pattern.styleSlug)" :max-beats="16" />
+              </div>
+
+              <!-- Popularity phrase -->
+              <p v-if="pattern.songCount > 0" class="sbn-lib-row-popularity-phrase">
+                This is a
+                <span
+                  class="sbn-card-pop"
+                  :class="`sbn-pop-${getPopularityTier(pattern.songCount).tier}`"
+                >{{ getPopularityTier(pattern.songCount).label }}</span>
+                rhythm pattern that appears in
+                <strong>{{ pattern.songCount }} song{{ pattern.songCount !== 1 ? 's' : '' }}</strong>
+                in the library.
+              </p>
+
+              <!-- Read more -->
+              <Link :href="`/library/rhythms/${pattern.slug}`" class="sbn-lib-row-read-more">
+                View {{ pattern.name }}
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                  <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── GROUPED VIEW (category sort) ── -->
+        <div v-else-if="isGroupedView && filteredPatterns.length" class="sbn-patterns-by-category">
           <div
             v-for="(patterns, category) in filteredGrouped"
             :key="category"
-            class="sbn-category-section"
+            class="sbn-lib-category-section"
           >
             <h2
-              class="sbn-category-header"
-              :class="`sbn-category-header--${patterns[0]?.styleSlug || 'pop'}`"
+              class="sbn-lib-category-header"
+              :class="`sbn-lib-category-header--${patterns[0]?.styleSlug || 'pop'}`"
             >
-              {{ category }}
-              <span class="sbn-category-count">{{ patterns.length }}</span>
+              {{ CATEGORY_LABELS[category] || category }}
+              <span class="sbn-lib-category-count">{{ patterns.length }}</span>
             </h2>
             <div class="sbn-patterns-list">
               <Link
@@ -140,7 +243,7 @@ const filteredGrouped = computed(() => {
                 :key="pattern.id"
                 :href="`/library/rhythms/${pattern.slug}`"
                 class="sbn-pattern-row"
-                :class="`sbn-pattern-row--${patterns[0]?.styleSlug || 'pop'}`"
+                :class="`sbn-pattern-row--${pattern.styleSlug || 'pop'}`"
               >
                 <div class="sbn-pattern-row-head">
                   <span class="sbn-pattern-row-name">{{ pattern.name }}</span>
@@ -151,7 +254,10 @@ const filteredGrouped = computed(() => {
                   </span>
                 </div>
                 <p v-if="pattern.description" class="sbn-pattern-row-desc">{{ pattern.description }}</p>
-                <RhythmStrip :pattern="pattern" :show-meta="false" :color="getCategoryColor(pattern.styleSlug)" />
+                <RhythmStrip :pattern="pattern" :show-meta="false" :color="getCategoryColor(pattern.styleSlug)" :max-beats="16" />
+                <span v-if="pattern.songCount > 0" class="sbn-pattern-row-song-count">
+                  {{ pattern.songCount }} song{{ pattern.songCount !== 1 ? 's' : '' }}
+                </span>
               </Link>
             </div>
           </div>
@@ -168,62 +274,78 @@ const filteredGrouped = computed(() => {
         </div>
       </div>
 
-      <!-- Filter Sidebar -->
-      <aside class="sbn-filter-sidebar">
-        <div class="sbn-sidebar-header">
-          <h3>Filters</h3>
+      <!-- ── Filter Sidebar ── -->
+      <aside class="sbn-lib-filter-sidebar">
+        <div class="sbn-lib-sidebar-header">
+          <h3>Filter</h3>
+          <span class="sbn-lib-sidebar-count">
+            {{ filteredPatterns.length }}{{ hasFilters ? ` of ${totalCount}` : '' }}
+            pattern{{ filteredPatterns.length !== 1 ? 's' : '' }}
+            <button v-if="hasFilters" class="sbn-lib-clear-btn" @click="clearFilters">Clear</button>
+          </span>
+        </div>
+
+        <!-- Sort -->
+        <div class="sbn-lib-sidebar-section">
+          <span class="sbn-lib-sidebar-label">Sort by</span>
+          <div class="sbn-lib-sidebar-options">
+            <button
+              :class="['sbn-lib-sidebar-option', { 'sbn-sort-active': fSort === 'popularity' }]"
+              @click="fSort = 'popularity'"
+            >Most songs</button>
+            <button
+              :class="['sbn-lib-sidebar-option', { 'sbn-sort-active': fSort === 'name' }]"
+              @click="fSort = 'name'"
+            >A–Z</button>
+            <button
+              :class="['sbn-lib-sidebar-option', { 'sbn-sort-active': fSort === 'category' }]"
+              @click="fSort = 'category'"
+            >Style</button>
+          </div>
         </div>
 
         <!-- Category -->
-        <div class="sbn-sidebar-section">
-          <span class="sbn-sidebar-label">Category</span>
-          <div class="sbn-sidebar-options">
+        <div class="sbn-lib-sidebar-section">
+          <span class="sbn-lib-sidebar-label">Category</span>
+          <div class="sbn-lib-sidebar-options">
             <button
               v-for="cat in categories"
               :key="cat"
-              class="sbn-sidebar-option"
-              :class="{ active: fCategory === cat }"
+              :class="['sbn-lib-sidebar-option', { 'sbn-filter-active': fCategory === cat }]"
+              :style="{ '--cat-clr': getCategoryColor(cat) }"
               @click="fCategory = fCategory === cat ? '' : cat"
-            >
-              {{ cat }}
-            </button>
+            >{{ CATEGORY_LABELS[cat] || cat }}</button>
           </div>
         </div>
 
         <!-- Time Signature -->
-        <div v-if="timeSignatures.length" class="sbn-sidebar-section">
-          <span class="sbn-sidebar-label">Time Signature</span>
-          <div class="sbn-sidebar-options">
+        <div v-if="timeSignatures.length" class="sbn-lib-sidebar-section">
+          <span class="sbn-lib-sidebar-label">Time Signature</span>
+          <div class="sbn-lib-sidebar-options">
             <button
               v-for="ts in timeSignatures"
               :key="ts"
-              class="sbn-sidebar-option"
-              :class="{ active: fTimeSig === ts }"
+              :class="['sbn-lib-sidebar-option', { 'sbn-sort-active': fTimeSig === ts }]"
               @click="fTimeSig = fTimeSig === ts ? '' : ts"
-            >
-              {{ ts }}
-            </button>
+            >{{ ts }}</button>
           </div>
         </div>
 
         <!-- Grid Type -->
-        <div class="sbn-sidebar-section">
-          <span class="sbn-sidebar-label">Grid Type</span>
-          <div class="sbn-sidebar-options">
+        <div class="sbn-lib-sidebar-section">
+          <span class="sbn-lib-sidebar-label">Grid Type</span>
+          <div class="sbn-lib-sidebar-options">
             <button
               v-for="gt in gridTypes"
               :key="gt"
-              class="sbn-sidebar-option"
-              :class="{ active: fGridType === gt }"
+              :class="['sbn-lib-sidebar-option', { 'sbn-sort-active': fGridType === gt }]"
               @click="fGridType = fGridType === gt ? '' : gt"
-            >
-              {{ gt }}
-            </button>
+            >{{ gt }}</button>
           </div>
         </div>
 
-        <button v-if="hasFilters" class="sbn-clear-filters-btn" @click="clearFilters">
-          Clear All Filters
+        <button v-if="hasFilters || fSort !== 'popularity'" class="sbn-lib-sidebar-clear" @click="clearFilters">
+          Clear all filters
         </button>
       </aside>
     </div>
@@ -231,48 +353,21 @@ const filteredGrouped = computed(() => {
 </template>
 
 <style scoped>
-/* Category sections */
-.sbn-category-section {
-  margin-bottom: 32px;
+/* ── Rhythm-specific: strip sizing in library list ── */
+.sbn-rlib-row-strip {
+  margin-bottom: 10px;
 }
-
-.sbn-category-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: #fff;
-  margin: 0 0 14px;
-  padding: 10px 16px;
-  border-radius: var(--radius);
-  background: var(--cat-color, var(--clr-style-default));
+.sbn-rlib-row-strip :deep(.sbn-rhythm-strip-row) {
+  grid-auto-columns: 28px;
+  gap: 4px;
 }
+.sbn-rlib-row-strip :deep(.sbn-rhythm-strip-cell) { height: 28px; }
+.sbn-rlib-row-strip :deep(.sbn-rhythm-strip-cell.is-rest) { height: 8px; }
+.sbn-rlib-row-strip :deep(.sbn-rhythm-strip-row-thumb) { height: 10px; }
+.sbn-rlib-row-strip :deep(.sbn-rhythm-strip-cell-thumb) { height: 10px; }
+.sbn-rlib-row-strip :deep(.sbn-rhythm-strip-cell-thumb.is-rest) { height: 4px; }
 
-.sbn-category-header--bossa    { --cat-color: linear-gradient(100deg, var(--clr-style-bossa), color-mix(in srgb, var(--clr-style-bossa) 40%, white)); }
-.sbn-category-header--jazz     { --cat-color: linear-gradient(100deg, var(--clr-style-jazz), color-mix(in srgb, var(--clr-style-jazz) 40%, white)); }
-.sbn-category-header--samba    { --cat-color: linear-gradient(100deg, var(--clr-style-samba), color-mix(in srgb, var(--clr-style-samba) 40%, white)); }
-.sbn-category-header--latin    { --cat-color: linear-gradient(100deg, var(--clr-style-latin), color-mix(in srgb, var(--clr-style-latin) 40%, white)); }
-.sbn-category-header--cuban    { --cat-color: linear-gradient(100deg, var(--clr-style-cuban), color-mix(in srgb, var(--clr-style-cuban) 40%, white)); }
-.sbn-category-header--blues    { --cat-color: linear-gradient(100deg, var(--clr-style-blues), color-mix(in srgb, var(--clr-style-blues) 40%, white)); }
-.sbn-category-header--pop      { --cat-color: linear-gradient(100deg, var(--clr-style-pop), color-mix(in srgb, var(--clr-style-pop) 40%, white)); }
-.sbn-category-header--classical{ --cat-color: linear-gradient(100deg, var(--clr-style-classical), color-mix(in srgb, var(--clr-style-classical) 40%, white)); }
-.sbn-category-header--gold     { --cat-color: linear-gradient(100deg, var(--clr-style-gold), color-mix(in srgb, var(--clr-style-gold) 40%, white)); }
-.sbn-category-header--general  { --cat-color: linear-gradient(100deg, var(--clr-style-general), color-mix(in srgb, var(--clr-style-general) 40%, white)); }
-.sbn-category-header--brazilian{ --cat-color: linear-gradient(100deg, var(--clr-style-bossa), color-mix(in srgb, var(--clr-style-bossa) 40%, white)); }
 
-.sbn-category-count {
-  font-weight: 500;
-  font-size: 12px;
-  opacity: 0.8;
-  background: rgba(255,255,255,0.2);
-  padding: 1px 7px;
-  border-radius: 999px;
-}
-
-/* Patterns list */
 .sbn-patterns-list {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -290,23 +385,13 @@ const filteredGrouped = computed(() => {
   text-decoration: none;
   color: inherit;
   transition: border-color 0.15s var(--ease);
+  overflow: hidden;
 }
-
-.sbn-pattern-row:hover {
-  border-color: var(--clr-text-muted);
-}
-
-.sbn-pattern-row--bossa     { --row-color: var(--clr-style-bossa); }
-.sbn-pattern-row--jazz      { --row-color: var(--clr-style-jazz); }
-.sbn-pattern-row--samba     { --row-color: var(--clr-style-samba); }
-.sbn-pattern-row--latin     { --row-color: var(--clr-style-latin); }
-.sbn-pattern-row--cuban     { --row-color: var(--clr-style-cuban); }
-.sbn-pattern-row--blues     { --row-color: var(--clr-style-blues); }
-.sbn-pattern-row--pop       { --row-color: var(--clr-style-pop); }
-.sbn-pattern-row--classical { --row-color: var(--clr-style-classical); }
-.sbn-pattern-row--gold      { --row-color: var(--clr-style-gold); }
-.sbn-pattern-row--general   { --row-color: var(--clr-style-general); }
-.sbn-pattern-row--brazilian { --row-color: var(--clr-style-bossa); }
+.sbn-pattern-row:hover { border-color: var(--clr-text); }
+.sbn-pattern-row--bossa-nova { --row-color: var(--clr-style-bossa); }
+.sbn-pattern-row--jazz       { --row-color: var(--clr-style-jazz); }
+.sbn-pattern-row--classical  { --row-color: var(--clr-style-classical); }
+.sbn-pattern-row--pop        { --row-color: var(--clr-style-pop); }
 
 .sbn-pattern-row-desc {
   margin: 0;
@@ -319,54 +404,30 @@ const filteredGrouped = computed(() => {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-
 .sbn-pattern-row-head {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
-
 .sbn-pattern-row-name {
   font-size: 16px;
   font-weight: 700;
   color: var(--clr-text);
   flex: 1;
 }
-
 .sbn-pattern-row-badges {
   display: flex;
   gap: 5px;
   flex-wrap: wrap;
 }
-
-/* No results */
-.sbn-no-results {
-  text-align: center;
-  padding: 60px 20px;
+.sbn-pattern-row-song-count {
+  font-size: 11px;
   color: var(--clr-text-muted);
+  font-weight: 500;
 }
 
-.sbn-no-results h3 {
-  font-size: 1.1em;
-  font-weight: 600;
-  margin: 16px 0 8px;
-  color: var(--clr-text-dim);
-}
-
-.sbn-no-results p {
-  font-size: 0.9em;
-  margin: 0;
-}
-
-/* Responsive */
 @media (max-width: 768px) {
-  .sbn-patterns-list {
-    grid-template-columns: 1fr;
-  }
-
-  .sbn-category-header {
-    font-size: 12px;
-  }
+  .sbn-patterns-list { grid-template-columns: 1fr; }
 }
 </style>

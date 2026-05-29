@@ -12,27 +12,37 @@ use Inertia\Inertia;
 class RhythmLibraryController extends Controller
 {
 
-    public function index()
+    public function index(Request $request)
     {
-        $patterns = RhythmPattern::ordered()
-            ->get()
-            ->map(fn ($p) => $this->serializePattern($p));
+        $sort = $request->get('sort', 'popularity');
 
-        // Group by category for display
-        $grouped = $patterns->groupBy('category');
+        $raw = RhythmPattern::withSongCounts();
+        $patterns = $raw->map(fn ($p) => $this->serializePattern($p, $p->song_count ?? 0));
 
-        // Get unique filter values
-        $categories = $patterns->pluck('category')->unique()->sort()->values()->all();
-        $timeSignatures = $patterns->pluck('timeSignature')->unique()->sort()->values()->all();
-        $gridTypes = $patterns->pluck('gridType')->unique()->sort()->values()->all();
+        // Sort server-side so the collection order matches what the frontend expects
+        if ($sort === 'name') {
+            $patterns = $patterns->sortBy('name')->values();
+        } elseif ($sort === 'category') {
+            $patterns = $patterns->sortBy('category')->values();
+        } else {
+            $patterns = $patterns->sortByDesc('songCount')->values();
+        }
+
+        $categories = $raw->pluck('category')->unique()->sort()->values()->all();
+        $timeSignatures = $raw->pluck('time_signature')->unique()->sort()->values()->all();
+        $gridTypes = $raw->pluck('grid_type')->unique()->sort()->values()->all();
 
         return Inertia::render('Library/Rhythms/Index', [
-            'patterns' => $patterns,
-            'grouped' => $grouped,
-            'categories' => $categories,
+            'patterns'       => $patterns,
+            'categories'     => $categories,
             'timeSignatures' => $timeSignatures,
-            'gridTypes' => $gridTypes,
-            'totalCount' => $patterns->count(),
+            'gridTypes'      => $gridTypes,
+            'totalCount'     => $patterns->count(),
+            'activeFilters'  => [
+                'sort'     => $sort,
+                'search'   => $request->get('search', ''),
+                'category' => $request->get('category', ''),
+            ],
         ]);
     }
 
@@ -69,27 +79,28 @@ class RhythmLibraryController extends Controller
         ]);
     }
 
-    public function serializePattern(RhythmPattern $pattern): array
+    public function serializePattern(RhythmPattern $pattern, int $songCount = 0): array
     {
         $styleSlug = $pattern->styleSlug();
 
         return [
-            'id' => $pattern->id,
-            'slug' => $pattern->slug,
-            'name' => $pattern->name,
-            'description' => $pattern->description,
-            'category' => $pattern->category,
-            'styleSlug' => $styleSlug,
+            'id'            => $pattern->id,
+            'slug'          => $pattern->slug,
+            'name'          => $pattern->name,
+            'description'   => $pattern->description,
+            'category'      => $pattern->category,
+            'styleSlug'     => $styleSlug,
             'timeSignature' => $pattern->time_signature,
-            'beats' => $pattern->beats,
-            'gridType' => $pattern->grid_type,
-            'bpm' => $pattern->default_bpm,
-            'thumb' => $pattern->thumb_pattern,
-            'fingers' => $pattern->rhythm_pattern,
-            'percTop' => $pattern->perc_top,
-            'percBass' => $pattern->perc_bass,
-            'demoUrl' => $pattern->mp3_file ? '/audio/rhythm-demos/' . $pattern->mp3_file : null,
-            'tags'    => $pattern->tags()->pluck('slug')->all(),
+            'beats'         => $pattern->beats,
+            'gridType'      => $pattern->grid_type,
+            'bpm'           => $pattern->default_bpm,
+            'thumb'         => $pattern->thumb_pattern,
+            'fingers'       => $pattern->rhythm_pattern,
+            'percTop'       => $pattern->perc_top,
+            'percBass'      => $pattern->perc_bass,
+            'demoUrl'       => $pattern->mp3_file ? '/audio/rhythm-demos/' . $pattern->mp3_file : null,
+            'tags'          => $pattern->tags()->pluck('slug')->all(),
+            'songCount'     => $songCount,
         ];
     }
 

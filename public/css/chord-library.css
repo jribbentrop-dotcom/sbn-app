@@ -9,133 +9,7 @@
    ============================================================ */
 
 
-/* ── Header ── */
-.sbn-library-header {
-    text-align: center;
-    margin-bottom: 40px;
-}
-
-.sbn-library-title {
-    font-size: 2.4em;
-    font-weight: 700;
-    color: var(--clr-text);
-    margin: 0 0 8px;
-    letter-spacing: -0.02em;
-}
-
-.sbn-library-subtitle {
-    font-size: 1.05em;
-    color: var(--clr-text-muted);
-    margin: 0 0 32px;
-    font-weight: 400;
-}
-
-/* ── Search box ── */
-.sbn-search-container {
-    max-width: 680px;
-    margin: 0 auto 28px;
-}
-
-.sbn-search-box {
-    position: relative;
-    display: flex;
-    align-items: center;
-    background: var(--clr-white);
-    border: 2px solid var(--clr-border);
-    border-radius: var(--radius-lg);
-    padding: 6px 6px 6px 20px;
-    transition: border-color 0.2s var(--ease);
-}
-
-.sbn-search-box:focus-within {
-    border-color: var(--clr-red);
-}
-
-.sbn-search-icon {
-    color: var(--clr-text-muted);
-    flex-shrink: 0;
-    margin-right: 12px;
-    transition: color 0.2s;
-}
-
-.sbn-search-box:focus-within .sbn-search-icon {
-    color: var(--clr-red);
-}
-
-.sbn-search-input {
-    flex: 1;
-    border: none;
-    outline: none;
-    font-size: 1.1em;
-    color: var(--clr-text);
-    background: transparent;
-    padding: 12px 0;
-    font-weight: 500;
-    font-family: var(--font-body);
-}
-
-.sbn-search-input::placeholder {
-    color: var(--clr-text-muted);
-    font-weight: 400;
-}
-
-.sbn-search-clear {
-    width: 34px;
-    height: 34px;
-    border-radius: var(--radius-sm);
-    border: none;
-    background: var(--clr-surface-2);
-    color: var(--clr-text-muted);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s, color 0.15s;
-    flex-shrink: 0;
-}
-
-.sbn-search-clear:hover {
-    background: var(--clr-red);
-    color: var(--clr-white);
-}
-
-/* ── Count bar ── */
-.sbn-count-bar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    background: var(--clr-white);
-    border: 1px solid var(--clr-border);
-    border-radius: var(--radius-lg);
-    padding: 10px 20px;
-    margin-bottom: 24px;
-    font-size: 0.9em;
-    color: var(--clr-text-muted);
-}
-
-.sbn-count-bar strong {
-    color: var(--clr-text);
-}
-
-.sbn-count-clear {
-    border: 1px solid var(--clr-border);
-    background: none;
-    color: var(--clr-text-muted);
-    font-size: 0.85em;
-    font-weight: 500;
-    cursor: pointer;
-    padding: 3px 10px;
-    border-radius: var(--radius-sm);
-    transition: color 0.15s, border-color 0.15s, background 0.15s;
-    font-family: var(--font-body);
-}
-
-.sbn-count-clear:hover {
-    color: var(--clr-red);
-    border-color: var(--clr-red);
-    background: var(--clr-accent-bg);
-}
+/* Header, search box, and count bar use .sbn-lib-* from sbn-design-system.css section 15. */
 
 /* ============================================================
    CONTENT WRAPPER: grid (left) + sidebar (right)
@@ -185,7 +59,7 @@
 }
 
 .sbn-sidebar-header h3 {
-    margin: 0;
+    margin: 0 0 4px;
     font-size: 0.95em;
     font-weight: 700;
     color: var(--clr-text);
@@ -226,20 +100,20 @@
 }
 
 .sbn-sidebar-option:hover {
-    border-color: var(--clr-red);
-    color: var(--clr-red);
-    background: var(--clr-accent-bg);
+    border-color: #e85d3b;
+    color: #e85d3b;
+    background: #fff8f5;
 }
 
 .sbn-sidebar-option.active {
-    background: var(--clr-red);
-    border-color: var(--clr-red);
+    background: var(--clr-text);
+    border-color: var(--clr-text);
     color: var(--clr-white);
 }
 
 .sbn-sidebar-option.active:hover {
-    background: var(--clr-accent-dim);
-    border-color: var(--clr-accent-dim);
+    background: #e85d3b;
+    border-color: #e85d3b;
 }
 
 .sbn-clear-filters-btn {
@@ -258,9 +132,9 @@
 }
 
 .sbn-clear-filters-btn:hover {
-    border-color: var(--clr-red);
-    color: var(--clr-red);
-    background: var(--clr-accent-bg);
+    border-color: #e85d3b;
+    color: #e85d3b;
+    background: #fff8f5;
 }
 
 /* ============================================================
@@ -815,14 +689,19 @@
     top: 90%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 24px;
-    height: 24px;
+    width: var(--card-play-size, 24px);
+    height: var(--card-play-size, 24px);
     opacity: 0;
     background: var(--clr-red);
     border-color: var(--clr-red);
     color: var(--clr-white);
     transition: opacity 0.15s var(--ease), transform 0.15s var(--ease);
     pointer-events: none;
+}
+
+.sbn-card-diagram .sbn-play-btn svg {
+    width: calc(var(--card-play-size, 24px) * 0.55);
+    height: calc(var(--card-play-size, 24px) * 0.55);
 }
 
 .sbn-chord-card:hover .sbn-card-diagram .sbn-play-btn {
@@ -1038,7 +917,6 @@
 }
 
 @media (max-width: 768px) {
-.sbn-library-title { font-size: 1.8em; }
     .sbn-chords-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
     .sbn-archetype-tiles { gap: 6px; }
     .sbn-archetype-tile { min-width: 76px; padding: 8px 8px 6px; }
