@@ -585,6 +585,61 @@ Currently applied to: `Progressions/Show.vue`, `Rhythms/Show.vue`.
 
 ---
 
+## LIBRARY INDEX PAGE SYSTEM
+
+**Established 2026-05-29.** Section 15 of `sbn-design-system.css` — shared layout for all hitlist-style library index pages (Rhythms, Progressions, Chords, Songs, Courses). Page-specific row content stays in each page's own file.
+
+### Class map
+
+| Class | Role |
+|---|---|
+| `.sbn-lib-page-header` | Centered page header wrapper |
+| `.sbn-lib-page-title` | 38px/900 page h1 |
+| `.sbn-lib-page-subtitle` | 17px muted subtitle |
+| `.sbn-lib-search-wrap` | Search box outer wrapper (max-width: 560px, centered) |
+| `.sbn-lib-search-box` | Pill search input container with focus ring |
+| `.sbn-lib-search-icon` | Left icon inside search box |
+| `.sbn-lib-search-input` | The input element |
+| `.sbn-lib-search-clear` | ✕ button inside search box |
+| `.sbn-lib-content-wrapper` | Flex row: list container + sidebar |
+| `.sbn-lib-list-container` | Main list area (`flex: 1; min-width: 0`) |
+| `.sbn-lib-hitlist` | Flex column of `.sbn-lib-row` items |
+| `.sbn-lib-row` | Hitlist row card (border, hover, overflow:hidden) |
+| `.sbn-lib-row-body` | Row content area (`padding: 20px 0`) |
+| `.sbn-lib-row-top` | Badge/tag row at top of body |
+| `.sbn-lib-row-title` | 20px/800 row heading |
+| `.sbn-lib-row-link` | Unstyled link; hover → accent color |
+| `.sbn-lib-row-desc` | 2-line clamped description |
+| `.sbn-lib-row-popularity-phrase` | "This is a Common pattern…" sentence |
+| `.sbn-lib-row-read-more` | Arrow CTA link |
+| `.sbn-lib-no-results` | Centered empty state |
+| `.sbn-lib-filter-sidebar` | Sticky filter sidebar (220px, scrollable) |
+| `.sbn-lib-sidebar-header` | Sidebar header with bottom border |
+| `.sbn-lib-sidebar-count` | Count + Clear button row below sidebar h3 |
+| `.sbn-lib-sidebar-section` | Filter group (margin-bottom: 20px) |
+| `.sbn-lib-sidebar-label` | 10px uppercase section label |
+| `.sbn-lib-sidebar-options` | Flex-wrap button group |
+| `.sbn-lib-sidebar-option` | Filter pill button |
+| `.sbn-lib-sidebar-option.sbn-filter-active` | Active filter state (uses `--cat-clr`) |
+| `.sbn-lib-sidebar-option.sbn-sort-active` | Active sort state (black bg) |
+| `.sbn-lib-clear-btn` | Inline clear button in count row |
+| `.sbn-lib-sidebar-clear` | Full-width clear all button at bottom of sidebar |
+| `.sbn-lib-category-section` | Grouped view section wrapper |
+| `.sbn-lib-category-header` | Gradient pill category heading (white text) |
+| `.sbn-lib-category-header--{slug}` | Color modifier: `bossa-nova`, `jazz`, `classical`, `pop`, `bossa` |
+| `.sbn-lib-category-count` | Pill badge with count inside category header |
+| `.sbn-hitlist-rank` | Full-height grey rank column (64px number, shared across rhythm + progression) |
+
+### Hover colors
+
+All interactive elements (sidebar options, clear buttons) use `#e85d3b` / `#fff8f5` on hover — the SBN brand orange.
+
+### Rule
+
+Page-specific styles (strip sizing, numeral chips, grouped card layout) stay in the page's scoped `<style>` or dedicated CSS file. Only layout, chrome, and interaction states belong in the shared system.
+
+---
+
 ## SHOW PAGE HERO HEADER
 
 **Established 2026-05-28.** Unified header anatomy for rhythm, progression, and song show pages. All use `.sbn-detail-hero` as the frame, with internal structure using shared design system classes.

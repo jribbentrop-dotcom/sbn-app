@@ -75,13 +75,17 @@ any narrow context.
 ```typescript
 interface Props {
   pattern: RhythmPatternData;
-  tempo?: number;        // override pattern.bpm at runtime
-  playable?: boolean;    // default true — show/hide the play button
-  label?: string | null; // optional eyebrow label on the left
-  showMeta?: boolean;    // show "4/4 · 120 bpm" eyebrow on the right
-  color?: string | null; // CSS colour value — tints hit/accent cells and play button
+  tempo?: number;         // override pattern.bpm at runtime
+  playable?: boolean;     // default true — show/hide the play button
+  label?: string | null;  // optional eyebrow label on the left
+  showMeta?: boolean;     // show "4/4 · 120 bpm" eyebrow on the right
+  color?: string | null;  // CSS colour value — tints hit/accent cells and play button
+  mini?: boolean;         // slimmer 16px cells (default false)
+  maxBeats?: number | null; // cap rendered cells — library index passes 16 to show only bar 1 of 2-bar patterns
 }
 ```
+
+**Layout:** The strip is always `width: 100%` — it fills whatever container holds it. The cells container has `overflow: hidden` so long patterns (e.g. 32-cell 2-bar) clip to the container width rather than overflowing. Use `maxBeats` when you want to truncate at the data level instead.
 
 ### Colour tinting
 
@@ -98,8 +102,11 @@ In the library index, colour is sourced from `getCategoryColor(pattern.styleSlug
   :pattern="pattern"
   :color="getCategoryColor(pattern.styleSlug)"
   :show-meta="false"
+  :max-beats="16"
 />
 ```
+
+The library index also overrides cell sizing via scoped `:deep()` on the wrapping `.sbn-rlib-row-strip` div to make cells 28px wide (vs the default 20px).
 
 ### Exposed methods
 
