@@ -380,9 +380,11 @@ class ChordDiagram extends Model
             }
         }
 
-        // Choose sharp/flat
+        // Choose sharp/flat: flat-family roots OR minor/dominant qualities always use flats.
+        static $flatQualities = ['min', 'm7', 'm6', 'm7b5', 'o7', 'mMaj7', 'dom7', 'maj6', 'aug7'];
         $rootNoteName = self::$semitoneNotesSharp[$rootSemitone];
-        $useFlats = in_array($rootNoteName, self::$flatRoots);
+        $useFlats = in_array($rootNoteName, self::$flatRoots)
+            || in_array($quality, $flatQualities);
         if (! $useFlats) {
             $flatName = self::$semitoneNotesFlat[$rootSemitone];
             if (in_array($flatName, self::$flatRoots)) {

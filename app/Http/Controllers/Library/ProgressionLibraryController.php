@@ -86,20 +86,29 @@ class ProgressionLibraryController extends Controller
         // Optional: pin a specific chord voicing when arriving from a chord detail page.
         $pinnedSlot    = null;
         $pinnedVoicing = null;
+        $progressionKey = 'C';
         $chordSlug     = $request->query('chord');
         $highlightSlot = $request->query('highlight');
         if ($chordSlug !== null && $highlightSlot !== null) {
             $pinnedChord = ChordDiagram::where('slug', $chordSlug)->first();
             if ($pinnedChord) {
-                $pinnedSlot     = (int) $highlightSlot;
-                $transposed     = $this->shapeCalculator->calculateFrets($pinnedChord, $pinnedChord->root_note ?? 'C');
+                $pinnedSlot = (int) $highlightSlot;
+
+                // Resolve the effective root before building the voicing — the ?root=
+                // param carries the transposed/alias root the user was viewing.
+                $effectiveRoot = $request->query('root', $pinnedChord->root_note ?? 'C');
+                if (! in_array($effectiveRoot, \App\Models\ChordDiagram::ROOT_NOTES)) {
+                    $effectiveRoot = $pinnedChord->root_note ?? 'C';
+                }
+
+                $transposed     = $this->shapeCalculator->calculateFrets($pinnedChord, $effectiveRoot);
                 $diagData       = $transposed['diagram_data']    ?? json_decode($pinnedChord->diagram_data, true) ?? [];
                 $startFret      = $transposed['start_fret']      ?? ($pinnedChord->start_fret ?? 1);
                 $intervalLabels = $transposed['interval_labels'] ?? ($pinnedChord->interval_labels ?? '');
                 $notesField     = $transposed['notes']           ?? ($pinnedChord->notes ?? '');
                 $pinnedVoicing  = [
                     'id'               => $pinnedChord->id,
-                    'root_note'        => $pinnedChord->root_note ?? 'C',
+                    'root_note'        => $effectiveRoot,
                     'quality'          => $pinnedChord->quality,
                     'extensions'       => $pinnedChord->extensions ?? '',
                     'voicing_category' => $pinnedChord->voicing_category,
@@ -112,10 +121,18 @@ class ProgressionLibraryController extends Controller
                     'popularity'       => $pinnedChord->popularity ?? 0,
                     'frets'            => null,
                 ];
+
+                $tokens = array_values(array_filter(array_map('trim', explode(',', $progression->numerals))));
+                if (isset($tokens[$pinnedSlot]) && $effectiveRoot !== '') {
+                    $progressionKey = $this->harmonicContext->keyFromNumeralAndRoot(
+                        $tokens[$pinnedSlot],
+                        $effectiveRoot
+                    );
+                }
             }
         }
 
-        $context = $this->harmonicContext->buildFromNumerals('C', $progression->numerals);
+        $context = $this->harmonicContext->buildFromNumerals($progressionKey, $progression->numerals);
         $built   = $this->progressionBuilder->buildVoicings($context, [
             'category'      => $progression->category,
             'pinnedSlot'    => $pinnedSlot,

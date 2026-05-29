@@ -317,7 +317,7 @@ class ChordVoicingSearch
         $noteSemitones = ChordShapeCalculator::NOTE_SEMITONES;
         $semitoneToNote = [
             0 => 'C', 1 => 'Db', 2 => 'D', 3 => 'Eb', 4 => 'E', 5 => 'F',
-            6 => 'F#', 7 => 'G', 8 => 'Ab', 9 => 'A', 10 => 'Bb', 11 => 'B',
+            6 => 'Gb', 7 => 'G', 8 => 'Ab', 9 => 'A', 10 => 'Bb', 11 => 'B',
         ];
 
         // Group aliases by diagram_id — multiple alt_roots can alias one shape,
@@ -455,7 +455,7 @@ class ChordVoicingSearch
         ];
         $semitoneToNote = [
             0 => 'C', 1 => 'Db', 2 => 'D', 3 => 'Eb', 4 => 'E', 5 => 'F',
-            6 => 'F#', 7 => 'G', 8 => 'Ab', 9 => 'A', 10 => 'Bb', 11 => 'B',
+            6 => 'Gb', 7 => 'G', 8 => 'Ab', 9 => 'A', 10 => 'Bb', 11 => 'B',
         ];
 
         $invIntervals = [

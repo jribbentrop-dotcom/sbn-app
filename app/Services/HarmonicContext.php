@@ -260,7 +260,12 @@ class HarmonicContext
         'B'  => 11, 'Cb' => 11,
     ];
 
-    private const SEMI_TO_NOTE = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+    private const SEMI_TO_NOTE_FLAT  = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+    private const SEMI_TO_NOTE_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+    // Keys whose natural spelling uses flats (circle of fifths, flat side).
+    // Everything else (C, sharp keys, their relative minors) uses sharps.
+    private const FLAT_KEYS = ['F','Bb','Eb','Ab','Db','Gb','Dm','Gm','Cm','Fm','Bbm','Ebm'];
 
     private const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
 
@@ -291,6 +296,26 @@ class HarmonicContext
         'sus4'  => 'sus4',
         'sus2'  => 'sus2',
     ];
+
+    /**
+     * Whether a key should be spelled with flats (true) or sharps (false).
+     * C major / A minor are treated as neutral — flats (fewer chord name accidents).
+     */
+    public static function spellingUsesFlats(string $key): bool
+    {
+        $keyRoot = preg_replace('/[mM].*$/', '', trim($key));
+        $isMinor = (bool) preg_match('/[mM]/', $key);
+        // Normalise the key root to its canonical sharp/flat spelling first.
+        // C major → false (sharp side), A minor → false.
+        if ($isMinor) {
+            // Relative major: minor root + 3 semitones
+            $semi = self::NOTE_TO_SEMI[$keyRoot] ?? 0;
+            $relMajorRoot = self::SEMI_TO_NOTE_FLAT[($semi + 3) % 12];
+            return in_array($relMajorRoot, self::FLAT_KEYS, true);
+        }
+        return in_array($key, self::FLAT_KEYS, true)
+            || in_array($keyRoot, self::FLAT_KEYS, true);
+    }
 
     /**
      * Convert a Roman numeral token to a concrete chord name in a key.
@@ -326,13 +351,46 @@ class HarmonicContext
         if ($accidental === 'b') $semitoneOffset--;
         if ($accidental === '#') $semitoneOffset++;
 
-        // Compute root note
-        $rootSemi = ($keySemi + $semitoneOffset + 12) % 12;
-        $rootNote = self::SEMI_TO_NOTE[$rootSemi];
+        // Compute root note — spell according to the key's circle-of-fifths side
+        $rootSemi   = ($keySemi + $semitoneOffset + 12) % 12;
+        $noteMap    = self::spellingUsesFlats($key) ? self::SEMI_TO_NOTE_FLAT : self::SEMI_TO_NOTE_SHARP;
+        $rootNote   = $noteMap[$rootSemi];
 
         // Quality suffix → display quality
         $displayQuality = self::SUFFIX_TO_DISPLAY[$suffix] ?? $suffix;
 
         return $rootNote . $displayQuality;
+    }
+
+    /**
+     * Given a Roman numeral and the chord's concrete root note, back-solve the key.
+     *
+     * Inverse of numeralToChordName: keySemi = (rootSemi - numeralOffset + 12) % 12.
+     * Returns 'C' on parse failure.
+     */
+    public function keyFromNumeralAndRoot(string $numeral, string $rootNote): string
+    {
+        if (!preg_match('/^(b|#)?([IViv]+)(.*)$/', $numeral, $m)) {
+            return 'C';
+        }
+
+        $accidental = $m[1];
+        $romanPart  = strtoupper($m[2]);
+
+        $degree = self::ROMAN_TO_DEGREE[$romanPart] ?? null;
+        if ($degree === null) {
+            return 'C';
+        }
+
+        $semitoneOffset = self::MAJOR_SCALE[$degree];
+        if ($accidental === 'b') $semitoneOffset--;
+        if ($accidental === '#') $semitoneOffset++;
+
+        $rootSemi = self::NOTE_TO_SEMI[$rootNote] ?? 0;
+        $keySemi  = ($rootSemi - $semitoneOffset + 12) % 12;
+
+        // Spell the key name itself on the flat side when appropriate.
+        // We use the flat array as the default for key names (Bb not A#, Eb not D#).
+        return self::SEMI_TO_NOTE_FLAT[$keySemi];
     }
 }

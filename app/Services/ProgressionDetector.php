@@ -32,7 +32,7 @@ class ProgressionDetector
     /**
      * Chromatic note names (prefer flats — standard in jazz/bossa contexts).
      */
-    private const NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+    private const NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
     /**
      * Semitone values for all note spellings.

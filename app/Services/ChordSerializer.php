@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ChordDiagram;
+use App\Services\HarmonicContext;
 
 /**
  * Chord Serializer
@@ -88,7 +89,7 @@ class ChordSerializer
             'root_string_label' => $chord->root_string_label,
             'inversion' => $inversion,
             'inversion_label' => $inversionLabel,
-            'bass_note' => ChordShapeCalculator::deriveBassNote($root, $quality, $inversion),
+            'bass_note' => $this->spellBassNote(null, $root, $quality, $inversion),
             'shape_family' => $chord->shape_family,
             'start_fret' => $startFret,
             'diagram_data' => $diagramData,
@@ -108,6 +109,38 @@ class ChordSerializer
         $displayName = $root . $chord->quality . ($chord->extensions ?? '') . '/' . $bass;
         $t = $this->shapeCalculator->calculateFretsWithBass($chord, $root, $bass);
         return $this->buildSerializedArray($chord, $t, $root, $displayName);
+    }
+
+    /**
+     * Spell a bass note correctly for the given root context.
+     * For stored slash-chord bass notes (true slash): re-spell to the enharmonic
+     * equivalent that matches the root's flat/sharp family.
+     * For inversion bass notes (null stored): derive from quality + inversion.
+     */
+    private function spellBassNote(?string $storedBass, string $root, string $quality, string $inversion): ?string
+    {
+        static $semi  = [
+            'C'=>0,'B#'=>0,'C#'=>1,'Db'=>1,'D'=>2,'D#'=>3,'Eb'=>3,
+            'E'=>4,'F'=>5,'F#'=>6,'Gb'=>6,'G'=>7,'G#'=>8,'Ab'=>8,
+            'A'=>9,'A#'=>10,'Bb'=>10,'B'=>11,
+        ];
+        static $sharp = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+        static $flat  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+        // Qualities whose inversion tones are always spelled with flats (b3, b5, b7).
+        static $flatQuals = ['m7','m7b5','min','o7','mMaj7','m6','dom7','maj6'];
+
+        $useFlats = HarmonicContext::spellingUsesFlats($root)
+            || in_array($quality, $flatQuals, true);
+
+        if ($storedBass !== null && $storedBass !== '') {
+            if (!isset($semi[$storedBass])) return $storedBass;
+            $s = $semi[$storedBass];
+            return $useFlats ? $flat[$s] : $sharp[$s];
+        }
+
+        $derived = ChordShapeCalculator::deriveBassNote($root, $quality, $inversion);
+        if ($derived === null || !isset($semi[$derived])) return $derived;
+        return $useFlats ? $flat[$semi[$derived]] : $sharp[$semi[$derived]];
     }
 
     /**
@@ -142,12 +175,12 @@ class ChordSerializer
             'root_string_label' => $chord->root_string_label,
             'inversion' => $chord->inversion ?? 'root',
             'inversion_label' => $chord->inversion_label,
-            'bass_note' => $chord->bass_note
-                ?? ChordShapeCalculator::deriveBassNote(
-                    $root ?? $chord->root_note ?? 'C',
-                    $chord->quality ?? '',
-                    $chord->inversion ?? 'root'
-                ),
+            'bass_note' => $this->spellBassNote(
+                $chord->bass_note,
+                $root ?? $chord->root_note ?? 'C',
+                $chord->quality ?? '',
+                $chord->inversion ?? 'root'
+            ),
             'shape_family' => $chord->shape_family,
             'start_fret' => $startFret,
             'diagram_data' => $diagramData,

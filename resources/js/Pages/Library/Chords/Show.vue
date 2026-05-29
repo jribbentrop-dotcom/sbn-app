@@ -526,7 +526,7 @@ const formattedChordName = computed(() => {
                 </div>
                 <ul class="sbn-chord-detail-progressions">
                     <li v-for="prog in progressions.slice(0, 2)" :key="prog.id">
-                        <ProgressionLink :progression="{ ...prog, pinnedChordSlug: chord.slug }" />
+                        <ProgressionLink :progression="{ ...prog, pinnedChordSlug: chord.slug, pinnedChordRoot: displayChord.root_note }" />
                     </li>
                 </ul>
             </div>

@@ -793,12 +793,15 @@ class ProgressionBuilder
             'E'=>4,'Fb'=>4,'F'=>5,'E#'=>5,'F#'=>6,'Gb'=>6,'G'=>7,
             'G#'=>8,'Ab'=>8,'A'=>9,'A#'=>10,'Bb'=>10,'B'=>11,'Cb'=>11,
         ];
-        static $names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+        static $sharp = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+        static $flat  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
         if (!isset($semi[$sourceRoot], $semi[$sourceBass], $semi[$targetRoot])) {
             return null;
         }
-        $interval = ($semi[$sourceBass] - $semi[$sourceRoot] + 12) % 12;
-        return $names[($semi[$targetRoot] + $interval) % 12];
+        $interval  = ($semi[$sourceBass] - $semi[$sourceRoot] + 12) % 12;
+        $targetSemi = ($semi[$targetRoot] + $interval) % 12;
+        $useFlats  = \App\Services\HarmonicContext::spellingUsesFlats($targetRoot);
+        return $useFlats ? $flat[$targetSemi] : $sharp[$targetSemi];
     }
 
     /**

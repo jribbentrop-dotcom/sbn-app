@@ -464,7 +464,7 @@ class ChordLibraryController extends Controller
 		$delta       = (($semitones[$effectiveDisplayRoot] ?? 0) - ($semitones[$storedRoot] ?? 0) + 12) % 12;
 
 		// Use the display root's enharmonic family to spell transposed alias notes.
-		$useFlats = str_contains($effectiveDisplayRoot, 'b');
+		$useFlats = \App\Services\HarmonicContext::spellingUsesFlats($effectiveDisplayRoot);
 		$transposeNote = function (?string $note) use ($delta, $semitones, $sharpNames, $flatNames, $useFlats): ?string {
 			if ($note === null || $note === '') return $note;
 			$base = ($semitones[$note] ?? null);

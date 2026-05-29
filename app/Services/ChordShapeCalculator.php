@@ -65,10 +65,22 @@ class ChordShapeCalculator
         'B' => 11,
     ];
 
-    private const SEMITONE_TO_NOTE = [
+    private const SEMITONE_TO_NOTE_SHARP = [
         0 => 'C', 1 => 'C#', 2 => 'D', 3 => 'D#', 4 => 'E', 5 => 'F',
         6 => 'F#', 7 => 'G', 8 => 'G#', 9 => 'A', 10 => 'A#', 11 => 'B',
     ];
+
+    private const SEMITONE_TO_NOTE_FLAT = [
+        0 => 'C', 1 => 'Db', 2 => 'D', 3 => 'Eb', 4 => 'E', 5 => 'F',
+        6 => 'Gb', 7 => 'G', 8 => 'Ab', 9 => 'A', 10 => 'Bb', 11 => 'B',
+    ];
+
+    // Roots whose natural spelling uses flats (matches HarmonicContext::FLAT_KEYS root set).
+    private const FLAT_ROOT_NOTES = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb'];
+
+    // Qualities whose chord tones include flat intervals (b3, b5, b7) — always
+    // spell with flats regardless of root (e.g. Cm has Eb not D#).
+    private const FLAT_QUALITY_NOTES = ['min', 'm7', 'm6', 'm7b5', 'o7', 'mMaj7', 'dom7', 'maj6', 'aug7'];
 
     private const ROOT_STRING_MAP = [
         'roote'     => 1,
@@ -175,10 +187,15 @@ class ChordShapeCalculator
         if (!$semitones || !isset($semitones[$inversion])) return null;
         $rootSemitone = self::NOTE_TO_SEMITONE[$rootNote] ?? null;
         if ($rootSemitone === null) return null;
-        $target = ($rootSemitone + $semitones[$inversion]) % 12;
+        $target     = ($rootSemitone + $semitones[$inversion]) % 12;
         $sharpNames = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
         $flatNames  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
-        return str_contains($rootNote, 'b') ? $flatNames[$target] : $sharpNames[$target];
+        // Qualities whose inversion bass tones are spelled with flats in standard
+        // notation regardless of the key (b3, b5, b7 intervals).
+        static $flatQuals = ['m7', 'm7b5', 'min', 'o7', 'mMaj7', 'm6', 'dom7', 'maj6'];
+        $useFlats = \App\Services\HarmonicContext::spellingUsesFlats($rootNote)
+            || in_array($quality, $flatQuals, true);
+        return $useFlats ? $flatNames[$target] : $sharpNames[$target];
     }
 
     public function calculateFrets(object $shape, string $rootNote): array
@@ -252,11 +269,15 @@ class ChordShapeCalculator
             'open'      => $openResult,
         ];
 
+        $useFlats = in_array($rootNote, self::FLAT_ROOT_NOTES, true)
+            || str_contains($rootNote, 'b')
+            || in_array($quality, self::FLAT_QUALITY_NOTES, true);
+
         return [
             'diagram_data'    => $calculatedData,
             'start_fret'      => $this->calculateStartFret($calculatedData),
             'interval_labels' => $shape->interval_labels ?? '',
-            'notes'           => $this->calculateNoteNames($calculatedPositions),
+            'notes'           => $this->calculateNoteNames($calculatedPositions, $useFlats),
         ];
     }
 
@@ -366,8 +387,12 @@ class ChordShapeCalculator
             'open'      => $openResult,
         ];
 
-        $startFret = $this->calculateStartFret($calculatedData);
-        $notes     = $this->calculateNoteNames($calculatedPositions);
+        $startFret    = $this->calculateStartFret($calculatedData);
+        $shapeQuality = $shape->quality ?? '';
+        $useFlats     = in_array($rootNote, self::FLAT_ROOT_NOTES, true)
+            || str_contains($rootNote, 'b')
+            || in_array($shapeQuality, self::FLAT_QUALITY_NOTES, true);
+        $notes        = $this->calculateNoteNames($calculatedPositions, $useFlats);
 
         // Recompute interval labels relative to the BASS note
         // For slash chords like F/G, the bass note (G) is the reference
@@ -633,18 +658,20 @@ class ChordShapeCalculator
     }
 
     /**
-     * Calculate note names for each position (comma-separated, sharp notation).
+     * Calculate note names for each position (comma-separated).
+     * Uses flat spelling when $useFlats is true, sharps otherwise.
      */
-    private function calculateNoteNames(array $positions): string
+    private function calculateNoteNames(array $positions, bool $useFlats = false): string
     {
-        $notes = [];
+        $noteMap = $useFlats ? self::SEMITONE_TO_NOTE_FLAT : self::SEMITONE_TO_NOTE_SHARP;
+        $notes   = [];
 
         foreach ($positions as $pos) {
             $string = (int) $pos['string'];
             $fret   = (int) $pos['fret'];
             if ($string < 1 || $string > 6 || !isset(self::TUNING[$string])) continue;
             $noteSemitone = (self::TUNING[$string] + $fret) % 12;
-            $notes[]      = self::SEMITONE_TO_NOTE[$noteSemitone];
+            $notes[]      = $noteMap[$noteSemitone];
         }
 
         return implode(',', $notes);

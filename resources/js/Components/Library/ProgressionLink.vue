@@ -10,9 +10,11 @@ export interface ProgressionLinkData {
     name: string;
     category: string;
     numeralsDisplay: string;
-    /** Optional: when provided the link appends ?chord=<chordSlug>&highlight=<slot> */
+    /** Optional: when provided the link appends ?chord=<chordSlug>&highlight=<slot>[&root=<note>] */
     pinnedChordSlug?: string | null;
     pinnedSlot?: number | null;
+    /** The effective root note at the time of navigation (may differ from the DB root via ?root= or alias). */
+    pinnedChordRoot?: string | null;
 }
 
 const props = defineProps<{ progression: ProgressionLinkData }>();
@@ -24,7 +26,11 @@ const categoryLabel = computed(() =>
 const href = computed(() => {
     const base = `/library/progressions/${props.progression.slug}`;
     if (props.progression.pinnedChordSlug) {
-        return `${base}?chord=${encodeURIComponent(props.progression.pinnedChordSlug)}&highlight=${props.progression.pinnedSlot ?? 0}`;
+        let url = `${base}?chord=${encodeURIComponent(props.progression.pinnedChordSlug)}&highlight=${props.progression.pinnedSlot ?? 0}`;
+        if (props.progression.pinnedChordRoot) {
+            url += `&root=${encodeURIComponent(props.progression.pinnedChordRoot)}`;
+        }
+        return url;
     }
     return base;
 });
