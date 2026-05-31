@@ -76,8 +76,11 @@ Returns `['inversions', 'aliases', 'aliasInversions']`. `show()` **overrides** t
 - **Edu copy is context-aware** via `arrivedVia` (`'dominant'` when a dom7(♭9) reading was deep-linked, else `'diminished'`): a dim7 search shows "this shape also voices four dom7(♭9)…"; a dom7(♭9) search shows the reveal "the dominant you searched is a pure diminished 7th…". The "four identical inversions" explanation lives in the **inversion panel**; the alias block covers only the dim7↔dom7(♭9) relationship.
 - Switcher shows "This voicing" / "Also reads as" grouping labels on dim pages.
 
-### Open follow-up (Phase 6, not done)
-The Show page ignores the hand-authored dim7 alias rows (the override replaces them). But those rows (on diagrams 131 + 141) still feed **search** (`findAliasMatches`). Removing them must be paired with adding dim7→dom7(♭9) generation to `ChordVoicingSearch` — otherwise `Ab7(b9)` search loses those matches. Generating in search would also fix the current inconsistency (only 2 of 10 dim shapes surface, with duplicate rows).
+### Search-side generation
+`ChordVoicingSearch::findDiminishedDominantMatches($root, $quality, $extension)` fires when the search is a `dom7` carrying a `b9` (e.g. `Ab7(b9)`, `G7b9`). It transposes **every** stored `o7` shape so the dominant's ♭9 (a semitone above the root) is a chord tone, and returns each as a rootless `{root}7(b9)` reading with the same deep-link context as `findAliasMatches` (`display_root` = the dim7 root transposed to; `alias_*` pre-selects the dom7(♭9) reading). So all 10 dim7 shapes surface consistently, not just the 2 that once had hand-authored rows. The `alias_extensions` hint is always `'b9'` (the bare dim shape can't voice extra tensions like `b9,13`), so the deep-link still matches the generated page alias.
+
+### Retired data
+Migration `2026_05_31_000001_remove_generated_dim7_aliases` deletes the now-redundant hand-authored alias rows on `o7` parents: the dim7 **inversion** aliases (`alt_quality = o7`) and the **bare** dom7(♭9) aliases (`alt_quality = dom7`, `alt_extensions = 'b9'`). Extended aliases the generators don't claim (e.g. `b9,13`, `#9`) are **left in place**. Non-destructive: the readings are recomputed at runtime, so nothing the user sees changes except that all dim shapes now surface (no more duplicate rows on diagrams 131/141).
 
 ---
 
