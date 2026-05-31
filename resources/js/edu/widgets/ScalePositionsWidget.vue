@@ -306,7 +306,7 @@ const title = computed(() => scaleDef.value.name);
   font-size: 0.7rem;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.65);
+  color: #ffffff;
 }
 
 .scale-pills { display: flex; gap: 3px; }
@@ -319,7 +319,7 @@ const title = computed(() => scaleDef.value.name);
   border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.18);
   background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6);
+  color: #ffffff;
   cursor: pointer;
   transition: all 0.2s ease;
   min-width: 26px;
@@ -341,7 +341,7 @@ const title = computed(() => scaleDef.value.name);
   font-size: 0.65rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.55);
+  color: #ffffff;
   cursor: pointer;
   user-select: none;
 }
@@ -360,7 +360,7 @@ const title = computed(() => scaleDef.value.name);
   font-family: system-ui, sans-serif;
   font-size: 0.82rem;
   line-height: 1.6;
-  color: rgba(255,255,255,0.85);
+  color: #ffffff;
   text-align: center;
   padding: 0 0.5rem;
   min-height: 2.8rem;
@@ -373,7 +373,7 @@ const title = computed(() => scaleDef.value.name);
 .scale-arrow {
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.15);
-  color: rgba(255,255,255,0.65);
+  color: #ffffff;
   width: 34px;
   height: 34px;
   border-radius: 50%;

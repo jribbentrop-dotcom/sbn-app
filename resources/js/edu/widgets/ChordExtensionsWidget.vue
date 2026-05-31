@@ -324,14 +324,14 @@ function isOptionActive(opt: OptionTone) {
 .ce-title {
   font-family: 'DM Mono', monospace;
   font-size: 0.7rem; letter-spacing: 0.15em;
-  text-transform: uppercase; color: rgba(255,255,255,0.65);
+  text-transform: uppercase; color: #ffffff;
 }
 .ce-pills { display: flex; gap: 3px; flex-wrap: wrap; }
 .ce-pill {
   font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.06em;
   padding: 0.28rem 0.6rem; border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s ease;
+  color: #ffffff; cursor: pointer; transition: all 0.2s ease;
 }
 .ce-pill:hover { border-color: rgba(255,255,255,0.35); color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.12); }
 .ce-pill.active { background: rgba(255,255,255,0.92); color: #0f0f17; border-color: transparent; }
@@ -352,21 +352,21 @@ function isOptionActive(opt: OptionTone) {
 .ce-character {
   font-family: system-ui, sans-serif;
   font-size: 0.82rem; line-height: 1.6;
-  color: rgba(255,255,255,0.85); min-height: 4rem; transition: opacity 0.25s ease;
+  color: #ffffff; min-height: 4rem; transition: opacity 0.25s ease;
 }
 
 .ce-options-wrap { width: 100%; min-height: 1.5rem; }
 .ce-options-label {
   font-family: 'DM Mono', monospace; font-size: 0.65rem;
   letter-spacing: 0.12em; text-transform: uppercase;
-  color: rgba(255,255,255,0.5); margin-bottom: 0.4rem;
+  color: #ffffff; margin-bottom: 0.4rem;
 }
 .ce-options-pills { display: flex; gap: 4px; flex-wrap: wrap; }
 .ce-option-pill {
   font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.06em;
   padding: 0.28rem 0.6rem; border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s ease;
+  color: #ffffff; cursor: pointer; transition: all 0.2s ease;
 }
 .ce-option-pill:hover { border-color: rgba(255,255,255,0.35); color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.12); }
 .ce-option-pill.active { background: rgba(239,68,68,0.85); border-color: transparent; color: #fff; }
@@ -376,7 +376,7 @@ function isOptionActive(opt: OptionTone) {
   font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.06em;
   padding: 0.28rem 0.65rem; border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
+  color: #ffffff; cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
 }
 .ce-ext-pill:hover { border-color: rgba(255,255,255,0.35); color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.12); }
 .ce-ext-pill.active { background: rgba(255,255,255,0.92); color: #0f0f17; border-color: transparent; }

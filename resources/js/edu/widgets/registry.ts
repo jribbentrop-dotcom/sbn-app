@@ -29,6 +29,11 @@ export const eduWidgets = {
   'chord-quality-tree':       () => import('./ChordQualityTree.vue'),
   'chord-extensions':         () => import('./ChordExtensionsWidget.vue'),
   'scale-positions':          () => import('./ScalePositionsWidget.vue'),
+  'time-signature':           () => import('./TimeSignatureWidget.vue'),
+  'repeat-signs':             () => import('./RepeatSignsWidget.vue'),
+  'note-durations':           () => import('./NoteDurationsWidget.vue'),
+  'triplets':                 () => import('./TripletWidget.vue'),
+  'tab-diagram':              () => import('./TabDiagramWidget.vue'),
 } as const;
 
 export type EduWidgetSlug = keyof typeof eduWidgets;

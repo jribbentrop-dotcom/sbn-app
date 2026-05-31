@@ -98,8 +98,11 @@ const infoText = computed(() => {
 
 <template>
   <div class="sbn-edu-widget cof-widget">
+    <div class="cof-header">
+      <div class="cof-label">Circle of Fifths</div>
+    </div>
     <svg
-      viewBox="0 0 400 400"
+      viewBox="-10 -10 420 420"
       width="100%"
       class="cof-svg"
       role="img"
@@ -155,6 +158,9 @@ const infoText = computed(() => {
         dominant-baseline="middle"
       >{{ seg.relMinor }}</text>
 
+      <!-- Outer accent ring -->
+      <circle :cx="CX" :cy="CY" :r="OUTER_R + 6" class="cof-outer-ring" />
+
       <!-- Centre circle -->
       <circle :cx="CX" :cy="CY" :r="INNER_R - 4" class="cof-center" />
       <text :x="CX" :y="CY" text-anchor="middle" dominant-baseline="middle" class="cof-center-label">
@@ -175,12 +181,15 @@ const infoText = computed(() => {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 4px;
+  padding: 1.75rem 1.5rem 1.5rem;
   background: #0f0f17;
   border-radius: var(--radius, 10px);
   font-family: var(--font-body, system-ui, sans-serif);
   user-select: none;
 }
+
+.cof-header { width: 100%; display: flex; align-items: center; justify-content: space-between; }
+.cof-label { font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: #ffffff; }
 
 .cof-svg {
   max-width: 420px;
@@ -212,17 +221,25 @@ const infoText = computed(() => {
   fill: rgba(255,255,255,0.88) !important;
 }
 
+/* Outer accent ring */
+.cof-outer-ring {
+  fill: none;
+  stroke: rgba(255,255,255,0.35);
+  stroke-width: 0.75;
+  pointer-events: none;
+}
+
 /* Divider lines */
 .cof-dividers line {
-  stroke: rgba(255,255,255,0.08);
-  stroke-width: 1;
+  stroke: rgba(255,255,255,0.35);
+  stroke-width: 0.75;
 }
 
 /* Major key text */
 .cof-label-major {
   font-size: 20px;
   font-weight: 700;
-  fill: rgba(255,255,255,0.9);
+  fill: #ffffff;
   cursor: pointer;
   pointer-events: none;
 }
@@ -231,7 +248,7 @@ const infoText = computed(() => {
 .cof-label-minor {
   font-size: 13px;
   font-weight: 500;
-  fill: rgba(255,255,255,0.65);
+  fill: #ffffff;
   cursor: pointer;
   pointer-events: none;
 }
@@ -244,14 +261,14 @@ const infoText = computed(() => {
 /* Centre circle */
 .cof-center {
   fill: #0f0f17;
-  stroke: rgba(255,255,255,0.1);
-  stroke-width: 1;
+  stroke: rgba(255,255,255,0.35);
+  stroke-width: 0.75;
 }
 
 .cof-center-label {
   font-size: 12px;
   font-weight: 600;
-  fill: rgba(255,255,255,0.65);
+  fill: #ffffff;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   pointer-events: none;
@@ -262,7 +279,7 @@ const infoText = computed(() => {
   min-height: 20px;
   font-size: 13px;
   font-weight: 600;
-  color: rgba(255,255,255,0.85);
+  color: #ffffff;
   opacity: 0;
   transition: opacity 0.2s ease;
 }

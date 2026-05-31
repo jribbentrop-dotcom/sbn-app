@@ -202,7 +202,7 @@ function onTouchEnd(e: TouchEvent) {
   font-size: 0.7rem;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.65);
+  color: #ffffff;
 }
 
 .caged-pills { display: flex; gap: 3px; }
@@ -215,7 +215,7 @@ function onTouchEnd(e: TouchEvent) {
   border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.18);
   background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6);
+  color: #ffffff;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -235,7 +235,7 @@ function onTouchEnd(e: TouchEvent) {
   font-family: system-ui, sans-serif;
   font-size: 0.82rem;
   line-height: 1.6;
-  color: rgba(255,255,255,0.85);
+  color: #ffffff;
   text-align: center;
   padding: 0 0.5rem;
   min-height: 2.8rem;
@@ -248,7 +248,7 @@ function onTouchEnd(e: TouchEvent) {
 .caged-arrow {
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.15);
-  color: rgba(255,255,255,0.65);
+  color: #ffffff;
   width: 34px;
   height: 34px;
   border-radius: 50%;

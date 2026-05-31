@@ -1,28 +1,19 @@
 <script setup lang="ts">
-/**
- * drop2-visualizer — the drop-2 and drop-3 voicing technique as moving pitch dots.
- *
- * Fixed quality (Cmaj7) so the widget always has four voices and the drop
- * technique is always demonstrable. Closed / Drop 2 / Drop 3 badge pills
- * select the voicing state; the dropped dot slides and pulses to teach which
- * voice moved.
- */
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 const CHROMATIC = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'] as const;
 
-// Fixed: root C, quality maj7 — always four voices, drop always valid.
 const ROOT_INDEX = 0;
 const OFFSETS = [4, 7, 11] as const; // third, fifth, seventh
 
 const ROLE_COLOR: Record<string, string> = {
-  Root:    'var(--clr-role-root, #f39c12)',
-  Third:   'var(--clr-role-third, #3b82f6)',
-  Fifth:   'var(--clr-role-fifth, #10b981)',
+  Root:    'var(--clr-role-root,    #f39c12)',
+  Third:   'var(--clr-role-third,   #3b82f6)',
+  Fifth:   'var(--clr-role-fifth,   #10b981)',
   Seventh: 'var(--clr-role-seventh, #8b5cf6)',
 };
 
-type DropMode = 'closed' | 'drop2' | 'drop3';
+type DropMode = 'closed' | 'drop2' | 'drop3' | 'shell';
 
 const mode = ref<DropMode>('closed');
 
@@ -30,85 +21,105 @@ const MODES: { key: DropMode; label: string }[] = [
   { key: 'closed', label: 'Closed' },
   { key: 'drop2',  label: 'Drop 2' },
   { key: 'drop3',  label: 'Drop 3' },
+  { key: 'shell',  label: 'Shell'  },
 ];
 
 interface Voice {
   role: 'Root' | 'Third' | 'Fifth' | 'Seventh';
   note: string;
   semitone: number;
-  typicalString: number;
 }
 
-const CLOSED_STRINGS = { Root: 5, Third: 4, Fifth: 3, Seventh: 2 } as const;
-
 const closedVoices = computed<Voice[]>(() => [
-  { role: 'Root',    note: CHROMATIC[ROOT_INDEX],                  semitone: ROOT_INDEX,           typicalString: CLOSED_STRINGS.Root    },
-  { role: 'Third',   note: CHROMATIC[(ROOT_INDEX + OFFSETS[0]) % 12], semitone: ROOT_INDEX + OFFSETS[0], typicalString: CLOSED_STRINGS.Third   },
-  { role: 'Fifth',   note: CHROMATIC[(ROOT_INDEX + OFFSETS[1]) % 12], semitone: ROOT_INDEX + OFFSETS[1], typicalString: CLOSED_STRINGS.Fifth   },
-  { role: 'Seventh', note: CHROMATIC[(ROOT_INDEX + OFFSETS[2]) % 12], semitone: ROOT_INDEX + OFFSETS[2], typicalString: CLOSED_STRINGS.Seventh },
+  { role: 'Root',    note: CHROMATIC[ROOT_INDEX],                        semitone: ROOT_INDEX              },
+  { role: 'Third',   note: CHROMATIC[(ROOT_INDEX + OFFSETS[0]) % 12],    semitone: ROOT_INDEX + OFFSETS[0] },
+  { role: 'Fifth',   note: CHROMATIC[(ROOT_INDEX + OFFSETS[1]) % 12],    semitone: ROOT_INDEX + OFFSETS[1] },
+  { role: 'Seventh', note: CHROMATIC[(ROOT_INDEX + OFFSETS[2]) % 12],    semitone: ROOT_INDEX + OFFSETS[2] },
 ]);
 
-// Drop-2: drop the 2nd-highest voice (index length-2 in ascending order) by one octave.
+// Drop-2: 2nd-highest voice drops an octave.
 const drop2Voices = computed<Voice[]>(() => {
   const ascending = [...closedVoices.value].sort((a, b) => a.semitone - b.semitone);
   const target = ascending[ascending.length - 2].role;
   return closedVoices.value.map(v =>
-    v.role === target ? { ...v, semitone: v.semitone - 12, typicalString: v.typicalString + 1 } : v,
+    v.role === target ? { ...v, semitone: v.semitone - 12 } : v,
   );
 });
 
-// Drop-3: drop the 3rd-highest voice (index length-3) by one octave.
+// Drop-3: 3rd-highest voice drops an octave.
 const drop3Voices = computed<Voice[]>(() => {
   const ascending = [...closedVoices.value].sort((a, b) => a.semitone - b.semitone);
   const target = ascending[ascending.length - 3].role;
   return closedVoices.value.map(v =>
-    v.role === target ? { ...v, semitone: v.semitone - 12, typicalString: v.typicalString + 1 } : v,
+    v.role === target ? { ...v, semitone: v.semitone - 12 } : v,
   );
 });
 
-const activeVoices = computed(() => {
+// Shell: root + 3rd + 7th (5th omitted entirely — adds little colour).
+const shellVoices = computed<Voice[]>(() =>
+  closedVoices.value.filter(v => v.role !== 'Fifth'),
+);
+
+const activeVoices = computed<Voice[]>(() => {
   if (mode.value === 'drop2') return drop2Voices.value;
   if (mode.value === 'drop3') return drop3Voices.value;
+  if (mode.value === 'shell') return shellVoices.value;
   return closedVoices.value;
 });
 
-// The role that moved — shown in caption and gets the pulse animation.
+// The role that moved — gets the arc animation.
 const movedRole = computed(() => {
-  if (mode.value === 'closed') return null;
+  if (mode.value === 'closed' || mode.value === 'shell') return null;
   const source = closedVoices.value;
   const target = activeVoices.value;
   return source.find((v, i) => v.semitone !== target[i].semitone)?.role ?? null;
 });
 
 // ── Pitch-dot geometry ────────────────────────────────────────────────────────
-const STACK_TOP = 16;
-const ROW_GAP   = 36;
-const DOT_R     = 16;
-const SVG_W     = 220;
-const DOT_X     = SVG_W / 2;
-
-const pitchRange = computed(() => {
-  const all = [...closedVoices.value, ...drop2Voices.value, ...drop3Voices.value].map(v => v.semitone);
-  return { min: Math.min(...all), max: Math.max(...all) };
-});
-
-function yFor(semitone: number): number {
-  return STACK_TOP + (pitchRange.value.max - semitone) * (ROW_GAP / 2);
-}
-
-const svgHeight = computed(() => {
-  const span = pitchRange.value.max - pitchRange.value.min;
-  return STACK_TOP * 2 + span * (ROW_GAP / 2) + DOT_R * 2;
-});
+// Upper voices are evenly spaced at ROW_GAP.
+// The bottom gap = ROW_GAP + the semitone distance × EXTRA_SCALE, so a
+// dropped note (which lands further from its neighbour) shows more space.
+const STACK_TOP   = 20;
+const ROW_GAP     = 40;          // gap between upper voices
+const EXTRA_SCALE = 6.5;         // extra px per semitone for the bottom gap
+const DOT_R       = 15;
+const SVG_W       = 220;
+const DOT_X       = SVG_W / 2;
 
 interface PlacedVoice extends Voice {
   y: number;
   color: string;
 }
 
-const placedVoices = computed<PlacedVoice[]>(() =>
-  activeVoices.value.map(v => ({ ...v, y: yFor(v.semitone), color: ROLE_COLOR[v.role] })),
-);
+const placedVoices = computed<PlacedVoice[]>(() => {
+  const sorted = [...activeVoices.value].sort((a, b) => b.semitone - a.semitone); // high→low
+  let y = STACK_TOP;
+  return sorted.map((v, rank) => {
+    if (rank > 0) {
+      const prev = sorted[rank - 1];
+      const semis = Math.abs(v.semitone - prev.semitone);
+      if (mode.value === 'closed') {
+        // perfectly even — no extra gap anywhere
+        y += ROW_GAP;
+      } else if (mode.value === 'shell' && prev.role === 'Seventh' && v.role === 'Third') {
+        // shell: show the missing 5th as a gap between 7th and 3rd (high→low order)
+        y += ROW_GAP + semis * EXTRA_SCALE;
+      } else if ((mode.value === 'drop2' || mode.value === 'drop3') && rank === sorted.length - 1) {
+        // drop modes: bottom note gets extra space proportional to its distance
+        y += ROW_GAP + semis * EXTRA_SCALE;
+      } else {
+        y += ROW_GAP;
+      }
+    }
+    return { ...v, y, color: ROLE_COLOR[v.role] };
+  });
+});
+
+const svgHeight = computed(() => {
+  const pv = placedVoices.value;
+  if (!pv.length) return 100;
+  return pv[pv.length - 1].y + DOT_R + STACK_TOP;
+});
 
 // ── Build-up animation ────────────────────────────────────────────────────────
 const visibleCount = ref(0);
@@ -129,45 +140,13 @@ function isVoiceVisible(v: PlacedVoice): boolean {
   return ascending.findIndex(x => x.role === v.role) < visibleCount.value;
 }
 
-// ── Pulse on mode change ──────────────────────────────────────────────────────
-const pulsingRole = ref<string | null>(null);
-
-watch(mode, () => {
-  if (prefersReducedMotion) return;
-  const role = movedRole.value;
-  if (!role) return;
-  pulsingRole.value = role;
-  setTimeout(() => { pulsingRole.value = null; }, 500);
-});
 </script>
 
 <template>
   <div class="sbn-edu-widget d2-widget">
-    <div class="d2-stage">
-      <svg :viewBox="`0 0 ${SVG_W} ${svgHeight}`" width="100%" class="d2-svg" :style="{ maxHeight: svgHeight + 'px' }">
-        <g
-          v-for="v in placedVoices"
-          :key="v.role"
-          class="d2-voice"
-          :class="{ 'd2-voice--hidden': !isVoiceVisible(v) }"
-          :style="{ transform: `translateY(${v.y}px)` }"
-        >
-          <circle
-            :cx="DOT_X" cy="0" :r="DOT_R" :fill="v.color"
-            class="d2-dot"
-            :class="{
-              'd2-dot--popin':  isVoiceVisible(v) && visibleCount - 1 === [closedVoices.findIndex(x => x.role === v.role)][0] && mode === 'closed',
-              'd2-dot--pulse':  pulsingRole === v.role,
-            }"
-          />
-          <text :x="DOT_X" y="0" text-anchor="middle" dominant-baseline="central" class="d2-dot-note">
-            {{ v.note }}
-          </text>
-          <text :x="DOT_X + DOT_R + 8" y="0" dominant-baseline="central" class="d2-dot-role">
-            {{ v.role }}
-          </text>
-        </g>
-      </svg>
+
+    <div class="d2-header">
+      <div class="d2-label">Drop Voicings</div>
     </div>
 
     <div class="d2-badges">
@@ -180,15 +159,43 @@ watch(mode, () => {
       >{{ m.label }}</button>
     </div>
 
+    <div class="d2-stage">
+      <svg :viewBox="`0 0 ${SVG_W} ${svgHeight}`" width="100%" class="d2-svg" :style="{ height: svgHeight + 'px' }">
+
+        <!-- Voice dots -->
+        <g
+          v-for="v in placedVoices"
+          :key="v.role"
+          class="d2-voice"
+          :class="{ 'd2-voice--hidden': !isVoiceVisible(v) }"
+          :style="{ transform: `translateY(${v.y}px)` }"
+        >
+          <circle
+            :cx="DOT_X" cy="0" :r="DOT_R" :fill="v.color"
+            class="d2-dot"
+          />
+          <text :x="DOT_X" y="0" text-anchor="middle" dominant-baseline="central" class="d2-dot-note">
+            {{ v.note }}
+          </text>
+          <text :x="DOT_X + DOT_R + 8" y="0" dominant-baseline="central" class="d2-dot-role">
+            {{ v.role }}
+          </text>
+        </g>
+      </svg>
+    </div>
+
     <p class="d2-caption">
       <template v-if="mode === 'closed'">
         A <strong>closed</strong> voicing packs all four notes inside one octave.
       </template>
       <template v-else-if="mode === 'drop2'">
-        The <strong>{{ movedRole }}</strong> — 2nd from the top — dropped an octave. Wider spacing, easier to grab on guitar.
+        The <strong>2nd note from the top</strong> is dropped an octave.
+      </template>
+      <template v-else-if="mode === 'drop3'">
+        The <strong>3rd note from the top</strong> is dropped an octave.
       </template>
       <template v-else>
-        The <strong>{{ movedRole }}</strong> — 3rd from the top — dropped an octave. A different spread, different fingering shape.
+        A <strong>shell voicing</strong> drops the 5th — it adds little colour. Root, 3rd and 7th remain, giving a lean, harmonically complete sound.
       </template>
     </p>
   </div>
@@ -198,48 +205,30 @@ watch(mode, () => {
 .d2-widget {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
+  gap: 12px;
+  padding: 1.75rem 1.5rem 1.5rem;
   background: #0f0f17;
   font-family: var(--font-body, system-ui, sans-serif);
 }
 
-.d2-stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.d2-svg {
-  max-width: 220px;
-  display: block;
-  overflow: visible;
-}
-
-.d2-voice {
-  transition: transform 0.45s cubic-bezier(0.34, 1.2, 0.64, 1), opacity 0.25s var(--ease, ease);
-}
-
-.d2-voice--hidden {
-  opacity: 0;
-  transition: none;
-}
+.d2-header { width: 100%; display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+.d2-label { font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: #ffffff; }
 
 /* ── Badges ──────────────────────────────────────────────────────────────── */
 .d2-badges {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   justify-content: center;
 }
 
 .d2-badge {
-  padding: 0.32rem 0.75rem;
+  padding: 0.28rem 0.65rem;
   border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.18);
   background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6);
+  color: #ffffff;
   font-family: 'DM Mono', monospace;
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
@@ -247,7 +236,6 @@ watch(mode, () => {
 
 .d2-badge:hover {
   border-color: rgba(255,255,255,0.35);
-  color: rgba(255,255,255,0.9);
   background: rgba(255,255,255,0.12);
 }
 
@@ -257,12 +245,34 @@ watch(mode, () => {
   color: #0f0f17;
 }
 
+.d2-stage {
+  display: flex;
+  justify-content: center;
+}
+
+.d2-svg {
+  max-width: 220px;
+  display: block;
+  overflow: visible;
+}
+
+/* ── Voice transition ─────────────────────────────────────────────────────── */
+.d2-voice {
+  transition: transform 0.45s cubic-bezier(0.34, 1.2, 0.64, 1), opacity 0.25s ease;
+}
+
+.d2-voice--hidden {
+  opacity: 0;
+  transition: none;
+}
+
+
 /* ── Caption ─────────────────────────────────────────────────────────────── */
 .d2-caption {
   margin: 0;
   font-size: 0.82rem;
   line-height: 1.6;
-  color: rgba(255,255,255,0.85);
+  color: #ffffff;
   text-align: center;
 }
 
@@ -276,37 +286,11 @@ watch(mode, () => {
 .d2-dot-role {
   font-size: 10px;
   font-weight: 600;
-  fill: rgba(255,255,255,0.65);
+  fill: #ffffff;
   pointer-events: none;
-}
-
-/* ── Dot animations ──────────────────────────────────────────────────────── */
-@keyframes d2-popin {
-  0%   { transform: scale(0);    opacity: 0; }
-  60%  { transform: scale(1.25); opacity: 1; }
-  100% { transform: scale(1);    opacity: 1; }
-}
-
-@keyframes d2-pulse {
-  0%   { transform: scale(1);    }
-  35%  { transform: scale(1.35); }
-  100% { transform: scale(1);    }
-}
-
-.d2-dot--popin {
-  animation: d2-popin 0.35s cubic-bezier(0.34, 1.4, 0.64, 1) both;
-  transform-origin: center;
-  transform-box: fill-box;
-}
-
-.d2-dot--pulse {
-  animation: d2-pulse 0.45s cubic-bezier(0.34, 1.2, 0.64, 1) both;
-  transform-origin: center;
-  transform-box: fill-box;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .d2-voice { transition: none; }
-  .d2-dot--popin, .d2-dot--pulse { animation: none; }
 }
 </style>

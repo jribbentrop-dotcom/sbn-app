@@ -211,14 +211,14 @@ const arcControl = BAR_Y - 26;
 .dur-header { width: 100%; display: flex; align-items: center; justify-content: space-between; }
 .dur-title {
   font-family: 'DM Mono', monospace; font-size: 0.7rem;
-  letter-spacing: 0.15em; text-transform: uppercase; color: rgba(255,255,255,0.65);
+  letter-spacing: 0.15em; text-transform: uppercase; color: #ffffff;
 }
 
 .dur-tabs { display: flex; background: rgba(255,255,255,0.08); border-radius: 999px; padding: 3px; gap: 2px; border: 1px solid rgba(255,255,255,0.12); }
 .dur-tab {
   font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.08em;
   padding: 0.32rem 0.85rem; border-radius: 999px; border: none;
-  background: transparent; color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.25s ease;
+  background: transparent; color: #ffffff; cursor: pointer; transition: all 0.25s ease;
 }
 .dur-tab.active { background: rgba(255,255,255,0.92); color: #0f0f17; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
 
@@ -236,19 +236,19 @@ const arcControl = BAR_Y - 26;
   font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.08em;
   padding: 0.32rem 1rem; border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s ease;
+  color: #ffffff; cursor: pointer; transition: all 0.2s ease;
 }
 .dur-dot-btn.on { background: #f59e0b; border-color: transparent; color: #0f0f17; }
 
 .dur-explanation {
   font-family: system-ui, sans-serif;
   font-size: 0.82rem; line-height: 1.65;
-  color: rgba(255,255,255,0.85); text-align: center; padding: 0 0.25rem; min-height: 3.5rem;
+  color: #ffffff; text-align: center; padding: 0 0.25rem; min-height: 3.5rem;
 }
 
 .dur-nav { display: flex; align-items: center; gap: 1.25rem; }
 .dur-arrow {
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.65);
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: #ffffff;
   width: 34px; height: 34px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; font-size: 0.85rem; transition: all 0.2s ease;
@@ -262,7 +262,7 @@ const arcControl = BAR_Y - 26;
 
 .dur-context-label {
   font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.12em;
-  text-transform: uppercase; color: rgba(255,255,255,0.5); align-self: flex-start; padding-left: 0.25rem;
+  text-transform: uppercase; color: #ffffff; align-self: flex-start; padding-left: 0.25rem;
 }
 
 @keyframes durBarGrow { from { width: 0; opacity: 0; } to { opacity: 1; } }

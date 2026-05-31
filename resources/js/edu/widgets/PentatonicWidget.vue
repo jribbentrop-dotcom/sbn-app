@@ -214,14 +214,14 @@ const LEGEND_ITEMS = [
 .pt-header { width: 100%; display: flex; align-items: center; justify-content: space-between; }
 .pt-title {
   font-family: 'DM Mono', monospace; font-size: 0.7rem;
-  letter-spacing: 0.15em; text-transform: uppercase; color: rgba(255,255,255,0.65);
+  letter-spacing: 0.15em; text-transform: uppercase; color: #ffffff;
 }
 .pt-quality-pills { display: flex; gap: 3px; }
 .pt-pill {
   font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.08em;
   padding: 0.32rem 0.65rem; border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s ease;
+  color: #ffffff; cursor: pointer; transition: all 0.2s ease;
 }
 .pt-pill:hover { border-color: rgba(255,255,255,0.35); color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.12); }
 .pt-pill.active { background: rgba(255,255,255,0.92); color: #0f0f17; border-color: transparent; }
@@ -231,15 +231,15 @@ const LEGEND_ITEMS = [
 
 .pt-scale-label {
   font-family: 'Cormorant Garamond', serif; font-size: 1.4rem; font-weight: 300;
-  line-height: 1.1; color: rgba(255,255,255,0.85); transition: opacity 0.3s ease; min-height: 3rem;
+  line-height: 1.1; color: #ffffff; transition: opacity 0.3s ease; min-height: 3rem;
 }
 .pt-count {
   font-family: 'DM Mono', monospace; font-size: 0.7rem;
-  letter-spacing: 0.1em; color: rgba(255,255,255,0.65);
+  letter-spacing: 0.1em; color: #ffffff;
 }
 .pt-blurb {
   font-family: system-ui, sans-serif;
-  font-size: 0.82rem; line-height: 1.6; color: rgba(255,255,255,0.85);
+  font-size: 0.82rem; line-height: 1.6; color: #ffffff;
   min-height: 4.5rem; transition: opacity 0.25s ease;
 }
 
@@ -247,7 +247,7 @@ const LEGEND_ITEMS = [
 .pt-toggle-label {
   font-family: 'DM Mono', monospace; font-size: 0.7rem;
   letter-spacing: 0.1em; text-transform: uppercase;
-  color: rgba(255,255,255,0.65); flex: 1; transition: color 0.3s ease;
+  color: #ffffff; flex: 1; transition: color 0.3s ease;
 }
 .pt-toggle-label.active { color: #f59e0b; }
 
@@ -270,7 +270,7 @@ const LEGEND_ITEMS = [
 .pt-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .pt-legend-text {
   font-family: 'DM Mono', monospace; font-size: 0.65rem;
-  letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.65);
+  letter-spacing: 0.1em; text-transform: uppercase; color: #ffffff;
 }
 
 @media (prefers-reduced-motion: reduce) {

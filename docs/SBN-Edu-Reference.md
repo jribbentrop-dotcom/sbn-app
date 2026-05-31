@@ -131,16 +131,25 @@ embeddable widgets. Each entry is a **raw lazy-import thunk**:
 
 ```ts
 export const eduWidgets = {
-  'triad-builder':     () => import('./TriadBuilder.vue'),
-  'circle-of-fifths':  () => import('./CircleOfFifths.vue'),
-  'drop2-visualizer':  () => import('./Drop2Visualizer.vue'),
-  'voice-leading':     () => import('./VoiceLeading.vue'),
-  'caged-system':      () => import('./CagedWidget.vue'),
-  'chord-function':    () => import('./ChordFunctionWidget.vue'),
-  'chord-tones':       () => import('./ChordTonesWidget.vue'),
-  'note-duration':     () => import('./DurationWidget.vue'),
-  'interval-explorer': () => import('./IntervalWidget.vue'),
-  'pentatonic-scales': () => import('./PentatonicWidget.vue'),
+  'triad-builder':            () => import('./TriadBuilder.vue'),
+  'circle-of-fifths':         () => import('./CircleOfFifths.vue'),
+  'drop2-visualizer':         () => import('./Drop2Visualizer.vue'),
+  'voice-leading':            () => import('./VoiceLeading.vue'),
+  'caged-system':             () => import('./CagedWidget.vue'),
+  'chord-function':           () => import('./ChordFunctionWidget.vue'),
+  'chord-tones':              () => import('./ChordTonesWidget.vue'),
+  'note-duration':            () => import('./DurationWidget.vue'),
+  'interval-explorer':        () => import('./IntervalWidget.vue'),
+  'pentatonic-scales':        () => import('./PentatonicWidget.vue'),
+  'chord-quality-brightness': () => import('./ChordQualityBrightness.vue'),
+  'chord-quality-tree':       () => import('./ChordQualityTree.vue'),
+  'chord-extensions':         () => import('./ChordExtensionsWidget.vue'),
+  'scale-positions':          () => import('./ScalePositionsWidget.vue'),
+  'time-signature':           () => import('./TimeSignatureWidget.vue'),
+  'repeat-signs':             () => import('./RepeatSignsWidget.vue'),
+  'note-durations':           () => import('./NoteDurationsWidget.vue'),
+  'triplets':                 () => import('./TripletWidget.vue'),
+  'tab-diagram':              () => import('./TabDiagramWidget.vue'),
 } as const;
 ```
 
@@ -160,13 +169,14 @@ Every widget follows these rules (see `TriadBuilder.vue` as the reference):
   prefix (`tb-`, `cof-`, `d2-`, `vl-`).
 - Own lazy chunk via the registry thunk.
 
-**All widgets share a deep dark theme** — `background: #0f0f17` on the root element. Consistent design tokens across all 10 widgets:
+**All widgets share a deep dark theme** — `background: #0f0f17` on the root element, `padding: 1.75rem 1.5rem 1.5rem`, `gap: 1rem+`. Consistent design tokens:
 
-- **Badge pills**: DM Mono `0.65rem`, `rgba(255,255,255,0.08)` bg, `rgba(255,255,255,0.18)` border; active state = `rgba(255,255,255,0.92)` bg + `#0f0f17` text.
-- **Body/explanation text**: `rgba(255,255,255,0.85)` at `0.82rem`, `line-height: 1.6`.
-- **Muted labels** (titles, counts, context): `rgba(255,255,255,0.65)` at `0.7rem`, DM Mono.
-- **SVG structural lines** (strings, axes): `rgba(255,255,255,0.08–0.22)`.
-- Large display elements (chord symbols, numerals) use Cormorant Garamond; body/explanation uses `system-ui`.
+- **Header**: DM Mono `0.65rem`, `letter-spacing: 0.15em`, `text-transform: uppercase`, `color: #ffffff` (full white).
+- **Badge/mode pills**: DM Mono `0.6rem`, `rgba(255,255,255,0.08)` bg, `rgba(255,255,255,0.12)` border, `color: rgba(255,255,255,0.4)` resting; active = `rgba(255,255,255,0.92)` bg + `#0f0f17` text.
+- **Body/explanation text**: `system-ui` (not serif) at `0.82–0.85rem`, `line-height: 1.6`, `color: #ffffff`.
+- **Secondary labels** (step counters, axis labels, bar labels): DM Mono, `color: rgba(255,255,255,0.35–0.45)`.
+- **SVG structural lines** (strings, frets, axes): `rgba(255,255,255,0.08–0.22)`.
+- Large display elements (chord symbols, time-signature numerals) use Cormorant Garamond; all body/explanation uses `system-ui`.
 
 ---
 
@@ -174,19 +184,25 @@ Every widget follows these rules (see `TriadBuilder.vue` as the reference):
 
 | Slug | Component | Teaches |
 |---|---|---|
-| `triad-builder` | `TriadBuilder.vue` | Triad construction — four quality badges (Major/Minor/Diminished/Augmented), dots animate on switch. |
-| `circle-of-fifths` | `CircleOfFifths.vue` | The 12 keys arranged by fifths, with relative minors. |
-| `drop2-visualizer` | `Drop2Visualizer.vue` | Drop-2 and Drop-3 voicings — Closed/Drop 2/Drop 3 badges, dropped dot slides and pulses. |
-| `voice-leading` | `VoiceLeading.vue` | 6 guitar strings, two chord columns, bezier curves per voice. Three preset ii–V–I pairs as badges. |
-| `caged-system` | `CagedWidget.vue` | Five CAGED shapes for C major — animated camera pan across a full-neck SVG, mini strip position indicator, swipe + arrow nav. |
-| `chord-function` | `ChordFunctionWidget.vue` | All 7 diatonic degrees in major and minor, colour-coded by function (Tonic / Subdominant / Dominant), slide animations, swipe nav. |
-| `chord-tones` | `ChordTonesWidget.vue` | Chord-tone stacks from triad → 13th for maj/min/dom, with toggleable altered option tones (♭9/#9/#11/♭13). |
-| `note-duration` | `DurationWidget.vue` | Dotted and tied note durations — bar-grow reveal animations, tabbed between Dotted and Tied examples. |
-| `interval-explorer` | `IntervalWidget.vue` | All 12 intervals from C — upper dot is draggable on a pitch axis (mouse + touch), snaps to semitone, live colour update. |
-| `pentatonic-scales` | `PentatonicWidget.vue` | Diatonic ↔ pentatonic toggle — dropped degrees shrink and strike through, major and minor modes. |
-| `chord-quality-brightness` | `ChordQualityBrightness.vue` | maj7 → dom7 → m7 → m7♭5 → dim7 brightness spectrum — SVG pitch-dot stack slides and pulses on quality change, hue-tinted chrome tracks brightness. |
-| `chord-quality-tree` | `ChordQualityTree.vue` | Two triads branch into five 7th-chord qualities — Triad/7th-chord step toggle shows exactly which tone changes; qualities grouped by major/minor parent. |
-| `chord-extensions` | `ChordExtensionsWidget.vue` | Stack thirds beyond the 7th across all five qualities (maj7/dom7/m7/m7♭5/dim7) — per-quality extension steps, symbol updates live, option tones on dominant. |
+| `triad-builder` | `TriadBuilder.vue` | "The Four Triads" — Major/Minor/Diminished/Augmented badges, dots animate on switch. |
+| `circle-of-fifths` | `CircleOfFifths.vue` | 12-segment SVG donut; clickable keys show relative minor. Thin white outline ring + dividers. |
+| `drop2-visualizer` | `Drop2Visualizer.vue` | Closed / Drop 2 / Drop 3 / Shell voicings — dots slide to new positions; bottom-gap scales with semitone distance so the visual space shows the drop; shell shows missing 5th as gap between 3rd and 7th. |
+| `voice-leading` | `VoiceLeading.vue` | Fretboard excerpt (open position), Classical / Jazz tabs. B7→E (classical) and B7♭9→Emaj7 (jazz) — dots slide on fretboard on Resolve, chord-function labels inside colored dots. |
+| `caged-system` | `CagedWidget.vue` | Five CAGED shapes for C major — animated camera pan, mini strip, swipe + arrow nav. |
+| `chord-function` | `ChordFunctionWidget.vue` | All 7 diatonic degrees in major and minor, colour-coded by function (Tonic / Subdominant / Dominant). |
+| `chord-tones` | `ChordTonesWidget.vue` | Chord-tone stacks from triad → 13th for maj/min/dom, with toggleable altered option tones. |
+| `note-duration` | `DurationWidget.vue` | Dotted and tied note durations — bar-grow reveal, tabbed Dotted / Tied. |
+| `interval-explorer` | `IntervalWidget.vue` | All 12 intervals — upper dot draggable on pitch axis (mouse + touch), snaps to semitone. |
+| `pentatonic-scales` | `PentatonicWidget.vue` | Diatonic ↔ pentatonic toggle — dropped degrees shrink and strike through. |
+| `chord-quality-brightness` | `ChordQualityBrightness.vue` | maj7 → dom7 → m7 → m7♭5 → dim7 brightness spectrum, hue-tinted chrome. |
+| `chord-quality-tree` | `ChordQualityTree.vue` | Two triads branch into five 7th-chord qualities — Triad/7th-chord step toggle. |
+| `chord-extensions` | `ChordExtensionsWidget.vue` | Stack thirds beyond the 7th across all five qualities, option tones on dominant. |
+| `scale-positions` | `ScalePositionsWidget.vue` | Five pentatonic boxes across the neck — position switcher. |
+| `time-signature` | `TimeSignatureWidget.vue` | 2/4, 3/4, 4/4, 6/8, 5/4, 7/8 — beat pattern visualiser with feel label. |
+| `repeat-signs` | `RepeatSignsWidget.vue` | Repeat barlines, volta brackets, D.S. al Coda, D.C. al Fine — animated SVG staff diagrams. |
+| `note-durations` | `NoteDurationsWidget.vue` | Whole → sixteenth notes — note shape, beat value, bar visualisation. |
+| `triplets` | `TripletWidget.vue` | Quarter and eighth triplets — comparison toggle with normal notes. |
+| `tab-diagram` | `TabDiagramWidget.vue` | Fretboard → tab → chord diagram animation showing the 90° rotation relationship (Am). |
 
 ### Shared pitch-dot visual language
 
@@ -203,13 +219,14 @@ Every widget follows these rules (see `TriadBuilder.vue` as the reference):
 
 ### Voice-leading widget
 
-`VoiceLeading` uses a horizontal string-lane layout (6 lines, top = high E):
+`VoiceLeading` renders a self-contained SVG fretboard (open position, frets 0–4, same visual style as the CAGED widget) with animated voice-leading:
 
-- Two dot columns, one per chord. Dots are role-colored; note name inside.
-- **Bezier curves** connect matching roles across the two chords — control points pulled to center so arcs are visible even for unison motion. Curve opacity 0.55 on dark bg so dots still read first.
-- **Steep curve = big leap, flat curve = smooth motion** — the teaching point is readable at a glance.
-- Three preset pairs: Imaj7→VIm7 (smooth), IIm7→V7 (contrary motion), V7→Imaj7 (tritone resolution).
-- `transition: d` on paths animates the curve morph in supporting browsers (Chrome, Firefox, Safari 16+).
+- **Classical tab**: B7 (x2120x) → E (022100). Moving voices: D♯ rises a semitone (leading tone 3→1), A falls to G♯ (♭7→3). Bass strings appear on resolve.
+- **Jazz tab**: B7♭9 (x2121x) → Emaj7 (021100, drop-3 voicing — str1 and str5 omitted). D♯ stays (3→maj7 same fret), A→G♯ moves, C→B moves (♭9→5).
+- Dots show **chord-function labels** inside colored circles (1=amber, 3=blue, b7/maj7=purple, b9=pink). Color map: `FUNC_COLOR`.
+- Animation: each dot is a `<g :style="transform: translate(x,y)">` with `transition: transform 0.5s` — dots slide to new fret positions on chord change.
+- "Resolve →" / "← Back" toggle button; tab switch resets to chord 1.
+- String convention: `str 0` = low E, `str 5` = high e (matches CAGED/Fretboard primitive).
 
 ---
 

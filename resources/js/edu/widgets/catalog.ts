@@ -100,6 +100,36 @@ export const widgetCatalog: WidgetEntry[] = [
     tags: ['guitar', 'scales', 'fretboard'],
     defaultProps: { scale: 'minor-pentatonic', root: 'F', startPosition: 1 },
   },
+  {
+    slug: 'time-signature',
+    title: 'Time Signatures',
+    summary: 'Step through 2/4, 3/4, 4/4, 6/8, 5/4, and 7/8 — see the beat pattern and learn when each metre appears in Jazz and Bossa Nova.',
+    tags: ['rhythm', 'general'],
+  },
+  {
+    slug: 'repeat-signs',
+    title: 'Repeat Signs',
+    summary: 'Repeat barlines, volta brackets, D.S. al Coda, and D.C. al Fine — every navigation symbol used in lead sheets and charts.',
+    tags: ['notation', 'general'],
+  },
+  {
+    slug: 'note-durations',
+    title: 'Note Durations',
+    summary: 'From whole notes to sixteenths — see the note shape, beat value, and how many fit in a bar of 4/4.',
+    tags: ['rhythm', 'notation', 'general'],
+  },
+  {
+    slug: 'triplets',
+    title: 'Triplets',
+    summary: 'Quarter-note and eighth-note triplets side by side — toggle the comparison to see how three fit where two normally go.',
+    tags: ['rhythm', 'general'],
+  },
+  {
+    slug: 'tab-diagram',
+    title: 'Tab & Chord Diagrams',
+    summary: 'Three views of the same chord — fretboard, tab, and chord diagram — animating through the rotation that links them.',
+    tags: ['guitar', 'notation', 'general'],
+  },
 ];
 
 /** All unique tags across the catalog, sorted alphabetically. */

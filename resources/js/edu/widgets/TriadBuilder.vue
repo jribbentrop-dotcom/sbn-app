@@ -147,6 +147,9 @@ watch(quality, (next: QualityKey, prev: QualityKey) => {
 
 <template>
   <div class="sbn-edu-widget triad-builder">
+    <div class="tb-header">
+      <div class="tb-label">The Four Triads</div>
+    </div>
     <div class="tb-stage">
       <svg :viewBox="`0 0 ${SVG_W} ${svgHeight}`" width="100%" class="tb-svg" :style="{ maxHeight: svgHeight + 'px' }">
         <g
@@ -194,10 +197,13 @@ watch(quality, (next: QualityKey, prev: QualityKey) => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
+  padding: 1.75rem 1.5rem 1.5rem;
   background: #0f0f17;
   font-family: var(--font-body, system-ui, sans-serif);
 }
+
+.tb-header { width: 100%; display: flex; align-items: center; justify-content: space-between; }
+.tb-label { font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: #ffffff; }
 
 .tb-stage {
   display: flex;
@@ -217,7 +223,7 @@ watch(quality, (next: QualityKey, prev: QualityKey) => {
   border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.18);
   background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6);
+  color: #ffffff;
   font-family: 'DM Mono', monospace;
   font-size: 0.65rem;
   font-weight: 500;
@@ -265,13 +271,13 @@ watch(quality, (next: QualityKey, prev: QualityKey) => {
 .tb-dot-role {
   font-size: 13px;
   font-weight: 700;
-  fill: rgba(255,255,255,0.85);
+  fill: #ffffff;
   pointer-events: none;
 }
 
 .tb-dot-interval {
   font-size: 11px;
-  fill: rgba(255,255,255,0.55);
+  fill: #ffffff;
   pointer-events: none;
 }
 

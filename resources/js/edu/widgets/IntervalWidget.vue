@@ -309,11 +309,11 @@ const SEMITONES_LIST = Array.from({ length: 12 }, (_, i) => i + 1);
 }
 .iv-title {
   font-family: 'DM Mono', monospace; font-size: 0.7rem;
-  letter-spacing: 0.15em; text-transform: uppercase; color: rgba(255,255,255,0.65);
+  letter-spacing: 0.15em; text-transform: uppercase; color: #ffffff;
 }
 .iv-semitone {
   font-family: 'DM Mono', monospace; font-size: 0.7rem;
-  letter-spacing: 0.08em; color: rgba(255,255,255,0.65); transition: opacity 0.2s;
+  letter-spacing: 0.08em; color: #ffffff; transition: opacity 0.2s;
 }
 
 .iv-content {
@@ -329,17 +329,17 @@ const SEMITONES_LIST = Array.from({ length: 12 }, (_, i) => i + 1);
 }
 .iv-name {
   font-family: 'DM Mono', monospace; font-size: 0.65rem;
-  letter-spacing: 0.06em; color: rgba(255,255,255,0.85);
+  letter-spacing: 0.06em; color: #ffffff;
   text-transform: uppercase; line-height: 1.4;
 }
 .iv-character {
   font-family: system-ui, sans-serif;
-  font-size: 0.82rem; line-height: 1.6; color: rgba(255,255,255,0.85); margin-top: 0.25rem;
+  font-size: 0.82rem; line-height: 1.6; color: #ffffff; margin-top: 0.25rem;
 }
 
 .iv-nav { display: flex; align-items: center; gap: 1.25rem; margin-top: 0.5rem; z-index: 1; }
 .iv-arrow {
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.65);
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: #ffffff;
   width: 34px; height: 34px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; font-size: 0.85rem; transition: all 0.2s ease;

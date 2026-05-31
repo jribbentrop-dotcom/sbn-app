@@ -274,14 +274,14 @@ function isOptionActive(opt: OptionTone) {
 .ct-title {
   font-family: 'DM Mono', monospace;
   font-size: 0.7rem; letter-spacing: 0.15em;
-  text-transform: uppercase; color: rgba(255,255,255,0.65);
+  text-transform: uppercase; color: #ffffff;
 }
 .ct-pills { display: flex; gap: 3px; }
 .ct-pill {
   font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.08em;
   padding: 0.32rem 0.65rem; border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s ease;
+  color: #ffffff; cursor: pointer; transition: all 0.2s ease;
 }
 .ct-pill:hover { border-color: rgba(255,255,255,0.35); color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.12); }
 .ct-pill.active { background: rgba(255,255,255,0.92); color: #0f0f17; border-color: transparent; }
@@ -293,7 +293,7 @@ function isOptionActive(opt: OptionTone) {
 .ct-symbol {
   font-family: 'Cormorant Garamond', serif;
   font-weight: 300; line-height: 1; letter-spacing: -0.02em;
-  color: rgba(255,255,255,0.9); min-height: 3rem; transition: all 0.3s ease;
+  color: #ffffff; min-height: 3rem; transition: all 0.3s ease;
 }
 .ct-symbol.short  { font-size: 3rem; }
 .ct-symbol.medium { font-size: 2.2rem; }
@@ -302,21 +302,21 @@ function isOptionActive(opt: OptionTone) {
 .ct-character {
   font-family: system-ui, sans-serif;
   font-size: 0.82rem; line-height: 1.6;
-  color: rgba(255,255,255,0.85); min-height: 4rem; transition: opacity 0.25s ease;
+  color: #ffffff; min-height: 4rem; transition: opacity 0.25s ease;
 }
 
 .ct-options-wrap { width: 100%; min-height: 1.5rem; }
 .ct-options-label {
   font-family: 'DM Mono', monospace; font-size: 0.65rem;
   letter-spacing: 0.12em; text-transform: uppercase;
-  color: rgba(255,255,255,0.5); margin-bottom: 0.4rem;
+  color: #ffffff; margin-bottom: 0.4rem;
 }
 .ct-options-pills { display: flex; gap: 4px; flex-wrap: wrap; }
 .ct-option-pill {
   font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.06em;
   padding: 0.32rem 0.65rem; border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s ease;
+  color: #ffffff; cursor: pointer; transition: all 0.2s ease;
 }
 .ct-option-pill:hover { border-color: rgba(255,255,255,0.35); color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.12); }
 .ct-option-pill.active { background: rgba(239,68,68,0.85); border-color: transparent; color: #ffffff; }
@@ -326,7 +326,7 @@ function isOptionActive(opt: OptionTone) {
   font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.06em;
   padding: 0.32rem 0.65rem; border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
+  color: #ffffff; cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
 }
 .ct-ext-pill:hover { border-color: rgba(255,255,255,0.35); color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.12); }
 .ct-ext-pill.active { background: rgba(255,255,255,0.92); color: #0f0f17; border-color: transparent; }

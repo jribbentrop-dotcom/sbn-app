@@ -174,7 +174,7 @@ function onTouchEnd(e: TouchEvent) {
   font-size: 0.7rem;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.65);
+  color: #ffffff;
 }
 
 .cfi-mode-toggle {
@@ -197,7 +197,7 @@ function onTouchEnd(e: TouchEvent) {
   cursor: pointer;
   transition: all 0.25s ease;
   background: transparent;
-  color: rgba(255,255,255,0.6);
+  color: #ffffff;
 }
 .cfi-mode-btn.active {
   background: rgba(255,255,255,0.92);
@@ -229,7 +229,7 @@ function onTouchEnd(e: TouchEvent) {
   font-family: 'DM Mono', monospace;
   font-size: 1rem;
   font-weight: 300;
-  color: rgba(255,255,255,0.55);
+  color: #ffffff;
   letter-spacing: 0.05em;
   margin-bottom: 1.25rem;
 }
@@ -251,7 +251,7 @@ function onTouchEnd(e: TouchEvent) {
   font-family: system-ui, sans-serif;
   font-size: 0.82rem;
   line-height: 1.65;
-  color: rgba(255,255,255,0.85);
+  color: #ffffff;
   text-align: center;
   padding: 0 0.25rem;
 }
@@ -267,7 +267,7 @@ function onTouchEnd(e: TouchEvent) {
 .cfi-arrow {
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.15);
-  color: rgba(255,255,255,0.65);
+  color: #ffffff;
   width: 38px; height: 38px;
   border-radius: 50%;
   display: flex;
