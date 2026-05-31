@@ -78,9 +78,24 @@ class ChordShapeCalculator
     // Roots whose natural spelling uses flats (matches HarmonicContext::FLAT_KEYS root set).
     private const FLAT_ROOT_NOTES = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb'];
 
-    // Qualities whose chord tones include flat intervals (b3, b5, b7) — always
-    // spell with flats regardless of root (e.g. Cm has Eb not D#).
-    private const FLAT_QUALITY_NOTES = ['min', 'm7', 'm6', 'm7b5', 'o7', 'mMaj7', 'dom7', 'maj6', 'aug7'];
+    // Semitones (black keys) that unambiguously belong to the flat side.
+    // pc 6 (F#/Gb) is excluded — it's the tritone and belongs to both sides;
+    // the root's own accidental determines which spelling to use there.
+    private const FLAT_SIDE_PCS = [1, 3, 8, 10]; // Db Eb Ab Bb
+
+    // Only the minor/diminished intervals of each quality — the ones that can
+    // land on a flat-side pc and spell as flats (b3=3, b5=6, b7=10).
+    // Major/perfect intervals (4, 7, 11) landing on black keys always spell sharp
+    // (e.g. B7's major 3rd lands on pc 3 = D#, never Eb).
+    private const QUALITY_FLAT_INTERVALS = [
+        'min'   => [3],        // b3
+        'm7'    => [3, 10],    // b3, b7
+        'm6'    => [3],        // b3 (6th is major, natural)
+        'm7b5'  => [3, 6, 10], // b3, b5, b7
+        'mMaj7' => [3],        // b3 (maj7 is sharp)
+        'dom7'  => [10],       // b7 only (major 3rd always sharp)
+        'aug7'  => [10],       // b7 only (major 3rd, aug 5th both sharp)
+    ];
 
     private const ROOT_STRING_MAP = [
         'roote'     => 1,
@@ -165,18 +180,6 @@ class ChordShapeCalculator
     // =========================================================================
 
     /**
-     * Calculate fret positions from a chord shape and root note.
-     *
-     * Takes a shape object (Eloquent model or stdClass with diagram_data,
-     * root_string, quality, inversion, interval_labels) and transposes it
-     * to the target root note.
-     *
-     * @param  object $shape     Shape with diagram_data, root_string, quality, inversion
-     * @param  string $rootNote  Target root note (e.g., 'C', 'F#', 'Bb')
-     * @return array  {diagram_data, start_fret, interval_labels, notes}
-     */
-
-    /**
      * Derive the bass note for an inversion given the root and quality.
      * Returns null for root position or unknown inversions.
      */
@@ -192,9 +195,17 @@ class ChordShapeCalculator
         $flatNames  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
         // Qualities whose inversion bass tones are spelled with flats in standard
         // notation regardless of the key (b3, b5, b7 intervals).
-        static $flatQuals = ['m7', 'm7b5', 'min', 'o7', 'mMaj7', 'm6', 'dom7', 'maj6'];
-        $useFlats = \App\Services\HarmonicContext::spellingUsesFlats($rootNote)
-            || in_array($quality, $flatQuals, true);
+        // Dim7: spell bass tone via DiminishedSymmetry for correct root-relative accidentals
+        if ($quality === 'o7') {
+            $sym   = new \App\Services\HarmonicContext\DiminishedSymmetry();
+            $tones = $sym->spellDim7($rootNote);
+            $pcMap = [];
+            foreach ($tones as $name) {
+                $pcMap[$sym->toPc($name)] = $name;
+            }
+            return $pcMap[$target] ?? $flatNames[$target];
+        }
+        $useFlats = self::useFlatsForQuality($rootNote, $quality);
         return $useFlats ? $flatNames[$target] : $sharpNames[$target];
     }
 
@@ -269,15 +280,13 @@ class ChordShapeCalculator
             'open'      => $openResult,
         ];
 
-        $useFlats = in_array($rootNote, self::FLAT_ROOT_NOTES, true)
-            || str_contains($rootNote, 'b')
-            || in_array($quality, self::FLAT_QUALITY_NOTES, true);
+        $useFlats = $this->useFlatsForQuality($rootNote, $quality);
 
         return [
             'diagram_data'    => $calculatedData,
             'start_fret'      => $this->calculateStartFret($calculatedData),
             'interval_labels' => $shape->interval_labels ?? '',
-            'notes'           => $this->calculateNoteNames($calculatedPositions, $useFlats),
+            'notes'           => $this->calculateNoteNames($calculatedPositions, $useFlats, $openResult, $rootNote, $quality),
         ];
     }
 
@@ -389,10 +398,8 @@ class ChordShapeCalculator
 
         $startFret    = $this->calculateStartFret($calculatedData);
         $shapeQuality = $shape->quality ?? '';
-        $useFlats     = in_array($rootNote, self::FLAT_ROOT_NOTES, true)
-            || str_contains($rootNote, 'b')
-            || in_array($shapeQuality, self::FLAT_QUALITY_NOTES, true);
-        $notes        = $this->calculateNoteNames($calculatedPositions, $useFlats);
+        $useFlats     = $this->useFlatsForQuality($rootNote, $shapeQuality);
+        $notes        = $this->calculateNoteNames($calculatedPositions, $useFlats, $openResult, $rootNote, $shapeQuality);
 
         // Recompute interval labels relative to the BASS note
         // For slash chords like F/G, the bass note (G) is the reference
@@ -659,19 +666,84 @@ class ChordShapeCalculator
 
     /**
      * Calculate note names for each position (comma-separated).
-     * Uses flat spelling when $useFlats is true, sharps otherwise.
+     * Open strings (array of string numbers) are included at fret 0.
+     *
+     * For o7 quality, uses DiminishedSymmetry::spellDim7() so the root and b3
+     * are spelled correctly relative to the root (e.g. A#°7 → A#, C#, E, G)
+     * instead of forcing flat names for sharp-rooted chords.
      */
-    private function calculateNoteNames(array $positions, bool $useFlats = false): string
-    {
-        $noteMap = $useFlats ? self::SEMITONE_TO_NOTE_FLAT : self::SEMITONE_TO_NOTE_SHARP;
-        $notes   = [];
 
+    /**
+     * Decide flat vs sharp spelling for a root+quality combination.
+     * Flat roots and b-accidental roots always use flats.
+     * For natural roots, checks whether any chord tone of the quality lands on
+     * a flat-side pitch class (Db Eb Gb Ab Bb) — if so, use flats.
+     * Sharp roots (#) always use sharps.
+     */
+    public static function useFlatsForQuality(string $rootNote, string $quality): bool
+    {
+        if (in_array($rootNote, self::FLAT_ROOT_NOTES, true) || str_contains($rootNote, 'b')) {
+            return true;
+        }
+        if (str_contains($rootNote, '#')) {
+            return false;
+        }
+        // Natural root: check if any minor/diminished interval of this quality
+        // lands on a flat-side pc (major/perfect intervals always spell sharp).
+        $rootPc    = self::NOTE_TO_SEMITONE[$rootNote] ?? null;
+        $intervals = self::QUALITY_FLAT_INTERVALS[$quality] ?? null;
+        if ($rootPc === null || $intervals === null) {
+            return false;
+        }
+        foreach ($intervals as $interval) {
+            if (in_array(($rootPc + $interval) % 12, self::FLAT_SIDE_PCS, true)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function calculateNoteNames(
+        array  $positions,
+        bool   $useFlats = false,
+        array  $openStrings = [],
+        string $rootNote = '',
+        string $quality = ''
+    ): string {
+        // Build per-string fret map (fretted + open, no double-counting), sorted low→high string
+        $stringFrets = [];
         foreach ($positions as $pos) {
-            $string = (int) $pos['string'];
-            $fret   = (int) $pos['fret'];
+            $s = (int) $pos['string'];
+            $stringFrets[$s] = (int) $pos['fret'];
+        }
+        foreach ($openStrings as $s) {
+            $s = (int) $s;
+            if (!isset($stringFrets[$s])) {
+                $stringFrets[$s] = 0;
+            }
+        }
+        ksort($stringFrets);
+
+        // For dim7: build a pc→name map from DiminishedSymmetry spelling
+        if ($quality === 'o7' && $rootNote !== '') {
+            $sym   = new \App\Services\HarmonicContext\DiminishedSymmetry();
+            $tones = $sym->spellDim7($rootNote); // [R, b3, b5, bb7]
+            $pcMap = [];
+            foreach ($tones as $name) {
+                $pc = $sym->toPc($name);
+                $pcMap[$pc] = $name; // last writer wins (all four are distinct pcs for dim7)
+            }
+            $noteMap = null; // signal: use $pcMap
+        } else {
+            $noteMap = $useFlats ? self::SEMITONE_TO_NOTE_FLAT : self::SEMITONE_TO_NOTE_SHARP;
+            $pcMap   = null;
+        }
+
+        $notes = [];
+        foreach ($stringFrets as $string => $fret) {
             if ($string < 1 || $string > 6 || !isset(self::TUNING[$string])) continue;
-            $noteSemitone = (self::TUNING[$string] + $fret) % 12;
-            $notes[]      = $noteMap[$noteSemitone];
+            $pc      = (self::TUNING[$string] + $fret) % 12;
+            $notes[] = $pcMap !== null ? ($pcMap[$pc] ?? self::SEMITONE_TO_NOTE_FLAT[$pc]) : $noteMap[$pc];
         }
 
         return implode(',', $notes);

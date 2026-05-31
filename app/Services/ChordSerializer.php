@@ -64,41 +64,15 @@ class ChordSerializer
             'inversion' => $inversion,
         ]);
         $t = $this->shapeCalculator->calculateFrets($proxy, $root);
-        $diagramData = $t['diagram_data'] ?? null;
-        $startFret = $t['start_fret'] ?? ($chord->start_fret ?? 1);
-        $intervalLabels = $t['interval_labels'] ?? ($chord->interval_labels ?? '');
-        $notes = $t['notes'] ?? ($chord->notes ?? '');
-
-        if (empty($diagramData) || (empty($diagramData['positions']) && empty($diagramData['open']))) {
-            $diagramData = json_decode($chord->diagram_data ?? '{}', true)
-                ?: ['positions' => [], 'barres' => [], 'muted' => [], 'open' => []];
-            $startFret = $chord->start_fret ?? 1;
-        }
-
-        return [
-            'id' => $chord->id,
-            'slug' => $chord->slug,
-            'name' => $displayName,
-            'root_note' => $root,
-            'quality' => $quality,
-            'quality_label' => $chord->quality_label,
-            'extensions' => $extensions,
-            'voicing_category' => $chord->voicing_category,
-            'category_label' => $chord->category_label,
-            'root_string' => $chord->root_string,
-            'root_string_label' => $chord->root_string_label,
-            'inversion' => $inversion,
-            'inversion_label' => $inversionLabel,
-            'bass_note' => $this->spellBassNote(null, $root, $quality, $inversion),
-            'shape_family' => $chord->shape_family,
-            'start_fret' => $startFret,
-            'diagram_data' => $diagramData,
-            'interval_labels' => $intervalLabels,
-            'notes' => $notes,
-            'popularity' => $chord->popularity,
-            'difficulty' => $chord->difficulty,
-            'description' => $chord->description,
-        ];
+        $result = $this->buildSerializedArray($chord, $t, $root, $displayName);
+        // Override quality/inversion/bass with the alias values (proxy had them for the
+        // calculator, but buildSerializedArray reads them back from $chord).
+        $result['quality']          = $quality;
+        $result['extensions']       = $extensions;
+        $result['inversion']        = $inversion;
+        $result['inversion_label']  = $inversionLabel;
+        $result['bass_note']        = $this->spellBassNote(null, $root, $quality, $inversion);
+        return $result;
     }
 
     /**
@@ -127,10 +101,7 @@ class ChordSerializer
         static $sharp = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
         static $flat  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
         // Qualities whose inversion tones are always spelled with flats (b3, b5, b7).
-        static $flatQuals = ['m7','m7b5','min','o7','mMaj7','m6','dom7','maj6'];
-
-        $useFlats = HarmonicContext::spellingUsesFlats($root)
-            || in_array($quality, $flatQuals, true);
+        $useFlats = ChordShapeCalculator::useFlatsForQuality($root, $quality);
 
         if ($storedBass !== null && $storedBass !== '') {
             if (!isset($semi[$storedBass])) return $storedBass;
@@ -138,9 +109,8 @@ class ChordSerializer
             return $useFlats ? $flat[$s] : $sharp[$s];
         }
 
-        $derived = ChordShapeCalculator::deriveBassNote($root, $quality, $inversion);
-        if ($derived === null || !isset($semi[$derived])) return $derived;
-        return $useFlats ? $flat[$semi[$derived]] : $sharp[$semi[$derived]];
+        // deriveBassNote already applies useFlatsForQuality internally — return as-is.
+        return ChordShapeCalculator::deriveBassNote($root, $quality, $inversion);
     }
 
     /**

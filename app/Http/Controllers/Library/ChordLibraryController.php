@@ -873,21 +873,6 @@ class ChordLibraryController extends Controller
 			$domRoot   = $this->dimSymmetry->spellRoot($reading['domRootPc']);
 			$domRootPc = $reading['domRootPc'];
 
-			// The chord-tone notes present in this rootless voicing: 3,5,b7,b9.
-			$tones = $this->dimSymmetry->spellDom7b9($domRoot);
-			$notes = implode(',', [$tones['3'], $tones['5'], $tones['b7'], $tones['b9']]);
-
-			$aliases[] = [
-				'root_note'       => $domRoot,
-				'quality'         => 'dom7',
-				'extensions'      => 'b9',
-				'bass_note'       => null,    // rootless — no single defining bass
-				'interval_labels' => null,
-				'notes'           => $notes,
-				'name'            => $domRoot . '7(b9)',
-				'rootless'        => true,    // page badge + edu hook
-			];
-
 			// Build the four physical positions from the dim7 inversion shapes,
 			// relabelled by bass function relative to this dominant.
 			$list = [];
@@ -908,6 +893,28 @@ class ChordLibraryController extends Controller
 				$list[] = $entry;
 			}
 			$aliasInversions[$i] = $list;
+
+			// Alias switcher entry: string order from the serialized entry, but
+			// re-spelled for the dominant root via spellDom7b9's pc→name map.
+			$dom7Tones = $this->dimSymmetry->spellDom7b9($domRoot);
+			$pcToName  = [];
+			foreach ($dom7Tones as $name) {
+				$pcToName[$this->dimSymmetry->toPc($name)] = $name;
+			}
+			$reSpelled = array_map(
+				fn($n) => $pcToName[$this->dimSymmetry->toPc($n)] ?? $n,
+				explode(',', $list[0]['notes'] ?? '')
+			);
+			$aliases[] = [
+				'root_note'       => $domRoot,
+				'quality'         => 'dom7',
+				'extensions'      => 'b9',
+				'bass_note'       => null,
+				'interval_labels' => null,
+				'notes'           => implode(',', $reSpelled),
+				'name'            => $domRoot . '7(b9)',
+				'rootless'        => true,
+			];
 		}
 
 		return [

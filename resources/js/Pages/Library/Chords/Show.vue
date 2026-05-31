@@ -13,6 +13,7 @@ function updateSiblingsScroll() {
 
 let siblingsRo: ResizeObserver | null = null;
 import { Link } from '@inertiajs/vue3';
+import { chordShowUrl } from '@/composables/useChordUrl';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import { mountSbnNodes } from '@/lib/mountSbnNodes';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
@@ -493,7 +494,7 @@ const formattedChordName = computed(() => {
                                         :is="inversionIsCurrent(inv) ? 'span' : Link"
                                         v-for="inv in allInversions"
                                         :key="`${inv.id}-${inv.inversion}`"
-                                        :href="inversionIsCurrent(inv) ? undefined : `/library/chords/${inv.slug}`"
+                                        :href="inversionIsCurrent(inv) ? undefined : chordShowUrl(inv)"
                                         class="sbn-inversion-sibling"
                                         :class="{ 'sbn-inversion-sibling--current': inversionIsCurrent(inv) }"
                                     >

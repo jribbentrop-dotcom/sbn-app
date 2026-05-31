@@ -66,13 +66,13 @@ Structural tones **3 / 5 / ♭7** are spelled functionally — correct letter, s
 
 ### Generation — `ChordLibraryController::buildDiminishedReadings($chord, $displayRoot)`
 Returns `['inversions', 'aliases', 'aliasInversions']`. `show()` **overrides** the DB-driven defaults when `quality ∈ DiminishedSymmetry::DIM_QUALITIES`.
-- **Inversions**: the four dim7 inversions, **named by their own root** (C°7, E♭°7, G♭°7, A°7 — NOT slash chords like C°7/Eb), with the inversion *label* showing the role relative to the display root. `root_note`/`name` set to the symmetric root, `bass_note` cleared.
-- **Aliases**: the four dom7(♭9) readings (switcher entries), each flagged `rootless: true`, with `notes` = the reading-aware `{3,5,b7,b9}`.
+- **Inversions**: the four dim7 inversions, **named by their own root** (C°7, E♭°7, G♭°7, A°7 — NOT slash chords like C°7/Eb), with the inversion *label* showing the role relative to the display root. `root_note`/`name` set to the symmetric root, `bass_note` cleared. Serialized with `$displayRoot` so diagram positions are correct; note names come from `calculateNoteNames` which routes `o7` through `DiminishedSymmetry::spellDim7` for root-relative spelling.
+- **Aliases**: the four dom7(♭9) readings (switcher entries), each flagged `rootless: true`. `notes` are taken from the first serialized inversion entry (preserving string/low→high order), then each note is **re-spelled** via `spellDom7b9`'s pc→name map so enharmonics match the dominant root (e.g. Ab→G# for E7(b9)).
 - **aliasInversions**: the same four physical positions, relabelled by **bass function** vs the dominant root: ♭9 in bass (interval 1) → **"Rootless"**; 3/5/♭7 (4/7/10) → 1st/2nd/3rd inversion.
 
 ### Frontend (Show.vue)
 - `isDiminished` gates the dim7 copy; `activeIsRootless` and `activeSelfInversion` (returns `'rootless'` for rootless aliases) drive labels.
-- Generated lists are complete, so `allInversions` does **not** append a synthetic self for dim pages. All generated entries share one diagram `id`, so `:key` = `id-inversion` and `inversionIsCurrent()` matches by **slot** (and the entries are non-navigable — same physical shape).
+- Generated lists are complete, so `allInversions` does **not** append a synthetic self for dim pages. All generated entries share one diagram `id`, so `:key` = `id-inversion` and `inversionIsCurrent()` matches by **slot**. Inversion links use `chordShowUrl(inv)` (not a bare slug href) so the `?root=` param is preserved when navigating to a symmetric inversion root.
 - **Edu copy is context-aware** via `arrivedVia` (`'dominant'` when a dom7(♭9) reading was deep-linked, else `'diminished'`): a dim7 search shows "this shape also voices four dom7(♭9)…"; a dom7(♭9) search shows the reveal "the dominant you searched is a pure diminished 7th…". The "four identical inversions" explanation lives in the **inversion panel**; the alias block covers only the dim7↔dom7(♭9) relationship.
 - Switcher shows "This voicing" / "Also reads as" grouping labels on dim pages.
 
@@ -84,10 +84,30 @@ Migration `2026_05_31_000001_remove_generated_dim7_aliases` deletes the now-redu
 
 ---
 
-## 5. Key files
+## 5. Enharmonic spelling pipeline
+
+All note names (chord tones displayed in the detail page circles, inversion bass labels, search result names) flow through one decision point: `ChordShapeCalculator::useFlatsForQuality(string $rootNote, string $quality): bool`.
+
+**Rules (in priority order):**
+1. Flat-accidental root (`Bb`, `Eb`, `Ab`, `Db`, `Gb`, `F`) → always flats
+2. Sharp-accidental root (`C#`, `F#`, `G#`, `A#`, `D#`) → always sharps
+3. Natural root + quality in `QUALITY_FLAT_INTERVALS` → check if any **minor/diminished** interval of that quality (b3=3, b5=6, b7=10) lands on a flat-side pc (1=Db, 3=Eb, 8=Ab, 10=Bb). If yes → flats. Major/perfect intervals (4, 7, 11) are excluded — a major 3rd above B is D♯ not E♭.
+4. Otherwise → sharps.
+
+**dim7 exception:** `o7` bypasses the flat/sharp map entirely. `calculateNoteNames` calls `DiminishedSymmetry::spellDim7(root)` to get the four correctly-spelled tones, builds a pc→name map, and looks each sounding string up in it. This gives root-relative strict spelling (A♯°7 → A♯, C♯, E, G) rather than forced flats.
+
+**Open strings:** `calculateNoteNames` now merges open strings (fret 0) with fretted positions before spelling, sorted low→high string. Previously open strings were silently dropped.
+
+**Bass note spelling** (`deriveBassNote`, `spellBassNote`) uses the same `useFlatsForQuality` — no separate flat-quality list. `deriveBassNote` is the single source of truth; `spellBassNote` no longer re-spells its return value.
+
+**Search results** (`ChordVoicingSearch::transposeShapes`) delegates inversion bass names to `deriveBassNote` — the old local `$semitoneToNote` flat-only table is gone.
+
+---
+
+## 6. Key files
 - `app/Http/Controllers/Library/ChordLibraryController.php` — `index`, `show`, `search`, `buildInversionsForIdentity`, `buildDiminishedReadings`, `aliasInversionSlot`
 - `app/Services/ChordSerializer.php` — `serialize`, `serializeAs`, `spellBassNote`
-- `app/Services/ChordShapeCalculator.php` — `calculateFrets`, `calculateNoteNames`, `deriveBassNote`, `FLAT_QUALITY_NOTES`
+- `app/Services/ChordShapeCalculator.php` — `calculateFrets`, `calculateNoteNames` (includes open strings, routes `o7` through DiminishedSymmetry), `deriveBassNote`, `useFlatsForQuality` (public static — checks minor/dim intervals against flat-side PCs for natural roots)
 - `app/Services/ChordVoicingSearch.php` — `parseChordName`, `searchByName`, `findAliasMatches`, `transposeShapes`
 - `app/Services/HarmonicContext/DiminishedSymmetry.php` — dim7 primitive
 - `resources/js/Pages/Library/Chords/Show.vue`, `Index.vue`

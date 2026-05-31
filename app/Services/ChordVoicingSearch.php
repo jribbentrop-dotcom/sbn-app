@@ -565,35 +565,6 @@ class ChordVoicingSearch
     ): array {
         $results = [];
 
-        $noteToSemitone = [
-            'C' => 0, 'C#' => 1, 'Db' => 1, 'D' => 2, 'D#' => 3, 'Eb' => 3,
-            'E' => 4, 'F' => 5, 'F#' => 6, 'Gb' => 6, 'G' => 7, 'G#' => 8,
-            'Ab' => 8, 'A' => 9, 'A#' => 10, 'Bb' => 10, 'B' => 11,
-        ];
-        $semitoneToNote = [
-            0 => 'C', 1 => 'Db', 2 => 'D', 3 => 'Eb', 4 => 'E', 5 => 'F',
-            6 => 'Gb', 7 => 'G', 8 => 'Ab', 9 => 'A', 10 => 'Bb', 11 => 'B',
-        ];
-
-        $invIntervals = [
-            'maj7' => ['inv1' => 4, 'inv2' => 7, 'inv3' => 11],
-            'maj6' => ['inv1' => 4, 'inv2' => 7, 'inv3' => 9],
-            'm7'   => ['inv1' => 3, 'inv2' => 7, 'inv3' => 10],
-            'm6'   => ['inv1' => 3, 'inv2' => 7, 'inv3' => 9],
-            'dom7' => ['inv1' => 4, 'inv2' => 7, 'inv3' => 10],
-            'm7b5' => ['inv1' => 3, 'inv2' => 6, 'inv3' => 10],
-            'o7'   => ['inv1' => 3, 'inv2' => 6, 'inv3' => 9],
-            'mMaj7'=> ['inv1' => 3, 'inv2' => 7, 'inv3' => 11],
-            'aug7' => ['inv1' => 4, 'inv2' => 8, 'inv3' => 10],
-            'maj'  => ['inv1' => 4, 'inv2' => 7],
-            'min'  => ['inv1' => 3, 'inv2' => 7],
-            'aug'  => ['inv1' => 4, 'inv2' => 8],
-            'dim'  => ['inv1' => 3, 'inv2' => 6],
-            'sus4' => ['inv1' => 5, 'inv2' => 7],
-            'sus2' => ['inv1' => 2, 'inv2' => 7],
-            'add9' => ['inv1' => 2, 'inv2' => 4, 'inv3' => 7],
-        ];
-
         foreach ($shapes as $shape) {
             if (!empty($shape->is_fixed_position) && strtolower($shape->root_note ?? '') !== strtolower($root)) {
                 continue;
@@ -617,13 +588,7 @@ class ChordVoicingSearch
                 $bassNoteName = $bassNote;
                 $chordName .= '/' . $bassNote;
             } elseif ($inversion !== 'root') {
-                $qualKey = $shape->quality;
-                if (isset($invIntervals[$qualKey][$inversion], $noteToSemitone[$root])) {
-                    $rootSemi = $noteToSemitone[$root];
-                    $intSemi  = $invIntervals[$qualKey][$inversion];
-                    $bassSemi = ($rootSemi + $intSemi) % 12;
-                    $bassNoteName = $semitoneToNote[$bassSemi];
-                }
+                $bassNoteName = ChordShapeCalculator::deriveBassNote($root, $shape->quality, $inversion) ?? '';
                 if ($bassNoteName) {
                     $chordName .= '/' . $bassNoteName;
                 }
