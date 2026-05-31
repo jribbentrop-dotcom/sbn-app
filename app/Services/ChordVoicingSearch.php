@@ -385,6 +385,15 @@ class ChordVoicingSearch
                     'difficulty'       => $shape->difficulty ?? null,
                     'alias_match'      => true,
                     'alias_alt_root'   => $alias->alt_root_note,
+                    // Deep-link context for the detail page: open at the PARENT
+                    // shape's transposed root ($targetNote) so the primary diagram
+                    // renders correctly, then pre-select the alias by its own
+                    // transposed identity (root = $root, the searched chord).
+                    'display_root'     => $targetNote,
+                    'alias_root'       => $root,
+                    'alias_quality'    => $quality,
+                    'alias_extensions' => $extension,
+                    'alias_bass'       => $bassNote,
                 ];
             }
         }

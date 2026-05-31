@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, onBeforeUnmount } from 'vue';
+import { router } from '@inertiajs/vue3';
 import ChordDiagram from './ChordDiagram.vue';
 import type { ChordDiagramData } from './ChordDiagram.vue';
 import { getAudioEngine } from '../../audio/engine/AudioEngine.js';
 import { chordDiagramToEvents } from '../../audio/adapters/chordDiagramToEvents.js';
+import { chordShowUrl } from '../../composables/useChordUrl';
 
 interface Props {
     chord: ChordDiagramData;
@@ -12,9 +14,11 @@ interface Props {
     showRoot?: boolean;
     onChordClick?: (() => void) | null;
     noNav?: boolean;
+    /** Navigate in the same tab via Inertia instead of opening a new tab. */
+    sameTab?: boolean;
 }
 
-const props = withDefaults(defineProps<Props>(), { mini: false, detail: false, showRoot: true, onChordClick: null, noNav: false });
+const props = withDefaults(defineProps<Props>(), { mini: false, detail: false, showRoot: true, onChordClick: null, noNav: false, sameTab: false });
 
 const formattedName = computed(() => {
     // Normally cards show quality + extensions only (no root) — the library
@@ -103,9 +107,15 @@ function handleCardClick() {
         return;
     }
     if (props.chord.slug) {
-        const root = (props.chord as any).root_note;
-        const url = `/library/chords/${props.chord.slug}${root ? '?root=' + root : ''}`;
-        window.open(url, '_blank');
+        // chordShowUrl is the single source of truth for chord detail URLs —
+        // it handles alias matches, transposed roots and rootless voicings that
+        // a naive slug+root concat would get wrong.
+        const url = chordShowUrl(props.chord as any);
+        if (props.sameTab) {
+            router.visit(url);
+        } else {
+            window.open(url, '_blank');
+        }
     }
 }
 

@@ -37,6 +37,8 @@ The full identification pipeline, in order:
 | Context 2a | Pedal-point detector: N≥3 slots sharing bass note → upper-structure re-identified, labeled `Upper/PedalBass`. | `PedalDetector` |
 | Context 2b | Diminished-as-rootless-V7(b9): dim7 resolving down a 5th renamed (e.g. `Adim7 → F7(b9)`). | `DiminishedAsDominantResolver` |
 | Context 2c | Diminished-root resolver: inversionally symmetric dim7 spelling via step-wise motion to neighbors. | `DiminishedResolver` |
+
+> **Shared dim7 primitive**: both resolvers' symmetric-root math (`[pc,+3,+6,+9]`), the dim7↔dom7(b9) mapping (`domRoot = dimTone − 4`; the dim tone is the dominant's ♭9), and note↔pitch-class conversion now live in `App\Services\HarmonicContext\DiminishedSymmetry` (pure, unit-tested). The identifier keeps its historical **sharp-biased** spelling (`spellSharp`); the chord library uses the same primitive's reading-aware spelling (tight 3/5/7, pragmatic °7+tensions) to generate dim7 pages. See `SBN-Chord-Library-Reference.md`.
 | Context 2d | Cadence/fragment matcher: DB-seeded harmonic fragments (`IIm7→V7→Imaj7`, turnarounds). | `HarmonicPatternMatcher` |
 | Context 2e | Key-aware enharmonic re-rank + **bigram transition prior** (Phase 3.3a): bumps candidates whose preceding winner predicts them via P(name\|prev) lookup. | `ContextualReranker` |
 | Context 2f | **Viterbi sequence rescore** (Phase 3.4a): DP min-cost path over all slots simultaneously using bigram edge weights (`edgeWeight=0.3`, `minScoreRatio=0.85` safety rail). | `ContextualReranker::applyViterbiRescore` |
@@ -252,7 +254,7 @@ The core audit corpus resides in `docs/*.musicxml` and their expectations are en
 ### B.1 Known Bugs
 
 - **Slash chord over-eagerness on `7sus4` shapes**: Voicings like `x3333x` output as `Bbadd9/C` instead of `C7sus4`. *Fix shape:* Add a `7sus4` recognition gate that fires *before* the slash-bonus is applied (requires a new `IDENTIFY_SUS_DOM_TEMPLATES` entry).
-- **`noteNameToPc` maps unknown to 0**: Both `PedalDetector` and `DiminishedResolver` treat unrecognized note strings as C (0). This is a latent bug if Phase 1 ever emits non-standard names. *Fix shape:* Return `null` and skip gracefully.
+- **`noteNameToPc` maps unknown to 0**: `PedalDetector` and the diminished resolvers treat unrecognized note strings as C (0). This is a latent bug if Phase 1 ever emits non-standard names. *Fix shape:* Return `null` and skip gracefully. (Note: the two diminished resolvers now delegate `noteNameToPc`/`pcToNoteName`/symmetric-root math to the shared `App\Services\HarmonicContext\DiminishedSymmetry` primitive — fixing it there fixes both at once.)
 
 ### B.2 Planned Improvements
 

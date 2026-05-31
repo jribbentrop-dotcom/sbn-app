@@ -13,6 +13,7 @@ use App\Services\ChordShapeCalculator;
 use App\Services\ChordVoicingSearch;
 use App\Services\EduContentService;
 use App\Services\HarmonicContext;
+use App\Services\HarmonicContext\DiminishedSymmetry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,7 @@ class ChordLibraryController extends Controller
 		protected ChordShapeCalculator $shapeCalculator,
 		protected ChordSerializer $chordSerializer,
 		protected CourseRepository $courseRepo,
+		protected DiminishedSymmetry $dimSymmetry = new DiminishedSymmetry(),
 	) {}
 
 	public function index()
@@ -544,6 +546,17 @@ class ChordLibraryController extends Controller
 			$aliasInversions[$i] = $list;
 		}
 
+		// Diminished-7th symmetry: generate the four inversions + four dom7(b9)
+		// rootless readings from the single shape (the lattice is exact + closed,
+		// so we compute rather than hand-store). Overrides the DB-driven defaults
+		// above, which are typically empty for dim7 shapes.
+		if (in_array($chord->quality, DiminishedSymmetry::DIM_QUALITIES, true)) {
+			$gen = $this->buildDiminishedReadings($chord, $effectiveDisplayRoot);
+			$inversions      = $gen['inversions'];
+			$aliases         = collect($gen['aliases']);
+			$aliasInversions = $gen['aliasInversions'];
+		}
+
 		// Edu content for this chord's quality — description/usage prose for
 		// the identity section, plus body_html + has_widgets so the page can
 		// light up an embedded <sbn-widget> if a quality body ever gains one.
@@ -565,29 +578,57 @@ class ChordLibraryController extends Controller
 
 		// Search-result deep-link: when ?aliasQuality= is present, find an alias
 		// in the panel matching that identity so the page opens with it active.
-		// Only handles the "already-stored alias matches" case — search results
-		// reached via transposition (synthetic aliases at non-stored roots) are
-		// deferred until the broader enharmonic/transposition pass.
+		//
+		// The aliases above are already transposed to $effectiveDisplayRoot (the
+		// parent shape's display root). The hint identifies the alias by its OWN
+		// transposed identity: ?aliasRoot= is the alias root after that transpose
+		// (which is generally NOT the page's display root — e.g. opening the Dm6
+		// shape to show its Bm7b5/D reading), with ?aliasQuality / ?aliasExt
+		// naming the rest. We fall back to matching on the display root when no
+		// ?aliasRoot= is supplied (legacy same-root links).
+		//
+		// Match on root + quality + extensions only. Bass is NOT part of the key:
+		// the search pipeline reports the *searched* bass (often empty for a plain
+		// "C7(9)") while the alias rendered here carries a DERIVED bass spelled from
+		// the shape's lowest note — the two are computed independently and won't
+		// agree. When the caller does pass ?aliasBass=, it's used as a tiebreaker
+		// only among candidates that already match root+quality+ext.
 		$initialAliasIdx = null;
 		$aliasQuality = $request->query('aliasQuality');
-		if ($aliasQuality && $effectiveDisplayRoot) {
+		if ($aliasQuality) {
+			$aliasRoot = (string) $request->query('aliasRoot', $effectiveDisplayRoot ?? '');
 			$aliasExt  = (string) $request->query('aliasExt', '');
 			$aliasBass = (string) $request->query('aliasBass', '');
+			$fallbackIdx = null;
 			foreach ($aliases as $i => $a) {
-				if (($a['root_note'] ?? '') !== $effectiveDisplayRoot) continue;
+				if (($a['root_note'] ?? '') !== $aliasRoot) continue;
 				if (($a['quality'] ?? '') !== $aliasQuality) continue;
 				if (((string) ($a['extensions'] ?? '')) !== $aliasExt) continue;
-				if (((string) ($a['bass_note'] ?? '')) !== $aliasBass) continue;
-				$initialAliasIdx = $i;
-				break;
+				// First identity match becomes the fallback; prefer one whose bass
+				// also matches when a bass hint was supplied.
+				if ($fallbackIdx === null) $fallbackIdx = $i;
+				if ($aliasBass !== '' && ((string) ($a['bass_note'] ?? '')) === $aliasBass) {
+					$initialAliasIdx = $i;
+					break;
+				}
 			}
+			if ($initialAliasIdx === null) $initialAliasIdx = $fallbackIdx;
 		}
+
+		// How the visitor arrived, for context-aware edu copy on dim7 pages:
+		// 'dominant' when a dom7(b9) reading was deep-linked (they searched a
+		// dominant and we're revealing it's a pure dim7 shape), else 'diminished'.
+		$isDimPage  = in_array($chord->quality, DiminishedSymmetry::DIM_QUALITIES, true);
+		$arrivedVia = ($isDimPage && $initialAliasIdx !== null && $aliasQuality === 'dom7')
+			? 'dominant'
+			: 'diminished';
 
 		return Inertia::render('Library/Chords/Show', [
 			'chord' => $this->chordSerializer->serialize($chord, $displayRoot),
 			'aliases' => $aliases,
 			'aliasInversions' => $aliasInversions,
 			'initialAliasIdx' => $initialAliasIdx,
+			'arrivedVia' => $arrivedVia,
 			'siblings' => $siblings,
 			'inversions' => $inversions,
 			'songs' => $songs,
@@ -773,6 +814,110 @@ class ChordLibraryController extends Controller
 	}
 
 	/**
+	 * Generate the diminished-7th symmetry readings for the chord detail page.
+	 *
+	 * A dim7 is inversionally symmetric (four roots a minor third apart) and each
+	 * dim7 doubles as four rootless dominant-7(b9) chords. Rather than hand-store
+	 * 4 diagrams + ~16 alias rows per shape, we generate them from the one shape:
+	 *
+	 *   - inversions: the four dim7 inversions (root/1st/2nd/3rd), same shape,
+	 *     basses at the four symmetric tones.
+	 *   - aliases: the four dom7(b9) readings (switcher entries) + each one's own
+	 *     inversion list, where the slot whose bass would be the (absent) dominant
+	 *     root is labelled "Rootless".
+	 *
+	 * All names/notes use DiminishedSymmetry's spelling (tight 3/5/7, pragmatic
+	 * °7 + tensions). Returns ['inversions' => Collection, 'aliases' => array,
+	 * 'aliasInversions' => array<int, array>].
+	 *
+	 * @return array{inversions: \Illuminate\Support\Collection, aliases: array, aliasInversions: array}
+	 */
+	protected function buildDiminishedReadings(ChordDiagram $chord, string $displayRoot): array
+	{
+		$inversionLabels = ['root' => 'Root Position', 'inv1' => '1st Inversion', 'inv2' => '2nd Inversion', 'inv3' => '3rd Inversion'];
+		$slots           = ['root', 'inv1', 'inv2', 'inv3'];
+		$rootPc          = $this->dimSymmetry->toPc($displayRoot);
+
+		// ── Inversions: the four dim7 inversions of the display-root dim7. ──
+		// Because dim7 is symmetric, each inversion IS a dim7 in its own right a
+		// minor third up. We name them by that root (Eb°7, Gb°7, A°7) rather than
+		// as slash chords (C°7/Eb) — the symmetry is the lesson — while the
+		// inversion label keeps their role relative to the display-root dim7.
+		$symRootPcs = $this->dimSymmetry->symmetricRoots($rootPc); // [root, +3, +6, +9]
+		$inversions = collect($slots)->map(function ($slot, $idx) use ($chord, $displayRoot, $inversionLabels, $symRootPcs) {
+			$entry = $this->chordSerializer->serializeAs($chord, $displayRoot, 'o7', $slot, $inversionLabels[$slot]);
+			$invRoot = $this->dimSymmetry->spellRoot($symRootPcs[$idx]);
+			$entry['root_note'] = $invRoot;
+			$entry['name']      = $invRoot . 'o7';
+			$entry['bass_note'] = '';        // named by root, not as a slash chord
+			return $entry;
+		});
+
+		// ── Aliases: the four dom7(b9) rootless readings. ──
+		// dominantReadings gives {domRootPc, b9Pc}; the dim tone = the b9.
+		// Each dom7(b9) is the SAME four physical positions as the dim7 inversions
+		// (basses at the symmetric tones), just renamed. The dominant root is
+		// absent from every position, so we label each slot by the FUNCTION of its
+		// bass relative to the dominant: b9 in bass → "Rootless" (closest to where
+		// the root would sit); 3/5/b7 in bass → genuine 1st/2nd/3rd inversion.
+		$bassFunctionSlot = [
+			1  => ['inv' => 'rootless', 'label' => 'Rootless'],   // b9 (one semitone above the absent root) in bass
+			4  => ['inv' => 'inv1', 'label' => '1st Inversion'],  // 3rd in bass
+			7  => ['inv' => 'inv2', 'label' => '2nd Inversion'],  // 5th in bass
+			10 => ['inv' => 'inv3', 'label' => '3rd Inversion'],  // b7 in bass
+		];
+		$aliases = [];
+		$aliasInversions = [];
+
+		foreach ($this->dimSymmetry->dominantReadings($rootPc) as $i => $reading) {
+			$domRoot   = $this->dimSymmetry->spellRoot($reading['domRootPc']);
+			$domRootPc = $reading['domRootPc'];
+
+			// The chord-tone notes present in this rootless voicing: 3,5,b7,b9.
+			$tones = $this->dimSymmetry->spellDom7b9($domRoot);
+			$notes = implode(',', [$tones['3'], $tones['5'], $tones['b7'], $tones['b9']]);
+
+			$aliases[] = [
+				'root_note'       => $domRoot,
+				'quality'         => 'dom7',
+				'extensions'      => 'b9',
+				'bass_note'       => null,    // rootless — no single defining bass
+				'interval_labels' => null,
+				'notes'           => $notes,
+				'name'            => $domRoot . '7(b9)',
+				'rootless'        => true,    // page badge + edu hook
+			];
+
+			// Build the four physical positions from the dim7 inversion shapes,
+			// relabelled by bass function relative to this dominant.
+			$list = [];
+			foreach ($slots as $slot) {
+				$entry = $this->chordSerializer->serializeAs($chord, $displayRoot, 'o7', $slot, $inversionLabels[$slot]);
+
+				// Interval of this position's bass above the dominant root.
+				$bassPc   = $this->dimSymmetry->toPc((string) ($entry['bass_note'] ?: $displayRoot));
+				$interval = ($bassPc - $domRootPc + 12) % 12;
+				$fn       = $bassFunctionSlot[$interval] ?? ['inv' => 'root', 'label' => 'Root Position'];
+
+				$entry['quality']         = 'dom7';
+				$entry['extensions']      = 'b9';
+				$entry['name']            = $domRoot . '7(b9)';
+				$entry['root_note']       = $domRoot;
+				$entry['inversion']       = $fn['inv'];
+				$entry['inversion_label'] = $fn['label'];
+				$list[] = $entry;
+			}
+			$aliasInversions[$i] = $list;
+		}
+
+		return [
+			'inversions'      => $inversions->values(),
+			'aliases'         => $aliases,
+			'aliasInversions' => $aliasInversions,
+		];
+	}
+
+	/**
 	 * Read an alias row's interval_labels and return the inversion slot
 	 * (root|inv1|inv2|inv3) based on the lowest non-'x' interval token.
 	 */
@@ -844,6 +989,13 @@ class ChordLibraryController extends Controller
 				'description' => $parent->description,
 				'transposed_from' => $r['original_root'] ?? null,
 				'alias_match' => $r['alias_match'] ?? false,
+				// Deep-link context (alias matches only): open the detail page at
+				// the parent shape's transposed root and pre-select the alias.
+				'display_root' => $r['display_root'] ?? null,
+				'alias_root' => $r['alias_root'] ?? null,
+				'alias_quality' => $r['alias_quality'] ?? null,
+				'alias_extensions' => $r['alias_extensions'] ?? null,
+				'alias_bass' => $r['alias_bass'] ?? null,
 			];
 		}
 

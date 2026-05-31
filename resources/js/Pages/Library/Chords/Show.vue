@@ -55,6 +55,8 @@ interface ChordAlias {
     interval_labels: string | null;
     notes: string | null;
     name: string;
+    /** True for generated dim7 dom7(b9) readings — the dominant root is absent. */
+    rootless?: boolean;
 }
 
 interface Props {
@@ -62,6 +64,8 @@ interface Props {
     aliases: ChordAlias[];
     aliasInversions?: Record<number, ChordDiagramData[]>;
     initialAliasIdx?: number | null;
+    /** How the visitor arrived (dim7 pages): 'dominant' = searched a dom7(b9). */
+    arrivedVia?: 'diminished' | 'dominant';
     siblings: ChordDiagramData[];
     inversions: ChordDiagramData[];
     songs: SongLinkData[];
@@ -173,6 +177,15 @@ watch(() => props.initialAliasIdx, (v) => {
 });
 const activeAlias = computed(() => activeAliasIdx.value >= 0 ? props.aliases[activeAliasIdx.value] : null);
 
+// Diminished-7th page: the primary chord is a dim7, so the inversions are the
+// four equal-minor-third readings and the aliases are the four rootless dom7(b9)
+// interpretations. Drives the two dim7-specific edu blurbs + the rootless badge.
+const isDiminished = computed(() => ['o7', 'dim7', 'dim'].includes(props.chord.quality));
+const activeIsRootless = computed(() => activeAlias.value?.rootless === true);
+// On a dim7 page, did the visitor arrive by searching a dom7(b9)? If so, the
+// teaching angle flips: the dominant they wanted is revealed to BE a dim7 shape.
+const arrivedViaDominant = computed(() => isDiminished.value && props.arrivedVia === 'dominant');
+
 // Merged view: fret shape always from chord, name/quality/extensions from active alias when set
 const activeQuality    = computed(() => activeAlias.value?.quality    ?? props.chord.quality);
 const activeExtensions = computed(() => activeAlias.value?.extensions ?? props.chord.extensions ?? '');
@@ -192,11 +205,11 @@ const displayChord = computed(() => {
 });
 
 const formattedActiveName = computed(() => {
-    const root = (activeAlias.value?.root_note ?? props.chord.root_note ?? '').replace(/#/g, '♯').replace(/b/g, '♭');
+    const root = formatNote(activeAlias.value?.root_note ?? props.chord.root_note ?? '');
     const quality = activeAlias.value?.quality ?? props.chord.quality;
     const [qual, core] = qualityMap[quality] ?? ['', quality];
     const ext = (activeAlias.value?.extensions ?? props.chord.extensions ?? '').replace(/#/g, '♯').replace(/b(?=[0-9])/g, '♭');
-    const bass = (activeAlias.value?.bass_note ?? props.chord.bass_note ?? '').replace(/#/g, '♯').replace(/b/g, '♭');
+    const bass = formatNote(activeAlias.value?.bass_note ?? props.chord.bass_note ?? '');
     let html = '<span class="sbn-chord-symbol">';
     if (root) html += `<span class="sbn-chord-root">${root}</span>`;
     if (qual) html += `<span class="sbn-chord-quality">${qual}</span>`;
@@ -235,6 +248,7 @@ const activeInversions = computed<ChordDiagramData[]>(() => {
 // the alias's interval_labels (first non-x token → slot).
 const ALIAS_SLOT_LABEL: Record<string, string> = {
     root: 'Root Position', inv1: '1st Inversion', inv2: '2nd Inversion', inv3: '3rd Inversion',
+    rootless: 'Rootless',
 };
 function aliasInversionSlotFrontend(intervalLabels: string | null): string {
     if (!intervalLabels) return 'root';
@@ -249,6 +263,9 @@ function aliasInversionSlotFrontend(intervalLabels: string | null): string {
 }
 const activeSelfInversion = computed(() => {
     if (!activeAlias.value) return props.chord.inversion ?? 'root';
+    // Generated dom7(b9) readings are rootless — the displayed voicing sits in the
+    // "Rootless" slot, not a conventional root position.
+    if (activeAlias.value.rootless) return 'rootless';
     return aliasInversionSlotFrontend(activeAlias.value.interval_labels);
 });
 const activeInversionLabel = computed(() => {
@@ -256,8 +273,18 @@ const activeInversionLabel = computed(() => {
     return ALIAS_SLOT_LABEL[activeSelfInversion.value] ?? props.chord.inversion_label;
 });
 
+const INV_SORT: Record<string, number> = { root: 0, inv1: 1, inv2: 2, inv3: 3, rootless: 0 };
+
 const allInversions = computed(() => {
     if (!activeInversions.value.length) return [];
+    // Diminished pages generate the FULL inversion/alias lists server-side (the
+    // current shape is already one of the four slots), so we must NOT synthesize
+    // a "self" entry — doing so duplicates root position (dim7) or adds a bogus
+    // Root Position alongside the Rootless slot (dom7b9).
+    if (isDiminished.value) {
+        return [...activeInversions.value]
+            .sort((a, b) => (INV_SORT[a.inversion] ?? 99) - (INV_SORT[b.inversion] ?? 99));
+    }
     // Build a synthetic "self" entry so the current diagram appears in the
     // list at its alias-derived slot when an alias is active.
     const selfEntry: ChordDiagramData = activeAlias.value
@@ -276,6 +303,16 @@ const allInversions = computed(() => {
     return [...activeInversions.value, selfEntry]
         .sort((a, b) => (INV_ORDER[a.inversion] ?? 99) - (INV_ORDER[b.inversion] ?? 99));
 });
+
+// Which inversion-row entry represents the chord currently shown in the hero.
+// Non-dim pages: the entry whose diagram id matches (distinct diagrams per slot).
+// Dim pages: every generated slot shares the same diagram id (one shape), so we
+// match by inversion slot instead — and these entries aren't separate diagrams,
+// so they're never navigable links.
+function inversionIsCurrent(inv: ChordDiagramData): boolean {
+    if (isDiminished.value) return inv.inversion === activeSelfInversion.value;
+    return inv.id === props.chord.id;
+}
 
 const DROP2_CATEGORIES = new Set(['drop2', 'drop3']);
 const TRIAD_CATEGORIES = new Set(['closed_triads', 'spread_triads', 'archetype', 'closed']);
@@ -307,8 +344,13 @@ const soundingNotes = computed(() => {
     return result;
 });
 
+// Canonical note-name formatter. Double accidentals first (bb→𝄫, ##→𝄪) so the
+// single-accidental pass doesn't split them into two glyphs. Used for roots and
+// bass notes, where a doubled accidental can occur (e.g. strict dim7 spelling).
 function formatNote(n: string): string {
-    return n.replace(/#/g, '♯').replace(/b/g, '♭');
+    return n
+        .replace(/bb/g, '𝄫').replace(/##/g, '𝄪')
+        .replace(/#/g, '♯').replace(/b/g, '♭');
 }
 
 const qualityMap: Record<string, [string, string]> = {
@@ -320,10 +362,10 @@ const qualityMap: Record<string, [string, string]> = {
 };
 
 function formatAliasName(alias: ChordAlias): string {
-    const root = alias.root_note.replace(/#/g, '♯').replace(/b/g, '♭');
+    const root = formatNote(alias.root_note);
     const [qual, core] = qualityMap[alias.quality] ?? ['', alias.quality];
     const ext = alias.extensions.replace(/#/g, '♯').replace(/b(?=[0-9])/g, '♭');
-    const bass = (alias.bass_note ?? '').replace(/#/g, '♯').replace(/b/g, '♭');
+    const bass = formatNote(alias.bass_note ?? '');
     let html = '<span class="sbn-chord-symbol">';
     html += `<span class="sbn-chord-root">${root}</span>`;
     if (qual) html += `<span class="sbn-chord-quality">${qual}</span>`;
@@ -335,10 +377,10 @@ function formatAliasName(alias: ChordAlias): string {
 }
 
 const formattedChordName = computed(() => {
-    const root = (props.chord.root_note ?? '').replace(/#/g, '♯').replace(/b/g, '♭');
+    const root = formatNote(props.chord.root_note ?? '');
     const [qual, core] = qualityMap[props.chord.quality] ?? ['', props.chord.quality];
     const ext = (props.chord.extensions ?? '').replace(/#/g, '♯').replace(/b(?=[0-9])/g, '♭');
-    const bass = (props.chord.bass_note ?? '').replace(/#/g, '♯').replace(/b/g, '♭');
+    const bass = formatNote(props.chord.bass_note ?? '');
     let html = '<span class="sbn-chord-symbol">';
     if (root) html += `<span class="sbn-chord-root">${root}</span>`;
     if (qual) html += `<span class="sbn-chord-quality">${qual}</span>`;
@@ -427,18 +469,33 @@ const formattedChordName = computed(() => {
                             <span class="sbn-accordion-chevron">›</span>
                         </summary>
                         <div class="sbn-accordion-body">
-                            <p v-if="eduInv">{{ eduInv.desc }}</p>
-                            <p v-if="eduInv?.context" class="sbn-accordion-tip">{{ eduInv.context }}</p>
+                            <!-- dim7: explain why the four inversions are the same shape -->
+                            <p v-if="isDiminished && !activeIsRootless">
+                                A diminished 7th is built from four stacked minor thirds, so it’s
+                                perfectly symmetric: move the shape up three frets and you land on
+                                the same four notes with a new name. These “inversions” are really
+                                the one shape re-rooted — <span v-html="formattedActiveName" /> is
+                                also each of its own inversions.
+                            </p>
+                            <p v-else-if="isDiminished && activeIsRootless" class="sbn-inversion-rootless-note">
+                                Because this is a rootless voicing, there’s no true root position —
+                                the slot where the root would sit is marked <strong>Rootless</strong>.
+                                The other positions place the 3rd, 5th and ♭7 in the bass.
+                            </p>
+                            <template v-else>
+                                <p v-if="eduInv">{{ eduInv.desc }}</p>
+                                <p v-if="eduInv?.context" class="sbn-accordion-tip">{{ eduInv.context }}</p>
+                            </template>
                             <div v-if="allInversions.length" class="sbn-inversion-siblings">
                                 <p class="sbn-inversion-heading">All inversions of the <span v-html="formattedActiveName" /> chord</p>
                                 <div class="sbn-inversion-cards">
                                     <component
-                                        :is="inv.id === chord.id ? 'span' : Link"
+                                        :is="inversionIsCurrent(inv) ? 'span' : Link"
                                         v-for="inv in allInversions"
-                                        :key="inv.id"
-                                        :href="inv.id !== chord.id ? `/library/chords/${inv.slug}` : undefined"
+                                        :key="`${inv.id}-${inv.inversion}`"
+                                        :href="inversionIsCurrent(inv) ? undefined : `/library/chords/${inv.slug}`"
                                         class="sbn-inversion-sibling"
-                                        :class="{ 'sbn-inversion-sibling--current': inv.id === chord.id }"
+                                        :class="{ 'sbn-inversion-sibling--current': inversionIsCurrent(inv) }"
                                     >
                                         <ChordCard :chord="inv" mini :showRoot="true" :noNav="true" />
                                         <span class="sbn-inversion-sibling-label">{{ inv.inversion_label }}</span>
@@ -452,17 +509,39 @@ const formattedChordName = computed(() => {
 
                 <!-- Alias blurb + switcher — below accordions -->
                 <div v-if="aliases.length" class="sbn-alias-block">
-                    <p class="sbn-alias-blurb">
-                        This voicing can be interpreted as different chords depending on context.
-                        <Link v-if="activeQualityWidget" :href="`/theory?widget=${activeQualityWidget}`" class="sbn-alias-blurb-link">Learn more about alias voicings →</Link>
-                    </p>
+                    <!-- dim7: user searched a dom7(b9) → reveal it's a pure dim7 shape -->
+                    <template v-if="arrivedViaDominant">
+                        <p class="sbn-alias-blurb">
+                            The dominant you searched is voiced as a pure <strong>diminished 7th</strong>:
+                            drop the root of a 7(♭9) and the remaining 3rd, 5th, ♭7 and ♭9 spell a dim7.
+                            Because that dim7 is symmetric, this one grip covers four different
+                            7(♭9) chords — switch between them below, or see it as the dim7 under
+                            “This voicing”.
+                        </p>
+                    </template>
+                    <!-- dim7: user searched the diminished chord → reveal its dominant uses -->
+                    <template v-else-if="isDiminished">
+                        <p class="sbn-alias-blurb">
+                            This shape also voices four rootless <strong>dominant 7(♭9)</strong> chords,
+                            each rooted a semitone below one of its notes. It’s the favourite
+                            harmonic device of guitarists from Django Reinhardt to João Gilberto.
+                        </p>
+                    </template>
+                    <template v-else>
+                        <p class="sbn-alias-blurb">
+                            This voicing can be interpreted as different chords depending on context.
+                            <Link v-if="activeQualityWidget" :href="`/theory?widget=${activeQualityWidget}`" class="sbn-alias-blurb-link">Learn more about alias voicings →</Link>
+                        </p>
+                    </template>
                 </div>
                 <div v-if="aliases.length" class="sbn-alias-switcher">
+                    <span v-if="isDiminished" class="sbn-alias-group-label">This voicing</span>
                     <button
                         class="sbn-alias-btn"
                         :class="{ active: activeAliasIdx === -1 }"
                         @click="activeAliasIdx = -1"
                     ><span v-html="formattedChordName" /></button>
+                    <span v-if="isDiminished" class="sbn-alias-group-label">Also reads as</span>
                     <button
                         v-for="(alias, i) in aliases"
                         :key="i"
@@ -481,6 +560,13 @@ const formattedChordName = computed(() => {
                 About the <span v-html="formattedActiveName" /> chord
             </h2>
             <template v-if="activeAlias">
+                <p v-if="activeIsRootless" class="sbn-chord-identity-description">
+                    This is a <strong>rootless</strong> voicing — the
+                    <span v-html="formatNote(activeAlias.root_note)" /> root isn’t played. The
+                    diminished shape supplies the 3rd, 5th, ♭7 and ♭9, which is enough to imply the
+                    dominant. That’s why the lowest note is never the root, and the slot where the
+                    root would sit is labelled “Rootless” rather than “Root Position”.
+                </p>
                 <p class="sbn-chord-identity-description">
                     {{ activeTheory?.typical_context ?? eduQ?.description ?? '' }}
                 </p>
@@ -635,6 +721,18 @@ const formattedChordName = computed(() => {
 .sbn-alias-btn :deep(.sbn-chord-quality) { font-size: 0.78em; }
 .sbn-alias-btn :deep(.sbn-chord-ext)     { font-size: 0.72em; font-weight: 600; vertical-align: super; line-height: 0; }
 .sbn-alias-btn :deep(.sbn-chord-bass)    { font-size: 0.85em; color: var(--clr-text-muted); }
+
+/* Grouping labels in the dim7 switcher: separate the primary ("This voicing")
+   from its alternate readings ("Also reads as"). */
+.sbn-alias-group-label {
+    align-self: center;
+    font-size: 0.72em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--clr-text-muted);
+}
+.sbn-alias-group-label:not(:first-child) { margin-left: 6px; }
 
 .sbn-chord-identity-diagram {
     width: 100%;

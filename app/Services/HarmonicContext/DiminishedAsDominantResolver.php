@@ -17,7 +17,9 @@ namespace App\Services\HarmonicContext;
 class DiminishedAsDominantResolver
 {
     /** Diminished qualities that trigger detection. */
-    private const DIM_QUALITIES = ['dim7', 'dim', 'o7'];
+    private const DIM_QUALITIES = DiminishedSymmetry::DIM_QUALITIES;
+
+    public function __construct(private DiminishedSymmetry $symmetry = new DiminishedSymmetry()) {}
 
     /**
      * Detect diminished-as-dominant interpretations.
@@ -58,7 +60,7 @@ class DiminishedAsDominantResolver
             $currentPcs = $results[$i]['pcs'] ?? [];
 
             // Get the four symmetric roots of the dim7
-            $symmetricRoots = $this->getSymmetricRoots($currentPc);
+            $symmetricRoots = $this->symmetry->symmetricRoots($currentPc);
 
             $validDominants = [];
 
@@ -158,44 +160,15 @@ class DiminishedAsDominantResolver
         $results[$i]['reinterpret_reason'] = 'maj_b9_as_v7b9';
     }
 
-    /**
-     * Get the four symmetric roots of a dim7 chord.
-     *
-     * @return array<int, int>  Four pitch classes (0–11)
-     */
-    private function getSymmetricRoots(int $pc): array
-    {
-        return [
-            $pc,
-            ($pc + 3) % 12,
-            ($pc + 6) % 12,
-            ($pc + 9) % 12,
-        ];
-    }
-
-    /**
-     * Convert a note name to pitch class (0–11).
-     */
+    /** Note name → pitch class (0–11). Delegates to the shared primitive. */
     private function noteNameToPc(string $name): int
     {
-        $map = [
-            'C' => 0, 'C#' => 1, 'Db' => 1,
-            'D' => 2, 'D#' => 3, 'Eb' => 3,
-            'E' => 4, 'F' => 5, 'F#' => 6, 'Gb' => 6,
-            'G' => 7, 'G#' => 8, 'Ab' => 8,
-            'A' => 9, 'A#' => 10, 'Bb' => 10,
-            'B' => 11,
-        ];
-
-        return $map[$name] ?? 0;
+        return $this->symmetry->toPc($name);
     }
 
-    /**
-     * Convert a pitch class to a note name (preferring sharps).
-     */
+    /** Pitch class → note name, sharp-biased (preserves historical behavior). */
     private function pcToNoteName(int $pc): string
     {
-        $names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        return $names[$pc % 12];
+        return $this->symmetry->spellSharp($pc);
     }
 }

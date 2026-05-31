@@ -783,6 +783,7 @@ function jumpToLevel(n: number) {
                                     :key="chord.id"
                                     :chord="chord"
                                     :show-root="true"
+                                    :same-tab="true"
                                 />
                             </div>
                         </template>
@@ -795,6 +796,7 @@ function jumpToLevel(n: number) {
                                     :key="chord.id"
                                     :chord="chord"
                                     :show-root="true"
+                                    :same-tab="true"
                                 />
                             </div>
                         </template>
@@ -807,6 +809,7 @@ function jumpToLevel(n: number) {
                                     :key="chord.root_note"
                                     :chord="chord"
                                     :show-root="true"
+                                    :same-tab="true"
                                 />
                             </div>
                         </template>
@@ -816,6 +819,7 @@ function jumpToLevel(n: number) {
                                 v-for="chord in archetypeFamilies.find(f => f.key === activeFamily)?.chords"
                                 :key="chord.id"
                                 :chord="chord"
+                                :same-tab="true"
                             />
                         </div>
                     </div>
@@ -904,7 +908,7 @@ function jumpToLevel(n: number) {
                                     :href="chordShowUrl(chord)"
                                     style="text-decoration: none;"
                                 >
-                                    <ChordCard :chord="chord" />
+                                    <ChordCard :chord="chord" :no-nav="true" />
                                 </Link>
                             </div>
                         </div>
@@ -919,7 +923,7 @@ function jumpToLevel(n: number) {
                         :href="chordShowUrl(chord)"
                         style="text-decoration: none;"
                     >
-                        <ChordCard :chord="chord" />
+                        <ChordCard :chord="chord" :no-nav="true" />
                     </Link>
                 </div>
 
