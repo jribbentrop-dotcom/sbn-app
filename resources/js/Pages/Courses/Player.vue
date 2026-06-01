@@ -38,6 +38,7 @@ interface ProgressionOption {
   category: string;
   videoSnippet: VideoSnippet | null;
 }
+interface SheetVideo { slug: string; title: string; videoId: string; videoType: 'youtube' | 'hosted' }
 
 const props = defineProps<{
   course: CourseData;
@@ -48,6 +49,7 @@ const props = defineProps<{
   lessonConcepts?: { slug: string; title: string; body_html: string; has_widgets: boolean }[];
   rhythms?: RhythmOption[];
   progressions?: ProgressionOption[];
+  sheets?: Record<string, SheetVideo>;
 }>();
 
 // snippet id → sync anchor, for the inline <sbn-progression> in the lesson
@@ -159,6 +161,7 @@ watch(() => props.lesson?.slug, () => {
         :lesson-concepts="props.lessonConcepts ?? []"
         :rhythms="props.rhythms ?? []"
         :progressions="props.progressions ?? []"
+        :sheets="props.sheets ?? {}"
         @select-chord="onChordSelect"
         @clear-chord="clearChord"
       />

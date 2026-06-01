@@ -1,9 +1,9 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed, provide, watch, onMounted, onBeforeUnmount } from 'vue';
 import { getAudioEngine } from '@/audio/engine/AudioEngine.js';
 import { tabModelToEvents } from '@/audio/adapters/tabMeasureToEvents.js';
 import { chordVoicingsToEvents } from '@/audio/adapters/chordVoicingsToEvents.js';
-import { expandMeasureSequence } from '@/audio/adapters/expandMeasureSequence.js';
+import { expandMeasureSequence, firstPositionForGi } from '@/audio/adapters/expandMeasureSequence.js';
 import { useTabModel } from '@/tab-editor/composables/useTabModel.js';
 import TabMeasure from '@/tab-editor/components/TabMeasure.vue';
 
@@ -27,20 +27,26 @@ interface ExercisePayload {
   chordVoicings?: any;
 }
 
+interface VideoSyncData {
+  videoId: string;
+  videoType?: 'youtube' | 'hosted';
+  mappings: Array<{ measureIndex: number; videoTime: number }>;
+}
+
 const props = defineProps<{
   exercise: ExercisePayload;
   onChordSelect?: ((slug: string, root: string, voicingData?: any) => void) | null;
   /**
-   * Video-sync playhead, in seconds of an embedded recording. When non-null,
-   * the highlighted measure is driven by the video clock instead of the audio
-   * engine — `transportBeat` / `playingMeasureIndex` are fed the same way the
-   * engine `tick` feeds them, so TabMeasure highlighting is unchanged.
+   * Current playhead in recording-seconds, driven by the shared VideoEmbed in
+   * PracticePanel. When non-null AND videoSync is present, the mapping pipeline
+   * converts seconds → fractional play-position → beat, matching the full editor.
    */
   videoPlayhead?: number | null;
-  /** Recording-time (seconds) at which the sheet's first measure begins. */
-  videoStartSec?: number;
-  /** Recording tempo (bpm) used to convert recording-seconds to measure beats. */
-  videoBpm?: number;
+  /** Full videoSync block from exercise.videoSync — enables mapping interpolation. */
+  videoSync?: VideoSyncData | null;
+  onVideoPlay?: (() => void) | null;
+  onVideoPause?: (() => void) | null;
+  onVideoSeek?: ((seconds: number) => void) | null;
 }>();
 
 // ── Tab model — mirrors LeadsheetViewer setup exactly ────────────────────────
@@ -111,6 +117,19 @@ function stopPlayback() {
 }
 
 function togglePlayback() {
+  if (props.videoSync?.videoId) {
+    // Video is the clock — delegate play/pause to the shared playhead via callbacks.
+    if (props.videoPlayhead != null || props.onVideoPlay) {
+      if (isPlaying.value) {
+        props.onVideoPause?.();
+        isPlaying.value = false;
+      } else {
+        props.onVideoPlay?.();
+        isPlaying.value = true;
+      }
+    }
+    return;
+  }
   if (isPlaying.value) stopPlayback();
   else startPlayback();
 }
@@ -147,16 +166,60 @@ onBeforeUnmount(() => {
 });
 
 // ── Video-sync clock ──────────────────────────────────────────────────────────
-// When `videoPlayhead` is non-null the sheet is driven by the video clock:
-// convert recording-seconds → beats against the authored `videoStartSec` +
-// `videoBpm` anchor, then feed `transportBeat` / `playingMeasureIndex` exactly
-// as the engine `tick` handler does — TabMeasure highlighting is unchanged.
+// Mapping-interpolation pipeline (mirrors useVideoSync.videoTimeToPlayPosition):
+// binary-search + linear interpolation over the authored tap-to-mark table,
+// then convert fractional play-position → beat → measure index.
+
+function videoTimeToBeat(sec: number): number {
+  const vs = props.videoSync;
+  if (!vs?.mappings?.length) return 0;
+
+  // Project stored gi-keyed mappings onto play positions (same as useVideoSync).
+  const seq = expandedSequence.value;
+  const byGi = new Map<number, number[]>();
+  for (const m of vs.mappings) {
+    if (!byGi.has(m.measureIndex)) byGi.set(m.measureIndex, []);
+    byGi.get(m.measureIndex)!.push(m.videoTime);
+  }
+  for (const arr of byGi.values()) arr.sort((a, b) => a - b);
+
+  const pts: Array<{ pos: number; videoTime: number }> = [];
+  const posCountByGi = new Map<number, number>();
+  for (let pos = 0; pos < seq.length; pos++) {
+    const gi = seq[pos];
+    const times = byGi.get(gi);
+    if (!times) continue;
+    const k = posCountByGi.get(gi) ?? 0;
+    posCountByGi.set(gi, k + 1);
+    pts.push({ pos, videoTime: times[Math.min(k, times.length - 1)] });
+  }
+  pts.sort((a, b) => a.videoTime - b.videoTime);
+
+  if (!pts.length) return 0;
+  if (sec <= pts[0].videoTime) return pts[0].pos * beatsPerMeasure.value;
+  if (sec >= pts[pts.length - 1].videoTime) return pts[pts.length - 1].pos * beatsPerMeasure.value;
+
+  let lo = 0, hi = pts.length - 1;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    if (pts[mid].videoTime <= sec) lo = mid; else hi = mid;
+  }
+  const a = pts[lo], b = pts[hi];
+  const t = b.videoTime === a.videoTime ? 0 : (sec - a.videoTime) / (b.videoTime - a.videoTime);
+  return (a.pos + t * (b.pos - a.pos)) * beatsPerMeasure.value;
+}
+
 watch(
   () => props.videoPlayhead,
-  (sec) => {
-    if (sec == null) return;
-    const tempo = props.videoBpm ?? bpm.value;
-    const beat = Math.max(0, (sec - (props.videoStartSec ?? 0)) * (tempo / 60));
+  (sec, oldSec) => {
+    if (!props.videoSync) return;
+    if (sec == null) {
+      // Video stopped externally (sidebar pause) — mirror onto button state.
+      if (oldSec != null) isPlaying.value = false;
+      return;
+    }
+    isPlaying.value = true;
+    const beat = videoTimeToBeat(sec);
     transportBeat.value = beat;
     const pos = Math.floor(beat / beatsPerMeasure.value);
     playingMeasureIndex.value = expandedSequence.value[pos] ?? pos;
@@ -186,6 +249,27 @@ function onTabChordClick({ measureIndex, chordIndex, chordName }: { measureIndex
   props.onChordSelect(chordName, root, voicingData);
 }
 
+// ── Measure click → seek ──────────────────────────────────────────────────────
+
+function onMeasureClick(gi: number) {
+  const seq = expandedSequence.value;
+  const playPos = firstPositionForGi(seq, gi);
+
+  if (props.videoSync?.mappings?.length) {
+    const mapping = props.videoSync.mappings
+      .filter((m: any) => m.measureIndex === gi)
+      .sort((a: any, b: any) => a.videoTime - b.videoTime)[0];
+    if (mapping) {
+      props.onVideoSeek?.(mapping.videoTime);
+    }
+  } else {
+    const beat = playPos * beatsPerMeasure.value;
+    transportBeat.value = beat;
+    playingMeasureIndex.value = gi;
+    engine.seek?.(beat);
+  }
+}
+
 // ── Tab layout helpers — copied from LeadsheetViewer ─────────────────────────
 
 function tabMeasureRows(section: any) {
@@ -210,10 +294,15 @@ function tabMeasureRows(section: any) {
     return rows;
   }
 
-  // All measures in one row for the strip layout (horizontal scroll)
-  const row: any = [...measures];
-  row._intendedCount = measures.length;
-  return [row];
+  // No lineBreaks stored — break into rows of 4 bars.
+  const bpr = 4;
+  const rows: any[] = [];
+  for (let i = 0; i < measures.length; i += bpr) {
+    const row: any = measures.slice(i, i + bpr);
+    row._intendedCount = bpr;
+    rows.push(row);
+  }
+  return rows;
 }
 
 function getNextTabMeasure(index: number) {
@@ -257,42 +346,51 @@ provide('inlineRenameTarget', ref(null));
     <!-- Play/Pause button -->
     <button
       type="button"
-      class="sbn-sheet-play"
+      class="sbn-play-btn sbn-sheet-play"
       :class="{ 'is-playing': isPlaying }"
       :title="isPlaying ? 'Pause' : 'Play'"
       @click="togglePlayback"
     >
-      <svg v-if="isPlaying" width="22" height="22" viewBox="0 0 22 22">
-        <rect x="6" y="5" width="4" height="12" fill="white" />
-        <rect x="12" y="5" width="4" height="12" fill="white" />
+      <svg v-if="isPlaying" width="14" height="14" viewBox="0 0 14 14">
+        <rect x="2" y="1" width="3.5" height="12" fill="currentColor" />
+        <rect x="8.5" y="1" width="3.5" height="12" fill="currentColor" />
       </svg>
-      <svg v-else width="22" height="22" viewBox="0 0 22 22">
-        <path d="M7 5l11 6-11 6z" fill="white" />
+      <svg v-else width="14" height="14" viewBox="0 0 14 14">
+        <path d="M3 1l10 6-10 6z" fill="currentColor" />
       </svg>
     </button>
 
-    <!-- Measures: horizontal scroll, one row, TabMeasure for each -->
+    <!-- Measures: one div per lineBreak row, rows stack vertically -->
     <div class="sbn-sheet-measures" v-if="model">
       <template v-for="(section, si) in model.sections" :key="section.id || si">
-        <template v-for="(row, ri) in tabMeasureRows(section)" :key="ri">
-          <TabMeasure
+        <div
+          v-for="(row, ri) in tabMeasureRows(section)"
+          :key="ri"
+          class="sbn-sheet-row"
+        >
+          <div
             v-for="(measure, li) in row"
             :key="measure.index"
-            :measure="measure"
-            :is-first-of-section="si === 0 && ri === 0 && li === 0"
-            :ticks-per-measure="model.ticksPerMeasure"
-            :next-measure="getNextTabMeasure(measure.index)"
-            :is-next-first-of-section="isNextTabMeasureFirstOfSection(measure.index)"
-            :chord-names="measure.chordNames || []"
-            :bars-per-row="row._intendedCount"
-            :read-only="true"
-            :allow-chord-click="true"
-            :cursor="null"
-            :pending-digit="null"
-            :selected-events="new Set()"
-            @chord-click="onTabChordClick"
-          />
-        </template>
+            class="sbn-sheet-measure-wrap"
+            @click="onMeasureClick(measure.index)"
+          >
+            <TabMeasure
+              :measure="measure"
+              :is-first-of-section="si === 0 && ri === 0 && li === 0"
+              :ticks-per-measure="model.ticksPerMeasure"
+              :next-measure="getNextTabMeasure(measure.index)"
+              :is-next-first-of-section="isNextTabMeasureFirstOfSection(measure.index)"
+              :chord-names="measure.chordNames || []"
+              :bars-per-row="row._intendedCount"
+              :read-only="true"
+              :allow-chord-click="true"
+              :cursor="null"
+              :pending-digit="null"
+              :selected-events="new Set()"
+              @chord-click="onTabChordClick"
+            />
+          </div>
+        </div>
       </template>
     </div>
 
@@ -305,46 +403,47 @@ provide('inlineRenameTarget', ref(null));
 /* ── Container ────────────────────────────────────────────────────────────── */
 .sbn-sheet-player {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  padding: 12px 0;
+  padding: 12px 0 12px 4px;
   background: #ffffff;
   overflow: hidden;
 }
 
-/* ── Play/Pause button ──────────────────────────────── */
+/* ── Play/Pause button ── */
 .sbn-sheet-play {
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  border: none;
+  width: 28px;
+  height: 28px;
+  --play-color: #f39c12;
   background: var(--clr-gradient, linear-gradient(135deg, #f39c12 0%, #e74c3c 100%));
-  color: #ffffff;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: transform 0.15s ease;
+  border-color: transparent;
+  color: #fff;
 }
-
 .sbn-sheet-play:hover {
-  transform: scale(1.05);
+  background: var(--clr-gradient, linear-gradient(135deg, #f39c12 0%, #e74c3c 100%));
+  filter: brightness(1.08);
 }
-
-.sbn-sheet-play svg {
-  width: 18px;
-  height: 18px;
+.sbn-sheet-play.is-playing {
+  box-shadow: 0 0 0 3px color-mix(in srgb, #f39c12 25%, transparent);
 }
 
 /* ── Measures ──────────────────────────────────────────────────────────────── */
 .sbn-sheet-measures {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   gap: 0;
-  overflow-x: auto;
   flex: 1 1 auto;
   min-width: 0;
+  overflow-x: auto;
+}
+
+.sbn-sheet-row {
+  display: flex;
+  flex-direction: row;
+}
+
+.sbn-sheet-measure-wrap {
+  cursor: pointer;
 }
 
 .sbn-sheet-empty {

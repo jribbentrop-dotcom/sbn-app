@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ChordProgression;
 use App\Models\Course;
+use App\Models\Exercise;
 use App\Models\Lesson;
 use App\Models\Leadsheet;
 use App\Models\RhythmPattern;
@@ -114,8 +115,9 @@ class CourseController extends Controller
 
         $lessonData = null;
         $chordSlugs = [];
-        $rhythmTags = [];   // one entry per <sbn-rhythm> tag: { slug, videoSnippet }
+        $rhythmTags = [];      // one entry per <sbn-rhythm> tag: { slug, videoSnippet }
         $progressionTags = []; // one entry per <sbn-progression> tag: { slug, key, videoSnippet }
+        $sheetSlugs = [];      // unique slugs of <sbn-sheet> tags that have videoSync
         $lessonConcepts = [];
         if ($activeLesson) {
             $canView = $hasAccess || $activeLesson->is_preview;
@@ -125,6 +127,11 @@ class CourseController extends Controller
                 $chordSlugs = array_values(array_unique($matches[1] ?? []));
                 $rhythmTags = $this->parseRhythmTags($activeLesson->content);
                 $progressionTags = $this->parseProgressionTags($activeLesson->content);
+
+                // Sheet exercises with videoSync — deduped by slug, used to
+                // populate the PracticePanel video slot.
+                preg_match_all('/<sbn-sheet\b[^>]*\bslug="([^"]+)"/i', $activeLesson->content, $sheetMatches);
+                $sheetSlugs = array_values(array_unique($sheetMatches[1] ?? []));
 
                 // Collect sbn-widget slugs in document order (deduped), resolve
                 // each to its concept topic for the sidebar expanders.
@@ -216,15 +223,38 @@ class CourseController extends Controller
                 ->values();
         }
 
+        // Sheet exercises that have a videoSync block — one entry per unique slug.
+        // PracticePanel shows their video in the sidebar; SheetMiniPlayer reads
+        // the full videoSync from the exercise payload (fetched by mountSbnNodes).
+        $sheets = collect();
+        if (!empty($sheetSlugs)) {
+            $sheets = Exercise::whereIn('slug', $sheetSlugs)
+                ->get()
+                ->map(function (Exercise $e) {
+                    $content = $e->content_json ?? [];
+                    $vs = $content['videoSync'] ?? null;
+                    if (!$vs || empty($vs['videoId'])) return null;
+                    return [
+                        'slug'      => $e->slug,
+                        'title'     => $e->title,
+                        'videoId'   => $vs['videoId'],
+                        'videoType' => $vs['videoType'] ?? 'youtube',
+                    ];
+                })
+                ->filter()
+                ->keyBy('slug');
+        }
+
         return Inertia::render('Courses/Player', [
-            'course'        => $this->serializeCourse($course),
-            'lessons'       => $allLessons->map(fn ($lessonItem) => $this->serializeLessonStub($lessonItem)),
-            'lesson'        => $lessonData,
-            'hasAccess'     => $hasAccess,
-            'chordSlugs'    => $chordSlugs,
+            'course'         => $this->serializeCourse($course),
+            'lessons'        => $allLessons->map(fn ($lessonItem) => $this->serializeLessonStub($lessonItem)),
+            'lesson'         => $lessonData,
+            'hasAccess'      => $hasAccess,
+            'chordSlugs'     => $chordSlugs,
             'lessonConcepts' => $lessonConcepts,
-            'rhythms'       => $rhythms,
-            'progressions'  => $progressions,
+            'rhythms'        => $rhythms,
+            'progressions'   => $progressions,
+            'sheets'         => $sheets,
         ]);
     }
 

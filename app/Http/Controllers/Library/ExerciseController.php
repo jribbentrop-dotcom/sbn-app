@@ -6,9 +6,30 @@ use App\Http\Controllers\Controller;
 use App\Models\Exercise;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class ExerciseController extends Controller
 {
+    public function cinema(Exercise $exercise)
+    {
+        $content = $exercise->content_json ?? [];
+
+        return Inertia::render('Leadsheet/Cinema', [
+            'leadsheet' => [
+                'id'            => $exercise->id,
+                'slug'          => $exercise->slug,
+                'title'         => $exercise->title,
+                'composer'      => $exercise->composer,
+                'songKey'       => $exercise->key_center,
+                'tempo'         => $exercise->bpm_default,
+                'timeSignature' => $exercise->time_sig,
+                'jsonData'      => $content,
+            ],
+            'chordCards' => [],
+            'classicUrl' => '',
+        ]);
+    }
+
     public function apiShow(Request $request, string $slug): JsonResponse
     {
         $exercise = Exercise::query()->where('slug', $slug)->firstOrFail();

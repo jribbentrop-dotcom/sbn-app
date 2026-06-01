@@ -87,6 +87,8 @@ let _ytPlayer  = null;
 let _rafId     = null;
 // When the facade is upgraded, play as soon as the player is ready.
 let _playOnReady = false;
+// Optional seek target to apply on ready (overrides props.startSec).
+let _seekOnReady = null;
 
 // ── Computed ─────────────────────────────────────────────────
 
@@ -163,7 +165,9 @@ function onYTReady() {
     // seek to the snippet anchor and start now that the player is live.
     if (_playOnReady) {
         _playOnReady = false;
-        if (props.startSec > 0) _ytPlayer?.seekTo?.(props.startSec, true);
+        const seekTo = _seekOnReady ?? (props.startSec > 0 ? props.startSec : null);
+        _seekOnReady = null;
+        if (seekTo != null) _ytPlayer?.seekTo?.(seekTo, true);
         _ytPlayer?.playVideo?.();
     }
 }
@@ -244,6 +248,9 @@ function seekTo(seconds) {
     if (props.videoType === 'youtube') {
         if (_ytPlayer && typeof _ytPlayer.seekTo === 'function') {
             _ytPlayer.seekTo(seconds, true);
+        } else {
+            // Player not ready yet — queue for when it becomes ready.
+            _seekOnReady = seconds;
         }
     } else if (videoEl.value) {
         videoEl.value.currentTime = seconds;

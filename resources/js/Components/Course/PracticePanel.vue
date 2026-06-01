@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
@@ -21,6 +21,7 @@ interface ProgressionOption {
   category: string;
   videoSnippet: VideoSnippet | null;
 }
+interface SheetVideo { slug: string; title: string; videoId: string; videoType: 'youtube' | 'hosted' }
 
 const props = defineProps<{
   lesson: LessonData | null;
@@ -31,6 +32,7 @@ const props = defineProps<{
   lessonConcepts?: { slug: string; title: string; body_html: string; has_widgets: boolean }[];
   rhythms?: RhythmOption[];
   progressions?: ProgressionOption[];
+  sheets?: Record<string, SheetVideo>;
 }>();
 
 const emit = defineEmits<{
@@ -65,10 +67,12 @@ const activeRhythmColor = computed<string | null>(() => {
 // <sbn-progression> body component reads the same instance for its highlight.
 interface SnippetEntry {
   snippet: VideoSnippet;
-  kind: 'rhythm' | 'progression';
-  /** index into rhythmOptions / progressionOptions */
+  kind: 'rhythm' | 'progression' | 'sheet';
+  /** index into rhythmOptions / progressionOptions; slug for sheets */
   componentIndex: number;
   label: string;
+  /** sheet:slug key for the shared playhead registry (sheets only) */
+  playheadKey?: string;
 }
 
 const progressionOptions = computed<ProgressionOption[]>(() => props.progressions ?? []);
@@ -84,6 +88,18 @@ const snippetEntries = computed<SnippetEntry[]>(() => {
     if (p.videoSnippet) {
       out.push({ snippet: p.videoSnippet, kind: 'progression', componentIndex: i, label: p.name });
     }
+  });
+  Object.values(props.sheets ?? {}).forEach((s, i) => {
+    // Synthesise a minimal VideoSnippet shape — no startSec/endSec (no loop).
+    const fakeSnippet: VideoSnippet = {
+      id: `sheet:${s.slug}`,
+      label: s.title,
+      videoId: s.videoId,
+      videoType: s.videoType,
+      startSec: 0,
+      tempoBpm: 120,
+    };
+    out.push({ snippet: fakeSnippet, kind: 'sheet', componentIndex: i, label: s.title, playheadKey: `sheet:${s.slug}` });
   });
   return out;
 });
@@ -356,6 +372,12 @@ watch(() => props.lesson?.slug, () => { conceptsMounted.value = {}; });
         @timeupdate="ph.onTimeUpdate"
         @play-state-change="ph.onPlayStateChange"
       />
+      <a
+        v-if="focusedEntry?.kind === 'sheet' && focusedEntry.playheadKey"
+        :href="`/library/exercises/${focusedEntry.playheadKey.replace('sheet:', '')}/cinema`"
+        target="_blank"
+        class="vC-video-cinema-link"
+      >Open in cinema player ↗</a>
       <div v-if="snippetEntries.length > 1" class="vC-rhythm-row vC-rhythm-row--inset">
         <button
           v-for="(entry, i) in snippetEntries"

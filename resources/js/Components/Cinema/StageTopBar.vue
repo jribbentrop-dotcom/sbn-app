@@ -13,7 +13,7 @@
     </div>
     <div class="stage-top-spacer"></div>
     <!-- Back to classic view -->
-    <a :href="classicUrl" class="stage-top-icon-btn" title="Classic view">
+    <a v-if="classicUrl" :href="classicUrl" class="stage-top-icon-btn" title="Classic view">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
     </a>
     <button class="stage-top-icon-btn" title="Toggle light/dark theme" @click="$emit('toggle-theme')" aria-label="Toggle theme">

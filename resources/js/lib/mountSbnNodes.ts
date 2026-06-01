@@ -87,7 +87,7 @@ const propsFor: Record<NodeType, (data: any, el: HTMLElement) => Record<string, 
     color:        d.progression?.styleSlug ? getCategoryColor(d.progression.styleSlug) : null,
     interactive:  true,
   }),
-  sheet:       (d, el) => ({ exercise: d, onChordSelect: (el as any).__onChordSelect ?? null }),
+  sheet:       (d, el) => ({ exercise: d, onChordSelect: (el as any).__onChordSelect ?? null, videoSync: d.videoSync ?? null }),
 };
 
 // ── Per-type query string from element attrs ────────────────────────────────
@@ -318,6 +318,42 @@ export async function mountSbnNodes(
                     ph.play();
                   },
                   onVideoPause: () => ph.pause(),
+                }),
+              });
+              app.mount(el);
+              apps.push(app);
+            } else {
+              const app = createApp(Component, baseProps);
+              app.mount(el);
+              apps.push(app);
+            }
+          } else if (type === 'sheet') {
+            const baseProps = propsFor[type](data, el);
+            const videoSync = (data as any).videoSync ?? null;
+
+            if (videoSync?.videoId) {
+              const slug = el.getAttribute('slug') ?? '';
+              const ph = getVideoPlayhead(`sheet:${slug}`);
+              const app = createApp({
+                render: () => h(Component, {
+                  ...baseProps,
+                  videoPlayhead: ph.playing.value ? ph.playheadSec.value : null,
+                  videoSync,
+                  // Play button drives the shared video clock. Seek to the first
+                  // mapping's videoTime (= start of the exercise in the recording)
+                  // if the playhead is before it or has drifted past the last mark.
+                  onVideoPlay: () => {
+                    const mappings: Array<{ videoTime: number }> = videoSync.mappings ?? [];
+                    if (mappings.length) {
+                      const first = mappings.reduce((a: any, b: any) => a.videoTime < b.videoTime ? a : b);
+                      const last  = mappings.reduce((a: any, b: any) => a.videoTime > b.videoTime ? a : b);
+                      const cur = ph.playheadSec.value;
+                      if (cur < first.videoTime || cur > last.videoTime) ph.seek(first.videoTime);
+                    }
+                    ph.play();
+                  },
+                  onVideoPause: () => ph.pause(),
+                  onVideoSeek: (seconds: number) => { ph.seek(seconds); ph.play(); },
                 }),
               });
               app.mount(el);

@@ -561,6 +561,18 @@
     text-align: center;
 }
 
+/* Cinema link (below exercise video) */
+.vC-video-cinema-link {
+    display: block;
+    margin-top: 8px;
+    font-size: 11.5px;
+    color: var(--clr-text-muted);
+    text-decoration: none;
+    text-align: right;
+    padding: 0 2px;
+}
+.vC-video-cinema-link:hover { color: var(--clr-accent); }
+
 /* Rhythm selector */
 .vC-rhythm-row {
     display: flex; gap: 4px; margin-top: 10px; flex-wrap: wrap;
