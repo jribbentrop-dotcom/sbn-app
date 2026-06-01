@@ -130,6 +130,12 @@ export const widgetCatalog: WidgetEntry[] = [
     summary: 'Three views of the same chord — fretboard, tab, and chord diagram — animating through the rotation that links them.',
     tags: ['guitar', 'notation', 'general'],
   },
+  {
+    slug: 'basic-chords',
+    title: 'The Basic Eight',
+    summary: 'The eight essential open chords — E, Em, A, Am, D, Dm, C, G — with finger numbers on a fretboard diagram.',
+    tags: ['guitar', 'chords', 'general'],
+  },
 ];
 
 /** All unique tags across the catalog, sorted alphabetically. */

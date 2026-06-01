@@ -150,6 +150,7 @@ export const eduWidgets = {
   'note-durations':           () => import('./NoteDurationsWidget.vue'),
   'triplets':                 () => import('./TripletWidget.vue'),
   'tab-diagram':              () => import('./TabDiagramWidget.vue'),
+  'basic-chords':             () => import('./BasicChordsWidget.vue'),
 } as const;
 ```
 
@@ -203,6 +204,7 @@ Every widget follows these rules (see `TriadBuilder.vue` as the reference):
 | `note-durations` | `NoteDurationsWidget.vue` | Whole → sixteenth notes — note shape, beat value, bar visualisation. |
 | `triplets` | `TripletWidget.vue` | Quarter and eighth triplets — comparison toggle with normal notes. |
 | `tab-diagram` | `TabDiagramWidget.vue` | Fretboard → tab → chord diagram animation showing the 90° rotation relationship (Am). |
+| `basic-chords` | `BasicChordsWidget.vue` | The 8 essential open chords (E Em A Am D Dm C G) — 4-column pill nav, finger numbers in dots, major=amber/minor=blue. |
 
 ### Shared pitch-dot visual language
 
@@ -313,23 +315,10 @@ Examples: `/dev/edu/concept/triad`, `/dev/edu/concept/circle-of-fifths`,
 
 - **System + pipeline:** complete. `EduContentService` (file-backed), the
   `<sbn-widget>` mounter, the widget registry, and all four surfaces are wired.
-- **Widgets (2026-05-22):** ten widgets built and registered:
-  - `triad-builder` — quality badge pills, spring pop-in + pulse animations.
-  - `circle-of-fifths` — clickable SVG donut.
-  - `drop2-visualizer` — Closed/Drop 2/Drop 3 badges, compact pitch-dot layout.
-  - `voice-leading` — 6-string lane diagram, bezier voice curves, three ii–V–I pairs.
-  - `caged-system` — animated full-neck camera pan, mini strip, swipe nav.
-  - `chord-function` — 7 diatonic degrees, Tonic/Subdominant/Dominant colour coding, major/minor toggle.
-  - `chord-tones` — triad→13th extension stepper, altered option tones.
-  - `note-duration` — dotted/tied duration examples with bar-grow animations.
-  - `interval-explorer` — draggable pitch-axis dot, 12 intervals from C.
-  - `pentatonic-scales` — diatonic↔pentatonic toggle, major and minor modes.
-- **Theory browse page:** `GET /theory` live — widget grid with tag filter sidebar,
-  live-mounted widgets, MegaMenu wired under Explore → Resources.
-- **Content:** ongoing — 18 quality files + a growing set of concept/glossary
-  topics. New content scales as files, no code changes.
-- **Deferred:** fretboard render pass for chord-construction widgets — `typicalString`
-  data is already in place on `Drop2Visualizer` voices; this is render-only work.
+- **Widgets (2026-06-01):** 20 widgets built and registered across harmony, guitar, rhythm, and notation categories. All backed by a concept markdown file in `resources/edu/concepts/`. See §6 for full table.
+- **Theory browse page:** `GET /theory` live — widget grid with tag filter sidebar, live-mounted widgets, MegaMenu wired under Explore → Resources.
+- **Content:** 18 quality files + 20 concept files. New content scales as files, no code changes.
+- **Lesson editor palette:** widget list is server-sourced from `EduContentService::topics('concept')` — adding a concept `.md` file automatically surfaces it in the admin palette. All 20 widgets have a backing concept file.
 
 ---
 

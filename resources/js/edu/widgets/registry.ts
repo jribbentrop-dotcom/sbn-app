@@ -34,6 +34,7 @@ export const eduWidgets = {
   'note-durations':           () => import('./NoteDurationsWidget.vue'),
   'triplets':                 () => import('./TripletWidget.vue'),
   'tab-diagram':              () => import('./TabDiagramWidget.vue'),
+  'basic-chords':             () => import('./BasicChordsWidget.vue'),
 } as const;
 
 export type EduWidgetSlug = keyof typeof eduWidgets;
