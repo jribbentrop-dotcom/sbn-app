@@ -57,11 +57,11 @@ const props = defineProps<Props>();
 // ── Filter state ───────────────────────────────────────────
 const search   = ref('');
 const fQuality = ref('');
-const fVoicing = ref('');
+const fVoicing = ref(typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('voicing') ?? '') : '');
 const fPop     = ref('');
 const fDiff    = ref('');
-const fInv     = ref('');
-const fExt     = ref('');
+const fInv     = ref(typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('inversion') ?? '') : '');
+const fExt     = ref(typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('ext') ?? '') : '');
 
 // ── Archetype / barré panel mode ──────────────────────────
 // Forward animation (archetype → barré):
@@ -340,7 +340,7 @@ function matchesFilters(c: ChordDiagramData): boolean {
         }
     }
     if (fQuality.value && c.quality !== fQuality.value) return false;
-    if (fVoicing.value && c.voicing_category !== fVoicing.value) return false;
+    if (fVoicing.value && !(c.voicing_category === fVoicing.value || (fVoicing.value === 'archetype' && c.voicing_category.startsWith('archetype')))) return false;
     if (fInv.value && (c.inversion ?? 'root') !== fInv.value) return false;
     if (fExt.value && c.extensions !== fExt.value) return false;
     if (fPop.value) {
@@ -627,7 +627,7 @@ function jumpToLevel(n: number) {
             <div class="sbn-results-container">
 
                 <!-- Archetype / Barré panel (hidden during search/filter) -->
-                <div v-if="!hasFilters && archetypeFamilies.length" class="sbn-archetype-panel">
+                <div v-if="!hasFilters && archetypeFamilies.length" id="archetypes" class="sbn-archetype-panel">
 
                     <!-- ── Stepper ── -->
                     <nav class="sbn-stepper" aria-label="Chord progression levels">

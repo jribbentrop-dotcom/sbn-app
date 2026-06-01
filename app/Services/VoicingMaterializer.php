@@ -61,6 +61,8 @@ class VoicingMaterializer
             }
         }
 
+        $prevFingerStrings = []; // voice-leading state: finger strings from previous chord
+
         foreach ($grouped as $mIdx => $mChords) {
             $measureNum = $mIdx + 1;
             $globalTick = $mIdx * $tpm;
@@ -122,8 +124,17 @@ class VoicingMaterializer
                         ['frets' => $frets, 'position' => $position],
                         $rhythm,
                         $divisions,
-                        $beats
+                        $beats,
+                        $prevFingerStrings
                     );
+
+                    // Capture finger strings for next chord's voice leading
+                    foreach ($strokes as $stroke) {
+                        if (!empty($stroke['finger_strings'])) {
+                            $prevFingerStrings = $stroke['finger_strings'];
+                            break;
+                        }
+                    }
 
                     if (!empty($strokes)) {
                         // Filter strokes to fit in this chord's window within the measure

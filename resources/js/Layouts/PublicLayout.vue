@@ -4,6 +4,7 @@ import { Link } from '@inertiajs/vue3';
 import MegaMenu from './../Components/MegaMenu.vue';
 import Footer from './../Components/Footer.vue';
 import AudioPlayerSlot from './../Components/AudioPlayerSlot.vue';
+import TheoryWidgetModal from './../Components/TheoryWidgetModal.vue';
 
 const headerRef = ref<HTMLElement | null>(null);
 let resizeObserver: ResizeObserver | null = null;
@@ -45,6 +46,7 @@ onUnmounted(() => {
 
         <Footer />
         <AudioPlayerSlot />
+        <TheoryWidgetModal />
     </div>
 </template>
 

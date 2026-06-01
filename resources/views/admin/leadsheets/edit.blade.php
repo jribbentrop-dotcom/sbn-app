@@ -394,7 +394,7 @@
      x-cloak
      style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
 </div>
-    
+
     </aside>
 
     </div>
@@ -1421,8 +1421,9 @@ function leadsheetEditor() {
 
         // ── Init ──────────────────────────────────────────────
         init() {
-            // Expose ID for Vue components that need to call leadsheet-scoped endpoints.
-            window._sbnLeadsheetId = this.itemId;
+            // Expose ID + type for Vue components that need to call item-scoped endpoints.
+            window._sbnLeadsheetId   = this.itemId;
+            window._sbnLeadsheetType = this.itemType; // 'leadsheets' | 'exercises'
 
             // When fill-voicings completes, merge new voicings into parsed so
             // the Alpine save pipeline serialises them into the shortcode.
@@ -1431,6 +1432,33 @@ function leadsheetEditor() {
                     Object.assign(this.parsed.chordVoicings, e.detail.voicings);
                 }
                 this.markDirty();
+            });
+
+            // When apply-rhythm completes, replace tabXml + parsed and re-init Vue tab model.
+            document.addEventListener('sbn-rhythm-applied', (e) => {
+                const { tab_xml, parsed, rhythmPattern, filledGaps } = e.detail ?? {};
+                if (!tab_xml || !parsed) return;
+
+                // Replace Alpine's model — suppress the $watch so it doesn't
+                // fire a stale init before we manually reset and re-dispatch.
+                this._suppressTabInit = true;
+                this.parsed = parsed;
+                this._suppressTabInit = false;
+
+                this.tabXml = tab_xml;
+                if (rhythmPattern) this.rhythmSlug = rhythmPattern.slug ?? this.rhythmSlug;
+
+                // Reset the init gate so Vue receives a fresh sbn-tab-init.
+                this._tabInitDone = false;
+                this._tabVueInitialized = false;
+                this._dispatchTabInit();
+
+                this.markDirty();
+
+                const msg = filledGaps
+                    ? `Rhythm applied (${filledGaps} gap(s) filled with new voicings).`
+                    : 'Rhythm applied.';
+                sbnToast(msg, 'success');
             });
 
             window.addEventListener('sbn-save-as-exercise', () => this.saveAndCopyToExercise());

@@ -1,4 +1,4 @@
-# SBN Admin — Chord / Tab Editor Reference
+  j# SBN Admin — Chord / Tab Editor Reference
 
 > **Purpose:** Complete reference for the admin leadsheet editor: architecture, Vue component tree, chord grid, voicing picker, tab notation, audio playback, video sync, keyboard shortcuts, design system, and all creation flows (blank, from progression, exercises, transcription).
 > **Last updated:** 2026-05-23
@@ -303,16 +303,43 @@ Two identifier paths run after every MusicXML import (`inferKeyFromChords` → `
 `VoicingCrossref::processLeadsheet()` is called on every `store()` and `update()` to keep `sbn_voicing_usage` in sync. A null-guard in `extractVoicings()` skips any remaining `Tab*` keys that weren't resolved.
 
 ### VoicingOverview — Song Voicings panel
-`VoicingOverview.vue` renders the resting-state right panel (Chords/Tab view, no picker open). Header buttons:
+`VoicingOverview.vue` renders the resting-state right panel (Chords/Tab view, no picker open). A `⋯` overflow menu in the header contains all actions:
 
-| Button | Action |
-|--------|--------|
+| Menu item | Action |
+|-----------|--------|
 | **Clean unused** | `picker.cleanUnusedVoicings()` — removes entries not referenced by any chord slot |
 | **Clear all** | Confirm dialog → `picker.clearAllVoicings()` — empties `chordVoicings`, undoable |
 | **Fill voicings** | Toggles the fill panel (see below) |
+| **Apply rhythm** | Toggles the apply-rhythm panel (see below) |
+
+The fill panel and apply-rhythm panel are mutually exclusive — opening one closes the other.
 
 #### Fill voicings panel
 POST `admin/leadsheets/{id}/fill-voicings` → `LeadsheetController::fillVoicings()`.
+
+#### Apply rhythm panel
+POST `admin/leadsheets/{id}/apply-rhythm` (leadsheets) or `admin/exercises/{id}/apply-rhythm` (exercises) → `LeadsheetController::applyRhythm()` / `applyRhythmToExercise()`. Both delegate to `_applyRhythmCore()`.
+
+Replaces `tab_xml` + `melody` + `rhythmPattern` in `json_data` for an existing leadsheet or exercise. Voicing resolution order per chord slot:
+1. Positional key `"name@gi.ci"` (hand-edited)
+2. Base-name key `"name"` (filled/imported)
+3. Gap-fill via `ProgressionBuilder` (same builder as Fill voicings, user-selected style/extensions)
+
+Gap-filled voicings are written back into `chordVoicings` so they persist.
+
+**Time-stretch:** if the rhythm pattern's `time_signature` differs from the sheet's, stroke tick offsets are scaled so the pattern fills exactly one bar. A 2/4 pattern applied to a 4/4 bar doubles all durations (16ths → 8ths etc.) — the feel is identical, just the note values change.
+
+**String assignment** (`RhythmMaterializer::_resolveFingerStrings`):
+- **≤ 4 available notes:** thumb = lowest-pitch string (highest string#); fingers = remaining strings low→high pitch
+- **> 4 available notes:** thumb = `max($availableBass)` as before; fingers = strings 4 (D), 3 (G), 2 (B) that are non-x
+- **Strum patterns:** all non-muted strings on every stroke
+- **Soft voice leading:** if the previous chord's finger strings are all available in the current voicing, reuse them unchanged; `VoicingMaterializer` threads `$prevFingerStrings` through the chord loop
+
+**Frontend reload path** (critical): on success `VoicingOverview.vue` dispatches `sbn-rhythm-applied` → Alpine replaces `parsed` + `tabXml`, resets `_tabInitDone` / `_tabVueInitialized`, calls `_dispatchTabInit()` for a full Vue reload.
+
+**Exercise vs leadsheet differences:**
+- Exercise: reads `content_json` (array-cast), `time_sig`; writes to `sbn_exercises`
+- Leadsheet: reads raw `json_data` string, `time_signature`; writes to `sbn_leadsheets`; runs `VoicingCrossref::processLeadsheet()` after save
 
 Options: **Style** (Jazz / Latin / Pop / Blues — same presets as Machine Room), **Extensions** (Basic / Extended), **Keep existing voicings** checkbox.
 
@@ -675,6 +702,7 @@ All paths land in the same editor. Storage contract is identical regardless of h
 | From Jazz Standards DB | ✅ Shipped | "+ New leadsheet" → "From progression" → Jazz Standards tab |
 | From saved progression | ✅ Shipped | "+ New leadsheet" → "From progression" → Saved Progression tab |
 | Rhythm-aware materialization | ✅ Shipped | Layout step of progression modal → Rhythm pattern select |
+| Re-apply rhythm to existing sheet | ✅ Shipped | Song Voicings panel → ⋯ → Apply rhythm |
 | Save as exercise (full) | ✅ Shipped | Edit page → "→ Save as Exercise" button |
 | Save bar selection as exercise | ✅ Shipped | Right-click any bar or multi-bar selection → "Save bar(s) as exercise" |
 | LLM song lookup | ✅ Shipped / ⚠️ Maintenance mode | "+ New leadsheet" → "From song lookup" |
@@ -699,16 +727,18 @@ All paths land in the same editor. Storage contract is identical regardless of h
 
 **Step 2 — Layout fields:** key, tempo, time signature, bars per chord, build voicings now, voicing style (`popular` / `shell` / `drop2` / `archetype`), extension mode (`basic` / `extended`), rhythm pattern.
 
-**Rhythm-aware materialization (L2.5):** `RhythmMaterializer::expand(voicing, pattern, divisions, beatsPerMeasure)` converts a `RhythmPattern` + voicing into stroke events for one bar:
-- Finger strokes → treble strings (voicing indexes 3–5 = tab strings 3, 2, 1)
-- Thumb strokes → **one** string: lowest non-muted bass string (`max()` of bass string numbers, since 6 = low E)
-- Strum patterns (`category` contains "strum"): one stroke sounds all non-muted strings; thumb_pattern ignored
+**Rhythm-aware materialization (L2.5):** `RhythmMaterializer::expand(voicing, pattern, divisions, beatsPerMeasure, prevFingerStrings)` converts a `RhythmPattern` + voicing into stroke events for one bar:
+- **Time-stretch:** stroke tick offsets scale by `targetBarTicks / patternBarTicks` so any pattern time signature fills exactly one target bar
+- **String assignment:** see "Apply rhythm panel" above for the ≤4 / >4 note rules and soft voice leading
+- Thumb strokes → `max($availableBass)` — lowest-pitched non-muted bass string
+- Strum patterns (`category` contains "strum"): all non-muted strings; thumb_pattern ignored
 - `json_data.rhythmPattern` stores the full pattern body (not just slug) so reload works without re-fetch
+- `VoicingMaterializer` passes `$prevFingerStrings` through the chord sequence for voice leading continuity
 
 **Key services:**
 - `app/Services/LeadsheetScaffolder.php` — `scaffoldBlank()` + `scaffoldFromSequence()`
 - `app/Services/VoicingMaterializer.php` — `materialize($sequence, $timeSignature, ?$rhythm)`
-- `app/Services/RhythmMaterializer.php` — `expand($voicing, $pattern, $divisions, $beats)`
+- `app/Services/RhythmMaterializer.php` — `expand($voicing, $pattern, $divisions, $beats, $prevFingerStrings=[])`
 - `app/Services/NumeralResolver.php` — `isNumeral()` + `resolveSequenceItems()`
 - `app/Services/ProgressionBuilder.php` — `selectVoicingsForSequence()` (category filter, most-popular fallback)
 

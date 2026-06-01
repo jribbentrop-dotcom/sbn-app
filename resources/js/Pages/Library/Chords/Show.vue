@@ -14,6 +14,9 @@ function updateSiblingsScroll() {
 let siblingsRo: ResizeObserver | null = null;
 import { Link } from '@inertiajs/vue3';
 import { chordShowUrl } from '@/composables/useChordUrl';
+import { useTheoryModal } from '@/composables/useTheoryModal';
+
+const { open: openTheoryModal } = useTheoryModal();
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import { mountSbnNodes } from '@/lib/mountSbnNodes';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
@@ -315,14 +318,41 @@ function inversionIsCurrent(inv: ChordDiagramData): boolean {
     return inv.id === props.chord.id;
 }
 
+type ChordTab = 'voicing' | 'extensions' | 'inversion';
+const activeTab = ref<ChordTab | null>(null);
+const availableTabs = computed<ChordTab[]>(() => {
+    const tabs: ChordTab[] = [];
+    if (eduV.value) tabs.push('voicing');
+    if (activeExtensions.value) tabs.push('extensions');
+    if (eduInv.value || activeInversions.value.length) tabs.push('inversion');
+    return tabs;
+});
+// Auto-select first tab on mount / when availability changes
+watch(availableTabs, (tabs) => {
+    if (!activeTab.value || !tabs.includes(activeTab.value)) {
+        activeTab.value = tabs[0] ?? null;
+    }
+}, { immediate: true });
+
 const DROP2_CATEGORIES = new Set(['drop2', 'drop3']);
+const SHELL_CATEGORIES = new Set(['shell']);
 const TRIAD_CATEGORIES = new Set(['closed_triads', 'spread_triads', 'archetype', 'closed']);
 const voicingWidget = computed(() => {
     const cat = props.chord.voicing_category;
     if (DROP2_CATEGORIES.has(cat)) return 'drop2';
+    if (SHELL_CATEGORIES.has(cat)) return 'shell';
     if (TRIAD_CATEGORIES.has(cat)) return 'triad';
     return null;
 });
+
+const VOICING_WIDGET_LABEL: Record<string, string> = {
+    drop2: 'Drop 2', drop3: 'Drop 3', shell: 'Shell',
+    closed_triads: 'Closed Triad', spread_triads: 'Spread Triad',
+    archetype: 'Open Chord', closed: 'Closed Chord',
+};
+const voicingCategoryLabel = computed(() =>
+    VOICING_WIDGET_LABEL[props.chord.voicing_category] ?? eduV.value?.name ?? props.chord.voicing_category
+);
 
 const QUALITY_WIDGET_MAP: Record<string, string> = {
     maj7: 'drop2-visualizer', maj6: 'drop2-visualizer',
@@ -341,6 +371,55 @@ const soundingNotes = computed(() => {
     for (const n of notes.split(',')) {
         const t = n.trim();
         if (t && t !== 'x' && t !== 'X' && !seen.has(t)) { seen.add(t); result.push(t); }
+    }
+    return result;
+});
+
+const INTERVAL_LABEL_DISPLAY: Record<string, string> = {
+    'R': 'Root', '1': 'Root',
+    'b3': 'Minor 3rd', '3': 'Major 3rd',
+    'b5': 'Dim 5th', '5': 'Perfect 5th', '#5': 'Aug 5th',
+    'b7': 'Minor 7th', '7': 'Minor 7th', 'maj7': 'Major 7th', 'bb7': 'Dim 7th',
+    '6': 'Major 6th', 'b6': 'Minor 6th',
+    'b9': '♭9', '9': '9th', '#9': '♯9',
+    '11': '11th', '#11': '♯11', 'b13': '♭13', '13': '13th',
+};
+
+// Colors matching GT_COLORS from chords.js
+const INTERVAL_COLORS: Record<string, { fill: string; text: string }> = {
+    root:    { fill: '#e8e8e0', text: '#333' },
+    third:   { fill: '#2563eb', text: '#fff' },
+    fifth:   { fill: '#6b7280', text: '#fff' },
+    seventh: { fill: '#d97706', text: '#fff' },
+    ninth:   { fill: '#7c3aed', text: '#fff' },
+};
+
+function ivColor(label: string): { fill: string; text: string } | null {
+    const l = label.trim();
+    if (l === 'R' || l === '1') return INTERVAL_COLORS.root;
+    if (l === '3' || l === 'b3') return INTERVAL_COLORS.third;
+    if (l === '5' || l === 'b5' || l === '#5') return INTERVAL_COLORS.fifth;
+    if (l === 'b7' || l === '7' || l === 'maj7' || l === 'bb7') return INTERVAL_COLORS.seventh;
+    if (['9','b9','#9','11','#11','13','b13'].includes(l)) return INTERVAL_COLORS.ninth;
+    return null;
+}
+
+interface SoundingTone { note: string; label: string; display: string }
+
+const soundingTones = computed<SoundingTone[]>(() => {
+    const noteStr  = displayChord.value.notes ?? '';
+    const labelStr = displayChord.value.interval_labels ?? '';
+    const notes  = noteStr.split(',').map(s => s.trim());
+    const labels = labelStr.split(',').map(s => s.trim());
+    const seen = new Set<string>();
+    const result: SoundingTone[] = [];
+    for (let i = 0; i < notes.length; i++) {
+        const n = notes[i];
+        const l = labels[i] ?? '';
+        if (!n || n === 'x' || n === 'X') continue;
+        if (seen.has(n)) continue;
+        seen.add(n);
+        result.push({ note: n, label: l, display: INTERVAL_LABEL_DISPLAY[l] ?? l });
     }
     return result;
 });
@@ -402,24 +481,49 @@ const formattedChordName = computed(() => {
         <!-- ════ IDENTITY PANEL ════ -->
         <div class="sbn-chord-identity sbn-detail-hero" :style="{ '--category-color': 'var(--clr-mod-chord)' }">
 
-            <!-- Left: diagram + intervals + tension -->
+            <!-- Left: diagram -->
             <div class="sbn-chord-identity-left">
 
                 <div class="sbn-chord-identity-diagram">
                     <ChordCard :chord="displayChord" :showRoot="true" :detail="true" />
                 </div>
 
-                <!-- Chord tone names -->
-                <div v-if="soundingNotes.length" class="sbn-chord-identity-intervals-row">
-                    <span v-for="n in soundingNotes" :key="n" class="sbn-iv">
-                        {{ formatNote(n) }}
-                    </span>
-                </div>
-
             </div><!-- .sbn-chord-identity-left -->
 
-            <!-- Right: accordions -->
+            <!-- Right: description + accordions -->
             <div class="sbn-chord-identity-right">
+
+                <!-- Description: "About" text + stacked note names -->
+                <div class="sbn-chord-identity-about-block">
+                    <h2 class="sbn-chord-identity-about">
+                        About the <span v-html="formattedActiveName" /> chord
+                    </h2>
+                    <div class="sbn-chord-identity-about-row">
+                        <div class="sbn-chord-identity-about-text">
+                            <template v-if="activeAlias">
+                                <p v-if="activeIsRootless" class="sbn-chord-identity-description">
+                                    This is a <strong>rootless</strong> voicing — the
+                                    <span v-html="formatNote(activeAlias.root_note)" /> root isn't played. The
+                                    diminished shape supplies the 3rd, 5th, ♭7 and ♭9, which is enough to imply the
+                                    dominant. That's why the lowest note is never the root, and the slot where the
+                                    root would sit is labelled "Rootless" rather than "Root Position".
+                                </p>
+                                <p class="sbn-chord-identity-description">
+                                    {{ activeTheory?.typical_context ?? eduQ?.description ?? '' }}
+                                </p>
+                            </template>
+                            <template v-else-if="eduQ">
+                                <p class="sbn-chord-identity-description">
+                                    {{ eduQ.description }}
+                                    <span class="sbn-chord-identity-usage">{{ eduQ.usage }}</span>
+                                </p>
+                            </template>
+                            <template v-else-if="theory">
+                                <p class="sbn-chord-identity-description">{{ theory.typical_context }}</p>
+                            </template>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Quality body — rendered only when it embeds an <sbn-widget>;
                      mountSbnNodes turns the tag into a live component. -->
@@ -430,81 +534,102 @@ const formattedChordName = computed(() => {
                     v-html="qualityTopic!.body_html"
                 ></div>
 
-                <div class="sbn-accordion-group">
+                <!-- ── Chord info tabs ── -->
+                <div v-if="availableTabs.length" class="sbn-chord-tabs">
 
-                    <!-- Voicing type row -->
-                    <details v-if="eduV" class="sbn-accordion">
-                        <summary class="sbn-accordion-summary">
-                            <span class="sbn-accordion-icon sbn-accordion-icon--voicing">{{ chord.voicing_category.slice(0,2).toUpperCase() }}</span>
-                            <span class="sbn-accordion-label">Voicing type</span>
-                            <span class="sbn-accordion-value">{{ eduV.name }}</span>
-                            <span class="sbn-accordion-chevron">›</span>
-                        </summary>
-                        <div class="sbn-accordion-body">
-                            <p>{{ eduV.detail }}</p>
-                            <p class="sbn-accordion-tip">{{ eduV.tip }}</p>
-                            <Link v-if="voicingWidget === 'drop2'" href="/theory?widget=drop2-visualizer" class="sbn-accordion-explore">Explore Drop 2 &amp; Drop 3 →</Link>
-                            <Link v-else-if="voicingWidget === 'triad'" href="/theory?widget=triad-builder" class="sbn-accordion-explore">Explore triad voicings →</Link>
+                    <div class="sbn-chord-tab-bar">
+                        <button
+                            v-if="eduV"
+                            class="sbn-chord-tab"
+                            :class="{ active: activeTab === 'voicing' }"
+                            @click="activeTab = 'voicing'"
+                        >
+                            <span class="sbn-chord-tab-label">Voicing</span>
+                            <span class="sbn-chord-tab-value sbn-chord-tab-value--voicing">{{ eduV.name }}</span>
+                        </button>
+                        <button
+                            v-if="activeExtensions"
+                            class="sbn-chord-tab"
+                            :class="{ active: activeTab === 'extensions' }"
+                            @click="activeTab = 'extensions'"
+                        >
+                            <span class="sbn-chord-tab-label">Extensions</span>
+                            <span class="sbn-chord-tab-value sbn-chord-tab-value--ext">{{ activeExtensions }}</span>
+                        </button>
+                        <button
+                            v-if="eduInv || activeInversions.length"
+                            class="sbn-chord-tab"
+                            :class="{ active: activeTab === 'inversion' }"
+                            @click="activeTab = 'inversion'"
+                        >
+                            <span class="sbn-chord-tab-label">Inversion</span>
+                            <span class="sbn-chord-tab-value sbn-chord-tab-value--inv">{{ activeInversionLabel }}</span>
+                        </button>
+                    </div>
+
+                    <!-- Voicing panel -->
+                    <div v-if="activeTab === 'voicing' && eduV" class="sbn-chord-tab-panel">
+                        <p>{{ eduV.detail }}</p>
+                        <p class="sbn-accordion-tip">{{ eduV.tip }}</p>
+                        <div class="sbn-accordion-links">
+                            <button v-if="voicingWidget === 'drop2'" class="sbn-accordion-explore sbn-accordion-explore--btn" @click="openTheoryModal('drop2-visualizer')">What is a {{ voicingCategoryLabel }} voicing? →</button>
+                            <button v-else-if="voicingWidget === 'shell'" class="sbn-accordion-explore sbn-accordion-explore--btn" @click="openTheoryModal('drop2-visualizer')">What is a Shell voicing? →</button>
+                            <button v-else-if="voicingWidget === 'triad'" class="sbn-accordion-explore sbn-accordion-explore--btn" @click="openTheoryModal('triad-builder')">What is a triad voicing? →</button>
+                            <Link
+                                :href="voicingWidget === 'triad' && chord.voicing_category.startsWith('archetype') ? '/library/chords#archetypes' : `/library/chords?voicing=${chord.voicing_category}`"
+                                class="sbn-accordion-explore"
+                            >Browse {{ voicingCategoryLabel }} chords →</Link>
                         </div>
-                    </details>
+                    </div>
 
-                    <!-- Extensions row -->
-                    <details v-if="activeExtensions" class="sbn-accordion">
-                        <summary class="sbn-accordion-summary">
-                            <span class="sbn-accordion-icon sbn-accordion-icon--ext">♭♯</span>
-                            <span class="sbn-accordion-label">Extensions</span>
-                            <span class="sbn-accordion-value">{{ activeExtensions }}</span>
-                            <span class="sbn-accordion-chevron">›</span>
-                        </summary>
-                        <div class="sbn-accordion-body">
-                            <p>This voicing adds <strong>{{ activeExtensions }}</strong> on top of the base {{ activeQuality }} quality, enriching the colour without changing the chord's harmonic function.</p>
+                    <!-- Extensions panel -->
+                    <div v-if="activeTab === 'extensions' && activeExtensions" class="sbn-chord-tab-panel">
+                        <p>This voicing adds <strong>{{ activeExtensions }}</strong> on top of the base {{ activeQuality }} quality, enriching the colour without changing the chord's harmonic function.</p>
+                        <div class="sbn-accordion-links">
+                            <button class="sbn-accordion-explore sbn-accordion-explore--btn" @click="openTheoryModal('chord-extensions')">What are extensions? →</button>
+                            <Link :href="`/library/chords?ext=${encodeURIComponent(activeExtensions)}`" class="sbn-accordion-explore">Browse chords with {{ activeExtensions }} →</Link>
                         </div>
-                    </details>
+                    </div>
 
-                    <!-- Inversion row -->
-                    <details v-if="eduInv || activeInversions.length" class="sbn-accordion">
-                        <summary class="sbn-accordion-summary">
-                            <span class="sbn-accordion-icon sbn-accordion-icon--inv">inv</span>
-                            <span class="sbn-accordion-label">Inversion</span>
-                            <span class="sbn-accordion-value">{{ activeInversionLabel }}</span>
-                            <span class="sbn-accordion-chevron">›</span>
-                        </summary>
-                        <div class="sbn-accordion-body">
-                            <!-- dim7: explain why the four inversions are the same shape -->
-                            <p v-if="isDiminished && !activeIsRootless">
-                                A diminished 7th is built from four stacked minor thirds, so it’s
-                                perfectly symmetric: move the shape up three frets and you land on
-                                the same four notes with a new name. These “inversions” are really
-                                the one shape re-rooted — <span v-html="formattedActiveName" /> is
-                                also each of its own inversions.
-                            </p>
-                            <p v-else-if="isDiminished && activeIsRootless" class="sbn-inversion-rootless-note">
-                                Because this is a rootless voicing, there’s no true root position —
-                                the slot where the root would sit is marked <strong>Rootless</strong>.
-                                The other positions place the 3rd, 5th and ♭7 in the bass.
-                            </p>
-                            <template v-else>
-                                <p v-if="eduInv">{{ eduInv.desc }}</p>
-                                <p v-if="eduInv?.context" class="sbn-accordion-tip">{{ eduInv.context }}</p>
-                            </template>
-                            <div v-if="allInversions.length" class="sbn-inversion-siblings">
-                                <p class="sbn-inversion-heading">All inversions of the <span v-html="formattedActiveName" /> chord</p>
-                                <div class="sbn-inversion-cards">
-                                    <component
-                                        :is="inversionIsCurrent(inv) ? 'span' : Link"
-                                        v-for="inv in allInversions"
-                                        :key="`${inv.id}-${inv.inversion}`"
-                                        :href="inversionIsCurrent(inv) ? undefined : chordShowUrl(inv)"
-                                        class="sbn-inversion-sibling"
-                                        :class="{ 'sbn-inversion-sibling--current': inversionIsCurrent(inv) }"
-                                    >
-                                        <ChordCard :chord="inv" mini :showRoot="true" :noNav="true" />
-                                        <span class="sbn-inversion-sibling-label">{{ inv.inversion_label }}</span>
-                                    </component>
-                                </div>
+                    <!-- Inversion panel -->
+                    <div v-if="activeTab === 'inversion' && (eduInv || activeInversions.length)" class="sbn-chord-tab-panel">
+                        <p v-if="isDiminished && !activeIsRootless">
+                            A diminished 7th is built from four stacked minor thirds, so it's
+                            perfectly symmetric: move the shape up three frets and you land on
+                            the same four notes with a new name. These "inversions" are really
+                            the one shape re-rooted — <span v-html="formattedActiveName" /> is
+                            also each of its own inversions.
+                        </p>
+                        <p v-else-if="isDiminished && activeIsRootless" class="sbn-inversion-rootless-note">
+                            Because this is a rootless voicing, there's no true root position —
+                            the slot where the root would sit is marked <strong>Rootless</strong>.
+                            The other positions place the 3rd, 5th and ♭7 in the bass.
+                        </p>
+                        <template v-else>
+                            <p v-if="eduInv">{{ eduInv.desc }}</p>
+                            <p v-if="eduInv?.context" class="sbn-accordion-tip">{{ eduInv.context }}</p>
+                        </template>
+                        <div v-if="allInversions.length" class="sbn-inversion-siblings">
+                            <p class="sbn-inversion-heading">All inversions of the <span v-html="formattedActiveName" /> chord</p>
+                            <div class="sbn-inversion-cards">
+                                <component
+                                    :is="inversionIsCurrent(inv) ? 'span' : Link"
+                                    v-for="inv in allInversions"
+                                    :key="`${inv.id}-${inv.inversion}`"
+                                    :href="inversionIsCurrent(inv) ? undefined : chordShowUrl(inv)"
+                                    class="sbn-inversion-sibling"
+                                    :class="{ 'sbn-inversion-sibling--current': inversionIsCurrent(inv) }"
+                                >
+                                    <ChordCard :chord="inv" mini :showRoot="true" :noNav="true" />
+                                    <span class="sbn-inversion-sibling-label">{{ inv.inversion_label }}</span>
+                                </component>
                             </div>
                         </div>
-                    </details>
+                        <div v-if="!isDiminished" class="sbn-accordion-links">
+                            <button class="sbn-accordion-explore sbn-accordion-explore--btn" @click="openTheoryModal('chord-tones')">What is an inversion? →</button>
+                            <Link :href="`/library/chords?inversion=${activeSelfInversion}`" class="sbn-accordion-explore">Browse {{ activeInversionLabel }} chords →</Link>
+                        </div>
+                    </div>
 
                 </div>
 
@@ -517,14 +642,14 @@ const formattedChordName = computed(() => {
                             drop the root of a 7(♭9) and the remaining 3rd, 5th, ♭7 and ♭9 spell a dim7.
                             Because that dim7 is symmetric, this one grip covers four different
                             7(♭9) chords — switch between them below, or see it as the dim7 under
-                            “This voicing”.
+                            "This voicing".
                         </p>
                     </template>
                     <!-- dim7: user searched the diminished chord → reveal its dominant uses -->
                     <template v-else-if="isDiminished">
                         <p class="sbn-alias-blurb">
                             This shape also voices four rootless <strong>dominant 7(♭9)</strong> chords,
-                            each rooted a semitone below one of its notes. It’s the favourite
+                            each rooted a semitone below one of its notes. It's the favourite
                             harmonic device of guitarists from Django Reinhardt to João Gilberto.
                         </p>
                     </template>
@@ -554,34 +679,6 @@ const formattedChordName = computed(() => {
 
             </div><!-- .sbn-chord-identity-right -->
         </div><!-- .sbn-chord-identity -->
-
-        <!-- ════ ABOUT ════ -->
-        <div class="sbn-chord-about">
-            <h2 class="sbn-chord-identity-about">
-                About the <span v-html="formattedActiveName" /> chord
-            </h2>
-            <template v-if="activeAlias">
-                <p v-if="activeIsRootless" class="sbn-chord-identity-description">
-                    This is a <strong>rootless</strong> voicing — the
-                    <span v-html="formatNote(activeAlias.root_note)" /> root isn’t played. The
-                    diminished shape supplies the 3rd, 5th, ♭7 and ♭9, which is enough to imply the
-                    dominant. That’s why the lowest note is never the root, and the slot where the
-                    root would sit is labelled “Rootless” rather than “Root Position”.
-                </p>
-                <p class="sbn-chord-identity-description">
-                    {{ activeTheory?.typical_context ?? eduQ?.description ?? '' }}
-                </p>
-            </template>
-            <template v-else-if="eduQ">
-                <p class="sbn-chord-identity-description">
-                    {{ eduQ.description }}
-                    <span class="sbn-chord-identity-usage">{{ eduQ.usage }}</span>
-                </p>
-            </template>
-            <template v-else-if="theory">
-                <p class="sbn-chord-identity-description">{{ theory.typical_context }}</p>
-            </template>
-        </div>
 
         <!-- ════ PROGRESSIONS + SIBLINGS ════ -->
         <div v-if="progressions.length || siblings.length" class="sbn-chord-detail-lower">
@@ -643,11 +740,6 @@ const formattedChordName = computed(() => {
 <style scoped>
 
 
-
-/* ── About section (below hero) ── */
-.sbn-chord-about {
-    margin-bottom: 40px;
-}
 
 /* ── Identity panel ── */
 .sbn-chord-identity {
@@ -739,32 +831,18 @@ const formattedChordName = computed(() => {
     width: 100%;
 }
 
-/* Subtle shadow on diagram lines in the hero */
-.sbn-chord-identity-diagram :deep(.chord-diagram-svg svg) {
-    filter: drop-shadow(0 1px 2px rgba(15, 17, 23, 0.18));
-}
-
-/* Stronger shadow on dots only */
-.sbn-chord-identity-diagram :deep(.sbn-svg-dot) {
-    filter: drop-shadow(0 1px 2px rgba(15, 17, 23, 0.15));
-}
-
 /* Hero card lift */
 .sbn-chord-identity-diagram :deep(.sbn-chord-card) {
     border-radius: 18px;
     border-top: 3px solid var(--clr-mod-chord);
-    box-shadow:
-        0 12px 40px -8px rgba(15, 17, 23, 0.18),
-        0 4px 12px rgba(15, 17, 23, 0.06);
+    box-shadow: 0 2px 8px -2px rgba(15, 17, 23, 0.10);
     padding: 24px 20px 16px;
     transition: box-shadow 0.2s ease;
 }
 
 .sbn-chord-identity-diagram :deep(.sbn-chord-card--detail:hover) {
     border-color: var(--clr-mod-chord);
-    box-shadow:
-        0 16px 48px -8px rgba(15, 17, 23, 0.22),
-        0 6px 16px rgba(15, 17, 23, 0.08);
+    box-shadow: 0 4px 12px -2px rgba(15, 17, 23, 0.13);
 }
 
 /* Bigger chord name in hero */
@@ -782,29 +860,33 @@ const formattedChordName = computed(() => {
 }
 
 /* Interval dots row */
-.sbn-chord-identity-intervals-row {
+.sbn-chord-identity-about-row {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    justify-content: center;
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.sbn-chord-identity-about-text {
+    flex: 1 1 0;
+    min-width: 0;
 }
 
 .sbn-iv {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
-    font-size: 0.82em;
+    font-size: 0.72em;
     font-weight: 800;
     background: var(--clr-red);
     color: #fff;
     border: none;
     box-shadow: 0 1px 2px rgba(15, 17, 23, 0.15);
     letter-spacing: -0.02em;
+    flex-shrink: 0;
 }
-
 
 /* Right column */
 .sbn-chord-identity-right {
@@ -812,6 +894,10 @@ const formattedChordName = computed(() => {
     display: flex;
     flex-direction: column;
     gap: 0;
+}
+
+.sbn-chord-identity-about-block {
+    margin-bottom: 12px;
 }
 
 .sbn-chord-identity-about {
@@ -836,96 +922,110 @@ const formattedChordName = computed(() => {
 }
 
 /* Accordions — iOS settings rows */
-.sbn-accordion-group {
-    margin-top: 16px;
+/* ── Chord info tabs ── */
+.sbn-chord-tabs {
     border: 1px solid var(--clr-border);
     border-radius: var(--radius);
     overflow: hidden;
 }
-.sbn-accordion {
+
+.sbn-chord-tab-bar {
+    display: flex;
     border-bottom: 1px solid var(--clr-border);
 }
-.sbn-accordion:last-child { border-bottom: none; }
-.sbn-accordion-summary {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 11px 14px;
-    cursor: pointer;
-    list-style: none;
-    user-select: none;
-    transition: background 0.12s;
-}
-.sbn-accordion-summary::-webkit-details-marker { display: none; }
-.sbn-accordion-summary:hover { background: var(--clr-surface-2); }
-.sbn-accordion[open] > .sbn-accordion-summary { background: var(--clr-surface-2); }
 
-.sbn-accordion-icon {
-    flex-shrink: 0;
-    width: 30px;
-    height: 30px;
-    border-radius: 7px;
+.sbn-chord-tab {
+    flex: 1;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    font-size: 10px;
+    gap: 2px;
+    padding: 8px 10px;
+    background: none;
+    border: none;
+    border-right: 1px solid var(--clr-border);
+    cursor: pointer;
+    transition: background 0.12s;
+    color: var(--clr-text);
+    text-align: center;
+}
+.sbn-chord-tab:last-child { border-right: none; }
+.sbn-chord-tab:hover { background: var(--clr-surface-2); }
+.sbn-chord-tab.active {
+    background: var(--clr-surface-2);
+}
+
+.sbn-chord-tab-label {
+    font-size: 0.7em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--clr-text-muted);
+}
+.sbn-chord-tab.active .sbn-chord-tab-label { color: var(--clr-text); }
+
+.sbn-chord-tab-value {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.75em;
     font-weight: 700;
-    letter-spacing: -0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
     color: #fff;
 }
-.sbn-accordion-icon--voicing { background: var(--clr-mod-chord); }
-.sbn-accordion-icon--ext     { background: var(--clr-mod-progression); font-size: 12px; }
-.sbn-accordion-icon--inv     { background: var(--clr-primary); font-size: 9px; text-transform: uppercase; }
+.sbn-chord-tab-value--voicing { background: var(--clr-mod-chord); }
+.sbn-chord-tab-value--ext     { background: var(--clr-mod-progression); }
+.sbn-chord-tab-value--inv     { background: var(--clr-primary); }
 
-.sbn-accordion-label {
-    flex: 1;
-    font-size: 0.9em;
-    font-weight: 500;
-    color: var(--clr-text);
-}
-.sbn-accordion-value {
-    font-size: 0.85em;
-    color: var(--clr-text-muted);
-    margin-right: 4px;
-}
-.sbn-accordion-chevron {
-    font-size: 1.1em;
-    color: var(--clr-text-muted);
-    transition: transform 0.2s;
-    line-height: 1;
-}
-.sbn-accordion[open] > .sbn-accordion-summary .sbn-accordion-chevron { transform: rotate(90deg); }
+.sbn-chord-tab:not(.active) .sbn-chord-tab-value { opacity: 0.45; }
 
-.sbn-accordion-body {
-    padding: 2px 14px 14px 56px;
+.sbn-chord-tab-panel {
+    padding: 14px 16px;
     font-size: 0.88em;
     line-height: 1.6;
     color: var(--clr-text);
-    border-top: 1px solid var(--clr-border-dim);
     background: var(--clr-surface-2);
 }
-.sbn-accordion-body p { margin: 8px 0 0; }
+.sbn-chord-tab-panel p { margin: 0 0 8px; }
+.sbn-chord-tab-panel p:last-of-type { margin-bottom: 0; }
+
 .sbn-accordion-tip { color: var(--clr-text-muted); font-style: italic; }
+.sbn-accordion-links {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 10px;
+}
+
 .sbn-accordion-explore {
     display: inline-block;
-    margin-top: 10px;
     font-size: 0.85em;
     font-weight: 600;
     color: var(--clr-mod-chord);
     text-decoration: none;
 }
 .sbn-accordion-explore:hover { text-decoration: underline; }
+.sbn-accordion-explore--btn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+}
 
 /* Inversion sibling cards */
 .sbn-inversion-siblings {
     margin-top: 12px;
 }
 
-.sbn-inversion-heading {
+.sbn-chord-tab-panel .sbn-inversion-heading {
     font-size: 0.8em;
     font-weight: 600;
     color: var(--clr-text-muted);
-    margin: 0 0 10px;
+    margin: 0 0 18px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }

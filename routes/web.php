@@ -81,6 +81,10 @@ Route::middleware('auth')->prefix('account')->name('account.')->group(function (
 */
 Route::middleware('auth')->prefix('community')->name('community.')->group(function () {
     Route::get('/', [CommunityController::class, 'show'])->name('show');
+    Route::post('/', [CommunityController::class, 'store'])->name('store');
+    Route::get('/fetch', [CommunityController::class, 'fetch'])->name('fetch');
+    Route::patch('/read', [CommunityController::class, 'markRead'])->name('read');
+    Route::delete('/messages/{message}', [CommunityController::class, 'destroyMessage'])->name('messages.destroy');
     Route::post('/read-only', [CommunityController::class, 'toggleReadOnly'])->name('read-only');
     Route::post('/mute', [CommunityController::class, 'toggleMute'])->name('mute');
 });
@@ -207,6 +211,8 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
     Route::post('/leadsheets/identify-single', [LeadsheetController::class, 'identifySingle']);
     Route::post('/leadsheets/{leadsheet}/apply-progression', [LeadsheetController::class, 'applyProgression'])->name('leadsheets.applyProgression');
     Route::post('/leadsheets/{leadsheet}/fill-voicings', [LeadsheetController::class, 'fillVoicings'])->name('leadsheets.fillVoicings');
+    Route::post('/leadsheets/{leadsheet}/apply-rhythm', [LeadsheetController::class, 'applyRhythm'])->name('leadsheets.applyRhythm');
+    Route::post('/exercises/{exercise}/apply-rhythm', [LeadsheetController::class, 'applyRhythmToExercise'])->name('exercises.applyRhythm');
 
 
     // Phase 5d — Progression Detection
@@ -284,6 +290,7 @@ Route::get('/library/songs', [SongLibraryController::class, 'index'])->name('lib
 Route::get('/library/songs/{leadsheet:slug}', [SongLibraryController::class, 'show'])->name('library.songs.show');
 Route::get('/library/songs/{leadsheet:slug}/viewer', [SongLibraryController::class, 'viewer'])->name('library.songs.viewer');
 Route::get('/library/songs/{leadsheet:slug}/cinema', [SongLibraryController::class, 'cinema'])->name('library.songs.cinema');
+Route::get('/library/exercises/{exercise:slug}/cinema', [ExerciseLibraryController::class, 'cinema'])->name('library.exercises.cinema');
 
 Route::get('/theory', [TheoryController::class, 'index'])->name('theory.index');
 
