@@ -264,15 +264,15 @@ Tracked here to prevent future agents from re-deriving the gaps.
 
 ## 9. Sheet Mini Player (`<sbn-sheet>`)
 
-Shipped 2026-05-09. Horizontal, scrollable tab+chord exercise strip embedded in lesson content.
+Shipped 2026-05-09; video sync + cinema player added 2026-06-01.
 
 ### 9.1 Data model
 
 Table `sbn_exercises`. Key columns: `slug`, `title`, `key_center`, `time_sig`, `bpm_default`, `type` (`tab_exercise` | `chord_etude`), `content_json`.
 
-`content_json` is `LeadsheetJson` format — same schema as `sbn_leadsheets.json_data`. `useTabModel` and `TabMeasure` consume it directly with no conversion. No new TypeScript types.
+`content_json` is `LeadsheetJson` format — same schema as `sbn_leadsheets.json_data`. Includes `videoSync` (same shape as leadsheet video sync — `videoId`, `videoType`, `mappings[]`) when authored. `useTabModel` and `TabMeasure` consume it directly with no conversion. No new TypeScript types.
 
-**Creating exercises:** use the leadsheet editor (full visual editor, voicing builder, all creation modals) then click **"→ Save as Exercise"** on the edit page. This copies the leadsheet into `sbn_exercises` via `Admin\ExerciseController::createFromLeadsheet()`. Admin CRUD at `/admin/exercises`.
+**Creating exercises:** use the leadsheet editor (full visual editor, voicing builder, all creation modals) then click **"→ Save as Exercise"** on the edit page. This copies the leadsheet into `sbn_exercises` via `Admin\ExerciseController::createFromLeadsheet()`. Admin CRUD at `/admin/exercises`. Video sync is authored in the same tap-to-mark editor as leadsheets.
 
 ### 9.2 API
 
@@ -280,16 +280,33 @@ Table `sbn_exercises`. Key columns: `slug`, `title`, `key_center`, `time_sig`, `
 
 Returns `content_json` fields at top level plus a `meta` object:
 ```json
-{ "meta": { "slug", "title", "key_center", "time_sig", "bpm_default", "type" }, "sections": [...], "melody": ..., "chordVoicings": {...} }
+{ "meta": { "slug", "title", "key_center", "time_sig", "bpm_default", "type" }, "sections": [...], "melody": ..., "chordVoicings": {...}, "videoSync": {...} }
 ```
+
+`videoSync` is present when the exercise has been video-synced in the editor. `SheetMiniPlayer` reads it directly from `exercise.videoSync`.
 
 Palette search: `GET /api/sbn/exercises?q=…`
 
+**Cinema player:** `GET /library/exercises/{slug}/cinema` → [`Library\ExerciseController::cinema`](../app/Http/Controllers/Library/ExerciseController.php) — renders `Leadsheet/Cinema` with `content_json` as `jsonData`. The classic-view back button is hidden (no public viewer page for exercises). `classicUrl` is passed as `''`.
+
 ### 9.3 Component
 
-[`SheetMiniPlayer.vue`](../resources/js/Components/Course/SheetMiniPlayer.vue) — feeds `content_json` through `useTabModel`, renders with `TabMeasure` (`readOnly=true`, `allowChordClick=true`). All measures in one horizontal scrolling row. Transport: play/stop toggle + BPM range slider. Uses the AudioEngine singleton; tags its `engine.play('sheet')` call so `PracticePanel` can detect the conflict.
+[`SheetMiniPlayer.vue`](../resources/js/Components/Course/SheetMiniPlayer.vue) — feeds `content_json` through `useTabModel`, renders with `TabMeasure` (`readOnly=true`, `allowChordClick=true`).
 
-Provides the full inject contract required by `TabMeasure` (model, beatsPerMeasureRef, playingMeasureIndex, transportBeat, transportPlaying, readOnly, seekToMeasure, gridSelection, globalIndexOf, inlineRenameTarget).
+**Layout:** rows respect `section.lineBreaks` from `content_json` (the authored row layout). Falls back to 4 bars/row when `lineBreaks` is absent. Each row is a `.sbn-sheet-row` flex container; rows stack vertically in `.sbn-sheet-measures`.
+
+**Play button:** styled `.sbn-play-btn` (design system), 28px, always filled with the orange-red gradient. When `videoSync` is present the button drives the shared video clock via `onVideoPlay`/`onVideoPause` callbacks (see §9.7). When no video sync, drives the AudioEngine synth as before.
+
+**Bar click → seek:** clicking any measure wrapper seeks to that bar. In video mode: looks up the bar's `videoTime` from `videoSync.mappings` and calls `onVideoSeek(seconds)` → `ph.seek(seconds); ph.play()`. In synth mode: calls `engine.seek(beat)`.
+
+**Video sync clock:** when `videoPlayhead` prop is non-null and `videoSync` is present, the component uses a mapping-interpolation pipeline (mirrors `useVideoSync.videoTimeToPlayPosition`): binary search + linear interpolation over `mappings` projected onto play positions → fractional beat → `transportBeat` / `playingMeasureIndex`. This matches the full-editor cursor accuracy.
+
+Props:
+- `exercise` — full API payload (includes `videoSync`)
+- `onChordSelect` — chord click handler
+- `videoPlayhead` — seconds from shared playhead registry (null when video not playing)
+- `videoSync` — `{ videoId, videoType, mappings[] }` block from exercise
+- `onVideoPlay`, `onVideoPause`, `onVideoSeek` — callbacks to shared playhead
 
 ### 9.4 Chord click → PracticePanel
 
@@ -350,17 +367,42 @@ tags in the lesson content — **lesson-specific**, not course-genre-generic.
 - Leadsheets index: "Exercises →" cross-link; Exercises index: "← Songs" cross-link
 - Exercise edit page uses the full `TabEditor.vue` visual editor via `exerciseEditor()` Alpine function — loads data from `GET /admin/exercises/{id}/data`, dispatches `sbn-tab-init`, syncs back on save via hidden `content_json` field
 
+### 9.7 Sheet video sync (2026-06-01)
+
+Sheet exercises that have been video-synced in the editor (via the same tap-to-mark tool as leadsheets) surface their video in the PracticePanel sidebar automatically — no extra authoring step in the lesson editor.
+
+**Server side (`CourseController::player()`):**
+- Scans lesson content for `<sbn-sheet>` tags via regex, collects unique slugs.
+- Fetches matching `Exercise` records, reads `content_json['videoSync']`.
+- Passes a `sheets` map (keyed by slug: `{ slug, title, videoId, videoType }`) to the Inertia page for exercises that have a `videoSync.videoId`.
+
+**PracticePanel:**
+- `sheets` prop (Record<slug, SheetVideo>) contributes entries to `snippetEntries` alongside rhythm and progression snippets. Each entry carries `playheadKey: "sheet:{slug}"`.
+- The shared VideoEmbed slot shows the exercise's video when a sheet entry is focused (same pill selector as rhythm/progression).
+- A "Open in cinema player ↗" link appears below the video, pointing to `/library/exercises/{slug}/cinema`.
+
+**`mountSbnNodes` — sheet branch:**
+- When `exercise.videoSync.videoId` is present, registers a playhead under key `"sheet:{slug}"` in the `useVideoPlayhead` registry.
+- Mounts `SheetMiniPlayer` via a reactive render function that reads `ph.playing` and `ph.playheadSec` — same pattern as the `<sbn-progression>` branch.
+- Passes `onVideoPlay`, `onVideoPause`, `onVideoSeek` callbacks bound to `ph`.
+- `onVideoPlay`: finds the earliest mapping's `videoTime`, seeks there if the playhead is outside the mapped range, then calls `ph.play()`.
+- `onVideoSeek(seconds)`: calls `ph.seek(seconds)` then `ph.play()` — bar clicks seek and start playing.
+
+**`VideoEmbed` — first-play fix:**
+- Added `_seekOnReady` queue: if `seekTo()` is called while `_ytPlayer` is null (facade not yet loaded), the target seconds are stored and applied in `onYTReady` before `playVideo()`. Without this, the first bar click or first play-from-exercise-start would start from the video's beginning.
+
+**Playhead key contract:** `"sheet:{slug}"` never collides with rhythm/progression snippet ids (which are UUIDs prefixed `vs_`). The PracticePanel reads `focusedEntry.playheadKey` directly for the cinema link; `mountSbnNodes` derives the same key from `el.getAttribute('slug')`.
+
 ---
 
 ## 10. Video Sync — real-world example snippets
 
 Hooktheory-style YouTube examples synced to a course-player component.
-**Shipped: rhythm path and progression path.** This section is the as-built
-reference. The two paths sync the same way but place the synced component
-differently — see
-§10.3 (rhythm, PracticePanel-only) vs §10.4 (progression, inline body).
+**Shipped: rhythm, progression, and sheet paths.** Three sync variants — see
+§10.3 (rhythm, PracticePanel-only), §10.4 (progression, inline body),
+§10.5 (sheet, uses exercise's own `videoSync` block — no snippet library needed).
 
-### 10.1 Two layers
+### 10.1 Two layers (rhythm + progression)
 
 | Layer | Owns | Where authored |
 |---|---|---|
@@ -370,6 +412,10 @@ differently — see
 The course slot stores only a **reference** — the snippet `id` — as a tag
 attribute, never snippet data. Editing a snippet in the rhythm admin updates
 every lesson that points at it.
+
+**Sheet exercises use a different model** (§9.7 / §10.5): the video and its sync
+marks live directly in `content_json.videoSync`, authored once in the exercise
+editor. No snippet library; no tag attribute required.
 
 ### 10.2 The tag attribute
 
@@ -447,7 +493,18 @@ a pill selector. The panel's `RhythmStrip` is still video-synced when a rhythm
 snippet is focused (`rhythmVideoActive`); progression sync is entirely the
 inline component's job.
 
-### 10.5 Pinned voicings, play→video, overlay & layout (2026-05-22)
+### 10.5 Sheet exercise sync (2026-06-01)
+
+Sheet exercises reuse the full leadsheet video sync model (`content_json.videoSync`) rather than the snippet-library model. See §9.7 for the complete as-built spec. Key differences from rhythm/progression:
+
+- **No snippet library, no tag attribute.** The video is stored on the exercise itself. `CourseController` detects it automatically from `content_json['videoSync']['videoId']`.
+- **Mapping-based interpolation.** `SheetMiniPlayer` implements `videoTimeToBeat()` inline — binary search over mappings projected onto play positions, identical algorithm to `useVideoSync.videoTimeToPlayPosition`. Frame-accurate cursor matching the full editor.
+- **Playhead key:** `"sheet:{slug}"` (never collides with snippet UUIDs).
+- **First-play seek:** `VideoEmbed._seekOnReady` queues a pending `seekTo` when called before the YouTube IFrame player is initialised (facade not yet dismissed). Applied in `onYTReady` before `playVideo()`.
+- **Bar click → seek+play:** clicking any measure seeks to that bar's `videoTime` and starts playing immediately.
+- **Cinema link:** "Open in cinema player ↗" shown below the video in PracticePanel; points to `/library/exercises/{slug}/cinema`.
+
+### 10.6 Pinned voicings, play→video, overlay & layout (2026-05-22)
 
 Extensions past the original plan, progression-only:
 
