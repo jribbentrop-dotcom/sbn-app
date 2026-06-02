@@ -41,11 +41,16 @@ interface ShellTarget {
     related: ShellRelatedGroup[];
 }
 
+interface ExtFamilies {
+    tiles: ChordDiagramData[];
+}
+
 interface Props {
     archetypeFamilies: ArchetypeFamily[];
     barreFamilies: BarreFamily[];
     dropFamilies: Record<string, DropTarget>;
     shellFamilies: Record<string, ShellTarget>;
+    extFamilies: ExtFamilies;
     otherChords: ChordDiagramData[];
     voicingCategories: Record<string, string>;
     chordQualities: Record<string, string>;
@@ -456,8 +461,8 @@ const shellDone      = ref(false);
 
 // Which barre tile indices show E-shape (keep) vs A-shape (exit) for shell level.
 // barreFamilies order: [E, Em, A, Am] → indices 0,1 keep; 2,3 exit.
-const SHELL_EXIT_INDICES = new Set([2, 3]);
-const SHELL_KEEP_INDICES = new Set([0, 1]);
+const SHELL_EXIT_INDICES = new Set([1, 2, 3]);
+const SHELL_KEEP_INDICES = new Set([0]);
 
 function shellTileClass(idx: number): Record<string, boolean> {
     if (SHELL_EXIT_INDICES.has(idx)) {
@@ -484,18 +489,12 @@ function computeShellGatherTranslates(): Record<number, string> {
     if (!keepTiles.length) return {};
 
     const tileW = keepTiles[0].getBoundingClientRect().width;
-    const gap   = 10;
-    // Target layout is 2 tiles (Gmaj7 | Gm7) centred in the row.
-    const totalTiles = 2;
-    const total  = totalTiles * tileW + (totalTiles - 1) * gap;
-    const startX = rowCenterX - total / 2;
-
+    // Single tile — translate to row centre.
     const result: Record<number, string> = {};
     keepTiles.forEach((el, ci) => {
         const rect   = el.getBoundingClientRect();
         const currCx = rect.left + rect.width / 2;
-        const destCx = startX + ci * (tileW + gap) + tileW / 2;
-        result[ci] = `translateX(${(destCx - currCx).toFixed(1)}px)`;
+        result[ci] = `translateX(${(rowCenterX - currCx).toFixed(1)}px)`;
     });
     return result;
 }
@@ -539,15 +538,48 @@ function isShellKeep(idx: number): boolean {
 }
 
 // ── Stepper ───────────────────────────────────────────────
+// ── Extensions level ──────────────────────────────────────
+const extMode      = ref(false);
+const extCards     = ref<ChordDiagramData[]>([]);
+const extAnimating = ref(false);
+// Track which card keys are in their entry animation this render cycle
+const extEntering  = ref(new Set<number>());
+
+async function enterExtMode() {
+    if (!shellDone.value || extMode.value || extAnimating.value) return;
+    activeFamily.value = null;
+    extMode.value = true;
+    extAnimating.value = true;
+
+    for (const tile of props.extFamilies.tiles) {
+        extEntering.value = new Set([tile.id]);
+        extCards.value = [...extCards.value, tile];
+        await delay(600);
+        extEntering.value = new Set();
+        await delay(200);
+    }
+
+    extAnimating.value = false;
+}
+
+function exitExtMode() {
+    activeFamily.value = null;
+    extMode.value = false;
+    extCards.value = [];
+    extAnimating.value = false;
+    extEntering.value = new Set();
+}
+
 const steps = [
     { n: 1, label: 'Open shapes' },
     { n: 2, label: 'Barré' },
     { n: 3, label: 'Drop voicings' },
     { n: 4, label: 'Shell' },
-    { n: 5, label: 'Extensions', upcoming: true },  // ready for L5
+    { n: 5, label: 'Extensions' },
 ];
 
 const currentLevel = computed(() => {
+    if (extMode.value)                       return 5;
     if (shellMode.value || shellDone.value) return 4;
     if (dropMode.value)                      return 3;
     if (barreMode.value)                     return 2;
@@ -572,16 +604,18 @@ function exitShellMode() {
     shellAnimating.value = false;
     shellDone.value = false;
     shellTileTranslates.value = {};
+    exitExtMode();
 }
 
 function jumpToLevel(n: number) {
     // Allow jumping BACKWARD only — forward is gated through the animation pipeline.
     if (panelPhase.value !== 'idle') return;
-    if (shellExiting.value || shellAnimating.value) return;
+    if (shellExiting.value || shellAnimating.value || extAnimating.value) return;
     if (n >= currentLevel.value) return;
     if (n === 1) exitBarreMode();
     if (n === 2) exitDropMode();
     if (n === 3) exitShellMode();
+    if (n === 4) exitExtMode();
 }
 </script>
 
@@ -683,7 +717,7 @@ function jumpToLevel(n: number) {
                          Only after barreMode commits do we switch to barreFamilies. -->
                     <div ref="tilesRowRef" class="sbn-archetype-tiles" :class="{ 'sbn-tiles--animating': panelPhase !== 'idle' }">
                         <button
-                            v-for="(family, idx) in (barreMode ? barreFamilies : archetypeFamilies).filter((_, i) => !(shellMode || shellDone) || !SHELL_EXIT_INDICES.has(i))"
+                            v-for="(family, idx) in (barreMode ? barreFamilies : archetypeFamilies).filter((_, i) => !(shellMode || shellDone) || !SHELL_EXIT_INDICES.has(i)).filter((_, i) => !shellDone || i === 0)"
                             :key="family.key"
                             class="sbn-archetype-tile"
                             :class="[{ active: activeFamily === family.key }, shellExiting ? shellTileClass(idx) : tileClass(idx)]"
@@ -762,6 +796,39 @@ function jumpToLevel(n: number) {
                                 <template v-else-if="dropMode">{{ (dropFamilies[family.key]?.inversions?.length ?? 0) }} inversions</template>
                                 <template v-else>{{ family.chords.length }} voicings</template>
                             </span>
+
+                            <!-- Drop badge: shown on exit tiles during L1→L2 transition -->
+                            <span
+                                v-if="panelPhase === 'exiting' && !barreMode && EXIT_INDICES.has(idx)"
+                                class="sbn-tile-badge"
+                            >drop</span>
+
+                            <!-- −1 tone badge: shown on keep tiles during shell dot-removal -->
+                            <span
+                                v-if="shellAnimating && SHELL_KEEP_INDICES.has(idx)"
+                                class="sbn-tile-badge sbn-tile-badge--minus"
+                            >−1 tone</span>
+                        </button>
+
+                        <!-- Extension tiles — slide in from right one at a time -->
+                        <button
+                            v-for="chord in extCards"
+                            :key="chord.id"
+                            class="sbn-archetype-tile"
+                            :class="{ 'sbn-tile--ext-enter': extEntering.has(chord.id), active: activeFamily === ('ext-' + chord.id) }"
+                            @click="toggleFamily('ext-' + chord.id)"
+                        >
+                            <span class="sbn-archetype-tile-name">{{ chord.name }}</span>
+                            <div class="sbn-archetype-tile-diagram sbn-tile-diagram-wrap">
+                                <ChordDiagram :chord="chord" />
+                            </div>
+                            <span class="sbn-tile-hint">{{ activeFamily === ('ext-' + chord.id) ? 'collapse' : 'extension' }}</span>
+
+                            <!-- New badge: shown while the extension tile is entering -->
+                            <span
+                                v-if="extEntering.has(chord.id)"
+                                class="sbn-tile-badge sbn-tile-badge--new"
+                            >new</span>
                         </button>
 
                     </div>
@@ -864,10 +931,20 @@ function jumpToLevel(n: number) {
                         </button>
                     </div>
 
-                    <!-- Shell done back button -->
-                    <div v-if="shellDone" class="sbn-archetype-next">
+                    <!-- Shell done / ext CTA row -->
+                    <div v-if="shellDone && !extMode" class="sbn-archetype-next">
                         <button class="sbn-barre-back-btn" @click="exitShellMode">
                             ← Drop Voicings
+                        </button>
+                        <button class="sbn-archetype-next-btn" :disabled="extAnimating" @click="enterExtMode">
+                            Next level: Extensions →
+                        </button>
+                    </div>
+
+                    <!-- Ext mode back button -->
+                    <div v-if="extMode && !extAnimating" class="sbn-archetype-next">
+                        <button class="sbn-barre-back-btn" @click="exitExtMode">
+                            ← Shell Voicings
                         </button>
                     </div>
 

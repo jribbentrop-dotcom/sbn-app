@@ -149,6 +149,11 @@ function prevChord() {
 
                 <!-- Detail View -->
                 <div v-if="selectedChord" class="sbn-top10-detail">
+                    <!-- Mobile Hero Image -->
+                    <div class="sbn-mobile-hero">
+                        <img :src="selectedChord.image" :alt="selectedChord.title" class="sbn-mobile-hero-img" />
+                    </div>
+
                     <div class="sbn-detail-header">
                         <h1 class="sbn-detail-title">{{ selectedChord.title }}</h1>
                         <p class="sbn-detail-artist">{{ selectedChord.artist }}</p>
@@ -188,30 +193,31 @@ function prevChord() {
                             <h3 class="sbn-panel-title">{{ selectedChord.rhythmName }}</h3>
                             <p class="sbn-panel-caption" v-html="selectedChord.rhythmCaption"></p>
                             <div class="sbn-rhythm-wrapper">
-                                <RhythmPattern
-                                    :pattern="selectedChord.rhythmData"
-                                    :playable="true"
-                                    :mini="false"
-                                    :vintage-card="true"
-                                    :demo-url="selectedChord.rhythmData.demoUrl"
-                                    :color="getCategoryColor(selectedChord.rhythmData.styleSlug || 'latin')"
-                                >
-                                    <template v-if="selectedChord.rhythmData.demoUrl" #transport-extra>
-                                        <div class="sbn-blend-control">
-                                            <span class="sbn-blend-label" :class="{ 'is-active': blend < 0.5 }">Samples</span>
-                                            <input
-                                                type="range"
-                                                min="0"
-                                                max="1"
-                                                step="0.01"
-                                                v-model.number="blend"
-                                                class="sbn-blend-slider"
-                                                aria-label="Blend between samples and demo audio"
-                                            />
-                                            <span class="sbn-blend-label" :class="{ 'is-active': blend >= 0.5 }">Demo</span>
-                                        </div>
-                                    </template>
-                                </RhythmPattern>
+                                <div class="sbn-card sbn-rhythm-card">
+                                    <RhythmPattern
+                                        :pattern="selectedChord.rhythmData"
+                                        :playable="true"
+                                        :mini="false"
+                                        :demo-url="selectedChord.rhythmData.demoUrl"
+                                        :color="getCategoryColor(selectedChord.rhythmData.styleSlug || 'latin')"
+                                    >
+                                        <template v-if="selectedChord.rhythmData.demoUrl" #transport-extra>
+                                            <div class="sbn-blend-control">
+                                                <span class="sbn-blend-label" :class="{ 'is-active': blend < 0.5 }">Samples</span>
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="1"
+                                                    step="0.01"
+                                                    v-model.number="blend"
+                                                    class="sbn-blend-slider"
+                                                    aria-label="Blend between samples and demo audio"
+                                                />
+                                                <span class="sbn-blend-label" :class="{ 'is-active': blend >= 0.5 }">Demo</span>
+                                            </div>
+                                        </template>
+                                    </RhythmPattern>
+                                </div>
                             </div>
                             <div v-if="selectedChord.rhythmCitation" class="sbn-panel-citation" v-html="selectedChord.rhythmCitation"></div>
                         </div>
@@ -322,16 +328,15 @@ function prevChord() {
 .sbn-top10-nav-mobile {
     display: block;
     overflow-x: auto;
-    margin-bottom: 24px;
-    padding-bottom: 16px;
     border-bottom: 1px solid var(--clr-border);
     margin: -16px -16px 24px -16px;
-    padding: 0 16px 16px 16px;
+    padding: 12px 16px 16px 16px;
 }
 
 .sbn-nav-scroll {
     display: flex;
     gap: 12px;
+    padding-right: 16px;
 }
 
 .sbn-nav-thumb {
@@ -486,6 +491,27 @@ function prevChord() {
     text-align: left;
 }
 
+/* Mobile Hero */
+.sbn-mobile-hero {
+    display: block;
+    margin-bottom: 20px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+}
+
+.sbn-mobile-hero-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+@media (min-width: 768px) {
+    .sbn-mobile-hero {
+        display: none;
+    }
+}
+
 /* Detail View */
 .sbn-top10-detail {
     padding: 16px 0;
@@ -548,33 +574,21 @@ function prevChord() {
     margin-bottom: 48px;
 }
 
-@media (min-width: 1024px) {
-    .sbn-panels-grid {
-        grid-template-columns: 1fr 1fr;
-        align-items: stretch;
-    }
-}
 
-.sbn-panel {
-    background: var(--clr-white);
+.sbn-panel,
+.sbn-panel-ghost {
+    background: var(--clr-surface-2);
     border: 1px solid var(--clr-border);
-    border-radius: 12px;
+    border-radius: var(--radius);
     padding: 24px;
     display: flex;
     flex-direction: column;
-    height: 100%;
-}
-
-.sbn-panel--rhythm {
-    border: 1px solid var(--clr-border);
-    background: var(--clr-white);
-    box-shadow: none;
 }
 
 .sbn-panel-title {
     font-size: 14px;
     font-weight: 700;
-    color: var(--clr-text);
+    color: var(--clr-style-bossa);
     margin-bottom: 16px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -594,6 +608,10 @@ function prevChord() {
     flex-direction: column;
     align-items: stretch;
     padding: 10px 0 20px;
+}
+
+.sbn-rhythm-card {
+    overflow: hidden;
 }
 
 .sbn-panel-header-row {
@@ -816,6 +834,12 @@ function prevChord() {
 }
 
 @media (max-width: 767px) {
+    .sbn-footer-links {
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+    }
+
     .sbn-footer-separator {
         display: none;
     }

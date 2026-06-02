@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
 import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
@@ -131,6 +131,11 @@ function goToChordLibrary(chord: ChordDiagramData) {
 </script>
 
 <template>
+    <Head>
+        <title>TOP 10 Bossa Nova Chords | Soul Bossa Nova</title>
+        <meta name="description" content="Explore the essential TOP 10 Bossa Nova Chords for guitar — voicings, progressions, and song context." />
+    </Head>
+
     <div class="sbn-top10-page">
         <!-- Loading State -->
         <div v-if="isLoading" class="sbn-top10-loading">
@@ -174,6 +179,7 @@ function goToChordLibrary(chord: ChordDiagramData) {
                             <div class="sbn-nav-card-number">{{ chord.id }}</div>
                         </div>
                         <div class="sbn-nav-card-title">{{ chord.title }}</div>
+                        <div class="sbn-nav-card-artist">{{ chord.shortTitle }}</div>
                     </button>
                 </div>
 
@@ -221,8 +227,8 @@ function goToChordLibrary(chord: ChordDiagramData) {
 
                     <!-- Navigation Buttons -->
                     <div class="sbn-detail-nav">
-                        <button @click="prevChord" class="sbn-nav-btn">← Previous</button>
-                        <button @click="nextChord" class="sbn-nav-btn">Next →</button>
+                        <button @click="prevChord" class="sbn-nav-btn sbn-nav-btn--outline">← Previous</button>
+                        <button @click="nextChord" class="sbn-nav-btn sbn-nav-btn--outline">Next →</button>
                     </div>
 
                     <!-- Related Products -->
@@ -272,7 +278,7 @@ function goToChordLibrary(chord: ChordDiagramData) {
 .sbn-top10-page {
     background: white;
     min-height: 100vh;
-    padding-bottom: 40px;
+    padding-bottom: 60px;
 }
 
 .sbn-top10-loading {
@@ -323,16 +329,15 @@ function goToChordLibrary(chord: ChordDiagramData) {
 .sbn-top10-nav-mobile {
     display: block;
     overflow-x: auto;
-    margin-bottom: 24px;
-    padding-bottom: 16px;
     border-bottom: 1px solid var(--clr-border);
     margin: -16px -16px 24px -16px;
-    padding: 0 16px 16px 16px;
+    padding: 12px 16px 16px 16px;
 }
 
 .sbn-nav-scroll {
     display: flex;
     gap: 12px;
+    padding-right: 16px;
 }
 
 .sbn-nav-thumb {
@@ -434,6 +439,8 @@ function goToChordLibrary(chord: ChordDiagramData) {
     opacity: 0.6;
     transition: all 0.3s ease;
     padding: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .sbn-nav-card--active {
@@ -443,7 +450,7 @@ function goToChordLibrary(chord: ChordDiagramData) {
 
 .sbn-nav-card-image {
     width: 100%;
-    height: 140px;
+    height: 110px;
     border-radius: 8px;
     overflow: hidden;
     position: relative;
@@ -488,6 +495,12 @@ function goToChordLibrary(chord: ChordDiagramData) {
     -webkit-line-clamp: 2;
     line-clamp: 2;
     -webkit-box-orient: vertical;
+}
+
+.sbn-nav-card-artist {
+    font-size: 10px;
+    color: var(--clr-text-muted);
+    text-align: left;
 }
 
 /* Detail View */
@@ -605,13 +618,23 @@ function goToChordLibrary(chord: ChordDiagramData) {
 .sbn-nav-btn {
     background: var(--clr-gradient);
     color: white;
-    padding: 10px 20px;
+    padding: 10px 24px;
     border-radius: var(--radius-sm);
     font-weight: 600;
     font-size: 14px;
     border: none;
     cursor: pointer;
-    transition: transform 0.2s;
+    transition: all 0.2s;
+}
+
+.sbn-nav-btn--outline {
+    background: var(--clr-white);
+    color: var(--clr-text);
+    border: 1.5px solid var(--clr-border);
+}
+
+.sbn-nav-btn--outline:hover {
+    border-color: var(--clr-text);
 }
 
 .sbn-nav-btn:hover {
@@ -724,28 +747,20 @@ function goToChordLibrary(chord: ChordDiagramData) {
 }
 
 .sbn-footer-separator {
-    color: var(--clr-text);
+    color: var(--clr-border);
     font-size: 20px;
 }
 
 @media (max-width: 767px) {
+    .sbn-footer-links {
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+    }
+
     .sbn-footer-separator {
         display: none;
     }
 }
 
-/* Update container to match legacy - no border-radius, no box-shadow */
-.sbn-top10-container {
-    background: white;
-    border-radius: 0;
-    border: none;
-    padding: 16px;
-    box-shadow: none;
-}
-
-@media (min-width: 768px) {
-    .sbn-top10-container {
-        padding: 32px;
-    }
-}
 </style>

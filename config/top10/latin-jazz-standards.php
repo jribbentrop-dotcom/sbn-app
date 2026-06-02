@@ -76,8 +76,8 @@ return [
         'relatedProducts' => [
             [
                 'title' => 'Night & Day',
-                'description' => 'This is a transcription of the guitar chord voicings on Diana Kralls recording.',
-                'url' => 'https://soulbossanova.com/product/your-url',
+                'description' => 'Transcription of the guitar chord voicings on Diana Krall\'s recording.',
+                'url' => '/shop/product/night-and-day',
                 'type' => 'product'
             ]
         ]
@@ -128,8 +128,8 @@ return [
         'relatedProducts' => [
             [
                 'title' => 'On Green Dolphin Street',
-                'description' => 'An original Solo Guitar arrangement in a free flowing rhythm',
-                'url' => 'https://soulbossanova.com/product/your-url',
+                'description' => 'An original solo guitar arrangement in a free-flowing Latin rhythm.',
+                'url' => '/shop/product/on-green-dolphin-street',
                 'type' => 'product'
             ]
         ]
@@ -205,10 +205,10 @@ return [
         'rhythmCitation' => "<strong>Clifford Brown And Max Roach</strong>, <em>At Basin Street</em>, 1956",
         'relatedProducts' => [
             [
-                'title' => 'Product/Course Title Here',
-                'description' => 'Short description of what this is',
-                'url' => 'https://soulbossanova.com/product/your-url',
-                'type' => 'course'
+                'title' => 'Jazz & Bossa Chords',
+                'description' => 'A quick guide to the most important Jazz guitar chords — how they are used and how they are constructed.',
+                'url' => '/shop/product/jazz-bossa-chords',
+                'type' => 'product'
             ]
         ]
     ],
@@ -231,9 +231,9 @@ return [
         'rhythmCitation' => "<strong>Dexter Gordon</strong>, <em>Go!</em>, 1962",
         'relatedProducts' => [
             [
-                'title' => 'Product/Course Title Here',
-                'description' => 'Short description of what this is',
-                'url' => 'https://soulbossanova.com/product/your-url',
+                'title' => 'Jazz & Bossa Chords',
+                'description' => 'A quick guide to the most important Jazz guitar chords — how they are used and how they are constructed.',
+                'url' => '/shop/product/jazz-bossa-chords',
                 'type' => 'product'
             ]
         ]
@@ -246,7 +246,7 @@ return [
         'description' => "<em>Moon and Sand</em> is a lesser-known jazz standard by film and musical composer <strong>Alec Wilder</strong>. The slow flowing chords and the melancholic melody are ideal for a bossa nova treatment. The fantastic recording by jazz guitar legend <strong>Kenny Burrell</strong> and arranger <strong>Gil Evans</strong> paved the way for this.",
         'voicingName' => 'Key Chords',
         'voicingCaption' => "Although the song is in the key of D minor, it swiftly transitions to other tonalities.",
-        'progressionName' => '',
+        'progressionName' => 'Key Progression',
         'progressionCaption' => "Although the song is in the key of D minor, it swiftly transitions to other tonalities.",
         'progressionCitation' => "<strong>Kenny Burrell</strong>, <em>Guitar Forms</em>, 1965",
         'progressionSlugs' => ['m7-shell-roota-9', 'maj7-drop3-roote', 'maj7-drop3-roote'],
@@ -256,9 +256,9 @@ return [
         'rhythmCitation' => "<strong>Kenny Burrell</strong>, <em>Guitar Forms</em>, 1965",
         'relatedProducts' => [
             [
-                'title' => 'Product/Course Title Here',
-                'description' => 'Short description of what this is',
-                'url' => 'https://soulbossanova.com/product/your-url',
+                'title' => 'Bossa Nova Basics Course',
+                'description' => 'Learn the fundamentals of bossa nova guitar — rhythms, chord shapes, and classic songs — with step-by-step video lessons.',
+                'url' => '/shop/product/bossa-basics',
                 'type' => 'course'
             ]
         ]

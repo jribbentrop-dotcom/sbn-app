@@ -1,0 +1,486 @@
+/* ============================================================
+   Chord Library — Variant B chrome
+   ──────────────────────────────────────────────────────────
+   Loads AFTER chord-library.css. Replaces the resting visual
+   style of the archetype panel (border radii, shadows, type
+   hierarchy, button shape, drawer treatment) with the
+   "Stepper & Reduction" look. Adds a stepper element at the
+   top of the panel and optional reduction badges on tiles.
+
+   Uses ONLY existing design tokens from sbn-design-system.css.
+   Animation classes from chord-library.css are left alone —
+   this file changes how things LOOK at rest, not how they
+   move.
+   ============================================================ */
+
+
+/* ────────────────────────────────────────────────────────
+   PANEL CONTAINER
+   ──────────────────────────────────────────────────────── */
+.sbn-archetype-panel {
+    background: var(--clr-surface-2);
+    border: 1px solid var(--clr-border);
+    border-radius: 28px;                /* iOS-soft outer radius */
+    padding: 22px 28px 22px;
+    box-shadow:
+        0 8px 24px -8px rgba(15, 17, 23, 0.10),
+        0 2px 6px rgba(15, 17, 23, 0.04);
+    position: relative;
+}
+
+
+/* ────────────────────────────────────────────────────────
+   STEPPER  (new element — see README §3a for template)
+   ──────────────────────────────────────────────────────── */
+.sbn-stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 6px 4px 22px;
+    flex-wrap: nowrap;
+}
+
+.sbn-stepper-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: 999px;
+    padding: 5px 12px 5px 5px;
+    font-family: var(--font-body);
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+    flex-shrink: 0;
+}
+.sbn-stepper-pill:hover:not(.is-upcoming):not(.is-current):not(:disabled) {
+    border-color: color-mix(in srgb, var(--clr-border) 60%, var(--clr-text) 40%);
+}
+.sbn-stepper-pill:disabled { cursor: default; }
+
+.sbn-stepper-n {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--clr-surface-3);
+    color: var(--clr-text-muted);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, color 0.2s;
+}
+.sbn-stepper-l {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--clr-text-dim);
+    transition: color 0.2s, font-weight 0.2s;
+}
+
+.sbn-stepper-pill.is-current {
+    border-color: var(--clr-red);
+    background: color-mix(in srgb, var(--clr-red) 8%, var(--clr-white));
+    box-shadow: 0 1px 2px rgba(15, 17, 23, 0.04);
+}
+.sbn-stepper-pill.is-current .sbn-stepper-n { background: var(--clr-red); color: var(--clr-white); }
+.sbn-stepper-pill.is-current .sbn-stepper-l { color: var(--clr-text); font-weight: 600; }
+
+.sbn-stepper-pill.is-done .sbn-stepper-n { background: var(--clr-text); color: var(--clr-white); }
+.sbn-stepper-pill.is-done .sbn-stepper-l { color: var(--clr-text-dim); }
+
+.sbn-stepper-pill.is-upcoming {
+    opacity: 0.55;
+    background: var(--clr-surface-2);
+    border-style: dashed;
+    cursor: not-allowed;
+}
+.sbn-stepper-pill.is-upcoming .sbn-stepper-l { font-style: italic; }
+
+.sbn-stepper-track {
+    width: 24px;
+    height: 1px;
+    background: var(--clr-border);
+    flex-shrink: 0;
+    transition: background 0.2s, height 0.2s;
+}
+.sbn-stepper-track.is-on { background: var(--clr-text); height: 2px; }
+.sbn-stepper-track.is-upcoming {
+    background: repeating-linear-gradient(
+        90deg,
+        var(--clr-border) 0 4px,
+        transparent       4px 8px
+    );
+}
+
+
+/* ────────────────────────────────────────────────────────
+   PANEL HEADER  (centered, larger Crimson title)
+   ──────────────────────────────────────────────────────── */
+.sbn-archetype-panel-header {
+    display: block;                     /* override flex if present */
+    text-align: center;
+    margin-bottom: 22px;
+}
+.sbn-archetype-panel-header > div {
+    /* In Vue the title/sub are wrapped in a div sibling to the back button.
+       We don't want the wrapper to constrain alignment. */
+    display: contents;
+}
+
+.sbn-archetype-panel-title {
+    font-family: var(--font-chord);
+    font-size: 32px;
+    line-height: 1.05;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--clr-text);
+    margin: 0 0 4px;
+}
+
+.sbn-archetype-panel-subtitle {
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--clr-text-dim);
+    margin: 0;
+    font-weight: 400;
+    max-width: 56ch;
+    margin-inline: auto;
+}
+
+/* Back button — quiet outline pill in the CTA row */
+.sbn-barre-back-btn {
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--clr-text-muted);
+    background: transparent;
+    border: 1px solid var(--clr-border);
+    border-radius: 999px;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+}
+.sbn-barre-back-btn:hover:not(:disabled) {
+    color: var(--clr-text);
+    border-color: color-mix(in srgb, var(--clr-border) 60%, var(--clr-text) 40%);
+}
+.sbn-barre-back-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+
+/* ────────────────────────────────────────────────────────
+   TILE ROW
+   ──────────────────────────────────────────────────────── */
+.sbn-archetype-tiles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 22px;
+    position: relative;
+    min-height: 140px;
+}
+
+
+/* ────────────────────────────────────────────────────────
+   TILE
+   ──────────────────────────────────────────────────────── */
+.sbn-archetype-tile {
+    font-family: var(--font-body);
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: 14px;
+    padding: 10px 14px 8px;
+    min-width: 92px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    position: relative;
+    /* Transition only chrome props — never `all`. Existing animation
+       classes drive transform/opacity, this file must not interfere. */
+    transition:
+        border-color 0.25s ease,
+        box-shadow 0.25s ease,
+        background 0.2s ease;
+    box-shadow: 0 1px 2px rgba(15, 17, 23, 0.04);
+}
+.sbn-archetype-tile:hover {
+    border-color: color-mix(in srgb, var(--clr-border) 50%, var(--clr-text) 50%);
+    box-shadow: 0 4px 12px -4px rgba(15, 17, 23, 0.08);
+}
+.sbn-archetype-tile.active {
+    border-color: var(--clr-red);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--clr-red) 18%, transparent),
+                0 2px 6px rgba(15, 17, 23, 0.06);
+}
+
+.sbn-archetype-tile-name {
+    font-family: var(--font-chord);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--clr-text);
+    margin-bottom: 6px;
+    letter-spacing: -0.005em;
+    line-height: 1;
+    position: relative;            /* label crossfade anchors here */
+}
+.sbn-archetype-tile.active .sbn-archetype-tile-name {
+    color: var(--clr-red);
+}
+
+.sbn-archetype-tile-diagram,
+.sbn-tile-diagram-wrap {
+    width: 60px;
+}
+
+.sbn-tile-hint {
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--clr-text-muted);
+    margin-top: 4px;
+    transition: color 0.2s;
+}
+.sbn-archetype-tile.active .sbn-tile-hint { color: var(--clr-red); }
+
+
+/* ────────────────────────────────────────────────────────
+   REDUCTION BADGES  (new — see README §3b)
+   ──────────────────────────────────────────────────────── */
+.sbn-tile-badge {
+    position: absolute;
+    top: -10px;
+    right: -8px;
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: var(--clr-text);
+    color: var(--clr-white);
+    padding: 3px 7px;
+    border-radius: 999px;
+    box-shadow: 0 1px 2px rgba(15, 17, 23, 0.06);
+    animation: sbnBadgePop 0.3s cubic-bezier(0.34, 1.4, 0.5, 1) both;
+    z-index: 2;
+    pointer-events: none;
+}
+.sbn-tile-badge--minus { background: var(--clr-text-dim); }
+.sbn-tile-badge--new   { background: var(--clr-red); }
+
+@keyframes sbnBadgePop {
+    from { opacity: 0; transform: scale(0.4); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+
+/* ────────────────────────────────────────────────────────
+   POPOVER DRAWER
+   ──────────────────────────────────────────────────────── */
+.sbn-archetype-drawer {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: 14px;
+    padding: 14px 18px;
+    margin: -10px auto 18px;
+    max-width: 720px;
+    box-shadow:
+        0 8px 24px -8px rgba(15, 17, 23, 0.10),
+        0 2px 6px rgba(15, 17, 23, 0.04);
+    position: relative;
+    animation: sbnPopoverIn 0.32s cubic-bezier(0.34, 1.2, 0.5, 1);
+}
+@keyframes sbnPopoverIn {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Reuse existing connector element as popover arrow */
+.sbn-drawer-connector {
+    position: absolute;
+    top: -7px;
+    left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 12px;
+    height: 12px;
+    background: var(--clr-white);
+    border-left: 1px solid var(--clr-border);
+    border-top: 1px solid var(--clr-border);
+    /* Override any positional bits the existing CSS sets via --tile-index */
+    --tile-index: unset;
+    --tile-count: unset;
+    margin: 0;
+}
+
+.sbn-barre-drawer-intro {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--clr-text-muted);
+    margin: 0 0 10px;
+    text-align: center;
+}
+
+.sbn-barre-chromatic-grid,
+.sbn-drawer-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+.sbn-barre-chromatic-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 56px;
+    padding: 4px 6px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.2s;
+}
+.sbn-barre-chromatic-item:hover { background: var(--clr-surface-2); }
+
+.sbn-barre-chromatic-name {
+    font-family: var(--font-chord);
+    font-size: 12px;
+    color: var(--clr-text);
+    text-align: center;
+    line-height: 1;
+}
+
+
+/* ────────────────────────────────────────────────────────
+   DROP-MODE / SHELL-MODE BLURBS
+   ──────────────────────────────────────────────────────── */
+.sbn-drop-blurb {
+    background: color-mix(in srgb, var(--clr-red) 4%, var(--clr-white));
+    border: 1px solid var(--clr-border);
+    border-radius: 14px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    text-align: center;
+}
+.sbn-drop-blurb p {
+    margin: 0 0 10px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--clr-text-dim);
+    max-width: 60ch;
+    margin-inline: auto;
+}
+.sbn-drop-blurb p:last-child { margin-bottom: 0; }
+.sbn-drop-blurb strong { color: var(--clr-text); font-weight: 600; }
+
+.sbn-drop-blurb-links {
+    display: inline-flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.sbn-drop-link {
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--clr-red);
+    background: transparent;
+    border: 1px solid color-mix(in srgb, var(--clr-red) 30%, transparent);
+    border-radius: 999px;
+    padding: 5px 12px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+.sbn-drop-link:hover {
+    background: var(--clr-red);
+    color: var(--clr-white);
+    border-color: var(--clr-red);
+}
+
+
+/* ────────────────────────────────────────────────────────
+   NEXT-LEVEL CTA
+   ──────────────────────────────────────────────────────── */
+.sbn-archetype-next {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding-top: 4px;
+}
+/* Single child (next-only row at L1) stays right-aligned */
+.sbn-archetype-next > :only-child {
+    margin-left: auto;
+}
+
+.sbn-archetype-next-btn {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--clr-white);
+    background: var(--clr-red);
+    border: none;
+    border-radius: 999px;
+    padding: 9px 18px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s, transform 0.2s ease, box-shadow 0.2s, opacity 0.2s;
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--clr-red) 30%, transparent);
+}
+.sbn-archetype-next-btn::after {
+    content: '→';
+    font-size: 13px;
+    transition: transform 0.2s ease;
+}
+.sbn-archetype-next-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--clr-red) 88%, black);
+    transform: translateY(-1px);
+}
+.sbn-archetype-next-btn:hover:not(:disabled)::after { transform: translateX(2px); }
+.sbn-archetype-next-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* Strip the literal "→" some templates include in the button text — the
+   ::after pseudo-element supplies its own. If your template uses static
+   text only ("Next level: Drop Voicings →"), you can either remove the
+   arrow from the template, or remove the ::after rule above. */
+
+
+/* ────────────────────────────────────────────────────────
+   EXTENSION TILE ENTRY  (slide in from right)
+   ──────────────────────────────────────────────────────── */
+@keyframes sbnExtTileEnter {
+    from { opacity: 0; transform: translateX(48px) scale(0.92); }
+    to   { opacity: 1; transform: translateX(0)    scale(1); }
+}
+.sbn-tile--ext-enter {
+    animation: sbnExtTileEnter 0.45s cubic-bezier(0.34, 1.2, 0.5, 1) both;
+}
+
+
+/* ────────────────────────────────────────────────────────
+   REDUCED MOTION
+   ──────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    .sbn-tile-badge,
+    .sbn-archetype-drawer,
+    .sbn-tile--ext-enter {
+        animation: none;
+    }
+    .sbn-archetype-next-btn,
+    .sbn-archetype-next-btn::after,
+    .sbn-stepper-pill,
+    .sbn-stepper-track,
+    .sbn-archetype-tile {
+        transition: opacity 0.2s ease !important;
+    }
+}

@@ -5,7 +5,7 @@ return [
         'title' => 'The Girl From Ipanema',
         'shortTitle' => 'Girl from Ipanema',
         'artist' => 'Tom Jobim',
-        'image' => 'https://soulbossanova.com/wp-content/uploads/2025/10/5.webp',
+        'image' => '/images/top10/bossa-nova-songs/5.webp',
         'description' => "Not least because of the Netflix series of the same name, this song is on everyone's lips again. Without a doubt the most famous bossa nova song of all time. The famous Brazilian guitarist Joao Gilberto interprets the piece in his own unmistakable style that defined the Bossa Nova.",
         'recordings' => '822 Recordings',
         'voicingName' => 'Key Chords',
@@ -38,7 +38,7 @@ return [
         'title' => 'Manhã de Carnaval',
         'shortTitle' => 'Manhã de Carnaval',
         'artist' => 'Luiz Bonfá',
-        'image' => 'https://soulbossanova.com/wp-content/uploads/2025/10/7.webp',
+        'image' => '/images/top10/bossa-nova-songs/7.webp',
         'description' => "The guitarist Luiz Bonfa has set a monument with Manha de Carnaval. One of the most popular pieces for getting started in the world of bossa nova, but also for advanced improvisation, as three of the most virtuoso guitarists of the 20th century prove here.",
         'recordings' => '706 Recordings',
         'voicingName' => 'Key Chords',
@@ -54,9 +54,9 @@ return [
         'rhythmCitation' => "<strong>Luiz Bonfá</strong>, <em>Solo In Rio</em>, 1959",
         'relatedProducts' => [
             [
-                'title' => 'Product/Course Title Here',
-                'description' => 'Short description of what this is',
-                'url' => 'https://soulbossanova.com/product/your-url',
+                'title' => 'The Gentle Rain',
+                'description' => 'An original solo guitar arrangement of another Luiz Bonfá classic.',
+                'url' => '/shop/product/the-gentle-rain',
                 'type' => 'product'
             ]
         ]
@@ -65,7 +65,7 @@ return [
         'title' => 'Corcovado',
         'shortTitle' => 'Corcovado',
         'artist' => 'Tom Jobim',
-        'image' => 'https://soulbossanova.com/wp-content/uploads/2025/10/3.webp',
+        'image' => '/images/top10/bossa-nova-songs/3.webp',
         'description' => "Astrud Gilberto sang about \"Quiet Night of Quiet Stars\" in 1963 and the world is still at her feet today. Corcovado is the name of the famous mountain in Rio de Janeiro, on which the Christ the Redeemer statue also stands.",
         'recordings' => '651 Recordings',
         'voicingName' => 'Key Chords',
@@ -81,9 +81,9 @@ return [
         'rhythmCitation' => "<strong>João Gilberto</strong>, <em>O Amor, O Sorriso E A Flor</em>, 1960",
         'relatedProducts' => [
             [
-                'title' => 'Product/Course Title Here',
-                'description' => 'Short description of what this is',
-                'url' => 'https://soulbossanova.com/product/your-url',
+                'title' => 'Corcovado',
+                'description' => "Transcription of João Gilberto's chord voicings, with a simplified arrangement in the same key.",
+                'url' => '/shop/product/corcovado-joao-gilberto',
                 'type' => 'product'
             ]
         ]
@@ -92,7 +92,7 @@ return [
         'title' => 'How Insensitive',
         'shortTitle' => 'How Insensitive',
         'artist' => 'Tom Jobim',
-        'image' => 'https://soulbossanova.com/wp-content/uploads/2025/10/6.webp',
+        'image' => '/images/top10/bossa-nova-songs/6.webp',
         'description' => "How Insensitive is one of the most beautiful ballads by Tom Jobim. The harmonic structure is very similar to Corcovado, featuring many diminished chords that create that special, melancholic feeling…",
         'recordings' => '556 Recordings',
         'voicingName' => 'Key Chords',
@@ -108,10 +108,10 @@ return [
         'rhythmCitation' => "<strong>João Gilberto</strong>, <em>João Gilberto</em>, 1961",
         'relatedProducts' => [
             [
-                'title' => 'Product/Course Title Here',
-                'description' => 'Short description of what this is',
-                'url' => 'https://soulbossanova.com/product/your-url',
-                'type' => 'course'
+                'title' => 'How Insensitive',
+                'description' => 'Solo guitar arrangement modelled on João Gilberto\'s recording, packed with diminished chord colour.',
+                'url' => '/shop/product/how-insensitive',
+                'type' => 'product'
             ]
         ]
     ],
@@ -119,7 +119,7 @@ return [
         'title' => 'Wave',
         'shortTitle' => 'Wave',
         'artist' => 'Tom Jobim',
-        'image' => 'https://soulbossanova.com/wp-content/uploads/2025/10/9.webp',
+        'image' => '/images/top10/bossa-nova-songs/9.webp',
         'description' => "Since its first recording in 1967, Wave has become an instant favourite among musicians. Jobim crafted a sophisticated voice leading below the melody and the form of the first part is basically a blues. No wonder that especially jazz musicians came to like it!",
         'recordings' => '488 Recordings',
         'voicingName' => 'Key Chords',
@@ -135,9 +135,9 @@ return [
         'rhythmCitation' => "<strong>Antonio Carlos Jobim</strong>, <em>Wave</em>, 1967",
         'relatedProducts' => [
             [
-                'title' => 'Product/Course Title Here',
-                'description' => 'Short description of what this is',
-                'url' => 'https://soulbossanova.com/product/your-url',
+                'title' => 'Wave',
+                'description' => 'Advanced solo guitar arrangement of Wave (Vou Te Contar) by Tom Jobim.',
+                'url' => '/shop/product/wave',
                 'type' => 'product'
             ]
         ]
@@ -146,7 +146,7 @@ return [
         'title' => 'One Note Samba',
         'shortTitle' => 'One Note Samba',
         'artist' => 'Tom Jobim',
-        'image' => 'https://soulbossanova.com/wp-content/uploads/2025/10/8.webp',
+        'image' => '/images/top10/bossa-nova-songs/8.webp',
         'description' => "The title of the song refers indeed to the melody which, for most part of the song, consists of a repeated single note. It is one of the first released Bossa Nova tunes, dating back to 1960, when Joao Gilberto recorded it on his album O Amor, o Sorriso e a Flor.",
         'recordings' => '476 Recordings',
         'voicingName' => 'Key Chords',
@@ -162,10 +162,10 @@ return [
         'rhythmCitation' => "<strong>Quincy Jones</strong>, <em>Big Band Bossa Nova</em>, 1962",
         'relatedProducts' => [
             [
-                'title' => 'Product/Course Title Here',
-                'description' => 'Short description of what this is',
-                'url' => 'https://soulbossanova.com/product/your-url',
-                'type' => 'course'
+                'title' => 'TOP10 Bossa Nova Chords',
+                'description' => 'Ten essential bossa nova guitar chords with practice patterns and song examples — perfect for shell voicing practice.',
+                'url' => '/shop/product/top10-bossa-nova-chords',
+                'type' => 'product'
             ]
         ]
     ],
@@ -173,12 +173,12 @@ return [
         'title' => 'Aquarela do Brasil',
         'shortTitle' => 'Brasil',
         'artist' => 'Ary Barroso',
-        'image' => 'https://soulbossanova.com/wp-content/uploads/2025/10/1.webp',
+        'image' => '/images/top10/bossa-nova-songs/1.webp',
         'description' => "Ary Barroso was one of the stars of samba music. So this song has a different flair, a different tempo, than many of the tracks on this list. With its catchy melody, it is one of the hits of Brazilian music.",
         'recordings' => '435 Recordings',
         'voicingName' => 'Key Chords',
         'voicingCaption' => "<em>Aquarela do Brasil</em> has one of the most iconic Line Clichés of all time. You can play it easily starting on this beautiful G(add9) chord voicing.",
-        'progressionName' => 'Key Chords',
+        'progressionName' => 'The Samba Line Cliché',
         'progressionCaption' => "<em>Aquarela do Brasil</em> has one of the most iconic Line Clichés of all time. You can play it easily starting on this beautiful G(add9) chord voicing.",
         'progressionSlugs' => ['maj7-shell-roote', 'maj7-shell-roote', 'maj6-shell-roote'],
         'rhythmName' => 'Trademark Rhythm Pattern',
@@ -187,10 +187,10 @@ return [
         'rhythmCitation' => "<em>Aquarela do Brasil</em>, <strong>Francisco Alves</strong>, 1939",
         'relatedProducts' => [
             [
-                'title' => 'Product/Course Title Here',
-                'description' => 'Short description of what this is',
-                'url' => 'https://soulbossanova.com/product/your-url',
-                'type' => 'product'
+                'title' => 'Bossa Nova Basics Course',
+                'description' => 'Learn the fundamentals of bossa nova guitar — rhythms, chord shapes, and classic songs — with step-by-step video lessons.',
+                'url' => '/shop/product/bossa-basics',
+                'type' => 'course'
             ]
         ]
     ],
@@ -198,7 +198,7 @@ return [
         'title' => 'Desafinado',
         'shortTitle' => 'Desafinado',
         'artist' => 'Tom Jobim',
-        'image' => 'https://soulbossanova.com/wp-content/uploads/2025/10/4.webp',
+        'image' => '/images/top10/bossa-nova-songs/4.webp',
         'description' => "A piece by Jobim for a change. \"Slightly out of Tune\" is the musical response to criticism of Bossa Nova music. A succesful response!",
         'recordings' => '424 Recordings',
         'voicingName' => 'The \"Off-Key\" Pair',
@@ -216,10 +216,10 @@ return [
         'rhythmCitation' => "<strong>Stan Getz & Joao Gilberto</strong>, <em>Getz / Gilberto</em>, 1964",
         'relatedProducts' => [
             [
-                'title' => 'Product/Course Title Here',
-                'description' => 'Short description of what this is',
-                'url' => 'https://soulbossanova.com/product/your-url',
-                'type' => 'course'
+                'title' => 'Jazz & Bossa Chords',
+                'description' => 'A quick guide to the most important Jazz guitar chords — how they are used and how they are constructed.',
+                'url' => '/shop/product/jazz-bossa-chords',
+                'type' => 'product'
             ]
         ]
     ],
@@ -227,7 +227,7 @@ return [
         'title' => 'Chega De Saudade',
         'shortTitle' => 'Chega de Saudade',
         'artist' => 'Tom Jobim',
-        'image' => 'https://soulbossanova.com/wp-content/uploads/2025/10/2.webp',
+        'image' => '/images/top10/bossa-nova-songs/2.webp',
         'description' => "No More Blues! said Tom Jobim and is said to be the first bossa nova song recorded. What is interesting is the connection between the blues feeling and the classic Portuguese saudade, which could possibly be compared to the feeling of longing.",
         'recordings' => '404 Recordings',
         'voicingName' => 'The \"Saudade\" Pair',
@@ -242,9 +242,9 @@ return [
         'rhythmCitation' => "<strong>João Gilberto</strong>, <em>João Voz E Violão</em>, 2000",
         'relatedProducts' => [
             [
-                'title' => 'Product/Course Title Here',
-                'description' => 'Short description of what this is',
-                'url' => 'https://soulbossanova.com/product/your-url',
+                'title' => 'The Girl from Ipanema',
+                'description' => 'Transcription of the chord voicings as performed by Joao Gilberto on the Getz/Gilberto recording.',
+                'url' => '/shop/product/the-girl-from-ipanema',
                 'type' => 'product'
             ]
         ]
@@ -253,7 +253,7 @@ return [
         'title' => 'Dindi',
         'shortTitle' => 'Dindi',
         'artist' => 'Tom Jobim',
-        'image' => 'https://soulbossanova.com/wp-content/uploads/2025/10/10.webp',
+        'image' => '/images/top10/bossa-nova-songs/10.webp',
         'description' => "Once again, an ouststanding ballad by Tom Jobim. The chords in the first part are very suitable to exercise your basic seventh chords on the guitar.",
         'recordings' => '386 Recordings',
         'voicingName' => 'The Ballad Shift',
@@ -268,9 +268,9 @@ return [
         'rhythmCitation' => "<strong>Astrud Gilberto</strong>, <em>The Astrud Gilberto Album</em>, 1965",
         'relatedProducts' => [
             [
-                'title' => 'Product/Course Title Here',
-                'description' => 'Short description of what this is',
-                'url' => 'https://soulbossanova.com/product/your-url',
+                'title' => 'Bossa Nova Basics Course',
+                'description' => 'Learn the fundamentals of bossa nova guitar — rhythms, chord shapes, and classic songs — with step-by-step video lessons.',
+                'url' => '/shop/product/bossa-basics',
                 'type' => 'course'
             ]
         ]

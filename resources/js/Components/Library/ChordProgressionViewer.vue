@@ -164,46 +164,40 @@ function fretCenterX(f: number) { return (fretEdgeX[f - FRET_FROM] + fretEdgeX[f
 // SBN convention: string 1 = Low E, 6 = High E. Render Low E at BOTTOM.
 function stringY(s: number) { return PAD_T + (6 - s) * stringH; }
 
-const fretLines = computed(() => {
-    const [lo, hi] = excerptWindow.value;
+// Full-neck extents — must be declared before the IIFEs below that reference them.
+const NECK_L = fretEdgeX[0];
+const NECK_R = fretEdgeX[FRET_TO - FRET_FROM + 1];
+
+// Full-neck static geometry — drawn once across whole neck; camera pan via excerptViewBox.
+const fretLines = (() => {
     const out: Array<{ x: number; isNut: boolean }> = [];
-    if (lo === FRET_FROM) out.push({ x: PAD_L, isNut: true });
-    for (let f = lo; f <= hi; f++) {
+    out.push({ x: PAD_L, isNut: true });
+    for (let f = FRET_FROM; f <= FRET_TO; f++) {
         out.push({ x: fretEdgeX[f - FRET_FROM + 1], isNut: false });
     }
     return out;
-});
+})();
 
-const stringLines = computed(() => {
-    const [lo] = excerptWindow.value;
-    const x1 = fretEdgeX[lo - FRET_FROM];
-    const x2 = x1 + EXCERPT_VW;
+const stringLines = (() => {
     const out: Array<{ y: number; s: number; x1: number; x2: number }> = [];
-    for (let s = 1; s <= 6; s++) out.push({ y: stringY(s), s, x1, x2 });
+    for (let s = 1; s <= 6; s++) out.push({ y: stringY(s), s, x1: NECK_L, x2: NECK_R });
     return out;
-});
+})();
 
-const singleInlays = computed(() => {
-    const [lo, hi] = excerptWindow.value;
-    return [3, 5, 7, 9, 15].filter(f => f >= lo && f <= hi).map(f => ({
-        cx: fretCenterX(f), cy: PAD_T + stringH * 2.5,
-    }));
-});
-const doubleInlays = computed(() => {
-    const [lo, hi] = excerptWindow.value;
-    return [12].filter(f => f >= lo && f <= hi).flatMap(f => [
-        { cx: fretCenterX(f), cy: PAD_T + stringH * 1.5 },
-        { cx: fretCenterX(f), cy: PAD_T + stringH * 3.5 },
-    ]);
-});
-const fretNumbers = computed(() => {
-    const [lo, hi] = excerptWindow.value;
+const singleInlays = [3, 5, 7, 9, 15].map(f => ({
+    cx: fretCenterX(f), cy: PAD_T + stringH * 2.5,
+}));
+const doubleInlays = [12].flatMap(f => [
+    { cx: fretCenterX(f), cy: PAD_T + stringH * 1.5 },
+    { cx: fretCenterX(f), cy: PAD_T + stringH * 3.5 },
+]);
+const fretNumbers = (() => {
     const out: Array<{ x: number; y: number; n: number }> = [];
-    for (let f = lo; f <= hi; f++) {
-        out.push({ x: fretCenterX(f), y: VB_H - PAD_B + 14, n: f });
+    for (let f = FRET_FROM; f <= FRET_TO; f++) {
+        out.push({ x: fretCenterX(f), y: VB_H - PAD_B + 13, n: f });
     }
     return out;
-});
+})();
 
 // ---------- Video-sync time map ----------
 // Cumulative beat spans per chord, built from each chord's `beats` (default 0.5).
@@ -333,7 +327,7 @@ const excerptViewBox = computed(() => `${smoothX.value} 0 ${EXCERPT_VW} ${VB_H}`
 // 6 dots, keyed by string number (1..6) for stable morphing.
 // lastCx remembers the last visible cx per string so invisible dots stay in place
 // and just fade — no flying in from a parked position.
-interface Dot { string: number; fret: number; cx: number; cy: number; visible: boolean; label: string; vlColor: string | null; }
+interface Dot { string: number; fret: number; cx: number; cy: number; visible: boolean; label: string; isRoot: boolean; vlColor: string | null; }
 const lastCx: number[] = Array.from({ length: 7 }, (_, s) =>
     s > 0 ? fretCenterX(excerptWindow.value[0] + Math.floor(FRET_WINDOW / 2)) : 0
 );
@@ -371,9 +365,9 @@ const dots = computed<Dot[]>(() => {
         if (p) {
             lastCx[s] = fretCenterX(p.fret);
             const vlColor = vlColorMap.get(`${s},${p.fret}`) ?? null;
-            out.push({ string: s, fret: p.fret, cx: lastCx[s], cy: stringY(s), visible: true, label, vlColor });
+            out.push({ string: s, fret: p.fret, cx: lastCx[s], cy: stringY(s), visible: true, label, isRoot: label === 'R', vlColor });
         } else {
-            out.push({ string: s, fret: 0, cx: lastCx[s], cy: stringY(s), visible: false, label: '', vlColor: null });
+            out.push({ string: s, fret: 0, cx: lastCx[s], cy: stringY(s), visible: false, label: '', isRoot: false, vlColor: null });
         }
     }
     return out;
@@ -603,7 +597,16 @@ function onFocusOut(e: FocusEvent) {
                 </svg>
             </button>
             <div class="board-wrap">
-                <svg class="board" :viewBox="excerptViewBox" preserveAspectRatio="xMidYMid meet" :height="VB_H" style="overflow: hidden">
+                <svg class="board" :viewBox="excerptViewBox" preserveAspectRatio="xMidYMid meet" style="overflow: hidden">
+                    <!-- Neck surface panel — drawn first so it sits behind everything -->
+                    <rect
+                        class="neck-surface"
+                        :x="NECK_L"
+                        :y="PAD_T - 6"
+                        :width="NECK_R - NECK_L"
+                        :height="(stringY(1) - stringY(6)) + 12"
+                        rx="9"
+                    />
                     <!-- Fret lines -->
                     <line
                         v-for="(fl, i) in fretLines"
@@ -612,13 +615,14 @@ function onFocusOut(e: FocusEvent) {
                         :x1="fl.x" :x2="fl.x"
                         :y1="PAD_T" :y2="VB_H - PAD_B"
                     />
-                    <!-- Strings -->
+                    <!-- Strings (graded weight: low E 1.5 → high E 0.54) -->
                     <line
                         v-for="sl in stringLines"
                         :key="`s${sl.s}`"
                         class="string-line"
                         :x1="sl.x1" :x2="sl.x2"
                         :y1="sl.y" :y2="sl.y"
+                        :stroke-width="1.5 - (sl.s - 1) * 0.16"
                     />
                     <!-- Inlay dots -->
                     <circle v-for="(d, i) in singleInlays" :key="`si${i}`" class="inlay" :cx="d.cx" :cy="d.cy" r="3.5" />
@@ -643,7 +647,9 @@ function onFocusOut(e: FocusEvent) {
                         }"
                         :style="`transform: translate(${d.cx}px, ${d.cy}px); --vl-color: ${d.vlColor ?? 'transparent'}`"
                     >
+                        <circle v-if="d.isRoot" class="root-ring" r="12.5" cx="0" cy="0" />
                         <circle class="dot" r="9" cx="0" cy="0" :style="d.vlColor ? `fill: ${d.vlColor}` : ''" />
+                        <circle class="dot-sheen" r="9" cx="0" cy="0" />
                         <text
                             v-if="d.label"
                             class="dot-finger"
@@ -652,14 +658,14 @@ function onFocusOut(e: FocusEvent) {
                             dominant-baseline="central"
                         >{{ d.label }}</text>
                     </g>
-                    <!-- Ghost dots: next chord's VL targets, shown dimmed -->
+                    <!-- Ghost dots: next chord's VL targets, hollow dashed outline -->
                     <g
                         v-for="g in ghostDots"
                         :key="`ghost-${g.string}`"
                         class="ghost-dot-group"
                         :style="`transform: translate(${g.cx}px, ${g.cy}px)`"
                     >
-                        <circle class="ghost-dot" r="9" cx="0" cy="0" :style="`fill: ${g.color}`" />
+                        <circle class="ghost-dot" r="9" cx="0" cy="0" />
                         <text
                             v-if="g.label"
                             class="dot-finger"
@@ -683,6 +689,8 @@ function onFocusOut(e: FocusEvent) {
 <style scoped>
 .sbn-prog-viewer {
     --prog-color: var(--clr-accent);
+    --play-color: #7e8896;
+    --str-graded: #9aa7b4;
     background: var(--clr-white);
     border: 1px solid var(--clr-border);
     border-radius: var(--radius);
@@ -805,7 +813,9 @@ function onFocusOut(e: FocusEvent) {
     align-items: center;
     justify-content: center;
     gap: 4px;
-    padding: 4px 0 4px 8px;
+    padding: 4px 0 4px 12px;
+    border-left: 1px solid var(--clr-border-dim, #eef1f5);
+    margin-left: 4px;
 }
 .aside-chord-name {
     font-family: var(--font-chord, 'Crimson Text', Georgia, serif);
@@ -824,7 +834,12 @@ function onFocusOut(e: FocusEvent) {
 .aside-chord-name :deep(.sbn-chord-ext--extra){ font-weight: 400; opacity: 0.75; }
 .aside-chord-name :deep(.sbn-chord-bass)      { font-size: 0.85em; }
 
-.board .string-line { stroke: var(--clr-text); stroke-width: 1; }
+.board .neck-surface {
+    fill: var(--clr-surface-2);
+    stroke: var(--clr-border);
+    stroke-width: 1;
+}
+.board .string-line { stroke: var(--str-graded, var(--clr-text)); }
 .board .fret-line { stroke: var(--clr-border); stroke-width: 1; }
 .board .fret-line.nut { stroke: var(--clr-text); stroke-width: 3; }
 .board .fret-num {
@@ -840,7 +855,18 @@ function onFocusOut(e: FocusEvent) {
 }
 .board .dot-group {
     transition: transform 1.1s var(--ease), opacity 0.35s ease;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.08));
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.16));
+}
+.board .dot-sheen {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.30);
+    stroke-width: 1;
+}
+.board .root-ring {
+    fill: none;
+    stroke: var(--prog-color);
+    stroke-width: 1.4;
+    opacity: 0.85;
 }
 .board .dot-group.is-hidden {
     opacity: 0;
@@ -857,15 +883,18 @@ function onFocusOut(e: FocusEvent) {
     fill: var(--clr-text);
 }
 .board .ghost-dot-group {
-    opacity: 0.35;
+    opacity: 0.9;
     pointer-events: none;
     transition: transform 1.1s var(--ease);
 }
 .board .ghost-dot {
-    /* fill set inline per VL type color */
+    fill: var(--clr-white);
+    stroke: var(--clr-text-muted);
+    stroke-width: 1.4;
+    stroke-dasharray: 2.2 2.2;
 }
 .board .ghost-dot-group .dot-finger {
-    fill: var(--clr-white);
+    fill: var(--clr-text-muted);
 }
 .board .dot-finger {
     fill: var(--clr-white);
