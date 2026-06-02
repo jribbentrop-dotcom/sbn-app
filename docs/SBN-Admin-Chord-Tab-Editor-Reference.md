@@ -1,7 +1,7 @@
   j# SBN Admin — Chord / Tab Editor Reference
 
 > **Purpose:** Complete reference for the admin leadsheet editor: architecture, Vue component tree, chord grid, voicing picker, tab notation, audio playback, video sync, keyboard shortcuts, design system, and all creation flows (blank, from progression, exercises, transcription).
-> **Last updated:** 2026-05-23
+> **Last updated:** 2026-06-02
 
 ---
 
@@ -103,9 +103,11 @@ window.__sbnTabModel.setChordName(gi, ci, name)
 window.__sbnTabModel.setChordNameWithVoicing(gi, ci, name, tabData)
   // tabData = { frets: '6-char string', position: number } from extractFretsAtChord()
   // writes chordName + positional voicing key `name@gi.ci` in one undo command
+window.__sbnTabModel.setTempo(bpm)
+  // Updates model.value.tempo + calls AudioEngine.setTempo() — wired to the tempo meta input
 ```
 Initialized once by `TabEditor.vue` via `initTabModelFacade({...})` after `useTabModel` setup.
-Write functions are registered separately after `chordGridOps` is created via `registerSetChordName()` / `registerSetChordNameWithVoicing()` — avoids circular init order.
+Write functions are registered separately after `chordGridOps` is created via `registerSetChordName()` / `registerSetChordNameWithVoicing()` / `registerSetTempo()` — avoids circular init order.
 
 ### Save pipeline
 1. User clicks Save → Alpine `save()`
@@ -185,6 +187,8 @@ TabNote { string, fret, pitch, octave, tieStart, tieStop, tieEndEvent?, tieEndNo
 
 ### Chord timing model (beat-grid layout)
 `parseMeasure()` in `edit.blade.php` walks measure children sequentially. Each `<harmony>` element gets `beatInMeasure = tickDivs / divisions` and `beats` from the gap to the next harmony (or measure end). Gives 8th-note precision from MusicXML.
+
+**Unit invariant:** `beatInMeasure` and `beats` are always in **quarter-beat units**, not raw `<beats>` count. For compound meters (6/8, 12/8 etc.) the measure length in quarter beats = `<beats> * (4 / <beat-type>)` — e.g. 6/8 → 3 quarter beats, not 6. `parseMeasure()` reads `<beat-type>` and computes `measureQuarterBeats` for the last chord's end position. `exportAlpineSections()` and `parseShortcodeClient()` use `tsBeats * (4 / tsBeatType)` for the same reason. Breaking this invariant causes chord cards to render at 200%+ width in compound meters.
 
 On save, `exportAlpineSections()` serializes `beatInMeasure`/`beats` back onto each chord object so timing survives round-trip through `json_data`. On load, `useTabModel.js` reads these fields into `chordOffsets[]`/`chordBeats[]`.
 
@@ -752,6 +756,8 @@ All paths land in the same editor. Storage contract is identical regardless of h
 ### Exercises
 
 Exercises live in `sbn_exercises` (separate table from `sbn_leadsheets`). Exercise edit page uses the same `TabEditor.vue` via `exerciseEditor()` Alpine function. Full detail (sbn-sheet tag, SheetMiniPlayer, API, LessonPalette) in [SBN-Course-Reference.md §9](SBN-Course-Reference.md).
+
+**Exercise save payload** (sent by Alpine `save()` for `itemType === 'exercises'`): `title`, `composer`, `key_center`, `bpm_default`, `time_sig`, `rhythm`, `type`, `measure_count` (= `allMeasures.length`), `popularity`, `content_json`, `shortcode_content`, `tab_xml`, `description`, `harmony_notes`, `form_notes`, `voicing_notes`. Note: exercises have no `difficulty`, `genre`, or `tags` DB columns — those meta fields are hidden in the editor when `itemType === 'exercises'`.
 
 **Full-copy:** "→ Save as Exercise" button → `Admin\ExerciseController::createFromLeadsheet()` — copies the entire leadsheet.
 
