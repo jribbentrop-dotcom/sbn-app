@@ -18,6 +18,7 @@
 let _fns = null;
 let _setChordName = null;
 let _setChordNameWithVoicing = null;
+let _setTempo = null;
 
 const facade = {
     /** True once TabEditor has registered its getter functions. */
@@ -66,6 +67,11 @@ const facade = {
     setChordNameWithVoicing(globalMeasureIndex, chordIndex, name, tabData) {
         _setChordNameWithVoicing?.(globalMeasureIndex, chordIndex, name, tabData);
     },
+
+    /** Update the transport tempo from Alpine (meta panel input). */
+    setTempo(bpm) {
+        _setTempo?.(bpm);
+    },
 };
 
 if (typeof window !== 'undefined' && !window.__sbnTabModel) {
@@ -92,4 +98,9 @@ export function registerSetChordName(fn) {
 /** Patch in setChordNameWithVoicing after chordGridOps is created. */
 export function registerSetChordNameWithVoicing(fn) {
     _setChordNameWithVoicing = fn;
+}
+
+/** Patch in setTempo from TabEditor so Alpine's meta panel can drive the transport. */
+export function registerSetTempo(fn) {
+    _setTempo = fn;
 }

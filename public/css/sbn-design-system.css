@@ -1290,7 +1290,7 @@
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
 }
 
 /* ── Active picker wrap ──────────────────────────────────── */
@@ -1626,7 +1626,7 @@
     flex: 1;
     min-height: 0;
     padding: 14px 16px;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .sbn-vp-overview-header {
@@ -1688,6 +1688,7 @@
     overflow-y: auto;
     flex: 1;
     min-height: 0;
+    max-height: calc(100vh - var(--topbar-h, 60px) - 120px);
 }
 
 .sbn-vp-overview-card {

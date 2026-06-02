@@ -188,14 +188,14 @@
                 <div class="sbn-vp-meta-field">
                     <span class="sbn-vp-meta-label">Tempo</span>
                     <input type="number" class="sbn-vp-meta-input"
-                           x-model.number="parsed.tempo" min="20" max="300" @input="markDirty()">
+                           x-model.number="parsed.tempo" min="20" max="300" @input="markDirty(); window.__sbnTabModel?.setTempo(parsed.tempo)">
                 </div>
                 <div class="sbn-vp-meta-field">
                     <span class="sbn-vp-meta-label">Time</span>
                     <input type="text" class="sbn-vp-meta-input"
                            x-model="parsed.timeSignature" @input="markDirty()">
                 </div>
-                <div class="sbn-vp-meta-field">
+                <div class="sbn-vp-meta-field" x-show="itemType === 'leadsheets'">
                     <span class="sbn-vp-meta-label">Style</span>
                     <select class="sbn-vp-meta-select" x-model="genre" @change="markDirty()">
                         <option value="">— auto —</option>
@@ -228,7 +228,7 @@
                         <option value="11">Iconic (11)</option>
                     </select>
                 </div>
-                <div class="sbn-vp-meta-field">
+                <div class="sbn-vp-meta-field" x-show="itemType === 'leadsheets'">
                     <span class="sbn-vp-meta-label">Difficulty</span>
                     <select class="sbn-vp-meta-select" x-model.number="difficulty" @change="markDirty()">
                         <option value="0">— unset —</option>
@@ -240,8 +240,8 @@
                     </select>
                 </div>
 
-                {{-- ── Hashtags ─────────────────────────────────── --}}
-                <div class="sbn-vp-meta-field" style="grid-column:span 2; flex-direction:column; align-items:flex-start; gap:6px;">
+                {{-- ── Hashtags (leadsheets only) ───────────────── --}}
+                <div class="sbn-vp-meta-field" x-show="itemType === 'leadsheets'" style="grid-column:span 2; flex-direction:column; align-items:flex-start; gap:6px;">
                     <span class="sbn-vp-meta-label">Hashtags</span>
                     <div class="sbn-tags-active" x-show="leadsheetTags.length > 0">
                         <template x-for="tag in leadsheetTags" :key="tag">
@@ -433,6 +433,7 @@ class MusicXMLParser {
         this.doc = parser.parseFromString(xmlString, 'text/xml');
         this.divisions = 1;
         this.beatsPerMeasure = 4;
+        this.beatType = 4;
     }
 
     parse() {
@@ -656,8 +657,13 @@ class MusicXMLParser {
         if (divisions) this.divisions = parseInt(divisions.textContent);
         const beatsEl = measure.querySelector('beats');
         if (beatsEl) this.beatsPerMeasure = parseInt(beatsEl.textContent);
+        const beatTypeEl = measure.querySelector('beat-type');
+        if (beatTypeEl) this.beatType = parseInt(beatTypeEl.textContent);
         const beatsPerMeasure = this.beatsPerMeasure;
-        const totalDivs = this.divisions * beatsPerMeasure; // total divisions in the measure
+        const beatType = this.beatType || 4;
+        // Quarter-beat length of the measure (e.g. 3 for both 3/4 and 6/8).
+        const measureQuarterBeats = beatsPerMeasure * (4 / beatType);
+        const totalDivs = this.divisions * measureQuarterBeats; // total divisions in the measure
 
         if (measure.querySelectorAll('harmony').length === 0 && measure.querySelectorAll('note').length === 0) {
             return { chords: [], notes: [], measureNumber: measureIndex + 1 };
@@ -714,12 +720,11 @@ class MusicXMLParser {
         // Derive each chord's duration (in quarter beats) from successive start positions.
         // The last chord spans to the end of the measure.
         if (chords.length > 0) {
-            const divsPerBeat = this.divisions;
             for (let i = 0; i < chords.length; i++) {
                 const startBeat = chords[i].beatInMeasure;
                 const endBeat = i + 1 < chords.length
                     ? chords[i + 1].beatInMeasure
-                    : beatsPerMeasure;
+                    : measureQuarterBeats; // quarter-beat end, not raw <beats> count
                 chords[i].beats = Math.max(0.25, endBeat - startBeat);
             }
         }
@@ -1839,7 +1844,9 @@ function leadsheetEditor() {
 
         // Client-side shortcode parser (minimal, for edit mode)
         parseShortcodeClient(sc, ls) {
-            const beatsInBar = parseInt((ls.time_signature || '4/4').split('/')[0]) || 4;
+            const timeSig = ls.time_signature || '4/4';
+            const [tsN, tsD] = timeSig.split('/').map(n => parseInt(n) || 4);
+            const beatsInBar = tsN * (4 / tsD); // quarter-beat measure length (e.g. 3 for 6/8, not 6)
             const parsed = {
                 title: ls.title || '', composer: ls.composer || '', key: ls.song_key || 'C',
                 tempo: ls.tempo || 120, timeSignature: ls.time_signature || '4/4',
@@ -2341,7 +2348,7 @@ function leadsheetEditor() {
             const method = this.itemId ? 'PUT' : 'POST';
 
             try {
-                const payload = this.itemType === 'exercises' 
+                const payload = this.itemType === 'exercises'
                     ? {
                         title: this.parsed.title,
                         composer: this.parsed.composer,
@@ -2350,6 +2357,8 @@ function leadsheetEditor() {
                         time_sig: this.parsed.timeSignature,
                         rhythm: this.rhythmSlug,
                         type: 'tab_exercise',
+                        measure_count: allMeasures.length,
+                        popularity: this.popularity || 0,
                         content_json: JSON.stringify(finalJsonData),
                         shortcode_content: shortcode,
                         tab_xml: this.tabXml,

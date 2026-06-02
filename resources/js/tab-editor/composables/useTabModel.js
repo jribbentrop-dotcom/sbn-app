@@ -1408,7 +1408,11 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
     function exportAlpineSections() {
         if (!model.value) return [];
         const ts = model.value.timeSignature || '4/4';
-        const tsBeats = parseInt(ts.split('/')[0], 10) || 4;
+        const [tsBeatsStr, tsBeatTypeStr] = ts.split('/');
+        const tsBeats    = parseInt(tsBeatsStr, 10)    || 4;
+        const tsBeatType = parseInt(tsBeatTypeStr, 10) || 4;
+        // Quarter-beat measure length — e.g. 3 for both 3/4 and 6/8, 4 for 4/4.
+        const quarterBeatsPerMeasure = tsBeats * (4 / tsBeatType);
 
         return model.value.sections.map(sec => ({
             id:         sec.id || '',
@@ -1419,9 +1423,9 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
             measures:   sec.measures.map(m => {
                 const names = (m.chordNames || []).filter(n => n != null && n !== '');
                 if (!names.length) {
-                    return { chords: [{ name: '', beats: tsBeats }] };
+                    return { chords: [{ name: '', beats: quarterBeatsPerMeasure }] };
                 }
-                const beatsEach = tsBeats / names.length;
+                const beatsEach = quarterBeatsPerMeasure / names.length;
                 return {
                     chords: names.map((name, i) => ({
                         name,

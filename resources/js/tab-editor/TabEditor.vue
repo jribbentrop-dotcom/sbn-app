@@ -294,7 +294,7 @@ import { useUndo } from './composables/useUndo.js';
 import { useSelection } from './composables/useSelection.js';
 import { sidebarStore } from './composables/useSidebarStore.js';
 import { modelToMusicXml } from './utils/musicXmlWriter.js';
-import { initTabModelFacade, registerSetChordName, registerSetChordNameWithVoicing } from './utils/tabModelFacade.js';
+import { initTabModelFacade, registerSetChordName, registerSetChordNameWithVoicing, registerSetTempo } from './utils/tabModelFacade.js';
 import { extractFretsAtChord, applyVoicingToChord } from './composables/useChordSync.js';
 import TabMeasure from './components/TabMeasure.vue';
 import { useChordGridOps }        from './composables/useChordGridOps.js';
@@ -875,6 +875,7 @@ watch(model, (newVal, oldVal) => {
 
 const chordGridOps      = useChordGridOps(model, { wrapCommand }, tabModel);
 registerSetChordName((gi, ci, name) => chordGridOps.setChordName(gi, ci, name));
+registerSetTempo((bpm) => onTransportTempo(bpm));
 registerSetChordNameWithVoicing((gi, ci, name, tabData) => {
     chordGridOps.setChordName(gi, ci, name);
     if (tabData && model.value?.chordVoicings) {
