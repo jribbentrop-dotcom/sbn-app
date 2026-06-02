@@ -1041,22 +1041,20 @@
     margin-bottom: 6px;
 }
 
-/* Button / interactive variant — used in ChordProgressionViewer chord row */
+/* Button / interactive variant — used in ChordProgressionViewer header chips */
 .sbn-numeral-chip--btn {
     cursor: pointer;
-    border-bottom-width: 2px;
-    border-right-width: 2px;
-    transition: background 0.12s, border-color 0.12s;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .sbn-numeral-chip--btn:hover {
-    background: var(--clr-border);
+    background: color-mix(in srgb, var(--prog-color, var(--clr-accent)) 12%, var(--clr-surface-2));
+    border-color: color-mix(in srgb, var(--prog-color, var(--clr-accent)) 40%, transparent);
 }
 .sbn-numeral-chip--btn.active {
-    background: var(--clr-border);
-    border-color: var(--clr-text-muted);
-    border-bottom-color: var(--clr-text);
-    border-right-color: var(--clr-text);
+    background: color-mix(in srgb, var(--prog-color, var(--clr-accent)) 18%, transparent);
+    border-color: color-mix(in srgb, var(--prog-color, var(--clr-accent)) 55%, transparent);
     color: var(--clr-text);
+    font-weight: 700;
 }
 
 .sbn-badge-tonality-minor {

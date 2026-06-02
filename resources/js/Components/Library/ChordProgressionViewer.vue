@@ -302,17 +302,12 @@ const excerptWindow = computed<[number, number]>(() => {
 
 // Fixed virtual width — never changes, only x-origin shifts.
 const EXCERPT_VW = fretEdgeX[FRET_WINDOW] - fretEdgeX[0];
-
-function chordMidSvgX(positions: Position[]): number {
-    const frets = positions.map(p => p.fret).filter(f => f >= FRET_FROM && f <= FRET_TO);
-    if (!frets.length) return fretCenterX(Math.round(FRET_FROM + FRET_WINDOW / 2));
-    const lo = Math.min(...frets), hi = Math.max(...frets);
-    return (fretCenterX(lo) + fretCenterX(hi)) / 2;
-}
+// Max left-edge so the right side of the viewBox never goes past the last fret wire.
+const MAX_SMOOTH_X = fretEdgeX[FRET_TO - FRET_FROM + 1] - EXCERPT_VW;
 
 // Smoothly animated x-origin (CSS can't transition viewBox, so we lerp in rAF).
 // Initialise already centered on chord 0 so there's no slide-in on mount.
-const smoothX = ref(chordMidSvgX(activePositions.value) - EXCERPT_VW / 2);
+const smoothX = ref(Math.min(fretEdgeX[excerptWindow.value[0] - FRET_FROM], MAX_SMOOTH_X));
 let rafId: number | null = null;
 
 function animateX(target: number) {
@@ -327,12 +322,9 @@ function animateX(target: number) {
     rafId = requestAnimationFrame(step);
 }
 
-watch(activePositions, (positions) => {
-    const mid = chordMidSvgX(positions);
-    // clamp so we never show beyond the full fretboard
-    const minX = fretEdgeX[0];
-    const maxX = fretEdgeX[FRET_TO - FRET_FROM + 1] - EXCERPT_VW;
-    animateX(Math.max(minX, Math.min(maxX, mid - EXCERPT_VW / 2)));
+// Only pan when the window itself changes — not on every chord.
+watch(excerptWindow, ([lo]) => {
+    animateX(Math.min(fretEdgeX[lo - FRET_FROM], MAX_SMOOTH_X));
 });
 onBeforeUnmount(() => { if (rafId !== null) cancelAnimationFrame(rafId); });
 
@@ -562,7 +554,7 @@ function onFocusOut(e: FocusEvent) {
         @focusout="onFocusOut"
     ><div class="sbn-prog-inner">
         <!-- Header -->
-        <div v-if="name || category || keyLabel || numerals" class="head">
+        <div v-if="name || category || keyLabel || chords.length || numerals" class="head">
             <div class="head-left">
                 <h4 v-if="name" class="head-title" v-html="name" />
                 <div v-if="category || keyLabel" class="head-meta">
@@ -570,7 +562,21 @@ function onFocusOut(e: FocusEvent) {
                     <span v-if="keyLabel" class="sbn-badge sbn-badge-muted">Key of {{ keyLabel }}</span>
                 </div>
             </div>
-            <div v-if="numerals" class="head-numerals">
+            <!-- Chord selector chips — clickable when chords available, static fallback from numerals prop -->
+            <div v-if="chords.length" class="head-numerals">
+                <button
+                    v-for="(chord, i) in chords"
+                    :key="i"
+                    type="button"
+                    class="sbn-numeral-chip sbn-numeral-chip--btn"
+                    :class="{ active: i === activeIndex }"
+                    @click="goTo(i)"
+                >
+                    <span v-if="chord.numeral">{{ chord.numeral }}</span>
+                    <span v-else v-html="chordDisplayHtml(chord)" />
+                </button>
+            </div>
+            <div v-else-if="numerals" class="head-numerals">
                 <span
                     v-for="n in numerals.split(/[,–]/).map(s => s.trim()).filter(Boolean)"
                     :key="n"
@@ -671,20 +677,6 @@ function onFocusOut(e: FocusEvent) {
             </div>
         </div>
 
-        <!-- Chord badge row -->
-        <div v-if="chords.length" class="chord-badge-row">
-            <button
-                v-for="(chord, i) in chords"
-                :key="i"
-                type="button"
-                class="sbn-numeral-chip sbn-numeral-chip--btn"
-                :class="{ active: i === activeIndex }"
-                @click="goTo(i)"
-            >
-                <span v-if="chord.numeral">{{ chord.numeral }}</span>
-                <span v-else v-html="chordDisplayHtml(chord)" />
-            </button>
-        </div>
     </div></div>
 </template>
 
@@ -884,13 +876,6 @@ function onFocusOut(e: FocusEvent) {
     letter-spacing: -0.02em;
 }
 
-/* Chord badge row */
-.chord-badge-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 10px;
-}
 /* Responsive */
 @media (max-width: 640px) {
     .sbn-prog-viewer { padding: 16px 14px 14px; }
