@@ -130,7 +130,7 @@
                     <option value="">— Free / no product —</option>
                     @foreach($products as $product)
                         <option value="{{ $product->id }}" @selected(old('product_id', $course->product_id) == $product->id)>
-                            {{ $product->name }}
+                            {{ $product->title }}
                         </option>
                     @endforeach
                 </select>

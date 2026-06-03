@@ -25,6 +25,7 @@ class Product extends Model
         'wp_post_id',
         'published_at',
         'status',
+        'tax_code',
     ];
 
     protected $casts = [

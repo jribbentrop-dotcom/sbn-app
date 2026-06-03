@@ -36,6 +36,7 @@ use App\Http\Controllers\Admin\LessonController as AdminLessonController;
 use App\Http\Controllers\Admin\ExerciseController as AdminExerciseController;
 use App\Http\Controllers\Library\ExerciseController as ExerciseLibraryController;
 use App\Http\Controllers\Admin\AdminFretboardController;
+use App\Http\Controllers\Admin\ProductController as AdminProductController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -160,6 +161,15 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
     Route::get('/rhythms/{rhythm}/edit', [RhythmPatternController::class, 'edit'])->name('rhythms.edit');
     Route::put('/rhythms/{rhythm}', [RhythmPatternController::class, 'update'])->name('rhythms.update');
     Route::delete('/rhythms/{rhythm}', [RhythmPatternController::class, 'destroy'])->name('rhythms.destroy');
+
+    // Phase 12c — Products (admin CRUD)
+    Route::get('/products', [AdminProductController::class, 'index'])->name('products.index');
+    Route::get('/products/create', [AdminProductController::class, 'create'])->name('products.create');
+    Route::post('/products', [AdminProductController::class, 'store'])->name('products.store');
+    Route::get('/products/{product}/edit', [AdminProductController::class, 'edit'])->name('products.edit');
+    Route::put('/products/{product}', [AdminProductController::class, 'update'])->name('products.update');
+    Route::delete('/products/{product}', [AdminProductController::class, 'destroy'])->name('products.destroy');
+    Route::post('/products/{product}/status', [AdminProductController::class, 'updateStatus'])->name('products.updateStatus');
 
     // Phase 11b — Courses + Lessons (admin CRUD)
     Route::get('/courses', [AdminCourseController::class, 'index'])->name('courses.index');

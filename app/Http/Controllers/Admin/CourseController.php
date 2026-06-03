@@ -26,7 +26,7 @@ class CourseController extends Controller
         }
 
         $courses  = $query->orderBy('sort_order')->orderBy('title')->paginate(25)->withQueryString();
-        $products = Product::orderBy('name')->get(['id', 'name', 'slug']);
+        $products = Product::orderBy('title')->get(['id', 'title', 'slug']);
 
         return view('admin.courses.index', compact('courses', 'products'));
     }
@@ -34,7 +34,7 @@ class CourseController extends Controller
     public function create(): View
     {
         $course       = new Course;
-        $products     = Product::orderBy('name')->get(['id', 'name', 'slug']);
+        $products     = Product::orderBy('title')->get(['id', 'title', 'slug']);
         $isNew        = true;
         $existingTags = '';
 
@@ -59,7 +59,7 @@ class CourseController extends Controller
     public function edit(Course $course): View
     {
         $course->load('lessons');
-        $products     = Product::orderBy('name')->get(['id', 'name', 'slug']);
+        $products     = Product::orderBy('title')->get(['id', 'title', 'slug']);
         $isNew        = false;
         $existingTags = $course->tags()->pluck('slug')->implode(',');
 

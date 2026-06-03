@@ -47,6 +47,7 @@
             </div>
             <div class="sbn-nav-section">
                 <span class="sbn-nav-label" x-show="!sidebarCollapsed" x-transition.opacity>Shop</span>
+                <x-admin.nav-item route="admin.products.index" icon="leadsheet" label="Products" />
                 <x-admin.nav-item route="admin.orders.index" icon="leadsheet" label="Orders" />
                 <x-admin.nav-item route="admin.course-grants.index" icon="leadsheet" label="Course Grants" />
             </div>
