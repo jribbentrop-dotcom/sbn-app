@@ -175,11 +175,15 @@ resources/js/tab-editor/
 TabModel { timeSignature, ticksPerMeasure, sections: SectionModel[], chordVoicings{} }
 SectionModel { id, name, lineBreaks[], measures: MeasureModel[] }
 MeasureModel { index, events: TabEvent[], actualTicks, repeatStart/End, volta, chordNames[],
-               chordOffsets[], chordBeats[] }
+               chordOffsets[], chordBeats[], pickup, pickupBeats }
   chordOffsets[i] — beat offset of chord i from measure start (quarter beats, 0-based)
   chordBeats[i]   — duration of chord i in quarter beats
   Both always in sync with chordNames[]. Set by parseMeasure() from MusicXML tick data,
   or by _recomputeEvenOffsets() when chords are added/removed manually.
+  pickup      — boolean; true if this is an anacrusis/pickup bar
+  pickupBeats — number|null; quarter-beat count for the pickup (e.g. 0.5 for one 8th note
+                in 4/4). null = full bar. Drives: beat-grid width, audio adapter timing,
+                playback cursor position, xPos right-alignment of tab notes.
 TabEvent { id, tick, tickInMeasure, duration, ticks, voice, isRest, notes: TabNote[],
            tieStart/Stop, stemDir, flagCount, beam1/2, beamWith, tuplet*, xPos }
 TabNote { string, fret, pitch, octave, tieStart, tieStop, tieEndEvent?, tieEndNote? }
@@ -217,6 +221,15 @@ undo.wrapCommand('Insert bar', [], () => { tabModel.insertMeasureAfter(si, mi); 
   afterApply: () => dispatchEvent(new CustomEvent('sbn-tab-sections-sync')),
 });
 ```
+
+### Pickup bar ops (Pattern A)
+- `togglePickup(gi)` — flips `m.pickup`; clears `pickupBeats` when unmarking
+- `setPickupBeats(gi, beats)` — sets exact quarter-beat count; marks `pickup:true`. Pass `null` to unmark. UI: right-click → beat-count row (1…N buttons matching time sig + ✕ clear)
+- `pickup` / `pickupBeats` flow: `buildModel()` reads from section data → `patchChordNames()` re-syncs on chord change → `exportAlpineSections()` serializes back to Alpine
+- MusicXML import: `parseMeasure()` detects `implicit="yes"` on `<measure>` → sets `pickup:true`, `pickupBeats` from actual note-cursor ticks; chord `beats` capped to pickup length
+- `useReflow.repositionMeasure()` uses `pickupBeats*480` as capacity, right-aligns xPos: `xPos = (tpm-capacityTicks)/tpm + tickInMeasure/tpm`
+- Audio adapters (`tabMeasureToEvents`, `chordVoicingsToEvents`): build `positionBeatStart[]` accumulating `m.pickupBeats ?? beatsPerMeasure` per position — no silence gap
+- Playback: `playPositionBeatTable` (TabEditor) accumulates per-position beat starts; `measureBeatStartMap` (provided) lets TabMeasure/ChordMeasure compute true beat-within-measure; metronome cursor starts at `pickupXOffset = (globalBpm - pickupBeats) / globalBpm` so it aligns with the right-aligned note
 
 ### `chordVoicings` key management
 - `insertMeasureAfter` / `deleteMeasure` / `moveMeasure` call `_reindexChordVoicingKeys` inline
