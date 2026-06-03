@@ -32,6 +32,7 @@ class RegisterController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+        $user->claimGuestOrders();
 
         return redirect()->route('account.dashboard');
     }

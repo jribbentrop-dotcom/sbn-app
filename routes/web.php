@@ -353,6 +353,22 @@ Route::get('/shop/download/{token}/{productId}', [DownloadController::class, 'do
 
 /*
 |--------------------------------------------------------------------------
+| Payments — provider-agnostic webhook + dev fake checkout
+|--------------------------------------------------------------------------
+*/
+Route::post('/webhooks/payments', \App\Http\Controllers\Webhooks\PaymentWebhookController::class)
+    ->name('payments.webhook');
+
+// Local fake-provider checkout simulation (never registered in production).
+if (! app()->environment('production')) {
+    Route::get('/payments/fake/checkout/{token}', [\App\Http\Controllers\Payments\FakeCheckoutController::class, 'show'])
+        ->name('payments.fake.checkout');
+    Route::post('/payments/fake/checkout/{token}/pay', [\App\Http\Controllers\Payments\FakeCheckoutController::class, 'pay'])
+        ->name('payments.fake.pay');
+}
+
+/*
+|--------------------------------------------------------------------------
 | Root redirect
 |--------------------------------------------------------------------------
 */

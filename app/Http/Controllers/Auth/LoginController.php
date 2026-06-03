@@ -26,6 +26,7 @@ class LoginController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
+            Auth::user()->claimGuestOrders();
             return redirect()->intended($this->landingFor(Auth::user()));
         }
 

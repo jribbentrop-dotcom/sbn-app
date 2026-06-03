@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends Model
@@ -10,13 +11,22 @@ class Order extends Model
     protected $table = 'sbn_orders';
 
     protected $fillable = [
+        'user_id',
         'guest_email',
         'total_cents',
         'display_currency',
         'status',
+        'provider_order_id',
         'stripe_payment_intent_id',
         'token',
     ];
+
+    // Order status values (status column is a string; not all are enum-enforced).
+    public const STATUS_PENDING_STUB    = 'pending_stub';
+    public const STATUS_PENDING_PAYMENT = 'pending_payment';
+    public const STATUS_PAID            = 'paid';
+    public const STATUS_REFUNDED        = 'refunded';
+    public const STATUS_FAILED          = 'failed';
 
     protected $casts = [
         'total_cents' => 'integer',
@@ -46,6 +56,11 @@ class Order extends Model
     public function downloadGrants(): HasMany
     {
         return $this->hasMany(DownloadGrant::class, 'order_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     // =========================================================================

@@ -18,6 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'instructor' => \App\Http\Middleware\EnsureIsInstructor::class,
         ]);
+        // Payment provider webhooks are authenticated by signature, not CSRF.
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/payments',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

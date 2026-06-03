@@ -1701,37 +1701,43 @@ Lemon Squeezy, checkout-stub replacement, webhooks, `Course`↔LS variant column
 
 ---
 
-### Phase 12b — Payments (Lemon Squeezy)
+### Phase 12b — Payments (provider-agnostic, MoR) ✅ CORE DONE (2026-06-03)
 
-**Deliverable:** Lemon Squeezy wired to shop and course purchases, course access gated by the `course_user` ownership pivot from the Customer Backend phase.
+**Pivot from the original Lemon Squeezy-only plan (2026-06-03):** Stripe acquired Lemon Squeezy (2024) and is steering users to **Stripe Managed Payments** (SMP), its own MoR built from LS. At €8/mo the fee gap between Paddle (~5%+50¢) and SMP (~6.4%+30¢) is ~€1/yr — a wash. Self-serve tax was rejected (cross-border B2C VAT = registration + filing + audit risk; not worth it solo). So 12b was built **provider-agnostic behind a `PaymentProvider` interface** — the concrete MoR (Paddle vs SMP) is a late, reversible pick. All candidate MoRs surface Apple/Google Pay in hosted/overlay checkout automatically.
 
-**Provider decision (2026-05-28):** **Lemon Squeezy** as Merchant of Record. They collect, file, and remit EU VAT, US sales tax, and GST on our behalf — a meaningful win for a single-operator EU business selling globally to a low-ticket digital catalog. Cost is ~2% more than Stripe (~5% + 50¢ vs Stripe's ~2.9% + 30¢) in exchange for eliminating tax registration/filing entirely. Revisit Stripe if/when a subscription product with proration or seat-based billing lands.
+**Designed for future paywalls:** access is modeled as **entitlements** (`User::hasEntitlement`) so a future "SBN Pro" subscription (unlocking deeper library + widgets) plugs in without rework.
 
-**Prerequisite:** Customer backend + community (phases A–E) shipped 2026-05-28; as-built reference: [SBN-Customer-Reference.md](SBN-Customer-Reference.md). It defines the `course_user` pivot, the manual-grant admin tool, `CourseAccessService::grantPurchase()` (the LS webhook entry point), and the empty-state UX that this phase activates.
+#### What was built
 
-**Scope:**
-- Install `lmsqueezy/laravel` (Laravel Cashier-style adapter).
-- Replace Phase 2 shop checkout stub: redirect cart → Lemon Squeezy hosted checkout, return on success.
-- Webhook handler `order_created` / `order_refunded` → flip `sbn_orders.status` from `pending_stub` to `paid` / `refunded`, write `course_user` row with `source='purchase'` and the `order_id`.
-- Wire course purchase flow: each `Course` ↔ LS product/variant ID column on `sbn_courses`.
-- Auth pages (Inertia versions of Laravel's auth scaffolding).
-- Customer portal link in the Account area (LS-hosted; subscription/license management).
+**Provider seam** (`app/Services/Payments/`)
+- `PaymentProvider` interface: `createCheckout(Order): string`, `verifySignature(Request): bool`, `parseWebhook(Request): PaymentEvent`.
+- `PaymentEvent` DTO normalizes to `purchase.completed` / `purchase.refunded`.
+- `FakeProvider` — HMAC-signed dev/test provider, drives the whole pipeline with **no real account**. Bound via `PaymentProviderServiceProvider` keyed on `config('payments.provider')` (mirrors the existing `LLMServiceProvider` pattern; fake in `testing`).
+- `config/payments.php` — provider switch + per-provider creds (paddle / stripe_managed / fake).
 
-**Explicitly NOT in scope:**
-- Tax calculation — handled by LS as MoR. No Stripe Tax / Taxually / Quaderno wiring.
-- Subscriptions with proration / seat-based billing — defer until a recurring product exists.
-- Custom invoice generation — LS issues VAT-compliant invoices; we surface the link.
+**Schema** (provider-neutral names)
+- `sbn_products.payment_ref`, `sbn_orders.user_id` + `provider_order_id`, `users.payment_customer_id`.
+- `sbn_orders.status` relaxed from enum → string (SQLite enforced the enum as a CHECK constraint; new `pending_payment`/`refunded` values needed it). Laravel 13 native SQLite table rebuild (no doctrine/dbal).
 
-**Legacy references:**
-- `sbn-course-player(legacywp)/flavor-starter/flavor-starter/functions.php` — theme hooks (auth / redirects to review)
-- WP user DB — out of scope of this repo; migration handled separately, referenced here only as the source for user re-onboarding.
+**Flow**
+- `Shop/CheckoutController::store` → creates `pending_payment` Order (attaches `user_id` if logged in), calls `PaymentProvider::createCheckout`, `Inertia::location`s to the URL. **Download grants no longer created at checkout** — only on `paid`.
+- `Webhooks/PaymentWebhookController` (route `POST /webhooks/payments`, CSRF-exempt via `bootstrap/app.php`) → verify → parse → on paid: Order `paid` + create download grants + `CourseAccessService::grantPurchase` (if owned); on refund: `revokePurchase`. Idempotent.
+- `User::claimGuestOrders()` wired into Login + Register — email-matches paid guest orders, backfills `course_user`.
+- `User::hasEntitlement('course:{id}')` seam (resolves via existing `owns()`).
+- Dev-only `FakeCheckoutController` + `Pages/Payments/FakeCheckout.vue` simulate the hosted page and fire a signed webhook — full flow demoable locally.
 
-**Done:**
-- Real payment flow works end-to-end against Lemon Squeezy test-mode store.
-- `course_user.source='purchase'` rows land via webhook, and the Account → My Courses page shows the purchased course without manual grant.
-- Course access correctly gated via existing `User::owns()` (no new gate logic — the Customer Backend already shipped it).
-- Refund webhook removes the `course_user` row (or sets `expires_at = now()` — TBD per UX).
-- Existing users from WP migrated or re-onboarded (separate migration task).
+**Reused unchanged:** `CourseAccessService::grantPurchase`/`revokePurchase`, `User::owns()` + `CourseController::checkAccess` gating, the existing "Buy course" CTA on `Courses/Show.vue` (routes via shop product → cart → checkout).
+
+#### Tests — `tests/Feature/PaymentWebhookTest.php`, 5 passing
+paid→grant, idempotency, refund→revoke, bad-signature rejection (403), guest-order claim on registration. (AuthTest still 11 green after the `claimGuestOrders` wiring.)
+
+#### Remaining before going live (when MoR finalized)
+- Confirm **Stripe Managed Payments** availability for the user's Stripe account + buyer-country coverage; else **Paddle**. Add the concrete `PaymentProvider` impl + its Cashier package + signing secret, flip `PAYMENTS_PROVIDER`.
+- Account "Billing / receipts" portal link — deferred (portal URL is provider-specific; Orders page already surfaces receipts/downloads).
+- One real test-mode purchase + refund end-to-end; confirm Apple/Google Pay render.
+
+#### Out of scope (later)
+Subscriptions / "SBN Pro" tier + library/widget gating (groundwork only). Tax calc (MoR handles). WP user migration.
 
 ---
 

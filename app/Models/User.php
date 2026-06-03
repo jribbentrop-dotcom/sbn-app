@@ -60,4 +60,47 @@ class User extends Authenticatable
     {
         return (bool) ($this->is_instructor ?? false);
     }
+
+    /**
+     * Unified access check. For now only resolves `course:{id}` via owns().
+     * A future `pro` subscription entitlement plugs into the same method, so
+     * library/widget gating can call hasEntitlement('pro') without rework.
+     */
+    public function hasEntitlement(string $key): bool
+    {
+        if (str_starts_with($key, 'course:')) {
+            $courseId = (int) substr($key, strlen('course:'));
+            $course = Course::find($courseId);
+
+            return $course ? $this->owns($course) : false;
+        }
+
+        // 'pro' and other recurring entitlements land with subscriptions later.
+        return false;
+    }
+
+    /**
+     * Attach any paid guest orders placed with this user's email to their
+     * account, granting the courses those orders cover. Called on login and
+     * registration so guest purchases become owned access.
+     */
+    public function claimGuestOrders(): void
+    {
+        $orders = \App\Models\Order::query()
+            ->whereNull('user_id')
+            ->where('guest_email', $this->email)
+            ->where('status', \App\Models\Order::STATUS_PAID)
+            ->get();
+
+        if ($orders->isEmpty()) {
+            return;
+        }
+
+        $access = app(\App\Services\CourseAccessService::class);
+
+        foreach ($orders as $order) {
+            $order->update(['user_id' => $this->id]);
+            $access->grantPurchase($this, $order);
+        }
+    }
 }
