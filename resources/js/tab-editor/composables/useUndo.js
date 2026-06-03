@@ -42,6 +42,8 @@ export function useUndo(model) {
             chordNames:   measure.chordNames  ? [...measure.chordNames]  : [],
             chordOffsets: measure.chordOffsets ? [...measure.chordOffsets] : [],
             chordBeats:   measure.chordBeats   ? [...measure.chordBeats]   : [],
+            pickup:       !!(measure.pickup || measure.isPickup || measure.pickupBar),
+            pickupBeats:  measure.pickupBeats ?? null,
             events:      measure.events.map(ev => ({
                 ...ev,
                 notes:    ev.notes.map(n => {
@@ -74,6 +76,10 @@ export function useUndo(model) {
         if (snap.chordBeats) {
             measure.chordBeats = [...snap.chordBeats];
         }
+        measure.pickup      = !!snap.pickup;
+        measure.pickupBeats = snap.pickupBeats ?? null;
+        delete measure.isPickup;
+        delete measure.pickupBar;
         // Replace events array contents in-place (keeps the same array reference
         // so TabMeasure's v-for doesn't fully remount)
         measure.events.splice(0, measure.events.length, ...snap.events.map(ev => ({ ...ev, notes: ev.notes.map(n => ({ ...n })) })));
@@ -200,13 +206,15 @@ export function useUndo(model) {
         // After snapshots
         const after = measures.map(snapshotMeasure);
 
-        // Check if anything actually changed (events, ticks, or chord names)
+        // Check if anything actually changed (events, ticks, chord names, or pickup flag)
         const changed = measures.some((m, i) => {
             return JSON.stringify(before[i].events)       !== JSON.stringify(after[i].events)       ||
                    before[i].actualTicks                  !== after[i].actualTicks                  ||
                    JSON.stringify(before[i].chordNames)   !== JSON.stringify(after[i].chordNames)   ||
                    JSON.stringify(before[i].chordOffsets) !== JSON.stringify(after[i].chordOffsets) ||
-                   JSON.stringify(before[i].chordBeats)   !== JSON.stringify(after[i].chordBeats);
+                   JSON.stringify(before[i].chordBeats)   !== JSON.stringify(after[i].chordBeats)   ||
+                   before[i].pickup                       !== after[i].pickup       ||
+                   before[i].pickupBeats                  !== after[i].pickupBeats;
         });
         if (!changed) return;
 

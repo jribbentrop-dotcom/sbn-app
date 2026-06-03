@@ -489,13 +489,34 @@ async function reloadEvents() {
 
 // ── Transport helpers ─────────────────────────────────────
 
-const totalBeats = computed(() => {
-    if (!model.value?.sections) return 0;
-    const bpm = (model.value.ticksPerMeasure ?? 1920) / 480;
-    return model.value.sections.reduce((t, s) => t + s.measures.length, 0) * bpm;
+const beatsPerMeasure = computed(() => (model.value?.ticksPerMeasure ?? 1920) / 480);
+
+/**
+ * Per-measure beat offset table — accounts for pickup bars whose beat count
+ * differs from the global time signature.
+ *
+ * Each entry: { gi, beatStart, beatEnd, beats }
+ * Ordered by global measure index. Used by beatToMeasureEvent() and the
+ * transportBeat watcher to map play-position beats → measure gi.
+ */
+const measureBeatTable = computed(() => {
+    if (!model.value?.sections) return [];
+    const globalBpm = beatsPerMeasure.value;
+    const table = [];
+    let cursor = 0;
+    const allM = allMeasures.value.slice().sort((a, b) => a.index - b.index);
+    for (const m of allM) {
+        const beats = m.pickupBeats ?? globalBpm;
+        table.push({ gi: m.index, beatStart: cursor, beatEnd: cursor + beats, beats });
+        cursor += beats;
+    }
+    return table;
 });
 
-const beatsPerMeasure = computed(() => (model.value?.ticksPerMeasure ?? 1920) / 480);
+const totalBeats = computed(() => {
+    const t = measureBeatTable.value;
+    return t.length ? t[t.length - 1].beatEnd : 0;
+});
 
 // ── Transport clock ─────────────────────────────────────
 // When video is master, YouTube drives the clock. Otherwise, synth engine drives it.
@@ -592,7 +613,8 @@ function onTransportSeek(beat) {
  */
 function seekToPosition(playPos) {
     if (!model.value || playPos == null) return;
-    const beatStart = playPos * beatsPerMeasure.value;
+    const entry = playPositionBeatTable.value[playPos];
+    const beatStart = entry ? entry.beatStart : playPos * beatsPerMeasure.value;
     seekTab(beatStart);
     seekChord(beatStart);
 }
@@ -607,7 +629,8 @@ async function seekToMeasure(gi) {
     // The engine clock counts play positions, not gi — a repeated bar plays at
     // several positions. Seek to its FIRST occurrence (start of its phrase).
     const playPos = firstPositionForGi(_expandedChordSequence.value, gi);
-    const beatStart = playPos * beatsPerMeasure.value;
+    const entry = playPositionBeatTable.value[playPos];
+    const beatStart = entry ? entry.beatStart : playPos * beatsPerMeasure.value;
 
     if (videoSync.isVideoMaster.value) {
         // Video is master: seek video once (no continuous seeks during playback)
@@ -630,11 +653,19 @@ async function seekToMeasure(gi) {
  */
 function beatToMeasureEvent(beat) {
     if (!model.value) return null;
-    const bpm = beatsPerMeasure.value;
-    const ppq = (model.value.ticksPerMeasure ?? 1920) / bpm;
-    const mi = Math.floor(beat / bpm);
-    const beatInMeasure = beat % bpm;
-    const tickInMeasure = beatInMeasure * ppq;
+    const ppq = model.value.ticksPerMeasure ?? 1920;
+
+    // Find the measure that contains this beat using the offset table
+    const table = measureBeatTable.value;
+    const entry = table.find(e => beat >= e.beatStart && beat < e.beatEnd)
+                  ?? table[table.length - 1];
+    if (!entry) return null;
+
+    const mi = entry.gi;
+    const beatInMeasure = beat - entry.beatStart;
+    // Map beat-within-measure to ticks using the measure's own beat count
+    const ticksPerBeat = ppq / (entry.beats || beatsPerMeasure.value);
+    const tickInMeasure = beatInMeasure * ticksPerBeat;
 
     const measures = allMeasures.value;
     const m = measures.find(m => m.index === mi);
@@ -702,6 +733,23 @@ provide('chordActiveSourceId',  chordActiveSourceId); // kept for any future per
 provide('playingMeasureIndex',  playingMeasureIndex); // unified cursor highlight (both views)
 provide('transportBeat',        transportBeat);       // raw beat for sub-measure chord highlighting
 provide('beatsPerMeasureRef',   beatsPerMeasure);     // chord cards need this to compute windows
+// Map of gi → beatStart for the current play pass — lets TabMeasure/ChordMeasure
+// compute true beat-within-measure without assuming all measures are the same length.
+// For repeated bars, uses the pass currently being played (the entry whose range
+// contains transportBeat), falling back to the first occurrence.
+provide('measureBeatStartMap', computed(() => {
+    const beat  = transportBeat.value ?? 0;
+    const table = playPositionBeatTable.value;
+    const map   = new Map();
+    // First pass: populate with first occurrence of each gi
+    for (const e of table) {
+        if (!map.has(e.gi)) map.set(e.gi, e.beatStart);
+    }
+    // Second pass: if the current beat falls in a later occurrence, override
+    const active = table.find(e => beat >= e.beatStart && beat < e.beatEnd);
+    if (active) map.set(active.gi, active.beatStart);
+    return map;
+}));
 provide('seekToMeasure',        seekToMeasure);       // chord-card click → seek + play
 provide('seekToPosition',       seekToPosition);      // sync-row click → exact-pass seek
 provide('transportPlaying',     transportPlaying);    // playback active flag for cursor visibility
@@ -823,15 +871,41 @@ watch(bridgeOpenVideoSidebar, (val) => {
     }
 }, { immediate: true });
 
+/**
+ * Play-position beat offset table — maps each slot in the expanded sequence
+ * to its beat range, accounting for pickup bars whose beat count differs from
+ * the global time signature.
+ *
+ * Each entry: { pos, gi, beatStart, beatEnd }
+ */
+const playPositionBeatTable = computed(() => {
+    const seq     = _expandedChordSequence.value;
+    const globalBpm = beatsPerMeasure.value;
+    const table   = [];
+    let cursor    = 0;
+    for (let pos = 0; pos < seq.length; pos++) {
+        const gi    = seq[pos];
+        const m     = allMeasures.value.find(m => m.index === gi);
+        const beats = m?.pickupBeats ?? globalBpm;
+        table.push({ pos, gi, beatStart: cursor, beatEnd: cursor + beats });
+        cursor += beats;
+    }
+    return table;
+});
+
 // Keep playingMeasureIndex in sync with transportBeat.
 // transportBeat is a **play-position** beat (engine clock when synth is master,
 // videoBeat when video is master — both play-position based). We map the play
 // position back to a gi via the expanded sequence so repeat + volta bars
 // highlight the correct bar on each pass.
 watch(
-    [transportBeat, beatsPerMeasure],
-    ([beat, bpm]) => {
-        const pos = Math.floor((beat ?? 0) / bpm);
+    [transportBeat, playPositionBeatTable],
+    ([beat]) => {
+        const b = beat ?? 0;
+        const table = playPositionBeatTable.value;
+        const entry = table.find(e => b >= e.beatStart && b < e.beatEnd)
+                      ?? table[table.length - 1];
+        const pos = entry?.pos ?? Math.floor(b / (beatsPerMeasure.value || 4));
         playingMeasureIndex.value = giAtPosition(_expandedChordSequence.value, pos);
     },
     { immediate: true }
@@ -859,7 +933,8 @@ watch(
             // first play position when the video never started.
             const pos = videoSync.videoPlayPosition.value
                 ?? firstPositionForGi(_expandedChordSequence.value, playingMeasureIndex.value ?? 0);
-            const beatStart = pos * beatsPerMeasure.value;
+            const posEntry = playPositionBeatTable.value[pos];
+            const beatStart = posEntry ? posEntry.beatStart : pos * beatsPerMeasure.value;
             seekTab(beatStart);
             seekChord(beatStart);
         }
@@ -1980,14 +2055,27 @@ function handleDeleteSelected() {
             
             m.events = m.events.filter(e => !frozenIds.has(e.id));
             
-            // If measure is now empty, insert a whole rest so it remains accessible
+            // If measure is now empty, insert a rest matching the measure's capacity.
+            // Pickup bars get a rest sized to their pickupBeats, not the full bar.
             const v1 = m.events.filter(e => (e.voice || 1) === 1);
             if (v1.length === 0) {
                 const tpm = model.value.ticksPerMeasure;
+                const capacityTicks = m.pickupBeats != null
+                    ? Math.round(m.pickupBeats * 480)
+                    : tpm;
+                // Choose the nearest standard duration for the fallback rest
+                const STD = [
+                    { dur: 'w', ticks: 1920 }, { dur: 'h', ticks: 960 },
+                    { dur: 'q', ticks: 480 },  { dur: 'e', ticks: 240 },
+                    { dur: 's', ticks: 120 },
+                ];
+                const best = STD.reduce((a, b) =>
+                    Math.abs(b.ticks - capacityTicks) < Math.abs(a.ticks - capacityTicks) ? b : a
+                );
                 m.events.push({
                     id: generateId(),
                     tick: m.index * tpm, tickInMeasure: 0,
-                    measureIdx: m.index, duration: 'w', ticks: tpm,
+                    measureIdx: m.index, duration: best.dur, ticks: best.ticks,
                     voice: 1, isRest: true, notes: [],
                     tieStart: false, tieStop: false, tieStartEvent: null, tieEndEvent: null,
                     stemDir: null, flagCount: 0,
@@ -2628,6 +2716,7 @@ function measureRows(section) {
     }
     return rows;
 }
+
 
 function emptySlots(row) {
     // lineBreaks rows are marked by measureRows() — they never need padding

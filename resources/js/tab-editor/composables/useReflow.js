@@ -74,6 +74,12 @@ function voice1Sorted(measure) {
  * Does NOT touch other measures. Does NOT delete events.
  */
 function repositionMeasure(measure, tpm) {
+    // Pickup bars have fewer ticks than a full measure — use their actual beat
+    // count as the capacity target rather than the global ticksPerMeasure.
+    const capacityTicks = measure.pickupBeats != null
+        ? Math.round(measure.pickupBeats * 480)
+        : tpm;
+
     const v1 = voice1Sorted(measure);
     const baseTick = measure.index * tpm;
     let currentTick = baseTick;
@@ -87,17 +93,20 @@ function repositionMeasure(measure, tpm) {
 
     // Total ticks consumed by voice-1 events
     const totalTicks = currentTick - baseTick;
-    const effectiveTicks = Math.max(totalTicks, tpm);
+    const effectiveTicks = Math.max(totalTicks, capacityTicks);
 
-    // Compute xPos relative to the effective (possibly stretched) width
+    // Compute xPos relative to the full measure width.
+    // For pickup bars, right-align content so notes land on the beat they belong to:
+    // a 1-beat pickup in 3/4 sits at beat 3's position (xPos = 2/3), not beat 1.
+    const pickupOffset = measure.pickupBeats != null ? (tpm - capacityTicks) / tpm : 0;
     v1.forEach(ev => {
-        ev.xPos = ev.tickInMeasure / effectiveTicks;
+        ev.xPos = pickupOffset + ev.tickInMeasure / tpm;
     });
 
     // Store actualTicks only when overfilled — TabMeasure uses it to stretch the bar.
     // When the measure is full or underfull, clear it so isOverfilled falls through
     // to the tick-span path, which correctly handles tuplet durations.
-    measure.actualTicks = totalTicks > tpm ? totalTicks : null;
+    measure.actualTicks = totalTicks > capacityTicks ? totalTicks : null;
 
     // Re-sort the full events array (including voice 2)
     measure.events.sort((a, b) => a.tick - b.tick || a.voice - b.voice);
@@ -275,7 +284,9 @@ export function useReflow(model) {
     function measureFill(measure) {
         if (!model.value) return { totalTicks: 0, tpm: 1920, overfill: false };
 
-        const tpm = model.value.ticksPerMeasure;
+        const tpm = measure.pickupBeats != null
+            ? Math.round(measure.pickupBeats * 480)
+            : model.value.ticksPerMeasure;
         const v1 = voice1Sorted(measure);
 
         // For tuplet events, ev.ticks may be either:

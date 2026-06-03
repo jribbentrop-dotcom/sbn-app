@@ -56,6 +56,7 @@ const gridSelection      = inject('gridSelection', null);
 const chordPicker        = inject('chordPicker', null);
 const voicingPicker      = inject('voicingPicker', null);
 const triggerInlineRename = inject('triggerInlineRename', null);
+const beatsPerMeasureRef  = inject('beatsPerMeasureRef', null);
 
 // ── Context menu state (flat refs — v-model in template binds directly) ─────
 
@@ -74,6 +75,9 @@ function openContextMenu({ event, gi, ci, chordName, voicing, si, mi, measure })
     gi, ci, chordName, voicing, si, mi,
     repeatStart: measure?.repeatStart ?? false,
     repeatEnd:   measure?.repeatEnd   ?? false,
+    pickup:          measure?.pickup || measure?.isPickup || measure?.pickupBar || false,
+    pickupBeats:     measure?.pickupBeats ?? null,
+    beatsPerMeasure: beatsPerMeasureRef?.value ?? 4,
     volta:       measure?.volta       ?? null,
     voltaStart:  measure?.voltaStart  ?? false,
     voltaEnd:    measure?.voltaEnd    ?? false,
@@ -118,7 +122,7 @@ function onGridClick(event) {
 
 // ── Context menu action dispatch ──────────────────────────────────────────────
 
-function onContextMenuAction(actionId, data) {
+function onContextMenuAction(actionId, data, payload) {
   const { gi, ci, chordName, si, mi } = data;
 
   switch (actionId) {
@@ -210,6 +214,14 @@ function onContextMenuAction(actionId, data) {
       break;
 
     // Repeat / volta
+    case 'toggle-pickup':
+      ops?.togglePickup(gi);
+      break;
+
+    case 'set-pickup-beats':
+      ops?.setPickupBeats(gi, payload ?? null);
+      break;
+
     case 'toggle-repeat-start':
       ops?.toggleRepeatStart(gi);
       break;

@@ -69,6 +69,16 @@ export function chordVoicingsToEvents(model, ctx = {}) {
     // Expand the sequence respecting repeats and voltas
     const sequence = expandMeasureSequence(flatMeasures);
 
+    // Build a per-play-position beat offset table so pickup bars (which have
+    // fewer beats than the global time signature) don't leave a gap in the timeline.
+    const positionBeatStart = [];
+    let beatCursor = startBeat;
+    for (const gi of sequence) {
+        positionBeatStart.push(beatCursor);
+        const m = measureByGi.get(gi);
+        beatCursor += m?.pickupBeats ?? beatsPerMeasure;
+    }
+
     /** @type {EngineEvent[]} */
     const out = [];
 
@@ -80,13 +90,14 @@ export function chordVoicingsToEvents(model, ctx = {}) {
         const chordCount = chordNames.length;
         if (chordCount === 0) return;
 
-        const measureStartBeat = startBeat + playPosition * beatsPerMeasure;
+        const measureStartBeat = positionBeatStart[playPosition];
 
-        const chordOffsets = measure.chordOffsets;
-        const chordBeats   = measure.chordBeats;
-        const hasOffsets   = Array.isArray(chordOffsets) && chordOffsets.length === chordCount;
-        const hasBeats     = Array.isArray(chordBeats)   && chordBeats.length   === chordCount;
-        const evenBeats    = beatsPerMeasure / chordCount;
+        const chordOffsets    = measure.chordOffsets;
+        const chordBeats      = measure.chordBeats;
+        const hasOffsets      = Array.isArray(chordOffsets) && chordOffsets.length === chordCount;
+        const hasBeats        = Array.isArray(chordBeats)   && chordBeats.length   === chordCount;
+        const effectiveBeats  = measure.pickupBeats ?? beatsPerMeasure;
+        const evenBeats       = effectiveBeats / chordCount;
 
         for (let slotIndex = 0; slotIndex < chordCount; slotIndex++) {
             const chordName = chordNames[slotIndex];

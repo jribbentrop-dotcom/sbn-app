@@ -211,6 +211,8 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
                 volta:       null,
                 voltaStart:  false,
                 voltaEnd:    false,
+                pickup:      false,
+                pickupBeats: null,
                 chordNames:  [],
             });
         }
@@ -229,6 +231,8 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
                 volta:       null,
                 voltaStart:  false,
                 voltaEnd:    false,
+                pickup:      false,
+                pickupBeats: null,
                 chordNames:  [],
             });
         }
@@ -274,6 +278,8 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
             secMeasures.forEach((sm, li) => {
                 const globalIdx = chordOffset + li;
                 if (globalIdx >= measures.length) return;
+                measures[globalIdx].pickup      = !!(sm.pickup || sm.isPickup || sm.pickupBar);
+                measures[globalIdx].pickupBeats = sm.pickupBeats ?? null;
 
                 // Extract chord names — handles various formats from Alpine
                 const chords = sm.chords || sm.chord_names || [];
@@ -314,6 +320,16 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
                 }
             });
             chordOffset += secMeasures.length;
+        });
+
+        // ── Fix xPos for pickup measures (right-align notes within full bar) ──
+        measures.forEach(m => {
+            if (m.pickupBeats == null) return;
+            const capacityTicks = Math.round(m.pickupBeats * 480);
+            const pickupOffset  = (tpm - capacityTicks) / tpm;
+            m.events.forEach(ev => {
+                ev.xPos = pickupOffset + (ev.tickInMeasure ?? 0) / tpm;
+            });
         });
 
         // ── Build section slices ───────────────────────────────
@@ -567,6 +583,8 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
             modelSec.measures.forEach(m => {
                 const sm = alpineMeasures[m.index];
                 if (!sm) return;
+                m.pickup      = !!(sm.pickup || sm.isPickup || sm.pickupBar);
+                m.pickupBeats = sm.pickupBeats ?? null;
                 const chords = sm.chords || sm.chord_names || [];
                 if (Array.isArray(chords)) {
                     m.chordNames = chords.map(c =>
@@ -938,6 +956,8 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
             volta:       null,
             voltaStart:  false,
             voltaEnd:    false,
+            pickup:      false,
+            pickupBeats: null,
             chordNames:  [],
         };
     }
@@ -1421,12 +1441,20 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
             tonality:   '',
             lineBreaks: sec.lineBreaks?.length ? [...sec.lineBreaks] : null,
             measures:   sec.measures.map(m => {
+                const measureData = {
+                    pickup:      !!(m.pickup || m.isPickup || m.pickupBar),
+                    pickupBeats: m.pickupBeats ?? null,
+                };
                 const names = (m.chordNames || []).filter(n => n != null && n !== '');
                 if (!names.length) {
-                    return { chords: [{ name: '', beats: quarterBeatsPerMeasure }] };
+                    return {
+                        ...measureData,
+                        chords: [{ name: '', beats: quarterBeatsPerMeasure }],
+                    };
                 }
                 const beatsEach = quarterBeatsPerMeasure / names.length;
                 return {
+                    ...measureData,
                     chords: names.map((name, i) => ({
                         name,
                         beats:         m.chordBeats?.[i]   ?? beatsEach,

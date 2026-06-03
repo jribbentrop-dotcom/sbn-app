@@ -78,6 +78,25 @@
 
       <!-- Repeat / volta -->
       <div class="sbn-cm-group">
+        <!-- Pickup bar: beat-count row when active, single toggle when inactive -->
+        <div v-if="isPickup" class="sbn-context-menu-item sbn-cm-pickup-row">
+          <span class="sbn-cm-icon">PU</span>
+          <span class="sbn-cm-pickup-label">Pickup beats:</span>
+          <span class="sbn-cm-pickup-beats">
+            <button
+              v-for="b in pickupBeatOptions"
+              :key="b"
+              class="sbn-cm-beat-btn"
+              :class="{ active: contextData.pickupBeats === b }"
+              @click="action('set-pickup-beats', b)"
+            >{{ b }}</button>
+          </span>
+          <button class="sbn-cm-beat-btn sbn-cm-beat-btn--clear" @click="action('set-pickup-beats', null)" title="Unmark pickup">✕</button>
+        </div>
+        <button v-else class="sbn-context-menu-item" @click="action('toggle-pickup')">
+          <span class="sbn-cm-icon">PU</span>
+          <span class="sbn-context-menu-label">Mark as pickup bar</span>
+        </button>
         <button class="sbn-context-menu-item" @click="action('toggle-repeat-start')">
           <span class="sbn-cm-icon">𝄆</span>
           <span class="sbn-context-menu-label">{{ hasRepeatStart ? 'Remove start repeat' : 'Start repeat' }}</span>
@@ -146,13 +165,22 @@ const hasChord = computed(() =>
 
 const hasRepeatStart = computed(() => !!props.contextData?.repeatStart);
 const hasRepeatEnd   = computed(() => !!props.contextData?.repeatEnd);
+const isPickup       = computed(() => !!props.contextData?.pickup);
+
+// Beat options shown in the pickup row — derived from the time signature's beat count.
+// contextData.beatsPerMeasure is passed from ChordGridView when opening the menu.
+const pickupBeatOptions = computed(() => {
+  const max = Math.round(props.contextData?.beatsPerMeasure ?? 4);
+  return Array.from({ length: max }, (_, i) => i + 1);
+});
 
 function hasVolta(num) {
   return props.contextData?.volta?.number === num;
 }
 
-function action(id) {
-  emit('action', id, props.contextData);
+// payload is optional — used by set-pickup-beats to pass the beat count
+function action(id, payload) {
+  emit('action', id, props.contextData, payload);
   close();
 }
 

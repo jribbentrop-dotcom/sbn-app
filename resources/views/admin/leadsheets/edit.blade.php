@@ -494,9 +494,14 @@ class MusicXMLParser {
             });
 
             const pushMeasure = (md) => {
-                md.repeatStart = hasRepeatForward;
-                md.repeatEnd = hasRepeatBackward;
+                md.repeatStart   = hasRepeatForward;
+                md.repeatEnd     = hasRepeatBackward;
                 md.rehearsalMark = rehearsalMark;
+                // Propagate pickup flag from parseMeasure (implicit="yes" measures)
+                if (measureData.pickup && !md.pickup) {
+                    md.pickup      = true;
+                    md.pickupBeats = measureData.pickupBeats ?? null;
+                }
                 if (result._pendingVoltaList && result._pendingVoltaList.length > 0) {
                     if (!result.voltaEndings) result.voltaEndings = {};
                     const pushedIdx = result.measures.length;
@@ -720,17 +725,38 @@ class MusicXMLParser {
         // Derive each chord's duration (in quarter beats) from successive start positions.
         // The last chord spans to the end of the measure.
         if (chords.length > 0) {
+            // For implicit (pickup) measures use the actual note-cursor length,
+            // not the full measure duration from the time signature.
+            const effectiveMeasureBeats = isImplicit
+                ? Math.max(0.25, cursorDivs / this.divisions)
+                : measureQuarterBeats;
             for (let i = 0; i < chords.length; i++) {
                 const startBeat = chords[i].beatInMeasure;
                 const endBeat = i + 1 < chords.length
                     ? chords[i + 1].beatInMeasure
-                    : measureQuarterBeats; // quarter-beat end, not raw <beats> count
+                    : effectiveMeasureBeats;
                 chords[i].beats = Math.max(0.25, endBeat - startBeat);
             }
         }
 
         const notes = this.parseNotes(measure);
-        return { chords, notes, measureNumber: measureIndex + 1 };
+
+        // Detect pickup (anacrusis) measure — MusicXML marks these with
+        // implicit="yes" on the <measure> element. The actual beat count is
+        // derived from the furthest note cursor position rather than the
+        // declared time signature, since the measure is intentionally short.
+        const isImplicit = measure.getAttribute('implicit') === 'yes';
+        const actualQuarterBeats = isImplicit
+            ? Math.max(0.25, cursorDivs / this.divisions)
+            : null;
+
+        return {
+            chords,
+            notes,
+            measureNumber: measureIndex + 1,
+            pickup:      isImplicit,
+            pickupBeats: actualQuarterBeats,
+        };
     }
 
     parseNotes(measure) {

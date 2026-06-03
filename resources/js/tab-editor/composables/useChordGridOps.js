@@ -704,6 +704,48 @@ export function useChordGridOps(model, undo, tabModel) {
     }
 
     /**
+     * Toggle pickup/anacrusis status on a measure.
+     * Clears pickupBeats when unmarking (resets to full-bar).
+     * @param {number} gi
+     */
+    function togglePickup(gi) {
+        const m = _findMeasureByGi(gi);
+        if (!m) return;
+        undo.wrapCommand('Toggle Pickup Bar', [gi], () => {
+            m.pickup = !m.pickup;
+            if (!m.pickup) m.pickupBeats = null;
+            delete m.isPickup;
+            delete m.pickupBar;
+        });
+        _dispatchSync();
+    }
+
+    /**
+     * Set the pickup beat count for a measure.
+     * Pass null to clear (treat as full bar).
+     * Also sets m.pickup = true when beats is non-null.
+     *
+     * @param {number}      gi    — global measure index
+     * @param {number|null} beats — quarter-beat count (e.g. 1, 2) or null to unmark
+     */
+    function setPickupBeats(gi, beats) {
+        const m = _findMeasureByGi(gi);
+        if (!m) return;
+        undo.wrapCommand('Set Pickup Beats', [gi], () => {
+            if (beats === null || beats === undefined) {
+                m.pickup      = false;
+                m.pickupBeats = null;
+            } else {
+                m.pickup      = true;
+                m.pickupBeats = Math.max(0.5, Number(beats));
+            }
+            delete m.isPickup;
+            delete m.pickupBar;
+        });
+        _dispatchSync();
+    }
+
+    /**
      * Toggle a repeat-end barline on a measure.
      * @param {number} gi
      */
@@ -845,6 +887,8 @@ export function useChordGridOps(model, undo, tabModel) {
         // Repeat / volta
         toggleRepeatStart,
         toggleRepeatEnd,
+        togglePickup,
+        setPickupBeats,
         setVoltaStart,
         setVoltaEnd,
         extendVoltaEnd,

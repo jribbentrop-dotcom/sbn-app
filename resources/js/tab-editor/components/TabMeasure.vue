@@ -228,13 +228,16 @@ function formatChord(name) {
 // fails for tuplets whose ticks don't sum to standard durations.
 // Tick-span (last event's end position) is always correct for imported scores.
 const isOverfilled = computed(() => {
+    const capacityTicks = props.measure.pickupBeats != null
+        ? Math.round(props.measure.pickupBeats * 480)
+        : props.ticksPerMeasure;
     const v1 = (props.measure.events || [])
         .filter(e => (e.voice || 1) === 1)
         .sort((a, b) => a.tick - b.tick);
     if (!v1.length) return false;
     // Use measure.actualTicks if set (after an edit via repositionMeasure)
     if (props.measure.actualTicks != null) {
-        return props.measure.actualTicks > props.ticksPerMeasure + 2;
+        return props.measure.actualTicks > capacityTicks + 2;
     }
     // Compute tick-span using inter-event gaps where possible.
     // last.ticks may be the nominal duration (e.g. 240 for an eighth) rather than
@@ -249,11 +252,11 @@ const isOverfilled = computed(() => {
         if (next) {
             evEnd = next.tickInMeasure;
         } else {
-            evEnd = Math.min(ev.tickInMeasure + ev.ticks, props.ticksPerMeasure);
+            evEnd = Math.min(ev.tickInMeasure + ev.ticks, capacityTicks);
         }
         if (evEnd > span) span = evEnd;
     }
-    return span > props.ticksPerMeasure + 2;
+    return span > capacityTicks + 2;
 });
 
 // Dynamic layout widths
@@ -285,6 +288,7 @@ const svgEl               = ref(null);
 const playingMeasureIndex  = inject('playingMeasureIndex', null);
 const transportBeat        = inject('transportBeat',       null);
 const beatsPerMeasureRef   = inject('beatsPerMeasureRef',  null);
+const measureBeatStartMap  = inject('measureBeatStartMap', null);
 const transportPlaying     = inject('transportPlaying',    null);
 const tapCursor            = inject('tapCursor', null);
 const videoSyncMap         = inject('videoSyncMap', null);
@@ -351,37 +355,63 @@ function _eventAtTick(tickInMeasure) {
     return found ?? null;
 }
 
+// True beat-within-measure for this specific measure, accounting for pickup
+// bars whose beatStart in the engine clock is not a multiple of beatsPerMeasure.
+const beatInThisMeasure = computed(() => {
+    const beat = transportBeat?.value ?? 0;
+    const gi   = props.measure.index;
+    const beatStart = measureBeatStartMap?.value?.get(gi) ?? null;
+    const bpm  = props.measure.pickupBeats ?? beatsPerMeasureRef?.value ?? 4;
+    if (beatStart !== null) {
+        // Subtract this measure's engine-clock start to get beat-within-measure
+        return Math.max(0, beat - beatStart);
+    }
+    // Fallback: old modulo path (no pickup bars or table not available)
+    return ((beat % bpm) + bpm) % bpm;
+});
+
+// For pickup bars: the fraction of the full bar that precedes the pickup content.
+// e.g. 1-beat pickup in 3/4 → pickupOffset = 2/3.
+// Used to right-align the playback cursor to match the right-aligned note positions.
+const pickupXOffset = computed(() => {
+    if (props.measure.pickupBeats == null) return 0;
+    const globalBpm = beatsPerMeasureRef?.value ?? 4;
+    return Math.max(0, (globalBpm - props.measure.pickupBeats) / globalBpm);
+});
+
 // Metronome column: strict quarter-beat grid, always proportional.
 // xPos for beat b = b/bpm, same mapping getXm uses (tickInMeasure/tpm).
 const METRO_HALF_W = 9;
 const metronomeBeatX = computed(() => {
     if (!isPlayingMeasure.value) return null;
-    const bpm      = beatsPerMeasureRef?.value ?? 4;
-    const beat     = transportBeat?.value ?? 0;
-    const bSnapped = Math.floor(((beat % bpm) + bpm) % bpm);
-    return getXm(bSnapped / bpm);
+    const globalBpm = beatsPerMeasureRef?.value ?? 4;
+    const bpm       = props.measure.pickupBeats ?? globalBpm;
+    const bSnapped  = Math.floor(beatInThisMeasure.value);
+    const xPos      = pickupXOffset.value + Math.min(bSnapped, bpm - 1) / globalBpm;
+    return getXm(xPos);
 });
 
 // Red note highlight: continuous (follows exact beat for responsive feel).
 const playingEventId = computed(() => {
     if (!isPlayingMeasure.value) return null;
-    const bpm  = beatsPerMeasureRef?.value ?? 4;
-    const beat = transportBeat?.value ?? 0;
-    const b    = ((beat % bpm) + bpm) % bpm;
-    const tpm  = props.ticksPerMeasure;
-    return _eventAtTick(b / bpm * tpm)?.id ?? null;
+    const globalBpm = beatsPerMeasureRef?.value ?? 4;
+    const bpm       = props.measure.pickupBeats ?? globalBpm;
+    const b         = Math.min(beatInThisMeasure.value, bpm);
+    const tpm       = props.ticksPerMeasure;
+    // Map beat-within-pickup to tick, using pickup capacity not full tpm
+    const capacityTicks = Math.round(bpm * 480);
+    return _eventAtTick(b / bpm * capacityTicks)?.id ?? null;
 });
 
 const activeChordIndex = computed(() => {
     const total = props.chordNames.length;
     if (!total) return -1;
-    
+
     // 1. Playback highlighting takes priority
     if (isPlayingMeasure.value) {
         if (total === 1) return 0;
-        const bpm = beatsPerMeasureRef?.value ?? 4;
-        const beat = transportBeat?.value ?? 0;
-        const beatInMeasure = ((beat % bpm) + bpm) % bpm;
+        const bpm = props.measure.pickupBeats ?? beatsPerMeasureRef?.value ?? 4;
+        const beatInMeasure = Math.min(beatInThisMeasure.value, bpm);
         
         const offsets = props.measure.chordOffsets || [];
         const durations = props.measure.chordDurations || [];
@@ -474,13 +504,19 @@ function getChordStyle(ci) {
     // 1. Try explicit chordOffsets
     if (props.measure.chordOffsets && props.measure.chordOffsets[ci] != null) {
         const offset = props.measure.chordOffsets[ci];
-        const effectiveTicks = Math.max(props.measure.actualTicks || 0, props.ticksPerMeasure);
+        const capTicks = props.measure.pickupBeats != null
+            ? Math.round(props.measure.pickupBeats * 480)
+            : props.ticksPerMeasure;
+        const effectiveTicks = Math.max(props.measure.actualTicks || 0, capTicks);
         xPos = (offset * 480) / effectiveTicks;
-    } 
-    
+    }
+
     // 2. Try binding to chordal event inside expected slot
     if (xPos === null) {
-        const slotTicks = props.ticksPerMeasure / total;
+        const capTicks = props.measure.pickupBeats != null
+            ? Math.round(props.measure.pickupBeats * 480)
+            : props.ticksPerMeasure;
+        const slotTicks = capTicks / total;
         const startTick = ci * slotTicks;
         const endTick = (ci + 1) * slotTicks;
         

@@ -48,6 +48,16 @@ export function tabModelToEvents(model, ctx = {}) {
 
     const sequence = expandMeasureSequence(flatMeasures);
 
+    // Build a per-play-position beat offset table so pickup bars (which have
+    // fewer beats than the global time signature) don't leave a gap in the timeline.
+    const positionBeatStart = [];
+    let beatCursor = startBeat;
+    for (const gi of sequence) {
+        positionBeatStart.push(beatCursor);
+        const m = measureByGi.get(gi);
+        beatCursor += m?.pickupBeats ?? beatsPerMeasure;
+    }
+
     /** @type {EngineEvent[]} */
     const out = [];
 
@@ -55,7 +65,7 @@ export function tabModelToEvents(model, ctx = {}) {
         const measure = measureByGi.get(globalIndex);
         if (!measure) return;
 
-        const measureStartBeat = startBeat + playPosition * beatsPerMeasure;
+        const measureStartBeat = positionBeatStart[playPosition];
 
         for (const ev of measure.events) {
             if (ev.isRest) continue;
