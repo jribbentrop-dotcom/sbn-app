@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Services\Payments\FakeProvider;
 use App\Services\Payments\PaymentProvider;
+use App\Services\Payments\StripeManagedProvider;
 use Illuminate\Support\ServiceProvider;
 
 class PaymentProviderServiceProvider extends ServiceProvider
@@ -20,9 +21,12 @@ class PaymentProviderServiceProvider extends ServiceProvider
 
             return match ($provider) {
                 'fake' => new FakeProvider(config('payments.fake.signing_secret', 'fake-secret')),
-                // Concrete providers are added once the MoR is finalized:
-                // 'paddle'         => new PaddleProvider(...),
-                // 'stripe_managed' => new StripeManagedProvider(...),
+                // Concrete providers:
+                // 'paddle'        => new PaddleProvider(...),
+                'stripe_managed' => new StripeManagedProvider(
+                    config('payments.stripe_managed.api_key', ''),
+                    config('payments.stripe_managed.signing_secret', ''),
+                ),
                 default => throw new \RuntimeException("Unknown payment provider: {$provider}"),
             };
         });
