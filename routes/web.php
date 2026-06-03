@@ -37,6 +37,7 @@ use App\Http\Controllers\Admin\ExerciseController as AdminExerciseController;
 use App\Http\Controllers\Library\ExerciseController as ExerciseLibraryController;
 use App\Http\Controllers\Admin\AdminFretboardController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController;
+use App\Http\Controllers\HomeController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -382,9 +383,7 @@ if (! app()->environment('production')) {
 | Root redirect
 |--------------------------------------------------------------------------
 */
-Route::get('/', function () {
-    return redirect()->route('admin.dashboard');
-});
+Route::get('/', [HomeController::class, 'index'])->name('home');
 
 Route::get('/hello', function () {
     return \Inertia\Inertia::render('Hello');

@@ -1,0 +1,295 @@
+/* ============================================================
+   SBN Home Page
+   Scoped to .home-page — does not bleed into admin or other
+   public pages. Grain + blob + reveal defined here only.
+   All colour values use --clr-* design tokens.
+   ============================================================ */
+
+/* ── Grain overlay (scoped to home layout) ─────────────────── */
+.home-page ~ .home-grain,
+.home-page::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: .035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── Shared layout ─────────────────────────────────────────── */
+.home-wrap {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+}
+
+/* ── Buttons ───────────────────────────────────────────────── */
+.home-page .btn {
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: .92rem;
+    padding: 10px 20px;
+    border-radius: 11px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: .18s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+}
+.home-page .btn-ghost {
+    color: var(--clr-text);
+    border-color: var(--clr-line);
+}
+.home-page .btn-ghost:hover { background: var(--clr-bg-card); }
+.home-page .btn-solid {
+    background: var(--clr-accent);
+    color: #fff;
+}
+.home-page .btn-solid:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px -8px var(--clr-accent);
+}
+.home-page .btn-lg { padding: 14px 26px; font-size: 1rem; }
+
+/* ── Eyebrow label ─────────────────────────────────────────── */
+.home-page .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: .8rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--clr-accent);
+    margin-bottom: 20px;
+}
+.home-page .eyebrow::before {
+    content: "";
+    width: 24px;
+    height: 2px;
+    background: var(--clr-accent);
+}
+
+/* ── Reveal animation ──────────────────────────────────────── */
+.home-page .reveal {
+    opacity: 0;
+    transform: translateY(22px);
+    animation: home-rise .8s cubic-bezier(.2,.8,.2,1) forwards;
+}
+@keyframes home-rise { to { opacity: 1; transform: none; } }
+.home-page .d1 { animation-delay: .05s; }
+.home-page .d2 { animation-delay: .18s; }
+.home-page .d3 { animation-delay: .32s; }
+.home-page .d4 { animation-delay: .46s; }
+.home-page .d5 { animation-delay: .6s; }
+
+/* ── Hero ──────────────────────────────────────────────────── */
+.home-hero {
+    position: relative;
+    padding: 88px 0 72px;
+    overflow: hidden;
+}
+
+/* Blob background */
+.hero-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    opacity: .4;
+}
+.hero-bg .blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: .4;
+    animation: blob-float 18s ease-in-out infinite;
+}
+.blob.b1 { width: 480px; height: 480px; background: var(--clr-accent);   top: -160px; right: -80px; }
+.blob.b2 { width: 420px; height: 420px; background: var(--clr-accent-2, var(--clr-fifth)); bottom: -200px; left: -100px; animation-delay: -6s; }
+.blob.b3 { width: 300px; height: 300px; background: var(--clr-seventh);  top: 40%; left: 40%; animation-delay: -11s; opacity: .3; }
+@keyframes blob-float {
+    0%,100% { transform: translate(0,0) scale(1); }
+    33%      { transform: translate(40px,-30px) scale(1.08); }
+    66%      { transform: translate(-30px,20px) scale(.95); }
+}
+
+.hero-inner {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1.05fr .95fr;
+    gap: 48px;
+    align-items: center;
+}
+
+.home-hero h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(2.6rem, 5.2vw, 4.1rem);
+    line-height: 1.02;
+    letter-spacing: -.025em;
+    margin-bottom: 22px;
+}
+.home-hero h1 em {
+    font-style: italic;
+    color: var(--clr-accent);
+}
+.hero-lead {
+    font-size: 1.12rem;
+    color: var(--clr-text-dim);
+    max-width: 520px;
+    margin-bottom: 32px;
+}
+.hero-cta {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+.hero-stats {
+    display: flex;
+    gap: 32px;
+    margin-top: 40px;
+}
+.stat-n {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.7rem;
+}
+.stat-l {
+    font-size: .82rem;
+    color: var(--clr-text-dim);
+}
+
+/* ── Sections ──────────────────────────────────────────────── */
+.home-section {
+    padding: 84px 0;
+}
+.section-head {
+    text-align: center;
+    max-width: 620px;
+    margin: 0 auto 48px;
+}
+.section-head .eyebrow { justify-content: center; }
+.section-head h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(2rem, 3.6vw, 2.8rem);
+    letter-spacing: -.02em;
+    margin-bottom: 14px;
+}
+.section-head p {
+    color: var(--clr-text-dim);
+    font-size: 1.05rem;
+}
+
+/* ── Rhythm card ───────────────────────────────────────────── */
+.rhythm-card {
+    background: var(--clr-bg-elev);
+    border: 1px solid var(--clr-line);
+    border-radius: 22px;
+    padding: 34px;
+}
+.rhythm-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 22px;
+}
+.rhythm-card-header h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.3rem;
+}
+.tempo-badge {
+    font-size: .82rem;
+    color: var(--clr-text-dim);
+    font-variant-numeric: tabular-nums;
+}
+.rhythm-card-footer {
+    margin-top: 20px;
+    text-align: right;
+}
+.rhythm-explore-link {
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--clr-accent);
+    text-decoration: none;
+    transition: opacity .15s;
+}
+.rhythm-explore-link:hover { opacity: .75; }
+
+/* ── Feature cards ─────────────────────────────────────────── */
+.feature-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+.feature-card {
+    background: var(--clr-bg-card);
+    border: 1px solid var(--clr-line);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    transition: .2s;
+    position: relative;
+    overflow: hidden;
+    text-decoration: none;
+    color: var(--clr-text);
+    display: block;
+}
+.feature-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--clr-accent);
+}
+.feature-card::after {
+    content: "";
+    position: absolute;
+    top: 0; right: 0;
+    width: 120px; height: 120px;
+    background: radial-gradient(circle at top right, var(--clr-accent), transparent 70%);
+    opacity: 0;
+    transition: .3s;
+}
+.feature-card:hover::after { opacity: .12; }
+.card-icon { font-size: 1.7rem; margin-bottom: 16px; }
+.feature-card h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.25rem;
+    margin-bottom: 8px;
+}
+.feature-card p { color: var(--clr-text-dim); font-size: .93rem; }
+.card-more {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 16px;
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--clr-accent);
+}
+
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 900px) {
+    .hero-inner { grid-template-columns: 1fr; }
+    .hero-inner > div:last-child { order: -1; }
+    .feature-cards { grid-template-columns: 1fr; }
+    .home-foot { grid-template-columns: 1fr 1fr; }
+    .foot-brand { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+    .hero-stats { flex-wrap: wrap; gap: 20px; }
+    .hero-cta { flex-direction: column; }
+    .home-foot { grid-template-columns: 1fr; }
+}
+
+/* ── Reduced motion ────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    .home-page .reveal { opacity: 1; transform: none; animation: none; }
+    .hero-bg .blob { animation: none; }
+    .rhythm-playhead { display: none; }
+}

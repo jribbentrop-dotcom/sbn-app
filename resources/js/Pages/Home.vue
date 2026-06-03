@@ -1,0 +1,111 @@
+<script setup lang="ts">
+import { defineAsyncComponent } from 'vue';
+import { Link } from '@inertiajs/vue3';
+import PublicLayout from '@/Layouts/PublicLayout.vue';
+import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
+import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
+
+const SyncedHero = defineAsyncComponent(() => import('@/Components/Home/SyncedHero.vue'));
+
+defineOptions({ layout: PublicLayout });
+
+const props = defineProps<{
+    rhythmPattern: RhythmPatternData | null;
+}>();
+</script>
+
+<template>
+    <div class="home-page">
+
+        <!-- ── Hero ──────────────────────────────────────── -->
+        <section class="home-hero">
+            <div class="hero-bg">
+                <div class="blob b1"></div>
+                <div class="blob b2"></div>
+                <div class="blob b3"></div>
+            </div>
+
+            <div class="home-wrap hero-inner">
+                <!-- Left: copy -->
+                <div>
+                    <div class="eyebrow reveal d1">A teaching hub for guitarists</div>
+                    <h1 class="reveal d2">Learn the <em>language</em><br>of bossa &amp; jazz guitar.</h1>
+                    <p class="hero-lead reveal d3">
+                        Interactive chord diagrams, living leadsheets, and rhythm tools built
+                        for the way the music actually feels — not just how it looks on paper.
+                    </p>
+                    <div class="hero-cta reveal d4">
+                        <Link href="/register" class="btn btn-solid btn-lg">Start playing free →</Link>
+                        <a href="#" class="btn btn-ghost btn-lg">▶ Watch the tour</a>
+                    </div>
+                    <div class="hero-stats reveal d5">
+                        <div class="stat"><div class="stat-n">240+</div><div class="stat-l">Voicings mapped</div></div>
+                        <div class="stat"><div class="stat-n">60</div><div class="stat-l">Annotated standards</div></div>
+                        <div class="stat"><div class="stat-n">∞</div><div class="stat-l">Ways to practice</div></div>
+                    </div>
+                </div>
+
+                <!-- Right: synced demo -->
+                <div class="reveal d3">
+                    <SyncedHero />
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Rhythm strip ───────────────────────────────── -->
+        <section class="home-section">
+            <div class="home-wrap">
+                <div class="section-head">
+                    <div class="eyebrow">Feel it, don't read it</div>
+                    <h2>Rhythm patterns that play themselves</h2>
+                    <p>Loop the classic bossa pattern, slow it down, see exactly where the accents land. Then drop it straight into your leadsheet.</p>
+                </div>
+                <div v-if="rhythmPattern" class="rhythm-card">
+                    <div class="rhythm-card-header">
+                        <h3>{{ rhythmPattern.name }}</h3>
+                        <span class="tempo-badge">♩ = {{ rhythmPattern.bpm }} · {{ rhythmPattern.timeSignature }}</span>
+                    </div>
+                    <RhythmStrip
+                        :pattern="rhythmPattern"
+                        :show-meta="false"
+                        :playable="true"
+                    />
+                    <div class="rhythm-card-footer">
+                        <Link href="/library/rhythms" class="rhythm-explore-link">Explore all patterns →</Link>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Feature cards ──────────────────────────────── -->
+        <section class="home-section" style="padding-top:0">
+            <div class="home-wrap">
+                <div class="section-head">
+                    <div class="eyebrow">Everything in one place</div>
+                    <h2>Built for teachers and students</h2>
+                </div>
+                <div class="feature-cards">
+                    <Link href="/admin/leadsheets" class="feature-card">
+                        <div class="card-icon">🎼</div>
+                        <h3>Interactive Tab Editor</h3>
+                        <p>A Soundslice-style canvas where the chart, the tab, and the audio stay in sync as you edit.</p>
+                        <span class="card-more">Explore the editor →</span>
+                    </Link>
+                    <Link href="/library/chords" class="feature-card">
+                        <div class="card-icon">🗂️</div>
+                        <h3>Voicing Library</h3>
+                        <p>Every shape diagrammed with root, third, fifth and seventh colour-coded so the theory is visible at a glance.</p>
+                        <span class="card-more">Browse voicings →</span>
+                    </Link>
+                    <a href="#" class="feature-card">
+                        <div class="card-icon">📊</div>
+                        <h3>Analysis Panel</h3>
+                        <p>Automatic function labelling, key-fit scoring and ii–V detection that explains <em>why</em> a progression works.</p>
+                        <span class="card-more">See it work →</span><!-- TODO: wire to analysis route -->
+                    </a>
+                </div>
+            </div>
+        </section>
+
+    </div>
+</template>
