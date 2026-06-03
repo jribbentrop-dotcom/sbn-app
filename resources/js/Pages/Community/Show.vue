@@ -25,6 +25,7 @@ const initial = ref<ChatMessage[]>(props.messages);
 const { messages, sending, error, send } = useChat({
     conversationId: channelId,
     initialMessages: initial,
+    baseUrl: () => '/community',
 });
 
 function onSend(body: string) {
@@ -36,7 +37,7 @@ function canDelete(m: ChatMessage): boolean {
 }
 
 function onDelete(id: number) {
-    router.delete(`/account/messages/${props.channel.id}/${id}`, { preserveScroll: true });
+    router.delete(`/community/messages/${id}`, { preserveScroll: true });
 }
 
 function toggleReadOnly() {

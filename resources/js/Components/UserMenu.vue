@@ -13,7 +13,16 @@ const user = computed(() => page.props.auth?.user);
       <a href="/admin" class="text-sm font-medium">{{ user.name || 'Dashboard' }}</a>
     </template>
     <template v-else>
-      <a href="/login" class="text-sm font-medium">Log in</a>
+      <Link href="/login" class="text-sm font-medium">Log in</Link>
+      <span class="user-menu-sep" aria-hidden="true">·</span>
+      <Link href="/register" class="text-sm font-medium">Sign up</Link>
     </template>
   </div>
 </template>
+
+<style scoped>
+.user-menu-sep {
+  opacity: 0.5;
+  margin: 0 2px;
+}
+</style>

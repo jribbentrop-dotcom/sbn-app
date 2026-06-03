@@ -1,4 +1,4 @@
-# Frontend Migration Plan
+    # Frontend Migration Plan
 
 Migration of the SBN public frontend from the legacy WP theme + Blade-with-Vue-islands pattern to a unified, modern, single-coherent-app experience on top of the existing Laravel backend.
 
@@ -1662,9 +1662,48 @@ Field notes:
 
 ---
 
-### Phase 12 — Auth + Payments (Lemon Squeezy)
+### Phase 12 — Auth + Payments
 
-**Deliverable:** Real auth flows (login, signup, password reset), Lemon Squeezy wired to shop and course purchases, course access gated by the `course_user` ownership pivot from the Customer Backend phase.
+Split into **12a (Auth, ✅ DONE 2026-06-03)** and **12b (Lemon Squeezy payments, NEXT)**.
+
+---
+
+### Phase 12a — Inertia Auth Scaffolding ✅ DONE (2026-06-03)
+
+**Deliverable:** All public auth UI on Inertia + Vue (no Blade-island auth remaining); login converted, register + password-reset flows built. Hand-rolled to match the codebase — NO Fortify/Breeze/Jetstream.
+
+#### What was built
+
+**Prerequisite fix**
+- `database/migrations/2026_06_03_000001_create_password_reset_tokens_table.php` — the `password_reset_tokens` table was referenced by `config/auth.php` but no migration created it (the schema is not fully migration-defined; the table lived only in the committed `sbn.db`). Added with a `hasTable` guard.
+
+**Controllers (`app/Http/Controllers/Auth/`)**
+- `LoginController` — `show()` now returns `Inertia::render('Auth/Login')` (was `view('auth.login')`); `login()`/`logout()`/`landingFor()` unchanged. Inertia surfaces `withErrors(['email'=>...])` as `form.errors.email`.
+- `RegisterController` (new) — validates name/email(unique)/password(`confirmed` + `Password::defaults()`); `User::create` (the model's `password => 'hashed'` cast hashes); `Auth::login` + `session()->regenerate()`; redirect `account.dashboard`.
+- `PasswordResetLinkController` (new) — forgot-password; `Password::sendResetLink`, flashes `status` or `withErrors`.
+- `NewPasswordController` (new) — reset; `Password::reset` with `forceFill(['password'=>$pw])` (hashed on save).
+
+**Routes (`routes/web.php`)** — guest-only group wrapping `/login`, `/register`, `/forgot-password`, `/reset-password/{token}` (names `password.request`/`password.email`/`password.reset`/`password.update` as Laravel's broker + `ResetPassword` notification expect); `/logout` stays outside the group.
+
+**Inertia pages (`resources/js/Pages/Auth/`)** — `Login.vue`, `Register.vue`, `ForgotPassword.vue`, `ResetPassword.vue`, all on `PublicLayout`, `useForm`, design-system tokens (`sbn-input`/`sbn-label`/`sbn-field-error`/`sbn-btn-primary`). Shared card frame extracted to `resources/js/Components/Auth/AuthCard.vue` (logo + heading + form-helper styles, kept DRY across the 4 pages). `UserMenu.vue` gained an Inertia `<Link>` "Sign up" beside "Log in".
+
+**Removed** — `resources/views/auth/login.blade.php` (only reference was in LoginController).
+
+**Tests** — `tests/Feature/AuthTest.php`, 11 passing. Runs against the real `sbn.db` connection with per-test cleanup (same approach as `LeadsheetLookupTest` — `RefreshDatabase`/`:memory:` is unusable here because `sbn_leadsheets` has no create-migration). Covers: page render (Inertia component assert), register→login→redirect, role-based login redirect (customer→account, instructor→admin), bad-credential error, guest-redirect-away-from-login, forgot-password notification (`Notification::fake`), token reset, logout.
+
+#### Gotchas recorded
+- **Route cache was stale** — `php artisan route:clear` was needed; the cached `routes-*.php` predated the new auth routes, so register/password 404'd until cleared. Re-cache (`route:cache`) only after deploy.
+- **`is_instructor` is NOT mass-assignable** on `User` — tests set it via `forceFill`. Don't add it to `$fillable`.
+- **`guest` middleware redirects authenticated users to `/` (framework HOME)** before `LoginController::show` runs — that's why the "already logged in" redirect goes to `/`, not `account.dashboard`.
+
+#### Out of scope (→ 12b)
+Lemon Squeezy, checkout-stub replacement, webhooks, `Course`↔LS variant column, customer portal link.
+
+---
+
+### Phase 12b — Payments (Lemon Squeezy)
+
+**Deliverable:** Lemon Squeezy wired to shop and course purchases, course access gated by the `course_user` ownership pivot from the Customer Backend phase.
 
 **Provider decision (2026-05-28):** **Lemon Squeezy** as Merchant of Record. They collect, file, and remit EU VAT, US sales tax, and GST on our behalf — a meaningful win for a single-operator EU business selling globally to a low-ticket digital catalog. Cost is ~2% more than Stripe (~5% + 50¢ vs Stripe's ~2.9% + 30¢) in exchange for eliminating tax registration/filing entirely. Revisit Stripe if/when a subscription product with proration or seat-based billing lands.
 

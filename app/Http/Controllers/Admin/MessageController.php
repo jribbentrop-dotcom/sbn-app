@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Notifications\NewMessageNotification;
+use App\Policies\MessagePolicy;
 use App\Services\AccountService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -93,6 +94,7 @@ class MessageController extends Controller
     public function destroy(Request $request, Conversation $conversation, Message $message)
     {
         abort_unless((int) $message->conversation_id === (int) $conversation->id, 404);
+        abort_unless(app(MessagePolicy::class)->delete($request->user(), $message), 403);
         $message->delete();
         return back();
     }

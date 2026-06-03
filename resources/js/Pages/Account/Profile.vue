@@ -56,28 +56,28 @@ function onAvatarChange(e: Event) {
                         <span>Upload new</span>
                     </label>
                 </div>
-                <p v-if="avatarForm.errors.avatar" class="sbn-account-error">{{ avatarForm.errors.avatar }}</p>
+                <span v-if="avatarForm.errors.avatar" class="sbn-field-error">{{ avatarForm.errors.avatar }}</span>
             </section>
 
             <form class="sbn-account-section" @submit.prevent="save">
                 <h2>Details</h2>
-                <label class="sbn-account-field">
-                    <span>Display name</span>
-                    <input v-model="form.display_name" type="text" maxlength="80" />
-                </label>
-                <p v-if="form.errors.display_name" class="sbn-account-error">{{ form.errors.display_name }}</p>
+                <div style="margin-bottom: var(--space-4, 1rem)">
+                    <label class="sbn-label">Display name</label>
+                    <input v-model="form.display_name" type="text" maxlength="80" class="sbn-input" />
+                    <span v-if="form.errors.display_name" class="sbn-field-error">{{ form.errors.display_name }}</span>
+                </div>
 
-                <label class="sbn-account-field">
-                    <span>Bio</span>
-                    <textarea v-model="form.bio" rows="4" maxlength="2000"></textarea>
-                </label>
+                <div style="margin-bottom: var(--space-4, 1rem)">
+                    <label class="sbn-label">Bio</label>
+                    <textarea v-model="form.bio" rows="4" maxlength="2000" class="sbn-textarea"></textarea>
+                </div>
 
-                <label class="sbn-account-field sbn-account-field--inline">
+                <label class="sbn-account-field--inline" style="margin-bottom: var(--space-4, 1rem)">
                     <input v-model="form.public" type="checkbox" />
                     <span>Show my profile to other students</span>
                 </label>
 
-                <button type="submit" class="sbn-btn-primary" :disabled="form.processing">Save</button>
+                <button type="submit" class="sbn-btn sbn-btn-primary" :disabled="form.processing">Save</button>
             </form>
     </div>
 </template>

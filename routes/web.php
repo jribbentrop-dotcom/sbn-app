@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\LeadsheetController;
 use App\Http\Controllers\Admin\ChordController;
@@ -47,8 +50,20 @@ Broadcast::routes(['middleware' => ['web', 'auth']]);
 | Authentication
 |--------------------------------------------------------------------------
 */
-Route::get('/login', [LoginController::class, 'show'])->name('login');
-Route::post('/login', [LoginController::class, 'login']);
+Route::middleware('guest')->group(function () {
+    Route::get('/login', [LoginController::class, 'show'])->name('login');
+    Route::post('/login', [LoginController::class, 'login']);
+
+    Route::get('/register', [RegisterController::class, 'show'])->name('register');
+    Route::post('/register', [RegisterController::class, 'register']);
+
+    Route::get('/forgot-password', [PasswordResetLinkController::class, 'show'])->name('password.request');
+    Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
+
+    Route::get('/reset-password/{token}', [NewPasswordController::class, 'show'])->name('password.reset');
+    Route::post('/reset-password', [NewPasswordController::class, 'store'])->name('password.update');
+});
+
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 /*

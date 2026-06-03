@@ -37,7 +37,7 @@ function onKey(e: KeyboardEvent) {
         <div class="sbn-chat-composer-bar">
             <span v-if="error" class="sbn-chat-composer-error">{{ error }}</span>
             <span v-else class="sbn-chat-composer-hint">Enter to send, Shift+Enter for newline</span>
-            <button type="submit" class="sbn-btn-primary" :disabled="sending || !body.trim()">
+            <button type="submit" class="sbn-btn sbn-btn-primary sbn-btn-sm" :disabled="sending || !body.trim()">
                 {{ sending ? 'Sending…' : 'Send' }}
             </button>
         </div>

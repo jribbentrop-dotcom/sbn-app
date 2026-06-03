@@ -27,6 +27,8 @@ interface UseChatOptions {
     conversationId: Ref<number | null>;
     initialMessages: Ref<ChatMessage[]>;
     pollIntervalMs?: number;
+    /** Override the base path; defaults to /account/messages/{id} */
+    baseUrl?: (id: number) => string;
 }
 
 function csrfToken(): string {
@@ -49,7 +51,8 @@ async function jsonFetch(url: string, init: RequestInit = {}): Promise<Response>
     return fetch(url, { credentials: 'same-origin', ...init, headers });
 }
 
-export function useChat({ conversationId, initialMessages, pollIntervalMs = 8000 }: UseChatOptions) {
+export function useChat({ conversationId, initialMessages, pollIntervalMs = 8000, baseUrl }: UseChatOptions) {
+    const resolveBase = (id: number) => baseUrl ? baseUrl(id) : `/account/messages/${id}`;
     const messages = ref<ChatMessage[]>([...initialMessages.value]);
     const sending = ref(false);
     const error = ref<string | null>(null);
@@ -64,7 +67,7 @@ export function useChat({ conversationId, initialMessages, pollIntervalMs = 8000
     async function pull() {
         if (!conversationId.value) return;
         try {
-            const res = await jsonFetch(`/account/messages/${conversationId.value}/fetch?after=${lastId()}`);
+            const res = await jsonFetch(`${resolveBase(conversationId.value)}/fetch?after=${lastId()}`);
             if (!res.ok) return;
             const data = await res.json();
             const fresh = (data?.messages ?? []) as ChatMessage[];
@@ -131,7 +134,7 @@ export function useChat({ conversationId, initialMessages, pollIntervalMs = 8000
         sending.value = true;
         error.value = null;
         try {
-            const res = await jsonFetch(`/account/messages/${conversationId.value}`, {
+            const res = await jsonFetch(`${resolveBase(conversationId.value)}`, {
                 method: 'POST',
                 body: JSON.stringify({ body }),
             });
@@ -151,7 +154,7 @@ export function useChat({ conversationId, initialMessages, pollIntervalMs = 8000
 
     function markRead() {
         if (!conversationId.value) return;
-        jsonFetch(`/account/messages/${conversationId.value}/read`, { method: 'PATCH' }).catch(() => {});
+        jsonFetch(`${resolveBase(conversationId.value)}/read`, { method: 'PATCH' }).catch(() => {});
     }
 
     watch(

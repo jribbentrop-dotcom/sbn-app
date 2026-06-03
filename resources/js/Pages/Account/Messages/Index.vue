@@ -54,7 +54,7 @@ function startDmWithInstructor() {
                     <button
                         v-if="instructor && !hasDmWithInstructor"
                         type="button"
-                        class="sbn-btn-primary"
+                        class="sbn-btn sbn-btn-primary"
                         @click="startDmWithInstructor"
                     >
                         Message {{ instructor.name }}
