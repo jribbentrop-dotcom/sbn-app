@@ -27,12 +27,15 @@ export function useClock(opts: ClockOptions): ClockHandle {
     let timerId: ReturnType<typeof setInterval> | null = null;
 
     function tick() {
+        // Fire the bar boundary on the downbeat (step 0) BEFORE its onStep, so
+        // the chord advance and the strip's "1" land in the same paint frame.
+        // (Previously onBar fired after step wrapped past 15, one step early.)
+        if (step === 0) {
+            opts.onBar(barIndex);
+            barIndex++;
+        }
         opts.onStep(step, opts.pattern[step]);
         step = (step + 1) % opts.pattern.length;
-        if (step === 0) {
-            barIndex++;
-            opts.onBar(barIndex);
-        }
     }
 
     return {

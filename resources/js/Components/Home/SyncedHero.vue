@@ -13,7 +13,7 @@
  * Chord data is hardcoded for testing (Dm7 → G7 → Cmaj7 drop voicings).
  * Production path: pass `progression` + `rhythmPattern` as props (Phase S.3).
  */
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useClock } from './useClock';
 import type { StepType } from './useClock';
 import ChordDiagram from '../Library/ChordDiagram.vue';
@@ -21,7 +21,8 @@ import type { ChordDiagramData } from '../Library/ChordDiagram.vue';
 import type { RhythmPatternData } from '../Library/RhythmPattern.vue';
 
 // ── Hardcoded test progression: Dm7 → G7 → Cmaj7 (drop voicings) ───────────
-// diagram_data uses string numbers 1=high e, 6=low E (SBN convention)
+// diagram_data uses string numbers 1=low E … 6=high E (SBN/DB convention,
+// per ChordShapeCalculator::TUNING). The renderer draws string 1 leftmost.
 const CHORDS: ChordDiagramData[] = [
     {
         id: 1001,
@@ -136,8 +137,16 @@ const RHYTHM: RhythmPatternData = {
 };
 
 const BPM = Math.round(RHYTHM.bpm / 2);
-const SLIDE_MS = 1120;
+// Slide is a visible glide but stays tight: the strike already targets the
+// role=center board from the downbeat (see strikeCenter), so the slide is
+// purely cosmetic and just needs to feel smooth without lagging the rhythm.
+const SLIDE_MS = 420;
 const slideMs = ref(SLIDE_MS);
+// ONE shared easing for the track translate AND every board width/opacity
+// transition. If they differ, the translate (toward a pre-measured target) and
+// the width animation (which moves the slot centers) finish on different curves
+// and drift apart by a sub-pixel — the "hiccup" at the end of the pull-in.
+const SLIDE_EASE = 'cubic-bezier(.4,0,.2,1)';
 const CENTER_IDX = 2;
 const ROLES = ['off', 'side', 'center', 'side', 'off'] as const;
 const LBLS  = ['', 'prev', '', 'next', ''];
@@ -156,7 +165,6 @@ interface BoardState {
     chord: ChordDiagramData;
     role: typeof ROLES[number];
     label: string;
-    striking: boolean;
 }
 
 const boards = ref<BoardState[]>(
@@ -164,12 +172,60 @@ const boards = ref<BoardState[]>(
         chord: CHORDS[(k - CENTER_IDX + CHORDS.length * 2) % CHORDS.length],
         role,
         label: LBLS[k],
-        striking: false,
     }))
 );
 
+// ── Bass vs. fingers split (Gilberto technique) ──────────────────────────────
+// The thumb plays the bass note (the lowest-pitched string in the voicing) and
+// the fingers pluck the top three notes. `data-string` follows the SBN/DB
+// convention (ChordShapeCalculator::TUNING): string 1 = LOW E … string 6 =
+// HIGH E, so the bass is the LOWEST-numbered played string and the fingers are
+// everything above it.
+function bassString(chord: ChordDiagramData): number {
+    const strings = (chord.diagram_data.positions ?? [])
+        .map(p => p.string)
+        .concat(chord.diagram_data.open ?? []);
+    return strings.length ? Math.min(...strings) : 1;
+}
+
+// Re-trigger the CSS strike keyframe imperatively on a subset of the center
+// board's dots. Toggling a class on the same elements is unreliable (same value
+// → no restart, and the SVG is re-rendered by watchEffect), so we remove the
+// class, force a reflow, then re-add it — the canonical CSS animation restart.
+//   row 'bass'    → only the bass-string dot
+//   row 'fingers' → every dot ABOVE the bass (the top notes)
+function strikeCenter(row: 'bass' | 'fingers') {
+    // Target the board whose ROLE is currently 'center', not the fixed physical
+    // slot. During a slide the incoming chord already holds role 'center' (its
+    // role was reassigned in advance()), while the physical center slot still
+    // shows the OUTGOING chord until transitionend. Striking by role means the
+    // rhythm hits the NEW chord's dots from the downbeat, not mid-slide.
+    const idx = boards.value.findIndex(b => b.role === 'center');
+    if (idx < 0) return;
+    const el = boardEls.value[idx];
+    if (!el) return;
+    const diagram = el.querySelector<HTMLElement>('.board-diagram');
+    if (!diagram) return;
+
+    const bass = bassString(boards.value[idx].chord);
+    const dots = Array.from(diagram.querySelectorAll<SVGCircleElement>('circle.sbn-svg-dot'));
+    const target = dots.filter(dot => {
+        const isBass = Number(dot.getAttribute('data-string')) === bass;
+        return row === 'bass' ? isBass : !isBass;
+    });
+
+    // Remove from the targeted dots, force ONE reflow, then re-add — restarts
+    // the keyframe even when the dots were already mid-animation.
+    target.forEach(dot => dot.classList.remove('is-striking'));
+    void diagram.offsetWidth;
+    target.forEach(dot => dot.classList.add('is-striking'));
+}
+
 const trackOffset = ref(0);
 const trackTransition = ref(false);
+// When true, all per-board transitions are killed for one frame so the recycle
+// (array shift + role reset) snaps instantly instead of animating a second time.
+const recycling = ref(false);
 let head = ref(0);
 let sliding = false;
 
@@ -206,8 +262,19 @@ function advance() {
     trackOffset.value = -dx;
 }
 
-function onTransitionEnd() {
+function onTransitionEnd(e: TransitionEvent) {
+    // `transitionend` bubbles, so this fires once for the track's own
+    // `transform` AND once for every child board's opacity/filter/width/font
+    // transition (same duration). Only the track's transform should trigger the
+    // recycle — otherwise a child event runs it a second time and the just-
+    // centered board re-animates ("pulled in from the left again").
+    if (e.target !== trackEl.value || e.propertyName !== 'transform') return;
     if (!sliding) return;
+
+    // Kill per-board transitions for this frame: the recycle resets roles/widths
+    // back to their resting slot values, which must NOT animate (that re-shuffle
+    // is the "useless second animation"). Only the next slide should animate.
+    recycling.value = true;
 
     const first = boards.value.shift()!;
     boards.value.push(first);
@@ -216,16 +283,26 @@ function onTransitionEnd() {
     trackOffset.value = 0;
 
     boards.value.forEach((b, k) => {
-        b.role     = ROLES[k];
-        b.label    = LBLS[k];
-        b.striking = false; // clear strike so new chord doesn't animate on arrival
+        b.role  = ROLES[k];
+        b.label = LBLS[k];
     });
 
     boards.value.forEach((b, k) => {
         b.chord = CHORDS[(head.value + (k - CENTER_IDX) + CHORDS.length * 2) % CHORDS.length];
     });
 
+    // Clear any lingering strike class from the recycled DOM nodes so it does
+    // not replay on whichever board now occupies a non-center slot.
+    boardEls.value.forEach(el =>
+        el?.querySelectorAll('.board-diagram circle.sbn-svg-dot.is-striking')
+          .forEach(dot => dot.classList.remove('is-striking'))
+    );
+
     sliding = false;
+
+    // Re-enable transitions after the browser has painted the snapped-back
+    // frame, so the next advance() animates but this recycle did not.
+    requestAnimationFrame(() => requestAnimationFrame(() => { recycling.value = false; }));
 }
 
 // ── Current rhythm step for the strip ───────────────────────────────────────
@@ -235,20 +312,19 @@ const currentStep = ref(-1);
 const clock = useClock({
     bpm: BPM,
     pattern: PATTERN.value,
-    onStep(step, type) {
-        // Set step and strike in one synchronous block — Vue batches both
-        // into the same render cycle so strip highlight and dot pulse land
-        // in the same paint frame.
-        const shouldStrike = type !== 'rest' && step !== 0 && !sliding;
+    onStep(step) {
+        // Strip highlight follows every step. The two rhythm rows drive
+        // different dots: a thumb hit pulses the bass note, a fingers hit
+        // pulses the top three notes — the Gilberto thumb/fingers split.
         currentStep.value = step;
-        if (shouldStrike) {
-            const b = boards.value[CENTER_IDX];
-            b.striking = false;
-            nextTick(() => { b.striking = true; });
-        }
+        const isHit = (c: string | undefined) => c != null && c.toLowerCase() === 'x';
+        if (isHit(RHYTHM.thumb[step]))   strikeCenter('bass');
+        if (isHit(RHYTHM.fingers[step])) strikeCenter('fingers');
     },
-    onBar() {
-        advance();
+    onBar(barIndex) {
+        // barIndex 0 is the initial bar — the first chord is already centered,
+        // so don't slide on it. Advance on every subsequent bar boundary.
+        if (barIndex > 0) advance();
     },
 });
 
@@ -290,9 +366,10 @@ function thumbCellClass(i: number): Record<string, boolean> {
             <div
                 ref="trackEl"
                 class="board-track"
+                :class="{ 'is-recycling': recycling }"
                 :style="{
                     transform: `translateX(${trackOffset}px)`,
-                    transition: trackTransition ? `transform ${SLIDE_MS}ms cubic-bezier(.25,.9,.25,1)` : 'none',
+                    transition: trackTransition ? `transform ${SLIDE_MS}ms ${SLIDE_EASE}` : 'none',
                 }"
                 @transitionend="onTransitionEnd"
             >
@@ -302,13 +379,12 @@ function thumbCellClass(i: number): Record<string, boolean> {
                     :ref="el => { if (el) boardEls[k] = el as HTMLElement }"
                     class="board"
                     :data-role="board.role"
-                    :data-striking="board.role === 'center' && board.striking ? 'true' : undefined"
                 >
                     <div class="board-label">{{ board.label }}</div>
                     <div class="board-name">{{ board.chord.name }}</div>
                     <div class="board-sub">{{ board.chord.category_label }} · {{ board.chord.quality_label }}</div>
 
-                    <div class="board-diagram" :class="{ 'is-striking': board.role === 'center' && board.striking }">
+                    <div class="board-diagram">
                         <ChordDiagram :chord="board.chord" :show-guide-tones="true" />
                     </div>
                 </div>
@@ -392,9 +468,19 @@ function thumbCellClass(i: number): Record<string, boolean> {
     flex: 0 0 auto;
     text-align: center;
     transition:
-        opacity v-bind("slideMs + 'ms'"),
-        filter   v-bind("slideMs + 'ms'"),
-        width    v-bind("slideMs + 'ms'");
+        opacity v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE"),
+        filter   v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE"),
+        width    v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE");
+}
+
+/* During the recycle frame, kill ALL per-board transitions so the role/width
+   reset snaps instantly (no second animation). */
+.board-track.is-recycling .board,
+.board-track.is-recycling .board-label,
+.board-track.is-recycling .board-name,
+.board-track.is-recycling .board-sub,
+.board-track.is-recycling .board-diagram {
+    transition: none !important;
 }
 
 .board[data-role="center"] { width: 200px; }
@@ -409,14 +495,14 @@ function thumbCellClass(i: number): Record<string, boolean> {
     opacity: .6;
     height: 1em;
     margin-bottom: 4px;
-    transition: opacity v-bind("slideMs + 'ms'");
+    transition: opacity v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE");
 }
 .board[data-role="center"] .board-label { opacity: 0; }
 
 .board-name {
     font-family: var(--font-display);
     margin-bottom: 4px;
-    transition: font-size v-bind("slideMs + 'ms'"), opacity v-bind("slideMs + 'ms'");
+    transition: font-size v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE"), opacity v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE");
 }
 .board[data-role="center"] .board-name { font-size: 1.9rem; font-weight: 600; opacity: 1; }
 .board[data-role="side"]   .board-name { font-size: 1rem;   opacity: .55; }
@@ -427,7 +513,7 @@ function thumbCellClass(i: number): Record<string, boolean> {
     font-size: .82rem;
     height: 1.1em;
     margin-bottom: 8px;
-    transition: opacity v-bind("slideMs + 'ms'");
+    transition: opacity v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE");
 }
 .board[data-role="center"] .board-sub { opacity: 1; }
 .board[data-role="side"]   .board-sub { opacity: 0; }
@@ -443,18 +529,19 @@ function thumbCellClass(i: number): Record<string, boolean> {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: opacity v-bind("slideMs + 'ms'"), filter v-bind("slideMs + 'ms'");
+    transition: opacity v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE"), filter v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE");
 }
 .board[data-role="center"] .board-diagram { opacity: 1; filter: none; }
 .board[data-role="side"]   .board-diagram { opacity: .34; filter: grayscale(.45); }
 .board[data-role="off"]    .board-diagram { opacity: 0;   filter: grayscale(.6); }
 
-/* Strike pulse: target the rendered SVG dot circles */
+/* Strike pulse: `.is-striking` is toggled per-dot (bass vs. fingers) so the
+   thumb and finger hits pulse different notes independently. */
 .board-diagram :deep(circle.sbn-svg-dot) {
     transform-box: fill-box;
     transform-origin: center;
 }
-.board-diagram.is-striking :deep(circle.sbn-svg-dot) {
+.board-diagram :deep(circle.sbn-svg-dot.is-striking) {
     animation: hero-strike .42s cubic-bezier(.2,1.6,.4,1);
 }
 @keyframes hero-strike {
@@ -572,6 +659,6 @@ function thumbCellClass(i: number): Record<string, boolean> {
     .board-sub,
     .board-diagram,
     .board-label { transition: none !important; }
-    .board-diagram.is-striking :deep(circle.sbn-svg-dot) { animation: none !important; }
+    .board-diagram :deep(circle.sbn-svg-dot.is-striking) { animation: none !important; }
 }
 </style>

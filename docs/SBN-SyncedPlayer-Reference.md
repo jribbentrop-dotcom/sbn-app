@@ -30,7 +30,7 @@ display, so the two are always causally linked.
 ### What works
 - 5 persistent board slots (`off-left · prev · center · next · off-right`)
 - Physical slide on bar advance (stable DOM nodes, recycle buffer, no fade-repaint)
-- Dot pulse (`strike()`) fires on accent steps (`X` chars in fingers string), targeting `circle.sbn-svg-dot` via CSS `animation`
+- **Thumb/fingers dot split** (Gilberto technique): a `thumb` hit pulses only the bass-note dot; a `fingers` hit pulses only the top-three dots. `strikeCenter(row)` toggles `.is-striking` per `circle.sbn-svg-dot` filtered by `data-string`, where the bass = the lowest-numbered played string (`bassString()`, string 1 = low E per `ChordShapeCalculator::TUNING`) and fingers = everything above it. Both rows read from `RHYTHM.thumb`/`RHYTHM.fingers` directly in `onStep`; on the downbeat both fire together. Re-triggered imperatively (remove → one reflow → re-add).
 - Two-row rhythm strip (fingers + thumb) driven by `RhythmPatternData` shape — `X`=accent, `x`=ghost/hit, `.`=rest
 - Real `ChordDiagramData` shape — `<ChordDiagram :show-guide-tones>` renders guide-tone colours via `sbnRenderDiagramSVG()`
 - `prefers-reduced-motion` respected (static first chord, no timer)
@@ -43,8 +43,125 @@ display, so the two are always causally linked.
 - No tempo control
 - Single global pattern — every bar uses the same rhythm
 
-### Open bug
-- **Rhythm strip ↔ dot-strike sync**: strip cell highlight (`currentStep`) and the dot pulse (`b.striking`) are driven by the same `onStep` callback and batched into one Vue render cycle via `nextTick`, but visual sync is still imprecise — likely because `setInterval` drift means the two effects don't land in the same paint frame. Resolution: replace `setInterval` with an `AudioEngine`-derived tick (Phase S.2) so the clock is sample-accurate.
+### Sync fixes (2026-06-04)
+Three defects that broke the visible chord↔rhythm link were fixed:
+
+1. **Bar boundary fired one step early.** `useClock.tick()` called `onBar`
+   *after* `step` wrapped past 15, so the chord advanced on the last 16th of
+   the bar — visibly leading the downbeat by one cell. Now `onBar` fires on
+   step 0 *before* its `onStep`, so the chord change and the strip's "1" land
+   in the same paint frame. `onBar(barIndex)` now passes the bar index;
+   `SyncedHero` ignores index 0 (initial chord already centered).
+
+2. **Strike never fired on the downbeat and died during the slide.** The old
+   condition `type !== 'rest' && step !== 0 && !sliding` suppressed the
+   strongest accent (beat 1) and ~5 steps of pulses per bar during the 1120 ms
+   slide. Now any non-rest step pulses the center board, including the downbeat
+   and mid-slide.
+
+3. **Strike re-trigger was unreliable.** The `striking` boolean + `nextTick`
+   toggle couldn't restart the CSS keyframe when the value didn't change (and
+   the SVG is re-rendered by `ChordDiagram`'s `watchEffect`). Replaced with
+   `strikeCenter()`, which imperatively removes `.is-striking`, forces a reflow,
+   and re-adds it — the canonical CSS animation restart — always targeting the
+   physical center slot (`boardEls[CENTER_IDX]`). Lingering classes are cleared
+   on `transitionend`.
+
+### Animation-smoothing fixes (2026-06-04, session 2)
+The slide/recycle had three more defects, all fixed:
+
+4. **Strike targeted the wrong board mid-slide.** `strikeCenter` used the fixed
+   physical slot `boardEls[CENTER_IDX]`, which still shows the OUTGOING chord
+   during the slide — so the rhythm pulsed the old dots for ~5 steps, then
+   "started mid-way" on the new chord. Now it targets the board whose **role**
+   is `center` (`boards.findIndex(b => b.role === 'center')`); the incoming
+   chord already holds that role from the downbeat, so the strike hits the new
+   chord's dots immediately.
+
+5. **String convention was inverted.** Comments claimed `1 = high e`; the DB
+   truth (`ChordShapeCalculator::TUNING`) is `1 = low E … 6 = high E`. The
+   thumb/fingers split used `Math.max` (→ pulsed the high E as "bass"). Fixed to
+   `Math.min`. **Remember: string 1 = low E everywhere in this codebase.**
+
+6. **Double "pull-in" animation.** Two causes: (a) `transitionend` bubbles, so
+   child board transitions re-triggered the recycle — guarded with
+   `e.target === trackEl && e.propertyName === 'transform'`; (b) the recycle
+   reset roles/widths *with transitions live*, re-animating the just-centered
+   board — fixed with a one-frame `recycling` flag that sets `transition: none`
+   on all boards during the array shift, re-enabled via double-`rAF`.
+
+7. **End-of-slide hiccup.** The track translate and the board width/opacity
+   transitions ran on *different* easing curves (custom bezier vs default
+   `ease`), so they finished at different instants while `dx` was measured
+   pre-slide — a sub-pixel correction at the end. Fixed with ONE shared
+   `SLIDE_EASE` (`cubic-bezier(.4,0,.2,1)`) + `SLIDE_MS` (420ms) applied to the
+   track AND every board transition.
+
+### Remaining imprecision (deferred to S.2)
+- `setInterval` still drifts, so over long runs the visual tick can wander a
+  few ms from where audio would be. Resolution unchanged: replace `setInterval`
+  with an `AudioEngine`-derived tick (Phase S.2) so the clock is sample-accurate.
+
+---
+
+## 2b. ⭐ NEXT SESSION — START HERE (2026-06-04)
+
+Three tasks, ordered easy → strong. Do them in this order; each is shippable
+on its own.
+
+### Task 1 (easy, ~30 min) — "anticipate the next chord"
+The student should *see what's coming* before the chord lands, so the change
+isn't a surprise. The `next` board already exists (slot 3) — make it read as a
+clear "up next" cue:
+- Add a small **"up next"** affordance to the `next`-role board (the `LBLS`
+  array already has `'next'` — currently hidden by opacity rules). Show its
+  label + name brighter than the `prev`/`off` boards.
+- Optionally **pre-pulse** the next chord's root dot once, ~1 beat before the
+  bar flips (a soft "get ready" cue). The clock already knows the step; fire a
+  faint strike on `boardEls[next]` at e.g. step 12.
+- Keep it subtle — this is a teaching nudge, not a distraction.
+- Files: `SyncedHero.vue` only. No backend.
+
+### Task 2 (medium, ~1–2 h) — adopt the SBN design system
+The hero currently uses ad-hoc tokens (`--clr-bg-elev`, `--clr-red`, etc.) and
+bespoke card chrome. Align it to the SBN design system so it matches the rest of
+the site:
+- Read `docs/SBN-Design-Reference.md` and `[[reference_css_design_system]]`
+  first — use the canonical token namespace and card-frame rules.
+- Replace the hand-rolled `.synced-hero` card shell with the standard SBN card
+  frame (same as library cards / `.sbn-vp-card`).
+- Reuse `RhythmPattern.vue`'s **mini variant** for the rhythm strip instead of
+  the bespoke `.mini-rhythm` markup — it already shares `RhythmPatternData` and
+  the `is-current` highlight. This deletes ~80 lines of duplicated CSS and makes
+  the strip consistent with the library. (Caveat: the hero needs the strip
+  driven by `useClock`, not `RhythmPattern`'s own `AudioEngine` — pass
+  `currentStep` in or expose a prop; check the seam before committing.)
+- Match typography/spacing to the homepage hero siblings.
+
+### Task 3 (strong, ~half day) — connect to the DB (leadsheets)
+This is Phase S.3 + the start of S.4. Wire the hero to a **real leadsheet** so
+it walks an actual chord sequence instead of the hardcoded Dm7/G7/Cmaj7.
+- **Backend**: `HomeController` (or a dedicated endpoint) selects a featured
+  leadsheet and serialises its measures to the `LeadsheetBar[]` shape (see §4
+  "Proposed leadsheet prop shape"). Reuse `LeadsheetViewerService` /
+  `ChordSerializer` — do NOT hand-roll chord→diagram conversion; the serializer
+  already produces `ChordDiagramData`.
+- **Per-measure rhythm**: the tab model already has `rhythmSlug: null` per
+  measure (`useTabModel.js:1440`). For the homepage, a single global
+  `rhythmPattern` prop is fine (all bars share the bossa pattern); per-measure
+  swap is Phase S.4b, defer it.
+- **`durationBars`**: real chords often last 2–4 bars. The clock's `onBar` must
+  advance the *chord pointer* only every `durationBars` cycles (see §4 "Clock
+  behaviour with a leadsheet"). The current hero advances every bar — add the
+  `barsPerChord` counter.
+- **Props**: lift the hardcoded `CHORDS`/`RHYTHM` consts into props with the
+  hardcoded values as fallback defaults, so the component works standalone AND
+  from the controller. This is the natural extraction toward the standalone
+  `SyncedPlayer.vue` (Phase S.3).
+
+> Gotchas to re-check: string 1 = low E (not high e); strike targets the
+> **role**=center board, not the physical slot; `transitionend` bubbles (filter
+> on `propertyName`); keep `setInterval` (audio engine is S.2, not now).
 
 ---
 
