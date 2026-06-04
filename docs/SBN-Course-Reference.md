@@ -23,7 +23,7 @@ One contract — the `<sbn-*>` tag set in §3 — binds editor, runtime, and JSO
 
 Two tables: `sbn_courses` and `sbn_lessons`.
 
-- [`Course`](../app/Models/Course.php) — `Course extends Model`. Casts `genres`/`levels`/`topics` as array, `is_free` as bool. `hasMany` lessons (ordered by `sort_order`). `belongsTo` `Product` for paid courses. Scopes: `published()`, `byGenre()`, `byLevel()`. Accessors: `primaryGenre`, `primaryLevel`, `lessonCount`, `isGated`.
+- [`Course`](../app/Models/Course.php) — `Course extends Model`. Casts `genres`/`levels` as array, `is_free` as bool. `hasMany` lessons (ordered by `sort_order`). `belongsTo` `Product` for paid courses. Scopes: `published()`, `byGenre()`, `byLevel()`. Accessors: `primaryGenre`, `primaryLevel`, `lessonCount`, `isGated`. Note: `topics` column exists in DB but is no longer used (replaced by tags).
 - [`Lesson`](../app/Models/Lesson.php) — `Lesson extends Model`. `belongsTo` Course. `content` is `longText` containing the lesson HTML. Scope: `published()`. Accessor: `subsections` parses `<h2 id="section-…">` headings out of `content` for sidebar nav.
 
 No DB migration is required to add new `<sbn-*>` types — they live inside `content` HTML.
@@ -209,16 +209,18 @@ Defined in [`routes/web.php`](../routes/web.php) under `Route::middleware('auth'
 
 Typing `/` opens an inline popup with the SBN types, image, and youtube. Picking a type calls `window.__sbnPalette(type)` — which switches the palette and focuses search. Insertion happens through the normal palette path, not the slash menu. One code path. YouTube is the exception: it prompts for a URL and inserts directly.
 
-### 6.5 LessonAiPanel.vue — slide-out AI chat
+### 6.5 LessonAiPanel.vue — inline AI assistant
 
-[`resources/js/admin/LessonAiPanel.vue`](../resources/js/admin/LessonAiPanel.vue) — separate Vue island, mounted on `#lesson-ai-panel` by [`lesson-editor.ts`](../resources/js/admin/lesson-editor.ts).
+[`resources/js/admin/LessonAiPanel.vue`](../resources/js/admin/LessonAiPanel.vue) — separate Vue island, mounted on `#lesson-ai-panel` by [`lesson-editor.ts`](../resources/js/admin/lesson-editor.ts). The mount point sits inside the editor card, immediately below the TipTap editor div — the panel is always visible (no toggle).
 
-- **Why a panel, not toolbar buttons** — the old `✨ Proof` / `✍️ Gen` toolbar buttons could overwrite the *whole document* in one click (proofread with no selection called `setContent()`). They were removed. AI now goes through a conversational drawer where output only reaches the document on an explicit click.
-- **Slide-out drawer** — fixed to the right edge, opened by a vertical "✨ AI" tab. No backdrop: while open it adds `body.sbn-ai-drawer-open`, which shrinks `.sbn-main` by 380px so the editor stays fully interactive alongside it (overlays instead on screens <900px).
-- **Chat** — multi-turn. Each send posts `{ action: 'chat', content, context, history, selection }` to `/admin/ai/process`. `context` and `selection` come from the `window.__sbnEditor` bridge (§6.2).
-- **Applying output** — an AI reply may carry insertable `html`. Two buttons: **Insert at cursor** (always) and **Replace selection** (enabled only when text is selected — driven live by the shared `hasSelection` ref). Nothing changes the lesson without one of these clicks.
-- **Quick actions** — when text is selected, a bar offers canned instructions (Proofread / Improve / Shorten) that send a preset prompt instead of free text.
-- **Backend** — the `chat` action in [`Admin\AIController`](../app/Http/Controllers/Admin/AIController.php) flattens conversation history + lesson context + current selection into one prompt (the `LookupClient::complete()` signature takes a single user prompt, no message-turn array) and returns `{ reply, html }`.
+- **Why a panel, not toolbar buttons** — the old `✨ Proof` / `✍️ Gen` toolbar buttons could overwrite the *whole document* in one click. They were removed. AI output only reaches the document on an explicit click.
+- **Layout** — inline block below the editor, `max-height: 320px` scrollable message area. No fixed positioning, no body class manipulation.
+- **Lesson metadata** — the mount div carries `data-lesson-title`, `data-course-title`, `data-course-genre`, `data-section-title` attributes (set in `lessons/edit.blade.php`). The panel reads these in `onMounted` and forwards them as `lessonMeta` in every fetch body, so the AI knows exactly what lesson it's assisting with.
+- **Quick-start buttons** — shown before the first message: Draft intro / Explain the concept / Continue writing / Practice tips. Each button generates a prompt that names the lesson title explicitly (e.g. `"Write an opening paragraph for 'The Basic Bossa Clave'…"`).
+- **Chat** — multi-turn. Each send posts `{ action: 'chat', content, context, history, selection, lessonMeta }` to `/admin/ai/process`. `context` and `selection` come from the `window.__sbnEditor` bridge (§6.2).
+- **Applying output** — an AI reply may carry insertable `html`. Two buttons: **Insert at cursor** (always) and **Replace selection** (enabled only when text is selected). Nothing changes the lesson without one of these clicks.
+- **Quick actions** — when text is selected, a bar offers Proofread / Improve / Shorten.
+- **Backend** — the `chat` action in [`Admin\AIController`](../app/Http/Controllers/Admin/AIController.php) injects lesson + course metadata at the top of the user prompt, uses a domain-specific system prompt (expert music educator, bossa nova/jazz/guitar), and returns `{ reply, html }`.
 
 ---
 

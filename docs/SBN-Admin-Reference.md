@@ -1,7 +1,7 @@
 # SBN Teaching Hub — Admin Reference
 
 > **Purpose:** Complete functional documentation for the SBN admin section. Covers all implemented modules, their architecture, data models, and the design system. Use this as the reference when building the public frontend.
-> **Last updated:** 2026-05-16 (video sync play-position model; extension_mode UI; progression slug auto-generation; ChordVoicingSearch alias dedup)
+> **Last updated:** 2026-06-04 (rich description editor + AI assistant for all 5 library entities; LessonAiPanel inline; typical_genres + topics removed)
 > **See also:** [SBN-Admin-Chord-Tab-Editor-Reference.md](SBN-Admin-Chord-Tab-Editor-Reference.md) — full Tab/Chord editor deep-dive (architecture, component tree, keyboard shortcuts, video sync, design system, and all creation flows).
 
 ---
@@ -25,6 +25,8 @@
 | HarmonicContext + ProgressionBuilder services | Done | `app/Services/` |
 | Progression builder admin UI | Done | `admin/progressions/builder.blade.php` |
 | Fretboard diagrams (CRUD + interactive editor) | Done | `admin/fretboards/` — see [SBN-Fretboard-Reference.md](SBN-Fretboard-Reference.md) |
+| Rich description editor (all 5 library entities) | Done | `resources/js/admin/DescriptionEditorModal.vue` |
+| AI assistant (description modal + lesson editor) | Done | `app/Http/Controllers/Admin/AIController.php` |
 | Tab viewer + design system restructure | Done | `TabEditor.vue` |
 | Interactive tab editor (Vue 3 / Vite) | Done | `resources/js/tab-editor/` |
 | Tab ↔ chord sync + `<harmony>` in writer | Done | `useChordSync.js` / `musicXmlWriter.js` |
@@ -222,6 +224,56 @@ phase. Until then, when adding new shapes, manually verify that
 `start_fret` reflects the actual minimum fret. The
 `ChordSerializer` self-heal mitigates display issues but doesn't
 fix the underlying data.
+
+---
+
+## DESCRIPTION EDITOR + AI ASSISTANT
+
+### Rich description editor (all 5 library entities)
+
+All admin edit pages for rhythm, progression, chord, leadsheet, and course now have a rich HTML description editor. The plain `<textarea>` / `<input type="text">` is replaced with a two-part system:
+
+**Modal editor** — `DescriptionEditorModal.vue` (TipTap StarterKit). Opened via `window.__descEditor.open(options)` from `description-editor.ts`. Options:
+- `initial` — current HTML content
+- `eventName` — CustomEvent name dispatched on save (host Alpine component listens and updates its own data)
+- `entityType` — `'rhythm' | 'progression' | 'chord' | 'leadsheet' | 'course'`
+- `entityMeta` — object with name/title/composer/genre/etc. for AI context
+
+**Always-open AI right panel** — inside the modal, a 320px right column with:
+- Pre-fill button: generates a full description from entity metadata
+- Improve current button: expands existing content
+- Chat loop: multi-turn, each reply has an "Apply to editor" button
+- Sends `{ action: 'describe', content, entityType, entityMeta, history }` to `/admin/ai/process`
+
+**Storage** — HTML in the existing `description` column on each entity's table. No migration. Index pages `strip_tags()` for card excerpts; show pages render `v-html + .sbn-prose`.
+
+**Wiring pattern — critical gotcha:** Never use `Js::from()` inside `@click="..."` (double-quote collision breaks the attribute). Never use `$el` inside a large Alpine component (points to the component root, not the button). Always use:
+```blade
+data-foo-meta='{!! htmlspecialchars(json_encode([...]), ENT_QUOTES) !!}'
+@click="window.__descEditor.open({ ..., entityMeta: JSON.parse($event.currentTarget.dataset.fooMeta) })"
+```
+
+**AJAX endpoints** (all `POST`, auth-protected):
+- `/admin/rhythms/{rhythm}/description`
+- `/admin/progressions/{progression}/description`
+- `/admin/chords/{chord}/description`
+- `/admin/courses/{course}/description`
+- `/admin/leadsheets/{leadsheet}/description` (already existed)
+
+**Admin list pages** — each row has a **Desc** button (opens modal, saves via AJAX on confirm) and a **Preview ↗** link (opens public show page in new tab). The Desc button also uses `$event.currentTarget.dataset.*` to read per-row metadata.
+
+**Preview links** — all admin edit pages now have a "Preview ↗" (`sbn-btn-ghost`) in the `@section('actions')` top bar, only shown when editing an existing item (not on create).
+
+### AI — `describe` action (AIController)
+
+System prompt: expert music educator + encyclopaedic writer; CRITICAL instruction to write about the specific entity, not the platform default genre. User prompt leads with `Title/Name:` and `Composer/Artist:` before any other metadata. Returns `{ reply, html }`.
+
+### Removed fields
+
+- `typical_genres` on `sbn_chord_progressions` — column orphaned in DB, removed from: model fillable, validation, serializer, admin edit page, Show.vue, Index.vue
+- `topics` on `sbn_courses` — column orphaned in DB, removed from: model cast, CourseRequest, admin form, admin edit hidden input, CourseController serializer, Show.vue (topic pills + info row)
+
+Both replaced by the existing tags system.
 
 ---
 

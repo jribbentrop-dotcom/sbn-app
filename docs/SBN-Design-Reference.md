@@ -610,6 +610,8 @@ Currently applied to: `Progressions/Show.vue`, `Rhythms/Show.vue`.
 | `.sbn-lib-row-title` | 20px/800 row heading |
 | `.sbn-lib-row-link` | Unstyled link; hover → accent color |
 | `.sbn-lib-row-desc` | 2-line clamped description |
+| `.sbn-prose` | Rich HTML description renderer on show pages — applies paragraph spacing, heading sizes (h2/h3), lists, blockquote accent border, bold/italic. Used on all 5 library show pages wherever `description` is rendered as `v-html`. Defined in `resources/css/frontend/base.css`. |
+| `.sbn-desc-preview` | Admin-side read-only preview of a rich HTML description (before opening the editor modal). Defined in `public/css/admin2.css`. Variant `--inline` for constrained height with scroll. |
 | `.sbn-lib-row-popularity-phrase` | "This is a Common pattern…" sentence |
 | `.sbn-lib-row-read-more` | Arrow CTA link |
 | `.sbn-lib-no-results` | Centered empty state |

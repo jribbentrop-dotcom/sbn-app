@@ -169,7 +169,7 @@ The library listing uses a card design that is now the **SBN standard for rhythm
       <span class="sbn-badge sbn-badge-eighth">eighth</span> <!-- if applicable -->
     </span>
   </div>
-  <p class="sbn-pattern-row-desc">{{ pattern.description }}</p>
+  <div class="sbn-rhythm-section-body sbn-prose" v-html="pattern.description"></div>
   <RhythmStrip :pattern="pattern" :color="getCategoryColor(pattern.styleSlug)" />
 </Link>
 ```
