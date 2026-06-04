@@ -24,7 +24,6 @@ class CourseRequest extends FormRequest
             'category'            => ['nullable', 'string', \Illuminate\Validation\Rule::in(\App\Models\ChordProgression::CATEGORIES)],
             'tags'                => ['nullable', 'string', 'max:500'],
             'levels_raw'          => ['nullable', 'string', Rule::in(['','basic','early-intermediate','intermediate','late-intermediate','advanced'])],
-            'topics_raw'          => ['nullable', 'string'],
             'is_free'             => ['boolean'],
             'product_id'          => ['nullable', 'integer', 'exists:sbn_products,id'],
             'featured_image_path' => ['nullable', 'string', 'max:500'],
@@ -61,7 +60,6 @@ class CourseRequest extends FormRequest
 
         return array_merge($data, [
             'levels' => $this->input('levels_raw') ? [$this->input('levels_raw')] : [],
-            'topics' => $split($this->input('topics_raw')),
         ]);
     }
 }

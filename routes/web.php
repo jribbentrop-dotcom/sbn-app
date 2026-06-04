@@ -154,6 +154,7 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
     Route::get('/progressions/{progression}/edit', [ProgressionController::class, 'edit'])->name('progressions.edit');
     Route::put('/progressions/{progression}', [ProgressionController::class, 'update'])->name('progressions.update');
     Route::delete('/progressions/{progression}', [ProgressionController::class, 'destroy'])->name('progressions.destroy');
+    Route::post('/progressions/{progression}/description', [ProgressionController::class, 'updateDescription'])->name('progressions.updateDescription');
 
     // Phase 2 — Rhythm Patterns (full CRUD)
     Route::get('/rhythms', [RhythmPatternController::class, 'index'])->name('rhythms.index');
@@ -162,6 +163,7 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
     Route::get('/rhythms/{rhythm}/edit', [RhythmPatternController::class, 'edit'])->name('rhythms.edit');
     Route::put('/rhythms/{rhythm}', [RhythmPatternController::class, 'update'])->name('rhythms.update');
     Route::delete('/rhythms/{rhythm}', [RhythmPatternController::class, 'destroy'])->name('rhythms.destroy');
+    Route::post('/rhythms/{rhythm}/description', [RhythmPatternController::class, 'updateDescription'])->name('rhythms.updateDescription');
 
     // Phase 12c — Products (admin CRUD)
     Route::get('/products', [AdminProductController::class, 'index'])->name('products.index');
@@ -180,6 +182,7 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
     Route::put('/courses/{course}', [AdminCourseController::class, 'update'])->name('courses.update');
     Route::delete('/courses/{course}', [AdminCourseController::class, 'destroy'])->name('courses.destroy');
     Route::post('/courses/{course}/status', [AdminCourseController::class, 'updateStatus'])->name('courses.updateStatus');
+    Route::post('/courses/{course}/description', [AdminCourseController::class, 'updateDescription'])->name('courses.updateDescription');
 
     Route::get('/courses/{course}/lessons/create', [AdminLessonController::class, 'create'])->name('courses.lessons.create');
     Route::post('/courses/{course}/lessons', [AdminLessonController::class, 'store'])->name('courses.lessons.store');
@@ -279,6 +282,7 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
     // Chord Diagrams
     Route::delete('/chords/{chord}', [ChordController::class, 'destroy'])->name('chords.destroy');
     Route::post('/chords/{chord}/duplicate', [ChordController::class, 'duplicate'])->name('chords.duplicate');
+    Route::post('/chords/{chord}/description', [ChordController::class, 'updateDescription'])->name('chords.updateDescription');
     Route::post('/chords/recompute', [ChordController::class, 'recomputeIntervals'])->name('chords.recompute');
 
     // Chord Diagram Aliases

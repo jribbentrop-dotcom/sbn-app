@@ -119,34 +119,88 @@ class CourseController extends Controller
         $progressionTags = []; // one entry per <sbn-progression> tag: { slug, key, videoSnippet }
         $sheetSlugs = [];      // unique slugs of <sbn-sheet> tags that have videoSync
         $lessonConcepts = [];
+
         if ($activeLesson) {
             $canView = $hasAccess || $activeLesson->is_preview;
             $lessonData = $this->serializeLesson($activeLesson, withContent: $canView);
-            if ($canView && $activeLesson->content) {
-                preg_match_all('/<sbn-chord[^>]+slug="([^"]+)"/i', $activeLesson->content, $matches);
-                $chordSlugs = array_values(array_unique($matches[1] ?? []));
-                $rhythmTags = $this->parseRhythmTags($activeLesson->content);
-                $progressionTags = $this->parseProgressionTags($activeLesson->content);
+        }
 
-                // Sheet exercises with videoSync — deduped by slug, used to
-                // populate the PracticePanel video slot.
-                preg_match_all('/<sbn-sheet\b[^>]*\bslug="([^"]+)"/i', $activeLesson->content, $sheetMatches);
-                $sheetSlugs = array_values(array_unique($sheetMatches[1] ?? []));
+        // Partial reload (lesson navigation): only swap the lesson prop.
+        // Skip the expensive course-wide scan — sidebar data doesn't change.
+        if ($request->header('X-Inertia-Partial-Component') === 'Courses/Player'
+            && str_contains($request->header('X-Inertia-Partial-Data', ''), 'lesson')) {
+            return Inertia::render('Courses/Player', [
+                'course'    => $this->serializeCourse($course),
+                'lessons'   => $allLessons->map(fn ($l) => $this->serializeLessonStub($l)),
+                'lesson'    => $lessonData,
+                'hasAccess' => $hasAccess,
+            ]);
+        }
 
-                // Collect sbn-widget slugs in document order (deduped), resolve
-                // each to its concept topic for the sidebar expanders.
-                preg_match_all('/<sbn-widget\b[^>]*\bslug="([^"]+)"/i', $activeLesson->content, $widgetMatches);
-                $seenWidgets = [];
-                foreach ($widgetMatches[1] as $widgetSlug) {
-                    if (isset($seenWidgets[$widgetSlug])) continue;
-                    $seenWidgets[$widgetSlug] = true;
-                    $topic = $edu->topic('concept', $widgetSlug);
-                    if ($topic) {
-                        $lessonConcepts[] = $topic->toArray();
-                    }
+        // Scan all accessible lesson content for sidebar components so the
+        // practice panel shows the full course, not just the active lesson.
+        $chordTags = []; // { slug, root } pairs
+        $seenChordKeys = [];
+        $seenSheets = [];
+        $seenWidgets = [];
+        foreach ($allLessons as $scanLesson) {
+            $canView = $hasAccess || $scanLesson->is_preview;
+            if (!$canView || !$scanLesson->content) continue;
+
+            $lessonSlug = $scanLesson->slug;
+
+            preg_match_all('/<sbn-chord\b[^>]*>/i', $scanLesson->content, $chordTagMatches);
+            foreach ($chordTagMatches[0] as $tag) {
+                if (!preg_match('/\bslug="([^"]+)"/i', $tag, $sm)) continue;
+                preg_match('/\broot="([^"]*)"/i', $tag, $rm);
+                $slug = $sm[1];
+                $root = $rm[1] ?? '';
+                $key = $slug . '|' . $root;
+                if (!isset($seenChordKeys[$key])) {
+                    $seenChordKeys[$key] = true;
+                    $chordTags[] = ['slug' => $slug, 'root' => $root, 'lessonSlug' => $lessonSlug];
+                    $chordSlugs[] = $slug;
                 }
             }
+
+            foreach ($this->parseRhythmTags($scanLesson->content) as $tag) {
+                $rhythmTags[] = array_merge($tag, ['lessonSlug' => $lessonSlug]);
+            }
+
+            foreach ($this->parseProgressionTags($scanLesson->content) as $tag) {
+                $progressionTags[] = array_merge($tag, ['lessonSlug' => $lessonSlug]);
+            }
+
+            preg_match_all('/<sbn-sheet\b[^>]*\bslug="([^"]+)"/i', $scanLesson->content, $sheetMatches);
+            foreach ($sheetMatches[1] as $slug) {
+                if (!isset($seenSheets[$slug])) { $seenSheets[$slug] = true; $sheetSlugs[] = ['slug' => $slug, 'lessonSlug' => $lessonSlug]; }
+            }
+
+            preg_match_all('/<sbn-widget\b[^>]*\bslug="([^"]+)"/i', $scanLesson->content, $widgetMatches);
+            foreach ($widgetMatches[1] as $widgetSlug) {
+                if (isset($seenWidgets[$widgetSlug])) continue;
+                $seenWidgets[$widgetSlug] = true;
+                $topic = $edu->topic('concept', $widgetSlug);
+                if ($topic) $lessonConcepts[] = $topic->toArray();
+            }
         }
+
+        // Dedupe rhythm tags by slug+snippet pair so the same pattern isn't
+        // listed twice when it appears in multiple lessons identically.
+        $seenRhythmKeys = [];
+        $rhythmTags = array_values(array_filter($rhythmTags, function ($tag) use (&$seenRhythmKeys) {
+            $key = $tag['slug'] . '|' . ($tag['videoSnippet'] ?? '');
+            if (isset($seenRhythmKeys[$key])) return false;
+            return $seenRhythmKeys[$key] = true;
+        }));
+
+        // Dedupe progression tags by slug+key+snippet.
+        $seenProgKeys = [];
+        $progressionTags = array_values(array_filter($progressionTags, function ($tag) use (&$seenProgKeys) {
+            $key = $tag['slug'] . '|' . $tag['key'] . '|' . ($tag['videoSnippet'] ?? '');
+            if (isset($seenProgKeys[$key])) return false;
+            return $seenProgKeys[$key] = true;
+        }));
 
         // Rhythms shown in the practice panel are the ones referenced by
         // <sbn-rhythm> tags in the lesson content — one panel entry per tag
@@ -182,6 +236,7 @@ class CourseController extends Controller
                         'name'        => $r->name,
                         'description' => $r->description,
                         'pattern'     => $pattern,
+                        'lessonSlug'  => $tag['lessonSlug'] ?? null,
                     ];
                 })
                 ->filter()
@@ -217,6 +272,7 @@ class CourseController extends Controller
                         'key'          => $tag['key'],
                         'category'     => $p->category,
                         'videoSnippet' => $snippet,
+                        'lessonSlug'   => $tag['lessonSlug'] ?? null,
                     ];
                 })
                 ->filter()
@@ -228,17 +284,20 @@ class CourseController extends Controller
         // the full videoSync from the exercise payload (fetched by mountSbnNodes).
         $sheets = collect();
         if (!empty($sheetSlugs)) {
-            $sheets = Exercise::whereIn('slug', $sheetSlugs)
+            $slugOnly = array_column($sheetSlugs, 'slug');
+            $lessonBySlug = array_column($sheetSlugs, 'lessonSlug', 'slug');
+            $sheets = Exercise::whereIn('slug', $slugOnly)
                 ->get()
-                ->map(function (Exercise $e) {
+                ->map(function (Exercise $e) use ($lessonBySlug) {
                     $content = $e->content_json ?? [];
                     $vs = $content['videoSync'] ?? null;
                     if (!$vs || empty($vs['videoId'])) return null;
                     return [
-                        'slug'      => $e->slug,
-                        'title'     => $e->title,
-                        'videoId'   => $vs['videoId'],
-                        'videoType' => $vs['videoType'] ?? 'youtube',
+                        'slug'       => $e->slug,
+                        'title'      => $e->title,
+                        'videoId'    => $vs['videoId'],
+                        'videoType'  => $vs['videoType'] ?? 'youtube',
+                        'lessonSlug' => $lessonBySlug[$e->slug] ?? null,
                     ];
                 })
                 ->filter()
@@ -251,6 +310,7 @@ class CourseController extends Controller
             'lesson'         => $lessonData,
             'hasAccess'      => $hasAccess,
             'chordSlugs'     => $chordSlugs,
+            'chordTags'      => $chordTags,
             'lessonConcepts' => $lessonConcepts,
             'rhythms'        => $rhythms,
             'progressions'   => $progressions,
@@ -335,11 +395,11 @@ class CourseController extends Controller
             'slug' => $course->slug,
             'title' => $course->title,
             'excerpt' => $course->excerpt,
+            'description' => $course->description,
             'category'     => $course->category,
             'levels'       => $course->levels ?? [],
             'primaryGenre' => $course->primary_genre,
             'primaryLevel' => $course->primary_level,
-            'topics' => $course->topics ?? [],
             'isFree' => $course->is_free,
             'isGated' => $course->is_gated,
             'lessonCount' => $course->lesson_count,

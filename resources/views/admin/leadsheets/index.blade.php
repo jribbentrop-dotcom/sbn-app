@@ -162,7 +162,6 @@
                         @if($currentTab === 'leadsheets')
                             <th class="col-status">Status</th>
                         @endif
-                        <th class="col-description">Description</th>
                         <th class="col-cover">Cover image</th>
                         <th class="col-actions"></th>
                     </tr>
@@ -220,31 +219,6 @@
                             </button>
                         </td>
                         @endif
-                        <td class="col-description">
-                            <div x-data="{ editing: false }">
-                                <div x-show="!editing" class="sbn-ls-desc-row">
-                                    <span class="sbn-ls-desc-text" x-ref="descText{{ $ls->id }}">
-                                        @if($ls->description)
-                                            {{ \Illuminate\Support\Str::words($ls->description, 12, '…') }}
-                                        @else
-                                            <span class="sbn-text-placeholder">Add info…</span>
-                                        @endif
-                                    </span>
-                                    <button class="sbn-ls-desc-edit" @click="editing = true" title="Edit description">✎</button>
-                                </div>
-                                <div x-show="editing" x-cloak>
-                                    <textarea class="sbn-ls-desc-textarea" rows="2"
-                                        x-ref="descInput{{ $ls->id }}"
-                                        x-init="$watch('editing', v => { if (v) $nextTick(() => $refs['descInput{{ $ls->id }}'].focus()) })"
-                                    >{{ $ls->description ?? '' }}</textarea>
-                                    <div class="sbn-ls-desc-actions">
-                                        <button class="sbn-btn sbn-btn-xs sbn-btn-primary"
-                                            @click="saveDescription({{ $ls->id }}, $refs['descInput{{ $ls->id }}'].value, '{{ $currentTab }}'); editing = false">Save</button>
-                                        <button class="sbn-btn sbn-btn-xs" @click="editing = false">Cancel</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </td>
                         <td class="col-cover">
                             <div x-data="{ editing: false }">
                                 <div x-show="!editing" class="sbn-ls-desc-row">
@@ -272,7 +246,31 @@
                                 </div>
                             </div>
                         </td>
-                        <td class="col-actions">
+                        <td class="col-actions" style="white-space:nowrap;">
+                            <button class="sbn-btn sbn-btn-xs sbn-btn-secondary"
+                                    title="Edit description"
+                                    data-ls-desc='{!! htmlspecialchars($ls->description ?? '', ENT_QUOTES) !!}'
+                                    data-ls-meta='{!! htmlspecialchars(json_encode([
+                                        'title'    => $ls->title    ?? '',
+                                        'composer' => $ls->composer ?? '',
+                                        'genre'    => $ls->genre    ?? '',
+                                    ]), ENT_QUOTES) !!}'
+                                    @click="
+                                        const btn = $event.currentTarget;
+                                        window.__descEditor.open({ initial: btn.dataset.lsDesc, eventName: 'desc-editor:save:ls-{{ $ls->id }}', placeholder: 'Song description, teaching notes…', entityType: 'leadsheet', entityMeta: JSON.parse(btn.dataset.lsMeta) });
+                                        document.addEventListener('desc-editor:save:ls-{{ $ls->id }}', function h(e) {
+                                            document.removeEventListener('desc-editor:save:ls-{{ $ls->id }}', h);
+                                            saveDescription({{ $ls->id }}, e.detail, '{{ $currentTab }}');
+                                        });
+                                    ">
+                                Desc
+                            </button>
+                            @if($currentTab === 'leadsheets' && $ls->slug)
+                            <a href="{{ route('library.songs.show', $ls->slug) }}" target="_blank"
+                               class="sbn-btn sbn-btn-xs sbn-btn-ghost" title="Preview on site">
+                                Preview ↗
+                            </a>
+                            @endif
                             <button class="sbn-btn-delete"
                                 @click="deleteItem({{ $ls->id }}, '{{ addslashes($ls->title) }}', '{{ $currentTab }}')"
                                 title="Delete">
@@ -312,6 +310,8 @@
 @endsection
 
 @push('scripts')
+<div id="desc-editor-root"></div>
+@vite('resources/js/admin/description-editor.ts')
 <script>
 // Lightweight toast — also used by saveDescription / saveCoverImage below.
 function sbnToast(message, type) {

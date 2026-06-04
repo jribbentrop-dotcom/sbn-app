@@ -727,3 +727,37 @@ code { font-family: var(--font-mono); }
 }
 
 /* Chat styles consolidated in sbn-design-system.css §14 */
+
+/* ── Description editor preview (DescriptionEditorModal) ────── */
+.sbn-desc-preview {
+    min-height: 48px;
+    padding: 10px 12px;
+    background: var(--clr-bg);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--clr-text);
+}
+
+.sbn-desc-preview--inline {
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+/* Prose rendering inside preview boxes */
+.sbn-desc-preview p           { margin: 0 0 0.7em; }
+.sbn-desc-preview p:last-child { margin-bottom: 0; }
+.sbn-desc-preview h2 { font-size: 1.1em; font-weight: 700; margin: 1em 0 0.4em; }
+.sbn-desc-preview h3 { font-size: 1em;   font-weight: 600; margin: 0.9em 0 0.3em; }
+.sbn-desc-preview ul,
+.sbn-desc-preview ol { padding-left: 1.3em; margin: 0 0 0.7em; }
+.sbn-desc-preview li           { margin-bottom: 0.2em; }
+.sbn-desc-preview blockquote {
+    border-left: 3px solid var(--clr-accent-border);
+    padding-left: 0.9em;
+    color: var(--clr-text-dim);
+    margin: 0 0 0.7em;
+}
+.sbn-desc-preview strong { font-weight: 700; }
+.sbn-desc-preview em     { font-style: italic; }

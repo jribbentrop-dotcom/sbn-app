@@ -17,7 +17,6 @@ interface ProgressionData {
     tonality?: string;
     tags: string[];
     description?: string;
-    typicalGenres?: string;
     chordCount: number;
     songCount: number;
 }
@@ -65,7 +64,6 @@ const filteredProgressions = computed(() => {
             p.name.toLowerCase().includes(searchTerm) ||
             p.numerals.toLowerCase().includes(searchTerm) ||
             p.description?.toLowerCase().includes(searchTerm) ||
-            p.typicalGenres?.toLowerCase().includes(searchTerm) ||
             p.tags.some(tag => tag.toLowerCase().includes(searchTerm))
         );
     }
@@ -182,7 +180,6 @@ function setExampleQuery(query: string) {
                         :data-name="progression.name.toLowerCase()"
                         :data-numerals="progression.numerals.toLowerCase()"
                         :data-tags="progression.tags.join(',').toLowerCase()"
-                        :data-genres="(progression.typicalGenres || '').toLowerCase()"
                         :data-desc="(progression.description || '').toLowerCase()"
                         :data-song-count="progression.songCount"
                         :data-tonality="progression.tonality || 'both'"

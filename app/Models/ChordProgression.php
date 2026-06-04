@@ -19,7 +19,6 @@ class ChordProgression extends Model
         'numerals',
         'alt_numerals',
         'description',
-        'typical_genres',
         'tags',
         'tonality',
         'match_mode',
@@ -104,7 +103,6 @@ class ChordProgression extends Model
                 $q->where('name', 'like', $like)
                   ->orWhere('numerals', 'like', $like)
                   ->orWhere('description', 'like', $like)
-                  ->orWhere('typical_genres', 'like', $like)
                   ->orWhere('tags', 'like', $like);
             });
         }

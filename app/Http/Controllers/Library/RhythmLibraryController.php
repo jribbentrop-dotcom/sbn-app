@@ -65,6 +65,7 @@ class RhythmLibraryController extends Controller
             ->where('rhythm', $pattern->slug)
             ->orderByDesc('popularity')
             ->limit(8)
+            ->select('sbn_leadsheets.id', 'sbn_leadsheets.slug', 'sbn_leadsheets.title', 'sbn_leadsheets.genre', 'sbn_leadsheets.rhythm', 'sbn_leadsheets.popularity', 'sbn_leadsheets.cover_image_path')
             ->get()
             ->map(fn ($s) => $s->toLinkArray());
 

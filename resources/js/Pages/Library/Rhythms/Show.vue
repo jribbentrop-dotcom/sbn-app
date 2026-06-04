@@ -93,7 +93,7 @@ watch(() => props.pattern.slug, () => {
 
         <div v-if="pattern.description" class="sbn-rhythm-section">
           <h2 class="sbn-section-heading">Description</h2>
-          <p class="sbn-rhythm-section-body">{{ pattern.description }}</p>
+          <div class="sbn-rhythm-section-body sbn-prose" v-html="pattern.description"></div>
         </div>
 
         <div v-if="songs.length" class="sbn-rhythm-section">

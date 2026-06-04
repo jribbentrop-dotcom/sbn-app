@@ -73,7 +73,7 @@ class SongLibraryController extends Controller
             'tempo'         => $song->tempo,
             'timeSignature' => $song->time_signature,
             'rhythm'        => $song->rhythm,
-            'styleSlug'     => $song->genre ?? $this->rhythmToStyleSlug($song->rhythm),
+            'styleSlug'     => Leadsheet::resolveStyleSlug($song->genre, $song->rhythm),
             'description'   => $song->description ? Str::limit(strip_tags($song->description), 120) : null,
             'popularity'      => $song->popularity,
             'difficulty'      => $song->difficulty,
@@ -233,10 +233,10 @@ class SongLibraryController extends Controller
         $rhythmPattern = \App\Models\RhythmPattern::where('slug', $leadsheet->rhythm)->first();
 
         // Normalise style_slug → course category (courses use full slugs like 'bossa-nova')
-        $rawStyle = $leadsheet->genre ?? $this->rhythmToStyleSlug($leadsheet->rhythm);
+        $rawStyle = Leadsheet::resolveStyleSlug($leadsheet->genre, $leadsheet->rhythm);
         $songCourseCategory = match ($rawStyle) {
-            'bossa', 'samba' => 'bossa-nova',
-            default          => $rawStyle,
+            'bossa-nova' => 'bossa-nova',
+            default       => $rawStyle,
         };
         $courses = $this->courseRepo->relatedTo($leadsheet, $songCourseCategory);
 
@@ -257,7 +257,7 @@ class SongLibraryController extends Controller
                 'rhythmName'    => $rhythmPattern?->name ?? $leadsheet->rhythm,
                 'rhythmCategory'=> $rhythmPattern?->category ?? 'general',
                 'rhythmData'    => $rhythmPattern ? $rhythmPattern->toPlayerData() : null,
-                'styleSlug'     => $leadsheet->genre ?? $this->rhythmToStyleSlug($leadsheet->rhythm),
+                'styleSlug'     => Leadsheet::resolveStyleSlug($leadsheet->genre, $leadsheet->rhythm),
                 'measureCount'    => $leadsheet->measure_count,
                 'popularity'      => $leadsheet->popularity,
                 'difficulty'      => $leadsheet->difficulty,

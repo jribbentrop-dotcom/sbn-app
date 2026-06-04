@@ -41,7 +41,6 @@ interface ProgressionData {
     tonality?: string;
     tags: string[];
     description?: string;
-    typicalGenres?: string;
     chordCount: number;
     songCount: number;
 }
@@ -82,7 +81,6 @@ const popularityTier = computed(() => {
 const hasSongs      = computed(() => props.songs.length > 0);
 const hasSiblings   = computed(() => props.siblings.length > 0);
 const hasDescription = computed(() => props.progression.description && props.progression.description.trim());
-const hasGenres     = computed(() => props.progression.typicalGenres && props.progression.typicalGenres.trim());
 
 const chords = computed((): ProgressionChord[] =>
     props.tiles.map((tile) => ({
@@ -137,12 +135,7 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 
                 <section v-if="hasDescription" class="sbn-prog-detail-section">
                     <h2 class="sbn-section-heading">Description</h2>
-                    <div class="sbn-prog-detail-description">{{ progression.description }}</div>
-                </section>
-
-                <section v-if="hasGenres" class="sbn-prog-detail-section">
-                    <h2 class="sbn-section-heading">Typical Genres</h2>
-                    <div class="sbn-prog-detail-description">{{ progression.typicalGenres }}</div>
+                    <div class="sbn-prog-detail-description sbn-prose" v-html="progression.description"></div>
                 </section>
 
                 <section v-if="hasSongs" class="sbn-prog-detail-section">

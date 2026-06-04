@@ -194,7 +194,16 @@
                                 </div>
                             </td>
 
-                            <td style="text-align:right;">
+                            <td style="text-align:right; white-space:nowrap;">
+                                <button class="sbn-btn sbn-btn-xs sbn-btn-secondary"
+                                        title="Edit description"
+                                        @click="openDesc(p)">
+                                    Desc
+                                </button>
+                                <a :href="'/library/rhythms/' + p.slug" target="_blank"
+                                   class="sbn-btn sbn-btn-xs sbn-btn-ghost" title="Preview on site">
+                                    Preview ↗
+                                </a>
                                 <button class="sbn-btn-delete"
                                         @click="if(confirm('Delete pattern?')) deletePattern(p.id, $el)"
                                         title="Delete">
@@ -213,6 +222,8 @@
 @endsection
 
 @push('scripts')
+<div id="desc-editor-root"></div>
+@vite('resources/js/admin/description-editor.ts')
 <script>
     function rhythmsPage() {
         const patterns = @json($patterns);
@@ -262,7 +273,33 @@
                     'pop':        'var(--clr-style-pop)',
                 };
                 return colors[cat] || 'var(--clr-style-bossa)';
-            }
+            },
+
+            openDesc(pattern) {
+                window.__descEditor.open({
+                    initial: pattern.description || '',
+                    eventName: 'desc-editor:save:rhythm-list',
+                    placeholder: 'Describe this rhythm pattern…',
+                    entityType: 'rhythm',
+                    entityMeta: { name: pattern.name, category: pattern.category, timeSignature: pattern.time_signature, tempo: pattern.default_bpm },
+                });
+                const handler = (e) => {
+                    document.removeEventListener('desc-editor:save:rhythm-list', handler);
+                    const csrf = document.querySelector('meta[name=csrf-token]').content;
+                    fetch(`/admin/rhythms/${pattern.id}/description`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                        body: JSON.stringify({ description: e.detail }),
+                    }).then(r => r.json()).then(data => {
+                        if (data.success) {
+                            const row = this.patterns.find(r => r.id === pattern.id);
+                            if (row) row.description = data.description;
+                            sbnToast('Description saved', 'success');
+                        }
+                    });
+                };
+                document.addEventListener('desc-editor:save:rhythm-list', handler);
+            },
         };
     }
 

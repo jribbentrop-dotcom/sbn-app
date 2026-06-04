@@ -66,6 +66,16 @@
 
                 </div>
             </div>
+
+            {{-- AI assistant — inline below editor --}}
+            <div class="sbn-editor-card" style="margin-top:0; border-top:none; border-radius:0 0 var(--radius-sm) var(--radius-sm);">
+                <div id="lesson-ai-panel"
+                     data-lesson-title="{{ $lesson->title }}"
+                     data-course-title="{{ $course->title }}"
+                     data-course-genre="{{ $course->category ?? '' }}"
+                     data-section-title="{{ $lesson->section_title ?? '' }}">
+                </div>
+            </div>
         </div>
 
         {{-- Right: meta sidebar --}}
@@ -140,9 +150,6 @@
     @csrf @method('DELETE')
 </form>
 @endif
-
-{{-- AI chat assistant — slide-out drawer (Vue island, mounts itself fixed-position) --}}
-<div id="lesson-ai-panel"></div>{{-- @see resources/js/admin/LessonAiPanel.vue --}}
 
 @push('styles')
 <link rel="stylesheet" href="{{ asset('css/lesson-editor.css') }}?v={{ filemtime(public_path('css/lesson-editor.css')) }}">

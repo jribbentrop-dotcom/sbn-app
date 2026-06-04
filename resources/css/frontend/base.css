@@ -167,3 +167,22 @@ button[type="submit"]:disabled {
     cursor: not-allowed !important;
     transform: none !important;
 }
+
+/* ── sbn-prose: HTML description rendering on show pages ──────── */
+.sbn-prose { line-height: 1.75; }
+.sbn-prose p           { margin: 0 0 0.9em; }
+.sbn-prose p:last-child { margin-bottom: 0; }
+.sbn-prose h2 { font-size: 1.15em; font-weight: 700; margin: 1.4em 0 0.5em; color: var(--clr-text); }
+.sbn-prose h3 { font-size: 1.02em; font-weight: 600; margin: 1.1em 0 0.4em; color: var(--clr-text); }
+.sbn-prose ul,
+.sbn-prose ol { padding-left: 1.5em; margin: 0 0 0.9em; }
+.sbn-prose li           { margin-bottom: 0.3em; }
+.sbn-prose blockquote {
+    border-left: 3px solid var(--clr-accent-border);
+    padding-left: 1em;
+    color: var(--clr-text-dim);
+    margin: 0 0 0.9em;
+    font-style: italic;
+}
+.sbn-prose strong { font-weight: 700; }
+.sbn-prose em     { font-style: italic; }

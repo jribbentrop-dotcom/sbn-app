@@ -52,6 +52,7 @@ class ChordController extends Controller
                     'interval_labels'  => $c->interval_labels,
                     'notes'            => $c->notes,
                     'shape_slug'       => $c->shape_slug,
+                    'description'      => $c->description ?? '',
                 ];
             });
 
@@ -278,7 +279,7 @@ class ChordController extends Controller
             'is_fixed_position'=> 'boolean',
             'start_fret'       => 'required|integer|min:1|max:24',
             'diagram_data'     => 'required|string',
-            'description'      => 'nullable|string|max:500',
+            'description'      => 'nullable|string|max:10000',
             'name'             => 'nullable|string|max:200',
             'slug'             => 'nullable|string|max:200',
         ];
@@ -375,6 +376,13 @@ class ChordController extends Controller
     /**
      * Delete a chord diagram (AJAX).
      */
+    public function updateDescription(Request $request, ChordDiagram $chord)
+    {
+        $validated = $request->validate(['description' => 'nullable|string|max:10000']);
+        $chord->update(['description' => $validated['description'] ?? '']);
+        return response()->json(['success' => true, 'description' => $chord->description]);
+    }
+
     public function destroy(ChordDiagram $chord)
     {
         ChordDiagramAlias::where('diagram_id', $chord->id)->delete();

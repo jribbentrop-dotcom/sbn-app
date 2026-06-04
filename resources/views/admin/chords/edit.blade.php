@@ -4,6 +4,9 @@
 
 @section('actions')
     <a href="{{ route('admin.chords.index') }}" class="sbn-btn sbn-btn-secondary">← Back to Library</a>
+    @if(!$isNew)
+        <a href="{{ route('library.chords.show', $chord->slug) }}" target="_blank" class="sbn-btn sbn-btn-ghost">Preview ↗</a>
+    @endif
 @endsection
 
 @push('styles')
@@ -119,11 +122,22 @@
             </div>
 
             <div class="sbn-edit-grid sbn-edit-grid-2">
-                <div class="sbn-edit-field">
-                    <label for="description">Description</label>
-                    <input type="text" name="description" id="description"
-                           value="{{ old('description', $chord->description ?? '') }}"
-                           placeholder="Optional notes about this voicing">
+                <div class="sbn-edit-field"
+                     x-data="{ descHtml: {{ Js::from(old('description', $chord->description ?? '')) }} }"
+                     x-init="document.addEventListener('desc-editor:save:chord', (e) => { descHtml = e.detail; })">
+                    <label>Description</label>
+                    <input type="hidden" name="description" :value="descHtml">
+                    <div class="sbn-desc-preview" x-html="descHtml || '<span style=\'color:var(--clr-text-muted);font-style:italic\'>No description yet…</span>'"></div>
+                    <button type="button" class="sbn-btn sbn-btn-secondary" style="margin-top:8px;font-size:12px;"
+                            data-chord-meta='{!! htmlspecialchars(json_encode([
+                                'name'    => $chord->name             ?? '',
+                                'quality' => $chord->quality_label    ?? $chord->quality          ?? '',
+                                'voicing' => $chord->category_label   ?? $chord->voicing_category ?? '',
+                                'style'   => $chord->shape_family     ?? '',
+                            ]), ENT_QUOTES) !!}'
+                            @click="window.__descEditor.open({ initial: descHtml, eventName: 'desc-editor:save:chord', placeholder: 'Notes about this voicing…', entityType: 'chord', entityMeta: JSON.parse($el.dataset.chordMeta) })">
+                        Edit Description
+                    </button>
                 </div>
                 <div class="sbn-edit-field" style="display:flex; align-items:end; gap:16px;">
                     <label class="sbn-edit-checkbox">
@@ -307,6 +321,8 @@
 @endsection
 
 @push('scripts')
+<div id="desc-editor-root"></div>
+@vite('resources/js/admin/description-editor.ts')
 <script>
 /**
  * Chord Editor — Phase 4b

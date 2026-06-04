@@ -10,6 +10,7 @@ export default defineConfig({
                 'resources/js/app.ts',
                 'resources/js/tab-editor/tab-editor.js',
                 'resources/js/admin/lesson-editor.ts',
+                'resources/js/admin/description-editor.ts',
             ],
             refresh: true,
         }),

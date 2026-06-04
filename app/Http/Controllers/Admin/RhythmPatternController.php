@@ -97,6 +97,13 @@ class RhythmPatternController extends Controller
     /**
      * Delete a pattern (AJAX).
      */
+    public function updateDescription(Request $request, RhythmPattern $rhythm)
+    {
+        $validated = $request->validate(['description' => 'nullable|string|max:10000']);
+        $rhythm->update(['description' => $validated['description'] ?? '']);
+        return response()->json(['success' => true, 'description' => $rhythm->description]);
+    }
+
     public function destroy(RhythmPattern $rhythm)
     {
         $rhythm->delete();

@@ -22,6 +22,7 @@
         Back
     </a>
     @if($leadsheet)
+    <a href="{{ route('library.songs.show', $leadsheet->slug) }}" target="_blank" class="sbn-btn sbn-btn-ghost">Preview ↗</a>
     <form id="save-as-exercise-form" method="POST" action="{{ route('admin.exercises.from-leadsheet', $leadsheet) }}" style="display:inline;">
         @csrf
         <button type="button" class="sbn-btn sbn-btn-secondary"
@@ -129,8 +130,20 @@
             <div class="sbn-ve-bottom">
                 <div class="sbn-ve-desc-panel">
                     <div class="sbn-ve-desc-label">Description / Notes</div>
-                    <textarea x-model="description" @input="markDirty()"
-                              placeholder="Song description, teaching notes…"></textarea>
+                    <div class="sbn-desc-preview sbn-desc-preview--inline"
+                         x-html="description || '<span style=\'color:var(--clr-text-muted);font-style:italic\'>No description yet…</span>'"></div>
+                    <button type="button" class="sbn-btn sbn-btn-secondary" style="margin-top:8px;font-size:12px;"
+                            data-ls-meta='{!! htmlspecialchars(json_encode([
+                                'title'    => $leadsheet->title    ?? $exercise->title    ?? '',
+                                'composer' => $leadsheet->composer ?? $exercise->composer ?? '',
+                                'genre'    => $leadsheet->genre    ?? $exercise->genre    ?? '',
+                                'style'    => $leadsheet->rhythm   ?? $exercise->rhythm   ?? '',
+                                'key'      => $leadsheet->song_key ?? '',
+                                'tempo'    => $leadsheet->tempo    ?? $exercise->tempo    ?? null,
+                            ]), ENT_QUOTES) !!}'
+                            @click="window.__descEditor.open({ initial: description, eventName: 'desc-editor:save:leadsheet', placeholder: 'Song description, teaching notes…', entityType: 'leadsheet', entityMeta: JSON.parse($event.currentTarget.dataset.lsMeta) })">
+                        Edit Description
+                    </button>
                 </div>
 
                 <div class="sbn-ve-shortcode-panel">
@@ -401,6 +414,8 @@
 </div>
 @endsection
 @push('scripts')
+<div id="desc-editor-root"></div>
+@vite('resources/js/admin/description-editor.ts')
 <script>window.__sbnRhythmPatterns = @json($rhythmPatterns);</script>
 <script>
     // Audio-transcription downbeat tool: expose leadsheet id + cached raw
@@ -1455,6 +1470,11 @@ function leadsheetEditor() {
             // Expose ID + type for Vue components that need to call item-scoped endpoints.
             window._sbnLeadsheetId   = this.itemId;
             window._sbnLeadsheetType = this.itemType; // 'leadsheets' | 'exercises'
+
+            document.addEventListener('desc-editor:save:leadsheet', (e) => {
+                this.description = e.detail;
+                this.markDirty();
+            });
 
             // When fill-voicings completes, merge new voicings into parsed so
             // the Alpine save pipeline serialises them into the shortcode.

@@ -283,19 +283,3 @@
     letter-spacing: 0.02em;
 }
 
-/* Note: AI assistance moved from toolbar buttons to the slide-out
-   chat drawer — see resources/js/admin/LessonAiPanel.vue. */
-
-/* When the AI drawer is open it sits beside the editor (no backdrop).
-   Shrink the page content so nothing hides behind the 380px drawer and
-   the editor stays fully interactive. LessonAiPanel toggles this class. */
-body.sbn-ai-drawer-open .sbn-main {
-    margin-right: 380px;
-    transition: margin-right 0.22s ease;
-}
-.sbn-main { transition: margin-right 0.22s ease; }
-
-@media (max-width: 900px) {
-    /* On narrow screens the drawer overlays instead of pushing. */
-    body.sbn-ai-drawer-open .sbn-main { margin-right: 0; }
-}

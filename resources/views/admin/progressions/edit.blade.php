@@ -2,6 +2,12 @@
 
 @section('title', $progression ? 'Edit Progression' : 'New Progression')
 
+@section('actions')
+    @if($progression && $progression->slug)
+        <a href="{{ route('library.progressions.show', $progression->slug) }}" target="_blank" class="sbn-btn sbn-btn-ghost">Preview ↗</a>
+    @endif
+@endsection
+
 @push('styles')
     <link rel="stylesheet" href="{{ asset('css/progressions.css') }}">
     <link rel="stylesheet" href="{{ asset('css/chord-symbols.css') }}">
@@ -217,20 +223,24 @@
             </div>
 
             {{-- ── Description ───────────────────────────────────── --}}
-            <div class="sbn-field">
-                <label class="sbn-label" for="prog_description">Description</label>
-                <textarea id="prog_description" name="description" class="sbn-textarea" rows="4"
-                          placeholder="Educational explanation: what this progression sounds like, where it comes from, how to use it.">{{ old('description', $progression->description ?? '') }}</textarea>
+            <div class="sbn-field"
+                 x-data="{ descHtml: {{ Js::from(old('description', $progression->description ?? '')) }} }"
+                 x-init="document.addEventListener('desc-editor:save:prog', (e) => { descHtml = e.detail; })">
+                <label class="sbn-label">Description</label>
+                <input type="hidden" name="description" :value="descHtml">
+                <div class="sbn-desc-preview" x-html="descHtml || '<span style=\'color:var(--clr-text-muted);font-style:italic\'>No description yet…</span>'"></div>
+                <button type="button" class="sbn-btn sbn-btn-secondary" style="margin-top:8px;font-size:12px;"
+                        data-prog-meta='{!! htmlspecialchars(json_encode([
+                            'name'     => $progression->name     ?? '',
+                            'numerals' => $progression->numerals ?? '',
+                            'category' => $progression->category ?? '',
+                            'tonality' => $progression->tonality ?? '',
+                        ]), ENT_QUOTES) !!}'
+                        @click="window.__descEditor.open({ initial: descHtml, eventName: 'desc-editor:save:prog', placeholder: 'Educational explanation: what this progression sounds like…', entityType: 'progression', entityMeta: JSON.parse($el.dataset.progMeta) })">
+                    Edit Description
+                </button>
             </div>
 
-            {{-- ── Typical Genres ────────────────────────────────── --}}
-            <div class="sbn-field">
-                <label class="sbn-label" for="prog_genres">Typical Genres</label>
-                <input type="text" id="prog_genres" name="typical_genres" class="sbn-input"
-                       value="{{ old('typical_genres', $progression->typical_genres ?? '') }}"
-                       placeholder="jazz, bossa nova, swing">
-                <p class="sbn-field-hint">Comma-separated genre tags shown on the public detail page.</p>
-            </div>
 
             {{-- ── Hashtags ──────────────────────────────────────── --}}
             <div class="sbn-field">
@@ -433,6 +443,8 @@
 @endsection
 
 @push('scripts')
+<div id="desc-editor-root"></div>
+@vite('resources/js/admin/description-editor.ts')
 <script src="{{ asset('js/sbn-chord-name.js') }}"></script>
 <script src="{{ asset('js/sbn-snippet-editor.js') }}"></script>
 <script>

@@ -42,8 +42,11 @@ class ProgressionController extends Controller
                 'featured'         => (bool) $p->featured,
                 'song_count'       => (int) $p->song_count,
                 'alt_count'        => is_array($p->alt_numerals) ? count($p->alt_numerals) : 0,
-                'desc'             => $p->description ? Str::words($p->description, 18) : '',
+                'desc'             => $p->description ? Str::words(strip_tags($p->description), 18) : '',
+                'description'      => $p->description ?? '',
+                'slug'             => $p->slug,
                 'edit_url'         => route('admin.progressions.edit', $p->id),
+                'show_url'         => route('library.progressions.show', $p->slug),
             ];
         })->values();
 
@@ -122,6 +125,13 @@ class ProgressionController extends Controller
     /**
      * Delete a progression + its occurrences (AJAX).
      */
+    public function updateDescription(Request $request, ChordProgression $progression)
+    {
+        $validated = $request->validate(['description' => 'nullable|string|max:10000']);
+        $progression->update(['description' => $validated['description'] ?? '']);
+        return response()->json(['success' => true, 'description' => $progression->description]);
+    }
+
     public function destroy(ChordProgression $progression)
     {
         $name = $progression->name;
@@ -214,7 +224,6 @@ class ProgressionController extends Controller
             'category'       => 'required|string|in:' . implode(',', ChordProgression::CATEGORIES),
             'numerals'       => 'required|string|max:255',
             'description'    => 'nullable|string',
-            'typical_genres' => 'nullable|string|max:255',
             'tags'           => 'nullable|string|max:255',
             'tonality'       => 'required|string|in:both,major,minor',
             'match_mode'     => 'required|string|in:strict,degree',

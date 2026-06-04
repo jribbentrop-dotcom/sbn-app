@@ -98,4 +98,11 @@ class CourseController extends Controller
         $course->update(['status' => $validated['status']]);
         return response()->json(['success' => true, 'status' => $course->status]);
     }
+
+    public function updateDescription(Request $request, Course $course): \Illuminate\Http\JsonResponse
+    {
+        $validated = $request->validate(['description' => 'nullable|string|max:10000']);
+        $course->update(['description' => $validated['description'] ?? '']);
+        return response()->json(['success' => true, 'description' => $course->description]);
+    }
 }

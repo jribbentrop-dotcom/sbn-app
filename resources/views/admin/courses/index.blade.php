@@ -64,7 +64,26 @@
                         </button>
                     </td>
                     <td class="sbn-text-dim">{{ $course->lessons_count }}</td>
-                    <td style="text-align:right;">
+                    <td style="text-align:right; white-space:nowrap;"
+                        x-data="{ descHtml: {{ Js::from($course->description ?? '') }} }"
+                        x-init="document.addEventListener('desc-editor:save:course-{{ $course->id }}', (e) => {
+                            descHtml = e.detail;
+                            fetch('{{ route('admin.courses.updateDescription', $course) }}', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+                                body: JSON.stringify({ description: e.detail }),
+                            }).then(r => r.json()).then(d => { if (d.success) sbnToast('Description saved', 'success'); });
+                        })">
+                        <button class="sbn-btn sbn-btn-xs sbn-btn-secondary"
+                                title="Edit description"
+                                data-course-meta='{!! htmlspecialchars(json_encode(['title' => $course->title, 'category' => $course->category ?? '', 'difficulty' => $course->levels[0] ?? '']), ENT_QUOTES) !!}'
+                                @click="window.__descEditor.open({ initial: descHtml, eventName: 'desc-editor:save:course-{{ $course->id }}', placeholder: 'Full course description…', entityType: 'course', entityMeta: JSON.parse($el.dataset.courseMeta) })">
+                            Desc
+                        </button>
+                        <a href="{{ route('courses.show', $course->slug) }}" target="_blank"
+                           class="sbn-btn sbn-btn-xs sbn-btn-ghost" title="Preview on site">
+                            Preview ↗
+                        </a>
                         <form method="POST" action="{{ route('admin.courses.destroy', $course) }}"
                               style="display:inline;"
                               x-data
@@ -85,5 +104,19 @@
         {{ $courses->links() }}
     </div>
 @endif
+
+@push('scripts')
+<div id="desc-editor-root"></div>
+@vite('resources/js/admin/description-editor.ts')
+<script>
+function sbnToast(message, type) {
+    const el = document.createElement('div');
+    el.className = `sbn-toast sbn-toast-${type || 'info'}`;
+    el.textContent = message;
+    document.body.appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3000);
+}
+</script>
+@endpush
 
 @endsection

@@ -30,7 +30,6 @@ interface CourseData {
   excerpt: string | null;
   category: string | null;
   levels: string[];
-  topics: string[];
   primaryGenre: string | null;
   primaryLevel: string | null;
   lessonCount: number;
@@ -144,6 +143,7 @@ const totalSections = computed(() => grouped.value.length);
 
           <h1 class="sbn-cs-title">{{ course.title }}</h1>
           <p v-if="course.excerpt" class="sbn-cs-excerpt">{{ course.excerpt }}</p>
+          <div v-if="course.description" class="sbn-cs-description sbn-prose" v-html="course.description"></div>
 
           <!-- Quick stats row -->
           <div class="sbn-cs-stats">
@@ -161,17 +161,6 @@ const totalSections = computed(() => grouped.value.length);
               <span class="sbn-cs-stat-num">{{ songs.length }}</span>
               <span class="sbn-cs-stat-lbl">songs</span>
             </div>
-          </div>
-
-          <!-- Topics -->
-          <div v-if="course.topics?.length" class="sbn-cs-topics">
-            <span
-              v-for="topic in course.topics"
-              :key="topic"
-              class="sbn-cs-topic-pill"
-            >
-              {{ topic }}
-            </span>
           </div>
 
           <!-- CTAs -->
@@ -343,10 +332,6 @@ const totalSections = computed(() => grouped.value.length);
             <div class="sbn-cs-info-row">
               <dt>Lessons</dt>
               <dd>{{ course.lessonCount }}</dd>
-            </div>
-            <div v-if="course.topics?.length" class="sbn-cs-info-row">
-              <dt>Topics</dt>
-              <dd>{{ course.topics.join(', ') }}</dd>
             </div>
             <div class="sbn-cs-info-row">
               <dt>Access</dt>

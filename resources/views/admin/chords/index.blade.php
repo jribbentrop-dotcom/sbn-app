@@ -216,6 +216,7 @@
 
                                         <div class="sbn-diagram-actions">
                                             <a :href="'/admin/chords/' + chord.id + '/edit'" class="sbn-btn-sm">Edit</a>
+                                            <button class="sbn-btn-sm" @click="openDesc(chord)" title="Edit description">Desc</button>
                                             <button class="sbn-btn-sm" @click="duplicateChord(chord)">Dup</button>
                                             <button class="sbn-btn-sm sbn-btn-sm-danger" @click="deleteChord(chord)">Del</button>
                                         </div>
@@ -438,6 +439,8 @@
 @endsection
 
 @push('scripts')
+<div id="desc-editor-root"></div>
+@vite('resources/js/admin/description-editor.ts')
 <script>
 /**
  * Mini Fretboard Renderer + Toast
@@ -840,6 +843,31 @@ function chordsPage() {
             });
 
             this.visibleCount = count;
+        },
+
+        openDesc(chord) {
+            window.__descEditor.open({
+                initial: chord.description || '',
+                eventName: 'desc-editor:save:chord-list',
+                placeholder: 'Notes about this voicing…',
+                entityType: 'chord',
+                entityMeta: { name: chord.name, quality: chord.quality_label, voicing: chord.category_label, style: chord.shape_family },
+            });
+            const handler = (e) => {
+                document.removeEventListener('desc-editor:save:chord-list', handler);
+                fetch(`/admin/chords/${chord.id}/description`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.csrfToken },
+                    body: JSON.stringify({ description: e.detail }),
+                }).then(r => r.json()).then(data => {
+                    if (data.success) {
+                        const row = this.chords.find(c => c.id === chord.id);
+                        if (row) row.description = data.description;
+                        sbnToast('Description saved', 'success');
+                    }
+                });
+            };
+            document.addEventListener('desc-editor:save:chord-list', handler);
         },
 
         async deleteChord(chord) {

@@ -325,7 +325,16 @@
                                     <span class="sbn-prog-song-none">—</span>
                                 </template>
                             </td>
-                            <td style="text-align:right;">
+                            <td style="text-align:right; white-space:nowrap;">
+                                <button class="sbn-btn sbn-btn-xs sbn-btn-secondary"
+                                        title="Edit description"
+                                        @click="openDesc(prog)">
+                                    Desc
+                                </button>
+                                <a :href="prog.show_url" target="_blank"
+                                   class="sbn-btn sbn-btn-xs sbn-btn-ghost" title="Preview on site">
+                                    Preview ↗
+                                </a>
                                 <button class="sbn-btn-delete"
                                         :disabled="deleting"
                                         @click="if(confirm('Delete \'' + prog.name + '\'?\n\nThis also removes all detected occurrences.')) { deleting = true; sbnDelete(prog.id, $el); }"
@@ -535,6 +544,8 @@
 @endsection
 
 @push('scripts')
+<div id="desc-editor-root"></div>
+@vite('resources/js/admin/description-editor.ts')
 <script src="{{ asset('js/sbn-chord-name.js') }}"></script>
 <script>
 /* ── Chord Styling Helper ────────────────────────────────── */
@@ -652,6 +663,32 @@ function progressionsPage() {
                 // Default direction: desc for song_count, asc for text
                 this.sortAsc = (col !== 'song_count');
             }
+        },
+
+        openDesc(prog) {
+            window.__descEditor.open({
+                initial: prog.description || '',
+                eventName: 'desc-editor:save:prog-list',
+                placeholder: 'Educational explanation: what this progression sounds like…',
+                entityType: 'progression',
+                entityMeta: { name: prog.name, numerals: prog.numerals_display, category: prog.category, tonality: prog.tonality },
+            });
+            const handler = (e) => {
+                document.removeEventListener('desc-editor:save:prog-list', handler);
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                fetch(`/admin/progressions/${prog.id}/description`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                    body: JSON.stringify({ description: e.detail }),
+                }).then(r => r.json()).then(data => {
+                    if (data.success) {
+                        const row = this.rows.find(r => r.id === prog.id);
+                        if (row) row.description = data.description;
+                        sbnToast('Description saved', 'success');
+                    }
+                });
+            };
+            document.addEventListener('desc-editor:save:prog-list', handler);
         },
     };
 }

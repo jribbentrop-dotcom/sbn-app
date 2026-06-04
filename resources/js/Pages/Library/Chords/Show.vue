@@ -521,6 +521,11 @@ const formattedChordName = computed(() => {
                             <template v-else-if="theory">
                                 <p class="sbn-chord-identity-description">{{ theory.typical_context }}</p>
                             </template>
+                            <!-- Voicing-specific description from admin -->
+                            <div v-if="displayChord.description"
+                                 class="sbn-chord-identity-description sbn-prose"
+                                 v-html="displayChord.description">
+                            </div>
                         </div>
                     </div>
                 </div>

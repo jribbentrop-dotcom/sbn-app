@@ -4,6 +4,9 @@
 
 @section('actions')
     <a href="{{ route('admin.rhythms.index') }}" class="sbn-btn sbn-btn-secondary"><- Back to List</a>
+    @if(!$isNew)
+        <a href="{{ route('library.rhythms.show', $pattern->slug) }}" target="_blank" class="sbn-btn sbn-btn-ghost">Preview ↗</a>
+    @endif
 @endsection
 
 @push('styles')
@@ -67,10 +70,12 @@
 
                 {{-- Description --}}
                 <div class="sbn-form-group">
-                    <label for="description">Description</label>
-                    <textarea id="description" class="sbn-search-input" style="padding-left: 14px; resize: vertical;" rows="2"
-                              x-model="form.description"
-                              placeholder="Brief description of this pattern"></textarea>
+                    <label>Description</label>
+                    <div class="sbn-desc-preview" x-html="form.description || '<span style=\'color:var(--clr-text-muted);font-style:italic\'>No description yet…</span>'"></div>
+                    <button type="button" class="sbn-btn sbn-btn-secondary" style="margin-top:8px;font-size:12px;"
+                            @click="window.__descEditor.open({ initial: form.description, eventName: 'desc-editor:save:rhythm', placeholder: 'Describe this rhythm pattern…', entityType: 'rhythm', entityMeta: { name: form.name, category: form.category, timeSignature: form.time_signature, tempo: form.default_bpm } })">
+                        Edit Description
+                    </button>
                 </div>
 
                 {{-- Hashtags --}}
@@ -294,6 +299,8 @@
 @endsection
 
 @push('scripts')
+<div id="desc-editor-root"></div>
+@vite('resources/js/admin/description-editor.ts')
 <script src="{{ asset('js/sbn-snippet-editor.js') }}"></script>
 <script>
     // -- Simple Web Audio preview (no Tone.js needed) --
@@ -405,6 +412,10 @@
             _timer: null,
 
             init() {
+                document.addEventListener('desc-editor:save:rhythm', (e) => {
+                    this.form.description = e.detail;
+                });
+
                 @if(!$isNew)
                     const bpb = parseInt(this.form.time_signature.split('/')[0]) || 4;
                     const sub = this.form.grid_type === 'eighth' ? 2 : this.form.grid_type === 'triplet' ? 3 : 4;

@@ -16,7 +16,6 @@ class Course extends Model
 
     protected $casts = [
         'levels'     => 'array',
-        'topics'     => 'array',
         'is_free'    => 'boolean',
         'wp_id'      => 'integer',
         'sort_order' => 'integer',

@@ -69,7 +69,7 @@ class ProgressionLibraryController extends Controller
         $songs = Leadsheet::published()
             ->join('sbn_progression_occurrences as o', 'sbn_leadsheets.id', '=', 'o.leadsheet_id')
             ->where('o.progression_id', $progression->id)
-            ->select('sbn_leadsheets.id', 'sbn_leadsheets.slug', 'sbn_leadsheets.title', 'sbn_leadsheets.rhythm', 'sbn_leadsheets.cover_image_path')
+            ->select('sbn_leadsheets.id', 'sbn_leadsheets.slug', 'sbn_leadsheets.title', 'sbn_leadsheets.genre', 'sbn_leadsheets.rhythm', 'sbn_leadsheets.cover_image_path')
             ->distinct()
             ->orderBy('sbn_leadsheets.title')
             ->get()
@@ -204,7 +204,6 @@ class ProgressionLibraryController extends Controller
             'tonality' => $progression->tonality,
             'tags' => $progression->tags_array,
             'description' => $progression->description,
-            'typicalGenres' => $progression->typical_genres,
             'chordCount' => count(explode(',', $progression->numerals)),
             'songCount' => $progression->song_count ?? 0,
         ];

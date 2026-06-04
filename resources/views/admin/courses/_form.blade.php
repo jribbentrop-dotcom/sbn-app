@@ -35,7 +35,25 @@
                       placeholder="Short description shown on course cards">{{ old('excerpt', $course->excerpt) }}</textarea>
         </div>
 
-        <div class="sbn-form-row sbn-form-row-3">
+        <div class="sbn-form-group"
+             x-data="{ descHtml: {{ Js::from(old('description', $course->description ?? '')) }} }"
+             x-init="document.addEventListener('desc-editor:save:course', (e) => { descHtml = e.detail; })">
+            <label>Description</label>
+            <input type="hidden" name="description" :value="descHtml">
+            <div class="sbn-desc-preview" x-html="descHtml || '<span style=\'color:var(--clr-text-muted);font-style:italic\'>No description yet…</span>'"></div>
+            <button type="button" class="sbn-btn sbn-btn-secondary" style="margin-top:8px;font-size:12px;"
+                    data-course-meta='{!! htmlspecialchars(json_encode([
+                        'title'      => $course->title      ?? '',
+                        'category'   => $course->category   ?? '',
+                        'difficulty' => $course->levels[0]  ?? '',
+                        'tags'       => implode(', ', $course->tags?->pluck('slug')->toArray() ?? []),
+                    ]), ENT_QUOTES) !!}'
+                    @click="window.__descEditor.open({ initial: descHtml, eventName: 'desc-editor:save:course', placeholder: 'Full course description shown on the course detail page…', entityType: 'course', entityMeta: JSON.parse($el.dataset.courseMeta) })">
+                Edit Description
+            </button>
+        </div>
+
+        <div class="sbn-form-row sbn-form-row-2">
             <div class="sbn-form-group">
                 <label for="category">Category</label>
                 <select id="category" name="category" class="sbn-search-input" style="padding-left:14px;">
@@ -60,12 +78,6 @@
                     <option value="late-intermediate"  @selected($selectedLevel === 'late-intermediate')>Late Intermediate</option>
                     <option value="advanced"           @selected($selectedLevel === 'advanced')>Advanced</option>
                 </select>
-            </div>
-            <div class="sbn-form-group">
-                <label for="topics">Topics <span class="sbn-form-hint">(comma-separated)</span></label>
-                <input type="text" id="topics" name="topics_raw" class="sbn-search-input" style="padding-left:14px;"
-                       value="{{ old('topics_raw', implode(', ', $course->topics ?? [])) }}"
-                       placeholder="e.g. rhythm, harmony">
             </div>
         </div>
 

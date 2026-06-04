@@ -4,6 +4,7 @@
 
 @section('actions')
     <a href="{{ route('admin.courses.index') }}" class="sbn-btn sbn-btn-secondary">← Back to Courses</a>
+    <a href="{{ route('courses.show', $course->slug) }}" target="_blank" class="sbn-btn sbn-btn-ghost">Preview ↗</a>
     <a href="{{ route('admin.courses.lessons.create', $course) }}" class="sbn-btn sbn-btn-primary">+ Add Lesson</a>
 @endsection
 
@@ -96,7 +97,6 @@
               x-init="init()">
             @csrf @method('PUT')
 
-            <input type="hidden" name="topics"  x-bind:value="JSON.stringify(arrayField('topics_raw'))">
 
             @include('admin.courses._form')
 
@@ -109,6 +109,8 @@
 </div>
 
 @push('scripts')
+<div id="desc-editor-root"></div>
+@vite('resources/js/admin/description-editor.ts')
 <script>
 function courseForm() {
     const savedTags = @json($existingTags ?? '');
@@ -130,11 +132,6 @@ function courseForm() {
                     .replace(/[^a-z0-9]+/g, '-')
                     .replace(/^-+|-+$/g, '');
             }
-        },
-        arrayField(name) {
-            const el = document.querySelector(`[name="${name}"]`);
-            if (!el || !el.value.trim()) return [];
-            return el.value.split(',').map(s => s.trim()).filter(Boolean);
         },
     };
 }

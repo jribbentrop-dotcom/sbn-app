@@ -144,7 +144,7 @@ const songPopularityTier = computed(() => {
     <!-- ── Description ───────────────────────────────────────────────────── -->
     <div v-if="song.description" class="sbn-ss-section">
       <h2 class="sbn-ss-section-title">About this song</h2>
-      <p class="sbn-ss-description">{{ song.description }}</p>
+      <div class="sbn-ss-description sbn-prose" v-html="song.description"></div>
     </div>
 
     <!-- ── Chords + Progressions side by side ───────────────────────────── -->
