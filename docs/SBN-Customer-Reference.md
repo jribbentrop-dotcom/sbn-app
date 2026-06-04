@@ -47,7 +47,7 @@ timestamps
 UNIQUE(user_id, course_id)
 ```
 - Reads via `User::owns(Course)` — checks `is_free` first, then pivot existence with `expires_at` clause.
-- Writes go through [CourseAccessService](../app/Services/CourseAccessService.php) — `grantManual()`, `grantPurchase()`, `revokePurchase()`. The Lemon Squeezy webhook in Phase 12 will call `grantPurchase()`.
+- Writes go through [CourseAccessService](../app/Services/CourseAccessService.php) — `grantManual()`, `grantPurchase()`, `revokePurchase()`. The Stripe webhook calls `grantPurchase()` on `checkout.session.completed`.
 
 ### 2.2 `user_profiles`
 ```
@@ -367,12 +367,17 @@ The handler is idempotent — provider retries are safe because `handlePaid` bai
 
 Route: `GET /dev/fake-checkout/{order}` — only registered when `APP_ENV !== production`.
 
-### Remaining before going live
+### Go-live status — ✅ LIVE (test-mode verified 2026-06-04)
 
-1. Confirm **Stripe Managed Payments** availability for the Stripe account + buyer-country coverage (or choose **Paddle** as fallback).
-2. Set `PAYMENTS_PROVIDER=stripe_managed` + `STRIPE_SECRET` + `STRIPE_WEBHOOK_SECRET` in `.env`.
-3. Run one real test-mode purchase + refund end-to-end; confirm Apple/Google Pay renders.
-4. Account "Billing / receipts" portal link — deferred (portal URL is provider-specific; Orders page already surfaces receipts/downloads for now).
+Stripe Managed Payments confirmed available. End-to-end test-mode purchase completed on `www.soulbossanova.com`:
+- Webhook endpoint registered: `https://www.soulbossanova.com/webhooks/payments`
+- Product #23 "Dream A Little Dream" linked to `price_1TeZRlL2ZhTRFEE5bWds7OLM` (€5.00 inclusive, `txcd_10302000`)
+- Order created → Stripe Checkout → `checkout.session.completed` webhook → `status=paid` → `DownloadGrant` created ✅
+
+**Remaining before switching to live keys:**
+1. Upload product PDFs and shop images to the VPS (currently missing from server).
+2. Swap `STRIPE_SECRET=sk_test_...` → `sk_live_...` and re-register webhook with live signing secret.
+3. Account "Billing / receipts" portal link — deferred (Orders page already surfaces receipts/downloads).
 
 ### Tests
 
