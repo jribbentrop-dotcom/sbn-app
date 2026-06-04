@@ -245,20 +245,142 @@ Customers can DM the instructor. The instructor can DM any customer. Customer↔
 
 ---
 
-## 11. Phase 12 — Lemon Squeezy handoff (not started)
+## 11. Auth — as built (Phase 12a, shipped 2026-06-03)
 
-Plan: [Frontend-Migration-Plan.md §Phase 12](Frontend-Migration-Plan.md#phase-12--auth--payments-lemon-squeezy).
+Hand-rolled to match the codebase — NO Fortify/Breeze/Jetstream.
 
-What's already ready for it:
-- `course_user` schema with `source='purchase'` and `order_id` slots.
-- `CourseAccessService::grantPurchase(User, Order)` — the LS webhook handler's one-call entry point. Resolves order → `sbn_order_items` → `sbn_courses` via existing `product_id` link.
-- `CourseAccessService::revokePurchase(Order)` — refund webhook.
-- All `/account/courses` reads go through `User::owns()` → `course_user`. No new gate code needed when LS lands.
-- The `users` table has no `lemon_squeezy_customer_id` yet — Phase 12 will add that.
+### Controllers (`app/Http/Controllers/Auth/`)
+
+| Controller | Role |
+|---|---|
+| `LoginController` | `show()` → `Inertia::render('Auth/Login')`; `login()` attempts, calls `claimGuestOrders()`, redirects via `landingFor()`; `logout()` invalidates session |
+| `RegisterController` | validates name/email(unique)/password(`confirmed`+`Password::defaults()`); `User::create`; `Auth::login`; redirect `account.dashboard` |
+| `PasswordResetLinkController` | forgot-password; `Password::sendResetLink`; flashes `status` or `withErrors` |
+| `NewPasswordController` | reset; `Password::reset` with `forceFill(['password'=>$pw])` (hashed on save via cast) |
+
+### Routes (`routes/web.php`)
+
+Guest-only group wrapping:
+```
+GET  /login                  login         Auth\LoginController@show
+POST /login                               Auth\LoginController@login
+GET  /register               register      Auth\RegisterController@showForm
+POST /register                            Auth\RegisterController@register
+GET  /forgot-password        password.request  Auth\PasswordResetLinkController@show
+POST /forgot-password        password.email    Auth\PasswordResetLinkController@store
+GET  /reset-password/{token} password.reset    Auth\NewPasswordController@show
+POST /reset-password         password.update   Auth\NewPasswordController@update
+```
+`/logout` (POST) sits outside the guest group.
+
+Route names `password.request`/`password.email`/`password.reset`/`password.update` match what Laravel's broker and `ResetPassword` notification expect — do not rename them.
+
+### Inertia pages (`resources/js/Pages/Auth/`)
+
+`Login.vue`, `Register.vue`, `ForgotPassword.vue`, `ResetPassword.vue` — all on `PublicLayout`, use `useForm`, design-system tokens (`sbn-input`/`sbn-label`/`sbn-field-error`/`sbn-btn-primary`).
+
+Shared card frame: [`Components/Auth/AuthCard.vue`](../resources/js/Components/Auth/AuthCard.vue) — logo + heading + form-helper styles; imported by all four pages.
+
+`UserMenu.vue` has an Inertia `<Link>` "Sign up" beside "Log in" for guests.
+
+### Guest order claiming
+
+`User::claimGuestOrders()` is called in both `LoginController::login()` and `RegisterController::register()`. It email-matches any `paid` guest orders and backfills `course_user` rows — so a purchase made before creating an account is automatically claimed on first login.
+
+### Tests
+
+`tests/Feature/AuthTest.php` — 11 passing. Covers: page render (Inertia component assert), register→login→redirect, role-based login redirect (customer→`account.dashboard`, instructor→`admin.dashboard`), bad-credential error, guest-redirect-away-from-login, forgot-password notification (`Notification::fake`), token reset, logout.
+
+### Gotchas
+
+- **Route cache must be cleared after adding auth routes.** `php artisan route:clear` — the cached `routes-*.php` predates the new auth routes, so register/password 404 until cleared. Re-cache with `route:cache` only after deploy.
+- **`is_instructor` is NOT mass-assignable** on `User`. Tests set it via `forceFill`. Don't add it to `$fillable`.
+- **`guest` middleware redirects authenticated users to `/` (framework `HOME`)** before `LoginController::show` runs — that's why "already logged in" ends up at `/`, not `account.dashboard`. Expected behaviour.
+- **`password_reset_tokens` table** — the schema wasn't fully migration-defined; the table lived only in the committed `sbn.db`. Migration `2026_06_03_000001_create_password_reset_tokens_table.php` adds it with a `hasTable` guard so it's safe to run on fresh installs.
 
 ---
 
-## 12. Known limitations / followups
+## 12. Payments — as built (Phase 12b, shipped 2026-06-03)
+
+Provider-agnostic behind a `PaymentProvider` interface. The concrete MoR (Stripe Managed Payments or Paddle) is a late, reversible pick. All candidate MoRs surface Apple/Google Pay in hosted/overlay checkout automatically.
+
+### Provider seam (`app/Services/Payments/`)
+
+| File | Role |
+|---|---|
+| `PaymentProvider` (interface) | `createCheckout(Order): string`, `verifySignature(Request): bool`, `parseWebhook(Request): PaymentEvent` |
+| `PaymentEvent` (DTO) | Normalizes to `purchase.completed` / `purchase.refunded` / `unhandled`. Fields: `type`, `ourOrderId`, `providerOrderId`, `email`, `raw`. |
+| `FakeProvider` | HMAC-signed dev/test provider — drives the full pipeline with no real account. |
+| `StripeManagedProvider` | Stripe Managed Payments impl (wired; needs live keys to activate). |
+
+Provider is bound in `PaymentProviderServiceProvider` keyed on `config('payments.provider')` (`fake` / `stripe_managed` / `paddle`). Mirrors the existing `LLMServiceProvider` pattern. `testing` environment binds `FakeProvider`.
+
+Config: `config/payments.php` — provider switch + per-provider credentials.
+
+### Checkout flow
+
+```
+Shop/CheckoutController::store
+  → creates Order with status pending_payment (attaches user_id if logged in)
+  → PaymentProvider::createCheckout(order) → hosted checkout URL
+  → Inertia::location($url)   ← browser hard-navigates to provider's page
+```
+
+Download grants are NOT created at checkout — only on webhook `paid`. This prevents grants from dangling if payment is abandoned.
+
+### Webhook flow
+
+```
+POST /webhooks/payments   (CSRF-exempt — registered in bootstrap/app.php)
+  → PaymentWebhookController::__invoke
+  → verifySignature()   → 403 if invalid
+  → parseWebhook()      → PaymentEvent
+  → resolveOrder()      → matches on ourOrderId (custom_data) or providerOrderId
+  → on purchase.completed:
+      order.status = paid
+      DownloadGrant::firstOrCreate per item  (idempotent)
+      if order.user: CourseAccessService::grantPurchase(user, order)
+      guest orders claimed later via claimGuestOrders() on login
+  → on purchase.refunded:
+      order.status = refunded
+      CourseAccessService::revokePurchase(order)
+```
+
+The handler is idempotent — provider retries are safe because `handlePaid` bails early if `order.status === paid`.
+
+### Schema additions (Phase 12b migrations)
+
+- `sbn_products.payment_ref` — provider's product/price ID for checkout session creation.
+- `sbn_orders.user_id` — nullable FK; null = guest checkout.
+- `sbn_orders.provider_order_id` — provider's order reference, set on webhook.
+- `sbn_orders.status` — relaxed from SQLite enum (CHECK constraint) to plain string. New values: `pending_payment`, `paid`, `refunded`. Migration uses Laravel 13 native SQLite table rebuild (no doctrine/dbal needed).
+- `users.payment_customer_id` — nullable; provider's customer ID for portal links (not yet used).
+- `sbn_products.tax_code` — Stripe tax code (e.g. `txcd_10302000` for digital goods).
+
+### Entitlements seam
+
+`User::hasEntitlement('course:{id}')` resolves via the existing `User::owns()` check. A future "SBN Pro" subscription can plug in here without reworking the grant pipeline.
+
+### Local dev — FakeProvider
+
+`FakeCheckoutController` + `Pages/Payments/FakeCheckout.vue` simulate the provider's hosted page and fire a correctly-signed webhook. Run `APP_ENV=local` / `PAYMENTS_PROVIDER=fake` and a full purchase+grant cycle is demoable with no Stripe account.
+
+Route: `GET /dev/fake-checkout/{order}` — only registered when `APP_ENV !== production`.
+
+### Remaining before going live
+
+1. Confirm **Stripe Managed Payments** availability for the Stripe account + buyer-country coverage (or choose **Paddle** as fallback).
+2. Set `PAYMENTS_PROVIDER=stripe_managed` + `STRIPE_SECRET` + `STRIPE_WEBHOOK_SECRET` in `.env`.
+3. Run one real test-mode purchase + refund end-to-end; confirm Apple/Google Pay renders.
+4. Account "Billing / receipts" portal link — deferred (portal URL is provider-specific; Orders page already surfaces receipts/downloads for now).
+
+### Tests
+
+`tests/Feature/PaymentWebhookTest.php` — 5 passing: paid→grant, idempotency, refund→revoke, bad-signature rejection (403), guest-order claim on registration.
+
+---
+
+## 13. Known limitations / followups
 
 - **`/admin` messaging is form-submit-based** — no real-time refresh on the admin inbox. Fine for a single-instructor inbox; if it ever feels slow, the `Echo` bootstrap is already loaded for `/admin` (via `bootstrap.js`), just needs a small JS hook in the Blade view to subscribe to channels.
 - **Avatar uploads aren't re-encoded** server-side. Max 2MB, MIME-validated, but no resize/WebP conversion. Cheap to add via Intervention if storage cost matters.
@@ -269,7 +391,7 @@ What's already ready for it:
 
 ---
 
-## 13. Testing matrix (for future agents)
+## 14. Testing matrix (for future agents)
 
 End-to-end smoke test requires two users (one instructor, one customer):
 1. `sbn:make-instructor lucas@soulbossanova.com` (or whatever the instructor email is)

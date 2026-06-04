@@ -1,0 +1,216 @@
+# SBN Progression Library Reference
+
+Public chord progression library: index, detail (Show) page, `ChordProgressionViewer` component, and the API endpoints used by the lesson editor and course player.
+
+Audience: developers working on `/library/progressions` or `<sbn-progression>` lesson tags. For the voice-leading builder see `SBN-Builder-Reference.md`; for chord rendering see `SBN-Design-Reference.md`.
+
+---
+
+## 1. Routes & Controllers
+
+| Route | Controller action | Notes |
+|---|---|---|
+| `GET /library/progressions` | `ProgressionLibraryController::index` | Inertia `Library/Progressions/Index` |
+| `GET /library/progressions/{slug}` | `ProgressionLibraryController::show` | Inertia `Library/Progressions/Show` |
+| `GET /api/sbn/progressions/{slug}` | `ProgressionLibraryController::apiShow` | JSON for `mountSbnNodes.ts` + course player |
+| `GET /api/sbn/progressions/search` | `ProgressionLibraryController::apiSearch` | Lesson editor palette search |
+
+**Controller:** `app/Http/Controllers/Library/ProgressionLibraryController.php`  
+**Model:** `App\Models\ChordProgression` — table `sbn_chord_progressions`
+
+---
+
+## 2. Data Model
+
+### `sbn_chord_progressions` columns
+
+| Column | Notes |
+|---|---|
+| `slug` | URL key — unique, derived from `name` |
+| `name` | Display name e.g. "ii–V–I" |
+| `category` | `bossa-nova` / `jazz` / `classical` / `pop` |
+| `numerals` | Comma-separated Roman numerals e.g. `"IIm7,V7,Imaj7"` |
+| `tonality` | `major` / `minor` / `modal` |
+| `tags` | Comma-separated tag string |
+| `description` | Rich text / HTML |
+| `sort_order` | Manual ordering within category |
+| `video_snippets` | JSON array — real-world YouTube examples (same shape as rhythm snippets) |
+
+### Model accessors
+
+- `numerals_display` — replaces commas with en-dashes for display
+- `tags_array` — splits `tags` string into array
+- `song_count` — set by the `withSongCounts` scope; not a real column
+
+### Serialization (`serializeProgression`)
+
+```php
+[
+    'id', 'slug', 'name', 'category',
+    'styleSlug',        // mapped from category via mapCategoryToStyleSlug()
+    'numerals',         // raw comma-separated string
+    'numeralsDisplay',  // en-dash separated
+    'tonality', 'tags', // tags is array
+    'description',
+    'chordCount',       // count of comma-separated numerals
+    'songCount',        // 0 unless loaded via withSongCounts scope
+]
+```
+
+### Category → style slug mapping
+
+```php
+'bossa-nova' => 'bossa-nova'
+'jazz'       => 'jazz'
+'classical'  => 'classical'
+'pop'        => 'pop'
+// default: 'bossa-nova'
+```
+
+---
+
+## 3. Index Page
+
+**File:** `resources/js/Pages/Library/Progressions/Index.vue`
+
+- Client-side filtering over the initial payload (category, tags, text search, sort)
+- Sort options: `popularity` (song count, default), `name`, `category`
+- Filter params passed in `activeFilters` prop so URL state is restored on back-navigation
+- Uses `.sbn-pattern-row` card pattern (same as rhythm library) with category color accent
+
+---
+
+## 4. Show Page
+
+**File:** `resources/js/Pages/Library/Progressions/Show.vue`
+
+Props:
+
+| Prop | Type | Notes |
+|---|---|---|
+| `progression` | serialized progression | See §2 |
+| `tiles` | `ProgressionChord[]` | Voice-led, resolved in key C (or pinned key) |
+| `songs` | `SongLink[]` | Leadsheets featuring this progression via `sbn_progression_occurrences` |
+| `siblings` | serialized progressions | Other progressions in same category |
+| `courses` | course stubs | Related courses via `CourseRepository::relatedTo` |
+
+### Pinned chord (arriving from chord detail page)
+
+When a user clicks "view in progression" from a chord Show page, the URL carries:
+```
+/library/progressions/{slug}?chord={chordSlug}&highlight={slot}&root={displayRoot}
+```
+The controller pins the user's exact voicing into the correct slot and derives the key from that root + numeral. The surrounding chords are then voice-led in the correct harmonic relationship.
+
+**Key resolution:** `HarmonicContext::keyFromNumeralAndRoot(numeral, root)` — finds the key where that numeral resolves to that root.
+
+---
+
+## 5. Tile Resolution Pipeline
+
+Progression chords are never stored — they are **materialised on the fly**:
+
+```
+HarmonicContext::buildFromNumerals(key, numerals)
+  → ProgressionBuilder::buildVoicings(context, options)
+    → tiles: [{ chordName, numeral, diagramData, functionalRole, slug }]
+```
+
+`buildChordsFor(progression, key, usePass2, pinnedSlugs)` is the shared helper used by both `show()` and `apiShow()`. It also handles **pinned slugs** from video snippets: when a snippet's `chords` field provides explicit diagram slugs, those are transposed to the target root via `ChordSerializer::serialize($diagram, $targetRoot)` rather than using the builder.
+
+---
+
+## 6. `ChordProgressionViewer` Component
+
+**File:** `resources/js/Components/Library/ChordProgressionViewer.vue`
+
+The canonical component for rendering a chord progression anywhere in the app.
+
+### TypeScript interfaces (exported from the component)
+
+```typescript
+export interface ProgressionChord {
+    chordName: string;
+    diagramData: ChordDiagramData | null;
+    beats?: number;
+    slug?: string | null;
+    numeral?: string;
+    functionalRole?: string | null;
+}
+
+export interface ChordProgressionViewerProps {
+    chords: ProgressionChord[];
+    interactive?: boolean;      // default true — enables click-to-play
+    compact?: boolean;          // default false
+    color?: string | null;      // accent CSS value
+    vintageCard?: boolean;      // thick right+bottom border
+    name?: string;
+    category?: string;
+    numerals?: string;
+    keyLabel?: string;
+}
+```
+
+### Visual layout (top → bottom)
+
+1. **Header** — name, category badge, key badge
+2. **Stage** — play button | fretboard excerpt (75%) | chord diagram card (25%)
+   - Fretboard: 7-fret sliding window, JS lerp animation (speed 0.035), centered on active chord
+   - Dots colored by interval type (amber=7ths, blue=3rds, gray=R/5, purple=9ths, green=11ths)
+   - Ghost dots at next chord positions (35% opacity) for voice-leading preview
+3. **Badge row** — one button per chord; shows `numeral` if present, falls back to chord name
+
+### Audio
+
+- Per-tile click plays one strum via `chordDiagramToEvents` + shared `AudioEngine`
+- Global play button sequences all chords at 180 BPM
+- `engine.on('playStarted')` clears active-tile state when another consumer takes the engine (singleton-mutex pattern)
+- Tiles never link out — click-to-play only (anti-rabbit-hole rule)
+
+### Voice-leading overlay
+
+`GuideToneArrowBridge.vue` renders SVG arrows between adjacent chord tiles:
+- `guideToneResolution.js` mirrors `ProgressionBuilder::scoreVL()` exactly
+- Resolving pairs: 7→3 (amber), 3→root/7 (blue), 9th ext (purple), #11 ext (green), 5th (gray)
+- Common-tone suppression: no arrow drawn if source pitch-class already present in next chord
+- Use pitch-class distance (`min(d%12, 12-d%12)`), NOT raw MIDI distance
+
+**Critical invariant:** common-tone suppression is load-bearing — removing it causes false arrows on chords sharing any guide tone.
+
+### Where it's used
+
+| Location | Context |
+|---|---|
+| `Library/Progressions/Show.vue` | Main progression visualization |
+| `Library/Chords/Show.vue` | "Progressions containing this chord" section |
+| `Library/Songs/Show.vue` | Detected progressions in song |
+| `Top10/*.vue` | Featured progression panels |
+| Course lesson content via `mountSbnNodes.ts` | `<sbn-progression>` tag |
+
+---
+
+## 7. API Endpoints (lesson editor + course player)
+
+### `GET /api/sbn/progressions/{slug}?key=C&pass2=true&chords=slug1,slug2,...`
+
+Returns `ProgressionChord[]` for `ChordProgressionViewer`.
+
+| Param | Default | Notes |
+|---|---|---|
+| `key` | `C` | Tonal centre for resolution |
+| `pass2` | `true` | Enable option-tone Pass 2 in builder |
+| `chords` | — | Comma-separated diagram slugs; overrides builder for those slots |
+
+### `GET /api/sbn/progressions/search?q=`
+
+Palette search — returns `{ slug, label, meta, snippets[] }`. Used by the lesson editor palette. `snippets` carries `{ id, label, key }` for the video picker.
+
+---
+
+## 8. Cross-references
+
+- Songs featuring a progression: `sbn_progression_occurrences.progression_id` → `sbn_leadsheets`
+- Progressions in a song: `sbn_progression_occurrences.leadsheet_id` → `sbn_chord_progressions`
+- Progression tile building: see `SBN-Builder-Reference.md`
+- `<sbn-progression>` lesson tag: see `SBN-Course-Reference.md §3`
+- Video snippets on progressions: same shape as rhythm snippets — see `SBN-Rhythm-Reference.md §12`
