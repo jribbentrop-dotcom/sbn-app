@@ -10,10 +10,10 @@ use Stripe\Webhook;
 /**
  * Concrete PaymentProvider backed by Stripe Checkout (Managed Payments / MoR).
  *
- * Tax collection and Merchant-of-Record status are configured at the Stripe
- * account level and via tax codes on the Price objects — no extra session params
- * are required here. A standard mode=payment Checkout Session is sufficient
- * once the account is enrolled in Stripe Tax / Managed Payments.
+ * Managed Payments (MoR / tax-handling) requires `managed_payments[enabled]=true`
+ * on every Checkout Session — see docs.stripe.com/payments/managed-payments/set-up.
+ * Tax-inclusive pricing is enforced at the Price object level (tax_behavior=inclusive)
+ * by the `sbn:sync-stripe-products` artisan command, NOT by a session-level param.
  *
  * We use the StripeClient instance API (not the global Stripe::setApiKey static)
  * so the key is scoped to this object and tests can inject a dummy key without
@@ -79,6 +79,10 @@ class StripeManagedProvider implements PaymentProvider
                     'order_id' => $order->id,
                 ],
             ],
+            // Enable Stripe as Merchant of Record for tax collection.
+            // Tax-inclusive pricing (so Stripe does NOT add tax on top) is enforced
+            // at the Price object level (tax_behavior=inclusive) by sbn:sync-stripe-products.
+            'managed_payments'    => ['enabled' => true],
         ]);
 
         return $session->url;

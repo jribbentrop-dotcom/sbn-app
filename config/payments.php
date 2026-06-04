@@ -38,6 +38,10 @@ return [
     'stripe_managed' => [
         'api_key'        => env('STRIPE_SECRET'),
         'signing_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        // Stripe tax code assigned to products during sbn:sync-stripe-products.
+        // Use a Managed-Payments-eligible code, e.g. txcd_10000000 (digital goods).
+        // See: https://stripe.com/docs/tax/tax-codes
+        'tax_code'       => env('STRIPE_TAX_CODE'),
     ],
 
     'fake' => [
