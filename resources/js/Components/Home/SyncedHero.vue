@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * SyncedHero — sliding chord track + mini rhythm grid, shared clock.
+ * SyncedHero — sliding chord track + rhythm strip, shared clock.
  *
  * Layout: 5 persistent board slots [off-left · prev · CENTER · next · off-right].
  * On each bar the whole track translates one slot-width left; boards cross-fade
@@ -8,53 +8,152 @@
  * right end. `strike()` always fires on boards[CENTER_IDX] (index 2).
  *
  * Clock is injected via useClock — swap for Tone.js Transport with no view changes.
+ *
+ * Phase S.1: uses real ChordDiagramData + RhythmPatternData shapes.
+ * Chord data is hardcoded for testing (Dm7 → G7 → Cmaj7 drop voicings).
+ * Production path: pass `progression` + `rhythmPattern` as props (Phase S.3).
  */
-import { ref, onMounted, onBeforeUnmount } from 'vue';
-import { useClock, type StepType } from './useClock';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { useClock } from './useClock';
+import type { StepType } from './useClock';
+import ChordDiagram from '../Library/ChordDiagram.vue';
+import type { ChordDiagramData } from '../Library/ChordDiagram.vue';
+import type { RhythmPatternData } from '../Library/RhythmPattern.vue';
 
-// ── Chord data ──────────────────────────────────────────────────────────────
-// Format: frets[6] string 6→1; fret 0=open, -1=mute. roles[6] = R|3|5|7|null
-interface ChordDef {
-    name: string;
-    sub: string;
-    frets: (number | null)[];
-    roles: (string | null)[];
-}
-
-const CHORDS: ChordDef[] = [
-    { name: 'Cmaj7',  sub: 'Bright · major seventh', frets: [-1,3,2,0,0,0],    roles: [null,'R','7','3','5','R'] },
-    { name: 'Dm7',    sub: 'Warm · minor seventh',   frets: [-1,0,0,2,1,1],    roles: [null,'R','5','7','3','5'] },
-    { name: 'G13',    sub: 'Tense · dominant',       frets: [3,-1,3,4,5,-1],   roles: ['R',null,'7','3','13',null] },
-    { name: 'Am7',    sub: 'Mellow · minor seventh', frets: [-1,0,2,0,1,0],    roles: [null,'R','5','7','3','5'] },
-    { name: 'Fmaj7',  sub: 'Bright · major seventh', frets: [-1,-1,3,2,1,0],   roles: [null,null,'R','7','3','5'] },
+// ── Hardcoded test progression: Dm7 → G7 → Cmaj7 (drop voicings) ───────────
+// diagram_data uses string numbers 1=high e, 6=low E (SBN convention)
+const CHORDS: ChordDiagramData[] = [
+    {
+        id: 1001,
+        slug: 'dm7-drop2-test',
+        name: 'Dm7',
+        root_note: 'D',
+        quality: 'min7',
+        quality_label: 'Minor 7th',
+        extensions: null,
+        voicing_category: 'drop2',
+        category_label: 'Drop 2',
+        root_string: 'roota',
+        root_string_label: 'Root on A',
+        inversion: 'inv3',
+        inversion_label: '3rd Inversion',
+        bass_note: null,
+        shape_family: null,
+        start_fret: 5,
+        diagram_data: {
+            positions: [
+                { string: 2, fret: 6, finger: 2 },
+                { string: 3, fret: 7, finger: 3 },
+                { string: 4, fret: 5, finger: 1 },
+                { string: 5, fret: 5, finger: 1 },
+            ],
+            barres: [{ fret: 5, from: 4, to: 5, finger: 1 }],
+            muted: [1, 6],
+            open: [],
+        },
+        interval_labels: 'x,b7,b3,5,R,x',
+        popularity: null,
+        difficulty: null,
+    },
+    {
+        id: 1002,
+        slug: 'g7-drop3-test',
+        name: 'G7',
+        root_note: 'G',
+        quality: 'dom7',
+        quality_label: 'Dominant 7th',
+        extensions: null,
+        voicing_category: 'drop3',
+        category_label: 'Drop 3',
+        root_string: 'roote',
+        root_string_label: 'Root on E',
+        inversion: 'root',
+        inversion_label: 'Root Position',
+        bass_note: null,
+        shape_family: null,
+        start_fret: 3,
+        diagram_data: {
+            positions: [
+                { string: 1, fret: 3, finger: 1 },
+                { string: 3, fret: 3, finger: 2 },
+                { string: 4, fret: 4, finger: 3 },
+                { string: 5, fret: 5, finger: 4 },
+            ],
+            barres: [],
+            muted: [2, 6],
+            open: [],
+        },
+        interval_labels: 'R,x,b7,3,5,x',
+        popularity: null,
+        difficulty: null,
+    },
+    {
+        id: 1003,
+        slug: 'cmaj7-drop2-test',
+        name: 'Cmaj7',
+        root_note: 'C',
+        quality: 'maj7',
+        quality_label: 'Major 7th',
+        extensions: null,
+        voicing_category: 'drop2',
+        category_label: 'Drop 2',
+        root_string: 'rootd',
+        root_string_label: 'Root on D',
+        inversion: 'inv3',
+        inversion_label: '3rd Inversion',
+        bass_note: null,
+        shape_family: null,
+        start_fret: 1,
+        diagram_data: {
+            positions: [
+                { string: 3, fret: 2, finger: 2 },
+                { string: 4, fret: 2, finger: 3 },
+                { string: 5, fret: 1, finger: 1 },
+                { string: 6, fret: 1, finger: 1 },
+            ],
+            barres: [],
+            muted: [1],
+            open: [],
+        },
+        interval_labels: 'x,x,7,3,5,R',
+        popularity: null,
+        difficulty: null,
+    },
 ];
 
-const PATTERN: StepType[] = ['accent','rest','rest','ghost','accent','rest','ghost','rest','rest','accent','rest','ghost','accent','rest','ghost','rest'];
-const BPM = 132;
-const SLIDE_MS = 560;
-const slideMs = ref(SLIDE_MS); // needed for v-bind() in scoped CSS
+// ── Hardcoded rhythm: Bossa Nova Clave (mirrors DB slug bossa-nova-clave) ────
+// encoding matches DB: x=hit, .=rest
+const RHYTHM: RhythmPatternData = {
+    name: 'Bossa Nova Clave',
+    beats: 16,
+    gridType: 'sixteenth',
+    fingers: 'x..x..x...x..x..',
+    thumb:   'x...x...x...x...',
+    bpm: 127,
+    timeSignature: '4/4',
+    percTop: 'fingers',
+    percBass: 'thumb',
+};
+
+const BPM = Math.round(RHYTHM.bpm / 2);
+const SLIDE_MS = 1120;
+const slideMs = ref(SLIDE_MS);
 const CENTER_IDX = 2;
 const ROLES = ['off', 'side', 'center', 'side', 'off'] as const;
 const LBLS  = ['', 'prev', '', 'next', ''];
 
-// ── Fretboard geometry (matches prototype's 160×200 viewBox) ────────────────
-const FB_W = 160, FB_H = 200;
-const FB_PAD = 26, FB_TOP = 24, FB_BOT = 176;
-const strX  = (s: number) => FB_PAD + (FB_W - 2 * FB_PAD) * s / 5;
-const fretY = (f: number) => FB_TOP + (FB_BOT - FB_TOP) * f / 5;
-const dotCy = (fret: number) => (fretY(fret - 1) + fretY(fret)) / 2;
-
-function roleColor(r: string | null): string {
-    if (r === 'R')  return 'var(--clr-root)';
-    if (r === '3')  return 'var(--clr-third)';
-    if (r === '5')  return 'var(--clr-fifth)';
-    if (r === '7')  return 'var(--clr-seventh)';
-    return 'var(--clr-text-dim)';
-}
+// ── Pattern → StepType array (derived from fingers string) ──────────────────
+// Real DB patterns use only lowercase x (hit) — uppercase X would be accent.
+// Map x→ghost so the clock's onStep can detect hits for the strike pulse.
+const PATTERN = computed((): StepType[] =>
+    RHYTHM.fingers.split('').map((c): StepType =>
+        c === 'X' ? 'accent' : c === 'x' ? 'ghost' : 'rest'
+    )
+);
 
 // ── Reactive board state ─────────────────────────────────────────────────────
 interface BoardState {
-    chord: ChordDef;
+    chord: ChordDiagramData;
     role: typeof ROLES[number];
     label: string;
     striking: boolean;
@@ -69,23 +168,13 @@ const boards = ref<BoardState[]>(
     }))
 );
 
-// Track offset for the sliding animation
 const trackOffset = ref(0);
 const trackTransition = ref(false);
 let head = ref(0);
 let sliding = false;
 
-// DOM ref for the track element (needed to measure dx)
 const trackEl = ref<HTMLElement | null>(null);
 const boardEls = ref<HTMLElement[]>([]);
-
-// ── Strike (dot pulse on center board) ──────────────────────────────────────
-function strikeCenter() {
-    const b = boards.value[CENTER_IDX];
-    // Toggle striking off then on to re-trigger CSS animation
-    b.striking = false;
-    requestAnimationFrame(() => { b.striking = true; });
-}
 
 // ── Advance (one bar — slide + recycle) ─────────────────────────────────────
 function advance() {
@@ -94,26 +183,22 @@ function advance() {
 
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduce) {
-        // Static: reassign chords around new head, no animation
         boards.value.forEach((b, k) => {
             b.chord = CHORDS[(head.value + (k - CENTER_IDX) + CHORDS.length * 2) % CHORDS.length];
         });
-        strikeCenter();
         return;
     }
 
     sliding = true;
 
-    // Measure dx between adjacent board centers using the real DOM
     const bEls = boardEls.value;
     if (!bEls[1] || !bEls[2]) { sliding = false; return; }
     const r1 = bEls[1].getBoundingClientRect();
     const r2 = bEls[2].getBoundingClientRect();
     const dx = (r2.left + r2.width / 2) - (r1.left + r1.width / 2);
 
-    // Cross-fade roles toward next positions during the slide
     boards.value.forEach((b, k) => {
-        b.role = ROLES[k - 1] ?? 'off';
+        b.role  = ROLES[k - 1] ?? 'off';
         b.label = LBLS[k - 1] ?? '';
     });
 
@@ -124,21 +209,18 @@ function advance() {
 function onTransitionEnd() {
     if (!sliding) return;
 
-    // Recycle: pop the first board to the end, load the new look-ahead chord
     const first = boards.value.shift()!;
     boards.value.push(first);
 
-    // Snap transform back — disable transition first
     trackTransition.value = false;
     trackOffset.value = 0;
 
-    // Restore canonical roles
     boards.value.forEach((b, k) => {
-        b.role  = ROLES[k];
-        b.label = LBLS[k];
+        b.role     = ROLES[k];
+        b.label    = LBLS[k];
+        b.striking = false; // clear strike so new chord doesn't animate on arrival
     });
 
-    // Repaint chords in their new positions
     boards.value.forEach((b, k) => {
         b.chord = CHORDS[(head.value + (k - CENTER_IDX) + CHORDS.length * 2) % CHORDS.length];
     });
@@ -146,16 +228,24 @@ function onTransitionEnd() {
     sliding = false;
 }
 
-// ── Current rhythm step for the mini grid ───────────────────────────────────
+// ── Current rhythm step for the strip ───────────────────────────────────────
 const currentStep = ref(-1);
 
 // ── Clock wiring ─────────────────────────────────────────────────────────────
 const clock = useClock({
     bpm: BPM,
-    pattern: PATTERN,
+    pattern: PATTERN.value,
     onStep(step, type) {
+        // Set step and strike in one synchronous block — Vue batches both
+        // into the same render cycle so strip highlight and dot pulse land
+        // in the same paint frame.
+        const shouldStrike = type !== 'rest' && step !== 0 && !sliding;
         currentStep.value = step;
-        if (type === 'accent') strikeCenter();
+        if (shouldStrike) {
+            const b = boards.value[CENTER_IDX];
+            b.striking = false;
+            nextTick(() => { b.striking = true; });
+        }
     },
     onBar() {
         advance();
@@ -171,11 +261,23 @@ onBeforeUnmount(() => {
     clock.stop();
 });
 
-// ── Dot visibility helpers ───────────────────────────────────────────────────
-function visibleDots(chord: ChordDef) {
-    return chord.frets
-        .map((fret, s) => ({ fret, s, role: chord.roles[s] }))
-        .filter(d => d.fret !== null && d.fret > 0);
+// ── Rhythm strip cell classes ────────────────────────────────────────────────
+function fingerCellClass(i: number): Record<string, boolean> {
+    const c = RHYTHM.fingers[i] ?? '.';
+    return {
+        'accent':  c === 'X',
+        'ghost':   c === 'x',
+        'active':  i === currentStep.value,
+    };
+}
+
+function thumbCellClass(i: number): Record<string, boolean> {
+    const c = RHYTHM.thumb[i] ?? '.';
+    return {
+        'accent': c === 'X',
+        'ghost':  c === 'x',
+        'active': i === currentStep.value,
+    };
 }
 </script>
 
@@ -200,45 +302,15 @@ function visibleDots(chord: ChordDef) {
                     :ref="el => { if (el) boardEls[k] = el as HTMLElement }"
                     class="board"
                     :data-role="board.role"
+                    :data-striking="board.role === 'center' && board.striking ? 'true' : undefined"
                 >
                     <div class="board-label">{{ board.label }}</div>
                     <div class="board-name">{{ board.chord.name }}</div>
-                    <div class="board-sub">{{ board.chord.sub }}</div>
+                    <div class="board-sub">{{ board.chord.category_label }} · {{ board.chord.quality_label }}</div>
 
-                    <!-- Fretboard SVG -->
-                    <svg
-                        class="board-fretboard"
-                        :viewBox="`0 0 ${FB_W} ${FB_H}`"
-                        :width="FB_W"
-                        :height="FB_H"
-                    >
-                        <!-- Strings -->
-                        <line
-                            v-for="s in 6"
-                            :key="`s${s}`"
-                            :x1="strX(s-1)" :y1="FB_TOP"
-                            :x2="strX(s-1)" :y2="FB_BOT"
-                            class="fb-string"
-                        />
-                        <!-- Fret lines (0 = nut) -->
-                        <line
-                            v-for="f in 6"
-                            :key="`f${f}`"
-                            :x1="FB_PAD" :y1="fretY(f-1)"
-                            :x2="FB_W - FB_PAD" :y2="fretY(f-1)"
-                            :class="f === 1 ? 'fb-nut' : 'fb-fret'"
-                        />
-                        <!-- Dots -->
-                        <circle
-                            v-for="(d, di) in visibleDots(board.chord)"
-                            :key="di"
-                            :cx="strX(d.s)"
-                            :cy="dotCy(d.fret as number)"
-                            r="8"
-                            :fill="roleColor(d.role)"
-                            :class="['fb-dot', board.role === 'center' && board.striking ? 'struck' : '']"
-                        />
-                    </svg>
+                    <div class="board-diagram" :class="{ 'is-striking': board.role === 'center' && board.striking }">
+                        <ChordDiagram :chord="board.chord" :show-guide-tones="true" />
+                    </div>
                 </div>
             </div>
         </div>
@@ -251,20 +323,30 @@ function visibleDots(chord: ChordDef) {
             <span><i class="legend-dot" style="background:var(--clr-seventh)"></i>7th</span>
         </div>
 
-        <!-- Mini rhythm grid (shares the same clock) -->
+        <!-- Rhythm strip (clock-driven, non-playable) -->
         <div class="mini-rhythm">
-            <div class="mini-bar">
+            <div class="mini-label">{{ RHYTHM.name }} · {{ RHYTHM.timeSignature }} · {{ BPM }} bpm</div>
+
+            <!-- Fingers row -->
+            <div class="mini-bar mini-bar-fingers">
                 <div
-                    v-for="(type, i) in PATTERN"
-                    :key="i"
-                    :class="[
-                        'mini-cell',
-                        type === 'accent' ? 'accent' : '',
-                        type === 'ghost'  ? 'ghost'  : '',
-                        i === currentStep ? 'active' : '',
-                    ]"
+                    v-for="(_, i) in RHYTHM.beats"
+                    :key="`f${i}`"
+                    class="mini-cell"
+                    :class="fingerCellClass(i)"
                 ></div>
             </div>
+
+            <!-- Thumb / bass row -->
+            <div class="mini-bar mini-bar-thumb">
+                <div
+                    v-for="(_, i) in RHYTHM.beats"
+                    :key="`t${i}`"
+                    class="mini-cell-thumb"
+                    :class="thumbCellClass(i)"
+                ></div>
+            </div>
+
             <div class="mini-beats">
                 <span>1</span><span>2</span><span>3</span><span>4</span>
             </div>
@@ -280,7 +362,7 @@ function visibleDots(chord: ChordDef) {
     border-radius: 24px;
     padding: 28px 20px;
     box-shadow: 0 30px 60px -28px rgba(80,60,20,.28);
-    overflow: hidden;
+    /* overflow:visible so .demo-tag (top:-12px) is not clipped */
 }
 
 .demo-tag {
@@ -316,8 +398,8 @@ function visibleDots(chord: ChordDef) {
 }
 
 .board[data-role="center"] { width: 200px; }
-.board[data-role="side"]   { width: 128px; }
-.board[data-role="off"]    { width: 128px; }
+.board[data-role="side"]   { width: 140px; }
+.board[data-role="off"]    { width: 140px; }
 
 .board-label {
     font-size: .66rem;
@@ -351,34 +433,28 @@ function visibleDots(chord: ChordDef) {
 .board[data-role="side"]   .board-sub { opacity: 0; }
 .board[data-role="off"]    .board-sub { opacity: 0; }
 
-.board-fretboard {
-    display: block;
-    margin: 0 auto;
+/* ── Diagram slot ── */
+.board-diagram {
+    /* Fixed height so the SVG doesn't reflow as board width transitions.
+       The SVG is width:100% height:auto inside — clamp it to the board width
+       via overflow:hidden so it never drives the container height. */
+    height: 160px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: opacity v-bind("slideMs + 'ms'"), filter v-bind("slideMs + 'ms'");
 }
-.board[data-role="center"] .board-fretboard { opacity: 1; filter: none; }
-.board[data-role="side"]   .board-fretboard { opacity: .34; filter: grayscale(.45); }
-.board[data-role="off"]    .board-fretboard { opacity: 0;   filter: grayscale(.6); }
+.board[data-role="center"] .board-diagram { opacity: 1; filter: none; }
+.board[data-role="side"]   .board-diagram { opacity: .34; filter: grayscale(.45); }
+.board[data-role="off"]    .board-diagram { opacity: 0;   filter: grayscale(.6); }
 
-/* ── Fretboard primitives ── */
-.fb-string {
-    stroke: var(--clr-line);
-    stroke-width: 2;
-}
-.fb-fret {
-    stroke: var(--clr-line);
-    stroke-width: 2;
-}
-.fb-nut {
-    stroke: var(--clr-text-dim);
-    stroke-width: 5;
-}
-.fb-dot {
+/* Strike pulse: target the rendered SVG dot circles */
+.board-diagram :deep(circle.sbn-svg-dot) {
     transform-box: fill-box;
     transform-origin: center;
-    transition: opacity .25s, fill .3s;
 }
-.fb-dot.struck {
+.board-diagram.is-striking :deep(circle.sbn-svg-dot) {
     animation: hero-strike .42s cubic-bezier(.2,1.6,.4,1);
 }
 @keyframes hero-strike {
@@ -408,47 +484,83 @@ function visibleDots(chord: ChordDef) {
     display: inline-block;
 }
 
-/* ── Mini rhythm grid ── */
+/* ── Rhythm strip ── */
 .mini-rhythm {
     margin-top: 22px;
     padding-top: 20px;
-    border-top: 1px solid var(--clr-line);
+    border-top: 1px solid var(--clr-border);
 }
+.mini-label {
+    font-size: .7rem;
+    color: var(--clr-text-muted);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+}
+
+/* Two-row grid — matches RhythmStrip cell layout */
 .mini-bar {
     display: grid;
-    grid-template-columns: repeat(16, 1fr);
-    gap: 4px;
-    height: 44px;
-    align-items: end;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 3px;
 }
+.mini-bar-fingers {
+    margin-bottom: 3px;
+}
+.mini-bar-thumb {
+    height: 8px;
+    margin-bottom: 2px;
+}
+
+/* Fingers cells */
 .mini-cell {
-    background: var(--clr-bg-card);
-    border: 1px solid var(--clr-line);
-    border-radius: 4px;
-    height: 34%;
-    transition: transform .1s, box-shadow .1s;
-}
-.mini-cell.accent {
-    height: 100%;
-    background: linear-gradient(180deg, var(--clr-accent), color-mix(in srgb, var(--clr-accent) 70%, black));
-    border-color: transparent;
+    height: 22px;
+    border-radius: 3px;
+    background: var(--clr-surface-3);
+    transition: background .1s, transform .1s;
 }
 .mini-cell.ghost {
-    height: 62%;
-    background: linear-gradient(180deg, var(--clr-fifth, var(--clr-accent-2)), color-mix(in srgb, var(--clr-fifth, var(--clr-accent-2)) 70%, black));
-    border-color: transparent;
-    opacity: .9;
+    background: var(--clr-accent);
+    opacity: .75;
+}
+.mini-cell.accent {
+    background: var(--clr-red);
+    opacity: 1;
 }
 .mini-cell.active {
-    transform: scaleY(1.06) translateY(-2px);
-    box-shadow: 0 4px 12px -4px var(--clr-accent);
+    outline: 1.5px solid var(--clr-accent);
+    outline-offset: 1px;
+    transform: translateY(-1px);
+    z-index: 2;
 }
+
+/* Thumb cells */
+.mini-cell-thumb {
+    height: 8px;
+    border-radius: 2px;
+    background: var(--clr-border);
+}
+.mini-cell-thumb.ghost {
+    background: var(--clr-text-dim);
+    opacity: .5;
+}
+.mini-cell-thumb.accent {
+    background: var(--clr-text);
+    opacity: .8;
+}
+.mini-cell-thumb.active {
+    outline: 1px solid var(--clr-accent);
+    outline-offset: 1px;
+}
+
 .mini-beats {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    margin-top: 10px;
+    margin-top: 8px;
     font-size: .7rem;
-    color: var(--clr-text-dim);
+    color: var(--clr-text-muted);
     letter-spacing: .12em;
 }
 
@@ -458,8 +570,8 @@ function visibleDots(chord: ChordDef) {
     .board,
     .board-name,
     .board-sub,
-    .board-fretboard,
+    .board-diagram,
     .board-label { transition: none !important; }
-    .fb-dot.struck { animation: none !important; }
+    .board-diagram.is-striking :deep(circle.sbn-svg-dot) { animation: none !important; }
 }
 </style>

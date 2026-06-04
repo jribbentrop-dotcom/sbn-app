@@ -19,49 +19,45 @@ display, so the two are always causally linked.
 
 ---
 
-## 2. Current state (as-built, 2026-06-03)
+## 2. Current state (as-built, 2026-06-04)
 
 ### Files
 | File | Role |
 |---|---|
-| `resources/js/Components/Home/SyncedHero.vue` | Homepage demo — hardcoded 5-chord bossa progression, hardcoded accent pattern, sliding board track |
+| `resources/js/Components/Home/SyncedHero.vue` | Homepage demo — hardcoded Dm7/G7/Cmaj7 drop voicings, Gilberto bossa rhythm, sliding board track |
 | `resources/js/Components/Home/useClock.ts` | `setInterval`-backed clock behind a swappable `ClockHandle` interface (`start/stop/onStep/onBar`) |
 
 ### What works
 - 5 persistent board slots (`off-left · prev · center · next · off-right`)
 - Physical slide on bar advance (stable DOM nodes, recycle buffer, no fade-repaint)
-- Dot pulse (`strike()`) fires exactly on accent steps
-- Mini rhythm grid synced to the same clock
+- Dot pulse (`strike()`) fires on accent steps (`X` chars in fingers string), targeting `circle.sbn-svg-dot` via CSS `animation`
+- Two-row rhythm strip (fingers + thumb) driven by `RhythmPatternData` shape — `X`=accent, `x`=ghost/hit, `.`=rest
+- Real `ChordDiagramData` shape — `<ChordDiagram :show-guide-tones>` renders guide-tone colours via `sbnRenderDiagramSVG()`
 - `prefers-reduced-motion` respected (static first chord, no timer)
-- Clock interface is swappable — Tone.js Transport can replace `setInterval`
-  with zero view changes
+- Clock interface is swappable — Tone.js Transport can replace `setInterval` with zero view changes
 
-### What is hardcoded / wrong
-- Chord data is raw `{frets[], roles[]}` — not from DB
-- Rhythm pattern is a hardcoded `StepType[]` string — not a `RhythmPatternData`
+### What is hardcoded (test state)
+- Chord data is hardcoded `ChordDiagramData[]` (Dm7/G7/Cmaj7 drop voicings). Production path: feed real shapes from `ChordVoicingSearch` or the builder
+- Rhythm is a hardcoded `RhythmPatternData` object (Bossa Nova Clave, mirrors DB slug `bossa-nova-clave`)
 - No play/stop control exposed to the user
 - No tempo control
-- The inline SVG fretboard duplicates geometry from `AnimatedChordDiagram`
 - Single global pattern — every bar uses the same rhythm
+
+### Open bug
+- **Rhythm strip ↔ dot-strike sync**: strip cell highlight (`currentStep`) and the dot pulse (`b.striking`) are driven by the same `onStep` callback and batched into one Vue render cycle via `nextTick`, but visual sync is still imprecise — likely because `setInterval` drift means the two effects don't land in the same paint frame. Resolution: replace `setInterval` with an `AudioEngine`-derived tick (Phase S.2) so the clock is sample-accurate.
 
 ---
 
 ## 3. Phase plan
 
-### Phase S.1 — Real data, same homepage widget
-*Goal: wire the hero to real DB records. No new UI surface.*
+### Phase S.1 — Real data, same homepage widget ✅ DONE 2026-06-04
+*Goal: wire the hero to real DB shapes. No new UI surface.*
 
-- Accept `progression` prop: array of `ChordDiagramData` (same shape as
-  `ChordDiagram.vue` / `AnimatedChordDiagram.vue`)
-- Accept `rhythmPattern` prop: `RhythmPatternData` (same shape as `RhythmStrip`)
-- Replace the inline SVG fretboard with a call to `sbnRenderDiagramSVG()` or
-  a thin wrapper around `ChordDiagram.vue` — whichever is lighter for 5
-  simultaneous instances. Note: `ChordDiagram.vue` calls `sbnRenderDiagramSVG`
-  internally via `watchEffect`, so it is safe to use inside the board slots.
-- Replace the hardcoded `StepType[]` with a converter from `RhythmPatternData`
-  (`fingers` + `thumb` strings → accent/ghost/rest per step)
-- `HomeController` passes a real progression (e.g. the C–Am–Dm–G bossa loop)
-  and the bossa basic pattern
+- ✅ `ChordDiagramData[]` shape — `<ChordDiagram :show-guide-tones>` renders via `sbnRenderDiagramSVG()`
+- ✅ `RhythmPatternData` shape — `fingers`/`thumb` strings drive the two-row strip + clock accent detection
+- ✅ Inline SVG fretboard removed; `sbn-svg-dot` circles targeted for strike animation via `:deep` CSS
+- ✅ Hardcoded Dm7/G7/Cmaj7 drop voicings + Gilberto bossa basic for testing
+- **Production next step**: `HomeController` passes real progression + pattern props (Phase S.3 shape)
 - **Clock stays `setInterval`** — no audio engine yet
 
 ### Phase S.2 — Playback + controls
