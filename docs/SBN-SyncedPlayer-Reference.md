@@ -19,29 +19,34 @@ display, so the two are always causally linked.
 
 ---
 
-## 2. Current state (as-built, 2026-06-04)
+## 2. Current state (as-built, 2026-06-05)
 
 ### Files
 | File | Role |
 |---|---|
-| `resources/js/Components/Home/SyncedHero.vue` | Homepage demo — hardcoded Dm7/G7/Cmaj7 drop voicings, Gilberto bossa rhythm, sliding board track |
+| `resources/js/Components/Home/SyncedHero.vue` | Homepage widget — DB-driven chord sequence + rhythm, sliding board track, up-next cue |
 | `resources/js/Components/Home/useClock.ts` | `setInterval`-backed clock behind a swappable `ClockHandle` interface (`start/stop/onStep/onBar`) |
+| `app/Http/Controllers/HomeController.php` | Feeds `progression` (first 8 chords of Desafinado via `LeadsheetViewerService`) + `rhythmPattern` (bossa-nova from DB) |
 
 ### What works
 - 5 persistent board slots (`off-left · prev · center · next · off-right`)
-- Physical slide on bar advance (stable DOM nodes, recycle buffer, no fade-repaint)
-- **Thumb/fingers dot split** (Gilberto technique): a `thumb` hit pulses only the bass-note dot; a `fingers` hit pulses only the top-three dots. `strikeCenter(row)` toggles `.is-striking` per `circle.sbn-svg-dot` filtered by `data-string`, where the bass = the lowest-numbered played string (`bassString()`, string 1 = low E per `ChordShapeCalculator::TUNING`) and fingers = everything above it. Both rows read from `RHYTHM.thumb`/`RHYTHM.fingers` directly in `onStep`; on the downbeat both fire together. Re-triggered imperatively (remove → one reflow → re-add).
-- Two-row rhythm strip (fingers + thumb) driven by `RhythmPatternData` shape — `X`=accent, `x`=ghost/hit, `.`=rest
-- Real `ChordDiagramData` shape — `<ChordDiagram :show-guide-tones>` renders guide-tone colours via `sbnRenderDiagramSVG()`
+- Physical slide fires on **step 15** (last 16th of bar) so the chord lands centered on the downbeat
+- **Up-next affordance**: `next` role is visually distinct (accent label "up next", opacity 0.8, low grayscale); after recycle the incoming board is promoted to `role='next'` immediately via double-rAF so it's visible the full bar; `strikeNext()` fires a soft pre-pulse at step 12
+- **Thumb/fingers dot split** (Gilberto technique): `strikeCenter(row)` targets dots by `data-string` — bass = `Math.min` of played strings (string 1 = low E), fingers = everything above
+- Two-row rhythm strip (fingers + thumb) driven by `RhythmPatternData`
+- `ChordDiagram :show-guide-tones` renders guide-tone colours via `sbnRenderDiagramSVG()`
+- Card frame: `.sbn-synced-hero-card` in `sbn-design-system.css` (theme-switchable). Chord names via `formatChordNameHtml()`.
+- All board transitions compositor-only (`transform:scale`, `opacity`, `filter`) — no `width`/`font-size` layout work; all boards fixed 160px, `dx` hardcoded
 - `prefers-reduced-motion` respected (static first chord, no timer)
-- Clock interface is swappable — Tone.js Transport can replace `setInterval` with zero view changes
+- Clock interface is swappable — Tone.js Transport replaces `setInterval` with zero view changes
+- Props: `progression?: ChordDiagramData[]`, `rhythmPattern?: RhythmPatternData` — hardcoded Dm7/G7/Cmaj7 fallback if null
 
-### What is hardcoded (test state)
-- Chord data is hardcoded `ChordDiagramData[]` (Dm7/G7/Cmaj7 drop voicings). Production path: feed real shapes from `ChordVoicingSearch` or the builder
-- Rhythm is a hardcoded `RhythmPatternData` object (Bossa Nova Clave, mirrors DB slug `bossa-nova-clave`)
-- No play/stop control exposed to the user
+### What is still missing
+- No play/stop control — auto-plays on mount, no user control
 - No tempo control
-- Single global pattern — every bar uses the same rhythm
+- `barsPerChord` not implemented — Desafinado chords last ~2 bars but hero advances every bar (too fast)
+- Single global rhythm pattern — per-bar swap is Phase S.4b
+- `setInterval` drifts over long runs — replace with AudioEngine tick in S.2
 
 ### Sync fixes (2026-06-04)
 Three defects that broke the visible chord↔rhythm link were fixed:
