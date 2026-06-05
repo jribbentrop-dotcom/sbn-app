@@ -18,12 +18,17 @@ import { useClock } from './useClock';
 import type { StepType } from './useClock';
 import ChordDiagram from '../Library/ChordDiagram.vue';
 import type { ChordDiagramData } from '../Library/ChordDiagram.vue';
+import { formatChordNameHtml } from '@/composables/useChordName';
 import type { RhythmPatternData } from '../Library/RhythmPattern.vue';
 
-// ── Hardcoded test progression: Dm7 → G7 → Cmaj7 (drop voicings) ───────────
+const props = defineProps<{
+    progression?: ChordDiagramData[];
+    rhythmPattern?: RhythmPatternData;
+}>();
+
 // diagram_data uses string numbers 1=low E … 6=high E (SBN/DB convention,
 // per ChordShapeCalculator::TUNING). The renderer draws string 1 leftmost.
-const CHORDS: ChordDiagramData[] = [
+const CHORDS_FALLBACK: ChordDiagramData[] = [
     {
         id: 1001,
         slug: 'dm7-drop2-test',
@@ -122,9 +127,8 @@ const CHORDS: ChordDiagramData[] = [
     },
 ];
 
-// ── Hardcoded rhythm: Bossa Nova Clave (mirrors DB slug bossa-nova-clave) ────
-// encoding matches DB: x=hit, .=rest
-const RHYTHM: RhythmPatternData = {
+// ── Rhythm: from prop or hardcoded fallback ───────────────────────────────────
+const RHYTHM_FALLBACK: RhythmPatternData = {
     name: 'Bossa Nova Clave',
     beats: 16,
     gridType: 'sixteenth',
@@ -135,8 +139,14 @@ const RHYTHM: RhythmPatternData = {
     percTop: 'fingers',
     percBass: 'thumb',
 };
+const RHYTHM = computed(() => props.rhythmPattern ?? RHYTHM_FALLBACK);
 
-const BPM = Math.round(RHYTHM.bpm / 2);
+// ── Chord progression: from prop or hardcoded fallback ────────────────────────
+const CHORDS = computed(() =>
+    (props.progression && props.progression.length > 0) ? props.progression : CHORDS_FALLBACK
+);
+
+const BPM = computed(() => Math.round(RHYTHM.value.bpm / 2));
 // Slide is a visible glide but stays tight: the strike already targets the
 // role=center board from the downbeat (see strikeCenter), so the slide is
 // purely cosmetic and just needs to feel smooth without lagging the rhythm.
@@ -148,14 +158,14 @@ const slideMs = ref(SLIDE_MS);
 // and drift apart by a sub-pixel — the "hiccup" at the end of the pull-in.
 const SLIDE_EASE = 'cubic-bezier(.4,0,.2,1)';
 const CENTER_IDX = 2;
-const ROLES = ['off', 'side', 'center', 'side', 'off'] as const;
-const LBLS  = ['', 'prev', '', 'next', ''];
+const ROLES = ['off', 'side', 'center', 'next', 'off'] as const;
+const LBLS  = ['', 'prev', '', 'up next', ''];
 
 // ── Pattern → StepType array (derived from fingers string) ──────────────────
 // Real DB patterns use only lowercase x (hit) — uppercase X would be accent.
 // Map x→ghost so the clock's onStep can detect hits for the strike pulse.
 const PATTERN = computed((): StepType[] =>
-    RHYTHM.fingers.split('').map((c): StepType =>
+    RHYTHM.value.fingers.split('').map((c): StepType =>
         c === 'X' ? 'accent' : c === 'x' ? 'ghost' : 'rest'
     )
 );
@@ -163,13 +173,13 @@ const PATTERN = computed((): StepType[] =>
 // ── Reactive board state ─────────────────────────────────────────────────────
 interface BoardState {
     chord: ChordDiagramData;
-    role: typeof ROLES[number];
+    role: 'off' | 'side' | 'center' | 'next';
     label: string;
 }
 
 const boards = ref<BoardState[]>(
     ROLES.map((role, k) => ({
-        chord: CHORDS[(k - CENTER_IDX + CHORDS.length * 2) % CHORDS.length],
+        chord: CHORDS.value[(k - CENTER_IDX + CHORDS.value.length * 2) % CHORDS.value.length],
         role,
         label: LBLS[k],
     }))
@@ -221,7 +231,29 @@ function strikeCenter(row: 'bass' | 'fingers') {
     target.forEach(dot => dot.classList.add('is-striking'));
 }
 
-const trackOffset = ref(0);
+// Pulse only the root dot on the upcoming 'next' board — a soft "get ready" cue
+// fired ~1 beat before the bar flips. Targets the lowest-numbered played string
+// (which is the root in root-position voicings and close enough otherwise).
+function strikeNext() {
+    const idx = boards.value.findIndex(b => b.role === 'next');
+    if (idx < 0) return;
+    const el = boardEls.value[idx];
+    if (!el) return;
+    const diagram = el.querySelector<HTMLElement>('.board-diagram');
+    if (!diagram) return;
+
+    const bass = bassString(boards.value[idx].chord);
+    const dots = Array.from(diagram.querySelectorAll<SVGCircleElement>('circle.sbn-svg-dot'));
+    const target = dots.filter(dot => Number(dot.getAttribute('data-string')) === bass);
+
+    target.forEach(dot => dot.classList.remove('is-next-cue'));
+    void diagram.offsetWidth;
+    target.forEach(dot => dot.classList.add('is-next-cue'));
+}
+
+// -160 keeps index 2 (center board) visually centered in the 480px viewport.
+const TRACK_BASE = -160;
+const trackOffset = ref(TRACK_BASE);
 const trackTransition = ref(false);
 // When true, all per-board transitions are killed for one frame so the recycle
 // (array shift + role reset) snaps instantly instead of animating a second time.
@@ -235,23 +267,20 @@ const boardEls = ref<HTMLElement[]>([]);
 // ── Advance (one bar — slide + recycle) ─────────────────────────────────────
 function advance() {
     if (sliding) return;
-    head.value = (head.value + 1) % CHORDS.length;
+    head.value = (head.value + 1) % CHORDS.value.length;
 
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduce) {
         boards.value.forEach((b, k) => {
-            b.chord = CHORDS[(head.value + (k - CENTER_IDX) + CHORDS.length * 2) % CHORDS.length];
+            b.chord = CHORDS.value[(head.value + (k - CENTER_IDX) + CHORDS.value.length * 2) % CHORDS.value.length];
         });
         return;
     }
 
     sliding = true;
 
-    const bEls = boardEls.value;
-    if (!bEls[1] || !bEls[2]) { sliding = false; return; }
-    const r1 = bEls[1].getBoundingClientRect();
-    const r2 = bEls[2].getBoundingClientRect();
-    const dx = (r2.left + r2.width / 2) - (r1.left + r1.width / 2);
+    // All boards are fixed 160px — slot pitch is always one board-width.
+    const dx = 160;
 
     boards.value.forEach((b, k) => {
         b.role  = ROLES[k - 1] ?? 'off';
@@ -259,7 +288,7 @@ function advance() {
     });
 
     trackTransition.value = true;
-    trackOffset.value = -dx;
+    trackOffset.value = TRACK_BASE - dx;
 }
 
 function onTransitionEnd(e: TransitionEvent) {
@@ -280,7 +309,7 @@ function onTransitionEnd(e: TransitionEvent) {
     boards.value.push(first);
 
     trackTransition.value = false;
-    trackOffset.value = 0;
+    trackOffset.value = TRACK_BASE;
 
     boards.value.forEach((b, k) => {
         b.role  = ROLES[k];
@@ -288,21 +317,32 @@ function onTransitionEnd(e: TransitionEvent) {
     });
 
     boards.value.forEach((b, k) => {
-        b.chord = CHORDS[(head.value + (k - CENTER_IDX) + CHORDS.length * 2) % CHORDS.length];
+        b.chord = CHORDS.value[(head.value + (k - CENTER_IDX) + CHORDS.value.length * 2) % CHORDS.value.length];
     });
 
-    // Clear any lingering strike class from the recycled DOM nodes so it does
-    // not replay on whichever board now occupies a non-center slot.
+    // Clear any lingering strike/cue classes from recycled DOM nodes.
     boardEls.value.forEach(el =>
-        el?.querySelectorAll('.board-diagram circle.sbn-svg-dot.is-striking')
-          .forEach(dot => dot.classList.remove('is-striking'))
+        el?.querySelectorAll('.board-diagram circle.sbn-svg-dot')
+          .forEach(dot => {
+              dot.classList.remove('is-striking');
+              dot.classList.remove('is-next-cue');
+          })
     );
 
     sliding = false;
 
     // Re-enable transitions after the browser has painted the snapped-back
     // frame, so the next advance() animates but this recycle did not.
-    requestAnimationFrame(() => requestAnimationFrame(() => { recycling.value = false; }));
+    // Then immediately promote the off-screen-right board (index 4) to 'next'
+    // so it fades in from the first step of the bar — giving the student the
+    // full bar to read the upcoming chord before it advances.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        recycling.value = false;
+        const upcoming = boards.value[4];
+        upcoming.chord = CHORDS.value[(head.value + 2 + CHORDS.value.length * 2) % CHORDS.value.length];
+        upcoming.role  = 'next';
+        upcoming.label = 'up next';
+    }));
 }
 
 // ── Current rhythm step for the strip ───────────────────────────────────────
@@ -310,22 +350,18 @@ const currentStep = ref(-1);
 
 // ── Clock wiring ─────────────────────────────────────────────────────────────
 const clock = useClock({
-    bpm: BPM,
+    bpm: BPM.value,
     pattern: PATTERN.value,
     onStep(step) {
-        // Strip highlight follows every step. The two rhythm rows drive
-        // different dots: a thumb hit pulses the bass note, a fingers hit
-        // pulses the top three notes — the Gilberto thumb/fingers split.
         currentStep.value = step;
         const isHit = (c: string | undefined) => c != null && c.toLowerCase() === 'x';
-        if (isHit(RHYTHM.thumb[step]))   strikeCenter('bass');
-        if (isHit(RHYTHM.fingers[step])) strikeCenter('fingers');
+        if (isHit(RHYTHM.value.thumb[step]))   strikeCenter('bass');
+        if (isHit(RHYTHM.value.fingers[step])) strikeCenter('fingers');
+        if (step === RHYTHM.value.beats - 1) advance();
+        // Pre-pulse: a beat before the slide (step 12), nudge the next chord.
+        if (step === 12) strikeNext();
     },
-    onBar(barIndex) {
-        // barIndex 0 is the initial bar — the first chord is already centered,
-        // so don't slide on it. Advance on every subsequent bar boundary.
-        if (barIndex > 0) advance();
-    },
+    onBar(_barIndex) {},
 });
 
 onMounted(() => {
@@ -339,7 +375,7 @@ onBeforeUnmount(() => {
 
 // ── Rhythm strip cell classes ────────────────────────────────────────────────
 function fingerCellClass(i: number): Record<string, boolean> {
-    const c = RHYTHM.fingers[i] ?? '.';
+    const c = RHYTHM.value.fingers[i] ?? '.';
     return {
         'accent':  c === 'X',
         'ghost':   c === 'x',
@@ -348,7 +384,7 @@ function fingerCellClass(i: number): Record<string, boolean> {
 }
 
 function thumbCellClass(i: number): Record<string, boolean> {
-    const c = RHYTHM.thumb[i] ?? '.';
+    const c = RHYTHM.value.thumb[i] ?? '.';
     return {
         'accent': c === 'X',
         'ghost':  c === 'x',
@@ -358,7 +394,7 @@ function thumbCellClass(i: number): Record<string, boolean> {
 </script>
 
 <template>
-    <div class="synced-hero">
+    <div class="synced-hero sbn-synced-hero-card">
         <span class="demo-tag">Live · play-along</span>
 
         <!-- Board track -->
@@ -381,8 +417,7 @@ function thumbCellClass(i: number): Record<string, boolean> {
                     :data-role="board.role"
                 >
                     <div class="board-label">{{ board.label }}</div>
-                    <div class="board-name">{{ board.chord.name }}</div>
-                    <div class="board-sub">{{ board.chord.category_label }} · {{ board.chord.quality_label }}</div>
+                    <div class="board-name" v-html="formatChordNameHtml(board.chord)"></div>
 
                     <div class="board-diagram">
                         <ChordDiagram :chord="board.chord" :show-guide-tones="true" />
@@ -433,12 +468,10 @@ function thumbCellClass(i: number): Record<string, boolean> {
 <style scoped>
 .synced-hero {
     position: relative;
-    background: var(--clr-bg-elev);
-    border: 1px solid var(--clr-line);
-    border-radius: 24px;
     padding: 28px 20px;
-    box-shadow: 0 30px 60px -28px rgba(80,60,20,.28);
     /* overflow:visible so .demo-tag (top:-12px) is not clipped */
+    /* Card frame (border, shadow, radius) lives in sbn-synced-hero-card
+       in sbn-design-system.css so [data-theme] overrides can reach it. */
 }
 
 .demo-tag {
@@ -456,7 +489,11 @@ function thumbCellClass(i: number): Record<string, boolean> {
 
 /* ── Sliding track ── */
 .board-viewport {
+    /* Show exactly prev + center + next (3 × 160px).
+       The track's initial translateX(-160px) hides off-left and off-right. */
+    width: 480px;
     overflow: hidden;
+    margin: 0 auto;
 }
 .board-track {
     display: flex;
@@ -466,26 +503,24 @@ function thumbCellClass(i: number): Record<string, boolean> {
 
 .board {
     flex: 0 0 auto;
+    width: 160px;
     text-align: center;
     transition:
         opacity v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE"),
-        filter   v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE"),
-        width    v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE");
+        filter   v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE");
 }
 
-/* During the recycle frame, kill ALL per-board transitions so the role/width
-   reset snaps instantly (no second animation). */
+/* During the recycle frame, kill ALL per-board transitions so the role reset
+   snaps instantly (no second animation). */
 .board-track.is-recycling .board,
 .board-track.is-recycling .board-label,
 .board-track.is-recycling .board-name,
-.board-track.is-recycling .board-sub,
 .board-track.is-recycling .board-diagram {
     transition: none !important;
 }
 
-.board[data-role="center"] { width: 200px; }
-.board[data-role="side"]   { width: 140px; }
-.board[data-role="off"]    { width: 140px; }
+/* All boards fixed-width — no layout thrash during slide.
+   The diagram scales visually via transform on .board-diagram. */
 
 .board-label {
     font-size: .66rem;
@@ -498,42 +533,46 @@ function thumbCellClass(i: number): Record<string, boolean> {
     transition: opacity v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE");
 }
 .board[data-role="center"] .board-label { opacity: 0; }
+/* "up next" label: accent colour, fully visible */
+.board[data-role="next"]   .board-label { opacity: 1; color: var(--clr-accent); }
 
 .board-name {
     font-family: var(--font-display);
+    font-size: 1.9rem;
+    font-weight: 600;
     margin-bottom: 4px;
-    transition: font-size v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE"), opacity v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE");
+    transform-origin: center top;
+    transition: transform v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE"), opacity v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE");
 }
-.board[data-role="center"] .board-name { font-size: 1.9rem; font-weight: 600; opacity: 1; }
-.board[data-role="side"]   .board-name { font-size: 1rem;   opacity: .55; }
-.board[data-role="off"]    .board-name { font-size: 1rem;   opacity: 0; }
+.board[data-role="center"] .board-name { transform: scale(1);         opacity: 1; }
+.board[data-role="side"]   .board-name { transform: scale(.526);      opacity: .55; }
+.board[data-role="next"]   .board-name { transform: scale(.526);      opacity: .8; }
+.board[data-role="off"]    .board-name { transform: scale(.526);      opacity: 0; }
 
-.board-sub {
-    color: var(--clr-text-dim);
-    font-size: .82rem;
-    height: 1.1em;
-    margin-bottom: 8px;
-    transition: opacity v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE");
+/* Center chord name: dark text for legibility at large size.
+   Side/next keep the global --clr-accent-dim orange as-is. */
+.board[data-role="center"] .board-name :deep(.sbn-chord-symbol) {
+    color: var(--clr-text);
 }
-.board[data-role="center"] .board-sub { opacity: 1; }
-.board[data-role="side"]   .board-sub { opacity: 0; }
-.board[data-role="off"]    .board-sub { opacity: 0; }
+
 
 /* ── Diagram slot ── */
 .board-diagram {
-    /* Fixed height so the SVG doesn't reflow as board width transitions.
-       The SVG is width:100% height:auto inside — clamp it to the board width
-       via overflow:hidden so it never drives the container height. */
     height: 160px;
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: opacity v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE"), filter v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE");
+    transform-origin: center top;
+    transition:
+        opacity   v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE"),
+        filter    v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE"),
+        transform v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE");
 }
-.board[data-role="center"] .board-diagram { opacity: 1; filter: none; }
-.board[data-role="side"]   .board-diagram { opacity: .34; filter: grayscale(.45); }
-.board[data-role="off"]    .board-diagram { opacity: 0;   filter: grayscale(.6); }
+.board[data-role="center"] .board-diagram { opacity: 1;   filter: none;              transform: scale(1); }
+.board[data-role="side"]   .board-diagram { opacity: .34; filter: grayscale(.45);    transform: scale(.78); }
+.board[data-role="next"]   .board-diagram { opacity: .52; filter: grayscale(.2);     transform: scale(.78); }
+.board[data-role="off"]    .board-diagram { opacity: 0;   filter: grayscale(.6);     transform: scale(.78); }
 
 /* Strike pulse: `.is-striking` is toggled per-dot (bass vs. fingers) so the
    thumb and finger hits pulse different notes independently. */
@@ -548,6 +587,16 @@ function thumbCellClass(i: number): Record<string, boolean> {
     0%   { transform: scale(1); }
     40%  { transform: scale(1.42); }
     100% { transform: scale(1); }
+}
+
+/* Soft pre-pulse on the 'next' board root dot — subtle scale + fade */
+.board-diagram :deep(circle.sbn-svg-dot.is-next-cue) {
+    animation: hero-next-cue .55s cubic-bezier(.2,1.4,.4,1);
+}
+@keyframes hero-next-cue {
+    0%   { transform: scale(1);    opacity: 1; }
+    35%  { transform: scale(1.22); opacity: .9; }
+    100% { transform: scale(1);    opacity: 1; }
 }
 
 /* ── Legend ── */
@@ -575,7 +624,7 @@ function thumbCellClass(i: number): Record<string, boolean> {
 .mini-rhythm {
     margin-top: 22px;
     padding-top: 20px;
-    border-top: 1px solid var(--clr-border);
+    border-top: 1px solid var(--clr-border); /* --clr-border is the correct DS token */
 }
 .mini-label {
     font-size: .7rem;
@@ -659,6 +708,7 @@ function thumbCellClass(i: number): Record<string, boolean> {
     .board-sub,
     .board-diagram,
     .board-label { transition: none !important; }
-    .board-diagram :deep(circle.sbn-svg-dot.is-striking) { animation: none !important; }
+    .board-diagram :deep(circle.sbn-svg-dot.is-striking),
+    .board-diagram :deep(circle.sbn-svg-dot.is-next-cue) { animation: none !important; }
 }
 </style>

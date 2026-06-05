@@ -104,70 +104,63 @@ The slide/recycle had three more defects, all fixed:
 
 ---
 
-## 2b. ⭐ NEXT SESSION — START HERE (2026-06-04)
+## 2b. ⭐ NEXT SESSION — START HERE (2026-06-05)
 
-Three tasks, ordered easy → strong. Do them in this order; each is shippable
-on its own.
+Tasks 1–3 from the previous session are ✅ DONE. See §3 phase plan for what's
+next.
 
-### Task 1 (easy, ~30 min) — "anticipate the next chord"
-The student should *see what's coming* before the chord lands, so the change
-isn't a surprise. The `next` board already exists (slot 3) — make it read as a
-clear "up next" cue:
-- Add a small **"up next"** affordance to the `next`-role board (the `LBLS`
-  array already has `'next'` — currently hidden by opacity rules). Show its
-  label + name brighter than the `prev`/`off` boards.
-- Optionally **pre-pulse** the next chord's root dot once, ~1 beat before the
-  bar flips (a soft "get ready" cue). The clock already knows the step; fire a
-  faint strike on `boardEls[next]` at e.g. step 12.
-- Keep it subtle — this is a teaching nudge, not a distraction.
-- Files: `SyncedHero.vue` only. No backend.
+### Done this session (2026-06-05)
 
-### Task 2 (medium, ~1–2 h) — adopt the SBN design system
-The hero currently uses ad-hoc tokens (`--clr-bg-elev`, `--clr-red`, etc.) and
-bespoke card chrome. Align it to the SBN design system so it matches the rest of
-the site:
-- Read `docs/SBN-Design-Reference.md` and `[[reference_css_design_system]]`
-  first — use the canonical token namespace and card-frame rules.
-- Replace the hand-rolled `.synced-hero` card shell with the standard SBN card
-  frame (same as library cards / `.sbn-vp-card`).
-- Reuse `RhythmPattern.vue`'s **mini variant** for the rhythm strip instead of
-  the bespoke `.mini-rhythm` markup — it already shares `RhythmPatternData` and
-  the `is-current` highlight. This deletes ~80 lines of duplicated CSS and makes
-  the strip consistent with the library. (Caveat: the hero needs the strip
-  driven by `useClock`, not `RhythmPattern`'s own `AudioEngine` — pass
-  `currentStep` in or expose a prop; check the seam before committing.)
-- Match typography/spacing to the homepage hero siblings.
+**Task 1 — "up next" affordance ✅**
+- `next` board role split from `side` — brighter label ("up next", accent colour),
+  higher opacity name (0.8 vs 0.55), less greyscale diagram (0.2 vs 0.45)
+- Slide fires on **step 15** (last 16th of bar) so the chord is already centered
+  on the downbeat. `onBar` no longer triggers advance.
+- After recycle, index 4 immediately promoted to `role='next'` with correct chord
+  (double-rAF after `recycling` clears), so "up next" is visible the full bar.
+- `strikeNext()` fires a soft `hero-next-cue` pulse on the next chord's root dot
+  at step 12 (~1 beat before the slide).
 
-### Task 3 (strong, ~half day) — connect to the DB (leadsheets)
-This is Phase S.3 + the start of S.4. Wire the hero to a **real leadsheet** so
-it walks an actual chord sequence instead of the hardcoded Dm7/G7/Cmaj7.
-- **Backend**: `HomeController` (or a dedicated endpoint) selects a featured
-  leadsheet and serialises its measures to the `LeadsheetBar[]` shape (see §4
-  "Proposed leadsheet prop shape"). Reuse `LeadsheetViewerService` /
-  `ChordSerializer` — do NOT hand-roll chord→diagram conversion; the serializer
-  already produces `ChordDiagramData`.
-- **Per-measure rhythm**: the tab model already has `rhythmSlug: null` per
-  measure (`useTabModel.js:1440`). For the homepage, a single global
-  `rhythmPattern` prop is fine (all bars share the bossa pattern); per-measure
-  swap is Phase S.4b, defer it.
-- **`durationBars`**: real chords often last 2–4 bars. The clock's `onBar` must
-  advance the *chord pointer* only every `durationBars` cycles (see §4 "Clock
-  behaviour with a leadsheet"). The current hero advances every bar — add the
-  `barsPerChord` counter.
-- **Props**: lift the hardcoded `CHORDS`/`RHYTHM` consts into props with the
-  hardcoded values as fallback defaults, so the component works standalone AND
-  from the controller. This is the natural extraction toward the standalone
-  `SyncedPlayer.vue` (Phase S.3).
+**Task 2 — SBN design system alignment ✅**
+- Card frame moved to `.sbn-synced-hero-card` in `sbn-design-system.css` so
+  `[data-theme="vintage"]` can reach it. Uses `--clr-white`, `--clr-border`,
+  `--radius-lg`.
+- Chord names rendered via `formatChordNameHtml()` → proper `sbn-chord-symbol`
+  markup (Crimson Text, superscript extensions). Center name overridden to
+  `--clr-text` for legibility at large size.
+- Sub-label (category · quality) removed.
+- Layout transitions moved from `width`/`font-size` (layout) to
+  `transform: scale` (compositor-only) — eliminates slide stutter.
+- All boards fixed 160px wide; `dx` hardcoded to 160.
 
-> Gotchas to re-check: string 1 = low E (not high e); strike targets the
-> **role**=center board, not the physical slot; `transitionend` bubbles (filter
-> on `propertyName`); keep `setInterval` (audio engine is S.2, not now).
+**Task 3 — DB connection ✅**
+- `HomeController` injects `LeadsheetViewerService` + `ChordVoicingSearch`.
+- Featured song: **Desafinado** (id 113). Walks flat `measures` array, extracts
+  first 8 unique consecutive chord names, maps each to its `ChordDiagramData`
+  card via `chordCards` lookup (exact key or `name@position` prefix).
+- `rhythmPattern` was already DB-driven; unchanged.
+- `SyncedHero.vue` accepts `progression?: ChordDiagramData[]` and
+  `rhythmPattern?: RhythmPatternData` props. `CHORDS`/`RHYTHM`/`BPM` are now
+  computed refs (`.value` throughout) with hardcoded fallbacks.
+- `Home.vue` passes both props from the controller.
+
+### Open / next up
+
+- **S.2** — play/stop button + `AudioEngine` integration so the rhythm is audible
+- **`barsPerChord`** — Desafinado chords last 2 bars each; the hero currently
+  advances every bar (too fast). Add a `durationBars` counter per chord or a
+  simple global `barsPerChord` prop.
+- **Featured song config** — move the hardcoded id 113 to a config value or a
+  `featured_on_homepage` flag on `Leadsheet`.
+- **RhythmPattern mini variant** — Task 2 deferred replacing the bespoke strip
+  with `RhythmPattern.vue :mini` because it has no external `currentStep` prop.
+  Either add the prop to `RhythmPattern` or leave the bespoke strip.
 
 ---
 
 ## 3. Phase plan
 
-### Phase S.1 — Real data, same homepage widget ✅ DONE 2026-06-04
+### Phase S.1 — Real data, same homepage widget ✅ DONE 2026-06-05
 *Goal: wire the hero to real DB shapes. No new UI surface.*
 
 - ✅ `ChordDiagramData[]` shape — `<ChordDiagram :show-guide-tones>` renders via `sbnRenderDiagramSVG()`

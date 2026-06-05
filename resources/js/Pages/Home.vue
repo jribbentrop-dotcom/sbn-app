@@ -4,6 +4,7 @@ import { Link } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
+import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
 
 const SyncedHero = defineAsyncComponent(() => import('@/Components/Home/SyncedHero.vue'));
 
@@ -11,6 +12,7 @@ defineOptions({ layout: PublicLayout });
 
 const props = defineProps<{
     rhythmPattern: RhythmPatternData | null;
+    progression: ChordDiagramData[] | null;
 }>();
 </script>
 
@@ -47,7 +49,10 @@ const props = defineProps<{
 
                 <!-- Right: synced demo -->
                 <div class="reveal d3">
-                    <SyncedHero />
+                    <SyncedHero
+                        :progression="props.progression ?? undefined"
+                        :rhythm-pattern="props.rhythmPattern ?? undefined"
+                    />
                 </div>
             </div>
         </section>

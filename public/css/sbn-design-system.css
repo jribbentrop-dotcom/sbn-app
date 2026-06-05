@@ -442,6 +442,20 @@
 }
 
 /* ──────────────────────────────────────────────────────────
+   2d-hero. SYNCED HERO CARD  (.sbn-synced-hero-card)
+   ──────────────────────────────────────────────────────────
+   Card frame for the homepage SyncedHero widget. Separated
+   from scoped styles so [data-theme] vintage override can
+   reach it. */
+
+.sbn-synced-hero-card {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 30px 60px -28px rgba(80,60,20,.18);
+}
+
+/* ──────────────────────────────────────────────────────────
    2d. RHYTHM CARD  (.sbn-rhythm-card)
    ──────────────────────────────────────────────────────────
    Library grid card. Vintage override at end of file.      */
