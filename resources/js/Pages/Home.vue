@@ -13,6 +13,7 @@ defineOptions({ layout: PublicLayout });
 const props = defineProps<{
     rhythmPattern: RhythmPatternData | null;
     progression: ChordDiagramData[] | null;
+    barsPerChord: number;
 }>();
 </script>
 
@@ -52,6 +53,7 @@ const props = defineProps<{
                     <SyncedHero
                         :progression="props.progression ?? undefined"
                         :rhythm-pattern="props.rhythmPattern ?? undefined"
+                        :bars-per-chord="props.barsPerChord"
                     />
                 </div>
             </div>

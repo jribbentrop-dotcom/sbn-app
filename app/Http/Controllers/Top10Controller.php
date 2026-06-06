@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ChordDiagram;
 use App\Models\ChordProgression;
+use App\Models\RhythmPattern;
 use App\Services\ChordSerializer;
 use App\Services\ChordVoicingSearch;
 use App\Services\HarmonicContext;
@@ -23,8 +24,13 @@ class Top10Controller extends Controller
     {
         $top10Data = $this->getTop10Data('bossa-nova-chords');
 
+        $rhythm = RhythmPattern::where('category', 'bossa-nova')
+            ->orderByDesc('default_bpm')
+            ->first();
+
         return Inertia::render('Top10/BossaNovaChords', [
-            'top10Data' => $top10Data,
+            'top10Data'     => $top10Data,
+            'rhythmPattern' => $rhythm ? $rhythm->toPlayerData() : null,
         ]);
     }
 
@@ -89,6 +95,10 @@ class Top10Controller extends Controller
                 $progressionModel = \App\Models\ChordProgression::where('slug', $config['progressionLibrarySlug'])->first();
                 if ($progressionModel) {
                     $seedKey = $config['progressionSeedKey'] ?? 'C';
+                    $snippets = $progressionModel->video_snippets ?? [];
+                    if (!empty($snippets[0]['key'])) {
+                        $seedKey = $snippets[0]['key'];
+                    }
                     $resolved = $this->harmonicContext->buildFromNumerals($seedKey, $progressionModel->numerals);
                     
                     // Pre-resolve overrides into full transposed voicing objects for the builder
@@ -101,6 +111,14 @@ class Top10Controller extends Controller
                             $transposed = $this->voicingSearch->transposeShapes(collect([$overrideModel]), $targetRoot, $overrideModel->quality, '', '');
                             if (!empty($transposed)) {
                                 $pinnedVoicings[$idx] = $transposed[0];
+                            } else {
+                                // Fixed-position shape whose stored root doesn't match the
+                                // target — transposeShapes skips it silently. Fall back to
+                                // ChordSerializer which respects is_fixed_position correctly.
+                                $serialized = $this->chordSerializer->serialize($overrideModel, $targetRoot);
+                                if (!empty($serialized['diagram_data'])) {
+                                    $pinnedVoicings[$idx] = $serialized;
+                                }
                             }
                         }
                     }
@@ -113,10 +131,11 @@ class Top10Controller extends Controller
                     ]);
 
                     $progressionMeta = [
-                        'name' => $progressionModel->name,
-                        'numerals' => $progressionModel->numerals,
-                        'slug' => $progressionModel->slug,
-                        'category' => $progressionModel->category,
+                        'name'          => $progressionModel->name,
+                        'numerals'      => $progressionModel->numerals,
+                        'slug'          => $progressionModel->slug,
+                        'category'      => $progressionModel->category,
+                        'videoSnippets' => $progressionModel->video_snippets ?? [],
                     ];
 
                     $progressionTiles = collect($built['selections'])->map(function ($sel) {

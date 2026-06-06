@@ -39,6 +39,7 @@ class HomeController extends Controller
         return Inertia::render('Home', [
             'rhythmPattern' => $rhythmPattern,
             'progression'   => $progression,
+            'barsPerChord'  => 2,
         ]);
     }
 

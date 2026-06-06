@@ -3,10 +3,10 @@ import { ref, onMounted } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
-import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
+import SyncedPlayer from '@/Components/SyncedPlayer/SyncedPlayer.vue';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
-import type { ProgressionChord } from '@/Components/Library/ChordProgressionViewer.vue';
-import { getCategoryColor } from '@/composables/useCategoryColors';
+import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
+import type { VideoSnippet } from '@/Components/Library/ChordProgressionViewer.vue';
 import { chordShowUrl } from '@/composables/useChordUrl';
 
 defineOptions({ layout: PublicLayout });
@@ -39,6 +39,7 @@ interface Top10ChordWithDetail extends Top10Chord {
         numerals: string;
         slug: string;
         category?: string;
+        videoSnippets?: VideoSnippet[];
     } | null;
     relatedProducts: RelatedProduct[];
 }
@@ -70,12 +71,14 @@ interface Top10DataItem {
         numerals: string;
         slug: string;
         category?: string;
+        videoSnippets?: VideoSnippet[];
     } | null;
     relatedProducts: RelatedProduct[];
 }
 
 const props = defineProps<{
     top10Data: Top10DataItem[];
+    rhythmPattern: RhythmPatternData | null;
 }>();
 
 const chords = ref<Top10ChordWithDetail[]>([]);
@@ -210,16 +213,15 @@ function goToChordLibrary(chord: ChordDiagramData) {
                         <div class="sbn-panel">
                             <h3 class="sbn-panel-title">{{ selectedChord.progressionName }}</h3>
                             <div class="sbn-panel-content">
-                                <ChordProgressionViewer
-                                    :chords="selectedChord.progressionTiles.map((t): ProgressionChord => ({ chordName: t.chordName, diagramData: t.diagramData, beats: 4, numeral: t.numeral }))"
-                                    :interactive="true"
-                                    :vintage-card="true"
-                                    :color="getCategoryColor(selectedChord.progressionMeta?.category || 'bossa-nova')"
-                                    :name="selectedChord.progressionViewerName || selectedChord.progressionName"
-                                    :category="selectedChord.progressionMeta?.category"
-                                    :key-label="selectedChord.progressionSeedKey ? `Key: ${selectedChord.progressionSeedKey}` : ''"
-                                    :numerals="selectedChord.progressionMeta?.numerals"
-                                />
+                                <div class="sbn-synced-hero-card">
+                                    <SyncedPlayer
+                                        :progression="selectedChord.progressionTiles.map(t => t.diagramData).filter(Boolean) as ChordDiagramData[]"
+                                        :rhythm-pattern="props.rhythmPattern ?? undefined"
+                                        :bars-per-chord="1"
+                                        :autoplay="false"
+:key="selectedChord.slug"
+                                    />
+                                </div>
                                 <p class="sbn-panel-caption">{{ selectedChord.progressionCaption }}</p>
                             </div>
                         </div>
@@ -275,285 +277,8 @@ function goToChordLibrary(chord: ChordDiagramData) {
 </template>
 
 <style scoped>
-.sbn-top10-page {
-    background: white;
-    min-height: 100vh;
-    padding-bottom: 60px;
-}
-
-.sbn-top10-loading {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 400px;
-    background: white;
-}
-
-.sbn-spinner {
-    width: 50px;
-    height: 50px;
-    border: 4px solid var(--clr-surface-2);
-    border-top-color: var(--clr-style-bossa);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin-bottom: 16px;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-.sbn-top10-content {
-    animation: fadeIn 0.4s ease-in;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-.sbn-top10-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 16px;
-}
-
-@media (min-width: 768px) {
-    .sbn-top10-container {
-        padding: 48px;
-    }
-}
-
-/* Mobile Navigation */
-.sbn-top10-nav-mobile {
-    display: block;
-    overflow-x: auto;
-    border-bottom: 1px solid var(--clr-border);
-    margin: -16px -16px 24px -16px;
-    padding: 12px 16px 16px 16px;
-}
-
-.sbn-nav-scroll {
-    display: flex;
-    gap: 12px;
-    padding-right: 16px;
-}
-
-.sbn-nav-thumb {
-    flex-shrink: 0;
-    width: 80px;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    opacity: 0.5;
-    transition: opacity 0.3s ease;
-}
-
-.sbn-nav-thumb--active {
-    opacity: 1;
-}
-
-.sbn-nav-thumb-image {
-    width: 100px;
-    height: 100px;
-    border-radius: 8px;
-    overflow: hidden;
-    position: relative;
-    margin-bottom: 8px;
-    border: 2px solid transparent;
-}
-
-.sbn-nav-thumb--active .sbn-nav-thumb-image {
-    border-color: var(--clr-accent);
-}
-
-.sbn-nav-thumb-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.sbn-nav-thumb-number {
-    position: absolute;
-    top: 4px;
-    left: 4px;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: var(--clr-text-muted);
-    color: white;
-    font-size: 11px;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.sbn-nav-thumb--active .sbn-nav-thumb-number {
-    background: var(--clr-accent);
-}
-
-.sbn-nav-thumb-title {
-    font-size: 10px;
-    font-weight: normal;
-    color: var(--clr-text);
-    text-align: center;
-    line-height: 1.2;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-}
-
-.sbn-nav-thumb--active .sbn-nav-thumb-title {
-    font-weight: bold;
-}
-
-/* Desktop Navigation */
-.sbn-top10-nav-desktop {
-    display: none;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 16px;
-    margin-bottom: 32px;
-    padding-bottom: 32px;
-    border-bottom: 1px solid var(--clr-surface-2);
-}
-
-@media (min-width: 768px) {
-    .sbn-top10-nav-mobile {
-        display: none;
-    }
-    .sbn-top10-nav-desktop {
-        display: grid;
-    }
-}
-
-.sbn-nav-card {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    opacity: 0.6;
-    transition: all 0.3s ease;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-}
-
-.sbn-nav-card--active {
-    opacity: 1;
-    transform: scale(1.05);
-}
-
-.sbn-nav-card-image {
-    width: 100%;
-    height: 110px;
-    border-radius: 8px;
-    overflow: hidden;
-    position: relative;
-    margin-bottom: 8px;
-}
-
-.sbn-nav-card-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
-
-.sbn-nav-card-number {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: var(--clr-text-muted);
-    color: white;
-    font-size: 14px;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.sbn-nav-card--active .sbn-nav-card-number {
-    background: var(--clr-accent);
-}
-
-.sbn-nav-card-title {
-    font-size: 12px;
-    font-weight: bold;
-    text-align: left;
-    color: var(--clr-text);
-    line-height: 1.2;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-}
-
-.sbn-nav-card-artist {
-    font-size: 10px;
-    color: var(--clr-text-muted);
-    text-align: left;
-}
-
-/* Detail View */
-.sbn-top10-detail {
-    padding: 16px 0;
-}
-
-.sbn-detail-header {
-    margin-bottom: 32px;
-}
-
-.sbn-detail-badge {
-    display: inline-block;
-    padding: 4px 12px;
-    background: var(--clr-accent);
-    font-size: 12px;
-    font-weight: 600;
-    border-radius: 9999px;
-    margin-bottom: 12px;
-    color: white;
-}
-
-.sbn-detail-title {
-    font-size: 1.75rem;
-    font-weight: bold;
-    margin-bottom: 8px;
-    color: var(--clr-text);
-    line-height: 1.2;
-}
-
-@media (min-width: 768px) {
-    .sbn-detail-title {
-        font-size: 3rem;
-    }
-}
-
-.sbn-detail-description {
-    color: var(--clr-text-muted);
-    line-height: 1.8;
-    font-size: 1rem;
-    margin-bottom: 32px;
-}
-
-@media (min-width: 768px) {
-    .sbn-detail-description {
-        font-size: 1.25rem;
-    }
-}
-
-/* Panels Grid - side by side layout */
+/* Chords page has a side-by-side panel layout (voicing left, progression right) */
 .sbn-panels-grid {
-    display: grid;
-    grid-template-columns: 1fr;
     gap: 20px;
     margin-bottom: 32px;
 }
@@ -564,26 +289,18 @@ function goToChordLibrary(chord: ChordDiagramData) {
     }
 }
 
-/* Panel - extends design system with Top10-specific gray background */
+/* Chords page uses tighter panel padding and slightly different typography */
 .sbn-panel {
-    background: var(--clr-surface-2);
-    border: 1px solid var(--clr-border);
-    border-radius: var(--radius);
     padding: 20px;
 }
 
 .sbn-panel-title {
-    font-size: 14px;
     font-weight: 600;
-    color: var(--clr-style-bossa);
     margin-bottom: 12px;
-    text-transform: uppercase;
+    letter-spacing: 0;
 }
 
 .sbn-panel-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
     gap: 16px;
 }
 
@@ -592,175 +309,28 @@ function goToChordLibrary(chord: ChordDiagramData) {
 }
 
 .sbn-panel-caption {
-    font-size: 14px;
     color: var(--clr-text-muted);
-    line-height: 1.6;
     margin-top: 12px;
-    text-align: center;
 }
 
-/* Navigation Buttons */
-.sbn-detail-nav {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 32px;
-    padding-top: 32px;
-    border-top: 1px solid var(--clr-surface-2);
+/* Chords page detail-title has slightly more bottom margin */
+.sbn-detail-title {
+    margin-bottom: 8px;
 }
 
+/* Chords page description scales to 1.25rem (vs 1.15rem on songs/standards) */
 @media (min-width: 768px) {
-    .sbn-detail-nav {
-        justify-content: center;
+    .sbn-detail-description {
+        font-size: 1.25rem;
     }
 }
 
-.sbn-nav-btn {
-    background: var(--clr-gradient);
-    color: white;
-    padding: 10px 24px;
-    border-radius: var(--radius-sm);
-    font-weight: 600;
-    font-size: 14px;
-    border: none;
-    cursor: pointer;
-    transition: all 0.2s;
+/* Active thumb title is bold on this page */
+.sbn-nav-thumb-title {
+    font-weight: normal;
 }
 
-.sbn-nav-btn--outline {
-    background: var(--clr-white);
-    color: var(--clr-text);
-    border: 1.5px solid var(--clr-border);
-}
-
-.sbn-nav-btn--outline:hover {
-    border-color: var(--clr-text);
-}
-
-.sbn-nav-btn:hover {
-    transform: translateY(-2px);
-}
-
-@media (min-width: 768px) {
-    .sbn-nav-btn {
-        flex: none;
-        width: 180px;
-    }
-}
-
-/* Related Products */
-.sbn-related-products {
-    margin-top: 48px;
-    padding-top: 32px;
-    border-top: 2px solid var(--clr-surface-2);
-}
-
-.sbn-related-title {
-    font-size: 1.25rem;
-    font-weight: bold;
-    color: var(--clr-text);
-    margin-bottom: 20px;
-}
-
-.sbn-related-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.sbn-related-content {
-    flex: 1;
-}
-
-.sbn-related-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
-}
-
-.sbn-related-badge {
-    padding: 2px 8px;
-    background: var(--clr-text-muted);
-    color: white;
-    font-size: 10px;
-    font-weight: bold;
-    border-radius: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.sbn-related-badge--product {
-    background: var(--clr-text-muted);
-}
-
-.sbn-related-badge--course {
-    background: var(--clr-accent);
-}
-
-.sbn-related-name {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--clr-text);
-    margin: 0 0 4px 0;
-}
-
-.sbn-related-desc {
-    font-size: 0.875rem;
-    color: var(--clr-text-muted);
-    margin: 0;
-    line-height: 1.4;
-}
-
-.sbn-related-arrow {
-    flex-shrink: 0;
-    margin-left: 16px;
-    color: var(--clr-accent);
-}
-
-/* Footer Links */
-.sbn-footer-links {
-    margin-top: 40px;
-    padding-top: 32px;
-    border-top: 1px solid var(--clr-border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
-    font-size: 14px;
-    flex-wrap: wrap;
-}
-
-.sbn-footer-link {
-    color: var(--clr-text-muted);
-    text-decoration: none;
-    transition: color 0.2s;
-}
-
-.sbn-footer-link:hover {
-    color: var(--clr-accent);
-}
-
-.sbn-footer-link--active {
-    color: var(--clr-accent);
+.sbn-nav-thumb--active .sbn-nav-thumb-title {
     font-weight: bold;
 }
-
-.sbn-footer-separator {
-    color: var(--clr-border);
-    font-size: 20px;
-}
-
-@media (max-width: 767px) {
-    .sbn-footer-links {
-        flex-direction: column;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .sbn-footer-separator {
-        display: none;
-    }
-}
-
 </style>
