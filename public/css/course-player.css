@@ -441,7 +441,7 @@
     position: sticky;
     top: calc(var(--header-height, 96px) + 16px);
     align-self: start;
-    background: linear-gradient(180deg, var(--clr-accent-bg) 0%, var(--clr-white) 60%);
+    background: var(--clr-white);
     border: 1px solid var(--clr-border);
     border-radius: var(--radius);
     /* No outer padding — sections run edge to edge so media (the video) can
@@ -554,10 +554,8 @@
 .vC-chord-canvas { display: block; width: 44px; height: 56px; }
 
 .vC-chord-cell-name {
-    font-family: var(--font-chord);
     font-size: 15px;
     line-height: 1.1;
-    color: var(--clr-text);
     text-align: center;
 }
 

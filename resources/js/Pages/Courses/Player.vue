@@ -46,6 +46,7 @@ const props = defineProps<{
   lesson: LessonData | null;
   hasAccess: boolean;
   chordSlugs?: string[];
+  chordTags?: { slug: string; root: string }[];
   lessonConcepts?: { slug: string; title: string; body_html: string; has_widgets: boolean }[];
   rhythms?: RhythmOption[];
   progressions?: ProgressionOption[];
@@ -157,6 +158,7 @@ watch(() => props.lesson?.slug, () => {
         :course="course"
         :selected-chord="selectedChord"
         :chord-slugs="props.chordSlugs ?? []"
+        :chord-tags="props.chordTags ?? []"
         :active-sound-source="activeSoundSource"
         :lesson-concepts="props.lessonConcepts ?? []"
         :rhythms="props.rhythms ?? []"

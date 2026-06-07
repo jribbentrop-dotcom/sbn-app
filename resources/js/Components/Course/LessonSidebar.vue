@@ -116,7 +116,7 @@ function lessonIndex(slug: string): number {
         >
           <span>{{ i + 1 }}</span>
         </button>
-        <Link v-else :href="`/learn/${course.slug}/play/${lesson.slug}`" class="vC-rail-node">
+        <Link v-else :href="`/learn/${course.slug}/play/${lesson.slug}`" class="vC-rail-node" :only="['lesson']">
           <span>{{ i + 1 }}</span>
         </Link>
       </li>
@@ -161,6 +161,7 @@ function lessonIndex(slug: string): number {
             :class="{
               'is-current': activeLessonSlug === item.slug,
             }"
+            :only="['lesson']"
           >
             <span class="vC-nav-num">{{ lessonIndex(item.slug) }}</span>
             <span class="vC-nav-title">

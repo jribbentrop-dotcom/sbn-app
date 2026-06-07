@@ -184,6 +184,7 @@ function subLabel(slug: string): string {
         v-if="prevLesson"
         :href="`/learn/${courseSlug}/play/${prevLesson.slug}`"
         class="sbn-btn sbn-btn-secondary"
+        :only="['lesson']"
       >
         ← Previous
       </Link>
@@ -192,6 +193,7 @@ function subLabel(slug: string): string {
         v-if="nextLesson"
         :href="`/learn/${courseSlug}/play/${nextLesson.slug}`"
         class="sbn-btn sbn-btn-primary"
+        :only="['lesson']"
       >
         Next lesson →
       </Link>
