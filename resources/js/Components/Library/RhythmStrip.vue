@@ -17,6 +17,8 @@ interface Props {
   color?: string | null;
   /** Compact variant — slimmer cells. */
   mini?: boolean;
+  /** Fixed-width cells (library index) instead of fluid 1fr (course player). */
+  fixedCells?: boolean;
   /** Cap the number of cells rendered (e.g. show only 1 bar in a 2-bar pattern). */
   maxBeats?: number | null;
   /**
@@ -40,6 +42,7 @@ const props = withDefaults(defineProps<Props>(), {
   showMeta: false,
   color: null,
   mini: false,
+  fixedCells: false,
   maxBeats: null,
   videoPlayhead: null,
   videoStartSec: 0,
@@ -213,7 +216,7 @@ defineExpose({ play, stop, toggle });
 <template>
   <div
     class="sbn-rhythm-strip"
-    :class="{ 'is-playing': isPlaying, 'is-mini': mini }"
+    :class="{ 'is-playing': isPlaying, 'is-mini': mini, 'is-fixed-cells': fixedCells }"
     :style="color ? { '--strip-color': color, '--strip-color-accent': color, '--play-color': color } : {}"
     role="img"
     :aria-label="`${pattern.name}: ${pattern.timeSignature} pattern`"
@@ -314,18 +317,22 @@ defineExpose({ play, stop, toggle });
   display: flex;
   flex-direction: column;
   gap: 3px;
+  flex: 1;
   min-width: 0;
-  overflow: hidden;
 }
 
 .sbn-rhythm-strip-row {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 20px;
+  grid-auto-columns: 1fr;
   gap: 3px;
 }
 
-.sbn-rhythm-strip.is-mini .sbn-rhythm-strip-row {
+.sbn-rhythm-strip.is-fixed-cells .sbn-rhythm-strip-row {
+  grid-auto-columns: 20px;
+}
+
+.sbn-rhythm-strip.is-fixed-cells.is-mini .sbn-rhythm-strip-row {
   grid-auto-columns: 16px;
 }
 

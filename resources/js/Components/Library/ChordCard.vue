@@ -6,6 +6,7 @@ import type { ChordDiagramData } from './ChordDiagram.vue';
 import { getAudioEngine } from '../../audio/engine/AudioEngine.js';
 import { chordDiagramToEvents } from '../../audio/adapters/chordDiagramToEvents.js';
 import { chordShowUrl } from '../../composables/useChordUrl';
+import { formatChordNameHtml } from '../../composables/useChordName';
 
 interface Props {
     chord: ChordDiagramData;
@@ -20,52 +21,9 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), { mini: false, detail: false, showRoot: true, onChordClick: null, noNav: false, sameTab: false });
 
-const formattedName = computed(() => {
-    // Normally cards show quality + extensions only (no root) — the library
-    // view groups by shape, so the root is implied/irrelevant. For
-    // transposition search results the root is the point of the lookup, so
-    // we prepend it when the chord came from a transpose (transposed_from set).
-    const quality   = props.chord.quality   ?? '';
-    const extension = props.chord.extensions ?? '';
-    const showRoot  = props.showRoot || !!(props.chord as any).transposed_from;
-    const rootRaw   = showRoot ? (props.chord.root_note ?? '') : '';
-    const root      = rootRaw.replace(/#/g, '♯').replace(/b/g, '♭');
-
-    // Mapping: DB quality key → [displayed quality, displayed core extension]
-    const qualityMap: Record<string, [string, string]> = {
-        'maj':   ['', ''],
-        'min':   ['m', ''],
-        'aug':   ['aug', ''],
-        'dim':   ['°',   ''],
-        '5':     ['',    '5'],
-        'sus4':  ['sus', '4'],
-        'sus2':  ['sus', '2'],
-        'add9':  ['',    'add9'],
-        'maj7':  ['maj', '7'],
-        'm7':    ['m',   '7'],
-        'dom7':  ['',    '7'],
-        'm7b5':  ['m',   '7♭5'],
-        'o7':    ['°',   '7'],
-        'maj6':  ['maj', '6'],
-        'm6':    ['m',   '6'],
-        'mMaj7': ['m',   'maj7'],
-        'aug7':  ['aug', '7'],
-        '7sus4': ['',    '7sus4'],
-    };
-
-    const [qual, core] = qualityMap[quality] ?? ['', quality];
-    const ext  = extension.replace(/#/g, '♯').replace(/b(?=[0-9])/g, '♭');
-    const bass = ((props.chord.bass_note ?? '') as string).replace(/#/g, '♯').replace(/b/g, '♭');
-
-    let html = '<span class="sbn-chord-symbol">';
-    if (root) html += `<span class="sbn-chord-root">${root}</span>`;
-    if (qual) html += `<span class="sbn-chord-quality">${qual}</span>`;
-    if (core) html += `<span class="sbn-chord-ext">${core}</span>`;
-    if (ext)  html += `<span class="sbn-chord-ext sbn-chord-ext--extra">(${ext})</span>`;
-    if (bass) html += `<span class="sbn-chord-bass">/${bass}</span>`;
-    html += '</span>';
-    return html;
-});
+const formattedName = computed(() =>
+    formatChordNameHtml(props.chord as any, props.showRoot)
+);
 
 const inversionLabel = computed(() => {
     if (!props.chord.inversion || props.chord.inversion === 'root') return '';

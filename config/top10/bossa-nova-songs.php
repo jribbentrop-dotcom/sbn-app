@@ -182,7 +182,7 @@ return [
         'progressionCaption' => "<em>Aquarela do Brasil</em> has one of the most iconic Line Clichés of all time. You can play it easily starting on this beautiful G(add9) chord voicing.",
         'progressionSlugs' => ['maj7-shell-roote', 'maj7-shell-roote', 'maj6-shell-roote'],
         'rhythmName' => 'Trademark Rhythm Pattern',
-        'rhythmSlug' => 'samba',
+        'rhythmSlug' => 'samba-brasil',
         'rhythmCaption' => "Another iconic rhythm: this Samba rhythm has a wonderful symmetry of three strong and three weak beat accents.",
         'rhythmCitation' => "<em>Aquarela do Brasil</em>, <strong>Francisco Alves</strong>, 1939",
         'relatedProducts' => [

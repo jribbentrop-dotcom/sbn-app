@@ -197,7 +197,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
               <!-- RhythmStrip preview -->
               <div class="sbn-rlib-row-strip">
-                <RhythmStrip :pattern="pattern" :show-meta="false" :color="getCategoryColor(pattern.styleSlug)" :max-beats="16" />
+                <RhythmStrip :pattern="pattern" :show-meta="false" :color="getCategoryColor(pattern.styleSlug)" :fixed-cells="true" />
               </div>
 
               <!-- Popularity phrase -->
@@ -254,7 +254,7 @@ const CATEGORY_LABELS: Record<string, string> = {
                   </span>
                 </div>
                 <p v-if="pattern.description" class="sbn-pattern-row-desc">{{ pattern.description }}</p>
-                <RhythmStrip :pattern="pattern" :show-meta="false" :color="getCategoryColor(pattern.styleSlug)" :max-beats="16" />
+                <RhythmStrip :pattern="pattern" :show-meta="false" :color="getCategoryColor(pattern.styleSlug)" :fixed-cells="true" />
                 <span v-if="pattern.songCount > 0" class="sbn-pattern-row-song-count">
                   {{ pattern.songCount }} song{{ pattern.songCount !== 1 ? 's' : '' }}
                 </span>

@@ -157,7 +157,7 @@ class ChordLibraryController extends Controller
 
 		// Drop2/Drop3 target voicings for level-3 animation:
 		// each barré family morphs to its corresponding jazz voicing.
-		// G/Gm (E-shape) → drop3 root-on-e  (ids 33, 46) at G
+		// G/Gm (E-shape) → drop3 root-on-e  (ids 48, 46) at G
 		// C/Cm (A-shape) → drop2 root-on-a (ids 44, 24) at C
 		//
 		// inversions: explicit list in order [root, inv1, inv2, inv3].
@@ -165,12 +165,12 @@ class ChordLibraryController extends Controller
 		// those entries carry 'quality', 'inversion', 'inversion_label' overrides.
 		$dropTargetMap = [
 			'archetype-e-barre' => [
-				'id' => 33, 'root' => 'G', 'label' => 'Gmaj7',
+				'id' => 48, 'root' => 'G', 'label' => 'G7',
 				'inversions' => [
-					['id' => 33],
-					['id' => 104],
-					['id' => 304],
-					['id' => 303, 'octave_up' => true],
+					['id' => 48],
+					['id' => 55],
+					['id' => 54],
+					['id' => 60, 'octave_up' => true],
 				],
 			],
 			'archetype-em-barre' => [
@@ -288,24 +288,25 @@ class ChordLibraryController extends Controller
 		}
 
 		// Shell voicings for level-4 animation:
-		// The two centred drop voicings (Gmaj7 / Gm7) lose their highest dot → shell.
+		// The two centred drop voicings (G7 / Gm7) lose their highest dot → shell.
 		// from = the drop voicing already shown; to = the shell version at the same root.
-		// E-shape shells: maj7-shell-roote (id 37) and m7-shell-roote (id 36).
+		// E-shape shells: dom7-shell-roote (id 73) and m7-shell-roote (id 36).
 		//
 		// related: drawer rows shown when the tile is tapped in shell mode.
-		// Gmaj7: row1=[G7(73), Gmaj6(80)], row2=[Cmaj7(31), C6(311)]
-		// Gm7:   row1=[Gm6(106)],           row2=[Cm6(312)]
+		// G7:  row1=[Gmaj7(37), Gmaj6(80)], row2=[C7(35), Cmaj7(31), C6(311)]
+		// Gm7: row1=[Gm6(106)],              row2=[Cm6(312)]
 		$shellTargetMap = [
 			'archetype-e-barre'  => [
-				'id' => 37, 'root' => 'G', 'label' => 'Gmaj7 shell',
+				'id' => 73, 'root' => 'G', 'label' => 'G7 shell',
 				'related' => [
-					['label' => 'Add a b7 or 6', 'chords' => [
-						['id' => 73,  'root' => 'G'],   // G7  (dom7 shell Root E)
+					['label' => 'Swap the 7', 'chords' => [
+						['id' => 37,  'root' => 'G'],   // Gmaj7 (maj7 shell Root E)
 						['id' => 80,  'root' => 'G'],   // Gmaj6 (maj6 shell Root E)
 					]],
 					['label' => 'A-shape equivalent', 'chords' => [
+						['id' => 35,  'root' => 'C'],   // C7    (dom7 shell Root A)
 						['id' => 31,  'root' => 'C'],   // Cmaj7 (maj7 shell Root A)
-						['id' => 311, 'root' => 'C'],   // C6   (maj6 shell Root A)
+						['id' => 311, 'root' => 'C'],   // C6    (maj6 shell Root A)
 					]],
 				],
 			],
@@ -356,6 +357,26 @@ class ChordLibraryController extends Controller
 			];
 		}
 
+		// Extension level (L5): all cards slide in as tiles from the right.
+		// G-shape first (drop3 Root E), then C-shape (shell Root A).
+		$extTileConfigs = [
+			['id' => 144, 'root' => 'G'],   // G7(13)   dom7 13 drop3 Root E
+			['id' => 63,  'root' => 'G'],   // G7(b13)  dom7 b13 drop3 Root E
+			['id' => 112, 'root' => 'C'],   // C7(9)    dom7 9 shell Root A
+			['id' => 64,  'root' => 'C'],   // C7(b9)   dom7 b9 shell Root A
+			['id' => 114, 'root' => 'C'],   // Cm7(9)   m7 9 shell Root A
+			['id' => 165, 'root' => 'C'],   // Cmaj7(9) maj7 9 shell Root A
+		];
+		$extDiagrams = ChordDiagram::whereIn('id', array_column($extTileConfigs, 'id'))->get()->keyBy('id');
+
+		$extFamilies = [
+			'tiles' => collect($extTileConfigs)->map(fn ($c) =>
+				$extDiagrams->has($c['id'])
+					? $this->chordSerializer->serialize($extDiagrams->get($c['id']), $c['root'])
+					: null
+			)->filter()->values()->all(),
+		];
+
 		// All other chords: purely sorted by popularity then quality
 		$otherChords = ChordDiagram::query()
 			->where('voicing_category', '!=', 'archetype')
@@ -371,6 +392,7 @@ class ChordLibraryController extends Controller
 			'barreFamilies'     => $barreFamilies,
 			'dropFamilies'      => $dropFamilies,
 			'shellFamilies'     => $shellFamilies,
+			'extFamilies'       => $extFamilies,
 			'otherChords'       => $otherChords,
 			'voicingCategories' => ChordDiagram::VOICING_CATEGORIES,
 			'chordQualities'    => ChordDiagram::CHORD_QUALITIES,
@@ -414,7 +436,7 @@ class ChordLibraryController extends Controller
 		$songs = Leadsheet::published()
 			->join('sbn_voicing_usage as vu', 'sbn_leadsheets.id', '=', 'vu.leadsheet_id')
 			->where('vu.chord_diagram_id', $chord->id)
-			->select('sbn_leadsheets.id', 'sbn_leadsheets.slug', 'sbn_leadsheets.title', 'sbn_leadsheets.rhythm', 'sbn_leadsheets.popularity', 'sbn_leadsheets.cover_image_path')
+			->select('sbn_leadsheets.id', 'sbn_leadsheets.slug', 'sbn_leadsheets.title', 'sbn_leadsheets.genre', 'sbn_leadsheets.rhythm', 'sbn_leadsheets.popularity', 'sbn_leadsheets.cover_image_path')
 			->distinct()
 			->orderByDesc('sbn_leadsheets.popularity')
 			->limit(4)
