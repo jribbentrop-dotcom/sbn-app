@@ -112,7 +112,7 @@ class HomeController extends Controller
             ->whereNotNull('name')
             ->orderByDesc('popularity')
             ->limit(60)
-            ->get(['id', 'name', 'start_fret', 'diagram_data', 'interval_labels', 'voicing_category']);
+            ->get(['id', 'name', 'root_note', 'quality', 'extensions', 'start_fret', 'diagram_data', 'interval_labels', 'voicing_category']);
 
         $result = [];
         foreach ($chords as $chord) {
@@ -127,7 +127,7 @@ class HomeController extends Controller
             }
 
             $result[] = [
-                'name'           => $chord->name,
+                'name'           => $this->chordDisplayName($chord->root_note, $chord->quality, $chord->extensions ?? null),
                 'frets'          => $frets,
                 'position'       => $chord->start_fret ?? 1,
                 'intervalLabels' => $chord->interval_labels,
@@ -139,6 +139,39 @@ class HomeController extends Controller
         }
 
         return $result;
+    }
+
+    /**
+     * Build the chord symbol string that sbnFormatChordHtml() will parse:
+     * root + quality symbol + extensions (e.g. "Cm7", "G7", "Fmaj7", "Bb7b9").
+     */
+    private function chordDisplayName(string $root, string $quality, ?string $extensions): string
+    {
+        $qualitySymbols = [
+            'maj'   => '',
+            'min'   => 'm',
+            'aug'   => 'aug',
+            'dim'   => 'dim',
+            '5'     => '5',
+            'sus4'  => 'sus4',
+            'sus2'  => 'sus2',
+            'add9'  => 'add9',
+            'maj7'  => 'maj7',
+            'm7'    => 'm7',
+            'dom7'  => '7',
+            'm7b5'  => 'm7b5',
+            'o7'    => '°7',
+            'maj6'  => 'maj6',
+            'm6'    => 'm6',
+            'mMaj7' => 'mMaj7',
+            'aug7'  => 'aug7',
+            '7sus4' => '7sus4',
+        ];
+
+        $sym = $qualitySymbols[$quality] ?? $quality;
+        $ext = $extensions ? trim($extensions) : '';
+
+        return $root . $sym . ($ext ? $ext : '');
     }
 
     /**
