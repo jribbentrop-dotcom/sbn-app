@@ -46,14 +46,27 @@ display, so the two are always causally linked.
 - `prefers-reduced-motion` respected (no auto-play, no animation)
 - Props: `progression?: ChordDiagramData[]`, `rhythmPattern?: RhythmPatternData`, `barsPerChord?: number` — hardcoded Dm7/G7/Cmaj7 fallback if null
 
-### Multi-chord bars (2026-06-07)
+### Multi-chord bars and multi-bar rhythm phrases (2026-06-07)
 
-Bars with 2 chords (chord on beat 1 **and** beat 3) are now handled correctly.
+Both 2-chord-per-bar measures and multi-bar rhythm cycles are now handled correctly.
 
-- **Controller** (`SyncedPlayerController`): each bar entry now carries `stepsPerChord` = `rhythmBeats / chordsInMeasure`. A 1-chord bar → 16; a 2-chord bar → 8 each.
-- **Frontend** (`SyncedPlayer.vue`): replaced the `barPosition / durationBars` whole-bar counter with a `stepsPlayed` counter (plain `let`, not reactive). Each engine tick increments it; when `stepsPlayed >= currentStepsPerChord()` the chord advances. This works for any subdivision: full bar, half bar, or quarter bar.
-- The pre-cue `strikeNext()` fires when `stepsPlayed === stepsPerChord - 4` (1 beat before the advance), so it stays musically correct regardless of chord duration.
-- `durationBars` is kept in the API response for back-compat but is no longer used by the player.
+**2-chord measures** (e.g. `F/G, Fm/G` in Corcovado bar 15):
+- Controller splits the measure into two entries, each with `stepsPerChord = stepsPerBar / 2`.
+- Frontend advances on beat 3 (half-bar boundary).
+
+**Multi-bar rhythm cycles** (e.g. `jazz-bossa-nova`: 16 eighth-note steps = 8 beats = 2 bars):
+- Controller computes `stepsPerBar = gridSteps / barsPerCycle` where `barsPerCycle = round(patternBeats / 4)`.
+- For jazz-bossa-nova: `patternBeats = 16 × 0.5 = 8`, `barsPerCycle = 2`, `stepsPerBar = 8`.
+- Two consecutive single-chord bars (e.g. Blue Bossa's `Cm7(9), Cm7(9)`) each get `stepsPerChord = 8` → total 16 steps = one full 2-bar rhythm cycle. ✓
+- Sub-bar patterns (< 4 beats, e.g. gilberto 8-step sixteenth = 2 beats) clamp to `barsPerCycle = 1` via `round(0.5) = 1` in PHP, keeping `stepsPerBar = gridSteps` as before.
+
+**Chord/BARS index alignment fix:**
+- `CHORDS` was previously filtering null `chordCard` entries, making it shorter than `BARS` and causing `head` (a BARS index) to address the wrong diagram. `CHORDS` is now kept parallel to `BARS`, substituting a fallback shape for nulls.
+
+**Double-hit fix for eighth/triplet grids:**
+- `ToneClock` always fires at sixteenth resolution (`'16n'`). For `gridType='eighth'`, two consecutive ticks land on the same step, causing every pattern hit to trigger the chord strum twice. A `lastFiredStep` guard in the tick handler skips duplicate steps — each grid step fires exactly once regardless of clock resolution.
+
+`durationBars` is kept in the API response for back-compat but is no longer used by the player.
 
 ### What is still missing
 - No tempo control (BPM slider deferred to S.4)
@@ -121,9 +134,19 @@ The slide/recycle had three more defects, all fixed:
 
 ---
 
-## 2b. ⭐ NEXT SESSION — START HERE (2026-06-07)
+## 2b. ⭐ NEXT SESSION — START HERE (2026-06-07, session 2)
 
-### Done this session (2026-06-07)
+### Done this session (2026-06-07, session 2)
+
+**Rhythm sync bug fixes ✅**
+
+1. **Double chord hit on eighth-grid patterns** — `ToneClock` fires at `'16n'`; for `gridType='eighth'` two ticks land on the same step. Fixed with `lastFiredStep` guard in the tick handler.
+2. **2-bar rhythm phrase mis-timing** — `jazz-bossa-nova` (16 eighth steps = 2 bars) was advancing chords every full pattern cycle instead of every bar. Controller now computes `stepsPerBar = gridSteps / barsPerCycle` using `gridType` to derive how many 4/4 bars one cycle spans.
+3. **CHORDS/BARS index mismatch** — null `chordCard` entries were filtered from `CHORDS`, making it shorter than `BARS` so `head` indexed the wrong diagram. `CHORDS` is now parallel to `BARS`.
+
+---
+
+### Done previous session (2026-06-07)
 
 **Phase S.4 — Leadsheet / Exercise integration ✅**
 
@@ -181,9 +204,9 @@ The slide/recycle had three more defects, all fixed:
 
 - **Featured song config** — move hardcoded id 113 in `HomeController` to config or `featured_on_homepage` flag
 - **Tempo control** — BPM slider (range 60–180); call `engine.setTempo()` reactively
-- **Other Top10 pages** — LatinJazzStandards + BossaNovaSongs can adopt SyncedPlayer the same way
 - **Leadsheet viewer embed** — drop a `<SyncedPlayer :bars="leadsheetBars" …>` directly inside the viewer as an alternative to the chord grid; bars already available from the same API
 - **Per-bar rhythm swap** (S.4b) — when `rhythmSlug` differs per bar, stop/reload audio loop on bar change
+- **Blue Bossa slug** — currently `untitled-8` in DB; rename to `blue-bossa` so the bossa-nova-songs config can add a `syncedPlayer` entry for it
 
 ---
 
