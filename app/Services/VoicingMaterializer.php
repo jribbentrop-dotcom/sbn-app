@@ -124,7 +124,7 @@ class VoicingMaterializer
                         ['frets' => $frets, 'position' => $position],
                         $rhythm,
                         $divisions,
-                        $beats,
+                        (int) ($tpm / $divisions), // quarter-beat bar length, not raw numerator
                         $prevFingerStrings
                     );
 

@@ -201,12 +201,12 @@
                 <div class="sbn-vp-meta-field">
                     <span class="sbn-vp-meta-label">Tempo</span>
                     <input type="number" class="sbn-vp-meta-input"
-                           x-model.number="parsed.tempo" min="20" max="300" @input="markDirty(); window.__sbnTabModel?.setTempo(parsed.tempo)">
+                           x-model.number="parsed.tempo" min="20" max="300" @input="markDirty()" @change="window.__sbnTabModel?.setTempo(parsed.tempo)">
                 </div>
                 <div class="sbn-vp-meta-field">
                     <span class="sbn-vp-meta-label">Time</span>
                     <input type="text" class="sbn-vp-meta-input"
-                           x-model="parsed.timeSignature" @input="markDirty()">
+                           x-model="parsed.timeSignature" @input="markDirty()" @change="window.__sbnTabModel?.setTimeSignature(parsed.timeSignature)">
                 </div>
                 <div class="sbn-vp-meta-field" x-show="itemType === 'leadsheets'">
                     <span class="sbn-vp-meta-label">Style</span>
@@ -737,6 +737,12 @@ class MusicXMLParser {
             }
         }
 
+        // Detect pickup (anacrusis) measure — MusicXML marks these with
+        // implicit="yes" on the <measure> element. The actual beat count is
+        // derived from the furthest note cursor position rather than the
+        // declared time signature, since the measure is intentionally short.
+        const isImplicit = measure.getAttribute('implicit') === 'yes';
+
         // Derive each chord's duration (in quarter beats) from successive start positions.
         // The last chord spans to the end of the measure.
         if (chords.length > 0) {
@@ -756,11 +762,6 @@ class MusicXMLParser {
 
         const notes = this.parseNotes(measure);
 
-        // Detect pickup (anacrusis) measure — MusicXML marks these with
-        // implicit="yes" on the <measure> element. The actual beat count is
-        // derived from the furthest note cursor position rather than the
-        // declared time signature, since the measure is intentionally short.
-        const isImplicit = measure.getAttribute('implicit') === 'yes';
         const actualQuarterBeats = isImplicit
             ? Math.max(0.25, cursorDivs / this.divisions)
             : null;

@@ -294,7 +294,7 @@ import { useUndo } from './composables/useUndo.js';
 import { useSelection } from './composables/useSelection.js';
 import { sidebarStore } from './composables/useSidebarStore.js';
 import { modelToMusicXml } from './utils/musicXmlWriter.js';
-import { initTabModelFacade, registerSetChordName, registerSetChordNameWithVoicing, registerSetTempo } from './utils/tabModelFacade.js';
+import { initTabModelFacade, registerSetChordName, registerSetChordNameWithVoicing, registerSetTempo, registerSetTimeSignature } from './utils/tabModelFacade.js';
 import { extractFretsAtChord, applyVoicingToChord } from './composables/useChordSync.js';
 import TabMeasure from './components/TabMeasure.vue';
 import { useChordGridOps }        from './composables/useChordGridOps.js';
@@ -951,6 +951,45 @@ watch(model, (newVal, oldVal) => {
 const chordGridOps      = useChordGridOps(model, { wrapCommand }, tabModel);
 registerSetChordName((gi, ci, name) => chordGridOps.setChordName(gi, ci, name));
 registerSetTempo((bpm) => onTransportTempo(bpm));
+registerSetTimeSignature((timeSig) => {
+    const oldSig = timeSignature.value || '4/4';
+    if (timeSig === oldSig) return;
+
+    // Rescale chord offsets/beats from the old time sig to the new one.
+    // chordOffsets and chordBeats are stored in quarter-beat units relative to
+    // the old bar length — if the bar changes size they must be rescaled so cards
+    // don't overflow or bunch up.
+    const [oldBeatsStr, oldBeatTypeStr] = oldSig.split('/');
+    const [newBeatsStr, newBeatTypeStr] = timeSig.split('/');
+    const oldBpm = (parseInt(oldBeatsStr) || 4) * (4 / (parseInt(oldBeatTypeStr) || 4));
+    const newBpm = (parseInt(newBeatsStr) || 4) * (4 / (parseInt(newBeatTypeStr) || 4));
+    const scale  = newBpm / oldBpm;
+
+    if (scale !== 1 && sections.value?.length) {
+        sections.value = sections.value.map(sec => ({
+            ...sec,
+            measures: (sec.measures || []).map(m => {
+                const chords = m.chords || [];
+                if (!chords.length || !chords.some(c => typeof c === 'object' && c.beatInMeasure != null)) {
+                    return m;
+                }
+                return {
+                    ...m,
+                    chords: chords.map(c => {
+                        if (typeof c !== 'object' || c.beatInMeasure == null) return c;
+                        return {
+                            ...c,
+                            beatInMeasure: c.beatInMeasure * scale,
+                            beats:         (c.beats ?? (newBpm / chords.length)) * scale,
+                        };
+                    }),
+                };
+            }),
+        }));
+    }
+
+    timeSignature.value = timeSig;
+});
 registerSetChordNameWithVoicing((gi, ci, name, tabData) => {
     chordGridOps.setChordName(gi, ci, name);
     if (tabData && model.value?.chordVoicings) {

@@ -104,10 +104,16 @@ window.__sbnTabModel.setChordNameWithVoicing(gi, ci, name, tabData)
   // tabData = { frets: '6-char string', position: number } from extractFretsAtChord()
   // writes chordName + positional voicing key `name@gi.ci` in one undo command
 window.__sbnTabModel.setTempo(bpm)
-  // Updates model.value.tempo + calls AudioEngine.setTempo() — wired to the tempo meta input
+  // Updates model.value.tempo + calls AudioEngine.setTempo() — fires on @change (blur/Enter), NOT @input
+window.__sbnTabModel.setTimeSignature(timeSig)
+  // Rescales chordOffsets/chordBeats in bridge sections proportionally, then sets timeSignature.value
+  // — triggers useTabModel watch → buildModel() → correct ticksPerMeasure + chord grid layout
+  // fires on @change (blur/Enter) only
 ```
 Initialized once by `TabEditor.vue` via `initTabModelFacade({...})` after `useTabModel` setup.
-Write functions are registered separately after `chordGridOps` is created via `registerSetChordName()` / `registerSetChordNameWithVoicing()` / `registerSetTempo()` — avoids circular init order.
+Write functions are registered separately after `chordGridOps` is created via `registerSetChordName()` / `registerSetChordNameWithVoicing()` / `registerSetTempo()` / `registerSetTimeSignature()` — avoids circular init order.
+
+**Gotcha — tempo/time-sig inputs use `@change` not `@input`:** `@input` would drive the transport BPM on every keystroke while typing. `@change` fires only on blur or Enter. The `markDirty()` call stays on `@input` so the save button activates immediately.
 
 ### Save pipeline
 1. User clicks Save → Alpine `save()`
@@ -198,6 +204,8 @@ On save, `exportAlpineSections()` serializes `beatInMeasure`/`beats` back onto e
 
 `ChordMeasure.vue` uses `chordPositionStyle(ci)` to absolutely position each `ChordCard` at `left: (offset/bpm*100)%` with `width: (dur/bpm*100)%`. A `sbn-ve-beat-grid` layer renders one dot per quarter-beat — visual metronome markers, not barlines.
 
+**Gotcha — time sig changes must rescale existing offsets:** `chordOffsets` and `chordBeats` are stored in quarter-beat units relative to the *original* bar length. If the user changes the time sig (e.g. 4/4 → 2/4), the Vue `buildModel()` re-runs with the new `tpm` but reads the stale offset values from `sections.value` — cards overflow past the barline. Fix: `registerSetTimeSignature()` computes `scale = newQBpm / oldQBpm` and multiplies every `beatInMeasure` and `beats` in `sections.value` before setting `timeSignature.value`. The rescale is proportional — 4 chords in a 4/4 bar become 4 chords in a 2/4 bar at half spacing.
+
 ### Key conventions
 - Model uses **`ref()`** (deep reactive), NOT `shallowRef`
 - Tick constants: whole=1920, half=960, quarter=480, eighth=240, sixteenth=120, thirty-second=60
@@ -226,7 +234,7 @@ undo.wrapCommand('Insert bar', [], () => { tabModel.insertMeasureAfter(si, mi); 
 - `togglePickup(gi)` — flips `m.pickup`; clears `pickupBeats` when unmarking
 - `setPickupBeats(gi, beats)` — sets exact quarter-beat count; marks `pickup:true`. Pass `null` to unmark. UI: right-click → beat-count row (1…N buttons matching time sig + ✕ clear)
 - `pickup` / `pickupBeats` flow: `buildModel()` reads from section data → `patchChordNames()` re-syncs on chord change → `exportAlpineSections()` serializes back to Alpine
-- MusicXML import: `parseMeasure()` detects `implicit="yes"` on `<measure>` → sets `pickup:true`, `pickupBeats` from actual note-cursor ticks; chord `beats` capped to pickup length
+- MusicXML import: `parseMeasure()` detects `implicit="yes"` on `<measure>` → sets `pickup:true`, `pickupBeats` from actual note-cursor ticks; chord `beats` capped to pickup length. **Gotcha:** `const isImplicit` must be declared *before* the `chords.length > 0` block that uses it — `const` has no hoisting (TDZ). Declaring it after caused a ReferenceError on every MusicXML import.
 - `useReflow.repositionMeasure()` uses `pickupBeats*480` as capacity, right-aligns xPos: `xPos = (tpm-capacityTicks)/tpm + tickInMeasure/tpm`
 - Audio adapters (`tabMeasureToEvents`, `chordVoicingsToEvents`): build `positionBeatStart[]` accumulating `m.pickupBeats ?? beatsPerMeasure` per position — no silence gap
 - Playback: `playPositionBeatTable` (TabEditor) accumulates per-position beat starts; `measureBeatStartMap` (provided) lets TabMeasure/ChordMeasure compute true beat-within-measure; metronome cursor starts at `pickupXOffset = (globalBpm - pickupBeats) / globalBpm` so it aligns with the right-aligned note
@@ -344,7 +352,7 @@ Replaces `tab_xml` + `melody` + `rhythmPattern` in `json_data` for an existing l
 
 Gap-filled voicings are written back into `chordVoicings` so they persist.
 
-**Time-stretch:** if the rhythm pattern's `time_signature` differs from the sheet's, stroke tick offsets are scaled so the pattern fills exactly one bar. A 2/4 pattern applied to a 4/4 bar doubles all durations (16ths → 8ths etc.) — the feel is identical, just the note values change.
+**Time-stretch:** if the rhythm pattern's `time_signature` differs from the sheet's, stroke tick offsets are scaled so the pattern fills exactly one bar. A 2/4 pattern applied to a 4/4 bar doubles all durations (16ths → 8ths etc.) — the feel is identical, just the note values change. `VoicingMaterializer` passes `(int)($tpm / $divisions)` as `$beatsPerMeasure` to `RhythmMaterializer::expand()` — this is the quarter-beat bar length, not the raw `<beats>` numerator. Passing the raw numerator causes wrong scaling for compound/cut meters (e.g. 6/8 would compute `6 * 480 = 2880` ticks instead of the correct `3 * 480 = 1440`).
 
 **String assignment** (`RhythmMaterializer::_resolveFingerStrings`):
 - **≤ 4 available notes:** thumb = lowest-pitch string (highest string#); fingers = remaining strings low→high pitch

@@ -19,6 +19,7 @@ let _fns = null;
 let _setChordName = null;
 let _setChordNameWithVoicing = null;
 let _setTempo = null;
+let _setTimeSignature = null;
 
 const facade = {
     /** True once TabEditor has registered its getter functions. */
@@ -72,6 +73,11 @@ const facade = {
     setTempo(bpm) {
         _setTempo?.(bpm);
     },
+
+    /** Update the time signature from Alpine (meta panel input) — rebuilds the chord grid. */
+    setTimeSignature(timeSig) {
+        _setTimeSignature?.(timeSig);
+    },
 };
 
 if (typeof window !== 'undefined' && !window.__sbnTabModel) {
@@ -103,4 +109,9 @@ export function registerSetChordNameWithVoicing(fn) {
 /** Patch in setTempo from TabEditor so Alpine's meta panel can drive the transport. */
 export function registerSetTempo(fn) {
     _setTempo = fn;
+}
+
+/** Patch in setTimeSignature from TabEditor so Alpine's meta panel can rebuild the chord grid. */
+export function registerSetTimeSignature(fn) {
+    _setTimeSignature = fn;
 }
