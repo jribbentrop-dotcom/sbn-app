@@ -36,7 +36,7 @@ export class ToneClock {
         if (this._tickEventId == null) {
             this._tickEventId = Tone.getTransport().scheduleRepeat((time) => {
                 const beat = this.currentBeat();
-                this._tickSubs.forEach(cb => cb(beat));
+                this._tickSubs.forEach(cb => cb(beat, time));
             }, '16n');
         }
     }

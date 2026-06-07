@@ -19,6 +19,8 @@ import { formatChordNameHtml } from '@/composables/useChordName';
 import type { RhythmPatternData } from '../Library/RhythmPattern.vue';
 import { getAudioEngine } from '../../audio/engine/AudioEngine.js';
 import { rhythmPatternToEvents } from '../../audio/adapters/rhythmPatternToEvents.js';
+import { chordDiagramToEvents } from '../../audio/adapters/chordDiagramToEvents.js';
+import { NylonSampler } from '../../audio/engine/voices/NylonSampler.js';
 
 const props = defineProps<{
     progression?: ChordDiagramData[];
@@ -112,6 +114,7 @@ const LBLS  = ['', 'prev', '', 'up next', ''];
 
 // ── Audio engine ──────────────────────────────────────────────────────────────
 const engine = getAudioEngine();
+const nylon = new NylonSampler();
 const isPlaying = ref(false);
 let engineUnsubs: Array<() => void> = [];
 let engineListened = false;
@@ -127,14 +130,17 @@ function registerEngineListeners(): void {
     if (engineListened) return;
     engineListened = true;
     engineUnsubs.push(
-        engine.on('tick', (beat: number) => {
+        engine.on('tick', (beat: number, time: number) => {
             if (!isPlaying.value) return;
             const step = beatToStep(beat);
             currentStep.value = step;
             emit('step', step);
             const isHit = (c: string | undefined) => c != null && c.toLowerCase() === 'x';
-            if (isHit(RHYTHM.value.thumb[step]))   strikeCenter('bass');
-            if (isHit(RHYTHM.value.fingers[step])) strikeCenter('fingers');
+            const thumbHit   = isHit(RHYTHM.value.thumb[step]);
+            const fingersHit = isHit(RHYTHM.value.fingers[step]);
+            if (thumbHit)   { strikeCenter('bass');    synthBass(time); }
+            if (fingersHit) { strikeCenter('fingers'); synthFingers(time); }
+            if (!thumbHit && !fingersHit) ghostPerc(time);
             if (step === RHYTHM.value.beats - 4) strikeNext();
             if (step === RHYTHM.value.beats - 1) tickBar();
         }),
@@ -153,6 +159,7 @@ async function audioPlay(): Promise<void> {
         bpm: BPM.value * 2,
         samplesBaseUrl: '/audio/rhythm-samples/',
     });
+    nylon.init('/audio/nylon/');
     registerEngineListeners();
 
     const events = rhythmPatternToEvents(RHYTHM.value, { startBeat: 0 });
@@ -167,10 +174,12 @@ async function audioPlay(): Promise<void> {
     currentStep.value = -1;
     await engine.play();
     isPlaying.value = true;
+    buildCenterMidi();
 }
 
 function audioStop(): void {
     engine.stop();
+    setTimeout(() => nylon.releaseAll(), 80);
     isPlaying.value = false;
     currentStep.value = -1;
     barPosition.value = 0;
@@ -238,6 +247,43 @@ function strikeNext() {
 }
 
 
+// ── Per-tick synth hits (bass on thumb row, upper strings on fingers row) ─────
+interface ChordMidi { bass: number[]; fingers: number[] }
+const centerMidi = ref<ChordMidi>({ bass: [], fingers: [] });
+
+function buildCenterMidi(): void {
+    const idx = boards.value.findIndex(b => b.role === 'center');
+    if (idx < 0) return;
+    const chord = boards.value[idx].chord;
+    if (!chord?.diagram_data) return;
+    const events = chordDiagramToEvents(chord, { startBeat: 0, durationBeats: 2, staggerBeats: 0 });
+    const bassStr = bassString(chord);
+    centerMidi.value = {
+        bass:    events.filter(e => e.stringNum === bassStr).map(e => e.pitch),
+        fingers: events.filter(e => e.stringNum !== bassStr).map(e => e.pitch),
+    };
+}
+
+function ghostPerc(time: number): void {
+    const perc = (engine as any)._voices?.percussion;
+    if (!perc?.ready) return;
+    perc.trigger('hihat_brush', 'soft', time, 0.32);
+}
+
+function synthBass(time: number): void {
+    const beatSec = 60 / (BPM.value * 2);
+    const durSec = beatSec * 0.9;
+    centerMidi.value.bass.forEach(midi => nylon.trigger(midi, time, durSec, 0.35));
+}
+
+function synthFingers(time: number): void {
+    const beatSec = 60 / (BPM.value * 2);
+    const durSec = beatSec * 0.4;
+    centerMidi.value.fingers.forEach((midi, i) => {
+        nylon.trigger(midi, time, durSec, 0.5, i * 0.014);
+    });
+}
+
 // ── Track / recycle ───────────────────────────────────────────────────────────
 const TRACK_BASE = -160;
 const trackOffset = ref(TRACK_BASE);
@@ -256,6 +302,8 @@ function tickBar(): void {
     if (barPosition.value >= BARS_PER_CHORD.value) {
         barPosition.value = 0;
         advance();
+        // Rebuild after advance() so centerMidi reflects the new center chord
+        requestAnimationFrame(() => buildCenterMidi());
     }
 }
 
@@ -271,6 +319,7 @@ function advance() {
         boards.value.forEach((b, k) => {
             b.chord = CHORDS.value[(head.value + (k - CENTER_IDX) + CHORDS.value.length * 2) % CHORDS.value.length];
         });
+        buildCenterMidi();
         return;
     }
 
@@ -310,6 +359,7 @@ function onTransitionEnd(e: TransitionEvent) {
     );
 
     sliding = false;
+    buildCenterMidi();
 
     requestAnimationFrame(() => requestAnimationFrame(() => {
         recycling.value = false;
@@ -341,6 +391,7 @@ onBeforeUnmount(() => {
     engineUnsubs = [];
     engineListened = false;
     if (isPlaying.value) engine.stop();
+    nylon.dispose();
 });
 
 defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying });
@@ -374,14 +425,6 @@ defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying }
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- Guide-tone legend -->
-        <div class="sp-legend">
-            <span><i class="legend-dot" style="background:var(--clr-root)"></i>Root</span>
-            <span><i class="legend-dot" style="background:var(--clr-third)"></i>3rd</span>
-            <span><i class="legend-dot" style="background:var(--clr-fifth)"></i>5th</span>
-            <span><i class="legend-dot" style="background:var(--clr-seventh)"></i>7th</span>
         </div>
 
         <!-- Rhythm strip -->
@@ -511,27 +554,6 @@ defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying }
     0%   { transform: scale(1);    opacity: 1; }
     35%  { transform: scale(1.22); opacity: .9; }
     100% { transform: scale(1);    opacity: 1; }
-}
-
-/* ── Legend ── */
-.sp-legend {
-    display: flex;
-    justify-content: center;
-    gap: 16px;
-    margin-top: 18px;
-    flex-wrap: wrap;
-}
-.sp-legend span {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: .76rem;
-    color: var(--clr-text-dim);
-}
-.legend-dot {
-    width: 11px; height: 11px;
-    border-radius: 50%;
-    display: inline-block;
 }
 
 /* ── Rhythm strip ── */

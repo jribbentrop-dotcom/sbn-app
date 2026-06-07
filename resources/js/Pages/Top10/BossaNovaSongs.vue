@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import { Link, Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
-import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
+import SyncedPlayer from '@/Components/SyncedPlayer/SyncedPlayer.vue';
 import RhythmPattern from '@/Components/Library/RhythmPattern.vue';
 import { getCategoryColor } from '@/composables/useCategoryColors';
 import { getAudioEngine } from '@/audio/engine/AudioEngine';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
-import type { ProgressionChord, VideoSnippet } from '@/Components/Library/ChordProgressionViewer.vue';
+import type { VideoSnippet } from '@/Components/Library/ChordProgressionViewer.vue';
+import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
 
 defineOptions({ layout: PublicLayout });
 
@@ -51,13 +52,13 @@ interface Top10DataItem {
 
 const props = defineProps<{
     top10Data: Top10DataItem[];
+    rhythmPattern: RhythmPatternData | null;
 }>();
 
 const chords = ref<Top10DataItem[]>([]);
 const selectedChord = ref<Top10DataItem | null>(null);
 const isLoading = ref(false);
 
-// Blend slider: 0 = pure samples, 1 = pure demo MP3.
 const blend = ref(0);
 const engine = getAudioEngine();
 
@@ -73,7 +74,6 @@ onMounted(() => {
     selectedChord.value = chords.value[0] || null;
 });
 
-// Reset blend when navigating between items.
 watch(() => selectedChord.value?.id, () => {
     blend.value = 0;
     if (engine.isInited) engine.setBlend(0);
@@ -161,22 +161,18 @@ function prevChord() {
                     <div class="sbn-panels-grid">
                         <!-- Chords Panel -->
                         <div v-if="selectedChord.progressionTiles.length > 0" class="sbn-panel-ghost">
-                            <h3 class="sbn-panel-title">Key chord progression</h3>
+                            <h3 class="sbn-panel-title">{{ selectedChord.progressionName }}</h3>
                             <p class="sbn-panel-caption" v-html="selectedChord.progressionCaption"></p>
                             <div class="sbn-progression-wrapper">
-                                <ChordProgressionViewer
-                                    :chords="selectedChord.progressionTiles.map((t): ProgressionChord => ({ chordName: t.chordName, diagramData: t.diagramData, beats: 4, numeral: t.numeral }))"
-                                    :interactive="true"
-                                    :show-flow-arrows="selectedChord.progressionTiles.length > 2"
-                                    :vintage-card="true"
-                                    :color="getCategoryColor('bossa-nova')"
-                                    :name="selectedChord.progressionName"
-                                    :category="selectedChord.progressionMeta?.category"
-                                    :numerals="selectedChord.progressionMeta?.numerals"
-                                    :key-label="selectedChord.progressionSeedKey"
-
-                                    class="sbn-progression-large"
-                                />
+                                <div class="sbn-synced-hero-card">
+                                    <SyncedPlayer
+                                        :progression="selectedChord.progressionTiles.map(t => t.diagramData).filter(Boolean) as ChordDiagramData[]"
+                                        :rhythm-pattern="props.rhythmPattern ?? undefined"
+                                        :bars-per-chord="1"
+                                        :autoplay="false"
+                                        :key="selectedChord.slug"
+                                    />
+                                </div>
                             </div>
                             <div v-if="selectedChord.progressionCitation" class="sbn-panel-citation" v-html="selectedChord.progressionCitation"></div>
                         </div>
@@ -266,7 +262,12 @@ function prevChord() {
 </template>
 
 <style scoped>
-/* Rhythm/progression wrappers */
+@media (min-width: 768px) {
+    .sbn-panels-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
 .sbn-progression-wrapper,
 .sbn-rhythm-wrapper {
     width: 100%;
@@ -280,7 +281,7 @@ function prevChord() {
     overflow: hidden;
 }
 
-.sbn-progression-large {
-    --tile-size: 150px !important;
+.sbn-synced-hero-card {
+    width: 100%;
 }
 </style>

@@ -92,7 +92,7 @@ export class AudioEngine {
             },
         });
 
-        this._clock.onTick((beat) => this._emit('tick', beat));
+        this._clock.onTick((beat, time) => this._emit('tick', beat, time));
 
         this._samplesBaseUrl = samplesBaseUrl;
         this._inited = true;
@@ -220,7 +220,7 @@ export class AudioEngine {
         // sample loudness; revisit if the sample WAVs are re-normalized.
         const v = this._blend;
         const now = this._rawCtx.currentTime;
-        const SAMPLES_BASE = 1.3;
+        const SAMPLES_BASE = 0.7;
         const DEMO_BASE    = 0.85;
         const samplesGain = SAMPLES_BASE * Math.pow(1 - v, 1.3);
         const demoGain    = DEMO_BASE    * Math.pow(v, 1.7);
@@ -273,8 +273,8 @@ export class AudioEngine {
         return () => set.delete(cb);
     }
 
-    _emit(event, payload) {
-        this._listeners[event]?.forEach(cb => cb(payload));
+    _emit(event, ...args) {
+        this._listeners[event]?.forEach(cb => cb(...args));
     }
 
     get isInited() {

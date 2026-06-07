@@ -38,8 +38,12 @@ class Top10Controller extends Controller
     {
         $top10Data = $this->getTop10Data('latin-jazz-standards');
 
+        $rhythm = RhythmPattern::where('slug', 'jazz-bossa-nova')->first()
+            ?? RhythmPattern::where('category', 'latin')->orderByDesc('default_bpm')->first();
+
         return Inertia::render('Top10/LatinJazzStandards', [
-            'top10Data' => $top10Data,
+            'top10Data'     => $top10Data,
+            'rhythmPattern' => $rhythm ? $rhythm->toPlayerData() : null,
         ]);
     }
 
@@ -47,8 +51,12 @@ class Top10Controller extends Controller
     {
         $top10Data = $this->getTop10Data('bossa-nova-songs');
 
+        $rhythm = RhythmPattern::where('slug', 'gilberto-rhythm')->first()
+            ?? RhythmPattern::where('category', 'bossa-nova')->orderByDesc('default_bpm')->first();
+
         return Inertia::render('Top10/BossaNovaSongs', [
-            'top10Data' => $top10Data,
+            'top10Data'     => $top10Data,
+            'rhythmPattern' => $rhythm ? $rhythm->toPlayerData() : null,
         ]);
     }
 
