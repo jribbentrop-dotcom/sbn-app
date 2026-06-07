@@ -852,7 +852,7 @@ class MusicXMLParser {
         if (rootAlter) { const a = parseInt(rootAlter.textContent); if(a===1)chordName+='#'; else if(a===-1)chordName+='b'; }
         if (kind) {
             const kindValue = kind.textContent || '';
-            const kindValueMap = {'major':'','minor':'m','augmented':'aug','diminished':'dim','dominant':'7','major-seventh':'Maj7','minor-seventh':'m7','diminished-seventh':'°7','augmented-seventh':'aug7','half-diminished':'m7b5','major-minor':'mMaj7','major-sixth':'6','minor-sixth':'m6','dominant-ninth':'9','major-ninth':'Maj9','minor-ninth':'m9','dominant-11th':'11','major-11th':'Maj11','minor-11th':'m11','dominant-13th':'13','major-13th':'Maj13','minor-13th':'m13','suspended-second':'sus2','suspended-fourth':'sus4','power':'5'};
+            const kindValueMap = {'major':'','minor':'m','augmented':'aug','diminished':'dim','dominant':'7','major-seventh':'Maj7','minor-seventh':'m7','diminished-seventh':'dim7','augmented-seventh':'aug7','half-diminished':'m7b5','major-minor':'mMaj7','major-sixth':'6','minor-sixth':'m6','dominant-ninth':'9','major-ninth':'Maj9','minor-ninth':'m9','dominant-11th':'11','major-11th':'Maj11','minor-11th':'m11','dominant-13th':'13','major-13th':'Maj13','minor-13th':'m13','suspended-second':'sus2','suspended-fourth':'sus4','power':'5'};
             const kindText = kind.getAttribute('text') || '';
             if (kindValue && kindValueMap.hasOwnProperty(kindValue)) chordName += kindValueMap[kindValue];
             else if (kindText && kindText.toLowerCase() !== 'maj' && kindText.toLowerCase() !== 'major') chordName += kindText;

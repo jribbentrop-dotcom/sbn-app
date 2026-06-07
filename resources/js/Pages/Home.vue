@@ -5,8 +5,10 @@ import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
+import type { ChordShape } from '@/Components/Home/ChordRain.vue';
 
 const SyncedHero = defineAsyncComponent(() => import('@/Components/Home/SyncedHero.vue'));
+const ChordRain  = defineAsyncComponent(() => import('@/Components/Home/ChordRain.vue'));
 
 defineOptions({ layout: PublicLayout });
 
@@ -14,6 +16,7 @@ const props = defineProps<{
     rhythmPattern: RhythmPatternData | null;
     progression: ChordDiagramData[] | null;
     barsPerChord: number;
+    rainChords: ChordShape[];
 }>();
 </script>
 
@@ -83,6 +86,9 @@ const props = defineProps<{
                 </div>
             </div>
         </section>
+
+        <!-- ── Chord rain ─────────────────────────────────── -->
+        <ChordRain v-if="rainChords?.length" :chords="rainChords" />
 
         <!-- ── Feature cards ──────────────────────────────── -->
         <section class="home-section" style="padding-top:0">

@@ -40,7 +40,11 @@
       "PowerShell(php artisan test tests/Feature/Identifier/ViterbiRescoreTest.php --no-coverage 2>&1)",
       "PowerShell(git add docs/SBN-Identifier-Phase3-Plan.md 2>&1)",
       "Bash(rm -f \"category]\\)\\)\" && echo done)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(gh repo *)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:react-guitar.com)",
+      "WebFetch(domain:gleitz.github.io)"
     ],
     "additionalDirectories": [
       "c:\\Users\\info\\.claude\\projects\\c--Users-info-sbn-app\\memory",

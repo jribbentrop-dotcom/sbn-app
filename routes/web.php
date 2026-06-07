@@ -334,6 +334,7 @@ Route::prefix('api/sbn')->name('api.sbn.')->group(function () {
     Route::get('/fretboards',          [AdminFretboardController::class,     'apiSearch'])->name('fretboards.search');
     Route::get('/fretboards/{slug}',   [AdminFretboardController::class,     'apiShow'])->name('fretboards.show');
     Route::get('/songs/{leadsheet:slug}/viewer-data', [SongLibraryController::class, 'apiViewerData'])->name('songs.viewer-data');
+    Route::get('/synced-player/{slug}',  [\App\Http\Controllers\Library\SyncedPlayerController::class, 'apiShow'])->name('synced-player.show');
 
     // Search (used by admin palette — must be before /{slug} wildcards)
     Route::get('/chords',       [ChordLibraryController::class,       'search'])->name('chords.search');

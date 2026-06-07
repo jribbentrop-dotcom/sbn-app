@@ -5,6 +5,7 @@ import ChordDiagram from './ChordDiagram.vue';
 import type { ChordDiagramData } from './ChordDiagram.vue';
 import { getAudioEngine } from '../../audio/engine/AudioEngine.js';
 import { chordDiagramToEvents } from '../../audio/adapters/chordDiagramToEvents.js';
+import { getSharedNylon } from '../../audio/engine/voices/sharedNylon.js';
 import { chordShowUrl } from '../../composables/useChordUrl';
 import { formatChordNameHtml } from '../../composables/useChordName';
 
@@ -47,6 +48,7 @@ const difficultyStars = computed(() => {
 
 const isPlaying = ref(false);
 const engine = getAudioEngine();
+const nylon = getSharedNylon();
 
 const unsubEnded       = engine.on('ended',       () => { isPlaying.value = false; });
 const unsubPlayStarted = engine.on('playStarted', () => { isPlaying.value = false; });
@@ -79,17 +81,30 @@ function handleCardClick() {
 
 async function playChord() {
     await engine.init({ samplesBaseUrl: '/audio/rhythm-samples/' });
+    await nylon.init('/audio/nylon/');
+    nylon.releaseAll();
+
     const events = chordDiagramToEvents(
         { id: props.chord.id, diagram_data: props.chord.diagram_data },
-        { durationBeats: 2 },
+        { startBeat: 0, durationBeats: 4, staggerBeats: 0.28 },
     );
     if (!events.length) return;
-    engine.load(events);
-    engine.play();
+
     isPlaying.value = true;
 
-    // Animate SVG dots in sync with arpeggio (120ms per string)
-    const INTERVAL_MS = 120;
+    // Schedule via NylonSampler. staggerBeats=0.28 @ 120 BPM = 140ms per string.
+    const BEAT_SEC = 60 / 120;
+    const STAGGER_MS = 0.28 * BEAT_SEC * 1000; // ~140ms
+    const { now } = await import('tone');
+    const t0 = now();
+
+    events.forEach((ev: any) => {
+        const timeSec = t0 + ev.time * BEAT_SEC;
+        const durSec  = ev.duration * BEAT_SEC;
+        nylon.trigger(ev.pitch, timeSec, durSec, 0.72);
+    });
+
+    // Animate SVG dots in sync with arpeggio
     events.forEach((ev: any, i: number) => {
         const stringNum = ev.stringNum;
         if (!stringNum) return;
@@ -100,8 +115,11 @@ async function playChord() {
             if (!dot) return;
             dot.classList.add('sbn-dot-ping');
             setTimeout(() => dot.classList.remove('sbn-dot-ping'), 500);
-        }, i * INTERVAL_MS);
+        }, i * STAGGER_MS);
     });
+
+    // Clear isPlaying after last note + sustain
+    setTimeout(() => { isPlaying.value = false; }, (events.length - 1) * STAGGER_MS + 2000);
 }
 </script>
 

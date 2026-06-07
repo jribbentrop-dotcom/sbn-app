@@ -15,6 +15,8 @@ return [
         'progressionSeedKey' => 'F',
         'progressionCaption' => "<strong>Tom Jobim</strong> borrowed the harmonic idea of switching from the I to the II7 from <strong>Duke Ellington's</strong> famous song <em>Take the A-Train</em>. This can be heard in many of his songs, most famously in <em>The Girl from Ipanema</em>.",
         'progressionSlugs' => ['maj6-custom-roote-inv2-9-overAb', 'dom7-shell-roota-9'],
+        // Live leadsheet bars — replaces progressionTiles in the SyncedPlayer panel
+        'syncedPlayer' => ['slug' => 'the-girl-from-ipanema', 'start' => 5, 'end' => 12],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'gilberto-rhythm',
         'rhythmCaption' => "This is the classic pattern that defines the feel of many Bossa Nova songs.",
@@ -48,6 +50,8 @@ return [
         'progressionSeedKey' => 'A',
         'progressionCaption' => "This half-diminished chord is used a lot in <em>Manhã de Carnaval</em>, so make sure you're prepared!",
         'progressionSlugs' => ['m7b5-drop2-roota', 'dom7-shell-roote'],
+        // Live leadsheet bars — replaces progressionTiles in the SyncedPlayer panel
+        'syncedPlayer' => ['slug' => 'black-orpheus', 'start' => 1, 'end' => 3],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'bonfa',
         'rhythmCaption' => "<strong>Luiz Bonfá's</strong> favourite pattern is so simple yet effective, and it's easy to see why!",
@@ -75,6 +79,8 @@ return [
         'progressionSeedKey' => 'A',
         'progressionCaption' => "This minor chord, extended with the sixth, has a deep, resonant tone that captures the essence of longing, the saudade. Combined with the diminished chord, it is an absolute trademark of the bossa nova sound.",
         'progressionSlugs' => ['m6-drop3-roota', 'o7-drop3-roota'],
+        // Live leadsheet bars — replaces progressionTiles in the SyncedPlayer panel
+        'syncedPlayer' => ['slug' => 'untitled-6', 'start' => 1, 'end' => 8],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'extended-gilberto-rhythm',
         'rhythmCaption' => "<strong>João Gilberto</strong> played many variations in his rhythm patterns. This is a simple extension of the basic pattern.",
@@ -102,6 +108,8 @@ return [
         'progressionSeedKey' => 'B',
         'progressionCaption' => "<em>Insensatez</em> has some great diminished passing chords. These are the secret weapons of Bossa Nova. Because a diminished chord is built entirely of minor 3rds, this shape repeats every 3 frets.",
         'progressionSlugs' => ['dom7-drop2-roota-inv1', 'o7-drop3-roota', 'maj7-drop3-roote'],
+        // Live leadsheet bars — Gmaj7(#11) F#7 Bm7 progression at the end
+        'syncedPlayer' => ['slug' => 'insensatez', 'start' => 18, 'end' => 19],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'insensatez',
         'rhythmCaption' => "<strong>João Gilberto's</strong> recording of <em>Insensatez</em> features an interesting rhythm pattern. Like the clave patterns of Cuba, it dominates the song, dictating the flow of the music.",

@@ -48,9 +48,12 @@ export function chordDiagramToEvents(model, ctx = {}) {
     const stringFret = new Map();
 
     // Apply barres first (barre applies to all strings in range unless overridden)
+    // DB stores from/to (not fromString/toString)
     const barres = model.diagram_data?.barres ?? [];
     for (const barre of barres) {
-        for (let s = barre.fromString; s <= barre.toString; s++) {
+        const lo = barre.from ?? barre.fromString;
+        const hi = barre.to   ?? barre.toString;
+        for (let s = lo; s <= hi; s++) {
             stringFret.set(s, barre.fret);
         }
     }

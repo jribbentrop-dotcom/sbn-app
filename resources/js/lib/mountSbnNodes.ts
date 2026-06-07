@@ -4,14 +4,17 @@
  * each element. Returns an unmount function to tear down all apps.
  *
  * Supported tags:
- *   <sbn-chord       slug="…">
- *   <sbn-rhythm      slug="…">
- *   <sbn-progression slug="…">
- *   <sbn-sheet       slug="…" key="C">
- *   <sbn-song        slug="…">
- *   <sbn-youtube     id="…" start="…">        ← attrs only, no fetch
- *   <sbn-widget      slug="…" …attrs>        ← edu interactive, no fetch
- *   <sbn-fretboard   slug="…">               ← vanilla JS hydration via chords.js
+ *   <sbn-chord          slug="…">
+ *   <sbn-rhythm         slug="…">
+ *   <sbn-progression    slug="…">
+ *   <sbn-sheet          slug="…" key="C">
+ *   <sbn-song           slug="…">
+ *   <sbn-youtube        id="…" start="…">          ← attrs only, no fetch
+ *   <sbn-widget         slug="…" …attrs>           ← edu interactive, no fetch
+ *   <sbn-fretboard      slug="…">                  ← vanilla JS hydration via chords.js
+ *   <sbn-synced-player  slug="…" type="leadsheet"  ← chord+rhythm player, fetch from API
+ *                        start="0" end="7"
+ *                        autoplay="false">
  */
 
 import { createApp, h, type App } from 'vue';
@@ -380,6 +383,49 @@ export async function mountSbnNodes(
       tasks.push(task);
     });
   }
+
+  // ── <sbn-synced-player> — fetch leadsheet/exercise bars + rhythm, mount ──────
+  // Attrs: slug (required), type (leadsheet|exercise, default leadsheet),
+  //        start (0-based bar index), end (0-based inclusive), autoplay (bool)
+  container.querySelectorAll<HTMLElement>('sbn-synced-player').forEach((el) => {
+    const slug     = el.getAttribute('slug') ?? '';
+    const type     = el.getAttribute('type') ?? 'leadsheet';
+    const start    = el.getAttribute('start') ?? '';
+    const end      = el.getAttribute('end') ?? '';
+    const autoplay = el.getAttribute('autoplay');
+    if (!slug) return;
+
+    const params = new URLSearchParams({ type });
+    if (start !== '') params.set('start', start);
+    if (end   !== '') params.set('end',   end);
+    const url = `/api/sbn/synced-player/${slug}?${params}`;
+
+    const task = fetch(url, { headers: { Accept: 'application/json' } })
+      .then((r) => {
+        if (!r.ok) throw new Error(`synced-player fetch failed: ${r.status}`);
+        return r.json();
+      })
+      .then(async (data: any) => {
+        const mod = await import('../Components/SyncedPlayer/SyncedPlayer.vue');
+        const Component = (mod as any).default ?? mod;
+
+        el.classList.add('sbn-synced-player-embed');
+        const app = createApp(Component, {
+          bars:          data.bars ?? [],
+          rhythmPattern: data.rhythmPattern ?? undefined,
+          autoplay:      autoplay === null ? true : autoplay !== 'false',
+          loop:          true,
+        });
+        app.mount(el);
+        apps.push(app);
+      })
+      .catch((err) => {
+        console.warn(`[mountSbnNodes] Failed to mount <sbn-synced-player slug="${slug}">:`, err);
+        el.innerHTML = `<span class="sbn-node-error">synced-player: ${slug}</span>`;
+      });
+
+    tasks.push(task);
+  });
 
   await Promise.all(tasks);
 

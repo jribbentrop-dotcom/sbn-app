@@ -41,7 +41,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
     dotColor: 'var(--clr-red)',
-    showGuideTones: false,
+    showGuideTones: true,
 });
 const svgHtml = ref('');
 
@@ -107,7 +107,7 @@ watchEffect(() => {
         
         const gtLabels = props.showGuideTones ? (props.chord.interval_labels ?? null) : null;
         svgHtml.value = (window as any).sbnRenderDiagramSVG(voicing, {
-            showFingers: !gtLabels,
+            showFingers: true,
             dotColor: props.dotColor,
             intervalLabels: gtLabels || undefined,
         });

@@ -222,6 +222,107 @@
 }
 .rhythm-explore-link:hover { opacity: .75; }
 
+/* ── Chord rain ────────────────────────────────────────────── */
+.chord-rain-section {
+    position: relative;
+    height: 100vh;
+    min-height: 560px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Vignette that keeps copy legible over the rain */
+.chord-rain-section::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+        ellipse 70% 60% at 50% 50%,
+        color-mix(in srgb, var(--clr-bg) 72%, transparent) 0%,
+        transparent 100%
+    );
+    pointer-events: none;
+    z-index: 2;
+}
+
+.chord-rain-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    overflow: hidden;
+}
+
+.chord-rain-copy {
+    position: relative;
+    z-index: 3;
+    text-align: center;
+    max-width: 560px;
+    padding: 0 24px;
+    pointer-events: none;
+}
+
+.chord-rain-copy .eyebrow {
+    justify-content: center;
+    pointer-events: auto;
+}
+
+.chord-rain-copy h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(2rem, 4vw, 3.2rem);
+    letter-spacing: -.025em;
+    line-height: 1.05;
+    margin-bottom: 16px;
+}
+
+.chord-rain-copy h2 em {
+    font-style: italic;
+    color: var(--clr-accent);
+}
+
+.chord-rain-copy p {
+    color: var(--clr-text-dim);
+    font-size: 1.05rem;
+    margin-bottom: 28px;
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.chord-rain-copy .btn {
+    pointer-events: auto;
+}
+
+.rain-stats {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin-top: 28px;
+    pointer-events: none;
+}
+
+.rain-stat-n {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.5rem;
+    display: block;
+}
+
+.rain-stat-l {
+    font-size: .78rem;
+    color: var(--clr-text-dim);
+    display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chord-rain-section .chord-rain-card {
+        /* Cards rendered static — rAF loop is halted by the component */
+        opacity: 0.35 !important;
+    }
+}
+
 /* ── Feature cards ─────────────────────────────────────────── */
 .feature-cards {
     display: grid;

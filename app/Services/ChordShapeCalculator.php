@@ -175,6 +175,33 @@ class ChordShapeCalculator
         6 => '#11', 7 => '5', 8 => 'b13', 9 => '13', 10 => 'b7', 11 => '7',
     ];
 
+    /**
+     * Quality-specific core-tone interval maps (semitone offset → label).
+     * Used by computeIntervalLabels() to produce correct b3 / b7 / etc.
+     * labels for alias voicings that are transposed to a new root.
+     */
+    private const QUALITY_INTERVALS = [
+        'maj7'  => [0 => 'R', 4 => '3',  7 => '5',  11 => '7'],
+        'maj6'  => [0 => 'R', 4 => '3',  7 => '5',  9  => '6'],
+        'm7'    => [0 => 'R', 3 => 'b3', 7 => '5',  10 => 'b7'],
+        'm6'    => [0 => 'R', 3 => 'b3', 7 => '5',  9  => '6'],
+        '7'     => [0 => 'R', 4 => '3',  7 => '5',  10 => 'b7'],
+        'dom7'  => [0 => 'R', 4 => '3',  7 => '5',  10 => 'b7'],
+        'm7b5'  => [0 => 'R', 3 => 'b3', 6 => 'b5', 10 => 'b7'],
+        'o7'    => [0 => 'R', 3 => 'b3', 6 => 'b5', 9  => 'bb7'],
+        'mMaj7' => [0 => 'R', 3 => 'b3', 7 => '5',  11 => '7'],
+        'aug7'  => [0 => 'R', 4 => '3',  8 => '#5', 10 => 'b7'],
+        '7sus4' => [0 => 'R', 5 => '4',  7 => '5',  10 => 'b7'],
+        'maj'   => [0 => 'R', 4 => '3',  7 => '5'],
+        'min'   => [0 => 'R', 3 => 'b3', 7 => '5'],
+        'aug'   => [0 => 'R', 4 => '3',  8 => '#5'],
+        'dim'   => [0 => 'R', 3 => 'b3', 6 => 'b5'],
+        'sus4'  => [0 => 'R', 5 => '4',  7 => '5'],
+        'sus2'  => [0 => 'R', 2 => '2',  7 => '5'],
+        'add9'  => [0 => 'R', 2 => '9',  4 => '3',  7 => '5'],
+        '5'     => [0 => 'R', 7 => '5'],
+    ];
+
     // =========================================================================
     // PUBLIC: STANDARD TRANSPOSITION
     // =========================================================================
@@ -285,7 +312,13 @@ class ChordShapeCalculator
         return [
             'diagram_data'    => $calculatedData,
             'start_fret'      => $this->calculateStartFret($calculatedData),
-            'interval_labels' => $shape->interval_labels ?? '',
+            'interval_labels' => $this->computeIntervalLabels(
+                $calculatedPositions,
+                $openResult,
+                $calculatedData['muted'] ?? [],
+                $rootNote,
+                $quality
+            ),
             'notes'           => $this->calculateNoteNames($calculatedPositions, $useFlats, $openResult, $rootNote, $quality),
         ];
     }
@@ -778,6 +811,63 @@ class ChordShapeCalculator
                 $noteSemitone = (self::TUNING[$s] + $stringFrets[$s]) % 12;
                 $interval     = ($noteSemitone - $bassSemitone + 12) % 12;
                 $labels[]     = self::GENERIC_INTERVALS[$interval];
+            } else {
+                $labels[] = 'x';
+            }
+        }
+
+        return implode(',', $labels);
+    }
+
+    /**
+     * Compute quality-aware interval labels for transposed positions.
+     * Public so ChordVoicingSearch can call it with the alias root+quality
+     * rather than the parent shape's root+quality.
+     */
+    public function computeIntervalLabelsPublic(
+        array  $positions,
+        array  $openStrings,
+        array  $muted,
+        string $rootNote,
+        string $quality
+    ): string {
+        return $this->computeIntervalLabels($positions, $openStrings, $muted, $rootNote, $quality);
+    }
+
+    /**
+     * Compute quality-aware interval labels for transposed positions.
+     * Used after alias transposition so colours reflect the new root.
+     */
+    private function computeIntervalLabels(
+        array  $positions,
+        array  $openStrings,
+        array  $muted,
+        string $rootNote,
+        string $quality
+    ): string {
+        $rootSemitone = self::NOTE_TO_SEMITONE[$rootNote] ?? null;
+        if ($rootSemitone === null) return '';
+
+        $imap = self::QUALITY_INTERVALS[$quality] ?? null;
+
+        $stringFrets = [];
+        foreach ($positions as $pos) {
+            $stringFrets[(int) $pos['string']] = (int) $pos['fret'];
+        }
+        foreach ($openStrings as $s) {
+            $s = (int) $s;
+            if (!isset($stringFrets[$s])) $stringFrets[$s] = 0;
+        }
+
+        $labels = [];
+        for ($s = 1; $s <= 6; $s++) {
+            if (in_array($s, $muted) && !isset($stringFrets[$s])) {
+                $labels[] = 'x';
+            } elseif (isset($stringFrets[$s])) {
+                $interval = (self::TUNING[$s] + $stringFrets[$s] - $rootSemitone + 12) % 12;
+                $labels[] = ($imap && isset($imap[$interval]))
+                    ? $imap[$interval]
+                    : self::GENERIC_INTERVALS[$interval];
             } else {
                 $labels[] = 'x';
             }

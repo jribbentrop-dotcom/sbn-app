@@ -17,6 +17,8 @@ return [
             0 => 'maj6-custom-roote-inv2-9',
         ],
         'progressionCaption' => 'The Ellington movement I -> II7 is shown here in Db, with Db6/9/Ab pinned as the tonic I voicing.',
+        // Live leadsheet bars — same as Bossa Nova Songs Girl from Ipanema
+        'syncedPlayer' => ['slug' => 'the-girl-from-ipanema', 'start' => 5, 'end' => 12],
         'relatedProducts' => [
             [
                 'title' => 'The Girl from Ipanema',
@@ -41,6 +43,8 @@ return [
             2 => 'm7-shell-roota-9',
         ],
         'progressionCaption' => 'A minor II-V-I in C minor with Cm7(9) shell-rootA pinned as Im.',
+        // Live leadsheet bars — Blue Bossa
+        'syncedPlayer' => ['slug' => 'untitled-8', 'start' => 0, 'end' => 7],
         'relatedProducts' => [
             [
                 'title' => 'Blue Bossa',
@@ -65,6 +69,8 @@ return [
             0 => 'm6-drop3-roote',
         ],
         'progressionCaption' => 'The Corcovado progression in A minor with Am6 pinned as the Im key chord.',
+        // Live leadsheet bars — Corcovado A section
+        'syncedPlayer' => ['slug' => 'untitled-6', 'start' => 1, 'end' => 8],
         'relatedProducts' => [
             [
                 'title' => 'Corcovado',
@@ -90,6 +96,8 @@ return [
             1 => 'dom7-drop3-roote-13',
         ],
         'progressionCaption' => 'A major II-V-I in C major (Dm7 -> G7 -> Cmaj7), linked from the DB progression library, with G7(13) pinned as V7.',
+        // Live leadsheet bars — Wave first 2 bars
+        'syncedPlayer' => ['slug' => 'untitled-7', 'start' => 0, 'end' => 1],
         'relatedProducts' => [
             [
                 'title' => 'Wave',

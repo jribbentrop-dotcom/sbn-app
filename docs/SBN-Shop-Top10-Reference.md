@@ -173,13 +173,24 @@ return [
         'bassOverride'  => null,               // optional slash-chord bass
         'voicingCaption'=> '...',
 
-        // Progression panel
-        'progressionLibrarySlug'     => 'ii-v-i',   // resolves via ChordProgression model
-        'progressionSeedKey'         => 'Db',         // key for HarmonicContext
-        'progressionVoicingOverrides'=> [0 => 'slug', 2 => 'slug'], // pinned diagrams by slot index
-        'progressionSlugs'           => ['slug1', 'slug2'], // legacy: direct chord slugs (no builder)
+        // Progression panel — choose one of the two modes below
+        'progressionLibrarySlug'     => 'ii-v-i',    // mode 1: resolves via ChordProgression model
+        'progressionSeedKey'         => 'Db',
+        'progressionVoicingOverrides'=> [0 => 'slug', 2 => 'slug'],
+        'progressionSlugs'           => ['slug1', 'slug2'], // mode 2: legacy direct slugs
         'progressionName'    => 'Trademark Progression',
         'progressionCaption' => '...',
+
+        // ── Live leadsheet/exercise bars (replaces static progression in SyncedPlayer) ──
+        // When present, the SyncedPlayer panel shows real bars from the DB leadsheet
+        // instead of the static progressionTiles built by the controller.
+        // The Vue page fetches /api/sbn/synced-player/{slug}?type=…&start=…&end=… client-side.
+        // 'syncedPlayer' => [
+        //     'slug'  => 'the-girl-from-ipanema',  // leadsheet or exercise slug
+        //     'type'  => 'leadsheet',               // 'leadsheet' (default) or 'exercise'
+        //     'start' => 5,                         // 0-based bar index, inclusive
+        //     'end'   => 12,                        // 0-based bar index, inclusive
+        // ],
 
         // Optional rhythm strip
         'rhythmSlug'    => 'bossa-nova-basic',
@@ -193,9 +204,10 @@ return [
 ];
 ```
 
-**Two progression modes:**
-1. **`progressionLibrarySlug` + `progressionSeedKey`** — resolves from the progression library via `HarmonicContext` + `ProgressionBuilder`. Supports `progressionVoicingOverrides` to pin specific diagrams at given slot indices.
-2. **`progressionSlugs`** (legacy) — direct array of chord diagram slugs, bypasses the builder entirely.
+**Three progression panel modes (in priority order):**
+1. **`syncedPlayer`** — live leadsheet/exercise bars fetched from the API at runtime. The rhythm comes from the leadsheet's own `rhythm` slug in the DB (falls back to the page-level `rhythmPattern` if absent). This is the richest mode — real voicings, correct number of bars.
+2. **`progressionLibrarySlug` + `progressionSeedKey`** — resolves from the progression library via `HarmonicContext` + `ProgressionBuilder`. Supports `progressionVoicingOverrides` to pin specific diagrams at given slot indices.
+3. **`progressionSlugs`** (legacy) — direct array of chord diagram slugs, bypasses the builder entirely.
 
 ---
 
@@ -211,10 +223,11 @@ require config/top10/{name}.php
       HarmonicContext::buildFromNumerals + ProgressionBuilder::buildVoicings
         with pinnedVoicings (pre-transposed via ChordVoicingSearch::transposeShapes)
         → progressionTiles: [{ chordName, numeral, diagramData }]
+      config['syncedPlayer'] passed through unchanged → Vue fetches at runtime
 → Inertia::render('Top10/...', ['top10Data' => $items])
 ```
 
-All chord lookups are batched (one query per page load, not N+1). Config content lives in PHP files — not in the controller.
+All chord lookups are batched (one query per page load, not N+1). Config content lives in PHP files — not in the controller. `syncedPlayer` config is passed through as-is; the controller does not resolve it — that happens client-side on selection.
 
 ---
 
@@ -224,35 +237,181 @@ All three Top10 pages follow the same UI pattern:
 
 - **Mobile nav** — horizontal scroll strip of thumbnail cards
 - **Desktop nav** — vertical grid of larger cards with number badges
-- **Detail view** — badge + title + description + two panels side by side:
-  - Left panel: `ChordCard` voicing (with `show-root` prop) + caption
-  - Right panel: `ChordProgressionViewer` + caption
+- **Detail view** — title + description + two panels side by side:
+  - Left/top panel: `SyncedPlayer` (progression) + caption
+  - Right/bottom panel: `RhythmPattern` strip + caption (Songs / Standards pages only)
 - **Navigation buttons** — prev/next through the list
 - **Related products** — `sbn-card-link` list using Inertia `<Link>`
-- **Footer links** — cross-links to the other two Top10 pages
+- **Footer links** — cross-links to the other Top10 pages
 
 Active item tracked by index in component-local `ref`. No router state.
 
+**SyncedPlayer fetch pattern** (identical across all three pages):
+```ts
+const syncedBars    = ref<LeadsheetBar[] | null>(null);
+const syncedRhythm  = ref<RhythmPatternData | null>(null);
+const syncedFetching = ref(false);
+let lastFetchedKey = '';
+
+async function fetchSyncedBars(cfg) { /* fetches /api/sbn/synced-player/… */ }
+
+// Trigger on mount for the first item, and on every selection change:
+watch(() => selectedChord.value, (item) => {
+    syncedBars.value = null;
+    lastFetchedKey = '';
+    if (item?.syncedPlayer) fetchSyncedBars(item.syncedPlayer);
+});
+```
+
+Template priority in the progression panel:
+```html
+<SyncedPlayer v-if="item.syncedPlayer && syncedBars?.length"  :bars :rhythm-pattern />
+<div          v-else-if="item.syncedPlayer && syncedFetching" class="sbn-synced-loading" />
+<SyncedPlayer v-else                                          :progression :rhythm-pattern />
+```
+
 ---
 
-### 13. Adding a New Top10 Page
+### 13. How to pick bars for a `syncedPlayer` entry
+
+**Step 1 — find the leadsheet slug.**
+Check `sbn_leadsheets` in the DB. On this project use a Python script against the SQLite file (the `php artisan tinker` approach is unreliable on Windows — see §16).
+
+**Step 2 — inspect the bar list.** Save this as a temp `.py` file, run it, then delete it:
+
+```python
+import sqlite3, json
+
+conn = sqlite3.connect("database/sbn.db")
+slug = "the-girl-from-ipanema"   # ← change this
+row = conn.execute(
+    "SELECT json_data, rhythm FROM sbn_leadsheets WHERE slug=?", (slug,)
+).fetchone()
+data = json.loads(row[0]) if row[0] else {}
+print("rhythm slug:", row[1])
+gi = 0
+for sec in data.get("sections", []):
+    for m in sec.get("measures", []):
+        names = m.get("chordNames") or [c.get("name","") for c in m.get("chords",[])]
+        print(f"  bar {gi}: {names}")
+        gi += 1
+conn.close()
+```
+
+Run from the project root: `python temp_bars.py`
+
+**Step 3 — add the config key.** Pick the bar range you want and add to the config entry:
+```php
+'syncedPlayer' => ['slug' => 'the-girl-from-ipanema', 'start' => 5, 'end' => 12],
+```
+
+That's the complete change. No controller edit, no Vue edit — just one config line.
+
+**Notes:**
+- `start` and `end` are **0-based global bar indices** counting across all sections flattened. Multi-section leadsheets: bar 0 = first measure of section 1, bar N = first measure of section 2, etc.
+- `end` is **inclusive** (bar 12 IS included in the result).
+- Omit `start`/`end` entirely to use the whole leadsheet.
+- Multi-chord bars (e.g. two chords in one measure) are split into one entry each — so a 2-chord bar at gi=3 becomes bars 3a and 3b in the flat list. Account for this when choosing `end`.
+- Set `'type' => 'exercise'` to point at an exercise instead of a leadsheet.
+- The rhythm comes from the leadsheet's own `rhythm` column (e.g. `gilberto-rhythm`). If that slug isn't in the DB the player falls back to the page-level `rhythmPattern`.
+
+---
+
+### 14. Adding a New Top10 Page
 
 1. Create `config/top10/{name}.php` with 10 items
 2. Add a method to `Top10Controller` calling `$this->getTop10Data('{name}')`
 3. Add route in `routes/web.php`
-4. Create `Pages/Top10/{PageName}.vue` (copy structure from `BossaNovaChords.vue`)
-5. Add the footer cross-link to the other two pages
+4. Create `Pages/Top10/{PageName}.vue` — copy `BossaNovaSongs.vue` as the template (it has the full `syncedPlayer` fetch pattern)
+5. Add the footer cross-link to the other pages
 
 No migrations, no DB changes — purely config + frontend.
 
 ---
 
-### 14. CSS
+### 15. CSS
 
 Top10-specific styles are **scoped** inside each Vue page component (nav layout, thumbnail sizing, panel grid, detail typography).
 
 Shared design-system classes used:
-- `.sbn-panel` — gray background box for grouped content
+- `.sbn-panel` / `.sbn-panel-ghost` — gray background box for grouped content
 - `.sbn-card-link` — clickable card with hover effect (related products)
 - `.sbn-badge`, `.sbn-badge-muted` — category / type badges
+- `.sbn-synced-loading` — flex center container for the spinner shown while bars are fetching (scoped, defined in each page component)
 - `var(--clr-gradient)`, `var(--clr-accent)`, `var(--clr-surface-2)` — colors
+
+---
+
+### 16. Windows / SQLite DB query gotchas
+
+`php artisan tinker` on Windows has persistent issues with multi-line heredoc strings and variable interpolation — commands often fail with parse errors. **Always use Python against the SQLite file directly** for inspection tasks.
+
+**The reliable pattern:**
+1. Write a short `.py` script in the project root
+2. Run it with `python script_name.py`
+3. Delete the script when done
+
+**Variable interpolation in PowerShell heredocs** — use `@' ... '@` (single-quoted) not `@" ... "@`:
+```powershell
+$script = @'
+import sqlite3
+conn = sqlite3.connect("database/sbn.db")
+# ... your code
+'@
+python -c $script
+```
+But even this breaks if the Python code contains `$` signs. **Writing to a file first is more reliable.**
+
+**Common queries:**
+
+```python
+# List all leadsheets with their rhythm slug
+import sqlite3
+conn = sqlite3.connect("database/sbn.db")
+for row in conn.execute("SELECT slug, title, rhythm FROM sbn_leadsheets ORDER BY title"):
+    print(row)
+conn.close()
+```
+
+```python
+# Find a leadsheet by title fragment
+import sqlite3
+conn = sqlite3.connect("database/sbn.db")
+for row in conn.execute("SELECT id, slug, title, rhythm FROM sbn_leadsheets WHERE title LIKE '%ipanema%'"):
+    print(row)
+conn.close()
+```
+
+```python
+# Inspect bars of a leadsheet (bar indices for syncedPlayer config)
+import sqlite3, json
+conn = sqlite3.connect("database/sbn.db")
+slug = "the-girl-from-ipanema"
+row = conn.execute("SELECT json_data, rhythm FROM sbn_leadsheets WHERE slug=?", (slug,)).fetchone()
+data = json.loads(row[0]) if row[0] else {}
+print("rhythm:", row[1])
+gi = 0
+for sec in data.get("sections", []):
+    for m in sec.get("measures", []):
+        names = m.get("chordNames") or [c.get("name","") for c in m.get("chords",[])]
+        print(f"  bar {gi}: {names}")
+        gi += 1
+conn.close()
+```
+
+```python
+# Inspect bars of an exercise
+import sqlite3, json
+conn = sqlite3.connect("database/sbn.db")
+slug = "bossa-comping-ex1"
+row = conn.execute("SELECT content_json, rhythm FROM sbn_exercises WHERE slug=?", (slug,)).fetchone()
+data = json.loads(row[0]) if row[0] else {}
+print("rhythm:", row[1])
+gi = 0
+for sec in data.get("sections", []):
+    for m in sec.get("measures", []):
+        names = m.get("chordNames") or [c.get("name","") for c in m.get("chords",[])]
+        print(f"  bar {gi}: {names}")
+        gi += 1
+conn.close()
+```

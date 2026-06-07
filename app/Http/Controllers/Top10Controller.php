@@ -182,6 +182,7 @@ class Top10Controller extends Controller
                 'progressionMeta' => $progressionMeta,
                 'rhythmData' => $rhythms[$config['rhythmSlug'] ?? ''] ?? null,
                 'relatedProducts' => $config['relatedProducts'] ?? [],
+                'syncedPlayer' => $config['syncedPlayer'] ?? null,
             ]);
         })->values();
     }

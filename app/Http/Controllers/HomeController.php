@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ChordDiagram;
 use App\Models\Leadsheet;
 use App\Models\RhythmPattern;
 use App\Services\ChordVoicingSearch;
@@ -40,6 +41,7 @@ class HomeController extends Controller
             'rhythmPattern' => $rhythmPattern,
             'progression'   => $progression,
             'barsPerChord'  => 2,
+            'rainChords'    => $this->buildRainChords(),
         ]);
     }
 
@@ -96,5 +98,75 @@ class HomeController extends Controller
         }
 
         return $result ?: null;
+    }
+
+    /**
+     * Build a curated set of chord shapes for the ChordRain section.
+     * Returns up to 25 diverse voicings with real fret/interval data.
+     */
+    private function buildRainChords(): array
+    {
+        $chords = ChordDiagram::whereNotNull('diagram_data')
+            ->whereNotNull('interval_labels')
+            ->where('interval_labels', '!=', '')
+            ->whereNotNull('name')
+            ->orderByDesc('popularity')
+            ->limit(60)
+            ->get(['id', 'name', 'start_fret', 'diagram_data', 'interval_labels', 'voicing_category']);
+
+        $result = [];
+        foreach ($chords as $chord) {
+            $data = json_decode($chord->diagram_data ?? '{}', true);
+            if (empty($data)) {
+                continue;
+            }
+
+            $frets = $this->diagramDataToFretString($data);
+            if ($frets === 'xxxxxx') {
+                continue;
+            }
+
+            $result[] = [
+                'name'           => $chord->name,
+                'frets'          => $frets,
+                'position'       => $chord->start_fret ?? 1,
+                'intervalLabels' => $chord->interval_labels,
+            ];
+
+            if (count($result) >= 25) {
+                break;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Convert diagram_data positions/open/muted to a 6-char fret string
+     * compatible with sbnRenderDiagramSVG (e.g. "x32010").
+     */
+    private function diagramDataToFretString(array $data): string
+    {
+        $frets = ['x', 'x', 'x', 'x', 'x', 'x'];
+
+        foreach ($data['open'] ?? [] as $s) {
+            if ($s >= 1 && $s <= 6) {
+                $frets[$s - 1] = '0';
+            }
+        }
+        foreach ($data['positions'] ?? [] as $pos) {
+            $s = $pos['string'] ?? 0;
+            $f = $pos['fret']   ?? 0;
+            if ($s >= 1 && $s <= 6) {
+                $frets[$s - 1] = dechex($f);
+            }
+        }
+        foreach ($data['muted'] ?? [] as $s) {
+            if ($s >= 1 && $s <= 6) {
+                $frets[$s - 1] = 'x';
+            }
+        }
+
+        return implode('', $frets);
     }
 }

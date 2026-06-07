@@ -22,10 +22,30 @@ import { rhythmPatternToEvents } from '../../audio/adapters/rhythmPatternToEvent
 import { chordDiagramToEvents } from '../../audio/adapters/chordDiagramToEvents.js';
 import { NylonSampler } from '../../audio/engine/voices/NylonSampler.js';
 
+/** One bar entry from the leadsheet/exercise API. */
+export interface LeadsheetBar {
+    chordName: string;
+    chordCard: ChordDiagramData | null;
+    /** How many clock bars this chord lasts (default 1). Kept for back-compat. */
+    durationBars: number;
+    /**
+     * How many rhythm-grid steps this chord occupies within its measure.
+     * Full-bar chord = rhythmBeats (e.g. 16). Half-bar chord (beat 1 or 3
+     * of a 2-chord measure) = rhythmBeats / 2 (e.g. 8).
+     * Defaults to rhythmBeats when absent (old data / progression mode).
+     */
+    stepsPerChord?: number;
+}
+
 const props = defineProps<{
+    /** Flat ordered bar list from the leadsheet/exercise API. Takes priority over `progression`. */
+    bars?: LeadsheetBar[];
+    /** Simple chord array for the homepage / Top10 use-cases (no per-bar duration). */
     progression?: ChordDiagramData[];
     rhythmPattern?: RhythmPatternData;
     barsPerChord?: number;
+    /** Loop when reaching the last bar (default true). */
+    loop?: boolean;
     /** Auto-play on mount (default true). Set false for manual control. */
     autoplay?: boolean;
 }>();
@@ -97,12 +117,25 @@ const RHYTHM_FALLBACK: RhythmPatternData = {
 };
 
 // ── Resolved data ─────────────────────────────────────────────────────────────
-const CHORDS = computed(() =>
-    (props.progression && props.progression.length > 0) ? props.progression : CHORDS_FALLBACK
+
+// When `bars` is supplied we use it as the authoritative sequence.
+// Otherwise fall back to `progression` (homepage / Top10 mode).
+const BARS = computed<LeadsheetBar[] | null>(() =>
+    props.bars && props.bars.length > 0 ? props.bars : null
 );
+const CHORDS = computed<ChordDiagramData[]>(() => {
+    if (BARS.value) {
+        // Keep parallel to BARS so head/currentBarIdx index the same slot.
+        // Null cards (unresolved chords) fall back to the first fallback shape
+        // so the board never breaks; the chord name label still shows correctly.
+        return BARS.value.map(b => b.chordCard ?? CHORDS_FALLBACK[0]);
+    }
+    return (props.progression && props.progression.length > 0) ? props.progression : CHORDS_FALLBACK;
+});
 const RHYTHM = computed(() => props.rhythmPattern ?? RHYTHM_FALLBACK);
 const BPM = computed(() => Math.round(RHYTHM.value.bpm / 2));
 const BARS_PER_CHORD = computed(() => Math.max(1, props.barsPerChord ?? 1));
+const LOOP = computed(() => props.loop !== false);
 
 // ── Slide constants ───────────────────────────────────────────────────────────
 const SLIDE_MS = 420;
@@ -133,6 +166,10 @@ function registerEngineListeners(): void {
         engine.on('tick', (beat: number, time: number) => {
             if (!isPlaying.value) return;
             const step = beatToStep(beat);
+            // The clock always ticks sixteenths; for eighth/triplet grids multiple
+            // ticks can land on the same step. Guard so each step fires only once.
+            if (step === lastFiredStep) return;
+            lastFiredStep = step;
             currentStep.value = step;
             emit('step', step);
             const isHit = (c: string | undefined) => c != null && c.toLowerCase() === 'x';
@@ -141,14 +178,15 @@ function registerEngineListeners(): void {
             if (thumbHit)   { strikeCenter('bass');    synthBass(time); }
             if (fingersHit) { strikeCenter('fingers'); synthFingers(time); }
             if (!thumbHit && !fingersHit) ghostPerc(time);
-            if (step === RHYTHM.value.beats - 4) strikeNext();
-            if (step === RHYTHM.value.beats - 1) tickBar();
+            // Pre-cue "up next" pulse: 4 steps (1 beat) before the advance.
+            if (stepsPlayed === currentStepsPerChord() - 4) strikeNext();
+            tickStep();
         }),
         engine.on('playStarted', () => {
             if (isPlaying.value) {
                 isPlaying.value = false;
                 currentStep.value = -1;
-                barPosition.value = 0;
+                stepsPlayed = 0;
             }
         }),
     );
@@ -170,8 +208,10 @@ async function audioPlay(): Promise<void> {
     engine.load(events, { loop: true, loopBeats });
     engine.setTempo(BPM.value * 2);
 
-    barPosition.value = 0;
+    stepsPlayed = 0;
+    currentBarIdx.value = 0;
     currentStep.value = -1;
+    lastFiredStep = -1;
     await engine.play();
     isPlaying.value = true;
     buildCenterMidi();
@@ -182,7 +222,9 @@ function audioStop(): void {
     setTimeout(() => nylon.releaseAll(), 80);
     isPlaying.value = false;
     currentStep.value = -1;
-    barPosition.value = 0;
+    stepsPlayed = 0;
+    lastFiredStep = -1;
+    currentBarIdx.value = 0;
 }
 
 function togglePlay(): void {
@@ -291,28 +333,64 @@ const trackTransition = ref(false);
 const recycling = ref(false);
 const head = ref(0);
 let sliding = false;
-const barPosition = ref(0);
 const currentStep = ref(-1);
+let lastFiredStep = -1;
 const totalBars = ref(0);
+// In `bars` mode: index into BARS.value (not CHORDS)
+const currentBarIdx = ref(0);
+// Steps played on the current chord (resets on each advance).
+let stepsPlayed = 0;
 
-function tickBar(): void {
-    totalBars.value++;
-    emit('bar', totalBars.value);
-    barPosition.value++;
-    if (barPosition.value >= BARS_PER_CHORD.value) {
-        barPosition.value = 0;
-        advance();
-        // Rebuild after advance() so centerMidi reflects the new center chord
+/** Steps the current chord lasts. Full-bar = rhythmBeats; half-bar = rhythmBeats/2, etc. */
+function currentStepsPerChord(): number {
+    if (BARS.value) {
+        const bar = BARS.value[currentBarIdx.value];
+        // stepsPerChord supplied by API; fall back to full bar
+        return bar?.stepsPerChord ?? RHYTHM.value.beats;
+    }
+    // Progression mode: each chord lasts BARS_PER_CHORD full bars
+    return BARS_PER_CHORD.value * RHYTHM.value.beats;
+}
+
+function tickStep(): void {
+    stepsPlayed++;
+    if (stepsPlayed >= currentStepsPerChord()) {
+        stepsPlayed = 0;
+        totalBars.value++;
+        emit('bar', totalBars.value);
+        advanceBar();
         requestAnimationFrame(() => buildCenterMidi());
+    }
+}
+
+function advanceBar(): void {
+    if (BARS.value) {
+        const next = currentBarIdx.value + 1;
+        if (next >= BARS.value.length) {
+            if (!LOOP.value) return;
+            currentBarIdx.value = 0;
+            head.value = 0;
+        } else {
+            currentBarIdx.value = next;
+            head.value = next;
+        }
+        advance(head.value);
+    } else {
+        advance();
     }
 }
 
 const trackEl = ref<HTMLElement | null>(null);
 const boardEls = ref<HTMLElement[]>([]);
 
-function advance() {
+// targetHead: explicit index for bars-mode; undefined = increment by 1 (progression mode)
+function advance(targetHead?: number) {
     if (sliding) return;
-    head.value = (head.value + 1) % CHORDS.value.length;
+    if (targetHead !== undefined) {
+        head.value = targetHead;
+    } else {
+        head.value = (head.value + 1) % CHORDS.value.length;
+    }
 
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduce) {
@@ -364,7 +442,10 @@ function onTransitionEnd(e: TransitionEvent) {
     requestAnimationFrame(() => requestAnimationFrame(() => {
         recycling.value = false;
         const upcoming = boards.value[4];
-        upcoming.chord = CHORDS.value[(head.value + 2 + CHORDS.value.length * 2) % CHORDS.value.length];
+        const lookaheadIdx = BARS.value
+            ? Math.min(currentBarIdx.value + 2, BARS.value.length - 1)
+            : (head.value + 2 + CHORDS.value.length * 2) % CHORDS.value.length;
+        upcoming.chord = CHORDS.value[lookaheadIdx % CHORDS.value.length] ?? CHORDS.value[0];
         upcoming.role  = 'next';
         upcoming.label = 'up next';
     }));
@@ -520,7 +601,7 @@ defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying }
 /* ── Diagram slot ── */
 .board-diagram {
     height: 160px;
-    overflow: hidden;
+    overflow: visible;
     display: flex;
     align-items: center;
     justify-content: center;

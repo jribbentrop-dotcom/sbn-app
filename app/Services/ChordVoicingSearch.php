@@ -373,6 +373,18 @@ class ChordVoicingSearch
                     $chordName .= '/' . $bassNote;
                 }
 
+                // Recompute interval labels relative to the alias root+quality,
+                // not the parent shape's root. calculateFrets() uses the parent
+                // quality/root and would produce wrong colours (e.g. Bbm6 labels
+                // on an Eb7(9)/Bb alias voicing).
+                $aliasIntervalLabels = $this->calculator->computeIntervalLabelsPublic(
+                    $calculated['diagram_data']['positions'] ?? [],
+                    $calculated['diagram_data']['open'] ?? [],
+                    $calculated['diagram_data']['muted'] ?? [],
+                    $root,
+                    $quality
+                );
+
                 $results[] = [
                     'id'               => $shape->id,
                     'slug'             => $shape->slug ?? '',
@@ -386,7 +398,7 @@ class ChordVoicingSearch
                     'inversion'        => $shape->inversion ?? 'root',
                     'start_fret'       => $calculated['start_fret'],
                     'diagram_data'     => $calculated['diagram_data'],
-                    'interval_labels'  => $calculated['interval_labels'] ?? ($shape->interval_labels ?? ''),
+                    'interval_labels'  => $aliasIntervalLabels ?: ($calculated['interval_labels'] ?? ''),
                     'notes'            => $calculated['notes'] ?? '',
                     'bass_note'        => $bassNote,
                     'popularity'       => $shape->popularity ?? 0,

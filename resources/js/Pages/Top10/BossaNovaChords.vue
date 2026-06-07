@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
 import SyncedPlayer from '@/Components/SyncedPlayer/SyncedPlayer.vue';
+import type { LeadsheetBar } from '@/Components/SyncedPlayer/SyncedPlayer.vue';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
 import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
 import type { VideoSnippet } from '@/Components/Library/ChordProgressionViewer.vue';
@@ -51,6 +52,13 @@ interface RelatedProduct {
     type: string;
 }
 
+interface SyncedPlayerConfig {
+    slug: string;
+    type?: string;
+    start?: number;
+    end?: number;
+}
+
 interface Top10DataItem {
     id: number;
     title: string;
@@ -74,6 +82,7 @@ interface Top10DataItem {
         videoSnippets?: VideoSnippet[];
     } | null;
     relatedProducts: RelatedProduct[];
+    syncedPlayer?: SyncedPlayerConfig | null;
 }
 
 const props = defineProps<{
@@ -84,6 +93,36 @@ const props = defineProps<{
 const chords = ref<Top10ChordWithDetail[]>([]);
 const selectedChord = ref<Top10ChordWithDetail | null>(null);
 const isLoading = ref(false);
+
+// ── Synced player bars fetch ──────────────────────────────────────────────────
+const syncedBars = ref<LeadsheetBar[] | null>(null);
+const syncedRhythm = ref<RhythmPatternData | null>(null);
+const syncedFetching = ref(false);
+let lastFetchedKey = '';
+
+async function fetchSyncedBars(cfg: SyncedPlayerConfig) {
+    const key = `${cfg.slug}:${cfg.start ?? ''}:${cfg.end ?? ''}`;
+    if (key === lastFetchedKey) return;
+    lastFetchedKey = key;
+    syncedBars.value = null;
+    syncedFetching.value = true;
+    try {
+        const params = new URLSearchParams({ type: cfg.type ?? 'leadsheet' });
+        if (cfg.start != null) params.set('start', String(cfg.start));
+        if (cfg.end   != null) params.set('end',   String(cfg.end));
+        const res = await fetch(`/api/sbn/synced-player/${cfg.slug}?${params}`, {
+            headers: { Accept: 'application/json' },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        syncedBars.value   = data.bars ?? [];
+        syncedRhythm.value = data.rhythmPattern ?? null;
+    } catch (e) {
+        console.warn('[BossaNovaChords] synced-player fetch failed', e);
+    } finally {
+        syncedFetching.value = false;
+    }
+}
 
 onMounted(() => {
     loadChords();
@@ -107,9 +146,19 @@ function loadChords() {
         progressionSeedKey: item.progressionSeedKey,
         progressionMeta: item.progressionMeta,
         relatedProducts: item.relatedProducts,
+        syncedPlayer: item.syncedPlayer,
     }));
     selectedChord.value = chords.value[0] || null;
+    if (selectedChord.value?.syncedPlayer) {
+        fetchSyncedBars(selectedChord.value.syncedPlayer);
+    }
 }
+
+watch(() => selectedChord.value, (item) => {
+    syncedBars.value = null;
+    lastFetchedKey = '';
+    if (item?.syncedPlayer) fetchSyncedBars(item.syncedPlayer);
+});
 
 function selectChord(chord: Top10ChordWithDetail) {
     selectedChord.value = chord;
@@ -214,12 +263,27 @@ function goToChordLibrary(chord: ChordDiagramData) {
                             <h3 class="sbn-panel-title">{{ selectedChord.progressionName }}</h3>
                             <div class="sbn-panel-content">
                                 <div class="sbn-synced-hero-card">
+                                    <!-- Live leadsheet bars mode -->
                                     <SyncedPlayer
+                                        v-if="selectedChord.syncedPlayer && syncedBars && syncedBars.length > 0"
+                                        :bars="syncedBars"
+                                        :rhythm-pattern="(syncedRhythm ?? props.rhythmPattern) ?? undefined"
+                                        :autoplay="false"
+                                        :loop="true"
+                                        :key="selectedChord.slug + '-synced'"
+                                    />
+                                    <!-- Loading placeholder -->
+                                    <div v-else-if="selectedChord.syncedPlayer && syncedFetching" class="sbn-synced-loading">
+                                        <div class="sbn-spinner"></div>
+                                    </div>
+                                    <!-- Static progression fallback -->
+                                    <SyncedPlayer
+                                        v-else
                                         :progression="selectedChord.progressionTiles.map(t => t.diagramData).filter(Boolean) as ChordDiagramData[]"
                                         :rhythm-pattern="props.rhythmPattern ?? undefined"
                                         :bars-per-chord="1"
                                         :autoplay="false"
-:key="selectedChord.slug"
+                                        :key="selectedChord.slug"
                                     />
                                 </div>
                                 <p class="sbn-panel-caption">{{ selectedChord.progressionCaption }}</p>
@@ -308,6 +372,13 @@ function goToChordLibrary(chord: ChordDiagramData) {
 .sbn-synced-hero-card {
     width: 100%;
     max-width: 480px;
+}
+
+.sbn-synced-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
 }
 
 .sbn-panel-caption {

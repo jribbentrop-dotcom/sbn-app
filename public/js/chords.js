@@ -117,11 +117,11 @@ function _fretScore(parse, position) {
  * @param {boolean} [opts.showFingers] — show finger numbers (default: true)
  * @returns {string} SVG markup
  */
-// Guide tone colour palette (amber = 7ths, blue = 3rds, gray = root, purple = 9ths, mid-gray = 5ths)
+// Guide tone colour palette (amber = 7ths, blue = 3rds, green = root, purple = 9ths, mid-gray = 5ths)
 var GT_COLORS = {
     seventh: { fill: '#d97706', text: '#fff' },   // b7 7 maj7
     third:   { fill: '#2563eb', text: '#fff' },   // 3 b3
-    root:    { fill: '#e8e8e0', text: '#333' },   // R
+    root:    { fill: '#16a34a', text: '#fff' },   // R
     ninth:   { fill: '#7c3aed', text: '#fff' },   // 9 b9 #9
     fifth:   { fill: '#6b7280', text: '#fff' },   // 5 b5
 };
@@ -133,7 +133,9 @@ function sbnGtColorForInterval(label) {
     if (l === '5' || l === 'b5' || l === '#5') return GT_COLORS.fifth;
     if (l === 'b7' || l === '7' || l === 'maj7' || l === 'bb7') return GT_COLORS.seventh;
     if (l === '3' || l === 'b3') return GT_COLORS.third;
-    if (l === '9' || l === 'b9' || l === '#9' || l === '11' || l === '#11' || l === '13' || l === 'b13') return GT_COLORS.ninth;
+    if (l === '9' || l === 'b9' || l === '#9' || l === '2'
+     || l === '11' || l === '#11' || l === '4'
+     || l === '13' || l === 'b13' || l === '6') return GT_COLORS.ninth;
     return null;
 }
 
@@ -169,9 +171,9 @@ function sbnRenderDiagramSVG(voicing, opts) {
     if (maxFret > 0 && maxFret <= 4 && hasOpen) position = 1;
 
     // Fixed coordinate system — CSS scales via width="100%"
-    var W = 88, H = 95;
+    var W = 88, H = 98;
     var strSp = 12, fretSp = 16;
-    var left = 14, top = 12, numFrets = 4;
+    var left = 14, top = 16, numFrets = 4;
 
     var svg = '<svg class="sbn-chord-svg" viewBox="0 0 ' + W + ' ' + H + '"'
             + ' width="100%">';
@@ -209,25 +211,19 @@ function sbnRenderDiagramSVG(voicing, opts) {
         var gtColor = showGuideTones ? sbnGtColorForInterval(ivLabel) : null;
 
         if (fretVal === 0) {
-            // Open string: draw a small colored circle (or plain ring)
-            if (gtColor) {
-                svg += '<circle cx="' + x + '" cy="' + (top - 8)
-                     + '" r="4" fill="' + gtColor.fill + '"/>';
-                svg += '<text x="' + x + '" y="' + (top - 8)
-                     + '" font-size="5" font-weight="800"'
-                     + ' text-anchor="middle" dominant-baseline="central"'
-                     + ' fill="' + gtColor.text + '">' + ivLabel + '</text>';
-            } else {
-                svg += '<circle cx="' + x + '" cy="' + (top - 8)
-                     + '" r="3" fill="none"'
-                     + ' stroke="var(--clr-text)" stroke-width="0.75"/>';
-            }
+            // Open strings: always white fill + coloured border (interval colour or default dark).
+            // White interior distinguishes them from fretted filled dots.
+            var openY = top - 6;
+            var openStroke = gtColor ? gtColor.fill : 'var(--clr-text-dim, #555)';
+            svg += '<circle class="sbn-svg-dot" data-string="' + (i + 1) + '"'
+                 + ' cx="' + x + '" cy="' + openY
+                 + '" r="4" fill="#fff" stroke="' + openStroke + '" stroke-width="1.5"/>';
         } else {
             var rf = fretVal - position + 1;
             if (rf > 0 && rf <= numFrets) {
                 var y = top + rf * fretSp - fretSp / 2;
                 var fill = gtColor ? gtColor.fill : dotColor;
-                var labelText = gtColor ? ivLabel : (showFingers && finger && finger !== '0' ? finger : '');
+                var labelText = showFingers && finger && finger !== '0' ? finger : '';
                 var labelColor = gtColor ? gtColor.text : '#fff';
                 svg += '<circle class="sbn-svg-dot" data-string="' + (i + 1) + '"'
                      + ' cx="' + x + '" cy="' + y

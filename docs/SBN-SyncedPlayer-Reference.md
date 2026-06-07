@@ -46,6 +46,15 @@ display, so the two are always causally linked.
 - `prefers-reduced-motion` respected (no auto-play, no animation)
 - Props: `progression?: ChordDiagramData[]`, `rhythmPattern?: RhythmPatternData`, `barsPerChord?: number` — hardcoded Dm7/G7/Cmaj7 fallback if null
 
+### Multi-chord bars (2026-06-07)
+
+Bars with 2 chords (chord on beat 1 **and** beat 3) are now handled correctly.
+
+- **Controller** (`SyncedPlayerController`): each bar entry now carries `stepsPerChord` = `rhythmBeats / chordsInMeasure`. A 1-chord bar → 16; a 2-chord bar → 8 each.
+- **Frontend** (`SyncedPlayer.vue`): replaced the `barPosition / durationBars` whole-bar counter with a `stepsPlayed` counter (plain `let`, not reactive). Each engine tick increments it; when `stepsPlayed >= currentStepsPerChord()` the chord advances. This works for any subdivision: full bar, half bar, or quarter bar.
+- The pre-cue `strikeNext()` fires when `stepsPlayed === stepsPerChord - 4` (1 beat before the advance), so it stays musically correct regardless of chord duration.
+- `durationBars` is kept in the API response for back-compat but is no longer used by the player.
+
 ### What is still missing
 - No tempo control (BPM slider deferred to S.4)
 - Single global rhythm pattern — per-bar swap is Phase S.4b
@@ -112,53 +121,69 @@ The slide/recycle had three more defects, all fixed:
 
 ---
 
-## 2b. ⭐ NEXT SESSION — START HERE (2026-06-06)
+## 2b. ⭐ NEXT SESSION — START HERE (2026-06-07)
 
-### Done this session (2026-06-06)
+### Done this session (2026-06-07)
 
-**Phase S.3 — Standalone SyncedPlayer extraction ✅**
-- `resources/js/Components/SyncedPlayer/SyncedPlayer.vue` created — all logic moved here.
-  Props: `progression?`, `rhythmPattern?`, `barsPerChord?`, `autoplay?` (default true).
-  Emits: `bar(barIndex)`, `step(stepIndex)`.
-  Exposes: `play()`, `stop()`, `toggle()`, `isPlaying`.
-- `SyncedHero.vue` is now a 30-line wrapper: card frame + demo tag + `<SyncedPlayer>`.
-- `BossaNovaChords.vue`: progression panel replaced with `<SyncedPlayer>` wrapped in
-  `.sbn-synced-hero-card` frame — `autoplay=false`, `:key="selectedChord.slug"` forces
-  remount on chord change. `Top10Controller` now fetches a shared bossa-nova `rhythmPattern`.
-- `getCategoryColor` import removed from BossaNovaChords.
-- **Mobile overflow fix**: `@media (max-width: 519px)` scales the entire `.synced-player`
-  wrapper down via `transform: scale(100vw / 520)` with `margin-bottom` collapsing phantom
-  space. Desktop unchanged — no JS involved.
+**Phase S.4 — Leadsheet / Exercise integration ✅**
 
-**Task 1 — `barsPerChord` ✅**
-- `HomeController` now passes `barsPerChord: 2` alongside `progression` + `rhythmPattern`.
-- `SyncedHero` accepts `barsPerChord?: number` prop. A `barPosition` ref counts bars;
-  `tickBar()` is called at the last step of each bar and calls `advance()` only when
-  `barPosition >= barsPerChord`. Desafinado chords now last their correct 2 bars.
-- `Home.vue` forwards the new prop: `:bars-per-chord="props.barsPerChord"`.
+#### Backend
+- `app/Http/Controllers/Library/SyncedPlayerController.php` — new controller.
+  `GET /api/sbn/synced-player/{slug}?type=leadsheet|exercise&start=0&end=7`
+  Returns `{ title, totalBars, bars[], rhythmPattern, bpm }`.
+  - Flattens `sections → measures` into a flat `bars[]` list; multi-chord measures are
+    split into one entry per chord (each `durationBars: 1`).
+  - Resolves each chord name → `ChordDiagramData` via `ChordVoicingSearch` + per-slot
+    voicing key (`"ChordName@gi.ci"`), same logic as `LeadsheetViewerService`.
+  - Fetches `RhythmPattern` by the source's `rhythm` slug and serialises it to
+    `RhythmPatternData` shape (same fields as `serializePattern` in `RhythmLibraryController`).
+  - `start`/`end` query params slice the flat bar list (0-based, inclusive `end`).
+  - Route registered in `routes/web.php` under `api/sbn` group.
 
-**Task 2 — Play/stop + AudioEngine integration ✅**
-- `useClock` (setInterval) is no longer used. The `AudioEngine` singleton is now the
-  sole clock source.
-- `audioPlay()`: inits the engine, converts `RHYTHM` to events via
-  `rhythmPatternToEvents`, loads them looped, calls `engine.play()`.
-- `audioStop()`: calls `engine.stop()`, resets `isPlaying`/`currentStep`/`barPosition`.
-- `engine.on('tick', beat => ...)`: converts beat position → step index via `beatToStep()`,
-  fires `strikeCenter`/`strikeNext`/`tickBar` at the correct steps — identical logic to
-  the old `onStep` handler but now locked to the audio clock.
-- `engine.on('playStarted', ...)`: handles the engine being taken over by another consumer
-  (RhythmStrip etc.) — resets hero state gracefully.
-- **Play/stop button**: round accent circle in the rhythm strip header row. Auto-plays on
-  mount (unless `prefers-reduced-motion`). SVG play/pause icons swap reactively on `isPlaying`.
-- Strip cell `active` state is gated on `isPlaying` (no phantom highlight when stopped).
+#### Frontend — `SyncedPlayer.vue`
+- New prop `bars?: LeadsheetBar[]` — takes priority over `progression`.
+  `LeadsheetBar` type exported from the component: `{ chordName, chordCard, durationBars }`.
+- New prop `loop?: boolean` (default `true`) — when false, player stops at the last bar.
+- `BARS` computed: when supplied, `CHORDS` is derived from `bars[].chordCard`.
+- `currentBarIdx` ref tracks position in `BARS` independently of `head`.
+- `advanceBar()` replaces the inline `advance()` call in `tickBar()`:
+  - In `bars` mode: increments `currentBarIdx`, wraps/stops per `loop` prop, calls
+    `advance(targetHead)` with the absolute index.
+  - In `progression` mode: delegates to `advance()` as before (no change).
+- `currentDurationBars()` returns `BARS.value[currentBarIdx].durationBars` in bars-mode,
+  or `BARS_PER_CHORD.value` in progression-mode.
+- `advance(targetHead?)` — accepts explicit head index for bars-mode; falls back to
+  `(head + 1) % CHORDS.length` for progression mode.
+- `currentBarIdx` reset to 0 in `audioPlay()` and `audioStop()`.
+- Off-right lookahead in `onTransitionEnd` uses `currentBarIdx + 2` in bars-mode.
+
+#### `mountSbnNodes.ts`
+- `<sbn-synced-player>` tag registered.
+  Attrs: `slug` (required), `type` (leadsheet|exercise, default leadsheet),
+  `start`, `end`, `autoplay` (false disables auto-play).
+  Fetches `/api/sbn/synced-player/{slug}?type=…&start=…&end=…`, then mounts
+  `SyncedPlayer` with `bars`, `rhythmPattern`, `autoplay`, `loop=true`.
+
+### Usage in course lesson markdown
+
+```html
+<!-- Whole leadsheet -->
+<sbn-synced-player slug="desafinado" type="leadsheet"></sbn-synced-player>
+
+<!-- Bars 0–7 only (first 8 bars) -->
+<sbn-synced-player slug="desafinado" start="0" end="7"></sbn-synced-player>
+
+<!-- Exercise, no auto-play -->
+<sbn-synced-player slug="bossa-comping-ex1" type="exercise" autoplay="false"></sbn-synced-player>
+```
 
 ### Open / next up
 
-- **S.4** — leadsheet integration; register `<sbn-synced-player>` in `mountSbnNodes.ts` for course tags
 - **Featured song config** — move hardcoded id 113 in `HomeController` to config or `featured_on_homepage` flag
 - **Tempo control** — BPM slider (range 60–180); call `engine.setTempo()` reactively
 - **Other Top10 pages** — LatinJazzStandards + BossaNovaSongs can adopt SyncedPlayer the same way
-- **RhythmPattern mini variant** — add `currentStep` prop to `RhythmPattern.vue` to replace bespoke strip
+- **Leadsheet viewer embed** — drop a `<SyncedPlayer :bars="leadsheetBars" …>` directly inside the viewer as an alternative to the chord grid; bars already available from the same API
+- **Per-bar rhythm swap** (S.4b) — when `rhythmSlug` differs per bar, stop/reload audio loop on bar change
 
 ---
 
@@ -167,6 +192,7 @@ The slide/recycle had three more defects, all fixed:
 ### Phase S.1 — Real data, same homepage widget ✅ DONE 2026-06-05
 ### Phase S.2 — Playback + controls ✅ DONE 2026-06-06
 ### Phase S.3 — Standalone SyncedPlayer component ✅ DONE 2026-06-06
+### Phase S.4 — Leadsheet / Exercise integration ✅ DONE 2026-06-07
 *Goal: wire the hero to real DB shapes. No new UI surface.*
 
 - ✅ `ChordDiagramData[]` shape — `<ChordDiagram :show-guide-tones>` renders via `sbnRenderDiagramSVG()`
@@ -194,7 +220,7 @@ The slide/recycle had three more defects, all fixed:
 - First Top10 consumer: `BossaNovaChords.vue` progression panel
 - Course lesson `<sbn-synced-player>` tag in `mountSbnNodes.ts` — deferred to S.4
 
-### Phase S.4 — Leadsheet integration
+### Phase S.4 — Leadsheet integration ✅ DONE 2026-06-07
 *Goal: the component reads a leadsheet and advances through its actual chord
 sequence, one bar per cycle.*
 
