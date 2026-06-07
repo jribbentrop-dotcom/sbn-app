@@ -323,7 +323,6 @@ class ExerciseController extends Controller
                 'content_json' => 'Invalid JSON content.',
             ]);
         }
-
         $validated['content_json'] = $decoded;
 
         return $validated;

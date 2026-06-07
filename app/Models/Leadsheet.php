@@ -147,37 +147,47 @@ class Leadsheet extends Model
     }
 
     /**
-     * Map the leadsheet's rhythm slug to a design-system style slug
-     * (one of: bossa, samba, jazz, latin, blues, pop, classical).
-     * Used for category badges/colors wherever a song is linked.
+     * Normalize a saved style/rhythm value to a canonical design-system slug.
+     * Genre takes priority; rhythm is used as a fallback for older rows.
      */
-    public function getStyleSlugAttribute(): string
+    public static function resolveStyleSlug(?string $genre, ?string $rhythm): string
     {
-        $rhythm = $this->rhythm;
-        if (!$rhythm) {
-            return 'bossa';
-        }
-
         $map = [
             'bossa-nova' => 'bossa-nova',
+            'bossa nova' => 'bossa-nova',
             'bossa'      => 'bossa-nova',
             'jazz'       => 'jazz',
             'classical'  => 'classical',
             'pop'        => 'pop',
         ];
 
-        if (isset($map[$rhythm])) {
-            return $map[$rhythm];
-        }
+        foreach ([$genre, $rhythm] as $value) {
+            if (!$value) {
+                continue;
+            }
 
-        // Prefix match (e.g. "bossa-nova-variation" → "bossa-nova")
-        foreach ($map as $prefix => $style) {
-            if (str_starts_with($rhythm, $prefix)) {
-                return $style;
+            $normalized = strtolower(trim($value));
+
+            if (isset($map[$normalized])) {
+                return $map[$normalized];
+            }
+
+            foreach ($map as $prefix => $style) {
+                if (str_starts_with($normalized, $prefix)) {
+                    return $style;
+                }
             }
         }
 
         return 'bossa-nova';
+    }
+
+    /**
+     * Map the leadsheet to the style slug used by the UI.
+     */
+    public function getStyleSlugAttribute(): string
+    {
+        return self::resolveStyleSlug($this->genre, $this->rhythm);
     }
 
     public const PRESET_TAGS = ['blues', 'modal', 'latin', 'cuban', 'brazilian', 'swing', 'afro-cuban', 'ballad', 'samba'];
@@ -386,29 +396,25 @@ class Leadsheet extends Model
      */
     public static function getDistinctStyles(): array
     {
-        $map = [
-            'bossa-nova' => 'bossa-nova',
-            'bossa'      => 'bossa-nova',
-            'jazz'       => 'jazz',
-            'classical'  => 'classical',
-            'pop'        => 'pop',
-        ];
-
-        $rhythms = static::whereNotNull('rhythm')->where('rhythm', '!=', '')->distinct()->pluck('rhythm');
-
         $styles = [];
-        foreach ($rhythms as $rhythm) {
-            $slug = $map[$rhythm] ?? null;
-            if (!$slug) {
-                foreach ($map as $prefix => $style) {
-                    if (str_starts_with($rhythm, $prefix)) { $slug = $style; break; }
-                }
-            }
-            if ($slug) $styles[$slug] = true;
+
+        $rows = static::query()
+            ->select(['genre', 'rhythm'])
+            ->where(function ($query) {
+                $query->where(function ($query) {
+                    $query->whereNotNull('genre')->where('genre', '!=', '');
+                })->orWhere(function ($query) {
+                    $query->whereNotNull('rhythm')->where('rhythm', '!=', '');
+                });
+            })
+            ->get();
+
+        foreach ($rows as $row) {
+            $styles[self::resolveStyleSlug($row->genre ?? null, $row->rhythm ?? null)] = true;
         }
 
         $ordered = ['bossa-nova', 'jazz', 'classical', 'pop'];
-        return array_values(array_filter($ordered, fn($s) => isset($styles[$s])));
+        return array_values(array_filter($ordered, fn ($slug) => isset($styles[$slug])));
     }
 
     /**

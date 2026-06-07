@@ -60,7 +60,7 @@ class CourseGrantController extends Controller
 
     public function destroy(Request $request, int $id)
     {
-        \DB::table('course_user')->where('id', $id)->delete();
+        app(CourseAccessService::class)->revokeById($id);
         return back()->with('status', 'Grant revoked.');
     }
 }

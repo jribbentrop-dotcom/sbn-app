@@ -29,6 +29,11 @@ class CourseAccessService
         }
     }
 
+    public function revokeById(int $grantId): void
+    {
+        \DB::table('course_user')->where('id', $grantId)->delete();
+    }
+
     public function revokePurchase(Order $order): void
     {
         \DB::table('course_user')

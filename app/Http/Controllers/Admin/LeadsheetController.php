@@ -85,11 +85,16 @@ class LeadsheetController extends Controller
                     'classical'  => ['classical'],
                     'pop'        => ['pop'],
                 ];
+                $genreValues = $style === 'bossa-nova' ? ['bossa-nova', 'bossa'] : [$style];
                 $prefixes = $stylePrefixes[$style] ?? [$style];
-                $query->where(function ($q) use ($prefixes) {
-                    foreach ($prefixes as $prefix) {
-                        $q->orWhere('rhythm', $prefix)->orWhere('rhythm', 'like', $prefix . '-%');
-                    }
+                $query->where(function ($q) use ($genreValues, $prefixes) {
+                    $q->whereIn('genre', $genreValues)->orWhere(function ($q) use ($prefixes) {
+                        $q->whereNull('genre')->orWhere('genre', '');
+                    })->where(function ($q) use ($prefixes) {
+                        foreach ($prefixes as $prefix) {
+                            $q->orWhere('rhythm', $prefix)->orWhere('rhythm', 'like', $prefix . '-%');
+                        }
+                    });
                 });
             }
             $items = $query->orderBy('title')->paginate(25)->withQueryString();
@@ -3232,4 +3237,3 @@ PROMPT;
         return $union > 0 ? $intersection / $union : 0.0;
     }
 }
-
