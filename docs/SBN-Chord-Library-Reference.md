@@ -104,12 +104,56 @@ All note names (chord tones displayed in the detail page circles, inversion bass
 
 ---
 
-## 6. Key files
+## 6. Diagram rendering — guide-tone colours & dot behaviour
+
+### SVG renderer (`public/js/chords.js` → `sbnRenderDiagramSVG`)
+
+Fixed viewBox `88×98`, `width="100%"` so diagrams scale fluidly.  
+The renderer is invoked by `ChordDiagram.vue` with `showGuideTones: true` (default — on everywhere in the app) and `showFingers: true`.
+
+**Guide-tone colour map** (`GT_COLORS`):
+
+| Interval | Fill | Role |
+|---|---|---|
+| root | `#16a34a` (green) | tonic |
+| 3 / b3 | `#3b82f6` (blue) | third |
+| 7 / b7 | `#d97706` (amber) | seventh |
+| 5 / b5 | `#9ca3af` (gray) | fifth |
+| 2 / 4 / 6 / 9 / 11 / 13 / … | `#a855f7` (purple) | extensions |
+
+`sbnGtColorForInterval(label)` maps the interval token. The full extension set is `['9', 'b9', '#9', '11', '#11', 'b13', '13', '2', '4', '6']`.
+
+**Dot labels**: always **finger numbers** (when `showFingers=true`). Interval text removed — coloring carries the harmonic identity, numbers aid fingering.
+
+**Open strings**: rendered as white circle + coloured border (interval colour as `stroke`). Position: `cy = top - 6` (above nut line). Class `sbn-svg-dot data-string="{n}"` so the ping animation targets them the same way as fretted dots.
+
+**Barre**: rendered as a rounded rect in the root colour.
+
+### Alias voicings and interval labels
+
+`ChordVoicingSearch` transposes parent shapes to alias roots. The parent shape's `interval_labels` are relative to the *parent* root — they're wrong for the alias. **Fix**: after transposition, `ChordVoicingSearch` calls `ChordShapeCalculator::computeIntervalLabelsPublic($positions, $open, $muted, $aliasRoot, $aliasQuality)` using the alias root and quality. This overrides the parent's stored labels.
+
+`ChordShapeCalculator::computeIntervalLabels` uses `QUALITY_INTERVALS` (a const matching `ChordDiagram.vue::getQualityIntervals`) — quality-aware so `m7` shapes correctly label the flat-third, `dom7` labels the flat-seventh, etc.
+
+### ChordCard playback
+
+`ChordCard.vue` plays a chord through `NylonSampler` (nylon guitar samples). A **shared singleton** (`resources/js/audio/engine/voices/sharedNylon.ts` → `getSharedNylon()`) is used app-wide so only one instance exists. Calling `nylon.releaseAll()` before scheduling a new play stops any currently-sounding card. Open strings are included in playback events (the barre field fix in `chordDiagramToEvents.js` uses `from`/`to` keys matching the DB schema, not `fromString`/`toString`).
+
+**Dot ping animation** (`@keyframes sbnDotPing` in `chord-library.css`): scale-only — no fill override. Each dot keeps its own guide-tone colour through the animation. `.board-diagram { overflow: visible }` prevents clipping for dots near the top of the diagram (open strings above the nut).
+
+---
+
+## 7. Key files
 - `app/Http/Controllers/Library/ChordLibraryController.php` — `index`, `show`, `search`, `buildInversionsForIdentity`, `buildDiminishedReadings`, `aliasInversionSlot`
 - `app/Services/ChordSerializer.php` — `serialize`, `serializeAs`, `spellBassNote`
-- `app/Services/ChordShapeCalculator.php` — `calculateFrets`, `calculateNoteNames` (includes open strings, routes `o7` through DiminishedSymmetry), `deriveBassNote`, `useFlatsForQuality` (public static — checks minor/dim intervals against flat-side PCs for natural roots)
-- `app/Services/ChordVoicingSearch.php` — `parseChordName`, `searchByName`, `findAliasMatches`, `transposeShapes`
+- `app/Services/ChordShapeCalculator.php` — `calculateFrets`, `calculateNoteNames`, `computeIntervalLabels` / `computeIntervalLabelsPublic`, `deriveBassNote`, `useFlatsForQuality`
+- `app/Services/ChordVoicingSearch.php` — `parseChordName`, `searchByName`, `findAliasMatches`, `transposeShapes`; alias section overrides `interval_labels` with quality-aware recomputation
 - `app/Services/HarmonicContext/DiminishedSymmetry.php` — dim7 primitive
+- `public/js/chords.js` — `sbnRenderDiagramSVG`, `GT_COLORS`, `sbnGtColorForInterval`
+- `public/css/chord-library.css` — `@keyframes sbnDotPing`, `.sbn-svg-dot` animation rules
 - `resources/js/Pages/Library/Chords/Show.vue`, `Index.vue`
-- `resources/js/Components/Library/ChordCard.vue`
+- `resources/js/Components/Library/ChordCard.vue` — playback via `getSharedNylon()`
+- `resources/js/Components/Library/ChordDiagram.vue` — `showGuideTones` (default `true`), `showFingers` (always `true`)
+- `resources/js/audio/engine/voices/sharedNylon.ts` — singleton NylonSampler
+- `resources/js/audio/adapters/chordDiagramToEvents.js` — barre `from`/`to` field names
 - `resources/js/composables/useChordUrl.ts`
