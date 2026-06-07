@@ -83,10 +83,41 @@ class ProgressionLibraryController extends Controller
             ->get()
             ->map(fn ($p) => $this->serializeProgression($p));
 
-        // Optional: pin a specific chord voicing when arriving from a chord detail page.
-        $pinnedSlot    = null;
-        $pinnedVoicing = null;
+        // Determine the playing key + pinned slugs. Priority:
+        //   1. ?snippet=<id>  — explicit snippet selected (or first snippet on plain load)
+        //   2. ?key=X         — explicit key override (e.g. chord-detail back-link)
+        //   3. ?chord=&highlight= pin arriving from chord detail page
+        //   4. Default C
         $progressionKey = 'C';
+        $pinnedSlot     = null;
+        $pinnedVoicing  = null;
+        $pinnedSlugs    = [];
+
+        // --- Path A: snippet pin ---
+        // Use ?snippet=<id> when specified, otherwise auto-apply the first snippet
+        // so the page always loads in the key the recording was authored in.
+        $allSnippets = $progression->video_snippets ?? [];
+        $snippetId   = $request->query('snippet');
+        $activeSnippet = $snippetId !== null
+            ? collect($allSnippets)->firstWhere('id', $snippetId)
+            : (count($allSnippets) ? $allSnippets[0] : null);
+
+        if ($activeSnippet) {
+            if (!empty($activeSnippet['key']) && in_array($activeSnippet['key'], \App\Models\ChordDiagram::ROOT_NOTES)) {
+                $progressionKey = $activeSnippet['key'];
+            }
+            if (!empty($activeSnippet['chords']) && is_array($activeSnippet['chords'])) {
+                $pinnedSlugs = $activeSnippet['chords'];
+            }
+        }
+
+        // --- Path B: explicit ?key= overrides snippet key ---
+        $explicitKey = trim((string) $request->query('key', ''));
+        if ($explicitKey !== '' && in_array($explicitKey, \App\Models\ChordDiagram::ROOT_NOTES)) {
+            $progressionKey = $explicitKey;
+        }
+
+        // --- Path C: chord-detail page pin (?chord=&highlight=) ---
         $chordSlug     = $request->query('chord');
         $highlightSlot = $request->query('highlight');
         if ($chordSlug !== null && $highlightSlot !== null) {
@@ -94,8 +125,6 @@ class ProgressionLibraryController extends Controller
             if ($pinnedChord) {
                 $pinnedSlot = (int) $highlightSlot;
 
-                // Resolve the effective root before building the voicing — the ?root=
-                // param carries the transposed/alias root the user was viewing.
                 $effectiveRoot = $request->query('root', $pinnedChord->root_note ?? 'C');
                 if (! in_array($effectiveRoot, \App\Models\ChordDiagram::ROOT_NOTES)) {
                     $effectiveRoot = $pinnedChord->root_note ?? 'C';
@@ -122,41 +151,52 @@ class ProgressionLibraryController extends Controller
                     'frets'            => null,
                 ];
 
-                $tokens = array_values(array_filter(array_map('trim', explode(',', $progression->numerals))));
-                if (isset($tokens[$pinnedSlot]) && $effectiveRoot !== '') {
-                    $progressionKey = $this->harmonicContext->keyFromNumeralAndRoot(
-                        $tokens[$pinnedSlot],
-                        $effectiveRoot
-                    );
+                // Derive key from the pinned chord's root + its numeral slot
+                // (only when no explicit key was already set via ?key= or snippet).
+                if ($explicitKey === '' && $snippetId === null) {
+                    $tokens = array_values(array_filter(array_map('trim', explode(',', $progression->numerals))));
+                    if (isset($tokens[$pinnedSlot]) && $effectiveRoot !== '') {
+                        $progressionKey = $this->harmonicContext->keyFromNumeralAndRoot(
+                            $tokens[$pinnedSlot],
+                            $effectiveRoot
+                        );
+                    }
                 }
             }
         }
 
-        $context = $this->harmonicContext->buildFromNumerals($progressionKey, $progression->numerals);
-        $built   = $this->progressionBuilder->buildVoicings($context, [
-            'category'      => $progression->category,
-            'pinnedSlot'    => $pinnedSlot,
-            'pinnedVoicing' => $pinnedVoicing,
-        ]);
-        $tiles   = array_map(function ($sel) {
-            $v = $sel['voicing'] ?? null;
-            return [
-                'chordName'      => $sel['chord_name'],
-                'numeral'        => $sel['roman_numeral'] ?? null,
-                'diagramData'    => $v,
-                'functionalRole' => $v['functional_role'] ?? null,
-                'slug'           => null,
-            ];
-        }, $built['selections']);
+        // Build tiles — snippet path uses buildChordsFor (handles pinned slugs),
+        // chord-detail path uses buildVoicings directly (single pinnedVoicing).
+        if (!empty($pinnedSlugs)) {
+            $tiles = $this->buildChordsFor($progression, $progressionKey, true, $pinnedSlugs);
+        } else {
+            $context = $this->harmonicContext->buildFromNumerals($progressionKey, $progression->numerals);
+            $built   = $this->progressionBuilder->buildVoicings($context, [
+                'category'      => $progression->category,
+                'pinnedSlot'    => $pinnedSlot,
+                'pinnedVoicing' => $pinnedVoicing,
+            ]);
+            $tiles = array_map(function ($sel) {
+                $v = $sel['voicing'] ?? null;
+                return [
+                    'chordName'      => $sel['chord_name'],
+                    'numeral'        => $sel['roman_numeral'] ?? null,
+                    'diagramData'    => $v,
+                    'functionalRole' => $v['functional_role'] ?? null,
+                    'slug'           => null,
+                ];
+            }, $built['selections']);
+        }
 
         $courses = $this->courseRepo->relatedTo($progression, $progression->category);
 
         return Inertia::render('Library/Progressions/Show', [
-            'progression' => $this->serializeProgression($progression),
-            'songs'       => $songs,
-            'siblings'    => $siblings,
-            'tiles'       => $tiles,
-            'courses'     => $courses,
+            'progression'    => $this->serializeProgression($progression),
+            'songs'          => $songs,
+            'siblings'       => $siblings,
+            'tiles'          => $tiles,
+            'courses'        => $courses,
+            'progressionKey' => $progressionKey,
         ]);
     }
 
@@ -194,18 +234,19 @@ class ProgressionLibraryController extends Controller
         $styleSlug = $this->mapCategoryToStyleSlug($progression->category);
 
         return [
-            'id' => $progression->id,
-            'slug' => $progression->slug,
-            'name' => $progression->name,
-            'category' => $progression->category,
-            'styleSlug' => $styleSlug,
-            'numerals' => $progression->numerals,
-            'numeralsDisplay' => $progression->numerals_display,
-            'tonality' => $progression->tonality,
-            'tags' => $progression->tags_array,
-            'description' => $progression->description,
-            'chordCount' => count(explode(',', $progression->numerals)),
-            'songCount' => $progression->song_count ?? 0,
+            'id'             => $progression->id,
+            'slug'           => $progression->slug,
+            'name'           => $progression->name,
+            'category'       => $progression->category,
+            'styleSlug'      => $styleSlug,
+            'numerals'       => $progression->numerals,
+            'numeralsDisplay'=> $progression->numerals_display,
+            'tonality'       => $progression->tonality,
+            'tags'           => $progression->tags_array,
+            'description'    => $progression->description,
+            'chordCount'     => count(explode(',', $progression->numerals)),
+            'songCount'      => $progression->song_count ?? 0,
+            'videoSnippets'  => $progression->video_snippets ?? [],
         ];
     }
 

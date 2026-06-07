@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { router } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
@@ -8,7 +9,7 @@ import MediaShelf from '@/Components/Library/MediaShelf.vue';
 import SongShelfCard from '@/Components/Library/SongShelfCard.vue';
 import CourseShelfCard from '@/Components/Course/CourseShelfCard.vue';
 import type { CourseShelfCardData } from '@/Components/Course/CourseShelfCard.vue';
-import type { ProgressionChord } from '@/Components/Library/ChordProgressionViewer.vue';
+import type { ProgressionChord, VideoSnippet } from '@/Components/Library/ChordProgressionViewer.vue';
 import { getCategoryColor } from '@/composables/useCategoryColors';
 
 interface ProgressionTile {
@@ -30,6 +31,16 @@ interface SongData {
     popularity: number | null;
 }
 
+interface VideoSnippet {
+    id: string;
+    label: string;
+    videoId: string;
+    videoType: string;
+    startSec: number;
+    endSec: number;
+    tempoBpm: number;
+}
+
 interface ProgressionData {
     id: number;
     slug: string;
@@ -43,6 +54,7 @@ interface ProgressionData {
     description?: string;
     chordCount: number;
     songCount: number;
+    videoSnippets?: VideoSnippet[];
 }
 
 interface Props {
@@ -51,6 +63,7 @@ interface Props {
     siblings: ProgressionData[];
     tiles: ProgressionTile[];
     courses: CourseShelfCardData[];
+    progressionKey?: string;
 }
 
 const props = defineProps<Props>();
@@ -94,6 +107,12 @@ const chords = computed((): ProgressionChord[] =>
 
 const n = parseInt(new URLSearchParams(window.location.search).get('highlight') ?? '', 10);
 const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
+
+function onSnippetSelected(snippet: VideoSnippet) {
+    const params: Record<string, string> = { snippet: snippet.id };
+    if (snippet.key) params.key = snippet.key;
+    router.get(window.location.pathname, params, { preserveScroll: true, preserveState: false });
+}
 </script>
 
 <template>
@@ -125,7 +144,7 @@ const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
                         :show-flow-arrows="true"
                         :name="progression.name"
                         :category="progression.category"
-                        :key-label="`Standard Root`"
+                        :key-label="progressionKey ?? 'C'"
                         :numerals="progression.numeralsDisplay"
                         :color="getCategoryColor(progression.category)"
                         :vintage-card="true"

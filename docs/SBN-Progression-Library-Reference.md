@@ -54,6 +54,7 @@ Audience: developers working on `/library/progressions` or `<sbn-progression>` l
     'description',
     'chordCount',       // count of comma-separated numerals
     'songCount',        // 0 unless loaded via withSongCounts scope
+    'videoSnippets',    // array from video_snippets JSON column
 ]
 ```
 
@@ -94,6 +95,18 @@ Props:
 | `siblings` | serialized progressions | Other progressions in same category |
 | `courses` | course stubs | Related courses via `CourseRepository::relatedTo` |
 
+### Key resolution priority
+
+The `show()` action resolves the playing key in this order:
+
+1. **First video snippet's key** (auto-applied on plain load) — if `video_snippets[0].key` is set, the page always opens in the key the snippet was authored in.
+2. **`?snippet=<id>`** — explicit snippet selection; uses that snippet's key + pinned chords.
+3. **`?key=X`** — explicit key override (e.g. from `onSnippetSelected` navigation).
+4. **`?chord=&highlight=`** — chord-detail back-link; derives key from the pinned chord's root + numeral slot.
+5. **Default `C`**.
+
+`progressionKey` is passed as an Inertia prop and displayed as the key badge in `ChordProgressionViewer`.
+
 ### Pinned chord (arriving from chord detail page)
 
 When a user clicks "view in progression" from a chord Show page, the URL carries:
@@ -118,6 +131,16 @@ HarmonicContext::buildFromNumerals(key, numerals)
 
 `buildChordsFor(progression, key, usePass2, pinnedSlugs)` is the shared helper used by both `show()` and `apiShow()`. It also handles **pinned slugs** from video snippets: when a snippet's `chords` field provides explicit diagram slugs, those are transposed to the target root via `ChordSerializer::serialize($diagram, $targetRoot)` rather than using the builder.
 
+### Top10 key resolution
+
+`Top10Controller::getTop10Data()` also uses the first snippet's key when building progression tiles — it prefers `video_snippets[0].key` over the config's `progressionSeedKey`. The config key is the fallback when no snippet key is set.
+
+### Video snippet voicings — current status (2026-06-05)
+
+The full pipeline is wired end-to-end (admin snippet editor with per-slot chord search, backend key + pinned slug resolution, `ChordProgressionViewer` with `snippets` prop and `@snippet-selected` navigation) **but is currently disabled at the view layer**: `:snippets` is not passed to `ChordProgressionViewer` on any page. The component renders builder voicings only.
+
+**Why disabled:** Displaying pinned voicings alongside a video creates a mismatch risk — the builder transposes movable shapes correctly for standard cases, but the interaction between fixed-position shapes, enharmonic roots, and the voice-leading optimizer produces unreliable results for the specific shapes a transcriber would pick from the library. Re-enabling requires either a dedicated transposition validation pass or a separate "exact voicing" rendering mode that bypasses the builder entirely.
+
 ---
 
 ## 6. `ChordProgressionViewer` Component
@@ -138,6 +161,18 @@ export interface ProgressionChord {
     functionalRole?: string | null;
 }
 
+export interface VideoSnippet {
+    id: string;
+    label: string;
+    videoId: string;
+    videoType: string;
+    startSec: number;
+    endSec: number;
+    tempoBpm: number;
+    key?: string;
+    chords?: string[];   // per-slot chord-library slugs (pinned voicings)
+}
+
 export interface ChordProgressionViewerProps {
     chords: ProgressionChord[];
     interactive?: boolean;      // default true — enables click-to-play
@@ -148,8 +183,15 @@ export interface ChordProgressionViewerProps {
     category?: string;
     numerals?: string;
     keyLabel?: string;
+    snippets?: VideoSnippet[];  // wired but not currently passed from any page (see §5)
 }
 ```
+
+### Video embed (self-contained, currently disabled)
+
+When `snippets` is non-empty the viewer renders a `VideoEmbed` above the fretboard stage. Clicking a snippet tab seeks the video; clicking a numeral chip seeks to that chord's beat offset (`startSec + beatOffset * 60/bpm`). `@snippet-selected` fires when the active snippet changes so the parent can navigate to reload tiles in the new key.
+
+**Currently disabled** — no page passes `:snippets`. The wiring is preserved for future re-enablement. See §5 for why.
 
 ### Visual layout (top → bottom)
 
