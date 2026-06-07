@@ -1,6 +1,7 @@
 @import './frontend/base.css';
 @import './frontend/header.css';
 @import './frontend/mega-menu.css';
+@import './frontend/top10-shared.css';
 
 @tailwind base;
 @tailwind components;

@@ -331,7 +331,7 @@ function thumbCellClass(i: number): Record<string, boolean> {
 }
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
-onMounted(() => {
+onMounted(async () => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!reduce && props.autoplay !== false) audioPlay();
 });
@@ -410,11 +410,13 @@ defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying }
 <style scoped>
 .synced-player {
     padding: 20px;
+    max-width: 100%;
+    overflow: hidden;
 }
 
 /* ── Sliding track ── */
 .board-viewport {
-    width: 480px;
+    width: min(480px, 100%);
     overflow: hidden;
     margin: 0 auto;
 }
@@ -600,18 +602,6 @@ defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying }
     letter-spacing: .12em;
 }
 
-/* ── Mobile: scale the whole player down to fit narrow containers ── */
-/* The inner content is ~520px wide (480px track + 20px side padding each).
-   On screens narrower than that we scale the whole block down proportionally.
-   transform-origin center keeps it centered; margin auto keeps the card tight. */
-@media (max-width: 519px) {
-    .synced-player {
-        transform-origin: top center;
-        transform: scale(calc(100vw / 520));
-        /* Collapse the extra height that scale() leaves behind */
-        margin-bottom: calc((100vw / 520 - 1) * 100%);
-    }
-}
 
 @media (prefers-reduced-motion: reduce) {
     .board-track { transition: none !important; }

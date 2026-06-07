@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import type { ChordDiagramData } from './ChordDiagram.vue';
 import ChordDiagram from './ChordDiagram.vue';
+import VideoEmbed from './Video/VideoEmbed.vue';
 import { getAudioEngine } from '../../audio/engine/AudioEngine.js';
 import { chordDiagramToEvents } from '../../audio/adapters/chordDiagramToEvents.js';
 import { buildPitchMap, findResolutionPairs, arrowColor } from './guideToneResolution.js';
@@ -52,6 +53,16 @@ function chordDisplayHtml(chord: ProgressionChord): string {
     return html + inv;
 }
 
+export interface VideoSnippet {
+    id: string;
+    label: string;
+    videoId: string;
+    videoType: string;
+    startSec: number;
+    endSec: number;
+    tempoBpm: number;
+}
+
 export interface ProgressionChord {
     chordName: string;
     diagramData: ChordDiagramData | null;
@@ -93,7 +104,17 @@ export interface ChordProgressionViewerProps {
      */
     onVideoPlay?: (() => void) | null;
     onVideoPause?: (() => void) | null;
+    /**
+     * Self-contained video snippets. When provided, the viewer renders its own
+     * snippet picker + VideoEmbed and drives videoPlayhead internally — no
+     * external video sync wiring needed.
+     */
+    snippets?: VideoSnippet[];
 }
+
+const emit = defineEmits<{
+    snippetSelected: [snippet: VideoSnippet]
+}>();
 
 const props = withDefaults(defineProps<ChordProgressionViewerProps>(), {
     interactive: true,
@@ -110,10 +131,69 @@ const props = withDefaults(defineProps<ChordProgressionViewerProps>(), {
     tempoBpm: 120,
     onVideoPlay: null,
     onVideoPause: null,
+    snippets: () => [],
 });
 
-/** True when this viewer is wired to a video clock (course player snippet). */
+/** True when this viewer is wired to an external video clock (course player). */
 const isVideoSynced = computed(() => !!props.onVideoPlay);
+
+// ---------- Self-contained snippet player ----------
+const videoEmbedRef = ref<InstanceType<typeof VideoEmbed> | null>(null);
+const activeSnippetId = ref<string | null>(null);
+const internalPlayhead = ref<number | null>(null);
+const internalPlaying = ref(false);
+
+const activeSnippet = computed<VideoSnippet | null>(() =>
+    props.snippets.find(s => s.id === activeSnippetId.value) ?? props.snippets[0] ?? null
+);
+
+/** True when we have our own snippets and should manage video internally. */
+const hasSelfSnippets = computed(() => props.snippets.length > 0);
+
+function selectSnippet(snippet: VideoSnippet) {
+    activeSnippetId.value = snippet.id;
+    internalPlayhead.value = null;
+    internalPlaying.value = false;
+    emit('snippetSelected', snippet);
+}
+
+function onInternalTimeUpdate(t: number) {
+    internalPlayhead.value = t;
+    // Loop within snippet bounds
+    if (activeSnippet.value && t >= activeSnippet.value.endSec) {
+        videoEmbedRef.value?.seekTo(activeSnippet.value.startSec);
+    }
+}
+
+function onInternalPlayState(playing: boolean) {
+    internalPlaying.value = playing;
+}
+
+/** Seek the internal video to the recording-time where chord at `idx` starts. */
+function seekToChord(idx: number) {
+    const snippet = activeSnippet.value;
+    if (!snippet) return;
+    const tl = chordTimeline.value;
+    if (!tl[idx]) return;
+    const beatOffset = tl[idx].startBeat;
+    const sec = snippet.startSec + beatOffset * (60 / snippet.tempoBpm);
+    videoEmbedRef.value?.seekTo(sec);
+    videoEmbedRef.value?.play();
+}
+
+/** Effective videoPlayhead: internal when self-contained, external when course-synced. */
+const effectivePlayhead = computed<number | null>(() => {
+    if (hasSelfSnippets.value) return internalPlayhead.value;
+    return props.videoPlayhead ?? null;
+});
+
+/** Effective startSec/tempoBpm: from active snippet when self-contained. */
+const effectiveStartSec = computed(() =>
+    hasSelfSnippets.value ? (activeSnippet.value?.startSec ?? 0) : props.videoStartSec
+);
+const effectiveTempoBpm = computed(() =>
+    hasSelfSnippets.value ? (activeSnippet.value?.tempoBpm ?? 120) : props.tempoBpm
+);
 
 const isPlayingAll = ref(false);
 const currentPlayingIndex = ref<number | null>(null);
@@ -223,7 +303,7 @@ const totalBeats = computed<number>(() =>
  * `videoStartSec` + `tempoBpm` anchor — no global tempo guessing.
  */
 function chordIndexAtTime(sec: number): number {
-    const beat = (sec - props.videoStartSec) * (props.tempoBpm / 60);
+    const beat = (sec - effectiveStartSec.value) * (effectiveTempoBpm.value / 60);
     if (beat <= 0) return 0;
     const tl = chordTimeline.value;
     if (!tl.length) return 0;
@@ -233,8 +313,8 @@ function chordIndexAtTime(sec: number): number {
 
 // ---------- Active chord & dot positions ----------
 const activeIndex = computed<number>(() => {
-    // Video clock, when present, wins over audio playback / manual selection.
-    if (props.videoPlayhead !== null) return chordIndexAtTime(props.videoPlayhead);
+    // Video clock (self-contained or external) wins over audio / manual selection.
+    if (effectivePlayhead.value !== null) return chordIndexAtTime(effectivePlayhead.value);
     if (currentPlayingIndex.value !== null) return currentPlayingIndex.value;
     return selectedIndex.value;
 });
@@ -489,10 +569,13 @@ function togglePlayback() {
 }
 
 /** True while the synced video is actually playing (vs. paused/stopped). */
-const videoPlaying = computed(() => isVideoSynced.value && props.videoPlayhead !== null);
+const videoPlaying = computed(() =>
+    (isVideoSynced.value && props.videoPlayhead !== null) ||
+    (hasSelfSnippets.value && internalPlaying.value)
+);
 
 /** Unified "is playing" for the button UI — audio path or video path. */
-const showAsPlaying = computed(() => isVideoSynced.value ? videoPlaying.value : isPlayingAll.value);
+const showAsPlaying = computed(() => (isVideoSynced.value || hasSelfSnippets.value) ? videoPlaying.value : isPlayingAll.value);
 
 function canPlayAll(): boolean {
     return props.chords.some(c => c.diagramData !== null);
@@ -500,6 +583,10 @@ function canPlayAll(): boolean {
 
 function goTo(idx: number) {
     if (idx < 0 || idx >= props.chords.length) return;
+    if (hasSelfSnippets.value) {
+        seekToChord(idx);
+        return;
+    }
     if (isPlayingAll.value) stopPlayback();
     selectedIndex.value = idx;
 }
@@ -579,10 +666,35 @@ function onFocusOut(e: FocusEvent) {
             </div>
         </div>
 
+        <!-- Video snippet: above the fretboard -->
+        <div v-if="hasSelfSnippets" class="snippet-section">
+            <div v-if="snippets.length > 1" class="snippet-picker">
+                <button
+                    v-for="s in snippets"
+                    :key="s.id"
+                    type="button"
+                    class="snippet-tab"
+                    :class="{ active: s.id === activeSnippet?.id }"
+                    @click="selectSnippet(s)"
+                >{{ s.label }}</button>
+            </div>
+            <div v-if="activeSnippet" class="snippet-embed">
+                <VideoEmbed
+                    ref="videoEmbedRef"
+                    :video-id="activeSnippet.videoId"
+                    :video-type="activeSnippet.videoType"
+                    :start-sec="activeSnippet.startSec"
+                    :facade="true"
+                    @timeupdate="onInternalTimeUpdate"
+                    @play-state-change="onInternalPlayState"
+                />
+            </div>
+        </div>
+
         <!-- Stage: play button + fretboard + chord diagram card -->
         <div class="stage">
             <button
-                v-if="interactive && canPlayAll()"
+                v-if="interactive && canPlayAll() && !hasSelfSnippets"
                 class="sbn-play-btn play-btn"
                 :class="{ 'is-playing': showAsPlaying }"
                 :aria-label="showAsPlaying ? 'Stop progression' : 'Play progression'"
@@ -697,6 +809,8 @@ function onFocusOut(e: FocusEvent) {
     padding: 12px 14px 10px;
     outline: none;
     transition: border-color 0.15s var(--ease);
+    min-width: 0;
+    overflow: hidden;
 }
 
 .sbn-prog-inner {
@@ -738,6 +852,7 @@ function onFocusOut(e: FocusEvent) {
     justify-content: space-between;
     gap: 16px;
     margin-bottom: 18px;
+    flex-wrap: wrap;
 }
 .head-left {
     display: flex;
@@ -773,7 +888,6 @@ function onFocusOut(e: FocusEvent) {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    flex-shrink: 0;
 }
 
 /* Stage */
@@ -903,6 +1017,38 @@ function onFocusOut(e: FocusEvent) {
     font-family: 'Inter', system-ui, sans-serif;
     pointer-events: none;
     letter-spacing: -0.02em;
+}
+
+/* Video snippet — above the fretboard */
+.snippet-section {
+    margin-bottom: 12px;
+}
+.snippet-picker {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+.snippet-tab {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--clr-border);
+    background: var(--clr-surface-2);
+    color: var(--clr-text-muted);
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.snippet-tab.active,
+.snippet-tab:hover {
+    background: color-mix(in srgb, var(--prog-color) 14%, transparent);
+    border-color: var(--prog-color);
+    color: var(--prog-color);
+}
+.snippet-embed {
+    border-radius: var(--radius);
+    overflow: hidden;
 }
 
 /* Responsive */

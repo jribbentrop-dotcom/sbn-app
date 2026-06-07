@@ -653,7 +653,7 @@
 }
 
 .sbn-card-chord-name .sbn-chord-symbol {
-    font-size: 1em;
+    font-size: var(--card-name-size, 1rem);
     display: inline-block;
     white-space: nowrap;
     line-height: 1;
@@ -846,7 +846,7 @@
     animation: sbn-barre-ping 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
 
-/* Touch devices: always show play button */
+/* Touch devices: show hover controls but hide the diagram play button overlay */
 @media (hover: none) {
     .sbn-card-hover-controls {
         opacity: 1;
@@ -855,8 +855,7 @@
     }
 
     .sbn-card-diagram .sbn-play-btn {
-        opacity: 1;
-        pointer-events: auto;
+        display: none;
     }
 }
 

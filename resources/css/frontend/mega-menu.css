@@ -953,6 +953,8 @@ svg.icon-level { color: #9b59b6; }
         padding: 20px;
         align-items: stretch;
         border-radius: 0 !important;
+        max-height: calc(100vh - var(--header-height, 70px));
+        overflow-y: auto;
     }
     
     .mega-col-nav,

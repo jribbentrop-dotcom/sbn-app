@@ -197,7 +197,7 @@ function goToChordLibrary(chord: ChordDiagramData) {
                     <!-- Panels Grid -->
                     <div class="sbn-panels-grid">
                         <!-- Voicing Panel -->
-                        <div v-if="selectedChord.voicingData" class="sbn-panel">
+                        <div v-if="selectedChord.voicingData" class="sbn-panel sbn-voicing-panel">
                             <h3 class="sbn-panel-title">Chord Voicing</h3>
                             <div class="sbn-panel-content">
                                 <ChordCard 
@@ -302,15 +302,54 @@ function goToChordLibrary(chord: ChordDiagramData) {
 
 .sbn-panel-content {
     gap: 16px;
+    justify-content: center;
 }
 
-.sbn-panel-content .sbn-chord-card {
-    max-width: 150px;
+.sbn-synced-hero-card {
+    width: 100%;
+    max-width: 480px;
 }
 
 .sbn-panel-caption {
     color: var(--clr-text-muted);
     margin-top: 12px;
+}
+
+/* Voicing panel: no border on mobile, card fills available width */
+.sbn-voicing-panel {
+    border: none;
+    padding: 16px;
+    align-items: center;
+    --card-name-size: 1.75rem;
+}
+
+@media (min-width: 768px) {
+    .sbn-voicing-panel {
+        --card-name-size: 1.25rem;
+    }
+}
+
+.sbn-voicing-panel .sbn-panel-title {
+    text-align: center;
+}
+
+.sbn-voicing-panel .sbn-panel-content {
+    align-items: center;
+}
+
+/* On desktop, restore the panel box and cap the card width */
+@media (min-width: 768px) {
+    .sbn-voicing-panel {
+        background: var(--clr-surface-2);
+        border: 1px solid var(--clr-border);
+        border-radius: var(--radius);
+        padding: 20px;
+    }
+
+    .sbn-voicing-panel :deep(.sbn-chord-card) {
+        max-width: 200px;
+        width: 100%;
+    }
 }
 
 /* Chords page detail-title has slightly more bottom margin */

@@ -428,6 +428,7 @@
     padding: 20px;
     cursor: default;
     --card-play-size: 30px;
+    --card-name-size: 1.4rem;
 }
 
 .sbn-chord-card--detail:hover {
@@ -439,6 +440,7 @@
     padding: 8px 10px;
     border-radius: var(--radius-sm);
     --card-play-size: 18px;
+    --card-name-size: 0.85rem;
 }
 
 /* ──────────────────────────────────────────────────────────
