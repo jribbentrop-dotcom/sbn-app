@@ -377,7 +377,7 @@ class ChordLibraryController extends Controller
 			)->filter()->values()->all(),
 		];
 
-		// All other chords: purely sorted by popularity then quality
+		// All other chords: sorted by popularity then quality
 		$otherChords = ChordDiagram::query()
 			->where('voicing_category', '!=', 'archetype')
 			->orderByRaw('popularity DESC NULLS LAST')
@@ -387,6 +387,12 @@ class ChordLibraryController extends Controller
 			->values()
 			->all();
 
+		// Top 10 slugs from the bossa-nova-chords config — ordered for the hitlist view.
+		// Keys are chord slugs; we extract them in config order so the frontend can
+		// promote matching chords to the top of the ranked list.
+		$top10Config = require config_path('top10/bossa-nova-chords.php');
+		$top10Slugs  = array_keys($top10Config);
+
 		return Inertia::render('Library/Chords/Index', [
 			'archetypeFamilies' => $families,
 			'barreFamilies'     => $barreFamilies,
@@ -394,6 +400,7 @@ class ChordLibraryController extends Controller
 			'shellFamilies'     => $shellFamilies,
 			'extFamilies'       => $extFamilies,
 			'otherChords'       => $otherChords,
+			'top10Slugs'        => $top10Slugs,
 			'voicingCategories' => ChordDiagram::VOICING_CATEGORIES,
 			'chordQualities'    => ChordDiagram::CHORD_QUALITIES,
 			'totalCount'        => $archetypeRows->count() + count($otherChords),
@@ -859,34 +866,41 @@ class ChordLibraryController extends Controller
 		$inversionLabels = ['root' => 'Root Position', 'inv1' => '1st Inversion', 'inv2' => '2nd Inversion', 'inv3' => '3rd Inversion'];
 		$slots           = ['root', 'inv1', 'inv2', 'inv3'];
 		$rootPc          = $this->dimSymmetry->toPc($displayRoot);
+		$dimExtension    = (string) ($chord->extensions ?? '');
+		$hasExt          = $dimExtension !== '' && isset(DiminishedSymmetry::DIM_EXTENSION_SEMITONES[$dimExtension]);
 
 		// ── Inversions: the four dim7 inversions of the display-root dim7. ──
 		// Because dim7 is symmetric, each inversion IS a dim7 in its own right a
-		// minor third up. We name them by that root (Eb°7, Gb°7, A°7) rather than
-		// as slash chords (C°7/Eb) — the symmetry is the lesson — while the
-		// inversion label keeps their role relative to the display-root dim7.
+		// minor third up. We name them by that own root (Eb°7, Gb°7, A°7) rather
+		// than as slash chords. When the shape carries an extension (e.g. b13), the
+		// extension interval shifts relative to each slot's own root — computed via
+		// DiminishedSymmetry::extensionLabelForReading().
 		$symRootPcs = $this->dimSymmetry->symmetricRoots($rootPc); // [root, +3, +6, +9]
-		$inversions = collect($slots)->map(function ($slot, $idx) use ($chord, $displayRoot, $inversionLabels, $symRootPcs) {
-			$entry = $this->chordSerializer->serializeAs($chord, $displayRoot, 'o7', $slot, $inversionLabels[$slot]);
+		$inversions = collect($slots)->map(function ($slot, $idx) use ($chord, $displayRoot, $inversionLabels, $symRootPcs, $dimExtension, $hasExt) {
+			$entry   = $this->chordSerializer->serializeAs($chord, $displayRoot, 'o7', $slot, $inversionLabels[$slot]);
 			$invRoot = $this->dimSymmetry->spellRoot($symRootPcs[$idx]);
+			$extLabel = $hasExt ? $this->dimSymmetry->extensionLabelForReading($dimExtension, $idx, false) : null;
+
 			$entry['root_note'] = $invRoot;
-			$entry['name']      = $invRoot . 'o7';
-			$entry['bass_note'] = '';        // named by root, not as a slash chord
+			$entry['extensions'] = $extLabel ?? '';
+			$entry['name']      = $invRoot . 'o7' . ($extLabel ? "($extLabel)" : '');
+			$entry['bass_note'] = '';
 			return $entry;
 		});
 
-		// ── Aliases: the four dom7(b9) rootless readings. ──
+		// ── Aliases: the four dom7(b9) readings. ──
 		// dominantReadings gives {domRootPc, b9Pc}; the dim tone = the b9.
-		// Each dom7(b9) is the SAME four physical positions as the dim7 inversions
-		// (basses at the symmetric tones), just renamed. The dominant root is
-		// absent from every position, so we label each slot by the FUNCTION of its
-		// bass relative to the dominant: b9 in bass → "Rootless" (closest to where
-		// the root would sit); 3/5/b7 in bass → genuine 1st/2nd/3rd inversion.
+		// Each dom7(b9) is the SAME four physical positions as the dim7 inversions,
+		// relabelled by bass function vs the dominant root.
+		// For extended shapes, the dim extension lands at a different interval from
+		// each dom root — computed per alias via extensionLabelForReading(isDom=true).
+		// When the extension lands on the dom root itself (interval 0), the shape is
+		// no longer rootless for that reading but still a valid rooted voicing.
 		$bassFunctionSlot = [
-			1  => ['inv' => 'rootless', 'label' => 'Rootless'],   // b9 (one semitone above the absent root) in bass
-			4  => ['inv' => 'inv1', 'label' => '1st Inversion'],  // 3rd in bass
-			7  => ['inv' => 'inv2', 'label' => '2nd Inversion'],  // 5th in bass
-			10 => ['inv' => 'inv3', 'label' => '3rd Inversion'],  // b7 in bass
+			1  => ['inv' => 'rootless', 'label' => 'Rootless'],
+			4  => ['inv' => 'inv1',     'label' => '1st Inversion'],
+			7  => ['inv' => 'inv2',     'label' => '2nd Inversion'],
+			10 => ['inv' => 'inv3',     'label' => '3rd Inversion'],
 		];
 		$aliases = [];
 		$aliasInversions = [];
@@ -895,20 +909,27 @@ class ChordLibraryController extends Controller
 			$domRoot   = $this->dimSymmetry->spellRoot($reading['domRootPc']);
 			$domRootPc = $reading['domRootPc'];
 
-			// Build the four physical positions from the dim7 inversion shapes,
-			// relabelled by bass function relative to this dominant.
+			// Extension label for this dom reading (null when it lands on a chord tone).
+			$domExtLabel = $hasExt ? $this->dimSymmetry->extensionLabelForReading($dimExtension, $i, true) : null;
+			$domExtensions = 'b9' . ($domExtLabel ? ',' . $domExtLabel : '');
+			$chordName     = $domRoot . '7(' . $domExtensions . ')';
+
+			// When extensionLabelForReading returns null the extension lands on the
+			// dom root — the voicing contains the root, so it's not purely rootless.
+			$isRootless = !($hasExt && $domExtLabel === null);
+
+			// Build the four physical positions, relabelled by bass function.
 			$list = [];
 			foreach ($slots as $slot) {
 				$entry = $this->chordSerializer->serializeAs($chord, $displayRoot, 'o7', $slot, $inversionLabels[$slot]);
 
-				// Interval of this position's bass above the dominant root.
-				$bassPc   = $this->dimSymmetry->toPc((string) ($entry['bass_note'] ?: $displayRoot));
+				$bassPc  = $this->dimSymmetry->toPc((string) ($entry['bass_note'] ?: $displayRoot));
 				$interval = ($bassPc - $domRootPc + 12) % 12;
 				$fn       = $bassFunctionSlot[$interval] ?? ['inv' => 'root', 'label' => 'Root Position'];
 
 				$entry['quality']         = 'dom7';
-				$entry['extensions']      = 'b9';
-				$entry['name']            = $domRoot . '7(b9)';
+				$entry['extensions']      = $domExtensions;
+				$entry['name']            = $chordName;
 				$entry['root_note']       = $domRoot;
 				$entry['inversion']       = $fn['inv'];
 				$entry['inversion_label'] = $fn['label'];
@@ -916,8 +937,7 @@ class ChordLibraryController extends Controller
 			}
 			$aliasInversions[$i] = $list;
 
-			// Alias switcher entry: string order from the serialized entry, but
-			// re-spelled for the dominant root via spellDom7b9's pc→name map.
+			// Alias switcher entry: re-spell notes for the dominant root.
 			$dom7Tones = $this->dimSymmetry->spellDom7b9($domRoot);
 			$pcToName  = [];
 			foreach ($dom7Tones as $name) {
@@ -930,12 +950,12 @@ class ChordLibraryController extends Controller
 			$aliases[] = [
 				'root_note'       => $domRoot,
 				'quality'         => 'dom7',
-				'extensions'      => 'b9',
+				'extensions'      => $domExtensions,
 				'bass_note'       => null,
 				'interval_labels' => null,
 				'notes'           => implode(',', $reSpelled),
-				'name'            => $domRoot . '7(b9)',
-				'rootless'        => true,
+				'name'            => $chordName,
+				'rootless'        => $isRootless,
 			];
 		}
 

@@ -52,6 +52,7 @@ interface Props {
     shellFamilies: Record<string, ShellTarget>;
     extFamilies: ExtFamilies;
     otherChords: ChordDiagramData[];
+    top10Slugs: string[];
     voicingCategories: Record<string, string>;
     chordQualities: Record<string, string>;
     totalCount: number;
@@ -59,7 +60,8 @@ interface Props {
 
 const props = defineProps<Props>();
 
-// ── Filter state ───────────────────────────────────────────
+// ── Filter / sort state ────────────────────────────────────
+const fSort    = ref('popularity');
 const search   = ref('');
 const fQuality = ref('');
 const fVoicing = ref(typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('voicing') ?? '') : '');
@@ -368,6 +370,23 @@ const hasFilters = computed(() =>
 
 const visibleCount = computed(() => filteredOther.value.length);
 
+// ── Top 10 hitlist ─────────────────────────────────────────
+// Promoted slugs come first (in config order), then remaining chords by popularity.
+const top10Chords = computed((): ChordDiagramData[] => {
+    const slugOrder = new Map(props.top10Slugs.map((s, i) => [s, i]));
+    const promoted: ChordDiagramData[] = [];
+    const rest: ChordDiagramData[] = [];
+    for (const c of props.otherChords) {
+        if (c.slug && slugOrder.has(c.slug)) {
+            promoted.push(c);
+        } else {
+            rest.push(c);
+        }
+    }
+    promoted.sort((a, b) => (slugOrder.get(a.slug!) ?? 999) - (slugOrder.get(b.slug!) ?? 999));
+    return [...promoted, ...rest];
+});
+
 // ── Voicing groups (unfiltered browse mode only) ───────────────
 // Category order mirrors VOICING_CATEGORIES constant on the model.
 const CATEGORY_ORDER = [
@@ -411,6 +430,7 @@ function clearFilters() {
     fDiff.value = '';
     fInv.value = '';
     fExt.value = '';
+    fSort.value = 'popularity';
 }
 
 // Build the detail page URL, carrying root context when relevant:
@@ -964,8 +984,26 @@ function jumpToLevel(n: number) {
 
                 </div>
 
+                <!-- Top 10 hitlist (sort = top10, no active text/quality filters) -->
+                <div v-if="!hasFilters && fSort === 'top10'" class="sbn-lib-hitlist" role="list">
+                    <div
+                        v-for="(chord, index) in top10Chords"
+                        :key="chord.id"
+                        class="sbn-lib-row sbn-clib-hitlist-row"
+                        role="listitem"
+                    >
+                        <div class="sbn-hitlist-rank">{{ index + 1 }}</div>
+                        <Link :href="chordShowUrl(chord)" class="sbn-clib-row-inner">
+                            <div class="sbn-clib-row-card">
+                                <ChordCard :chord="chord" :no-nav="true" :show-root="true" :same-tab="true" />
+                            </div>
+                            <p v-if="chord.description" class="sbn-lib-row-desc">{{ chord.description }}</p>
+                        </Link>
+                    </div>
+                </div>
+
                 <!-- Grouped panels (browse mode) -->
-                <template v-if="!hasFilters && voicingGroups.length">
+                <template v-else-if="!hasFilters && voicingGroups.length">
                     <details
                         v-for="group in voicingGroups"
                         :key="group.key"
@@ -1028,6 +1066,21 @@ function jumpToLevel(n: number) {
                         <span v-if="searchError" style="color: var(--clr-danger, #c00);">Search failed</span>
                         <button v-if="hasFilters" class="sbn-lib-clear-btn" @click="clearFilters">Clear</button>
                     </span>
+                </div>
+
+                <!-- Sort -->
+                <div class="sbn-lib-sidebar-section">
+                    <span class="sbn-lib-sidebar-label">Sort by</span>
+                    <div class="sbn-lib-sidebar-options">
+                        <button
+                            :class="['sbn-lib-sidebar-option', { 'sbn-sort-active': fSort === 'popularity' }]"
+                            @click="fSort = 'popularity'"
+                        >Popularity</button>
+                        <button
+                            :class="['sbn-lib-sidebar-option', { 'sbn-sort-active': fSort === 'top10' }]"
+                            @click="fSort = 'top10'"
+                        >Top 10</button>
+                    </div>
                 </div>
 
                 <!-- Quality -->
@@ -1122,3 +1175,47 @@ function jumpToLevel(n: number) {
         </div>
     </div>
 </template>
+
+<style scoped>
+/* ── Two-column hitlist grid ── */
+.sbn-lib-hitlist {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+@media (max-width: 640px) {
+    .sbn-lib-hitlist { grid-template-columns: 1fr; }
+}
+
+/* ── Hitlist row: card left, description right ── */
+.sbn-clib-hitlist-row {
+    align-items: flex-start;
+}
+
+.sbn-clib-row-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    flex: 1;
+    text-decoration: none;
+    color: inherit;
+}
+
+.sbn-clib-row-inner:hover .sbn-lib-row-desc {
+    color: var(--clr-text);
+}
+
+.sbn-clib-row-card {
+    flex-shrink: 0;
+}
+
+.sbn-clib-row-card :deep(.sbn-chord-card) {
+    width: 140px;
+}
+
+.sbn-clib-hitlist-row .sbn-lib-row-desc {
+    margin: 0;
+    align-self: center;
+}
+</style>
