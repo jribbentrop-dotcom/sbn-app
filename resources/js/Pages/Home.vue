@@ -4,18 +4,20 @@ import { Link } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
-import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
+import type { LeadsheetBar } from '@/Components/SyncedPlayer/SyncedPlayer.vue';
 import type { ChordShape } from '@/Components/Home/ChordRain.vue';
 
-const SyncedHero = defineAsyncComponent(() => import('@/Components/Home/SyncedHero.vue'));
-const ChordRain  = defineAsyncComponent(() => import('@/Components/Home/ChordRain.vue'));
+const SyncedHero    = defineAsyncComponent(() => import('@/Components/Home/SyncedHero.vue'));
+const ChordRain     = defineAsyncComponent(() => import('@/Components/Home/ChordRain.vue'));
+const GradesTeaser  = defineAsyncComponent(() => import('@/Components/Home/GradesTeaser.vue'));
+const GradesSlider  = defineAsyncComponent(() => import('@/Components/Home/GradesSlider.vue'));
 
 defineOptions({ layout: PublicLayout });
 
 const props = defineProps<{
     rhythmPattern: RhythmPatternData | null;
-    progression: ChordDiagramData[] | null;
-    barsPerChord: number;
+    heroBars: LeadsheetBar[] | null;
+    heroRhythm: RhythmPatternData | null;
     rainChords: ChordShape[];
 }>();
 </script>
@@ -26,11 +28,8 @@ const props = defineProps<{
         <!-- ── Hero ──────────────────────────────────────── -->
         <section class="home-hero">
             <div class="hero-bg">
-                <div class="blob b1"></div>
-                <div class="blob b2"></div>
                 <div class="blob b3"></div>
             </div>
-
             <div class="home-wrap hero-inner">
                 <!-- Left: copy -->
                 <div>
@@ -54,41 +53,29 @@ const props = defineProps<{
                 <!-- Right: synced demo -->
                 <div class="reveal d3">
                     <SyncedHero
-                        :progression="props.progression ?? undefined"
-                        :rhythm-pattern="props.rhythmPattern ?? undefined"
-                        :bars-per-chord="props.barsPerChord"
+                        :bars="props.heroBars ?? undefined"
+                        :rhythm-pattern="props.heroRhythm ?? undefined"
+                        :muted="true"
                     />
                 </div>
             </div>
         </section>
 
-        <!-- ── Rhythm strip ───────────────────────────────── -->
-        <section class="home-section">
-            <div class="home-wrap">
-                <div class="section-head">
-                    <div class="eyebrow">Feel it, don't read it</div>
-                    <h2>Rhythm patterns that play themselves</h2>
-                    <p>Loop the classic bossa pattern, slow it down, see exactly where the accents land. Then drop it straight into your leadsheet.</p>
-                </div>
-                <div v-if="rhythmPattern" class="rhythm-card">
-                    <div class="rhythm-card-header">
-                        <h3>{{ rhythmPattern.name }}</h3>
-                        <span class="tempo-badge">♩ = {{ rhythmPattern.bpm }} · {{ rhythmPattern.timeSignature }}</span>
-                    </div>
-                    <RhythmStrip
-                        :pattern="rhythmPattern"
-                        :show-meta="false"
-                        :playable="true"
-                    />
-                    <div class="rhythm-card-footer">
-                        <Link href="/library/rhythms" class="rhythm-explore-link">Explore all patterns →</Link>
-                    </div>
-                </div>
-            </div>
-        </section>
+        <!-- ── Grades teaser (retired) ───────────────────── -->
+        <!-- <GradesTeaser /> -->
 
         <!-- ── Chord rain ─────────────────────────────────── -->
         <ChordRain v-if="rainChords?.length" :chords="rainChords" />
+
+        <!-- ── Rhythm strip (hidden) ─────────────────────── -->
+        <!--
+        <section class="home-section">
+            ...
+        </section>
+        -->
+
+        <!-- ── Grades slider ─────────────────────────────── -->
+        <GradesSlider />
 
         <!-- ── Feature cards ──────────────────────────────── -->
         <section class="home-section" style="padding-top:0">
@@ -106,8 +93,8 @@ const props = defineProps<{
                     </Link>
                     <Link href="/library/chords" class="feature-card">
                         <div class="card-icon">🗂️</div>
-                        <h3>Voicing Library</h3>
-                        <p>Every shape diagrammed with root, third, fifth and seventh colour-coded so the theory is visible at a glance.</p>
+                        <h3>Every chord, every context</h3>
+                        <p>Follow any chord through its inversions, transpose it to any key, and see exactly where it lives in the repertoire.</p>
                         <span class="card-more">Browse voicings →</span>
                     </Link>
                     <a href="#" class="feature-card">

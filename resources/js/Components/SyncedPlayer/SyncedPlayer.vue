@@ -48,6 +48,8 @@ const props = defineProps<{
     loop?: boolean;
     /** Auto-play on mount (default true). Set false for manual control. */
     autoplay?: boolean;
+    /** Run visuals only — no audio output (rhythm samples + nylon synth silenced). */
+    muted?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -149,6 +151,7 @@ const LBLS  = ['', 'prev', '', 'up next', ''];
 const engine = getAudioEngine();
 const nylon = new NylonSampler();
 const isPlaying = ref(false);
+const isMuted = ref(props.muted ?? false);
 let engineUnsubs: Array<() => void> = [];
 let engineListened = false;
 
@@ -175,9 +178,9 @@ function registerEngineListeners(): void {
             const isHit = (c: string | undefined) => c != null && c.toLowerCase() === 'x';
             const thumbHit   = isHit(RHYTHM.value.thumb[step]);
             const fingersHit = isHit(RHYTHM.value.fingers[step]);
-            if (thumbHit)   { strikeCenter('bass');    synthBass(time); }
-            if (fingersHit) { strikeCenter('fingers'); synthFingers(time); }
-            if (!thumbHit && !fingersHit) ghostPerc(time);
+            if (thumbHit)   { strikeCenter('bass');    if (!isMuted.value) synthBass(time); }
+            if (fingersHit) { strikeCenter('fingers'); if (!isMuted.value) synthFingers(time); }
+            if (!thumbHit && !fingersHit && !isMuted.value) ghostPerc(time);
             // Pre-cue "up next" pulse: 4 steps (1 beat) before the advance.
             if (stepsPlayed === currentStepsPerChord() - 4) strikeNext();
             tickStep();
@@ -195,17 +198,25 @@ function registerEngineListeners(): void {
 async function audioPlay(): Promise<void> {
     await engine.init({
         bpm: BPM.value * 2,
-        samplesBaseUrl: '/audio/rhythm-samples/',
+        samplesBaseUrl: isMuted.value ? undefined : '/audio/rhythm-samples/',
     });
-    nylon.init('/audio/nylon/');
+    if (!isMuted.value) {
+        await (engine as any).ensureSamples('/audio/rhythm-samples/');
+        nylon.init('/audio/nylon/');
+    }
     registerEngineListeners();
 
-    const events = rhythmPatternToEvents(RHYTHM.value, { startBeat: 0 });
     const stepBeats = RHYTHM.value.gridType === 'eighth' ? 0.5
                     : RHYTHM.value.gridType === 'triplet' ? 1 / 3
                     : 0.25;
     const loopBeats = RHYTHM.value.beats * stepBeats;
-    engine.load(events, { loop: true, loopBeats });
+    if (!isMuted.value) {
+        const events = rhythmPatternToEvents(RHYTHM.value, { startBeat: 0 });
+        engine.load(events, { loop: true, loopBeats });
+    } else {
+        // Muted: load an empty event list so the clock loops at the right tempo
+        engine.load([], { loop: true, loopBeats });
+    }
     engine.setTempo(BPM.value * 2);
 
     stepsPlayed = 0;
@@ -230,6 +241,14 @@ function audioStop(): void {
 function togglePlay(): void {
     if (isPlaying.value) audioStop();
     else audioPlay();
+}
+
+async function toggleMute(): Promise<void> {
+    isMuted.value = !isMuted.value;
+    if (isPlaying.value) {
+        audioStop();
+        await audioPlay();
+    }
 }
 
 // ── Board state ───────────────────────────────────────────────────────────────
@@ -516,6 +535,19 @@ defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying }
                     <svg v-else viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><rect x="5" y="4" width="4" height="12" rx="1"/><rect x="11" y="4" width="4" height="12" rx="1"/></svg>
                 </button>
                 <span class="mini-label">{{ RHYTHM.name }} · {{ RHYTHM.timeSignature }} · {{ BPM }} bpm</span>
+                <button class="sp-mute-btn" @click="toggleMute" :aria-label="isMuted ? 'Unmute' : 'Mute'">
+                    <!-- Sound on -->
+                    <svg v-if="!isMuted" viewBox="0 0 20 20" fill="currentColor" width="15" height="15">
+                        <path d="M10 3.5 L6 7H3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3l4 3.5V3.5z"/>
+                        <path d="M14 7a5 5 0 0 1 0 6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                    </svg>
+                    <!-- Muted (crossed speaker) -->
+                    <svg v-else viewBox="0 0 20 20" fill="currentColor" width="15" height="15">
+                        <path d="M10 3.5 L6 7H3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3l4 3.5V3.5z"/>
+                        <line x1="13" y1="7" x2="18" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        <line x1="18" y1="7" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </button>
             </div>
 
             <div class="mini-bar mini-bar-fingers">
@@ -649,6 +681,22 @@ defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying }
     gap: 10px;
     margin-bottom: 10px;
 }
+.sp-mute-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--clr-text-muted);
+    border: 1.5px solid var(--clr-line);
+    cursor: pointer;
+    margin-left: auto;
+    transition: color .15s, border-color .15s, transform .1s;
+}
+.sp-mute-btn:hover  { color: var(--clr-text); border-color: var(--clr-text-dim); }
+.sp-mute-btn:active { transform: scale(.93); }
 .mini-label {
     font-size: .7rem;
     color: var(--clr-text-muted);

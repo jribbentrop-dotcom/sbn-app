@@ -270,8 +270,8 @@ onUnmounted(() => {
         <!-- Copy — z-index 3 -->
         <div class="chord-rain-copy">
             <div class="eyebrow">240+ voicings mapped</div>
-            <h2>Every chord,<br><em>colour-coded</em> by function.</h2>
-            <p>Root, third, fifth, seventh — the theory is visible in every dot, on every shape, across all six strings.</p>
+            <h2>Every chord,<br><em>every context.</em></h2>
+            <p>Follow any chord through its inversions, transpose it to any key, and see exactly where it lives in the repertoire.</p>
             <a href="/library/chords" class="btn btn-solid btn-lg">Browse the voicing library →</a>
             <div class="rain-stats">
                 <div class="rain-stat"><span class="rain-stat-n">240+</span><span class="rain-stat-l">Voicings</span></div>

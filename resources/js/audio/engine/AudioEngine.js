@@ -191,6 +191,13 @@ export class AudioEngine {
         this._clock?.setTempo(bpm);
     }
 
+    /** Load percussion samples if they haven't been loaded yet (e.g. after a muted init). */
+    async ensureSamples(samplesBaseUrl) {
+        const perc = this._voices?.percussion;
+        if (!perc || perc.ready) return;
+        await perc.init(samplesBaseUrl);
+    }
+
     setMasterVolume(db) {
         Tone.getDestination().volume.value = db;
     }

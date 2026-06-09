@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import SyncedPlayer from '../SyncedPlayer/SyncedPlayer.vue';
-import type { ChordDiagramData } from '../Library/ChordDiagram.vue';
+import SyncedPlayer, { type LeadsheetBar } from '../SyncedPlayer/SyncedPlayer.vue';
 import type { RhythmPatternData } from '../Library/RhythmPattern.vue';
 
 defineProps<{
-    progression?: ChordDiagramData[];
+    bars?: LeadsheetBar[];
     rhythmPattern?: RhythmPatternData;
-    barsPerChord?: number;
+    muted?: boolean;
 }>();
 </script>
 
@@ -14,10 +13,10 @@ defineProps<{
     <div class="synced-hero sbn-synced-hero-card">
         <span class="demo-tag">Live · play-along</span>
         <SyncedPlayer
-            :progression="progression"
+            :bars="bars"
             :rhythm-pattern="rhythmPattern"
-            :bars-per-chord="barsPerChord"
             :autoplay="true"
+            :muted="muted"
         />
     </div>
 </template>
@@ -25,6 +24,9 @@ defineProps<{
 <style scoped>
 .synced-hero {
     position: relative;
+    width: 100%;
+    max-width: 480px;
+    margin-left: auto;
     /* overflow:visible so .demo-tag (top:-12px) is not clipped */
     /* Card frame (border, shadow, radius) in sbn-synced-hero-card in sbn-design-system.css */
 }

@@ -10,6 +10,11 @@ use App\Services\LeadsheetViewerService;
 use Inertia\Inertia;
 use Inertia\Response;
 
+// Hero song config (matches top10 bossa-nova-songs.php entry for Ipanema)
+const HERO_SLUG  = 'the-girl-from-ipanema';
+const HERO_START = 5;
+const HERO_END   = 12;
+
 class HomeController extends Controller
 {
     public function __construct(
@@ -35,69 +40,130 @@ class HomeController extends Controller
             'percBass'      => $pattern->perc_bass,
         ] : null;
 
-        $progression = $this->buildHeroProgression();
+        [$heroBars, $heroRhythm] = $this->buildHeroBars();
 
         return Inertia::render('Home', [
             'rhythmPattern' => $rhythmPattern,
-            'progression'   => $progression,
-            'barsPerChord'  => 2,
+            'heroBars'      => $heroBars,
+            'heroRhythm'    => $heroRhythm,
             'rainChords'    => $this->buildRainChords(),
         ]);
     }
 
     /**
-     * Build an ordered chord sequence for the SyncedHero from Desafinado.
-     * Walks the flat measures list, deduplicates consecutive repeats, looks up
-     * each chord card via LeadsheetViewerService, and returns the first 8
-     * distinct chords so the hero loops a representative passage.
+     * Build the hero bars array using the same logic as SyncedPlayerController::apiShow().
+     * Slices Ipanema bars HERO_START..HERO_END so the tempo and rhythm exactly match top10.
+     *
+     * @return array{0: array|null, 1: array|null}  [bars, rhythmPattern]
      */
-    private function buildHeroProgression(): ?array
+    private function buildHeroBars(): array
     {
-        $leadsheet = Leadsheet::find(113);
+        $leadsheet = Leadsheet::where('slug', HERO_SLUG)->first();
         if (! $leadsheet) {
-            return null;
+            return [null, null];
         }
 
-        $enriched   = $this->viewerService->enrich($leadsheet, $this->search);
-        $chordCards = $enriched['chordCards'];
-        $data       = $leadsheet->parsed_data;
-        $measures   = $data['measures'] ?? [];
+        $jsonData   = $leadsheet->parsed_data ?? [];
+        $rhythmSlug = $leadsheet->rhythm ?? null;
 
-        // Walk measures, collect unique consecutive chord names
-        $sequence = [];
-        $prev     = null;
-        foreach ($measures as $measure) {
-            foreach ($measure['chords'] ?? [] as $chord) {
-                $name = trim($chord['name'] ?? '');
-                if ($name === '' || $name === $prev) {
+        // ── Rhythm pattern ────────────────────────────────────────────────────
+        $rhythmPattern = null;
+        if ($rhythmSlug) {
+            $pattern = RhythmPattern::where('slug', $rhythmSlug)->first();
+            if ($pattern) {
+                $rhythmPattern = [
+                    'slug'          => $pattern->slug,
+                    'name'          => $pattern->name,
+                    'timeSignature' => $pattern->time_signature,
+                    'beats'         => $pattern->beats,
+                    'gridType'      => $pattern->grid_type,
+                    'bpm'           => $pattern->default_bpm,
+                    'thumb'         => $pattern->thumb_pattern,
+                    'fingers'       => $pattern->rhythm_pattern,
+                    'percTop'       => $pattern->perc_top,
+                    'percBass'      => $pattern->perc_bass,
+                ];
+            }
+        }
+
+        // ── Compute stepsPerBar (mirrors SyncedPlayerController) ─────────────
+        $stepsPerBar = 16;
+        if ($rhythmPattern) {
+            $beats       = (int) ($rhythmPattern['beats'] ?? 16);
+            $gridType    = $rhythmPattern['gridType'] ?? 'sixteenth';
+            $stepBeats   = match ($gridType) {
+                'eighth'  => 0.5,
+                'triplet' => 1 / 3,
+                default   => 0.25,
+            };
+            $patternBeats = $beats * $stepBeats;
+            $timeSig      = $rhythmPattern['timeSignature'] ?? '4/4';
+            $beatsPerBar  = max(1, (int) explode('/', $timeSig)[0]);
+            $barsPerCycle = max(1, (int) round($patternBeats / $beatsPerBar));
+            $stepsPerBar  = (int) round($beats / $barsPerCycle);
+        }
+
+        // ── Flatten sections → bar list ───────────────────────────────────────
+        $sections = $jsonData['sections'] ?? [];
+        $voicings = $jsonData['chordVoicings'] ?? [];
+        $allBars  = [];
+        $gi       = 0;
+
+        foreach ($sections as $section) {
+            foreach ($section['measures'] ?? [] as $measure) {
+                if (!empty($measure['chordNames'])) {
+                    $names = array_values($measure['chordNames']);
+                } else {
+                    $names = array_values(array_map(
+                        fn ($c) => is_array($c) ? ($c['name'] ?? $c['symbol'] ?? '') : (string) $c,
+                        $measure['chords'] ?? []
+                    ));
+                }
+                $names = array_filter($names);
+
+                if (empty($names)) {
+                    $gi++;
                     continue;
                 }
-                $sequence[] = $name;
-                $prev       = $name;
-                if (count($sequence) >= 8) {
-                    break 2;
+
+                $count         = count($names);
+                $stepsPerChord = (int) round($stepsPerBar / $count);
+
+                foreach ($names as $ci => $chordName) {
+                    $slotKey = "{$chordName}@{$gi}.{$ci}";
+                    $voicing = $voicings[$slotKey] ?? $voicings[$chordName] ?? null;
+                    $matches = $this->search->searchByName($chordName);
+
+                    $card = null;
+                    if ($voicing && !empty($matches)) {
+                        $card = $this->viewerService->pickBestVoicing($matches, $voicing['frets'] ?? null);
+                    }
+                    if (!$card && !empty($matches)) {
+                        $card = $matches[0];
+                    }
+                    if (!$card && $voicing) {
+                        $card = $this->viewerService->synthesizeMinimalCard($chordName, $voicing, $this->search);
+                    }
+
+                    $allBars[] = [
+                        'chordName'     => $chordName,
+                        'chordCard'     => $card,
+                        'durationBars'  => 1,
+                        'stepsPerChord' => $stepsPerChord,
+                        'gi'            => $gi,
+                    ];
                 }
+
+                $gi++;
             }
         }
 
-        // Map each chord name to its ChordDiagramData card.
-        // chordCards keys are either "ChordName" or "ChordName@position".
-        $result = [];
-        foreach ($sequence as $name) {
-            if (isset($chordCards[$name])) {
-                $result[] = $chordCards[$name];
-                continue;
-            }
-            // Fall back to first @position key for this chord name
-            foreach ($chordCards as $key => $card) {
-                if (str_starts_with($key, $name . '@') || $key === $name) {
-                    $result[] = $card;
-                    break;
-                }
-            }
-        }
+        // ── Slice HERO_START..HERO_END ────────────────────────────────────────
+        $total  = count($allBars);
+        $endIdx = min(HERO_END + 1, $total);
+        $bars   = array_values(array_slice($allBars, HERO_START, $endIdx - HERO_START));
 
-        return $result ?: null;
+        return [$bars ?: null, $rhythmPattern];
     }
 
     /**

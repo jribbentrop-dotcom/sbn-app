@@ -82,6 +82,13 @@
     --clr-mod-rhythm: #10b981;
     --clr-mod-voicing: #ec4899;
 
+    /* ── Difficulty grade colours ─────────────────────────── */
+    --g1: #5b9bff;   /* Basic            — open blue   */
+    --g2: #46c2a8;   /* Early Intermed.  — teal        */
+    --g3: var(--clr-accent); /* Intermediate — amber (same as brand accent) */
+    --g4: #e06cd6;   /* Late Intermed.   — violet      */
+    --g5: #1d2127;   /* Advanced         — near-black  */
+
     /* ── Music style colors — 4 canonical categories ────────
        Used for category badges, pill filters, progression
        dots, chord-diagram tints, and shop card accents.   */

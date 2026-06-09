@@ -30,6 +30,7 @@ const year = new Date().getFullYear();
                 <h5>Learn</h5>
                 <Link href="/library/theory">Theory Widgets</Link>
                 <Link href="/learn">Lesson Paths</Link>
+                <Link href="/grades">Find Your Level</Link>
                 <Link href="/library/songs">Song Catalog</Link>
                 <a href="#">Bossa Foundations</a>
             </div>

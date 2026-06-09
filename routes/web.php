@@ -218,6 +218,10 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
     Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
     // AI Assistant
     Route::post('/ai/process', [\App\Http\Controllers\Admin\AIController::class, 'process'])->name('ai.process');
+
+    // PDF pipeline
+    Route::get('/pdf/preview/{slug}',  [\App\Http\Controllers\Admin\PdfController::class, 'preview'])->name('pdf.preview');
+    Route::get('/pdf/download/{slug}', [\App\Http\Controllers\Admin\PdfController::class, 'download'])->name('pdf.download');
 });
 
 /*
@@ -389,6 +393,7 @@ if (! app()->environment('production')) {
 |--------------------------------------------------------------------------
 */
 Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::get('/grades', fn () => \Inertia\Inertia::render('Grades/Index'))->name('grades.index');
 
 Route::get('/hello', function () {
     return \Inertia\Inertia::render('Hello');
