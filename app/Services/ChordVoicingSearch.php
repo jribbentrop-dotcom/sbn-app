@@ -243,7 +243,12 @@ class ChordVoicingSearch
         // Generated (not hand-stored) so all dim7 shapes surface, consistently.
         $dimDomResults = $this->findDiminishedDominantMatches($root, $quality, $extension);
 
-        return array_merge($results, $aliasResults, $dimDomResults);
+        // When searching a dim7 with a known extension (e.g. G°7(b13)), also
+        // surface the four dom7 alias readings as search results so the user
+        // can navigate directly to each dominant interpretation.
+        $dimAliasResults = $this->findDiminishedAliasReadings($root, $quality, $extension);
+
+        return array_merge($results, $aliasResults, $dimDomResults, $dimAliasResults);
     }
 
     // =========================================================================
@@ -426,6 +431,104 @@ class ChordVoicingSearch
      *
      * A diminished 7th is a rootless voicing of four dominant-7(b9) chords. So
      * when the search is a dom7 carrying a b9 (e.g. "Ab7(b9)", "G7b9"), every
+     * When searching a dim7 with a known extension (e.g. G°7(b13)), surface the
+     * four dom7(b9) alias readings as additional search results. Each result is an
+     * alias_match pointing back to the dim7 detail page with the correct alias
+     * pre-selected, mirroring what buildDiminishedReadings() shows on the detail page.
+     *
+     * @return array<int, array>
+     */
+    public function findDiminishedAliasReadings(string $root, string $quality, string $extension): array
+    {
+        if (! in_array($quality, DiminishedSymmetry::DIM_QUALITIES, true)) {
+            return [];
+        }
+        if ($extension === '' || ! isset(DiminishedSymmetry::DIM_EXTENSION_SEMITONES[$extension])) {
+            return [];
+        }
+
+        $reqRootSemi = ChordShapeCalculator::NOTE_SEMITONES[$root] ?? null;
+        if ($reqRootSemi === null) {
+            return [];
+        }
+
+        // Query shapes matching this dim quality + extension.
+        $shapes = DB::table('sbn_chord_diagrams')
+            ->where('quality', 'o7')
+            ->where('extensions', $extension)
+            ->whereRaw("(bass_note = '' OR bass_note IS NULL)")
+            ->orderByDesc('popularity')
+            ->orderBy('voicing_category')
+            ->orderBy('root_string')
+            ->get();
+
+        if ($shapes->isEmpty()) {
+            return [];
+        }
+
+        // The four symmetric dim roots for the searched root.
+        $symRootPcs = $this->dimSymmetry->symmetricRoots($reqRootSemi);
+
+        $results = [];
+        $seenKey = [];
+
+        foreach ($shapes as $shape) {
+            // The shape can be displayed at any of the four symmetric roots; use
+            // the searched root as the display root (the page transposes to it).
+            $calculated = $this->calculator->calculateFrets($shape, $root);
+            if (empty($calculated['diagram_data']) ||
+                (empty($calculated['diagram_data']['positions']) && empty($calculated['diagram_data']['open']))) {
+                continue;
+            }
+
+            // Emit one search result per dom7 alias reading (four total).
+            foreach ($this->dimSymmetry->dominantReadings($reqRootSemi) as $slotIdx => $reading) {
+                $domRoot       = $this->dimSymmetry->spellRoot($reading['domRootPc']);
+                $domExtLabel   = $this->dimSymmetry->extensionLabelForReading($extension, $slotIdx, true);
+                $domExtensions = 'b9' . ($domExtLabel ? ',' . $domExtLabel : '');
+                $chordName     = $domRoot . '7(' . $domExtensions . ')';
+                $isRootless    = $domExtLabel !== null;
+
+                $dedupeKey = $shape->id . ':' . $slotIdx;
+                if (isset($seenKey[$dedupeKey])) continue;
+                $seenKey[$dedupeKey] = true;
+
+                $tones = $this->dimSymmetry->spellDom7b9($domRoot);
+                $notes = implode(',', [$tones['3'], $tones['5'], $tones['b7'], $tones['b9']]);
+
+                $results[] = [
+                    'id'               => $shape->id,
+                    'slug'             => $shape->slug ?? '',
+                    'name'             => $chordName,
+                    'root_note'        => $domRoot,
+                    'original_root'    => $shape->root_note,
+                    'quality'          => 'dom7',
+                    'extensions'       => $domExtensions,
+                    'voicing_category' => $shape->voicing_category,
+                    'root_string'      => $shape->root_string,
+                    'inversion'        => 'root',
+                    'start_fret'       => $calculated['start_fret'],
+                    'diagram_data'     => $calculated['diagram_data'],
+                    'interval_labels'  => $calculated['interval_labels'] ?? ($shape->interval_labels ?? ''),
+                    'notes'            => $notes,
+                    'bass_note'        => '',
+                    'popularity'       => $shape->popularity ?? 0,
+                    'difficulty'       => $shape->difficulty ?? null,
+                    'alias_match'      => true,
+                    'rootless'         => $isRootless,
+                    'display_root'     => $root,
+                    'alias_root'       => $domRoot,
+                    'alias_quality'    => 'dom7',
+                    'alias_extensions' => $domExtensions,
+                    'alias_bass'       => '',
+                ];
+            }
+        }
+
+        return $results;
+    }
+
+    /**
      * stored dim7 (`o7`) shape is a valid voicing: transpose it so the searched
      * dominant's b9 (a semitone above the dom root) is a chord tone, and present
      * it as a rootless reading. Generated from DiminishedSymmetry so ALL dim7
@@ -440,8 +543,8 @@ class ChordVoicingSearch
     public function findDiminishedDominantMatches(string $root, string $quality, string $extension): array
     {
         // Only the dom7(b9) family. Accept any extension that includes a b9
-        // (b9, b9b13, b9#11, …) — the dim7 supplies the b9; extra tensions are
-        // not represented by the bare dim shape but the reading still holds.
+        // (b9, b9b13, b9#11, …) — the dim7 supplies the b9; extra tensions may
+        // be voiced by an extended dim7 shape (e.g. °7b13 → dom7(b9,13)).
         if ($quality !== 'dom7' || ! str_contains($extension, 'b9')) {
             return [];
         }
@@ -451,11 +554,11 @@ class ChordVoicingSearch
             return [];
         }
 
-        // The dim7 lives on the dominant's b9 (one semitone above the root); any
-        // of its four symmetric roots names the same chord, so b9 is as good as any.
+        // The dim7 lives on the dominant's b9 (one semitone above the root).
         $dimRootPc  = ($reqRootSemi + 1) % 12;
         $targetNote = $this->dimSymmetry->spellRoot($dimRootPc);
 
+        // Fetch all o7 shapes (bare and extended) without a stored bass note.
         $shapes = DB::table('sbn_chord_diagrams')
             ->where('quality', 'o7')
             ->whereRaw("(bass_note = '' OR bass_note IS NULL)")
@@ -467,10 +570,8 @@ class ChordVoicingSearch
             return [];
         }
 
-        // Reading-aware tones present in the rootless voicing (3,5,b7,b9).
+        // Base tones for the rootless voicing (3, 5, b7, b9).
         $tones = $this->dimSymmetry->spellDom7b9($root);
-        $notes = implode(',', [$tones['3'], $tones['5'], $tones['b7'], $tones['b9']]);
-        $chordName = $root . '7(b9)';
 
         $results = [];
         $seenFretPos = [];
@@ -486,6 +587,36 @@ class ChordVoicingSearch
             if (isset($seenFretPos[$dedupeKey])) continue;
             $seenFretPos[$dedupeKey] = true;
 
+            // Determine the dim shape's extension and what it maps to from this
+            // dom root. dominantReadings() returns four slots in dim-root order
+            // (+0,+3,+6,+9 semitones); find the slot whose domRootPc matches the
+            // searched root so we compute the extension label from the right frame.
+            $dimExt      = (string) ($shape->extensions ?? '');
+            $aliasSlotIdx = 0;
+            if ($dimExt !== '' && isset(DiminishedSymmetry::DIM_EXTENSION_SEMITONES[$dimExt])) {
+                foreach ($this->dimSymmetry->dominantReadings($dimRootPc) as $k => $r) {
+                    if ($r['domRootPc'] === $reqRootSemi) {
+                        $aliasSlotIdx = $k;
+                        break;
+                    }
+                }
+            }
+            $domExtLabel  = ($dimExt !== '' && isset(DiminishedSymmetry::DIM_EXTENSION_SEMITONES[$dimExt]))
+                ? $this->dimSymmetry->extensionLabelForReading($dimExt, $aliasSlotIdx, true)
+                : null;
+
+            // When the extension lands on the dom root (label=null), the voicing
+            // contains the root — include it but mark as not purely rootless.
+            $isRootless    = !($dimExt !== '' && $domExtLabel === null);
+            $domExtensions = 'b9' . ($domExtLabel ? ',' . $domExtLabel : '');
+            $chordName     = $root . '7(' . $domExtensions . ')';
+
+            // Deep-link alias_extensions must match what buildDiminishedReadings()
+            // generates on the dim7 detail page for this alias slot.
+            $aliasExtensions = $domExtensions;
+
+            $notes = implode(',', [$tones['3'], $tones['5'], $tones['b7'], $tones['b9']]);
+
             $results[] = [
                 'id'               => $shape->id,
                 'slug'             => $shape->slug ?? '',
@@ -493,7 +624,7 @@ class ChordVoicingSearch
                 'root_note'        => $root,
                 'original_root'    => $shape->root_note,
                 'quality'          => 'dom7',
-                'extensions'       => $extension,
+                'extensions'       => $domExtensions,
                 'voicing_category' => $shape->voicing_category,
                 'root_string'      => $shape->root_string,
                 'inversion'        => 'root',
@@ -505,15 +636,11 @@ class ChordVoicingSearch
                 'popularity'       => $shape->popularity ?? 0,
                 'difficulty'       => $shape->difficulty ?? null,
                 'alias_match'      => true,
-                'rootless'         => true,
-                // Deep-link: open the dim7 page at the transposed dim root and
-                // pre-select the dom7(b9) reading. The generated page alias is a
-                // bare 7(b9), so the hint is always 'b9' even if the query carried
-                // extra tensions (b9b13, b9#11) the bare dim shape can't voice.
+                'rootless'         => $isRootless,
                 'display_root'     => $targetNote,
                 'alias_root'       => $root,
                 'alias_quality'    => 'dom7',
-                'alias_extensions' => 'b9',
+                'alias_extensions' => $aliasExtensions,
                 'alias_bass'       => '',
             ];
         }

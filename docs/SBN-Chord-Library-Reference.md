@@ -60,27 +60,48 @@ Pure, unit-tested (`tests/Unit/DiminishedSymmetryTest.php`). Also consumed by th
 - `symmetricRoots(pc)` → `[pc, +3, +6, +9]`
 - `dominantReadings(pc)` → 4× `{domRootPc = (r−4) mod 12, b9Pc = r}` (dom root always absent → true rootless)
 - `spellDim7(root)` → `{R, b3, b5, bb7}`; `spellDom7b9(domRoot)` → `{3, 5, b7, b9}`; `spellRoot(pc)` (flat); `spellSharp(pc)`
+- `extensionLabelForReading(dimExtension, slotIndex, isDom)` → extension label as seen from a given inversion slot or dom alias; returns `null` when the extension lands on a chord tone of that reading
+- `DIM_EXTENSION_SEMITONES` — known dim extensions to semitone offset: `'b13'`→8, `'11'`→5
+- `EXTENSION_INTERVAL_LABELS` — semitone offset → label string (e.g. 9→`'13'`, 6→`'#11'`, 3→`'#9'`, 11→`'maj7'`)
 
 ### Spelling rule (locked)
 Structural tones **3 / 5 / ♭7** are spelled functionally — correct letter, single accidental (a major 3rd above B is **D♯**, never E♭). Because dim7 stacks minor thirds, a strict spelling can force a double accidental on a structural tone (Eb°7's ♭5 → B♭♭); when it would, **fall back to the simple enharmonic** (→ A). The °7 tone and tensions (♭9) are spelled pragmatically (simple natural — C°7's 7th = A, not B♭♭).
 
+### Extended dim7 shapes (°7b13, °711, …)
+Some stored `o7` shapes carry an extension (e.g. `extensions='b13'`). The extension note is fixed in fretboard space, so its interval shifts relative to each of the eight generated readings. `extensionLabelForReading` computes this:
+
+- Dim inversion slot k: interval from slot root = `(e − 3k) mod 12`
+- Dom alias slot k: interval from dom root = `(e + 4 − 3k) mod 12`
+
+**°7b13** (e=8): dim slots → b13/11/9/maj7; dom aliases → ROOT/13/#11/#9. The ROOT alias (slot 0) means the extension lands on the dom root — shape is no longer purely rootless (`rootless: false`) but still a valid rooted dominant voicing.
+
+**°711** (e=5): dim slots → 11/9/maj7/b13; dom aliases → 13/#11/#9/ROOT.
+
+**The iconic example**: the Getz/Gilberto *Girl from Ipanema* chord `Ab7(b9,13)/A` is voiced as diagram 121 (`A°7b13`) — the b13 of A°7 lands at the 13 of the `Ab7(b9)` reading (slot 1 of dominantReadings for dim root A).
+
 ### Generation — `ChordLibraryController::buildDiminishedReadings($chord, $displayRoot)`
 Returns `['inversions', 'aliases', 'aliasInversions']`. `show()` **overrides** the DB-driven defaults when `quality ∈ DiminishedSymmetry::DIM_QUALITIES`.
-- **Inversions**: the four dim7 inversions, **named by their own root** (C°7, E♭°7, G♭°7, A°7 — NOT slash chords like C°7/Eb), with the inversion *label* showing the role relative to the display root. `root_note`/`name` set to the symmetric root, `bass_note` cleared. Serialized with `$displayRoot` so diagram positions are correct; note names come from `calculateNoteNames` which routes `o7` through `DiminishedSymmetry::spellDim7` for root-relative spelling.
-- **Aliases**: the four dom7(♭9) readings (switcher entries), each flagged `rootless: true`. `notes` are taken from the first serialized inversion entry (preserving string/low→high order), then each note is **re-spelled** via `spellDom7b9`'s pc→name map so enharmonics match the dominant root (e.g. Ab→G# for E7(b9)).
-- **aliasInversions**: the same four physical positions, relabelled by **bass function** vs the dominant root: ♭9 in bass (interval 1) → **"Rootless"**; 3/5/♭7 (4/7/10) → 1st/2nd/3rd inversion.
+- **Inversions**: the four dim7 inversions, **named by their own root** (C°7, E♭°7, G♭°7, A°7 — NOT slash chords like C°7/Eb), with the inversion *label* showing role relative to the display root. For extended shapes, the extension label rotates per slot (e.g. `Eb°7(11)` for a b13 shape at inv1). `bass_note` cleared.
+- **Aliases**: the four dom7 readings. Extensions computed per slot via `extensionLabelForReading`; `rootless: false` when the extension lands on the dom root. `notes` re-spelled via `spellDom7b9`'s pc→name map.
+- **aliasInversions**: the same four physical positions, relabelled by **bass function** vs the dominant root: ♭9 in bass → **"Rootless"**; 3/5/♭7 → 1st/2nd/3rd inversion.
 
 ### Frontend (Show.vue)
 - `isDiminished` gates the dim7 copy; `activeIsRootless` and `activeSelfInversion` (returns `'rootless'` for rootless aliases) drive labels.
-- Generated lists are complete, so `allInversions` does **not** append a synthetic self for dim pages. All generated entries share one diagram `id`, so `:key` = `id-inversion` and `inversionIsCurrent()` matches by **slot**. Inversion links use `chordShowUrl(inv)` (not a bare slug href) so the `?root=` param is preserved when navigating to a symmetric inversion root.
-- **Edu copy is context-aware** via `arrivedVia` (`'dominant'` when a dom7(♭9) reading was deep-linked, else `'diminished'`): a dim7 search shows "this shape also voices four dom7(♭9)…"; a dom7(♭9) search shows the reveal "the dominant you searched is a pure diminished 7th…". The "four identical inversions" explanation lives in the **inversion panel**; the alias block covers only the dim7↔dom7(♭9) relationship.
+- Generated lists are complete, so `allInversions` does **not** append a synthetic self for dim pages. All generated entries share one diagram `id`, so `:key` = `id-inversion` and `inversionIsCurrent()` matches by **slot**. Inversion links use `chordShowUrl(inv)` so `?root=` is preserved.
+- **Edu copy is context-aware** via `arrivedVia` (`'dominant'` when a dom7(♭9) reading was deep-linked, else `'diminished'`).
 - Switcher shows "This voicing" / "Also reads as" grouping labels on dim pages.
 
 ### Search-side generation
-`ChordVoicingSearch::findDiminishedDominantMatches($root, $quality, $extension)` fires when the search is a `dom7` carrying a `b9` (e.g. `Ab7(b9)`, `G7b9`). It transposes **every** stored `o7` shape so the dominant's ♭9 (a semitone above the root) is a chord tone, and returns each as a rootless `{root}7(b9)` reading with the same deep-link context as `findAliasMatches` (`display_root` = the dim7 root transposed to; `alias_*` pre-selects the dom7(♭9) reading). So all 10 dim7 shapes surface consistently, not just the 2 that once had hand-authored rows. The `alias_extensions` hint is always `'b9'` (the bare dim shape can't voice extra tensions like `b9,13`), so the deep-link still matches the generated page alias.
+Three methods in `ChordVoicingSearch` cover the full lattice:
+
+**`findDiminishedDominantMatches($root, $quality, $extension)`** — fires for `dom7` searches carrying `b9`. Queries all `o7` shapes (bare and extended). For each shape, finds the alias slot index where `domRootPc` matches the searched root (via `dominantReadings($dimRootPc)`), then calls `extensionLabelForReading` to compute the correct `alias_extensions` hint (e.g. `'b9,13'` for a `°7b13` shape). Deep-link round-trip is exact.
+
+**`findDiminishedAliasReadings($root, $quality, $extension)`** — fires for `o7` searches with a known extension (e.g. `G°7(b13)`). Emits all four dom7 alias readings as additional `alias_match` cards so the user can navigate directly to each dominant interpretation.
+
+**`VoicingCrossref::matchVoicing` dim symmetry pass** — for leadsheet voicings parsed as `dom7 + b9`, queries all `o7` shapes and transposes to the b9 root. Resolves crossref matches like `Ab7(b9,13)/A` → diagram 121 that the standard quality-match path misses.
 
 ### Retired data
-Migration `2026_05_31_000001_remove_generated_dim7_aliases` deletes the now-redundant hand-authored alias rows on `o7` parents: the dim7 **inversion** aliases (`alt_quality = o7`) and the **bare** dom7(♭9) aliases (`alt_quality = dom7`, `alt_extensions = 'b9'`). Extended aliases the generators don't claim (e.g. `b9,13`, `#9`) are **left in place**. Non-destructive: the readings are recomputed at runtime, so nothing the user sees changes except that all dim shapes now surface (no more duplicate rows on diagrams 131/141).
+Migration `2026_05_31_000001_remove_generated_dim7_aliases` deletes the now-redundant hand-authored alias rows on `o7` parents: the dim7 **inversion** aliases (`alt_quality = o7`) and the **bare** dom7(♭9) aliases (`alt_quality = dom7`, `alt_extensions = 'b9'`). Extended aliases the generators don't claim (e.g. `b9,13`, `#9`) are **left in place**. Non-destructive: the readings are recomputed at runtime.
 
 ---
 
@@ -143,7 +164,49 @@ The renderer is invoked by `ChordDiagram.vue` with `showGuideTones: true` (defau
 
 ---
 
-## 7. Key files
+## 7. Chord library index — sort modes & data conventions
+
+### Sort sidebar
+
+The index page (`/library/chords`) has a **Sort by** section in its filter sidebar with two options:
+
+| Option | Behaviour |
+|---|---|
+| **Popularity** (default) | Voicings listed by `popularity` descending, then by `quality` — same as the server sort order |
+| **Top 10** | Switches the grouped grid to a **2-column hitlist**; the 10 slugs from `config/top10/bossa-nova-chords.php` are pinned at the top in config order, then all remaining voicings follow by popularity |
+
+Switching to Top 10 while any text/quality filter is active has no effect — the filter grid takes over as usual. The archetype/barré/drop/shell panel at the top of the page is always visible regardless of sort mode (it's hidden only by active filters, not sort).
+
+### Top 10 hitlist
+
+Each hitlist row: **rank number** → **chord card** (140 px wide) → **description** text, side by side. No badges or extra title. Clicking anywhere on the row navigates to the chord detail page.
+
+The controller reads `config/top10/bossa-nova-chords.php` once per page load (`array_keys`) and passes `top10Slugs: string[]` as an Inertia prop. The frontend `top10Chords` computed promotes matching slugs in order, then appends the rest.
+
+### Popularity tiers (used by the Popularity filter)
+
+| Tier | `popularity` range | Label |
+|---|---|---|
+| Rare | 1–2 | — |
+| Common | 3–5 | — |
+| Core | 6–10 | — |
+| Iconic | 11+ | — |
+
+The 10 Top10 featured chords have `popularity = 15`. The highest naturally-occurring value (from song-usage counting) is ~15 for the most-used voicings.
+
+### Difficulty conventions
+
+| Value | Meaning |
+|---|---|
+| 1–2 | Open/beginner shapes |
+| 3 | Drop 2 and Drop 3 voicings (all set via migration) |
+| 4–5 | Advanced / extended |
+
+`difficulty = 0` means unset. The Difficulty filter in the sidebar maps 1–5 to star labels.
+
+---
+
+## 8. Key files
 - `app/Http/Controllers/Library/ChordLibraryController.php` — `index`, `show`, `search`, `buildInversionsForIdentity`, `buildDiminishedReadings`, `aliasInversionSlot`
 - `app/Services/ChordSerializer.php` — `serialize`, `serializeAs`, `spellBassNote`
 - `app/Services/ChordShapeCalculator.php` — `calculateFrets`, `calculateNoteNames`, `computeIntervalLabels` / `computeIntervalLabelsPublic`, `deriveBassNote`, `useFlatsForQuality`

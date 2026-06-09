@@ -8,6 +8,7 @@ use App\Models\Leadsheet;
 use App\Models\VoicingDraft;
 use App\Models\VoicingUsage;
 use App\Services\ChordShapeCalculator;
+use App\Services\HarmonicContext\DiminishedSymmetry;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -29,12 +30,16 @@ use Illuminate\Support\Facades\Log;
 class VoicingCrossref
 {
     private ChordShapeCalculator $calculator;
+    private DiminishedSymmetry $dimSymmetry;
 
     /** @var array<string, \Illuminate\Support\Collection> Cached shapes by quality key */
     private array $shapeCache = [];
 
     /** @var array<string, \Illuminate\Support\Collection> Cached alias shapes by quality key */
     private array $aliasCache = [];
+
+    /** @var \Illuminate\Support\Collection|null Cached o7 shapes for dim symmetry matching */
+    private ?\Illuminate\Support\Collection $dimShapeCache = null;
 
     private ?\App\Services\Identifier\DbVoicingMatcher $dbMatcher;
     private ?\App\Services\Identifier\KeyFitWeigher $keyFitWeigher;
@@ -46,7 +51,8 @@ class VoicingCrossref
         \App\Services\Identifier\KeyFitWeigher $keyFitWeigher = null,
         bool $dbEvidenceEnabled = true
     ) {
-        $this->calculator = $calculator;
+        $this->calculator  = $calculator;
+        $this->dimSymmetry = new DiminishedSymmetry();
         // Lazy-default so existing call sites that only pass $calculator still work
         // AND the Laravel container correctly auto-resolves when fully wired.
         $this->dbMatcher = $dbMatcher ?? new \App\Services\Identifier\DbVoicingMatcher();
@@ -59,8 +65,9 @@ class VoicingCrossref
      */
     public function clearCache(): void
     {
-        $this->shapeCache = [];
-        $this->aliasCache = [];
+        $this->shapeCache   = [];
+        $this->aliasCache   = [];
+        $this->dimShapeCache = null;
     }
 
     // =========================================================================
@@ -460,6 +467,44 @@ class VoicingCrossref
                     if ($penalized < $bestScore) {
                         $bestScore = $penalized;
                         $bestMatch = $this->buildMatchResult($shape, 'fragment', $calcFretArray);
+                    }
+                }
+            }
+        }
+
+        // Dim7 symmetry pass: when the voicing is dom7 + b9 (with any extra
+        // extensions), every o7 shape transposed so the dominant's b9 is a chord
+        // tone is a valid rootless reading. Mirrors ChordVoicingSearch logic so
+        // the crossref engine can resolve voicings like Ab7(b9,13)/A against °7b13.
+        if (!$bestMatch && in_array($baseQuality, ['dom7', '7'], true) && str_contains($extensions, 'b9')) {
+            $reqRootSemi = self::NOTE_SEMI[$voicing['root']] ?? null;
+            if ($reqRootSemi !== null) {
+                $dimRootPc  = ($reqRootSemi + 1) % 12;
+                $dimRoot    = $this->dimSymmetry->spellRoot($dimRootPc);
+
+                if ($this->dimShapeCache === null) {
+                    $this->dimShapeCache = collect(DB::table('sbn_chord_diagrams')
+                        ->where('quality', 'o7')
+                        ->whereRaw("(bass_note = '' OR bass_note IS NULL)")
+                        ->get());
+                }
+
+                foreach ($this->dimShapeCache as $shape) {
+                    $calculated = $this->calculator->calculateFrets($shape, $dimRoot);
+                    if (!$calculated || empty($calculated['diagram_data'])) continue;
+
+                    $calcFretArray = $this->normalizeOpenEquivalents(
+                        $this->diagramToFretArray($calculated['diagram_data'])
+                    );
+                    if (!$this->hasValidFrets($calcFretArray)) continue;
+
+                    if ($this->fretArraysMatch($calcFretArray, $targetFretArray)) {
+                        return $this->buildMatchResult($shape, 'exact', $calcFretArray);
+                    }
+                    $sub = $this->isSubsetMatch($targetFretArray, $calcFretArray);
+                    if ($sub !== false && $sub < $bestScore) {
+                        $bestScore = $sub;
+                        $bestMatch = $this->buildMatchResult($shape, 'subset', $calcFretArray);
                     }
                 }
             }

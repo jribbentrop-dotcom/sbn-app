@@ -30,6 +30,56 @@ class DiminishedSymmetry
     /** Qualities that are diminished-7th (inversionally symmetric). */
     public const DIM_QUALITIES = ['dim7', 'dim', 'o7'];
 
+    /**
+     * Semitone offset above the dim root for each known °7 extension.
+     * Used to compute what interval that extension lands on for each
+     * inversion slot or dom7(b9) alias reading.
+     */
+    public const DIM_EXTENSION_SEMITONES = [
+        'b13' => 8,
+        '11'  => 5,
+    ];
+
+    /**
+     * Semitone offset → extension label. Chord tones (0,3,6,9 for dim;
+     * 0,4,7,10 for dom7) are absent — they carry no extension label.
+     */
+    public const EXTENSION_INTERVAL_LABELS = [
+        1  => 'b9',
+        2  => '9',
+        3  => '#9',
+        5  => '11',
+        6  => '#11',
+        8  => 'b13',
+        9  => '13',
+        11 => 'maj7',
+    ];
+
+    /**
+     * Given a dim7 extension (e.g. 'b13') and a reading index, return the
+     * extension label as seen from that reading's root — or null when the
+     * extension lands on a chord tone (root, b3, b5, bb7 for dim; root, 3,
+     * 5, b7 for dom7).
+     *
+     * $slotIndex : 0-3 — which of the four symmetric slots (each +3 semitones)
+     * $isDom     : false → dim inversion reading; true → dom7(b9) alias reading
+     *              (dom root is 4 semitones below the slot's dim root, i.e. +8)
+     */
+    public function extensionLabelForReading(string $dimExtension, int $slotIndex, bool $isDom): ?string
+    {
+        $extSemitones = self::DIM_EXTENSION_SEMITONES[$dimExtension] ?? null;
+        if ($extSemitones === null) {
+            return null;
+        }
+
+        // Shift the extension interval into the coordinate frame of this slot's root.
+        // Each slot rotates +3 semitones; dom root is a further -4 (+8) from the dim root.
+        $shift    = $isDom ? ($extSemitones + 4 - $slotIndex * 3) : ($extSemitones - $slotIndex * 3);
+        $interval = (($shift % 12) + 12) % 12;
+
+        return self::EXTENSION_INTERVAL_LABELS[$interval] ?? null;
+    }
+
     private const NOTE_TO_PC = [
         'C' => 0, 'C#' => 1, 'Db' => 1,
         'D' => 2, 'D#' => 3, 'Eb' => 3,
