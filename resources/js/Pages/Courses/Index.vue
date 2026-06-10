@@ -22,9 +22,18 @@ const props = defineProps<{
 
 defineOptions({ layout: PublicLayout });
 
+// Initialize filters from the URL query (?genre=, ?level=) so deep links — e.g.
+// the mega-menu "By Style" / "By Level" cards — open pre-filtered. Unknown values
+// are ignored so a bad param falls back to the full catalogue rather than empty.
+const initialQuery = typeof window !== 'undefined'
+  ? new URLSearchParams(window.location.search)
+  : new URLSearchParams();
+const queryGenre = initialQuery.get('genre') ?? '';
+const queryLevel = initialQuery.get('level') ?? '';
+
 const search      = ref('');
-const filterGenre = ref('');
-const filterLevel = ref('');
+const filterGenre = ref(props.categories.includes(queryGenre) ? queryGenre : '');
+const filterLevel = ref(props.levels.includes(queryLevel) ? queryLevel : '');
 
 const filtered = computed(() => props.courses.filter((course) => {
   if (filterGenre.value && course.primaryGenre !== filterGenre.value) return false;
