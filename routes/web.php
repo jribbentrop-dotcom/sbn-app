@@ -37,6 +37,7 @@ use App\Http\Controllers\Admin\ExerciseController as AdminExerciseController;
 use App\Http\Controllers\Library\ExerciseController as ExerciseLibraryController;
 use App\Http\Controllers\Admin\AdminFretboardController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController;
+use App\Http\Controllers\GradesController;
 use App\Http\Controllers\HomeController;
 use Illuminate\Support\Facades\Route;
 
@@ -328,6 +329,11 @@ Route::get('/library/exercises/{exercise:slug}/cinema', [ExerciseLibraryControll
 
 Route::get('/theory', [TheoryController::class, 'index'])->name('theory.index');
 
+Route::get('/contact', [\App\Http\Controllers\ContactController::class, 'show'])->name('contact.show');
+Route::post('/contact', [\App\Http\Controllers\ContactController::class, 'submit'])
+    ->middleware('throttle:5,1')
+    ->name('contact.submit');
+
 // Phase 11b — JSON endpoints for mountSbnNodes.ts + palette search (public, no auth)
 Route::prefix('api/sbn')->name('api.sbn.')->group(function () {
     // Show (used by mountSbnNodes)
@@ -393,7 +399,7 @@ if (! app()->environment('production')) {
 |--------------------------------------------------------------------------
 */
 Route::get('/', [HomeController::class, 'index'])->name('home');
-Route::get('/grades', fn () => \Inertia\Inertia::render('Grades/Index'))->name('grades.index');
+Route::get('/grades', [GradesController::class, 'index'])->name('grades.index');
 
 Route::get('/hello', function () {
     return \Inertia\Inertia::render('Hello');

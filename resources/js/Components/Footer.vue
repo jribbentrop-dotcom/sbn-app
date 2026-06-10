@@ -40,7 +40,7 @@ const year = new Date().getFullYear();
                 <h5>Hub</h5>
                 <a href="#">Pricing</a>
                 <a href="#">About</a>
-                <a href="#">Contact</a>
+                <Link href="/contact">Contact</Link>
                 <Link href="/login">Sign in</Link>
             </div>
 

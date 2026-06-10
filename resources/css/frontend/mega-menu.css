@@ -1,17 +1,26 @@
 /*
  * Soul Bossa Nova - Mega Menu
- * 
- * Unified 3-column mega menu system.
- * All columns rendered via WordPress menu with consistent styling.
- * 
- * Structure:
- * ┌──────────────────────────────────────────────────────────────────────┐
- * │  NAV COLUMN          │  FEATURED COLUMN      │  CTA COLUMN          │
- * │  .mega-col-nav       │  .mega-col-featured   │  .mega-col-cta       │
- * └──────────────────────────────────────────────────────────────────────┘
- * 
- * @version 2.2.1 - FIXED
+ *
+ * Click-to-open mega menu rendered by resources/js/Components/MegaMenu.vue.
+ * Each panel (.sub-menu) is a flex row of explicit columns:
+ *
+ * ┌────────────────────────────────────────────────────────┐
+ * │  CARD GRID            │  FEATURED          │  CTA       │
+ * │  .mega-col-cards      │  .mega-col-featured│ .mega-col-cta │
+ * └────────────────────────────────────────────────────────┘
+ *
+ * Open state is driven by the `manual-hover` class the component toggles
+ * on the active <li.menu-item-has-children>.
+ *
+ * @version 3.0 — pruned of WordPress-era fallback selectors
  */
+
+:root {
+    --mega-col-gap: 28px;
+    --mega-padding: 28px;
+    --mega-item-size: 14px;
+    --header-height: 102px;
+}
 
 /* ==========================================================================
    MEGA MENU CONTAINER
@@ -40,79 +49,59 @@ body.mega-menu-open .mega-menu-backdrop {
     visibility: visible;
 }
 
+/* Chevron on top-level triggers */
+.main-navigation .menu-item-has-children > a::after {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg) translateY(-2px);
+    margin-left: 6px;
+    vertical-align: middle;
+    transition: transform 0.2s ease;
+}
+
+.main-navigation .menu-item-has-children.manual-hover > a::after {
+    transform: rotate(-135deg) translateY(2px);
+}
+
+/* Suppress chevron on column headers inside the panel */
+.main-navigation .sub-menu .menu-item-has-children > a::after {
+    display: none;
+}
+
+/* ==========================================================================
+   PANEL (.sub-menu) — fixed, centered dropdown
+   ========================================================================== */
+
 .main-navigation .menu-item-has-children > .sub-menu {
     position: fixed;
     top: var(--header-height, 102px);
     left: 50%;
-    transform: translateX(-50%);
-    max-width: 1200px;
-    width: calc(100% - 40px);
+    transform: translateX(-50%) translateY(8px);
+    /* Shrink-wrap to content, stay centered, never overflow the viewport */
+    width: max-content;
+    max-width: min(1200px, calc(100% - 40px));
     z-index: 9999;
-    
+
     display: flex;
     gap: var(--mega-col-gap);
     align-items: stretch;
     justify-content: center;
     padding: var(--mega-padding);
     margin: 0;
-    
+
     background: #fff;
     border-radius: 0 0 var(--sbn-radius) var(--sbn-radius);
     list-style: none;
-    
+
     /* Hidden by default - MUST be non-interactive */
     opacity: 0;
     visibility: hidden;
-    pointer-events: none !important;
-}
-
-/* CRITICAL: Prevent mega menu columns from opening their own mega menus */
-.mega-col-nav.menu-item-has-children > .sub-menu .sub-menu,
-.mega-col-featured.menu-item-has-children > .sub-menu .sub-menu,
-.mega-col-cta.menu-item-has-children > .sub-menu .sub-menu {
-    display: none !important;
-}
-
-/* CRITICAL: Prevent mega menu columns from triggering mega menu behavior */
-/* CRITICAL: Column submenus should inherit parent's visibility when menu is closed */
-.mega-col-nav > .sub-menu,
-.mega-col-featured > .sub-menu,
-.mega-col-cta > .sub-menu {
-    position: static !important;
-    transform: none !important;
-    box-shadow: none !important;
-    border: none !important;
-    background: transparent !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    /* Preserve the flex layout and gap */
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 2px !important;
-    list-style: none !important;
-    width: 100% !important;
-    /* Let visibility/opacity inherit from parent mega menu state */
-}
-
-/* Only make column submenus visible when parent mega menu is open */
-.menu-item-has-children.manual-hover .mega-col-nav > .sub-menu,
-.menu-item-has-children.manual-hover .mega-col-featured > .sub-menu,
-.menu-item-has-children.manual-hover .mega-col-cta > .sub-menu,
-.menu-item-has-children.manual-hover > .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu,
-.menu-item-has-children.manual-hover > .sub-menu > .menu-item-has-children:last-child:not(.mega-col-nav):not(.mega-col-featured) > .sub-menu {
-    opacity: 1 !important;
-    visibility: visible !important;
-}
-
-/* Enable pointer-events on interactive column submenus when open */
-.menu-item-has-children.manual-hover .mega-col-nav > .sub-menu,
-.menu-item-has-children.manual-hover > .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu {
-    pointer-events: auto !important;
-}
-
-/* Enable pointer-events on featured column for image/button interaction */
-.menu-item-has-children.manual-hover .mega-col-featured {
-    pointer-events: auto !important;
+    pointer-events: none;
+    transition: opacity 0.28s cubic-bezier(.2,.8,.2,1), visibility 0.28s cubic-bezier(.2,.8,.2,1), transform 0.28s cubic-bezier(.2,.8,.2,1);
 }
 
 /* Show on click (manual-hover class added by JS) */
@@ -120,282 +109,181 @@ body.mega-menu-open .mega-menu-backdrop {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
-    transform: translateX(-50%);
+    transform: translateX(-50%) translateY(0);
 }
 
-/* CRITICAL: Ensure hidden menus are below visible ones and non-interactive */
+/* Switching directly between two open panels: the incoming panel appears
+   already docked (no 8px rise) so no background strip shows under the header.
+   Only opacity carries the swap. */
+.main-navigation.is-switching .menu-item-has-children > .sub-menu {
+    transform: translateX(-50%) translateY(0);
+    transition: opacity 0.22s ease;
+}
+
+/* Ensure hidden menus are below visible ones and non-interactive */
 .main-navigation .menu-item-has-children:not(.manual-hover) > .sub-menu {
     z-index: 9998;
-    pointer-events: none !important;
-}
-
-/* Style for clicked/open menu item - light orange/red background with red text */
-.main-navigation .menu-item-has-children.manual-hover > a {
-    background: linear-gradient(135deg, #ffe5dc 0%, #ffd4c4 100%) !important;
-    color: #d84315 !important;
-}
-
-@media (min-width: 1400px) {
-    .main-navigation .menu-item-has-children > .sub-menu {
-        padding-left: calc((100% - 1100px) / 2);
-        padding-right: calc((100% - 1100px) / 2);
-    }
-}
-
-/* ==========================================================================
-   SHARED COLUMN HEADER STYLE
-   ========================================================================== */
-
-.mega-col-header {
-    font-weight: 700;
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--sbn-dark);
-    padding: 0;
-    margin: 0 0 14px 0;
-    line-height: 1.4;
-    display: block;
-    background: transparent;
-    text-align: left;
-}
-
-/* Override WordPress menu-item default padding for all column headers */
-.mega-col-nav > a,
-.mega-col-featured > a,
-.mega-col-cta > a,
-.main-navigation .sub-menu > .menu-item-has-children > a {
-    padding: 0 !important;
-    display: block !important;
-    justify-content: flex-start !important;
-    background: transparent !important;
-    cursor: default !important;
-    font-size: 13px !important;
-    font-weight: 700 !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.8px !important;
-    line-height: 1.4 !important;
-    margin: 0 0 14px 0 !important;
-    border-radius: 0 !important;
-}
-
-/* Prevent hover effects on column headers */
-.mega-col-nav > a:hover,
-.mega-col-featured > a:hover,
-.mega-col-cta > a:hover,
-.main-navigation .sub-menu > .menu-item-has-children > a:hover {
-    background: transparent !important;
-    color: inherit !important;
-    font-weight: 700 !important;
-    transform: none !important;
-}
-
-/* ==========================================================================
-   COLUMN 1: NAVIGATION (.mega-col-nav)
-   ========================================================================== */
-
-.mega-col-nav {
-    flex: 0 0 auto;
-    min-width: 180px;
-    max-width: 280px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-}
-
-/* Nav Header */
-.mega-col-nav > a {
-    font-weight: 700;
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--sbn-dark);
-    padding: 0;
-    margin: 0 0 14px 0;
-    line-height: 1.4;
-    display: block;
-    background: transparent;
     pointer-events: none;
-    text-align: left;
 }
 
-/* Nav Items Container - styling only, visibility controlled by parent state */
-.mega-col-nav > .sub-menu {
-    position: static !important;
-    transform: none !important;
-    box-shadow: none !important;
-    border: none !important;
-    display: flex !important;
-    flex-direction: column !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    gap: 2px !important;
-    background: transparent !important;
-    list-style: none !important;
-    width: 100% !important;
-    /* visibility and pointer-events controlled by .manual-hover parent state */
-}
-
-.mega-col-nav > .sub-menu > li {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    pointer-events: auto !important;
-}
-
-.mega-col-nav > .sub-menu > li > a {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 12px;
-    font-size: var(--mega-item-size);
-    line-height: 1.4;
-    color: var(--sbn-text);
-    background: transparent;
-    border-radius: var(--sbn-radius-sm);
-    text-decoration: none;
-    transition: all 0.15s ease-out;
-    text-align: left;
-    pointer-events: auto !important;
-    cursor: pointer !important;
-    position: relative;
-}
-
-/* Arrow appears on hover */
-.mega-col-nav > .sub-menu > li > a::after {
-    content: "→";
-    font-weight: 700;
-    opacity: 0;
-    transform: translateX(-10px);
-    transition: all 0.2s ease;
-    margin-left: auto;
-}
-
-@media (hover: hover) {
-    .mega-col-nav > .sub-menu > li > a:hover {
-        background: var(--sbn-gradient) !important;
-        color: #fff !important;
-        padding-right: 16px;
-    }
-    
-    .mega-col-nav > .sub-menu > li > a:hover::after {
-        opacity: 1;
-        transform: translateX(0);
-    }
-    
-    .mega-col-nav > .sub-menu > li > a:hover svg.menu-icon {
-        opacity: 1;
-    }
-}
-
-/* Menu icons */
-.mega-col-nav > .sub-menu > li > a svg.menu-icon {
-    width: 16px;
-    height: 16px;
-    opacity: 0.6;
-    flex-shrink: 0;
-    transition: opacity 0.15s ease;
-}
-
-/* Current/Active page indicator - matches top-level selected style */
-.mega-col-nav > .sub-menu > li.current-menu-item > a,
-.mega-col-nav > .sub-menu > li.current-menu-ancestor > a,
-.mega-col-nav > .sub-menu > li.current-page-ancestor > a {
-    background: linear-gradient(135deg, #ffe5dc 0%, #ffd4c4 100%);
-    color: #d84315 !important;
-}
-
-.mega-col-nav > .sub-menu > li.current-menu-item > a::after,
-.mega-col-nav > .sub-menu > li.current-menu-ancestor > a::after,
-.mega-col-nav > .sub-menu > li.current-page-ancestor > a::after {
-    opacity: 1;
-    transform: translateX(0);
-    color: #d84315;
-}
-
-.mega-col-nav > .sub-menu > li.current-menu-item > a svg.menu-icon,
-.mega-col-nav > .sub-menu > li.current-menu-ancestor > a svg.menu-icon,
-.mega-col-nav > .sub-menu > li.current-page-ancestor > a svg.menu-icon {
-    opacity: 1;
-    color: #d84315;
-}
-
-svg.icon-difficulty { color: var(--sbn-orange); }
-svg.icon-lessons { color: var(--sbn-red); }
-svg.icon-duration { color: #3498db; }
-svg.icon-level { color: #9b59b6; }
-
-/* Last item = "View All" button (only if parent has .has-button-last class) */
-.mega-col-nav.has-button-last > .sub-menu > li:last-child > a {
-    background: var(--sbn-gradient) !important;
-    color: #fff !important;
-    font-weight: 600;
-    margin-top: 10px;
-    justify-content: space-between;
-    transition: transform 0.2s ease;
-}
-
-.mega-col-nav.has-button-last > .sub-menu > li:last-child > a::after {
-    content: "→";
-    font-size: 14px;
-    font-weight: bold;
-}
-
-.mega-col-nav.has-button-last > .sub-menu > li:last-child > a:hover {
-    transform: scale(1.02);
-}
-
-.mega-col-nav.has-button-last > .sub-menu > li:last-child > a svg.menu-icon {
-    display: none;
+/* Open trigger — neutral, no colour */
+.main-navigation .menu-item-has-children.manual-hover > a {
+    background: var(--sbn-border) !important;
+    color: var(--sbn-dark) !important;
 }
 
 /* ==========================================================================
-   COLUMN 2: FEATURED (.mega-col-featured)
+   CARD GRID (2×2)
+   ========================================================================== */
+
+.mega-col-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    align-content: start;
+    flex: 0 0 auto;
+    width: 380px;
+}
+
+/* Explore has 5 library cards — lay them out 3×2 (last cell empty) */
+#mega-panel-explore .mega-col-cards {
+    grid-template-columns: 1fr 1fr 1fr;
+    width: 560px;
+}
+
+.mega-card {
+    display: flex;
+    gap: 12px;
+    padding: 11px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    text-decoration: none;
+    color: var(--sbn-dark);
+    transition: border-color 0.15s ease;
+    cursor: pointer;
+}
+
+.mega-card:hover {
+    background: color-mix(in srgb, var(--sbn-border) 50%, transparent);
+    color: var(--sbn-dark);
+}
+
+.mega-card:hover h4 { color: var(--sbn-dark); }
+.mega-card:hover p { color: var(--sbn-text); }
+
+.mega-ic {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: transparent;
+    display: grid;
+    place-items: center;
+    transition: transform 0.15s ease;
+}
+
+.mega-ic svg {
+    width: 18px;
+    height: 18px;
+    stroke: var(--sbn-text);
+    flex: none;
+}
+
+.mega-card:hover .mega-ic {
+    transform: translateY(-2px);
+}
+
+.mega-card h4 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin: 0 0 2px;
+    line-height: 1.3;
+}
+
+.mega-card p {
+    font-size: 0.78rem;
+    color: var(--sbn-text);
+    line-height: 1.4;
+    margin: 0;
+}
+
+/* ==========================================================================
+   COLUMN: FEATURED (.mega-col-featured)
    ========================================================================== */
 
 .mega-col-featured {
     flex: 0 0 auto;
-    width: 280px;
+    width: 180px;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     list-style: none;
     margin-left: 0 !important;
-    margin-right: 32px !important;
+    margin-right: 24px !important;
+    align-self: stretch;
 }
 
-/* Featured Header */
-.mega-col-featured > a {
-    font-weight: 700;
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--sbn-dark);
-    padding: 0;
-    margin: 0 0 14px 0;
-    line-height: 1.4;
-    display: block;
-    background: transparent;
-    pointer-events: auto; /* Re-enabled so header is clickable too if it's a Link */
-    text-align: left;
+/* Course featured cards a touch larger than the default */
+#mega-panel-courses .mega-col-featured {
+    width: 195px;
+}
+#mega-panel-courses .mega-col-featured .mega-featured-image {
+    max-width: 195px;
+}
+
+/* Shop featured product image is smaller than the course featured cards */
+#mega-panel-shop .mega-col-featured {
+    width: 190px;
+}
+#mega-panel-shop .mega-col-featured .mega-featured-image {
+    max-width: 190px;
+    /* Portrait product art (1414×2000) would stretch the panel tall;
+       cap height so the Shop panel matches the other mega panels */
+    max-height: 200px;
+}
+/* Button hidden at rest, fades in on hover */
+#mega-panel-shop .mega-featured-overlay {
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+#mega-panel-shop .mega-featured-image:hover .mega-featured-overlay {
+    opacity: 1;
+}
+/* Show the whole product image (no edge crop), letterboxed in white, top-aligned */
+#mega-panel-shop .mega-col-featured .mega-featured-image img {
+    object-fit: contain;
+    object-position: top;
+    padding: 10px;
+    background: #fff;
+}
+/* Keep the button label on a single line at the narrower width */
+#mega-panel-shop .mega-featured-button {
+    white-space: nowrap;
+    padding: 8px 12px;
+}
+#mega-panel-shop .mega-featured-overlay {
+    top: 0;
+    bottom: 0;
+    padding: 12px;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Featured Image Container */
 .mega-col-featured .mega-featured-image {
     width: 100%;
-    max-width: 280px;
+    max-width: 180px;
     height: 100%;
+    flex: 1;
     position: relative;
     border-radius: 12px;
     overflow: hidden;
-    background: #f8f8f8;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-    transition: transform 0.4s cubic-bezier(0.165, 0.84, 0.44, 1), box-shadow 0.4s ease;
+    background: #fff;
+    transition: transform 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
 }
 
 .mega-col-featured .mega-featured-image:hover {
     transform: translateY(-4px);
-    box-shadow: 0 12px 30px rgba(0,0,0,0.15);
 }
 
 .mega-col-featured .mega-featured-image img {
@@ -423,7 +311,6 @@ svg.icon-level { color: #9b59b6; }
     left: 0;
     width: 100%;
     padding: 20px 20px 40px;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
     z-index: 2;
 }
 
@@ -434,7 +321,6 @@ svg.icon-level { color: #9b59b6; }
     left: 0;
     width: 100%;
     padding: 40px 20px 20px;
-    background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
@@ -449,21 +335,21 @@ svg.icon-level { color: #9b59b6; }
     color: #fff;
     margin: 0;
     padding: 0;
-    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
     letter-spacing: -0.01em;
 }
 
 /* Featured Hover Button */
 .mega-col-featured .mega-featured-button {
     width: fit-content;
-    background: #fff;
-    color: var(--sbn-dark);
+    background: rgba(255,255,255,0.22);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    color: #fff;
     padding: 8px 16px;
     border-radius: 6px;
     font-size: 12px;
     font-weight: 700;
     text-align: center;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -479,10 +365,9 @@ svg.icon-level { color: #9b59b6; }
 }
 
 .mega-col-featured .mega-featured-image:hover .mega-featured-button {
-    background: var(--sbn-gradient);
-    color: #fff;
+    background: #fff;
+    color: var(--sbn-dark);
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(243, 156, 18, 0.4);
 }
 
 .mega-col-featured .mega-featured-image:hover .mega-featured-button::after {
@@ -490,7 +375,7 @@ svg.icon-level { color: #9b59b6; }
 }
 
 /* ==========================================================================
-   COLUMN 3: CTA (.mega-col-cta)
+   COLUMN: CTA (.mega-col-cta)
    ========================================================================== */
 
 .mega-col-cta {
@@ -517,26 +402,26 @@ svg.icon-level { color: #9b59b6; }
     line-height: 1.4;
     display: block;
     background: transparent;
-    pointer-events: none;
     text-align: left;
 }
 
-/* CTA Items Container - styling only, visibility controlled by parent state */
+/* CTA Items Container */
 .mega-col-cta > .sub-menu {
-    position: static !important;
-    transform: none !important;
-    box-shadow: none !important;
-    border: none !important;
-    display: flex !important;
-    flex-direction: column !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    gap: 0 !important;
-    background: transparent !important;
-    list-style: none !important;
-    width: 100% !important;
-    align-items: flex-start !important;
-    /* visibility and pointer-events controlled by .manual-hover parent state */
+    position: static;
+    transform: none;
+    box-shadow: none;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    margin: 0;
+    gap: 0;
+    background: transparent;
+    list-style: none;
+    width: 100%;
+    align-items: flex-start;
+    opacity: 1;
+    visibility: visible;
 }
 
 .mega-col-cta > .sub-menu li {
@@ -546,8 +431,8 @@ svg.icon-level { color: #9b59b6; }
     width: 100%;
 }
 
-/* First item = Description */
-.mega-col-cta > .sub-menu li:first-child a {
+/* First item = Description (legacy multi-row CTA only) */
+.mega-col-cta > .sub-menu li:first-child:not(.mega-top10-cta-body) a {
     font-size: 14px;
     font-weight: 400;
     color: rgba(255,255,255,0.9);
@@ -569,7 +454,6 @@ svg.icon-level { color: #9b59b6; }
     position: relative;
     line-height: 1.4;
     display: block;
-    pointer-events: none;
     text-align: left;
 }
 
@@ -600,7 +484,6 @@ svg.icon-level { color: #9b59b6; }
     justify-content: center;
     gap: 6px;
     transition: transform 0.2s ease;
-    pointer-events: auto;
     cursor: pointer;
     width: 100%;
 }
@@ -615,267 +498,125 @@ svg.icon-level { color: #9b59b6; }
 }
 
 /* ==========================================================================
-   FALLBACK COLUMNS (when custom classes not used)
+   TOP10 CTA PANEL (.mega-col-cta--top10)
    ========================================================================== */
 
-/* First column with children = Nav */
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) {
-    flex: 0 0 auto;
-    min-width: 180px;
-    max-width: 280px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+.mega-col-cta--top10 {
+    background: linear-gradient(145deg, #f39c12 0%, #e74c3c 100%);
+    padding-top: 12px;
+    position: relative;
+    overflow: hidden;
 }
 
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > a {
-    font-weight: 700;
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--sbn-dark);
-    padding: 0;
-    margin: 0 0 14px 0;
-    line-height: 1.4;
-    display: block;
-    background: transparent;
-    pointer-events: none;
-    text-align: left;
+/* Hug content height instead of stretching to the (taller) card grid */
+#mega-panel-explore .mega-col-cta--top10 {
+    align-self: start;
 }
 
-/* FIXED: Fallback nav column submenu - visibility controlled by parent state */
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu {
-    position: static !important;
-    transform: none !important;
-    box-shadow: none !important;
-    border: none !important;
-    display: flex !important;
-    flex-direction: column !important;
-    padding: 0 !important;
+.mega-col-cta--top10 > a {
+    display: none !important;
     margin: 0 !important;
-    gap: 2px !important;
-    background: transparent !important;
-    list-style: none !important;
-    width: 100% !important;
-    /* visibility and pointer-events controlled by .manual-hover parent state */
+    padding: 0 !important;
 }
 
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    pointer-events: auto !important;  /* FIXED: Added */
+.mega-col-cta--top10 > .sub-menu {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
 }
 
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li > a {
+.mega-top10-cta-body {
+    position: relative;
+    z-index: 1;
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 10px;
-    padding: 8px 12px;
-    font-size: var(--mega-item-size);
-    line-height: 1.4;
-    color: var(--sbn-text);
-    background: transparent;
-    border-radius: var(--sbn-radius-sm);
-    text-decoration: none;
-    transition: all 0.15s ease-out;
-    text-align: left;
-    pointer-events: auto !important;  /* FIXED: Added */
-    cursor: pointer !important;       /* FIXED: Added */
-    position: relative;
-}
-
-/* Arrow appears on hover */
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li > a::after {
-    content: "→";
-    font-weight: 700;
-    opacity: 0;
-    transform: translateX(-10px);
-    transition: all 0.2s ease;
-    margin-left: auto;
-}
-
-@media (hover: hover) {
-    .main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li > a:hover {
-        background: var(--sbn-gradient);
-        color: #fff;
-        padding-right: 16px;
-    }
-    
-    .main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li > a:hover::after {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li > a svg.menu-icon {
-    width: 16px;
-    height: 16px;
-    opacity: 0.6;
-    flex-shrink: 0;
-}
-
-/* Current/Active page indicator for fallback nav column */
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li.current-menu-item > a,
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li.current-menu-ancestor > a,
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li.current-page-ancestor > a {
-    background: linear-gradient(135deg, #ffe5dc 0%, #ffd4c4 100%);
-    color: #d84315 !important;
-}
-
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li.current-menu-item > a::after,
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li.current-menu-ancestor > a::after,
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li.current-page-ancestor > a::after {
-    opacity: 1;
-    transform: translateX(0);
-    color: #d84315;
-}
-
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li.current-menu-item > a svg.menu-icon,
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li.current-menu-ancestor > a svg.menu-icon,
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li.current-page-ancestor > a svg.menu-icon {
-    opacity: 1;
-    color: #d84315;
-}
-
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta).has-button-last > .sub-menu > li:last-child > a {
-    background: var(--sbn-gradient);
-    color: #fff !important;
-    font-weight: 600;
-    margin-top: 10px;
-    justify-content: space-between;
-    transition: transform 0.2s ease;
-}
-
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta).has-button-last > .sub-menu > li:last-child > a::after {
-    content: "→";
-    font-size: 14px;
-    font-weight: bold;
-}
-
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta).has-button-last > .sub-menu > li:last-child > a:hover {
-    transform: scale(1.02);
-}
-
-.main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta).has-button-last > .sub-menu > li:last-child > a svg.menu-icon {
-    display: none;
-}
-
-/* Last column with children = CTA */
-.main-navigation .sub-menu > .menu-item-has-children:last-child:not(.mega-col-nav):not(.mega-col-featured) {
-    flex: 0 0 auto;
-    width: 240px;
-    background: var(--sbn-gradient);
-    border-radius: var(--sbn-radius);
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
     list-style: none;
-}
-
-.main-navigation .sub-menu > .menu-item-has-children:last-child:not(.mega-col-nav):not(.mega-col-featured) > a {
-    font-weight: 700;
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: #fff;
-    padding: 0;
-    margin: 0 0 14px 0;
-    line-height: 1.4;
-    display: block;
-    background: transparent;
-    pointer-events: none;
-    text-align: left;
-}
-
-.main-navigation .sub-menu > .menu-item-has-children:last-child:not(.mega-col-nav):not(.mega-col-featured) > .sub-menu {
-    position: static;
-    transform: none;
-    box-shadow: none;
-    border: none;
-    display: flex;
-    flex-direction: column;
     padding: 0;
     margin: 0;
-    gap: 0;
-    background: transparent;
-    list-style: none;
-    width: 100%;
-    align-items: flex-start;
-    /* visibility and pointer-events controlled by .manual-hover parent state */
-}
-
-.main-navigation .sub-menu > .menu-item-has-children:last-child:not(.mega-col-nav):not(.mega-col-featured) > .sub-menu li {
-    list-style: none;
-    margin: 0;
-    padding: 0;
     width: 100%;
 }
 
-.main-navigation .sub-menu > .menu-item-has-children:last-child:not(.mega-col-nav):not(.mega-col-featured) > .sub-menu li:first-child a {
-    font-size: 12px;
-    font-weight: 400;
-    color: rgba(255,255,255,0.9);
-    padding: 0 0 14px 0;
-    background: transparent;
-    line-height: 1.5;
-    pointer-events: none;
-    display: block;
-    text-align: left;
+.mega-top10-cta-body * {
+    margin-top: 0;
 }
 
-.main-navigation .sub-menu > .menu-item-has-children:last-child:not(.mega-col-nav):not(.mega-col-featured) > .sub-menu li:not(:first-child):not(:last-child) a {
-    font-size: 12px;
-    font-weight: 500;
-    color: rgba(255,255,255,0.95);
-    padding: 5px 0 5px 24px;
-    background: transparent;
-    position: relative;
-    line-height: 1.4;
-    display: block;
-    pointer-events: none;
-    text-align: left;
-}
-
-.main-navigation .sub-menu > .menu-item-has-children:last-child:not(.mega-col-nav):not(.mega-col-featured) > .sub-menu li:not(:first-child):not(:last-child) a::before {
-    content: "✓";
+/* Huge faded trophy watermark behind the CTA text */
+.mega-top10-cta__bg-icon {
     position: absolute;
-    left: 0;
+    z-index: 0;
+    width: 180px;
+    height: 180px;
+    top: 50%;
+    right: -36px;
+    transform: translateY(-50%) rotate(-8deg);
     color: #fff;
-    font-weight: 700;
-    font-size: 12px;
+    opacity: 0.12;
+    pointer-events: none;
 }
 
-.main-navigation .sub-menu > .menu-item-has-children:last-child:not(.mega-col-nav):not(.mega-col-featured) > .sub-menu li:last-child {
-    margin-top: 16px;
+.mega-top10-cta__title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1.25;
+    margin: 0 0 8px;
+    padding: 0;
+    color: #fff;
 }
 
-.main-navigation .sub-menu > .menu-item-has-children:last-child:not(.mega-col-nav):not(.mega-col-featured) > .sub-menu li:last-child a {
-    background: #fff;
-    color: var(--sbn-dark) !important;
-    font-weight: 700;
+.mega-top10-cta__blurb {
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: rgba(255,255,255,0.85);
+    margin: 0 0 18px;
+}
+
+.mega-top10-cta__btn {
     font-size: 13px;
-    text-align: center;
+    font-weight: 700;
+    color: var(--sbn-dark) !important;
+    background: #fff;
     border-radius: var(--sbn-radius-sm);
-    padding: 12px 16px;
-    display: flex;
+    padding: 8px 14px;
+    width: fit-content;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
     transition: transform 0.2s ease;
-    pointer-events: auto;
-    cursor: pointer;
+}
+
+.mega-top10-cta__btn:hover {
+    transform: scale(1.02);
+}
+
+.mega-top10-cta:hover .mega-top10-cta__btn {
+    background: #fff;
+}
+
+/* TOP10 quick-links — one row per list (Chords / Songs / Standards) */
+.mega-top10-cta__links {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
     width: 100%;
 }
 
-.main-navigation .sub-menu > .menu-item-has-children:last-child:not(.mega-col-nav):not(.mega-col-featured) > .sub-menu li:last-child a::after {
-    content: "→";
-    font-weight: 700;
+.mega-top10-cta__link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(255,255,255,0.16);
+    border-radius: 6px;
+    padding: 8px 12px;
+    transition: background 0.15s ease, transform 0.15s ease;
 }
 
-.main-navigation .sub-menu > .menu-item-has-children:last-child:not(.mega-col-nav):not(.mega-col-featured) > .sub-menu li:last-child a:hover {
-    transform: scale(1.02);
+.mega-top10-cta__link:hover {
+    background: rgba(255,255,255,0.30);
+    transform: translateX(2px);
 }
 
 /* ==========================================================================
@@ -887,23 +628,13 @@ svg.icon-level { color: #9b59b6; }
         --mega-col-gap: 24px;
         --mega-padding: 24px;
     }
-    
-    .mega-col-nav { min-width: 160px; max-width: 240px; }
-    .mega-col-featured { 
-        width: 150px !important;
-        margin-left: -8px !important;
-        margin-right: 24px !important;
+
+    .mega-col-featured {
+        width: 160px !important;
+        margin-left: 0 !important;
+        margin-right: 16px !important;
     }
     .mega-col-cta { width: 200px; }
-    
-    .main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) {
-        min-width: 160px;
-        max-width: 240px;
-    }
-    
-    .main-navigation .sub-menu > .menu-item-has-children:last-child:not(.mega-col-nav):not(.mega-col-featured) {
-        width: 200px;
-    }
 }
 
 @media (max-width: 900px) {
@@ -911,34 +642,13 @@ svg.icon-level { color: #9b59b6; }
         --mega-col-gap: 20px;
         --mega-padding: 20px;
     }
-    
-    .mega-col-nav { min-width: 140px; max-width: 200px; }
-    .mega-col-featured { 
-        width: 140px !important;
-        margin-left: -6px !important;
-        margin-right: 16px !important;
+
+    .mega-col-featured {
+        width: 130px !important;
+        margin-left: 0 !important;
+        margin-right: 12px !important;
     }
     .mega-col-cta { width: 180px; padding: 16px; }
-    
-    .mega-col-nav > .sub-menu > li > a {
-        padding: 6px 10px;
-        font-size: 12px;
-    }
-    
-    .main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) {
-        min-width: 140px;
-        max-width: 200px;
-    }
-    
-    .main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta) > .sub-menu > li > a {
-        padding: 6px 10px;
-        font-size: 12px;
-    }
-    
-    .main-navigation .sub-menu > .menu-item-has-children:last-child:not(.mega-col-nav):not(.mega-col-featured) {
-        width: 180px;
-        padding: 16px;
-    }
 }
 
 @media (max-width: 768px) {
@@ -956,17 +666,15 @@ svg.icon-level { color: #9b59b6; }
         max-height: calc(100vh - var(--header-height, 70px));
         overflow-y: auto;
     }
-    
-    .mega-col-nav,
+
+    .mega-col-cards,
     .mega-col-featured,
-    .mega-col-cta,
-    .main-navigation .sub-menu > .menu-item-has-children:first-child:not(.mega-col-featured):not(.mega-col-cta),
-    .main-navigation .sub-menu > .menu-item-has-children:last-child:not(.mega-col-nav):not(.mega-col-featured) {
+    .mega-col-cta {
         width: 100%;
         max-width: 100%;
         min-width: 100%;
     }
-    
+
     /* Featured: horizontal on mobile */
     .mega-col-featured {
         flex-direction: row !important;
@@ -975,15 +683,217 @@ svg.icon-level { color: #9b59b6; }
         margin-left: 0 !important;
         margin-right: 0 !important;
     }
-    
-    .mega-col-featured > a {
-        flex: 1;
-        margin-bottom: 0;
-    }
-    
+
     .mega-col-featured .mega-featured-image {
         width: 100px;
         min-width: 100px;
         order: -1;
     }
+}
+
+/* ==========================================================================
+   HAMBURGER BUTTON
+   ========================================================================== */
+
+.hamburger {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    width: 38px;
+    height: 38px;
+    padding: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background 0.15s ease;
+}
+
+.hamburger:hover {
+    background: var(--sbn-border);
+}
+
+.hamburger span {
+    display: block;
+    width: 100%;
+    height: 1.5px;
+    background: var(--sbn-dark);
+    border-radius: 2px;
+    transition: transform 0.22s ease, opacity 0.22s ease;
+    transform-origin: center;
+}
+
+.hamburger.is-open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+.hamburger.is-open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+.hamburger.is-open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+@media (max-width: 767px) {
+    .hamburger { display: flex; }
+    .main-navigation { display: none; }
+    .user-menu-desktop { display: none; }
+}
+
+/* ==========================================================================
+   MOBILE DRAWER
+   ========================================================================== */
+
+.mobile-drawer-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(2px);
+    z-index: 19999;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.mobile-drawer-overlay.is-open {
+    opacity: 1;
+}
+
+.mobile-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(320px, 88vw);
+    background: #fff;
+    z-index: 20000;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(.2,.8,.2,1);
+    overflow: hidden;
+}
+
+.mobile-drawer.is-open {
+    transform: translateX(0);
+}
+
+@media (max-width: 767px) {
+    .mobile-drawer-overlay { display: block; pointer-events: none; }
+    .mobile-drawer-overlay.is-open { pointer-events: auto; }
+}
+
+.mobile-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--sbn-border);
+    flex-shrink: 0;
+}
+
+.mobile-drawer-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--sbn-text);
+}
+
+.mobile-drawer-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--sbn-text);
+    transition: background 0.15s ease;
+}
+
+.mobile-drawer-close:hover { background: var(--sbn-border); }
+.mobile-drawer-close svg { width: 18px; height: 18px; }
+
+.mobile-drawer-nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+}
+
+/* Shared nav item row */
+.mobile-nav-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 15px 20px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--sbn-dark);
+    text-decoration: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease;
+    gap: 8px;
+}
+
+.mobile-nav-item:hover { background: var(--sbn-border); }
+
+/* Trigger row — chevron on the right */
+.mobile-nav-trigger {
+    justify-content: space-between;
+}
+
+.mobile-nav-chev {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    transition: transform 0.22s ease;
+}
+
+.mobile-nav-section.is-open .mobile-nav-chev {
+    transform: rotate(180deg);
+}
+
+/* Accordion panel */
+.mobile-nav-cards {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.25s ease;
+    background: color-mix(in srgb, var(--sbn-border) 40%, transparent);
+}
+
+.mobile-nav-section.is-open .mobile-nav-cards {
+    grid-template-rows: 1fr;
+}
+
+.mobile-nav-cards > * { overflow: hidden; }
+
+.mobile-nav-cards > div {
+    overflow: hidden;
+}
+
+.mobile-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 20px 11px 28px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--sbn-dark);
+    text-decoration: none;
+    transition: background 0.15s ease;
+}
+
+.mobile-card:hover { background: var(--sbn-border); }
+
+.mobile-card svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    stroke: var(--sbn-text);
+}
+
+.mobile-drawer-footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--sbn-border);
+    flex-shrink: 0;
 }
