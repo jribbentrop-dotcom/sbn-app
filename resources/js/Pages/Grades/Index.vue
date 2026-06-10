@@ -2,15 +2,35 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
+import GradePanel from '@/Components/Grades/GradePanel.vue';
 import { grades, gradeImageSrc } from '@/composables/useGrades';
 
 defineOptions({ layout: PublicLayout });
 
+const props = defineProps<{
+    panels: Record<number, {
+        chords: any[];
+        rhythms: any[];
+        progressions: any[];
+        songs: any[];
+        courses: any[];
+    }>;
+}>();
+
 const activeGrade = ref(1);
+const openPanels = ref<Set<number>>(new Set());
 const gradesSection = ref<HTMLElement | null>(null);
 let blockObserver: IntersectionObserver | null = null;
 let stepObserver: IntersectionObserver | null = null;
 let progressHandler: (() => void) | null = null;
+
+function togglePanel(n: number) {
+    if (openPanels.value.has(n)) {
+        openPanels.value.delete(n);
+    } else {
+        openPanels.value.add(n);
+    }
+}
 
 onMounted(() => {
     const supportsScrollTimeline = CSS.supports('animation-timeline', 'scroll()');
@@ -103,37 +123,59 @@ onUnmounted(() => {
                     <div
                         v-for="g in grades"
                         :key="g.n"
-                        class="grade-block"
-                        :id="`grade-${g.n}`"
-                        :style="`--grade-clr: ${g.clr}`"
-                        :data-grade-n="g.n"
+                        class="grade-entry"
                     >
-                        <div class="grade-img">
-                            <img
-                                :src="gradeImageSrc(g.slug)"
-                                :alt="`${g.label} guitarist`"
-                                loading="lazy"
-                            >
+                        <div
+                            class="grade-block"
+                            :id="`grade-${g.n}`"
+                            :style="`--grade-clr: ${g.clr}`"
+                            :data-grade-n="g.n"
+                        >
+                            <div class="grade-img">
+                                <img
+                                    :src="gradeImageSrc(g.slug)"
+                                    :alt="`${g.label} guitarist`"
+                                    loading="lazy"
+                                >
+                            </div>
+
+                            <div class="grade-text">
+                                <div class="grade-badge">
+                                    <span class="grade-pip"></span>
+                                    Grade {{ g.n }} · {{ g.label }}
+                                </div>
+                                <h3>{{ g.title }} <em>{{ g.titleEm }}</em></h3>
+                                <p>{{ g.blurb }}</p>
+                            </div>
                         </div>
 
-                        <div class="grade-text">
-                            <div class="grade-badge">
-                                <span class="grade-pip"></span>
-                                Grade {{ g.n }} · {{ g.label }}
-                            </div>
-                            <h3>{{ g.title }} <em>{{ g.titleEm }}</em></h3>
-                            <p>{{ g.blurb }}</p>
-                            <div class="chord-chips">
-                                <span
-                                    v-for="chord in g.chords"
-                                    :key="chord"
-                                    class="chord-chip"
-                                    :data-chord="chord"
-                                >{{ chord }}</span>
-                            </div>
-                            <!-- TODO: wire to grade detail/lesson route -->
-                            <a href="#" class="grade-cta">{{ g.cta }} →</a>
-                        </div>
+                        <!-- Full-width bar — IS the separator between grades -->
+                        <button
+                            class="grade-panel-toggle"
+                            :class="{ open: openPanels.has(g.n) }"
+                            :style="`--panel-clr: ${g.clr}`"
+                            @click="togglePanel(g.n)"
+                        >
+                            <span class="gpt-line"></span>
+                            <span class="gpt-label">
+                                {{ openPanels.has(g.n) ? 'Hide examples' : `Grade ${g.n} examples` }}
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                    <path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </span>
+                            <span class="gpt-line"></span>
+                        </button>
+
+                        <Transition name="panel-slide">
+                            <GradePanel
+                                v-if="openPanels.has(g.n)"
+                                :gradeN="g.n"
+                                :gradeClr="g.clr"
+                                :gradeLabel="g.label"
+                                :data="panels[g.n]"
+                                :allUrl="`/grades#grade-${g.n}`"
+                            />
+                        </Transition>
                     </div>
                 </div>
             </div>
@@ -141,3 +183,83 @@ onUnmounted(() => {
 
     </div>
 </template>
+
+<style scoped>
+.grades-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0 !important;
+}
+
+.grade-entry {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Separation between entries — sits above each grade block except the first */
+.grade-entry + .grade-entry {
+    margin-top: 40px;
+}
+
+.grade-panel-toggle {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    padding: 18px 0 10px;
+    border: none;
+    background: transparent;
+    color: var(--clr-text-muted, #888);
+    cursor: pointer;
+    transition: color .15s;
+}
+.grade-panel-toggle:hover {
+    color: var(--panel-clr);
+}
+.grade-panel-toggle.open {
+    color: var(--panel-clr);
+}
+
+.gpt-line {
+    flex: 1;
+    height: 1px;
+    background: currentColor;
+    opacity: .25;
+    transition: opacity .15s;
+}
+.grade-panel-toggle:hover .gpt-line,
+.grade-panel-toggle.open .gpt-line {
+    opacity: .6;
+}
+
+.gpt-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    font-size: .78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    flex-shrink: 0;
+}
+.gpt-label svg {
+    transition: transform .2s;
+}
+.grade-panel-toggle.open .gpt-label svg {
+    transform: rotate(180deg);
+}
+
+/* Slide transition */
+.panel-slide-enter-active,
+.panel-slide-leave-active {
+    transition: max-height .35s ease, opacity .25s ease;
+    overflow: hidden;
+    max-height: 600px;
+}
+.panel-slide-enter-from,
+.panel-slide-leave-to {
+    max-height: 0;
+    opacity: 0;
+}
+</style>
