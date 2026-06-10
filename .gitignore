@@ -23,6 +23,14 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 
+# SQLite database — never track; deploys must not overwrite live data
+/database/sbn.db
+/database/*.sqlite
+/database/*.sqlite-journal
+/database/*.sqlite-wal
+/database/sbn.db-journal
+/database/sbn.db-wal
+
 # Audio Transcription Binaries & Env
 /yt-dlp.exe
 /ffmpeg.exe
