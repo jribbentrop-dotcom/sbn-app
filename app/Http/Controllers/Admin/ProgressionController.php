@@ -228,6 +228,7 @@ class ProgressionController extends Controller
             'tonality'       => 'required|string|in:both,major,minor',
             'match_mode'     => 'required|string|in:strict,degree',
             'sort_order'     => 'nullable|integer',
+            'difficulty'     => 'nullable|integer|min:1|max:5',
             'featured'       => 'nullable|boolean',
             'alt_numerals'   => 'nullable|array',
             'alt_numerals.*.label'    => 'required|string|max:100',

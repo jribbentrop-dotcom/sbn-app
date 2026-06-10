@@ -80,7 +80,7 @@ return [
         'progressionCaption' => "This minor chord, extended with the sixth, has a deep, resonant tone that captures the essence of longing, the saudade. Combined with the diminished chord, it is an absolute trademark of the bossa nova sound.",
         'progressionSlugs' => ['m6-drop3-roota', 'o7-drop3-roota'],
         // Live leadsheet bars — replaces progressionTiles in the SyncedPlayer panel
-        'syncedPlayer' => ['slug' => 'untitled-6', 'start' => 1, 'end' => 8],
+        'syncedPlayer' => ['slug' => 'untitled-6', 'start' => 0, 'end' => 7],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'extended-gilberto-rhythm',
         'rhythmCaption' => "<strong>João Gilberto</strong> played many variations in his rhythm patterns. This is a simple extension of the basic pattern.",
@@ -109,7 +109,7 @@ return [
         'progressionCaption' => "<em>Insensatez</em> has some great diminished passing chords. These are the secret weapons of Bossa Nova. Because a diminished chord is built entirely of minor 3rds, this shape repeats every 3 frets.",
         'progressionSlugs' => ['dom7-drop2-roota-inv1', 'o7-drop3-roota', 'maj7-drop3-roote'],
         // Live leadsheet bars — Gmaj7(#11) F#7 Bm7 progression at the end
-        'syncedPlayer' => ['slug' => 'insensatez', 'start' => 18, 'end' => 19],
+        'syncedPlayer' => ['slug' => 'joao-gilberto-insensatez', 'start' => 18, 'end' => 19],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'insensatez',
         'rhythmCaption' => "<strong>João Gilberto's</strong> recording of <em>Insensatez</em> features an interesting rhythm pattern. Like the clave patterns of Cuba, it dominates the song, dictating the flow of the music.",
@@ -137,6 +137,8 @@ return [
         'progressionSeedKey' => 'C',
         'progressionCaption' => "The song's introduction is constructed using triads that move over a static bass note. This technique is an effective method of creating interesting sounds.",
         'progressionSlugs' => ['min7-shell-roote', 'min7-shell-roote'],
+        // Live leadsheet bars — Wave bars 0-1
+        'syncedPlayer' => ['slug' => 'untitled-7', 'start' => 0, 'end' => 1],
         'rhythmName' => 'The "Wave" Syncopation',
         'rhythmSlug' => 'partido-alto',
         'rhythmCaption' => "<em>Wave</em> uses a rhythm often linked to the \"Partido Alto\" style. Note the anticipation: the chord attacks often land on the weak off-beats.",
@@ -158,12 +160,14 @@ return [
         'description' => "The title of the song refers indeed to the melody which, for most part of the song, consists of a repeated single note. It is one of the first released Bossa Nova tunes, dating back to 1960, when Joao Gilberto recorded it on his album O Amor, o Sorriso e a Flor.",
         'recordings' => '476 Recordings',
         'voicingName' => 'Key Chords',
-        'voicingCaption' => "<em>One Note Samba</em> is the perfect song for practising Shell Voicings like this Bm7, since it's got loads of chord changes and is usually played at a faster tempo.",
+        'voicingCaption' => "<em>One Note Samba</em> is the perfect song for practising Shell Voicing like this Bm7, since it's got loads of chord changes and is usually played at a faster tempo.",
         'progressionName' => 'Tritone Substitution Jazz Cadence',
         'progressionLibrarySlug' => 'tritone-substitution-jazz-cadence',
         'progressionSeedKey' => 'Ab',
-        'progressionCaption' => "<em>One Note Samba</em> is the perfect song for practising Shell Voicings like this Bm7, since it's got loads of chord changes and is usually played at a faster tempo.",
+        'progressionCaption' => "<em>One Note Samba</em> is the perfect song for practising Shell Voicing like this Bm7, since it's got loads of chord changes and is usually played at a faster tempo.",
         'progressionSlugs' => ['m7-shell-roote', 'dom7-shell-roote', 'm7-shell-roote'],
+        // Live leadsheet bars — One Note Samba bars 1-4
+        'syncedPlayer' => ['slug' => 'one-note-samba', 'start' => 1, 'end' => 4],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'bossa-nova-clave',
         'rhythmCaption' => "The Bossa Nova Clave is the definitive pattern for jazz recordings of Bossa Nova songs.",
@@ -189,6 +193,8 @@ return [
         'progressionName' => 'The Samba Line Cliché',
         'progressionCaption' => "<em>Aquarela do Brasil</em> has one of the most iconic Line Clichés of all time. You can play it easily starting on this beautiful G(add9) chord voicing.",
         'progressionSlugs' => ['maj7-shell-roote', 'maj7-shell-roote', 'maj6-shell-roote'],
+        // Live leadsheet bars — Aquarela do Brasil bars 1-4
+        'syncedPlayer' => ['slug' => 'aqualera-do-brasil', 'start' => 1, 'end' => 4],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'samba-brasil',
         'rhythmCaption' => "Another iconic rhythm: this Samba rhythm has a wonderful symmetry of three strong and three weak beat accents.",
@@ -218,6 +224,8 @@ return [
         'progressionVoicingOverrides' => [
             2 => 'dom7-drop3-roote-s11',
         ],
+        // Live leadsheet bars — Desafinado bars 4-11
+        'syncedPlayer' => ['slug' => 'desafinado', 'start' => 4, 'end' => 11],
         'rhythmName' => 'Syncopated Phrasing',
         'rhythmSlug' => 'desafinado',
         'rhythmCaption' => "The melody of <em>Desafinado</em> is famous for starting on the \"and\" of beats. Your guitar accompaniment should be steady to support the \"stumbling\" vocal melody.",
@@ -244,6 +252,8 @@ return [
         'progressionLibrarySlug' => 'the-minor-jazz-cadence',
         'progressionSeedKey' => 'Dm',
         'progressionCaption' => "A classic <strong>minor II-V-I</strong> in D minor captures the tension-and-release core of <em>Chega de Saudade</em>.",
+        // Live leadsheet bars — Chega de Saudade bars 8-15
+        'syncedPlayer' => ['slug' => 'untitled-13', 'start' => 8, 'end' => 15],
         'rhythmName' => 'The Original Beat',
         'rhythmSlug' => 'gilberto-rhythm',
         'rhythmCaption' => "This track introduced the famous \"stutter\" or syncopation that imitates the Brazilian samba percussion (the Tamborim) on the guitar strings.",
@@ -270,6 +280,8 @@ return [
         'progressionLibrarySlug' => 'modal-interchange',
         'progressionSeedKey' => 'C',
         'progressionCaption' => "<em>Dindi</em> blooms with a classic <strong>modal interchange</strong> color shift in C: major tonic moving to its parallel minor.",
+        // Live leadsheet bars — Dindi bars 0-1
+        'syncedPlayer' => ['slug' => 'dindi', 'start' => 0, 'end' => 1],
         'rhythmName' => 'Ballad Bossa Pattern',
         'rhythmSlug' => 'bonfa',
         'rhythmCaption' => "<em>Dindi</em> floats. Use this slower pattern with more sustain to create that dreamy atmosphere.",

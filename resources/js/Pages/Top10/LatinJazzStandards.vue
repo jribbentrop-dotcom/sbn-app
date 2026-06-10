@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
-import { Link, Head } from '@inertiajs/vue3';
+import { Link, Head, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
+import Top10HeaderBar from '@/Components/Top10/Top10HeaderBar.vue';
+import ChordCard from '@/Components/Library/ChordCard.vue';
 import SyncedPlayer from '@/Components/SyncedPlayer/SyncedPlayer.vue';
 import type { LeadsheetBar } from '@/Components/SyncedPlayer/SyncedPlayer.vue';
-import RhythmPattern from '@/Components/Library/RhythmPattern.vue';
-import { getCategoryColor } from '@/composables/useCategoryColors';
-import { getAudioEngine } from '@/audio/engine/AudioEngine';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
 import type { VideoSnippet } from '@/Components/Library/ChordProgressionViewer.vue';
 import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
+import { chordShowUrl } from '@/composables/useChordUrl';
 
 defineOptions({ layout: PublicLayout });
 
@@ -67,9 +67,6 @@ const chords = ref<Top10DataItem[]>([]);
 const selectedChord = ref<Top10DataItem | null>(null);
 const isLoading = ref(false);
 
-const blend = ref(0);
-const engine = getAudioEngine();
-
 // ── Synced player bars fetch ──────────────────────────────────────────────────
 const syncedBars = ref<LeadsheetBar[] | null>(null);
 const syncedRhythm = ref<RhythmPatternData | null>(null);
@@ -100,10 +97,6 @@ async function fetchSyncedBars(cfg: SyncedPlayerConfig) {
     }
 }
 
-watch(blend, (v) => {
-    if (engine.isInited) engine.setBlend(v);
-});
-
 onMounted(() => {
     chords.value = props.top10Data.map((item, index) => ({
         ...item,
@@ -116,8 +109,6 @@ onMounted(() => {
 });
 
 watch(() => selectedChord.value, (item) => {
-    blend.value = 0;
-    if (engine.isInited) engine.setBlend(0);
     syncedBars.value = null;
     lastFetchedKey = '';
     if (item?.syncedPlayer) fetchSyncedBars(item.syncedPlayer);
@@ -125,6 +116,11 @@ watch(() => selectedChord.value, (item) => {
 
 function selectChord(chord: Top10DataItem) {
     selectedChord.value = chord;
+}
+
+function goToChordLibrary(chord: ChordDiagramData) {
+    if (!chord.slug) return;
+    router.visit(chordShowUrl(chord));
 }
 
 function nextChord() {
@@ -147,6 +143,8 @@ function prevChord() {
     </Head>
 
     <div class="sbn-top10-page">
+        <Top10HeaderBar active="/top10/latin-jazz-standards" />
+
         <!-- Loading State -->
         <div v-if="isLoading" class="sbn-top10-loading">
             <div class="sbn-spinner"></div>
@@ -203,11 +201,23 @@ function prevChord() {
 
                     <!-- Panels Grid -->
                     <div class="sbn-panels-grid">
-                        <!-- Chords Panel -->
-                        <div v-if="selectedChord.syncedPlayer || selectedChord.progressionTiles.length > 0" class="sbn-panel-ghost">
+                        <!-- Voicing Panel -->
+                        <div v-if="selectedChord.voicingData" class="sbn-panel sbn-voicing-panel">
+                            <h3 class="sbn-panel-title">{{ selectedChord.voicingName || 'Chord Voicing' }}</h3>
+                            <div class="sbn-panel-content">
+                                <ChordCard
+                                    :chord="selectedChord.voicingData"
+                                    :show-root="true"
+                                    :on-chord-click="() => goToChordLibrary(selectedChord!.voicingData!)"
+                                />
+                                <p class="sbn-panel-caption" v-html="selectedChord.voicingCaption"></p>
+                            </div>
+                        </div>
+
+                        <!-- Progression Panel -->
+                        <div class="sbn-panel">
                             <h3 class="sbn-panel-title">{{ selectedChord.progressionName }}</h3>
-                            <p class="sbn-panel-caption" v-html="selectedChord.progressionCaption"></p>
-                            <div class="sbn-progression-wrapper">
+                            <div class="sbn-panel-content">
                                 <div class="sbn-synced-hero-card">
                                     <!-- Live leadsheet bars mode -->
                                     <SyncedPlayer
@@ -232,42 +242,9 @@ function prevChord() {
                                         :key="selectedChord.slug"
                                     />
                                 </div>
+                                <p class="sbn-panel-caption" v-html="selectedChord.progressionCaption"></p>
+                                <div v-if="selectedChord.progressionCitation" class="sbn-panel-citation" v-html="selectedChord.progressionCitation"></div>
                             </div>
-                            <div v-if="selectedChord.progressionCitation" class="sbn-panel-citation" v-html="selectedChord.progressionCitation"></div>
-                        </div>
-
-                        <!-- Rhythm Panel -->
-                        <div v-if="selectedChord.rhythmData" class="sbn-panel-ghost">
-                            <h3 class="sbn-panel-title">{{ selectedChord.rhythmName }}</h3>
-                            <p class="sbn-panel-caption" v-html="selectedChord.rhythmCaption"></p>
-                            <div class="sbn-rhythm-wrapper">
-                                <div class="sbn-card sbn-rhythm-card">
-                                    <RhythmPattern
-                                        :pattern="selectedChord.rhythmData"
-                                        :playable="true"
-                                        :mini="false"
-                                        :demo-url="selectedChord.rhythmData.demoUrl"
-                                        :color="getCategoryColor(selectedChord.rhythmData.styleSlug || 'latin')"
-                                    >
-                                        <template v-if="selectedChord.rhythmData.demoUrl" #transport-extra>
-                                            <div class="sbn-blend-control">
-                                                <span class="sbn-blend-label" :class="{ 'is-active': blend < 0.5 }">Samples</span>
-                                                <input
-                                                    type="range"
-                                                    min="0"
-                                                    max="1"
-                                                    step="0.01"
-                                                    v-model.number="blend"
-                                                    class="sbn-blend-slider"
-                                                    aria-label="Blend between samples and demo audio"
-                                                />
-                                                <span class="sbn-blend-label" :class="{ 'is-active': blend >= 0.5 }">Demo</span>
-                                            </div>
-                                        </template>
-                                    </RhythmPattern>
-                                </div>
-                            </div>
-                            <div v-if="selectedChord.rhythmCitation" class="sbn-panel-citation" v-html="selectedChord.rhythmCitation"></div>
                         </div>
                     </div>
 
@@ -303,17 +280,6 @@ function prevChord() {
                             </Link>
                         </div>
                     </div>
-
-                    <!-- Footer Links -->
-                    <div class="sbn-footer-links">
-                        <Link href="/top10/bossa-nova-chords" class="sbn-footer-link">TOP 10 Bossa Nova Chords</Link>
-                        <span class="sbn-footer-separator">•</span>
-                        <Link href="/top10/latin-jazz-standards" class="sbn-footer-link sbn-footer-link--active">TOP 10 Latin Jazz Standards</Link>
-                        <span class="sbn-footer-separator">•</span>
-                        <Link href="/top10/bossa-nova-songs" class="sbn-footer-link">TOP 10 Bossa Nova Songs</Link>
-                        <span class="sbn-footer-separator">•</span>
-                        <Link href="/top10/latin-jazz-guitar-players" class="sbn-footer-link">TOP 10 Latin Jazz Guitar Players</Link>
-                    </div>
                 </div>
             </div>
         </div>
@@ -321,23 +287,31 @@ function prevChord() {
 </template>
 
 <style scoped>
+/* Two-panel layout matching Bossa Nova Chords (voicing left, progression right) */
+.sbn-panels-grid {
+    gap: 20px;
+    margin-bottom: 32px;
+}
+
 @media (min-width: 768px) {
     .sbn-panels-grid {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 3fr 7fr;
     }
 }
 
-.sbn-progression-wrapper,
-.sbn-rhythm-wrapper {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    padding: 10px 0 20px;
+.sbn-panel {
+    padding: 20px;
 }
 
-.sbn-rhythm-card {
-    overflow: hidden;
+.sbn-panel-title {
+    font-weight: 600;
+    margin-bottom: 12px;
+    letter-spacing: 0;
+}
+
+.sbn-panel-content {
+    gap: 16px;
+    justify-content: center;
 }
 
 .sbn-synced-hero-card {
@@ -349,5 +323,47 @@ function prevChord() {
     align-items: center;
     justify-content: center;
     min-height: 200px;
+}
+
+.sbn-panel-caption {
+    color: var(--clr-text-muted);
+    margin-top: 12px;
+}
+
+/* Voicing panel: no border on mobile, card fills available width */
+.sbn-voicing-panel {
+    border: none;
+    padding: 16px;
+    align-items: center;
+    --card-name-size: 1.75rem;
+}
+
+@media (min-width: 768px) {
+    .sbn-voicing-panel {
+        --card-name-size: 1.25rem;
+    }
+}
+
+.sbn-voicing-panel .sbn-panel-title {
+    text-align: center;
+}
+
+.sbn-voicing-panel .sbn-panel-content {
+    align-items: center;
+}
+
+/* On desktop, restore the panel box and cap the card width */
+@media (min-width: 768px) {
+    .sbn-voicing-panel {
+        background: var(--clr-surface-2);
+        border: 1px solid var(--clr-border);
+        border-radius: var(--radius);
+        padding: 20px;
+    }
+
+    .sbn-voicing-panel :deep(.sbn-chord-card) {
+        max-width: 200px;
+        width: 100%;
+    }
 }
 </style>

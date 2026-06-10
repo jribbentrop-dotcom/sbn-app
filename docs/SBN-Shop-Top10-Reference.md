@@ -317,7 +317,18 @@ That's the complete change. No controller edit, no Vue edit — just one config 
 
 ---
 
-### 14. Adding a New Top10 Page
+### 14. `bossa-nova-chords.php` — dual use
+
+This config is consumed in two places:
+
+1. **`/top10/bossa-nova-chords`** — the standalone Top10 page (full detail panels, SyncedPlayer, rhythm strip).
+2. **`/library/chords` index** — the chord library's "Top 10" sort mode reads `array_keys($config)` to get the 10 slugs in order and pins them at the top of the hitlist. The `description` field from this config is also written to `sbn_chord_diagrams.description` for those chords (via migration `2026_06_08_000001`), so it appears in the hitlist row.
+
+When editing the config order or slugs, both surfaces are affected.
+
+---
+
+### 15. Adding a New Top10 Page
 
 1. Create `config/top10/{name}.php` with 10 items
 2. Add a method to `Top10Controller` calling `$this->getTop10Data('{name}')`

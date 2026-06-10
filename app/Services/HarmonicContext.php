@@ -277,24 +277,30 @@ class HarmonicContext
      * Numeral suffix → display quality.
      */
     private const SUFFIX_TO_DISPLAY = [
-        ''      => '',       // major triad
-        'maj7'  => 'maj7',
-        'maj9'  => 'maj9',
-        '7'     => '7',
-        '9'     => '9',
-        '13'    => '13',
-        'm'     => 'm',
-        'm7'    => 'm7',
-        'm6'    => 'm6',
-        'm9'    => 'm9',
-        'm7b5'  => 'm7b5',
-        'o7'    => 'dim7',
-        'o'     => 'dim',
-        'mMaj7' => 'mMaj7',
-        'aug'   => 'aug',
-        'aug7'  => 'aug7',
-        'sus4'  => 'sus4',
-        'sus2'  => 'sus2',
+        ''        => '',       // major triad
+        'maj7'    => 'maj7',
+        'maj9'    => 'maj9',
+        '7'       => '7',
+        '9'       => '9',
+        '13'      => '13',
+        'm'       => 'm',
+        'm7'      => 'm7',
+        'm6'      => 'm6',
+        'm9'      => 'm9',
+        'm7b5'    => 'm7b5',
+        'o7'      => 'dim7',
+        'o'       => 'dim',
+        'mMaj7'   => 'mMaj7',
+        'aug'     => 'aug',
+        'aug7'    => 'aug7',
+        'sus4'    => 'sus4',
+        'sus2'    => 'sus2',
+        // Line-cliché chromatic inner-voice suffixes — parenthesised form
+        // so numeralToChordName emits e.g. "Dm(b6)" → parseChordName splits
+        // quality=m / extension=b6 correctly.
+        '(b6)'    => '(b6)',
+        '(6)'     => '(6)',
+        '(#5)'    => '(#5)',
     ];
 
     /**

@@ -241,6 +241,7 @@ class ProgressionBuilder
         $mode       = $options['mode'] ?? '';
         $category   = $options['category'] ?? self::CATEGORY_DEFAULT;
         $style      = $options['style'] ?? '';
+        $tonality   = $options['tonality'] ?? 'major';
         // Default extensions to the Machine Room's per-category pass2_eligible
         // setting. Callers may still pass an explicit bool to override.
         $extensions = $options['extensions'] ?? $this->settings->isPass2Eligible($category);
@@ -361,7 +362,8 @@ class ProgressionBuilder
                 $diagnostics,
                 $functionalRole,
                 $strictBasic,
-                $explicitQuality
+                $explicitQuality,
+                $tonality
             );
         }
         $lattice = $this->buildAnchorFreeLattice($chordVoicings, $style, $rootOnly, $category);
@@ -553,7 +555,8 @@ class ProgressionBuilder
         array &$diagnostics = null,
         ?string $functionalRole = null,
         bool $strictBasic = false,
-        bool $explicitQuality = false
+        bool $explicitQuality = false,
+        string $tonality = 'major'
     ): array {
         if (!$root) return [];
 
@@ -566,11 +569,21 @@ class ProgressionBuilder
             $dbQuality,
             $category,
             $functionalRole,
-            $explicitQuality
+            $explicitQuality,
+            $tonality
         );
 
         // Determine pool based on category and blues sub-mode trigger
         $pool = $this->getCategoryPool($category, $styleFilter, $extensions);
+
+        // Chromatic passing chords with a hardcoded extension (b6, #5, etc.) are
+        // line-cliché shapes that won't exist as drop2/shell voicings. Widen the
+        // pool to include 'archetype' and 'closed' so the DB fallback can find them
+        // regardless of category. The extension LIKE filter below still narrows
+        // the result to only the shapes that actually carry the requested tone.
+        if ($extension !== '' && $explicitQuality) {
+            $pool = array_values(array_unique(array_merge($pool, ['archetype', 'closed', 'closed_triads', 'triad'])));
+        }
 
         // Check if style is outside category pool
         if ($styleFilter && $styleFilter !== 'drop' && $styleFilter !== '') {
@@ -1361,7 +1374,8 @@ class ProgressionBuilder
         // Strip a trailing slash-bass so "C/G" doesn't trip false positives on
         // anything after the slash, but the chord body itself decides.
         $body = explode('/', $chordName, 2)[0];
-        $explicitPattern = '/(6|7|maj|mMaj|dim|aug|sus|add|b9|#9|#11|b13)/i';
+        // b6 must precede bare 6 so it isn't consumed by the shorter match.
+        $explicitPattern = '/(b6|6|7|maj|mMaj|dim|aug|sus|add|b9|#9|#11|b13)/i';
         return (bool) preg_match($explicitPattern, $body);
     }
 
@@ -1810,7 +1824,7 @@ class ProgressionBuilder
             return 'Imaj7';
         }
         
-        if (in_array($quality, ['m7', 'm6', 'm7b5', 'mMaj7', 'min', 'mMin7'])) {
+        if (in_array($quality, ['m7', 'm6', 'm7b5', 'mMaj7', 'min', 'mMin7', 'm'])) {
             $degree = $this->romanToDegree($romanNumeral);
             if ($degree === 1) {
                 return $quality === 'm6' ? 'Im6' : ($quality === 'mMaj7' ? 'ImMaj7' : 'Im7');
@@ -1823,11 +1837,17 @@ class ProgressionBuilder
             }
             return 'Im7';
         }
-        
+
+        // aug / + on the tonic (line-cliché chromatic passing chord)
+        if (in_array($quality, ['aug', '+'])) {
+            $degree = $this->romanToDegree($romanNumeral);
+            return $degree === 1 ? 'Iaug' : 'Imaj7';
+        }
+
         if (in_array($quality, ['dim7', 'dim', 'o7'])) {
             return 'dim7';
         }
-        
+
         // Default fallback
         return 'Imaj7';
     }
@@ -2030,7 +2050,8 @@ class ProgressionBuilder
         string $dbQuality,
         string $category,
         ?string $functionalRole,
-        bool $explicitQuality = false
+        bool $explicitQuality = false,
+        string $tonality = 'major'
     ): array {
         // Hardcoded quality token (Cm6, EMaj7, etc.) is a hard constraint —
         // never widen across the tonic family. Plain triads upgraded by the
@@ -2044,15 +2065,30 @@ class ProgressionBuilder
 
         $tonicMajorRoles = ['Imaj7', 'I6'];
         $tonicMinorRoles = ['Im7', 'Im6', 'ImMaj7'];
+        // Iaug is a chromatic passing chord in a line cliché — never widened.
 
-        if (in_array($functionalRole, $tonicMajorRoles, true)
-            && in_array($dbQuality, ['maj7', 'maj6', '6'], true)) {
-            return array_values(array_unique(array_merge($aliases, ['maj7', 'maj6', '6'])));
+        $isMajorTonic = in_array($functionalRole, $tonicMajorRoles, true);
+        $isMinorTonic = in_array($functionalRole, $tonicMinorRoles, true);
+
+        // When tonality='both', a plain tonic numeral (I, I6) should match both
+        // major and minor shapes — the progression is key-agnostic and the caller
+        // wants any idiomatic tonic voicing (e.g. samba line cliché).
+        $bothTonalities = ($tonality === 'both');
+
+        if ($isMajorTonic && in_array($dbQuality, ['maj7', 'maj6', '6', 'maj'], true)) {
+            $wide = ['maj7', 'maj6', '6'];
+            if ($bothTonalities) {
+                $wide = array_merge($wide, ['m', 'm7', 'm6', 'mMaj7', 'min']);
+            }
+            return array_values(array_unique(array_merge($aliases, $wide)));
         }
 
-        if (in_array($functionalRole, $tonicMinorRoles, true)
-            && in_array($dbQuality, ['m7', 'm6'], true)) {
-            return array_values(array_unique(array_merge($aliases, ['m7', 'm6'])));
+        if ($isMinorTonic && in_array($dbQuality, ['m7', 'm6', 'mMaj7', 'm', 'min'], true)) {
+            $wide = ['m7', 'm6', 'mMaj7'];
+            if ($bothTonalities) {
+                $wide = array_merge($wide, ['maj7', 'maj6', '6']);
+            }
+            return array_values(array_unique(array_merge($aliases, $wide)));
         }
 
         return $aliases;
@@ -3170,8 +3206,17 @@ class ProgressionBuilder
             ? (int) $allChords[$slot]['measure_index']
             : null;
 
+        // Slots with empty pools are treated as null pass-throughs: the path
+        // skips them with zero edge cost so other slots still get voicings.
+        $emptySlots = [];
+        foreach ($pools as $i => $pool) {
+            if (empty($pool)) {
+                $emptySlots[$i] = true;
+            }
+        }
+
         if ($n === 1) {
-            if (empty($pools[0])) return [];
+            if (empty($pools[0])) return [null];
             $category = $context['category'] ?? self::CATEGORY_DEFAULT;
             $m0 = $measureOf(0);
             $best = $pools[0][0];
@@ -3189,23 +3234,46 @@ class ProgressionBuilder
         $category = $context['category'] ?? self::CATEGORY_DEFAULT;
         $INF = 999999.0;
 
+        // For empty slots, inject a single null sentinel so the DP can traverse them.
+        $effectivePools = [];
+        foreach ($pools as $i => $pool) {
+            $effectivePools[$i] = empty($pool) ? [null] : $pool;
+        }
+
         $cost = [];
         $prev = [];
 
-        $cost[0] = array_map(
-            fn($c) => $this->seedCost($c, $category, $context, $measureOf(0)),
-            $pools[0]
-        );
-        $prev[0] = array_fill(0, count($pools[0]), null);
+        if (isset($emptySlots[0])) {
+            $cost[0] = [0.0];
+        } else {
+            $cost[0] = array_map(
+                fn($c) => $this->seedCost($c, $category, $context, $measureOf(0)),
+                $effectivePools[0]
+            );
+        }
+        $prev[0] = array_fill(0, count($effectivePools[0]), null);
 
         for ($i = 1; $i < $n; $i++) {
             $cost[$i] = [];
             $prev[$i] = [];
             $measureIdx = $measureOf($i);
-            foreach ($pools[$i] as $k => $cCurr) {
+            $currEmpty = isset($emptySlots[$i]);
+            $prevEmpty = isset($emptySlots[$i - 1]);
+
+            foreach ($effectivePools[$i] as $k => $cCurr) {
                 $best = $INF;
                 $bestPrev = null;
-                foreach ($pools[$i - 1] as $j => $cPrev) {
+                foreach ($effectivePools[$i - 1] as $j => $cPrev) {
+                    // Empty-slot edges: carry cost through with zero transition cost.
+                    if ($currEmpty || $prevEmpty) {
+                        $total = $cost[$i - 1][$j];
+                        if ($total < $best) {
+                            $best = $total;
+                            $bestPrev = $j;
+                        }
+                        continue;
+                    }
+
                     if (!$this->isEdgeAdmissible($cPrev, $cCurr, $positionLimit)) {
                         continue;
                     }
@@ -3226,7 +3294,8 @@ class ProgressionBuilder
                 // Per-slot node cost: pull this chord toward the melody's hand
                 // position in its measure. Same value for every path into node
                 // k, so it doesn't disturb the edge argmin above.
-                $cost[$i][$k] = $best + $this->positionHintCost($cCurr, $context, $measureIdx);
+                $nodeCost = $currEmpty ? 0.0 : $this->positionHintCost($cCurr, $context, $measureIdx);
+                $cost[$i][$k] = $best + $nodeCost;
                 $prev[$i][$k] = $bestPrev;
             }
         }
@@ -3246,10 +3315,11 @@ class ProgressionBuilder
         }
 
         for ($i = $n - 1; $i >= 0; $i--) {
-            if ($idx === null || !isset($pools[$i][$idx])) {
+            if ($idx === null || !isset($effectivePools[$i][$idx])) {
                 return [];
             }
-            $path[$i] = $pools[$i][$idx];
+            // null sentinel → no voicing for this slot
+            $path[$i] = $effectivePools[$i][$idx];
             $idx = $prev[$i][$idx];
         }
 

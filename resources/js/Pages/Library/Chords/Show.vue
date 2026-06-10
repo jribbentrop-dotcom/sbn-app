@@ -119,7 +119,7 @@ const voicingEdu: Record<string, { name: string; detail: string; tip: string }> 
     archetype:     { name: 'Archetypes',       detail: 'The fundamental open-position guitar chords (E, Em, A, Am, D, Dm, C, G) and their 7th-chord siblings. These are transposable shapes that form barré chords when moved up the neck.',                                            tip: 'Master all 8 basic archetypes first, then learn their 7th-chord variants. Once comfortable, practice barré versions starting with the E and A shapes.' },
     drop2:         { name: 'Drop 2',            detail: 'Take a closed-position chord and drop the second-highest note down an octave. This opens up the voicing, spreading the notes across a wider range while keeping the sound balanced.',                                          tip: 'Practice connecting Drop 2 voicings through ii-V-I progressions. Move the minimum number of fingers between chords.' },
     drop3:         { name: 'Drop 3',            detail: 'Drop the third-highest note from a closed voicing down an octave. Creates a wider spread than Drop 2, with a gap in the middle. Works well for solo guitar and chord melody.',                                                 tip: 'Drop 3 shapes often skip a string in the middle. The payoff is a rich, full sound that fills more sonic space.' },
-    shell:         { name: 'Shell Voicings',    detail: 'Strip a chord down to its bare essentials: root, third, and seventh. Three notes that define the chord quality with nothing extra.',                                                                                           tip: 'Start with shells on the 6th and 5th strings. Learn to comp through entire standards using only shells.' },
+    shell:         { name: 'Shell Voicing',    detail: 'Strip a chord down to its bare essentials: root, third, and seventh. Three notes that define the chord quality with nothing extra.',                                                                                           tip: 'Start with shells on the 6th and 5th strings. Learn to comp through entire standards using only shells.' },
     rootless:      { name: 'Rootless',          detail: 'Remove the root entirely and let the bass player handle it. What remains are the chord\'s color tones — third, seventh, and extensions.',                                                                                     tip: 'These only work well when a bass player is covering the root. In a trio or quartet? Go rootless and enjoy the freedom.' },
     closed:        { name: 'Closed Position',   detail: 'All four chord tones of a seventh chord packed within one octave. Compact and dense — the textbook chord spelling.',                                                                                                          tip: 'Understanding closed voicings is essential — they\'re the foundation from which Drop 2 and Drop 3 are derived.' },
     closed_triads: { name: 'Closed Triads',     detail: 'Three-note chords in close position — root, third, and fifth all within one octave. Systematic inversions across all string sets.',                                                                                           tip: 'Learn all three inversions on one string set, then connect them up and down the neck. This is how you unlock the entire fretboard.' },
@@ -318,10 +318,24 @@ function inversionIsCurrent(inv: ChordDiagramData): boolean {
     return inv.id === props.chord.id;
 }
 
-type ChordTab = 'voicing' | 'extensions' | 'inversion';
+type ChordTab = 'quality' | 'voicing' | 'extensions' | 'inversion';
 const activeTab = ref<ChordTab | null>(null);
+
+const QUALITY_LABELS: Record<string, string> = {
+    maj7: 'Major 7th', maj: 'Major', m7: 'Minor 7th', min: 'Minor',
+    dom7: 'Dominant 7th', m7b5: 'Half Diminished', o7: 'Diminished 7th',
+    maj6: 'Major 6th', m6: 'Minor 6th', mMaj7: 'Minor Major 7th',
+    aug7: 'Augmented 7th', aug: 'Augmented', dim: 'Diminished',
+    add9: 'Add 9', maj9: 'Major 9th', m9: 'Minor 9th',
+};
+const qualityLabel = computed(() => QUALITY_LABELS[activeQuality.value] ?? activeQuality.value);
+const hasQualityBlurb = computed(() =>
+    !!(activeAlias.value || eduQ.value || activeTheory.value?.typical_context)
+);
+
 const availableTabs = computed<ChordTab[]>(() => {
     const tabs: ChordTab[] = [];
+    if (hasQualityBlurb.value) tabs.push('quality');
     if (eduV.value) tabs.push('voicing');
     if (activeExtensions.value) tabs.push('extensions');
     if (eduInv.value || activeInversions.value.length) tabs.push('inversion');
@@ -500,27 +514,6 @@ const formattedChordName = computed(() => {
                     </h2>
                     <div class="sbn-chord-identity-about-row">
                         <div class="sbn-chord-identity-about-text">
-                            <template v-if="activeAlias">
-                                <p v-if="activeIsRootless" class="sbn-chord-identity-description">
-                                    This is a <strong>rootless</strong> voicing — the
-                                    <span v-html="formatNote(activeAlias.root_note)" /> root isn't played. The
-                                    diminished shape supplies the 3rd, 5th, ♭7 and ♭9, which is enough to imply the
-                                    dominant. That's why the lowest note is never the root, and the slot where the
-                                    root would sit is labelled "Rootless" rather than "Root Position".
-                                </p>
-                                <p class="sbn-chord-identity-description">
-                                    {{ activeTheory?.typical_context ?? eduQ?.description ?? '' }}
-                                </p>
-                            </template>
-                            <template v-else-if="eduQ">
-                                <p class="sbn-chord-identity-description">
-                                    {{ eduQ.description }}
-                                    <span class="sbn-chord-identity-usage">{{ eduQ.usage }}</span>
-                                </p>
-                            </template>
-                            <template v-else-if="theory">
-                                <p class="sbn-chord-identity-description">{{ theory.typical_context }}</p>
-                            </template>
                             <!-- Voicing-specific description from admin -->
                             <div v-if="displayChord.description"
                                  class="sbn-chord-identity-description sbn-prose"
@@ -543,6 +536,15 @@ const formattedChordName = computed(() => {
                 <div v-if="availableTabs.length" class="sbn-chord-tabs">
 
                     <div class="sbn-chord-tab-bar">
+                        <button
+                            v-if="hasQualityBlurb"
+                            class="sbn-chord-tab"
+                            :class="{ active: activeTab === 'quality' }"
+                            @click="activeTab = 'quality'"
+                        >
+                            <span class="sbn-chord-tab-label">Quality</span>
+                            <span class="sbn-chord-tab-value sbn-chord-tab-value--quality">{{ qualityLabel }}</span>
+                        </button>
                         <button
                             v-if="eduV"
                             class="sbn-chord-tab"
@@ -570,6 +572,26 @@ const formattedChordName = computed(() => {
                             <span class="sbn-chord-tab-label">Inversion</span>
                             <span class="sbn-chord-tab-value sbn-chord-tab-value--inv">{{ activeInversionLabel }}</span>
                         </button>
+                    </div>
+
+                    <!-- Quality panel -->
+                    <div v-if="activeTab === 'quality'" class="sbn-chord-tab-panel">
+                        <template v-if="activeAlias">
+                            <p v-if="activeIsRootless">
+                                This is a <strong>rootless</strong> voicing — the
+                                <span v-html="formatNote(activeAlias.root_note)" /> root isn't played. The
+                                diminished shape supplies the 3rd, 5th, ♭7 and ♭9, which is enough to imply the
+                                dominant. That's why the lowest note is never the root, and the slot where the
+                                root would sit is labelled "Rootless" rather than "Root Position".
+                            </p>
+                            <p>{{ activeTheory?.typical_context ?? eduQ?.description ?? '' }}</p>
+                        </template>
+                        <template v-else-if="eduQ">
+                            <p>{{ eduQ.description }} <span class="sbn-chord-identity-usage">{{ eduQ.usage }}</span></p>
+                        </template>
+                        <template v-else-if="activeTheory">
+                            <p>{{ activeTheory.typical_context }}</p>
+                        </template>
                     </div>
 
                     <!-- Voicing panel -->
@@ -981,6 +1003,7 @@ const formattedChordName = computed(() => {
     max-width: 100%;
     color: #fff;
 }
+.sbn-chord-tab-value--quality  { background: #4a9e6b; }
 .sbn-chord-tab-value--voicing { background: var(--clr-mod-chord); }
 .sbn-chord-tab-value--ext     { background: var(--clr-mod-progression); }
 .sbn-chord-tab-value--inv     { background: var(--clr-primary); }

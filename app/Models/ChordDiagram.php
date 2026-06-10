@@ -37,7 +37,7 @@ class ChordDiagram extends Model
         'archetype'     => 'Archetypes',
         'drop2'         => 'Drop 2',
         'drop3'         => 'Drop 3',
-        'shell'         => 'Shell Voicings',
+        'shell'         => 'Shell Voicing',
         'rootless'      => 'Rootless',
         'closed'        => 'Closed Position',
         'closed_triads' => 'Closed Triads',
@@ -75,6 +75,7 @@ class ChordDiagram extends Model
         '#11'  => '♯11',
         '13'   => '13',
         'b13'  => '♭13',
+        'b6'   => '♭6',
         'add9' => 'add9',
         'sus4' => 'sus4',
         'sus2' => 'sus2',
@@ -307,6 +308,10 @@ class ChordDiagram extends Model
             '7sus4' => [0 => 'R', 5 => '4', 7 => '5', 10 => 'b7'],
             'maj'   => [0 => 'R', 4 => '3', 7 => '5'],
             'min'   => [0 => 'R', 3 => 'b3', 7 => '5'],
+            // b6 variants: semitone 8 labelled 'b6' (close interval) not 'b13'
+            // Used for line-cliché passing shapes (samba 5→b6→6 inner voice).
+            'm_b6'  => [0 => 'R', 3 => 'b3', 7 => '5', 8 => 'b6'],
+            'maj_b6'=> [0 => 'R', 4 => '3',  7 => '5', 8 => 'b6'],
             'aug'   => [0 => 'R', 4 => '3', 8 => '#5'],
             'dim'   => [0 => 'R', 3 => 'b3', 6 => 'b5'],
             'sus4'  => [0 => 'R', 5 => '4', 7 => '5'],
@@ -355,7 +360,17 @@ class ChordDiagram extends Model
 
         // Derive chord root
         $qualityMaps = self::getQualityIntervals();
-        $imap = $qualityMaps[$quality] ?? null;
+        // Use b6-specific interval map when the shape carries a b6 extension
+        // so the computed interval_labels show 'b6' not 'b13'.
+        $extensionField = $this->extensions ?? '';
+        $qualityKey = $quality;
+        if ($extensionField === 'b6' || str_contains($extensionField, 'b6')) {
+            $b6Key = $quality . '_b6';
+            if (isset($qualityMaps[$b6Key])) {
+                $qualityKey = $b6Key;
+            }
+        }
+        $imap = $qualityMaps[$qualityKey] ?? null;
         $rootSemitone = null;
 
         if ($rootFret === null || $rootStringNum === null) {

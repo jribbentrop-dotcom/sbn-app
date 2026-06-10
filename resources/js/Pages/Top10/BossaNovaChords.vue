@@ -2,6 +2,7 @@
 import { ref, onMounted, watch } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
+import Top10HeaderBar from '@/Components/Top10/Top10HeaderBar.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
 import SyncedPlayer from '@/Components/SyncedPlayer/SyncedPlayer.vue';
 import type { LeadsheetBar } from '@/Components/SyncedPlayer/SyncedPlayer.vue';
@@ -189,6 +190,8 @@ function goToChordLibrary(chord: ChordDiagramData) {
     </Head>
 
     <div class="sbn-top10-page">
+        <Top10HeaderBar active="/top10/bossa-nova-chords" />
+
         <!-- Loading State -->
         <div v-if="isLoading" class="sbn-top10-loading">
             <div class="sbn-spinner"></div>
@@ -322,17 +325,6 @@ function goToChordLibrary(chord: ChordDiagramData) {
                                 </div>
                             </Link>
                         </div>
-                    </div>
-
-                    <!-- Footer Links -->
-                    <div class="sbn-footer-links">
-                        <Link href="/top10/bossa-nova-chords" class="sbn-footer-link sbn-footer-link--active">TOP 10 Bossa Nova Chords</Link>
-                        <span class="sbn-footer-separator">•</span>
-                        <Link href="/top10/latin-jazz-standards" class="sbn-footer-link">TOP 10 Latin Jazz Standards</Link>
-                        <span class="sbn-footer-separator">•</span>
-                        <Link href="/top10/bossa-nova-songs" class="sbn-footer-link">TOP 10 Bossa Nova Songs</Link>
-                        <span class="sbn-footer-separator">•</span>
-                        <Link href="/top10/latin-jazz-guitar-players" class="sbn-footer-link">TOP 10 Latin Jazz Guitar Players</Link>
                     </div>
                 </div>
             </div>

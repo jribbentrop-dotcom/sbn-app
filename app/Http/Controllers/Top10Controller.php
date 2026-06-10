@@ -71,8 +71,9 @@ class Top10Controller extends Controller
 
         $allSlugs = array_keys($chordConfig);
         $allProgressionSlugs = collect($chordConfig)->flatMap(fn ($c) => $c['progressionSlugs'] ?? [])->unique()->toArray();
+        $allVoicingSlugs = collect($chordConfig)->map(fn ($c) => $c['voicingSlug'] ?? null)->filter()->unique()->toArray();
         $allRhythmSlugs = collect($chordConfig)->map(fn ($c) => $c['rhythmSlug'] ?? null)->filter()->unique()->toArray();
-        $allRequiredChordSlugs = array_unique(array_merge($allSlugs, $allProgressionSlugs));
+        $allRequiredChordSlugs = array_unique(array_merge($allSlugs, $allProgressionSlugs, $allVoicingSlugs));
 
         $chords = \App\Models\ChordDiagram::whereIn('slug', $allRequiredChordSlugs)
             ->get()
@@ -86,11 +87,14 @@ class Top10Controller extends Controller
         return collect($chordConfig)->map(function ($config, $slug) use ($chords, $rhythms) {
             $rootOverride = $config['rootOverride'] ?? null;
             $bassOverride = $config['bassOverride'] ?? null;
-            $mainChordModel = $chords[$slug] ?? null;
-            
+            // Hero chord: an explicit voicingSlug wins, otherwise the item key itself
+            // (true on the chords page, where the key IS a chord diagram slug).
+            $voicingSlug = $config['voicingSlug'] ?? $slug;
+            $mainChordModel = $chords[$voicingSlug] ?? null;
+
             $voicingData = null;
             if ($mainChordModel) {
-                $voicingData = ($bassOverride) 
+                $voicingData = ($bassOverride)
                     ? $this->chordSerializer->serializeWithBass($mainChordModel, $rootOverride ?? $mainChordModel->root_note ?? 'C', $bassOverride)
                     : $this->chordSerializer->serialize($mainChordModel, $rootOverride);
             }
@@ -173,6 +177,32 @@ class Top10Controller extends Controller
                         'diagramData' => $tileData,
                     ];
                 })->toArray();
+            }
+
+            // Auto-populate the hero chord from the progression's first chord when no
+            // explicit voicing was resolved (songs/standards keyed by song slug).
+            // Use the built tile voicing AS-IS (so the hero shape is identical to the
+            // progression's first chord — same extensions, inversion, frets) and only
+            // borrow `slug`/`name` from the resolved ChordDiagram so it deep-links to
+            // the chord library (the built voicing object carries no slug/name).
+            // TODO: curate a `voicingSlug` per item to replace this fallback.
+            if (!$voicingData) {
+                foreach ($progressionTiles as $tile) {
+                    $diagram = $tile['diagramData'] ?? null;
+                    if (!$diagram) {
+                        continue;
+                    }
+                    $hero = (array) $diagram;
+                    $hero['name'] = $tile['chordName'] ?? ($hero['chord_name'] ?? '');
+                    if (!empty($hero['diagram_id'])) {
+                        $heroModel = ChordDiagram::find($hero['diagram_id']);
+                        if ($heroModel) {
+                            $hero['slug'] = $heroModel->slug;
+                        }
+                    }
+                    $voicingData = (object) $hero;
+                    break;
+                }
             }
 
             return array_merge($config, [

@@ -70,7 +70,7 @@ return [
         ],
         'progressionCaption' => 'The Corcovado progression in A minor with Am6 pinned as the Im key chord.',
         // Live leadsheet bars — Corcovado A section
-        'syncedPlayer' => ['slug' => 'untitled-6', 'start' => 1, 'end' => 8],
+        'syncedPlayer' => ['slug' => 'untitled-6', 'start' => 0, 'end' => 7],
         'relatedProducts' => [
             [
                 'title' => 'Corcovado',
@@ -96,7 +96,7 @@ return [
             1 => 'dom7-drop3-roote-13',
         ],
         'progressionCaption' => 'A major II-V-I in C major (Dm7 -> G7 -> Cmaj7), linked from the DB progression library, with G7(13) pinned as V7.',
-        // Live leadsheet bars — Wave first 2 bars
+        // Live leadsheet bars — Wave bars 0-1
         'syncedPlayer' => ['slug' => 'untitled-7', 'start' => 0, 'end' => 1],
         'relatedProducts' => [
             [

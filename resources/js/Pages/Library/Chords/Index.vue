@@ -61,7 +61,7 @@ interface Props {
 const props = defineProps<Props>();
 
 // ── Filter / sort state ────────────────────────────────────
-const fSort    = ref('popularity');
+const fSort    = ref('top10');
 const search   = ref('');
 const fQuality = ref('');
 const fVoicing = ref(typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('voicing') ?? '') : '');
@@ -370,6 +370,16 @@ const hasFilters = computed(() =>
 
 const visibleCount = computed(() => filteredOther.value.length);
 
+// ── Quality labels ─────────────────────────────────────────
+const QUALITY_LABELS: Record<string, string> = {
+    maj7: 'Major 7th', maj: 'Major', m7: 'Minor 7th', min: 'Minor',
+    dom7: 'Dominant 7th', m7b5: 'Half Diminished', o7: 'Diminished 7th',
+    maj6: 'Major 6th', m6: 'Minor 6th', mMaj7: 'Minor Major 7th',
+    aug7: 'Augmented 7th', aug: 'Augmented', dim: 'Diminished',
+    add9: 'Add 9', maj9: 'Major 9th', m9: 'Minor 9th',
+};
+function qualityLabel(q: string): string { return QUALITY_LABELS[q] ?? q; }
+
 // ── Top 10 hitlist ─────────────────────────────────────────
 // Promoted slugs come first (in config order), then remaining chords by popularity.
 const top10Chords = computed((): ChordDiagramData[] => {
@@ -430,7 +440,7 @@ function clearFilters() {
     fDiff.value = '';
     fInv.value = '';
     fExt.value = '';
-    fSort.value = 'popularity';
+    fSort.value = 'top10';
 }
 
 // Build the detail page URL, carrying root context when relevant:
@@ -714,7 +724,7 @@ function jumpToLevel(n: number) {
                     <div class="sbn-archetype-panel-header">
                         <div>
                             <p class="sbn-archetype-panel-title">
-                                {{ shellMode ? 'Shell Voicings'
+                                {{ shellMode ? 'Shell Voicing'
                                     : dropMode ? '4-Part 7th Chords'
                                     : barreMode ? 'Common Barré Shapes'
                                     : 'Archetypes' }}
@@ -947,7 +957,7 @@ function jumpToLevel(n: number) {
                             ← Barré Shapes
                         </button>
                         <button class="sbn-archetype-next-btn" @click="enterShellMode">
-                            Next level: Shell Voicings →
+                            Next level: Shell Voicing →
                         </button>
                     </div>
 
@@ -964,7 +974,7 @@ function jumpToLevel(n: number) {
                     <!-- Ext mode back button -->
                     <div v-if="extMode && !extAnimating" class="sbn-archetype-next">
                         <button class="sbn-barre-back-btn" @click="exitExtMode">
-                            ← Shell Voicings
+                            ← Shell Voicing
                         </button>
                     </div>
 
@@ -978,7 +988,7 @@ function jumpToLevel(n: number) {
                             a 9th here, a 13th there. Every jazz guitarist's secret weapon.
                         </p>
                         <div class="sbn-drop-blurb-links">
-                            <button class="sbn-drop-link" @click="fVoicing = 'shell'">Browse Shell Voicings →</button>
+                            <button class="sbn-drop-link" @click="fVoicing = 'shell'">Browse Shell Voicing →</button>
                         </div>
                     </div>
 
@@ -997,7 +1007,19 @@ function jumpToLevel(n: number) {
                             <div class="sbn-clib-row-card">
                                 <ChordCard :chord="chord" :no-nav="true" :show-root="true" :same-tab="true" />
                             </div>
-                            <p v-if="chord.description" class="sbn-lib-row-desc">{{ chord.description }}</p>
+                            <div class="sbn-clib-row-meta">
+                                <div class="sbn-clib-row-chips">
+                                    <span v-if="chord.quality" class="sbn-chord-tab-value sbn-chord-tab-value--quality">{{ qualityLabel(chord.quality) }}</span>
+                                    <span v-if="chord.inversion_label" class="sbn-chord-tab-value sbn-chord-tab-value--inv">{{ chord.inversion_label }}</span>
+                                </div>
+                                <p v-if="chord.description" class="sbn-lib-row-desc">{{ chord.description }}</p>
+                                <span class="sbn-lib-row-read-more">
+                                    Read more
+                                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                                        <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </span>
+                            </div>
                         </Link>
                     </div>
                 </div>
@@ -1188,9 +1210,17 @@ function jumpToLevel(n: number) {
     .sbn-lib-hitlist { grid-template-columns: 1fr; }
 }
 
-/* ── Hitlist row: card left, description right ── */
+/* ── Hitlist row ── */
 .sbn-clib-hitlist-row {
     align-items: flex-start;
+}
+.sbn-clib-hitlist-row .sbn-hitlist-rank {
+    background: var(--clr-surface-2);
+    border-radius: var(--radius);
+}
+
+.sbn-clib-row-card :deep(.sbn-chord-card) {
+    width: 140px;
 }
 
 .sbn-clib-row-inner {
@@ -1208,14 +1238,51 @@ function jumpToLevel(n: number) {
 
 .sbn-clib-row-card {
     flex-shrink: 0;
+    --card-name-size: 1.4rem;
 }
 
 .sbn-clib-row-card :deep(.sbn-chord-card) {
     width: 140px;
 }
 
+.sbn-clib-row-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-self: flex-start;
+    min-width: 0;
+    padding: 12px 0;
+}
+
+.sbn-clib-row-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* ── Chord tab badges (replicate Show.vue styles, not scoped there) ── */
+.sbn-clib-row-chips .sbn-chord-tab-value {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 0.65em;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #fff;
+}
+
+.sbn-clib-row-chips .sbn-chord-tab-value--quality { background: #4a9e6b; }
+.sbn-clib-row-chips .sbn-chord-tab-value--voicing { background: var(--clr-mod-chord); }
+.sbn-clib-row-chips .sbn-chord-tab-value--ext     { background: var(--clr-mod-progression); }
+.sbn-clib-row-chips .sbn-chord-tab-value--inv     { background: var(--clr-primary); }
+.sbn-clib-row-chips .sbn-chord-tab-value:not([class*="--"]) { background: var(--clr-text-muted); }
+
 .sbn-clib-hitlist-row .sbn-lib-row-desc {
     margin: 0;
     align-self: center;
+    display: block;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+    overflow: visible;
 }
 </style>

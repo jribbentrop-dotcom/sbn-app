@@ -25,11 +25,13 @@ class ChordProgression extends Model
         'sort_order',
         'featured',
         'video_snippets',
+        'difficulty',
     ];
 
     protected $casts = [
         'sort_order'     => 'integer',
         'featured'       => 'boolean',
+        'difficulty'     => 'integer',
         'alt_numerals'   => 'array',
         'video_snippets' => 'array',
     ];
@@ -93,6 +95,11 @@ class ChordProgression extends Model
             return $query->where('category', $category);
         }
         return $query;
+    }
+
+    public function scopeDifficulty($query, int $level)
+    {
+        return $query->where('difficulty', $level);
     }
 
     public function scopeSearch($query, $term)

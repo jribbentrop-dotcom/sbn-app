@@ -283,12 +283,23 @@
                 <p class="sbn-field-hint">Hashtags are cross-site — clicking one shows all songs, progressions, rhythms and courses tagged with it.</p>
             </div>
 
-            {{-- ── Row: Sort Order + Featured ────────────────────── --}}
+            {{-- ── Row: Sort Order + Difficulty + Featured ───────── --}}
             <div class="sbn-field-row">
                 <div class="sbn-field" style="max-width: 120px;">
                     <label class="sbn-label" for="prog_sort">Sort Order</label>
                     <input type="number" id="prog_sort" name="sort_order" class="sbn-input"
                            value="{{ old('sort_order', $progression->sort_order ?? 0) }}">
+                </div>
+                <div class="sbn-field" style="max-width: 200px;">
+                    <label class="sbn-label" for="prog_difficulty">Difficulty (Grade)</label>
+                    <select id="prog_difficulty" name="difficulty" class="sbn-select sbn-select-full">
+                        <option value="">— unset —</option>
+                        @foreach([1 => 'Basic', 2 => 'Early Intermediate', 3 => 'Intermediate', 4 => 'Late Intermediate', 5 => 'Advanced'] as $val => $label)
+                            <option value="{{ $val }}" {{ old('difficulty', $progression->difficulty ?? '') == $val ? 'selected' : '' }}>
+                                {{ $val }} · {{ $label }}
+                            </option>
+                        @endforeach
+                    </select>
                 </div>
                 <div class="sbn-field" style="padding-top: 28px;">
                     <label class="sbn-checkbox-label">

@@ -308,6 +308,7 @@ class ProgressionLibraryController extends Controller
         $built   = $this->progressionBuilder->buildVoicings($context, [
             'category'   => $progression->category,
             'extensions' => $usePass2,
+            'tonality'   => $progression->tonality ?? 'major',
         ]);
 
         $builtSelections = $built['selections'];
