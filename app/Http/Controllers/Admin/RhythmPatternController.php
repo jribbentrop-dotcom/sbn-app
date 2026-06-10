@@ -169,11 +169,16 @@ class RhythmPatternController extends Controller
             'grid_type'      => 'nullable|string|in:eighth,sixteenth,triplet',
             'rhythm_pattern' => 'required|string|max:32|regex:/^[xX\.]+$/',
             'thumb_pattern'  => 'nullable|string|max:32|regex:/^[xX\.]*$/',
+            'picking_mode'   => 'nullable|boolean',
+            'finger_index'   => 'nullable|string|max:64|regex:/^[xX\.]*$/',
+            'finger_middle'  => 'nullable|string|max:64|regex:/^[xX\.]*$/',
+            'finger_ring'    => 'nullable|string|max:64|regex:/^[xX\.]*$/',
             'default_bpm'    => 'nullable|integer|min:40|max:240',
             'sound'          => 'nullable|string|max:20',
             'perc_top'       => 'nullable|string|in:none,shaker,tamborim,hihat-brush,brush-snare',
             'perc_bass'      => 'nullable|string|in:none,kick',
             'mp3_file'       => 'nullable|string|max:255',
+            'difficulty'     => 'nullable|integer|min:1|max:5',
 
             // Video snippet library — see docs/SBN-Course-Reference.md §10.
             'video_snippets'             => 'nullable|array',

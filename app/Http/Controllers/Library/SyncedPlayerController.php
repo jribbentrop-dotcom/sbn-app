@@ -66,6 +66,10 @@ class SyncedPlayerController extends Controller
                     'fingers'       => $pattern->rhythm_pattern,
                     'percTop'       => $pattern->perc_top,
                     'percBass'      => $pattern->perc_bass,
+                    'pickingMode'   => (bool) $pattern->picking_mode,
+                    'fingerIndex'   => $pattern->finger_index,
+                    'fingerMiddle'  => $pattern->finger_middle,
+                    'fingerRing'    => $pattern->finger_ring,
                 ];
                 // Use rhythm's native BPM unless source overrides
                 if ($bpm <= 0) {
@@ -80,11 +84,10 @@ class SyncedPlayerController extends Controller
         $allBars   = [];
         $gi        = 0;
 
-        // How many grid steps equal one 4/4 bar depends on the grid type.
-        //   sixteenth → 0.25 beats/step → 16 steps = 4 beats = 1 bar
-        //   eighth    → 0.5  beats/step → 16 steps = 8 beats = 2 bars
-        //   triplet   → 1/3  beats/step → 12 steps = 4 beats = 1 bar
-        // stepsPerBar = steps in one rhythm cycle / bars in one rhythm cycle.
+        // Steps per notated bar — depends on grid type AND time signature.
+        //   16 sixteenth steps in 4/4 → 4 beats → 1 bar  → stepsPerBar = 16
+        //   16 sixteenth steps in 2/4 → 4 beats → 2 bars → stepsPerBar = 8
+        //   16 eighth steps    in 4/4 → 8 beats → 2 bars → stepsPerBar = 8
         $gridSteps   = 16;
         $stepsPerBar = 16; // steps that correspond to one 4/4 measure
         if ($rhythmPattern) {
@@ -98,14 +101,17 @@ class SyncedPlayerController extends Controller
             };
             // How many quarter-note beats does the whole pattern span?
             $patternBeats = $beats * $stepBeats;
-            // How many 4/4 bars does one pattern cycle span?
-            // - 16 sixteenth steps = 4 beats = 1 bar  → barsPerCycle = 1
-            // - 16 eighth steps    = 8 beats = 2 bars → barsPerCycle = 2
-            // Sub-bar patterns (e.g. 8 sixteenth steps = 2 beats) loop within
-            // a bar; round(0.5) = 1 in PHP so barsPerCycle stays 1 — the chord
-            // still advances once per full pattern loop (= one bar of music).
-            $barsPerCycle = max(1, (int) round($patternBeats / 4));
-            // Steps corresponding to exactly one 4/4 measure.
+            // Beats per bar from the time signature (e.g. "2/4" → 2, "4/4" → 4).
+            $timeSig = $rhythmPattern['timeSignature'] ?? '4/4';
+            $beatsPerBar = (int) explode('/', $timeSig)[0];
+            if ($beatsPerBar < 1) $beatsPerBar = 4;
+            // How many bars does one pattern cycle span?
+            // e.g. 16 sixteenth steps in 4/4 → 4 beats → 1 bar
+            //      16 sixteenth steps in 2/4 → 4 beats → 2 bars
+            //      16 eighth steps    in 4/4 → 8 beats → 2 bars
+            // Sub-bar patterns clamp to 1 via round(0.5) = 1.
+            $barsPerCycle = max(1, (int) round($patternBeats / $beatsPerBar));
+            // Steps corresponding to exactly one notated bar.
             $stepsPerBar  = (int) round($gridSteps / $barsPerCycle);
         }
 

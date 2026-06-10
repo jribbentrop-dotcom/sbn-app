@@ -102,6 +102,10 @@ class RhythmLibraryController extends Controller
             'demoUrl'       => $pattern->mp3_file ? '/audio/rhythm-demos/' . $pattern->mp3_file : null,
             'tags'          => $pattern->tags()->pluck('slug')->all(),
             'songCount'     => $songCount,
+            'pickingMode'   => (bool) $pattern->picking_mode,
+            'fingerIndex'   => $pattern->finger_index,
+            'fingerMiddle'  => $pattern->finger_middle,
+            'fingerRing'    => $pattern->finger_ring,
         ];
     }
 

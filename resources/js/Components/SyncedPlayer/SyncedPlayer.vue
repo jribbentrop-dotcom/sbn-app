@@ -50,6 +50,8 @@ const props = defineProps<{
     autoplay?: boolean;
     /** Run visuals only — no audio output (rhythm samples + nylon synth silenced). */
     muted?: boolean;
+    /** Category tint color (e.g. getCategoryColor('classical')). Applied to strip cells. */
+    color?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -176,11 +178,36 @@ function registerEngineListeners(): void {
             currentStep.value = step;
             emit('step', step);
             const isHit = (c: string | undefined) => c != null && c.toLowerCase() === 'x';
-            const thumbHit   = isHit(RHYTHM.value.thumb[step]);
-            const fingersHit = isHit(RHYTHM.value.fingers[step]);
-            if (thumbHit)   { strikeCenter('bass');    if (!isMuted.value) synthBass(time); }
-            if (fingersHit) { strikeCenter('fingers'); if (!isMuted.value) synthFingers(time); }
-            if (!thumbHit && !fingersHit && !isMuted.value) ghostPerc(time);
+            const thumbHit   = isHit(RHYTHM.value.thumb?.[step]);
+            const fingersHit = isHit(RHYTHM.value.fingers?.[step]);
+            if (thumbHit)   strikeCenter('bass');
+            if (fingersHit) strikeCenter('fingers');
+            if (RHYTHM.value.pickingMode) {
+                // Picking mode: animate individual string dots + fire per-chord pitches.
+                const r = RHYTHM.value;
+                if (isHit(r.thumb?.[step])) {
+                    strikeCenterString(centerMidi.value.bassString);
+                    if (!isMuted.value) synthPickFinger('p', time);
+                }
+                if (isHit(r.fingerIndex?.[step])) {
+                    strikeCenterString(centerMidi.value.fingerStrings[0] ?? 2);
+                    if (!isMuted.value) synthPickFinger('i', time);
+                }
+                if (isHit(r.fingerMiddle?.[step])) {
+                    const s = centerMidi.value.fingerStrings;
+                    strikeCenterString(s[1] ?? s[0] ?? 3);
+                    if (!isMuted.value) synthPickFinger('m', time);
+                }
+                if (isHit(r.fingerRing?.[step])) {
+                    const s = centerMidi.value.fingerStrings;
+                    strikeCenterString(s[s.length - 1] ?? 4);
+                    if (!isMuted.value) synthPickFinger('a', time);
+                }
+            } else if (!isMuted.value) {
+                if (thumbHit)                 synthBass(time);
+                if (fingersHit)               synthFingers(time);
+                if (!thumbHit && !fingersHit) ghostPerc(time);
+            }
             // Pre-cue "up next" pulse: 4 steps (1 beat) before the advance.
             if (stepsPlayed === currentStepsPerChord() - 4) strikeNext();
             tickStep();
@@ -210,11 +237,12 @@ async function audioPlay(): Promise<void> {
                     : RHYTHM.value.gridType === 'triplet' ? 1 / 3
                     : 0.25;
     const loopBeats = RHYTHM.value.beats * stepBeats;
-    if (!isMuted.value) {
+    if (!isMuted.value && !RHYTHM.value.pickingMode) {
         const events = rhythmPatternToEvents(RHYTHM.value, { startBeat: 0 });
         engine.load(events, { loop: true, loopBeats });
     } else {
-        // Muted: load an empty event list so the clock loops at the right tempo
+        // Muted or picking mode: empty event list — clock loops at the right tempo;
+        // picking notes fire live from the tick handler using centerMidi.
         engine.load([], { loop: true, loopBeats });
     }
     engine.setTempo(BPM.value * 2);
@@ -309,8 +337,13 @@ function strikeNext() {
 
 
 // ── Per-tick synth hits (bass on thumb row, upper strings on fingers row) ─────
-interface ChordMidi { bass: number[]; fingers: number[] }
-const centerMidi = ref<ChordMidi>({ bass: [], fingers: [] });
+interface ChordMidi {
+    bass: number[];
+    fingers: number[];
+    bassString: number;
+    fingerStrings: number[]; // string numbers sorted low→high, parallel to fingers[]
+}
+const centerMidi = ref<ChordMidi>({ bass: [], fingers: [], bassString: 1, fingerStrings: [] });
 
 function buildCenterMidi(): void {
     const idx = boards.value.findIndex(b => b.role === 'center');
@@ -319,10 +352,27 @@ function buildCenterMidi(): void {
     if (!chord?.diagram_data) return;
     const events = chordDiagramToEvents(chord, { startBeat: 0, durationBeats: 2, staggerBeats: 0 });
     const bassStr = bassString(chord);
+    const fingerEvents = events.filter(e => e.stringNum !== bassStr);
     centerMidi.value = {
-        bass:    events.filter(e => e.stringNum === bassStr).map(e => e.pitch),
-        fingers: events.filter(e => e.stringNum !== bassStr).map(e => e.pitch),
+        bass:          events.filter(e => e.stringNum === bassStr).map(e => e.pitch),
+        fingers:       fingerEvents.map(e => e.pitch),
+        bassString:    bassStr,
+        fingerStrings: fingerEvents.map(e => e.stringNum),
     };
+}
+
+function strikeCenterString(stringNum: number): void {
+    const idx = boards.value.findIndex(b => b.role === 'center');
+    if (idx < 0) return;
+    const el = boardEls.value[idx];
+    if (!el) return;
+    const diagram = el.querySelector<HTMLElement>('.board-diagram');
+    if (!diagram) return;
+    const dots = Array.from(diagram.querySelectorAll<SVGCircleElement>('circle.sbn-svg-dot'));
+    const target = dots.filter(dot => Number(dot.getAttribute('data-string')) === stringNum);
+    target.forEach(dot => dot.classList.remove('is-striking'));
+    void diagram.offsetWidth;
+    target.forEach(dot => dot.classList.add('is-striking'));
 }
 
 function ghostPerc(time: number): void {
@@ -343,6 +393,28 @@ function synthFingers(time: number): void {
     centerMidi.value.fingers.forEach((midi, i) => {
         nylon.trigger(midi, time, durSec, 0.5, i * 0.014);
     });
+}
+
+function synthPickFinger(finger: 'p' | 'i' | 'm' | 'a', time: number): void {
+    const stepBeats = RHYTHM.value.gridType === 'eighth' ? 0.5
+                    : RHYTHM.value.gridType === 'triplet' ? 1 / 3
+                    : 0.25;
+    const beatSec = 60 / (BPM.value * 2);
+    const durSec  = stepBeats * beatSec * 4; // ring slightly past the step
+    // centerMidi.fingers is sorted low→high (chordDiagramToEvents string 1=low E).
+    // Map: p→bass, i→fingers[0], m→fingers[1], a→fingers[last]
+    const f = centerMidi.value.fingers;
+    let midi: number | undefined;
+    if (finger === 'p') {
+        midi = centerMidi.value.bass[0];
+    } else if (finger === 'i') {
+        midi = f[0];
+    } else if (finger === 'm') {
+        midi = f[1] ?? f[0];
+    } else {
+        midi = f[f.length - 1] ?? f[0];
+    }
+    if (midi != null) nylon.trigger(midi, time, durSec, finger === 'p' ? 0.7 : 0.55);
 }
 
 // ── Track / recycle ───────────────────────────────────────────────────────────
@@ -472,11 +544,19 @@ function onTransitionEnd(e: TransitionEvent) {
 
 // ── Strip cell classes ────────────────────────────────────────────────────────
 function fingerCellClass(i: number): Record<string, boolean> {
-    const c = RHYTHM.value.fingers[i] ?? '.';
+    let c: string;
+    if (RHYTHM.value.pickingMode) {
+        // Merge i/m/a into one cell: accent wins over ghost, ghost over rest
+        const chars = [RHYTHM.value.fingerIndex, RHYTHM.value.fingerMiddle, RHYTHM.value.fingerRing]
+            .map(s => s?.[i] ?? '.');
+        c = chars.includes('X') ? 'X' : chars.some(ch => ch === 'x') ? 'x' : '.';
+    } else {
+        c = RHYTHM.value.fingers?.[i] ?? '.';
+    }
     return { 'accent': c === 'X', 'ghost': c === 'x', 'active': isPlaying.value && i === currentStep.value };
 }
 function thumbCellClass(i: number): Record<string, boolean> {
-    const c = RHYTHM.value.thumb[i] ?? '.';
+    const c = RHYTHM.value.thumb?.[i] ?? '.';
     return { 'accent': c === 'X', 'ghost': c === 'x', 'active': isPlaying.value && i === currentStep.value };
 }
 
@@ -498,7 +578,7 @@ defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying }
 </script>
 
 <template>
-    <div class="synced-player">
+    <div class="synced-player" :style="color ? { '--strip-color': color } : {}">
         <!-- Board track -->
         <div class="board-viewport">
             <div
@@ -735,14 +815,14 @@ defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying }
     background: var(--clr-surface-3);
     transition: background .1s, transform .1s;
 }
-.mini-cell.ghost  { background: var(--clr-accent); opacity: .75; }
-.mini-cell.accent { background: var(--clr-red); opacity: 1; }
-.mini-cell.active { outline: 1.5px solid var(--clr-accent); outline-offset: 1px; transform: translateY(-1px); z-index: 2; }
+.mini-cell.ghost  { background: var(--strip-color, var(--clr-accent)); opacity: .75; }
+.mini-cell.accent { background: var(--strip-color, var(--clr-accent)); opacity: 1; }
+.mini-cell.active { outline: 1.5px solid var(--strip-color, var(--clr-accent)); outline-offset: 1px; transform: translateY(-1px); z-index: 2; }
 
 .mini-cell-thumb         { height: 8px; border-radius: 2px; background: var(--clr-border); }
-.mini-cell-thumb.ghost   { background: var(--clr-text-dim); opacity: .5; }
-.mini-cell-thumb.accent  { background: var(--clr-text); opacity: .8; }
-.mini-cell-thumb.active  { outline: 1px solid var(--clr-accent); outline-offset: 1px; }
+.mini-cell-thumb.ghost   { background: var(--strip-color, var(--clr-text-dim)); opacity: .5; }
+.mini-cell-thumb.accent  { background: var(--strip-color, var(--clr-text-dim)); opacity: .8; }
+.mini-cell-thumb.active  { outline: 1px solid var(--strip-color, var(--clr-accent)); outline-offset: 1px; }
 
 .mini-beats {
     display: grid;

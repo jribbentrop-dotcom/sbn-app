@@ -5,7 +5,7 @@
  * @typedef {number} Beats   Musical time in beats from transport 0 (not seconds).
  * @typedef {number} MIDINote  0..127
  *
- * @typedef {'pitched'|'percussion'|'muted'|'clave'|'noise'} Voice
+ * @typedef {'pitched'|'nylon'|'percussion'|'muted'|'clave'|'noise'} Voice
  * @typedef {'soft'|'accent'} Variant
  *
  * @typedef {Object} EngineEvent

@@ -11,9 +11,10 @@
 ## 1. Component Hierarchy
 
 ```
-RhythmStrip      ← PRIMARY — listings, sidebar embeds, course player, any compact context
-RhythmPattern    ← FULL — detail page (Show.vue), admin editor preview
-RhythmCard       ← DEPRECATED — was the library listing card; replaced by RhythmStrip rows
+RhythmStrip           ← PRIMARY — listings, sidebar embeds, course player, any compact context
+RhythmPattern         ← FULL — detail page (Show.vue) for standard patterns, admin editor preview
+RhythmPatternExpanded ← PICKING — detail page (Show.vue) when pickingMode = true
+RhythmCard            ← DEPRECATED — was the library listing card; replaced by RhythmStrip rows
 ```
 
 ### When to use which
@@ -23,7 +24,8 @@ RhythmCard       ← DEPRECATED — was the library listing card; replaced by Rh
 | Library index listing | `RhythmStrip` (inside a `.sbn-pattern-row` link card) |
 | Course player sidebar | `RhythmStrip` |
 | `<sbn-rhythm>` lesson embed | `RhythmStrip` |
-| Library detail / Show page | `RhythmPattern` (full grid, demo blend slider) |
+| Library detail / Show page (standard) | `RhythmPattern` (full grid, demo blend slider) |
+| Library detail / Show page (picking mode) | `RhythmPatternExpanded` (4-row a/m/i/p grid) |
 | Admin pattern editor preview | `RhythmPattern` |
 
 ---
@@ -44,6 +46,12 @@ interface RhythmPatternData {
   timeSignature: string;   // e.g. '4/4', '3/4'
   percTop: string;         // instrument name for fingers row, or 'none'
   percBass: string;        // instrument name for thumb row, or 'none'
+
+  // Picking mode — classical fingerstyle add-on (see §13)
+  pickingMode?: boolean;   // when true, finger* fields replace the fingers row
+  fingerIndex?:  string | null;  // index finger (i) pattern string
+  fingerMiddle?: string | null;  // middle finger (m) pattern string
+  fingerRing?:   string | null;  // ring finger (a) pattern string
 }
 
 // Extended — includes DB/meta fields (from controller serialization)
@@ -384,3 +392,92 @@ the registered Alpine component in `public/js/sbn-snippet-editor.js`:
 The rhythm editor saves via AJAX (real array in the JSON body); the
 progression editor is a classic form POST, so its widget writes JSON into a
 hidden `video_snippets` input, decoded server-side.
+
+---
+
+## 13. Picking Mode (Classical Fingerstyle) ✅ SHIPPED 2026-06-10
+
+An opt-in add-on that splits the `fingers` layer into three named sub-rows —
+**index (i), middle (m), ring (a)** — for authoring classical right-hand
+fingerpicking patterns such as `p i m a p i m a`.
+
+### Data model
+
+Four DB columns added to `sbn_rhythm_patterns`:
+
+| Column | Type | Default | Notes |
+|---|---|---|---|
+| `picking_mode` | `tinyint(1)` | `0` | Feature flag — 0 = standard, 1 = picking |
+| `finger_index`  | `varchar(64)` | `NULL` | Index finger (i) pattern string |
+| `finger_middle` | `varchar(64)` | `NULL` | Middle finger (m) pattern string |
+| `finger_ring`   | `varchar(64)` | `NULL` | Ring finger (a) pattern string |
+
+Migration: `2026_06_09_000003_add_picking_mode_to_rhythm_patterns.php`.
+
+When `picking_mode = 0` all three columns are ignored — existing patterns are unaffected.
+
+### String assignment
+
+Each finger maps to its standard classical guitar string. **Tab-editor convention** applies (`pitchToMidi.js`): string 1 = high e, string 6 = low E.
+
+| Finger | Label | String (tab) | Open MIDI | Default pitch |
+|---|---|---|---|---|
+| Thumb | p | 4 (D) | D3 | 50 |
+| Index | i | 3 (G) | G3 | 55 |
+| Middle | m | 2 (B) | B3 | 59 |
+| Ring | a | 1 (hi-e) | E4 | 64 |
+
+> **Convention conflict**: `chordDiagramToEvents` uses string 1 = low E (diagram convention). When mapping chord tones to fingers in `SyncedPlayer`, the `fingerStrings[]` array (sorted low→high) is used directly — see §13 SyncedPlayer below.
+
+### Audio pipeline
+
+- Picking events use `voice: 'nylon'` dispatched through the shared `NylonSampler`.
+- `rhythmPatternToEvents` emits nylon events for all four fingers when `pickingMode = true`. Open-string MIDI is the default when no `ctx.chordMidi` is provided.
+- In `SyncedPlayer`, picking audio does **not** go through the pre-baked engine event list. Instead, notes fire live from the tick handler using `centerMidi` (the active chord's fretted pitches), so pitches update on every chord change.
+
+### SyncedPlayer picking integration (as-built)
+
+`SyncedPlayer` maintains `centerMidi: { bass, fingers, bassString, fingerStrings }`:
+- `bass` — MIDI values for the lowest played string
+- `fingers` — MIDI values for all other strings, sorted low→high
+- `bassString` — the string number of the bass (diagram convention, 1 = low E)
+- `fingerStrings` — string numbers parallel to `fingers[]`
+
+On each tick, `synthPickFinger(finger, time)` maps:
+- `p` → `centerMidi.bass[0]`
+- `i` → `centerMidi.fingers[0]` (lowest non-bass string)
+- `m` → `centerMidi.fingers[1]`
+- `a` → `centerMidi.fingers[last]` (highest string)
+
+Dot animation fires per-string via `strikeCenterString(stringNum)`, so individual diagram dots pulse as the arpeggio plays.
+
+The engine event list is **empty** in picking mode — the clock runs but all audio fires from the tick handler. This is necessary because engine events are pre-baked once at play-start and can't reflect chord changes.
+
+### Components
+
+| Component | Behaviour in picking mode |
+|---|---|
+| `RhythmStrip` | Merges i+m+a into one `fingers` row (OR across steps) — compact display unchanged |
+| `RhythmPattern` | Not used — Show page switches to `RhythmPatternExpanded` |
+| `RhythmPatternExpanded` | **New** — 4-row grid (a/m/i/p, high→low). Plain colored cells, category color via `--strip-color`. No per-finger color coding. |
+| `SyncedPlayer` | Strip stays two-liner (merged fingers + thumb). Picking audio fires live from tick using chord tones. Per-string dot animation. |
+
+### Admin editor
+
+A **"Picking mode"** checkbox below the Subdivision selector.
+When checked:
+- The "Rhythm" grid row is replaced by four rows: **a / m / i / p** (top to bottom, high string first — matching tab staff notation)
+- Grid cells show plain hits (no finger letter markers)
+- The "Sample — Fingers row" selector is hidden (audio is always NylonSampler in picking mode)
+- The mini preview shows 4 rows with the same ordering
+- The raw pattern section shows three text inputs (finger_index / finger_middle / finger_ring) plus the existing thumb input
+
+### Controllers that serialize rhythm patterns
+
+All controllers that hand-build a `rhythmPattern` array must include the four picking fields. Currently covered:
+- `RhythmLibraryController::serializePattern()` — canonical serializer, use this where possible
+- `HomeController` (two places — featured pattern + hero bars)
+- `SyncedPlayerController`
+
+Missing these fields causes `pickingMode` to be `undefined` in the frontend → picking audio silently disabled.
+Flag as Phase S.5.

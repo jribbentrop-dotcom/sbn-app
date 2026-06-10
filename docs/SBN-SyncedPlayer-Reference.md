@@ -44,7 +44,8 @@ display, so the two are always causally linked.
 - Card frame: `.sbn-synced-hero-card` in `sbn-design-system.css` (theme-switchable). Chord names via `formatChordNameHtml()`.
 - All board transitions compositor-only (`transform:scale`, `opacity`, `filter`) — no `width`/`font-size` layout work; all boards fixed 160px, `dx` hardcoded
 - `prefers-reduced-motion` respected (no auto-play, no animation)
-- Props: `progression?: ChordDiagramData[]`, `rhythmPattern?: RhythmPatternData`, `barsPerChord?: number` — hardcoded Dm7/G7/Cmaj7 fallback if null
+- Props: `progression?: ChordDiagramData[]`, `rhythmPattern?: RhythmPatternData`, `barsPerChord?: number`, `color?: string | null`, `muted?: boolean`, `autoplay?: boolean`, `loop?: boolean` — hardcoded Dm7/G7/Cmaj7 fallback if null
+- **`color` prop** — pass `getCategoryColor(styleSlug)` to tint the rhythm strip cells to the category color via `--strip-color`. Falls back to `--clr-accent` when omitted.
 
 ### Multi-chord bars and multi-bar rhythm phrases (2026-06-07)
 
@@ -357,12 +358,45 @@ a stable class to its dot circles (it already does — check `chords.js`).
 
 ---
 
-## 7. Relationship to other systems
+## 7. Picking Mode Integration ✅ SHIPPED 2026-06-10
+
+When `rhythmPattern.pickingMode = true`, the player switches to a live-tick audio model:
+
+### How it works
+
+1. **Engine event list is empty** — `engine.load([], ...)` is called so the clock loops at the correct tempo but emits no pre-baked audio events.
+2. **Per-tick note firing** — The tick handler reads the active step from `fingerIndex/Middle/Ring` and `thumb` pattern strings and calls `synthPickFinger(finger, time)` for each hit.
+3. **`synthPickFinger`** maps each finger to the center chord's fretted pitches via `centerMidi`:
+   - `p` → `centerMidi.bass[0]` (lowest played string)
+   - `i` → `centerMidi.fingers[0]` (lowest non-bass string)
+   - `m` → `centerMidi.fingers[1]`
+   - `a` → `centerMidi.fingers[last]` (highest string)
+4. **Dot animation** — `strikeCenterString(stringNum)` targets the individual SVG dot for the plucked string. Each finger fires its own string's dot, so the diagram pulses in arpeggio order.
+5. **`centerMidi`** is rebuilt on every chord change (via `buildCenterMidi()` in `advanceBar()`). It now also stores `bassString` and `fingerStrings[]` (string numbers parallel to `fingers[]`) so `strikeCenterString` knows which dot to animate.
+
+### Strip display
+
+The rhythm strip stays the standard two-liner. `fingerCellClass(i)` OR-merges `fingerIndex/Middle/Ring` at each step — any finger hit lights the fingers row. Thumb row shows `thumb` hits as usual.
+
+### Controller requirement
+
+All PHP controllers that hand-build a `rhythmPattern` array **must** include:
+```php
+'pickingMode'   => (bool) $pattern->picking_mode,
+'fingerIndex'   => $pattern->finger_index,
+'fingerMiddle'  => $pattern->finger_middle,
+'fingerRing'    => $pattern->finger_ring,
+```
+Missing these fields silently disables picking audio. Covered: `RhythmLibraryController::serializePattern()`, `HomeController` (both serializers), `SyncedPlayerController`.
+
+---
+
+## 8. Relationship to other systems
 
 | System | Relationship |
 |---|---|
 | `RhythmStrip.vue` | Shares `RhythmPatternData` type; SyncedPlayer's mini grid is a read-only view of the same data |
-| `AudioEngine` | SyncedPlayer will delegate audio to the same engine instance — no second engine |
+| `AudioEngine` | Shared singleton — same engine for both rhythm events and nylon sampler |
 | `useVideoSync` | Orthogonal — video sync drives the leadsheet viewer clock; SyncedPlayer drives its own internal clock. They should not share state. |
 | `mountSbnNodes.ts` | Phase S.3: register `<sbn-synced-player>` tag here for course lesson embedding |
 | Tab editor `rhythmSlug` | Phase S.4: the editor's rhythm-assignment panel writes this field; SyncedPlayer reads it |

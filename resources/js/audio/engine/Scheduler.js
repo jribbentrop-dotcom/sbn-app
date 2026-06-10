@@ -95,7 +95,7 @@ export class Scheduler {
         // Walk the event list. If looping, wrap around and shift event times
         // forward by (_loopCycle * _loopBeats) so each iteration's absolute
         // time keeps advancing with the clock.
-        while (true) {
+        while (this._events.length > 0) {
             if (this._nextIdx >= this._events.length) {
                 if (this._loop && this._loopBeats > 0) {
                     this._loopCycle++;
@@ -141,6 +141,14 @@ export class Scheduler {
             const voice = this.voices.pitched;
             if (voice && Number.isFinite(ev.pitch)) {
                 voice.trigger(ev.pitch, when, durSec, ev.velocity ?? 0.8);
+            }
+            return;
+        }
+
+        if (ev.voice === 'nylon') {
+            const voice = this.voices.nylon;
+            if (voice && Number.isFinite(ev.pitch)) {
+                voice.trigger(ev.pitch, when, durSec, ev.velocity ?? 0.7);
             }
             return;
         }

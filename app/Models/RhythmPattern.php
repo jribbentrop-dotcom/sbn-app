@@ -26,6 +26,10 @@ class RhythmPattern extends Model
         'grid_type',
         'rhythm_pattern',
         'thumb_pattern',
+        'picking_mode',
+        'finger_index',
+        'finger_middle',
+        'finger_ring',
         'default_bpm',
         'sound',
         'perc_top',
@@ -34,6 +38,7 @@ class RhythmPattern extends Model
         'video_snippets',
         'is_default',
         'sort_order',
+        'difficulty',
     ];
 
     /**
@@ -53,6 +58,11 @@ class RhythmPattern extends Model
         'mp3_file'       => '',
         'is_default'     => 0,
         'sort_order'     => 0,
+        'difficulty'     => null,
+        'picking_mode'   => false,
+        'finger_index'   => null,
+        'finger_middle'  => null,
+        'finger_ring'    => null,
     ];
 
     /**
@@ -62,7 +72,9 @@ class RhythmPattern extends Model
         'beats'          => 'integer',
         'default_bpm'    => 'integer',
         'is_default'     => 'boolean',
+        'picking_mode'   => 'boolean',
         'sort_order'     => 'integer',
+        'difficulty'     => 'integer',
         'video_snippets' => 'array',
     ];
 
@@ -125,6 +137,11 @@ class RhythmPattern extends Model
         return $query->where('category', $category);
     }
 
+    public function scopeDifficulty($query, int $level)
+    {
+        return $query->where('difficulty', $level);
+    }
+
     public function scopeDefaults($query)
     {
         return $query->where('is_default', true);
@@ -165,7 +182,7 @@ class RhythmPattern extends Model
      */
     public function toPlayerData(): array
     {
-        return [
+        $data = [
             'name'          => $this->name,
             'category'      => $this->category,
             'beats'         => $this->beats,
@@ -178,7 +195,16 @@ class RhythmPattern extends Model
             'percBass'      => $this->perc_bass,
             'styleSlug'     => $this->category ?: 'pop',
             'demoUrl'       => $this->mp3_file ? asset('audio/rhythm-demos/' . $this->mp3_file) : null,
+            'pickingMode'   => (bool) $this->picking_mode,
         ];
+
+        if ($this->picking_mode) {
+            $data['fingerIndex']  = $this->finger_index;
+            $data['fingerMiddle'] = $this->finger_middle;
+            $data['fingerRing']   = $this->finger_ring;
+        }
+
+        return $data;
     }
 
     /**

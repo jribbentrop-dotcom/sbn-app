@@ -18,6 +18,11 @@ export interface RhythmPatternData {
   timeSignature: string;
   percTop: string;
   percBass: string;
+  /** When true, finger_index/middle/ring replace the fingers row. Audio uses NylonSampler. */
+  pickingMode?: boolean;
+  fingerIndex?:  string | null;
+  fingerMiddle?: string | null;
+  fingerRing?:   string | null;
 }
 
 /**

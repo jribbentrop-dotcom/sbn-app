@@ -38,6 +38,10 @@ class HomeController extends Controller
             'timeSignature' => $pattern->time_signature,
             'percTop'       => $pattern->perc_top,
             'percBass'      => $pattern->perc_bass,
+            'pickingMode'   => (bool) $pattern->picking_mode,
+            'fingerIndex'   => $pattern->finger_index,
+            'fingerMiddle'  => $pattern->finger_middle,
+            'fingerRing'    => $pattern->finger_ring,
         ] : null;
 
         [$heroBars, $heroRhythm] = $this->buildHeroBars();
@@ -82,6 +86,10 @@ class HomeController extends Controller
                     'fingers'       => $pattern->rhythm_pattern,
                     'percTop'       => $pattern->perc_top,
                     'percBass'      => $pattern->perc_bass,
+                    'pickingMode'   => (bool) $pattern->picking_mode,
+                    'fingerIndex'   => $pattern->finger_index,
+                    'fingerMiddle'  => $pattern->finger_middle,
+                    'fingerRing'    => $pattern->finger_ring,
                 ];
             }
         }

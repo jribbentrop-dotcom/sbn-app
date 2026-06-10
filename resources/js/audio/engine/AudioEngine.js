@@ -4,6 +4,7 @@ import { Scheduler } from './Scheduler.js';
 import { PitchedSynth } from './voices/PitchedSynth.js';
 import { PercussionSampler } from './voices/PercussionSampler.js';
 import { FallbackSynths } from './voices/FallbackSynths.js';
+import { getSharedNylon } from './voices/sharedNylon.js';
 
 /**
  * @typedef {import('../types.js').EngineEvent} EngineEvent
@@ -73,10 +74,19 @@ export class AudioEngine {
         this._demoOffsetBeats = 0;
         this._demoLoop = false;
 
+        // Nylon sampler — shared singleton, init lazily on first use.
+        const nylonSampler = getSharedNylon();
+        if (samplesBaseUrl && !nylonSampler._readyPromise) {
+            nylonSampler.init('/audio/nylon/').catch(err => {
+                console.warn('[AudioEngine] NylonSampler load failed', err);
+            });
+        }
+
         this._voices = {
             pitched:    new PitchedSynth(),
             percussion: percSampler,
             percFallback,
+            nylon:      nylonSampler,
         };
 
         this._scheduler = new Scheduler({

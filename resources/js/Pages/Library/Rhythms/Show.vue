@@ -4,6 +4,7 @@ import { Link } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmPattern from '@/Components/Library/RhythmPattern.vue';
+import RhythmPatternExpanded from '@/Components/Library/RhythmPatternExpanded.vue';
 import RhythmLink from '@/Components/Library/RhythmLink.vue';
 import type { RhythmLinkData } from '@/Components/Library/RhythmLink.vue';
 import MediaShelf from '@/Components/Library/MediaShelf.vue';
@@ -66,7 +67,27 @@ watch(() => props.pattern.slug, () => {
       <div class="sbn-show-main">
 
         <div class="sbn-rhythm-pattern-section sbn-card">
+          <!-- Picking mode: expanded 4-row p/i/m/a grid -->
+          <RhythmPatternExpanded
+            v-if="pattern.pickingMode"
+            :pattern="pattern"
+            :playable="true"
+            :demo-url="pattern.demoUrl"
+            :color="getCategoryColor(pattern.styleSlug)"
+          >
+            <template v-if="pattern.demoUrl" #transport-extra>
+              <div class="sbn-blend-control">
+                <span class="sbn-blend-label" :class="{ 'is-active': blend < 0.5 }">Samples</span>
+                <input type="range" min="0" max="1" step="0.01" v-model.number="blend"
+                       class="sbn-blend-slider" aria-label="Blend between samples and demo audio" />
+                <span class="sbn-blend-label" :class="{ 'is-active': blend >= 0.5 }">Demo</span>
+              </div>
+            </template>
+          </RhythmPatternExpanded>
+
+          <!-- Standard mode: existing 2-row component -->
           <RhythmPattern
+            v-else
             :pattern="pattern"
             :playable="true"
             :mini="false"

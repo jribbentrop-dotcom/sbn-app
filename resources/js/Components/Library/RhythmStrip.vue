@@ -113,18 +113,41 @@ const thumbArray = computed(() =>
   (props.pattern.thumb || '').padEnd(props.pattern.beats, '.').split('').slice(0, displayBeats.value)
 );
 
+// In picking mode, merge i/m/a into a single fingers row for the compact strip.
+// A step gets 'X' if any finger accents it, 'x' if any finger hits it, '.' otherwise.
+const mergedFingersArray = computed(() => {
+  if (!props.pattern.pickingMode) return fingersArray.value;
+  const beats = props.pattern.beats;
+  const layers = [
+    props.pattern.fingerIndex,
+    props.pattern.fingerMiddle,
+    props.pattern.fingerRing,
+  ].map(s => (s || '').padEnd(beats, '.'));
+  return Array.from({ length: Math.min(beats, displayBeats.value) }, (_, i) => {
+    const chars = layers.map(l => l[i] ?? '.');
+    if (chars.includes('X')) return 'X';
+    if (chars.some(c => c === 'x')) return 'x';
+    return '.';
+  });
+});
+
 const hasThumb = computed(() =>
   !!(props.pattern.percBass && props.pattern.percBass !== 'none' && props.pattern.thumb &&
      props.pattern.thumb.replace(/\./g, '').length > 0)
 );
-const hasFingers = computed(() =>
-  !!(props.pattern.percTop && props.pattern.percTop !== 'none' && props.pattern.fingers &&
-     props.pattern.fingers.replace(/\./g, '').length > 0)
-);
+const hasFingers = computed(() => {
+  if (props.pattern.pickingMode) {
+    // Show merged row when any finger has notes
+    const s = (props.pattern.fingerIndex ?? '') + (props.pattern.fingerMiddle ?? '') + (props.pattern.fingerRing ?? '');
+    return s.replace(/\./g, '').length > 0;
+  }
+  return !!(props.pattern.percTop && props.pattern.percTop !== 'none' && props.pattern.fingers &&
+     props.pattern.fingers.replace(/\./g, '').length > 0);
+});
 
 // Cell state
 function fingerCellClass(i: number): Record<string, boolean> {
-  const c = fingersArray.value[i] || '.';
+  const c = mergedFingersArray.value[i] || '.';
   return {
     'is-rest':    c === '.',
     'is-hit':     c === 'x',
@@ -249,10 +272,10 @@ defineExpose({ play, stop, toggle });
       </button>
 
       <div class="sbn-rhythm-strip-cells">
-        <!-- Fingers row -->
+        <!-- Fingers row (merged picking or standard) -->
         <div v-if="hasFingers" class="sbn-rhythm-strip-row sbn-rhythm-strip-row-fingers">
           <span
-            v-for="(_, i) in fingersArray"
+            v-for="(_, i) in mergedFingersArray"
             :key="`f-${i}`"
             class="sbn-rhythm-strip-cell"
             :class="fingerCellClass(i)"

@@ -38,7 +38,7 @@
                     </div>
                 </div>
 
-                {{-- Category + Time Sig + BPM --}}
+                {{-- Category + Time Sig + BPM + Difficulty --}}
                 <div class="sbn-form-row sbn-form-row-3">
                     <div class="sbn-form-group">
                         <label for="category">Category</label>
@@ -65,6 +65,22 @@
                         <input type="number" id="default_bpm" class="sbn-search-input" style="padding-left: 14px;"
                                x-model.number="form.default_bpm"
                                min="40" max="240">
+                    </div>
+                </div>
+
+                {{-- Difficulty --}}
+                <div class="sbn-form-row" style="max-width: 220px;">
+                    <div class="sbn-form-group">
+                        <label for="difficulty">Difficulty (Grade)</label>
+                        <select id="difficulty" class="sbn-select" style="width: 100%;"
+                                x-model.number="form.difficulty">
+                            <option :value="null">— unset —</option>
+                            <option value="1">1 · Basic</option>
+                            <option value="2">2 · Early Intermediate</option>
+                            <option value="3">3 · Intermediate</option>
+                            <option value="4">4 · Late Intermediate</option>
+                            <option value="5">5 · Advanced</option>
+                        </select>
                     </div>
                 </div>
 
@@ -145,8 +161,19 @@
                     </div>
                 </div>
 
-                {{-- Percussion sample selectors --}}
-                <div class="sbn-form-row sbn-form-row-2">
+                {{-- Picking mode toggle --}}
+                <div class="sbn-form-row" style="margin-bottom: 4px;">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
+                        <input type="checkbox" x-model="form.picking_mode" @change="onGridSettingsChange()" style="width:16px;height:16px;cursor:pointer;">
+                        Picking mode — classical fingerstyle (p i m a)
+                    </label>
+                    <p class="sbn-form-hint" style="margin-top:4px;" x-show="form.picking_mode">
+                        Each finger plays its standard open string: <strong>a → hi-e (E4)</strong>, <strong>m → B (B3)</strong>, <strong>i → G (G3)</strong>, <strong>p → bass</strong>. Audio uses the nylon guitar sampler.
+                    </p>
+                </div>
+
+                {{-- Percussion sample selectors (hidden in picking mode) --}}
+                <div class="sbn-form-row sbn-form-row-2" x-show="!form.picking_mode">
                     <div class="sbn-form-group">
                         <label for="perc_top">Sample -- Fingers row</label>
                         <select id="perc_top" class="sbn-select" style="width: 100%;" x-model="form.perc_top">
@@ -174,6 +201,7 @@
                 <div class="grid-editor" id="gridEditor">
                     <template x-if="true">
                         <div>
+                            {{-- Beat labels row --}}
                             <div class="grid-editor-row">
                                 <span class="grid-editor-label"></span>
                                 <template x-for="(label, i) in gridLabels" :key="'lbl-'+i">
@@ -181,34 +209,114 @@
                                 </template>
                             </div>
 
-                            <div class="grid-editor-row">
-                                <span class="grid-editor-label">Rhythm</span>
-                                <template x-for="(c, i) in rhythmArr" :key="'r-'+i">
-                                    <div class="grid-editor-cell"
-                                         :class="{
-                                             'is-hit': c === 'x' || c === 'X',
-                                             'is-accent': c === 'X',
-                                             'is-current': currentBeat === i && isPlaying,
-                                         }"
-                                         @click="cycleRhythm(i)"
-                                         x-text="c.toLowerCase() === 'x' ? '●' : ''">
-                                    </div>
-                                </template>
-                            </div>
+                            {{-- Standard fingers row (hidden in picking mode) --}}
+                            <template x-if="!form.picking_mode">
+                                <div class="grid-editor-row">
+                                    <span class="grid-editor-label">Rhythm</span>
+                                    <template x-for="(c, i) in rhythmArr" :key="'r-'+i">
+                                        <div class="grid-editor-cell"
+                                             :class="{
+                                                 'is-hit': c === 'x' || c === 'X',
+                                                 'is-accent': c === 'X',
+                                                 'is-current': currentBeat === i && isPlaying,
+                                             }"
+                                             @click="cycleRhythm(i)"
+                                             x-text="c.toLowerCase() === 'x' ? '●' : ''">
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
 
-                            <div class="grid-editor-row">
-                                <span class="grid-editor-label">Thumb</span>
-                                <template x-for="(c, i) in thumbArr" :key="'t-'+i">
-                                    <div class="grid-editor-cell is-thumb"
-                                         :class="{
-                                             'is-hit': c.toLowerCase() === 'x',
-                                             'is-current': currentBeat === i && isPlaying,
-                                         }"
-                                         @click="toggleThumb(i)"
-                                         x-text="c.toLowerCase() === 'x' ? '●' : ''">
-                                    </div>
-                                </template>
-                            </div>
+                            {{-- Picking mode rows in a → m → i → p order (high string at top, tab notation) --}}
+
+                            {{-- a (ring) — top row --}}
+                            <template x-if="form.picking_mode">
+                                <div class="grid-editor-row">
+                                    <span class="grid-editor-label" style="font-style:italic;font-weight:600;">a</span>
+                                    <template x-for="(c, i) in fingerRingArr" :key="'fa-'+i">
+                                        <div class="grid-editor-cell is-picking-a"
+                                             :class="{
+                                                 'is-hit': c === 'x' || c === 'X',
+                                                 'is-accent': c === 'X',
+                                                 'is-current': currentBeat === i && isPlaying,
+                                             }"
+                                             @click="cyclePicking('fingerRingArr', i)"
+                                             x-text="''">
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            {{-- m (middle) --}}
+                            <template x-if="form.picking_mode">
+                                <div class="grid-editor-row">
+                                    <span class="grid-editor-label" style="font-style:italic;font-weight:600;">m</span>
+                                    <template x-for="(c, i) in fingerMiddleArr" :key="'fm-'+i">
+                                        <div class="grid-editor-cell is-picking-m"
+                                             :class="{
+                                                 'is-hit': c === 'x' || c === 'X',
+                                                 'is-accent': c === 'X',
+                                                 'is-current': currentBeat === i && isPlaying,
+                                             }"
+                                             @click="cyclePicking('fingerMiddleArr', i)"
+                                             x-text="''">
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            {{-- i (index) --}}
+                            <template x-if="form.picking_mode">
+                                <div class="grid-editor-row">
+                                    <span class="grid-editor-label" style="font-style:italic;font-weight:600;">i</span>
+                                    <template x-for="(c, i) in fingerIndexArr" :key="'fi-'+i">
+                                        <div class="grid-editor-cell is-picking-i"
+                                             :class="{
+                                                 'is-hit': c === 'x' || c === 'X',
+                                                 'is-accent': c === 'X',
+                                                 'is-current': currentBeat === i && isPlaying,
+                                             }"
+                                             @click="cyclePicking('fingerIndexArr', i)"
+                                             x-text="''">
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            {{-- p (thumb) — bottom row --}}
+                            <template x-if="form.picking_mode">
+                                <div class="grid-editor-row">
+                                    <span class="grid-editor-label" style="font-style:italic;font-weight:600;">p</span>
+                                    <template x-for="(c, i) in thumbArr" :key="'tp-'+i">
+                                        <div class="grid-editor-cell is-thumb"
+                                             :class="{
+                                                 'is-hit': c.toLowerCase() === 'x',
+                                                 'is-current': currentBeat === i && isPlaying,
+                                             }"
+                                             @click="toggleThumb(i)"
+                                             x-text="''">
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            {{-- Thumb row in standard mode (always shown when not picking) --}}
+                            <template x-if="!form.picking_mode">
+                                <div class="grid-editor-row">
+                                    <span class="grid-editor-label">Thumb</span>
+                                    <template x-for="(c, i) in thumbArr" :key="'t-'+i">
+                                        <div class="grid-editor-cell is-thumb"
+                                             :class="{
+                                                 'is-hit': c.toLowerCase() === 'x',
+                                                 'is-current': currentBeat === i && isPlaying,
+                                             }"
+                                             @click="toggleThumb(i)"
+                                             x-text="c.toLowerCase() === 'x' ? '●' : ''">
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
                         </div>
                     </template>
                 </div>
@@ -220,23 +328,64 @@
                             x-text="showRaw ? '▲ hide raw pattern' : '▼ edit raw pattern'">
                     </button>
                     <div x-show="showRaw" x-cloak style="margin-top: 8px;">
-                        <div class="sbn-form-row sbn-form-row-2">
-                            <div class="sbn-form-group">
-                                <label>Fingers pattern</label>
-                                <input type="text" class="sbn-search-input" style="padding-left: 14px; font-family: var(--font-mono); letter-spacing: 0.12em;"
-                                       x-model="form.rhythm_pattern"
-                                       @input="syncFromRaw()"
-                                       maxlength="32" placeholder="x.x.x.x.">
+                        {{-- Standard mode raw inputs --}}
+                        <template x-if="!form.picking_mode">
+                            <div class="sbn-form-row sbn-form-row-2">
+                                <div class="sbn-form-group">
+                                    <label>Fingers pattern</label>
+                                    <input type="text" class="sbn-search-input" style="padding-left: 14px; font-family: var(--font-mono); letter-spacing: 0.12em;"
+                                           x-model="form.rhythm_pattern"
+                                           @input="syncFromRaw()"
+                                           maxlength="32" placeholder="x.x.x.x.">
+                                    <p class="sbn-form-hint">x = hit, X = accent, . = rest</p>
+                                </div>
+                                <div class="sbn-form-group">
+                                    <label>Thumb/Bass pattern</label>
+                                    <input type="text" class="sbn-search-input" style="padding-left: 14px; font-family: var(--font-mono); letter-spacing: 0.12em;"
+                                           x-model="form.thumb_pattern"
+                                           @input="syncFromRaw()"
+                                           maxlength="32" placeholder="x...x...">
+                                </div>
+                            </div>
+                        </template>
+                        {{-- Picking mode raw inputs --}}
+                        <template x-if="form.picking_mode">
+                            <div>
+                                <div class="sbn-form-row sbn-form-row-2">
+                                    <div class="sbn-form-group">
+                                        <label><em>i</em> — Index finger (G str)</label>
+                                        <input type="text" class="sbn-search-input" style="padding-left: 14px; font-family: var(--font-mono); letter-spacing: 0.12em;"
+                                               x-model="form.finger_index"
+                                               @input="syncFromRawPicking()"
+                                               maxlength="64" placeholder="x.......">
+                                    </div>
+                                    <div class="sbn-form-group">
+                                        <label><em>m</em> — Middle finger (B str)</label>
+                                        <input type="text" class="sbn-search-input" style="padding-left: 14px; font-family: var(--font-mono); letter-spacing: 0.12em;"
+                                               x-model="form.finger_middle"
+                                               @input="syncFromRawPicking()"
+                                               maxlength="64" placeholder=".x......">
+                                    </div>
+                                </div>
+                                <div class="sbn-form-row sbn-form-row-2">
+                                    <div class="sbn-form-group">
+                                        <label><em>a</em> — Ring finger (Hi-E str)</label>
+                                        <input type="text" class="sbn-search-input" style="padding-left: 14px; font-family: var(--font-mono); letter-spacing: 0.12em;"
+                                               x-model="form.finger_ring"
+                                               @input="syncFromRawPicking()"
+                                               maxlength="64" placeholder="..x.....">
+                                    </div>
+                                    <div class="sbn-form-group">
+                                        <label><em>p</em> — Thumb/Bass</label>
+                                        <input type="text" class="sbn-search-input" style="padding-left: 14px; font-family: var(--font-mono); letter-spacing: 0.12em;"
+                                               x-model="form.thumb_pattern"
+                                               @input="syncFromRaw()"
+                                               maxlength="32" placeholder="x...x...">
+                                    </div>
+                                </div>
                                 <p class="sbn-form-hint">x = hit, X = accent, . = rest</p>
                             </div>
-                            <div class="sbn-form-group">
-                                <label>Thumb/Bass pattern</label>
-                                <input type="text" class="sbn-search-input" style="padding-left: 14px; font-family: var(--font-mono); letter-spacing: 0.12em;"
-                                       x-model="form.thumb_pattern"
-                                       @input="syncFromRaw()"
-                                       maxlength="32" placeholder="x...x...">
-                            </div>
-                        </div>
+                        </template>
                     </div>
                 </div>
 
@@ -339,6 +488,22 @@
             osc.stop(now + 0.1);
         }
     }
+    function playPickingNote(freq, isAccent) {
+        const ctx = getAudioCtx();
+        const now = ctx.currentTime;
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now);
+        const vol = isAccent ? 0.45 : 0.3;
+        gain.gain.setValueAtTime(vol, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc.start(now);
+        osc.stop(now + 0.35);
+    }
+
     function sbnToast(message, type) {
         const el = document.createElement('div');
         el.className = `sbn-toast sbn-toast-${type || 'info'}`;
@@ -395,10 +560,15 @@
                 grid_type:      @json($pattern->grid_type ?? 'sixteenth'),
                 rhythm_pattern: @json($pattern->rhythm_pattern ?? '........'),
                 thumb_pattern:  @json($pattern->thumb_pattern ?? ''),
+                picking_mode:   {{ $pattern->picking_mode ? 'true' : 'false' }},
+                finger_index:   @json($pattern->finger_index ?? ''),
+                finger_middle:  @json($pattern->finger_middle ?? ''),
+                finger_ring:    @json($pattern->finger_ring ?? ''),
                 perc_top:       @json($pattern->perc_top ?? 'none'),
                 perc_bass:      @json($pattern->perc_bass ?? 'none'),
                 mp3_file:       @json($pattern->mp3_file ?? ''),
                 video_snippets: @json($pattern->video_snippets ?? []),
+                difficulty:     {{ $pattern->difficulty ?? 'null' }},
             },
 
             bars: {{ $isNew ? 1 : 'null' }},
@@ -406,6 +576,9 @@
             saving: false,
             rhythmArr: [],
             thumbArr: [],
+            fingerIndexArr: [],
+            fingerMiddleArr: [],
+            fingerRingArr: [],
             gridLabels: [],
             isPlaying: false,
             currentBeat: 0,
@@ -437,6 +610,13 @@
                 this.form.thumb_pattern  = (this.form.thumb_pattern  || '').padEnd(beats, '.').slice(0, beats);
                 this.rhythmArr  = this.form.rhythm_pattern.split('');
                 this.thumbArr   = this.form.thumb_pattern.split('');
+                // Picking finger arrays
+                this.form.finger_index  = (this.form.finger_index  || '').padEnd(beats, '.').slice(0, beats);
+                this.form.finger_middle = (this.form.finger_middle || '').padEnd(beats, '.').slice(0, beats);
+                this.form.finger_ring   = (this.form.finger_ring   || '').padEnd(beats, '.').slice(0, beats);
+                this.fingerIndexArr  = this.form.finger_index.split('');
+                this.fingerMiddleArr = this.form.finger_middle.split('');
+                this.fingerRingArr   = this.form.finger_ring.split('');
                 this.gridLabels = sbnBeatLabels(beats, this.form.time_signature, this.form.grid_type);
                 this.updatePreview();
             },
@@ -452,6 +632,15 @@
                 this.syncToForm();
             },
 
+            cyclePicking(arrName, i) {
+                const c = this[arrName][i];
+                if (c === 'X')      this[arrName][i] = '.';
+                else if (c === 'x') this[arrName][i] = 'X';
+                else                this[arrName][i] = 'x';
+                this[arrName] = [...this[arrName]];
+                this.syncToForm();
+            },
+
             toggleThumb(i) {
                 this.thumbArr[i] = this.thumbArr[i].toLowerCase() === 'x' ? '.' : 'x';
                 this.thumbArr = [...this.thumbArr];
@@ -461,6 +650,9 @@
             syncToForm() {
                 this.form.rhythm_pattern = this.rhythmArr.join('');
                 this.form.thumb_pattern  = this.thumbArr.join('');
+                this.form.finger_index   = this.fingerIndexArr.join('');
+                this.form.finger_middle  = this.fingerMiddleArr.join('');
+                this.form.finger_ring    = this.fingerRingArr.join('');
                 this.updatePreview();
             },
 
@@ -473,40 +665,76 @@
                 this.updatePreview();
             },
 
+            syncFromRawPicking() {
+                const beats = this.totalBeats;
+                this.form.finger_index  = (this.form.finger_index  || '').padEnd(beats, '.').slice(0, beats);
+                this.form.finger_middle = (this.form.finger_middle || '').padEnd(beats, '.').slice(0, beats);
+                this.form.finger_ring   = (this.form.finger_ring   || '').padEnd(beats, '.').slice(0, beats);
+                this.fingerIndexArr  = this.form.finger_index.split('');
+                this.fingerMiddleArr = this.form.finger_middle.split('');
+                this.fingerRingArr   = this.form.finger_ring.split('');
+                this.updatePreview();
+            },
+
             previewHtml: '',
 
             updatePreview() {
                 const beats = this.totalBeats;
-                const r = this.rhythmArr;
-                const t = this.thumbArr;
-                const hasThumb = t.some(c => c.toLowerCase() === 'x');
                 const labels = this.gridLabels;
 
                 let h = '<div style="display:flex;flex-direction:column;gap:3px;">';
+                // Beat labels
                 h += '<div class="mini-grid-row"><span class="mini-grid-label"></span>';
                 for (let i = 0; i < beats; i++) h += `<div class="mini-grid-cell is-beat">${labels[i]}</div>`;
                 h += '</div>';
 
-                h += `<div class="mini-grid-row"><span class="mini-grid-label">${hasThumb ? 'Fingers' : 'Rhythm'}</span>`;
-                for (let i = 0; i < beats; i++) {
-                    const c = r[i] || '.';
-                    let cls = 'mini-grid-cell';
-                    if (c.toLowerCase() === 'x') cls += ' is-hit';
-                    if (c === 'X') cls += ' is-accent';
-                    h += `<div class="${cls}">${c.toLowerCase() === 'x' ? '●' : ''}</div>`;
-                }
-                h += '</div>';
+                if (this.form.picking_mode) {
+                    // Picking mode: i / m / a / p rows
+                    const pimaRows = [
+                        { label: 'a', arr: this.fingerRingArr,   cls: 'is-picking-a' },
+                        { label: 'm', arr: this.fingerMiddleArr, cls: 'is-picking-m' },
+                        { label: 'i', arr: this.fingerIndexArr,  cls: 'is-picking-i' },
+                        { label: 'p', arr: this.thumbArr,        cls: 'is-thumb' },
+                    ];
+                    for (const { label, arr, cls } of pimaRows) {
+                        h += `<div class="mini-grid-row"><span class="mini-grid-label" style="font-style:italic;font-weight:700;">${label}</span>`;
+                        for (let i = 0; i < beats; i++) {
+                            const c = arr[i] || '.';
+                            let cellCls = `mini-grid-cell ${cls}`;
+                            if (c.toLowerCase() === 'x') cellCls += ' is-hit';
+                            if (c === 'X') cellCls += ' is-accent';
+                            h += `<div class="${cellCls}"></div>`;
+                        }
+                        h += '</div>';
+                    }
+                } else {
+                    // Standard mode: Rhythm + optional Thumb
+                    const r = this.rhythmArr;
+                    const t = this.thumbArr;
+                    const hasThumb = t.some(c => c.toLowerCase() === 'x');
 
-                if (hasThumb) {
-                    h += '<div class="mini-grid-row"><span class="mini-grid-label">Thumb</span>';
+                    h += `<div class="mini-grid-row"><span class="mini-grid-label">${hasThumb ? 'Fingers' : 'Rhythm'}</span>`;
                     for (let i = 0; i < beats; i++) {
-                        const c = t[i] || '.';
-                        let cls = 'mini-grid-cell is-thumb';
+                        const c = r[i] || '.';
+                        let cls = 'mini-grid-cell';
                         if (c.toLowerCase() === 'x') cls += ' is-hit';
+                        if (c === 'X') cls += ' is-accent';
                         h += `<div class="${cls}">${c.toLowerCase() === 'x' ? '●' : ''}</div>`;
                     }
                     h += '</div>';
+
+                    if (hasThumb) {
+                        h += '<div class="mini-grid-row"><span class="mini-grid-label">Thumb</span>';
+                        for (let i = 0; i < beats; i++) {
+                            const c = t[i] || '.';
+                            let cls = 'mini-grid-cell is-thumb';
+                            if (c.toLowerCase() === 'x') cls += ' is-hit';
+                            h += `<div class="${cls}">${c.toLowerCase() === 'x' ? '●' : ''}</div>`;
+                        }
+                        h += '</div>';
+                    }
                 }
+
                 h += '</div>';
                 this.previewHtml = h;
             },
@@ -514,7 +742,6 @@
             async togglePlay() {
                 if (this.isPlaying) { this.stopPlay(); return; }
 
-                // Init audio context on first user click
                 getAudioCtx();
 
                 const bpm = this.form.default_bpm || 120;
@@ -527,10 +754,23 @@
 
                 const self = this;
                 const tick = () => {
-                    const r = self.rhythmArr[self.currentBeat] || '.';
-                    const t = self.thumbArr[self.currentBeat]  || '.';
-                    if (t.toLowerCase() === 'x') playClick(true, false);
-                    if (r.toLowerCase() === 'x') playClick(false, r === 'X');
+                    const b = self.currentBeat;
+                    if (self.form.picking_mode) {
+                        // Pitched oscillator previews: G3=196Hz, B3=247Hz, E4=330Hz
+                        const fi = self.fingerIndexArr[b]  || '.';
+                        const fm = self.fingerMiddleArr[b] || '.';
+                        const fa = self.fingerRingArr[b]   || '.';
+                        const t  = self.thumbArr[b]        || '.';
+                        if (fi.toLowerCase() === 'x') playPickingNote(196, fi === 'X');
+                        if (fm.toLowerCase() === 'x') playPickingNote(247, fm === 'X');
+                        if (fa.toLowerCase() === 'x') playPickingNote(330, fa === 'X');
+                        if (t.toLowerCase()  === 'x') playClick(true, false);
+                    } else {
+                        const r = self.rhythmArr[b] || '.';
+                        const t = self.thumbArr[b]  || '.';
+                        if (t.toLowerCase() === 'x') playClick(true, false);
+                        if (r.toLowerCase() === 'x') playClick(false, r === 'X');
+                    }
                     self.currentBeat = (self.currentBeat + 1) % beats;
                 };
 

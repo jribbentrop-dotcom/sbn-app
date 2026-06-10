@@ -351,6 +351,14 @@
     box-shadow: 0 0 0 2px var(--clr-accent);
 }
 
+/* Picking-mode cells: letter label inside, italic, same hit/accent colors as standard */
+.grid-editor-cell.is-picking-i,
+.grid-editor-cell.is-picking-m,
+.grid-editor-cell.is-picking-a {
+    font-style: italic;
+    font-size: 13px;
+}
+
 /* -- Live Preview (sidebar) -- */
 .live-preview {
     background: var(--clr-surface-2);
