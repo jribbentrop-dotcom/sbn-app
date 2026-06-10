@@ -124,7 +124,10 @@
               }"
               @click="picker.applyVoicing(v)"
             >
-              <div class="sbn-vp-card-name" v-html="formatChordHtml(picker.pickerDisplayName())"></div>
+              <div
+                class="sbn-vp-card-name"
+                v-html="formatChordHtml(v.dim_name || picker.pickerDisplayName())"
+              ></div>
               <span v-html="renderDiagramSVG({ frets: v.frets, position: v.position })"></span>
             </div>
           </div>

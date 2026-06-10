@@ -212,10 +212,13 @@ async function _fetchVoicings() {
                     frets,
                     fingers,
                     position:         pos,
+                    name:             v.name || '',
+                    dim_name:         v.dim_inversion || v.alias_match ? (v.name || '') : '',
                     voicing_category: v.voicing_category,
                     inversion:        v.inversion,
                     root_string:      v.root_string,
                     popularity:       v.popularity || 0,
+                    rootless:         v.rootless ?? false,
                 };
             }).filter(v => v.frets);
         }
@@ -354,7 +357,10 @@ function isVoicingSelected(v) {
 function applyVoicing(v) {
     if (!_model?.value) return;
     const oldName   = store.chordName;
-    const newName   = pickerDisplayName();
+    // Use the result's own name for dim inversions / dom alias readings (they each
+    // carry a distinct chord name in v.dim_name). Fall back to pickerDisplayName()
+    // for regular voicings where the name tracks the active filter state.
+    const newName   = v.dim_name || pickerDisplayName();
     const assignKey = store.voicingKey || oldName;
     const keyMatch  = (store.voicingKey || '').match(/^.+@(\d+)\.(\d+)$/);
 
@@ -646,7 +652,7 @@ function stepInversion(dir) {
 function getInversionLabel() {
     const inv = store.activeFilters.inversion;
     if (!inv || inv === 'all') return 'All';
-    const labels = { root: 'Root', inv1: '1st', inv2: '2nd', inv3: '3rd' };
+    const labels = { root: 'Root', inv1: '1st', inv2: '2nd', inv3: '3rd', rootless: 'Rootless' };
     return labels[inv] || inv;
 }
 

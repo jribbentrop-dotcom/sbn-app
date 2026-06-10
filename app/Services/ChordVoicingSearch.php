@@ -648,6 +648,167 @@ class ChordVoicingSearch
         return $results;
     }
 
+    /**
+     * Generate the full dim7 inversion + dom7(b9) alias set for the voicing picker.
+     *
+     * For an o7 query the picker needs:
+     *   - 4 dim inversions (each named by its own root, e.g. C°7 / Eb°7 / Gb°7 / A°7)
+     *   - 4 dom7(b9) alias readings per shape (rootless, with bass-function inversion slot)
+     *
+     * Mirrors ChordLibraryController::buildDiminishedReadings() but works from raw
+     * stdClass DB rows and outputs the flat picker-result shape (frets/position come
+     * from diagram_data via the normal calculateFrets path).
+     *
+     * @param  \Illuminate\Support\Collection $shapes   DB rows for quality=o7
+     * @param  string                         $root     Requested display root
+     * @param  string                         $filter   'dim'|'dom'|'all' — which readings to return
+     * @return array<int, array>
+     */
+    public function findDiminishedPickerResults(Collection $shapes, string $root, string $filter = 'all'): array
+    {
+        $rootPc   = $this->dimSymmetry->toPc($root);
+        $symRoots = $this->dimSymmetry->symmetricRoots($rootPc);
+        $slots    = ['root', 'inv1', 'inv2', 'inv3'];
+
+        // Bass-function interval → inversion slot (semitones from dom root)
+        $bassFunctionSlot = [
+            1  => 'rootless',
+            4  => 'inv1',
+            7  => 'inv2',
+            10 => 'inv3',
+        ];
+
+        $results  = [];
+        $seenKeys = [];
+
+        foreach ($shapes as $shape) {
+            $dimExt = (string) ($shape->extensions ?? '');
+            $hasExt = $dimExt !== '' && isset(DiminishedSymmetry::DIM_EXTENSION_SEMITONES[$dimExt]);
+
+            // ── Dim7 inversions (4 positions, each named by its own root) ──────────
+            if ($filter === 'dim' || $filter === 'all') {
+                foreach ($slots as $idx => $slot) {
+                    $invRootPc = $symRoots[$idx];
+                    $invRoot   = $this->dimSymmetry->spellRoot($invRootPc);
+                    $extLabel  = $hasExt
+                        ? $this->dimSymmetry->extensionLabelForReading($dimExt, $idx, false)
+                        : null;
+                    $extStr    = $extLabel ?? ($hasExt ? $dimExt : '');
+
+                    $calculated = $this->calculator->calculateFrets($shape, $root);
+                    if (empty($calculated['diagram_data']) ||
+                        (empty($calculated['diagram_data']['positions']) && empty($calculated['diagram_data']['open']))) {
+                        continue;
+                    }
+
+                    $key = $shape->id . ':dim:' . $idx;
+                    if (isset($seenKeys[$key])) continue;
+                    $seenKeys[$key] = true;
+
+                    $chordName = $invRoot . 'o7' . ($extStr ? "($extStr)" : '');
+
+                    $tones = $this->dimSymmetry->spellDim7($invRoot);
+
+                    $results[] = [
+                        'id'               => $shape->id,
+                        'slug'             => $shape->slug ?? '',
+                        'name'             => $chordName,
+                        'root_note'        => $invRoot,
+                        'original_root'    => $shape->root_note,
+                        'quality'          => 'o7',
+                        'extensions'       => $extStr,
+                        'voicing_category' => $shape->voicing_category,
+                        'root_string'      => $shape->root_string,
+                        'inversion'        => $slot,
+                        'start_fret'       => $calculated['start_fret'],
+                        'diagram_data'     => $calculated['diagram_data'],
+                        'interval_labels'  => $calculated['interval_labels'] ?? ($shape->interval_labels ?? ''),
+                        'notes'            => implode(',', array_values($tones)),
+                        'bass_note'        => '',
+                        'popularity'       => $shape->popularity ?? 0,
+                        'difficulty'       => $shape->difficulty ?? null,
+                        'dim_inversion'    => true,
+                        'display_root'     => $invRoot,
+                    ];
+                }
+            }
+
+            // ── Dom7(b9) alias readings (4 per shape) ────────────────────────────
+            if ($filter === 'dom' || $filter === 'all') {
+                foreach ($this->dimSymmetry->dominantReadings($rootPc) as $i => $reading) {
+                    $domRoot   = $this->dimSymmetry->spellRoot($reading['domRootPc']);
+                    $domRootPc = $reading['domRootPc'];
+
+                    $domExtLabel  = $hasExt
+                        ? $this->dimSymmetry->extensionLabelForReading($dimExt, $i, true)
+                        : null;
+                    $domExtStr    = 'b9' . ($domExtLabel ? ',' . $domExtLabel : '');
+                    $isRootless   = !($hasExt && $domExtLabel === null);
+                    $chordName    = $domRoot . '7(' . $domExtStr . ')';
+
+                    // Transpose the shape to the dim root (b9 of this dom reading).
+                    $dimRootForDom = $this->dimSymmetry->spellRoot(($domRootPc + 1) % 12);
+                    $calculated = $this->calculator->calculateFrets($shape, $dimRootForDom);
+                    if (empty($calculated['diagram_data']) ||
+                        (empty($calculated['diagram_data']['positions']) && empty($calculated['diagram_data']['open']))) {
+                        continue;
+                    }
+
+                    // Determine bass-function inversion slot by computing the interval
+                    // from the dom root to the physical lowest note of the shape.
+                    $dd = $calculated['diagram_data'];
+                    $lowestString = null;
+                    if (!empty($dd['open'])) $lowestString = min($dd['open']);
+                    foreach ($dd['positions'] ?? [] as $pos) {
+                        if ($lowestString === null || $pos['string'] < $lowestString) {
+                            $lowestString = $pos['string'];
+                        }
+                    }
+                    // Infer from slot index: slot 0 = root pos (b9 in bass = rootless),
+                    // slots 1/2/3 rotate by +3 semitones each from the dim root.
+                    $slotDimRootPc = ($rootPc + $i * 3) % 12;
+                    $bassIntervalFromDom = ($slotDimRootPc - $domRootPc + 12) % 12; // =1,4,7,10
+                    $invSlot = $bassFunctionSlot[$bassIntervalFromDom] ?? 'root';
+
+                    $key = $shape->id . ':dom:' . $i;
+                    if (isset($seenKeys[$key])) continue;
+                    $seenKeys[$key] = true;
+
+                    $tones = $this->dimSymmetry->spellDom7b9($domRoot);
+
+                    $results[] = [
+                        'id'               => $shape->id,
+                        'slug'             => $shape->slug ?? '',
+                        'name'             => $chordName,
+                        'root_note'        => $domRoot,
+                        'original_root'    => $shape->root_note,
+                        'quality'          => 'dom7',
+                        'extensions'       => $domExtStr,
+                        'voicing_category' => $shape->voicing_category,
+                        'root_string'      => $shape->root_string,
+                        'inversion'        => $invSlot,
+                        'start_fret'       => $calculated['start_fret'],
+                        'diagram_data'     => $calculated['diagram_data'],
+                        'interval_labels'  => $calculated['interval_labels'] ?? ($shape->interval_labels ?? ''),
+                        'notes'            => implode(',', array_values($tones)),
+                        'bass_note'        => '',
+                        'popularity'       => $shape->popularity ?? 0,
+                        'difficulty'       => $shape->difficulty ?? null,
+                        'alias_match'      => true,
+                        'rootless'         => $isRootless,
+                        'display_root'     => $dimRootForDom,
+                        'alias_root'       => $domRoot,
+                        'alias_quality'    => 'dom7',
+                        'alias_extensions' => $domExtStr,
+                        'alias_bass'       => '',
+                    ];
+                }
+            }
+        }
+
+        return $results;
+    }
+
     public function queryInversionShapes(string $quality, string $extension, string $inversion): Collection
     {
         $invQuery = DB::table('sbn_chord_diagrams')

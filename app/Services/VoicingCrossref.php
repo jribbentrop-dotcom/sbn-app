@@ -472,6 +472,46 @@ class VoicingCrossref
             }
         }
 
+        // Dim7 symmetry pass for o7 chords: a °7 voicing is symmetric at minor-3rd
+        // intervals (C#°7 = E°7 = G°7 = Bb°7). When a shape stored under one family
+        // member fails to transpose to the requested root (due to wrap-around), retry
+        // with the 3 partner roots — any of them will produce the same fret positions.
+        if (!$bestMatch && $baseQuality === 'o7') {
+            $reqRootSemi = self::NOTE_SEMI[$voicing['root']] ?? null;
+            if ($reqRootSemi !== null) {
+                if ($this->dimShapeCache === null) {
+                    $this->dimShapeCache = collect(DB::table('sbn_chord_diagrams')
+                        ->where('quality', 'o7')
+                        ->whereRaw("(bass_note = '' OR bass_note IS NULL)")
+                        ->get());
+                }
+
+                foreach ([3, 6, 9] as $step) {
+                    $partnerPc   = ($reqRootSemi + $step) % 12;
+                    $partnerRoot = $this->dimSymmetry->spellRoot($partnerPc);
+
+                    foreach ($this->dimShapeCache as $shape) {
+                        $calculated = $this->calculator->calculateFrets($shape, $partnerRoot);
+                        if (!$calculated || empty($calculated['diagram_data'])) continue;
+
+                        $calcFretArray = $this->normalizeOpenEquivalents(
+                            $this->diagramToFretArray($calculated['diagram_data'])
+                        );
+                        if (!$this->hasValidFrets($calcFretArray)) continue;
+
+                        if ($this->fretArraysMatch($calcFretArray, $targetFretArray)) {
+                            return $this->buildMatchResult($shape, 'exact', $calcFretArray);
+                        }
+                        $sub = $this->isSubsetMatch($targetFretArray, $calcFretArray);
+                        if ($sub !== false && $sub < $bestScore) {
+                            $bestScore = $sub;
+                            $bestMatch = $this->buildMatchResult($shape, 'subset', $calcFretArray);
+                        }
+                    }
+                }
+            }
+        }
+
         // Dim7 symmetry pass: when the voicing is dom7 + b9 (with any extra
         // extensions), every o7 shape transposed so the dominant's b9 is a chord
         // tone is a valid rootless reading. Mirrors ChordVoicingSearch logic so
@@ -489,22 +529,30 @@ class VoicingCrossref
                         ->get());
                 }
 
-                foreach ($this->dimShapeCache as $shape) {
-                    $calculated = $this->calculator->calculateFrets($shape, $dimRoot);
-                    if (!$calculated || empty($calculated['diagram_data'])) continue;
+                // Try all 4 symmetric roots of the dim family — the shape may be
+                // stored under any member, so transposing to each partner guarantees
+                // a wrap-around-free fret offset for at least one of them.
+                foreach ([0, 3, 6, 9] as $step) {
+                    $partnerPc   = ($dimRootPc + $step) % 12;
+                    $partnerRoot = $this->dimSymmetry->spellRoot($partnerPc);
 
-                    $calcFretArray = $this->normalizeOpenEquivalents(
-                        $this->diagramToFretArray($calculated['diagram_data'])
-                    );
-                    if (!$this->hasValidFrets($calcFretArray)) continue;
+                    foreach ($this->dimShapeCache as $shape) {
+                        $calculated = $this->calculator->calculateFrets($shape, $partnerRoot);
+                        if (!$calculated || empty($calculated['diagram_data'])) continue;
 
-                    if ($this->fretArraysMatch($calcFretArray, $targetFretArray)) {
-                        return $this->buildMatchResult($shape, 'exact', $calcFretArray);
-                    }
-                    $sub = $this->isSubsetMatch($targetFretArray, $calcFretArray);
-                    if ($sub !== false && $sub < $bestScore) {
-                        $bestScore = $sub;
-                        $bestMatch = $this->buildMatchResult($shape, 'subset', $calcFretArray);
+                        $calcFretArray = $this->normalizeOpenEquivalents(
+                            $this->diagramToFretArray($calculated['diagram_data'])
+                        );
+                        if (!$this->hasValidFrets($calcFretArray)) continue;
+
+                        if ($this->fretArraysMatch($calcFretArray, $targetFretArray)) {
+                            return $this->buildMatchResult($shape, 'exact', $calcFretArray);
+                        }
+                        $sub = $this->isSubsetMatch($targetFretArray, $calcFretArray);
+                        if ($sub !== false && $sub < $bestScore) {
+                            $bestScore = $sub;
+                            $bestMatch = $this->buildMatchResult($shape, 'subset', $calcFretArray);
+                        }
                     }
                 }
             }

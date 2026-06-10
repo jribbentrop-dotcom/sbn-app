@@ -1300,8 +1300,48 @@ class LeadsheetController extends Controller
         $results = [];
         $seenIds = [];
         if ($shapes->isNotEmpty()) {
-            $results = $this->voicingSearch->transposeShapes($shapes, $root, $quality, $bassNote, $slashType);
+            // For dim7 quality: generate the inversion + dom alias lattice instead of
+            // a plain transpose. The DB shapes are archetypes; the symmetry math
+            // produces the four correct inversions (named by their own root) and the
+            // four rootless dom7(b9) alias readings.
+            if ($quality === 'o7') {
+                $dimFilter = match ($inversion) {
+                    'root', 'inv1', 'inv2', 'inv3' => 'dim',
+                    'rootless'                      => 'dom',
+                    default                         => 'all',
+                };
+                $generated = $this->voicingSearch->findDiminishedPickerResults($shapes, $root, $dimFilter);
+                // Post-filter by inversion slot when one is selected.
+                if (!empty($inversion) && $inversion !== 'all') {
+                    $generated = array_values(array_filter(
+                        $generated,
+                        fn ($r) => ($r['inversion'] ?? '') === $inversion
+                    ));
+                }
+                $results = $generated;
+            } else {
+                $results = $this->voicingSearch->transposeShapes($shapes, $root, $quality, $bassNote, $slashType);
+            }
             $seenIds = array_values(array_filter(array_map(fn ($r) => $r['id'] ?? null, $results)));
+        }
+
+        // For dom7(b9) queries: also surface all o7 shapes as rootless readings
+        // (generated — not hand-stored — so every dim7 shape in the library shows up).
+        // Respect the inversion filter: 'rootless' = only rootless, named inv slots =
+        // exclude the rootless dim results entirely (they come from the normal path).
+        if ($quality === 'dom7' && str_contains($extension, 'b9')) {
+            $invFilter = (!empty($inversion) && $inversion !== 'all') ? $inversion : '';
+            if ($invFilter !== 'inv1' && $invFilter !== 'inv2' && $invFilter !== 'inv3') {
+                $dimDomResults = $this->voicingSearch->findDiminishedDominantMatches($root, $quality, $extension);
+                if ($invFilter === 'rootless') {
+                    $dimDomResults = array_values(array_filter(
+                        $dimDomResults,
+                        fn ($r) => ($r['rootless'] ?? true) === true
+                    ));
+                }
+                $results = array_merge($results, $dimDomResults);
+                $seenIds = array_values(array_filter(array_map(fn ($r) => $r['id'] ?? null, $results)));
+            }
         }
 
         $aliasResults = $this->voicingSearch->findAliasMatches(
@@ -1320,21 +1360,40 @@ class LeadsheetController extends Controller
         return response()->json([
             'success' => true,
             'results' => $results,
-            'filters' => $this->getAvailableFilters($quality),
+            'filters' => $this->getAvailableFilters($quality, $extension),
         ]);
     }
 
-    private function getAvailableFilters(string $quality): array
+    private function getAvailableFilters(string $quality, string $extension = ''): array
     {
         $shapes = DB::table('sbn_chord_diagrams')
             ->where('quality', $quality)
             ->get(['voicing_category', 'root_string', 'extensions', 'inversion']);
 
+        // For dim7: inversions are generated (not stored) — return the canonical
+        // four-slot list. Also expose dom7(b9) inversion slots so the picker Inv
+        // stepper can filter by rootless / 1st / 2nd / 3rd.
+        if ($quality === 'o7') {
+            return [
+                'voicing_categories' => $shapes->pluck('voicing_category')->filter()->unique()->sort()->values()->all(),
+                'root_strings'       => $shapes->pluck('root_string')->filter()->unique()->sort()->values()->all(),
+                'extensions'         => $shapes->pluck('extensions')->filter()->unique()->sort()->values()->all(),
+                'inversions'         => ['root', 'inv1', 'inv2', 'inv3', 'rootless'],
+            ];
+        }
+
+        // For dom7(b9): add 'rootless' to the inversion list so the Inv stepper
+        // can filter to only the generated °7-derived rootless voicings.
+        $inversions = $shapes->pluck('inversion')->filter()->unique()->sort()->values()->all();
+        if ($quality === 'dom7' && str_contains($extension, 'b9') && ! in_array('rootless', $inversions, true)) {
+            $inversions[] = 'rootless';
+        }
+
         return [
             'voicing_categories' => $shapes->pluck('voicing_category')->filter()->unique()->sort()->values()->all(),
             'root_strings'       => $shapes->pluck('root_string')->filter()->unique()->sort()->values()->all(),
             'extensions'         => $shapes->pluck('extensions')->filter()->unique()->sort()->values()->all(),
-            'inversions'         => $shapes->pluck('inversion')->filter()->unique()->sort()->values()->all(),
+            'inversions'         => $inversions,
         ];
     }
 

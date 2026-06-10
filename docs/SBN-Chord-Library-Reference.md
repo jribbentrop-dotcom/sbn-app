@@ -98,7 +98,11 @@ Three methods in `ChordVoicingSearch` cover the full lattice:
 
 **`findDiminishedAliasReadings($root, $quality, $extension)`** — fires for `o7` searches with a known extension (e.g. `G°7(b13)`). Emits all four dom7 alias readings as additional `alias_match` cards so the user can navigate directly to each dominant interpretation.
 
-**`VoicingCrossref::matchVoicing` dim symmetry pass** — for leadsheet voicings parsed as `dom7 + b9`, queries all `o7` shapes and transposes to the b9 root. Resolves crossref matches like `Ab7(b9,13)/A` → diagram 121 that the standard quality-match path misses.
+**`findDiminishedPickerResults($shapes, $root, $filter)`** — generates the full voicing-picker lattice for `o7` queries in `searchVoicingsAdvanced`. Returns 4 dim inversions (each named by its own root, e.g. C°7/E♭°7/G♭°7/A°7) and 4 rootless dom7(b9) alias readings per shape. `$filter` is `'dim'|'dom'|'all'`, driven by the Inv stepper selection. Called from `LeadsheetController::searchVoicingsAdvanced` when `quality=o7`; also supplements dom7(b9) queries.
+
+**`VoicingCrossref::matchVoicing` dim symmetry passes** — two passes at the end of the matching pipeline:
+1. **o7 pass** — when `baseQuality=o7` and no match found, retries all `o7` shapes against the 3 minor-3rd partner roots (+3/+6/+9 semitones). Fixes wrap-around failures where the calculator places the note at fret 11 instead of the low-position equivalent (e.g. `C#o7` matching `o7-drop2-rootd` stored as E♭ via transposing to E).
+2. **dom7+b9 pass** — for leadsheet voicings parsed as `dom7 + b9`, queries all `o7` shapes and tries all 4 family roots (not just the single b9 root). Resolves matches like `F#7(b9) xx2323` → `o7-drop2-rootd` and `Ab7(b9,13)/A` → diagram 121 that the standard path misses.
 
 ### Retired data
 Migration `2026_05_31_000001_remove_generated_dim7_aliases` deletes the now-redundant hand-authored alias rows on `o7` parents: the dim7 **inversion** aliases (`alt_quality = o7`) and the **bare** dom7(♭9) aliases (`alt_quality = dom7`, `alt_extensions = 'b9'`). Extended aliases the generators don't claim (e.g. `b9,13`, `#9`) are **left in place**. Non-destructive: the readings are recomputed at runtime.
