@@ -74,7 +74,7 @@ class Product extends Model
         if (!$this->thumbnail_path) {
             return null;
         }
-        return asset('storage/' . $this->thumbnail_path);
+        return asset('images/products/' . $this->thumbnail_path);
     }
 
     // =========================================================================

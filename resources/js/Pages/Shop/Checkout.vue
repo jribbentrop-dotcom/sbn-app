@@ -97,7 +97,7 @@ const submit = () => {
                             >
                                 <img
                                     v-if="item.thumbnail_path"
-                                    :src="`/storage${item.thumbnail_path}`"
+                                    :src="`/images/products/${item.thumbnail_path}`"
                                     :alt="item.title"
                                     class="item-thumb"
                                 />

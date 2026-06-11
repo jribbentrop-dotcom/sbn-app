@@ -1,82 +1,116 @@
 /* ===========================================================
    SBN Teaching Hub — Shop Styles
    ──────────────────────────────────────────────────────────
-   All shop-specific layout, grid, and shared visual patterns.
-   Classes prefixed with shop- or sbn-shop-.
+   Layout shell uses sbn-design-system.css library classes.
+   This file covers shop-specific overrides only.
    =========================================================== */
 
-/* ── 1. Shop Layout & Grid ─────────────────────────────────── */
+/* ── Products Grid ─────────────────────────────────────────── */
 
-.shop-container {
-    max-width: var(--content-max-w, 1400px);
-    margin: 0 auto;
-    padding: 20px;
+.sbn-shop-products-grid {
     display: grid;
-    grid-template-columns: 250px 1fr;
-    gap: 30px;
-}
-
-@media (max-width: 900px) {
-    .shop-container {
-        grid-template-columns: 1fr;
-        gap: 24px;
-    }
-    .shop-sidebar {
-        order: -1;
-    }
-}
-
-.shop-sidebar {
-    position: sticky;
-    top: 100px;
-    height: fit-content;
-}
-
-.shop-main {
-    min-height: 400px;
-}
-
-.shop-header {
-    margin-bottom: 24px;
-}
-
-.shop-title {
-    font-size: 28px;
-    font-weight: 700;
-    margin: 0 0 8px;
-    color: var(--clr-text);
-}
-
-.shop-count {
-    font-size: 14px;
-    color: var(--clr-text-muted);
-    margin: 0;
-}
-
-/* ── 2. Products Grid ──────────────────────────────────────── */
-
-.products-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 20px;
-    list-style: none;
     padding: 0;
     margin: 0;
 }
 
 @media (max-width: 1200px) {
-    .products-grid { grid-template-columns: repeat(3, 1fr); }
-}
-
-@media (max-width: 900px) {
-    .products-grid { grid-template-columns: repeat(2, 1fr); }
+    .sbn-shop-products-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 600px) {
-    .products-grid { grid-template-columns: 1fr; }
+    .sbn-shop-products-grid { grid-template-columns: 1fr; }
 }
 
-/* ── 3. Product Detail Page ────────────────────────────────── */
+/* ── Sort select ───────────────────────────────────────────── */
+
+.sbn-shop-sort-select {
+    font-size: 13px;
+    color: var(--clr-text-muted);
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: 8px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-family: var(--font-body);
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.sbn-shop-sort-select:hover,
+.sbn-shop-sort-select:focus {
+    border-color: var(--clr-accent);
+}
+
+/* ── Category count badge ──────────────────────────────────── */
+
+.sbn-shop-cat-count {
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    margin-left: auto;
+    padding-left: 6px;
+}
+
+.sbn-filter-active .sbn-shop-cat-count {
+    color: inherit;
+    opacity: 0.75;
+}
+
+/* ── Category link resets (sbn-lib-sidebar-option used on <a>) ── */
+
+a.sbn-lib-sidebar-option {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    width: 100%;
+}
+
+/* ── Child category indent ─────────────────────────────────── */
+
+.sbn-shop-cat-child {
+    padding-left: 18px !important;
+    font-size: 12px !important;
+}
+
+/* ── Pagination ────────────────────────────────────────────── */
+
+.sbn-shop-pagination {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 40px;
+    flex-wrap: wrap;
+}
+
+.sbn-shop-page-link {
+    padding: 8px 14px;
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm);
+    color: var(--clr-text);
+    text-decoration: none;
+    font-size: 14px;
+    transition: all 0.2s var(--ease);
+}
+
+.sbn-shop-page-link:hover:not(.disabled) {
+    border-color: var(--clr-accent);
+    color: var(--clr-accent);
+}
+
+.sbn-shop-page-link.active {
+    background: var(--clr-accent);
+    border-color: var(--clr-accent);
+    color: var(--clr-white);
+}
+
+.sbn-shop-page-link.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* ── Product Detail Page ───────────────────────────────────── */
 
 .product-layout {
     display: grid;
@@ -110,68 +144,7 @@
     gap: 20px;
 }
 
-/* ── 5. Shared Shop Components ────────────────────────────── */
-
-/* Pagination */
-.pagination {
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-    margin-top: 40px;
-    flex-wrap: wrap;
-}
-
-.page-link {
-    padding: 8px 14px;
-    background: var(--clr-white);
-    border: 1px solid var(--clr-border);
-    border-radius: var(--radius-sm);
-    color: var(--clr-text);
-    text-decoration: none;
-    font-size: 14px;
-    transition: all 0.2s var(--ease);
-}
-
-.page-link:hover:not(.disabled) {
-    border-color: var(--clr-accent);
-    color: var(--clr-accent);
-}
-
-.page-link.active {
-    background: var(--clr-accent);
-    border-color: var(--clr-accent);
-    color: var(--clr-white);
-}
-
-.page-link.disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-/* Empty states */
-.no-products {
-    text-align: center;
-    padding: 60px 20px;
-    background: var(--clr-white);
-    border-radius: var(--radius);
-}
-
-.no-products p {
-    color: var(--clr-text-muted);
-    margin: 0 0 16px;
-}
-
-.clear-filters {
-    color: var(--clr-accent);
-    text-decoration: none;
-    font-weight: 600;
-}
-
-.clear-filters:hover {
-    text-decoration: underline;
-}
-
-/* ── 6. Cart Drawer Shell ──────────────────────────────────── */
+/* ── Cart Drawer Shell ─────────────────────────────────────── */
 
 .cart-drawer-overlay {
     position: fixed;
@@ -200,7 +173,7 @@
     transform: translateX(0);
 }
 
-/* ── 7. Checkout Form Shell ────────────────────────────────── */
+/* ── Checkout Form Shell ───────────────────────────────────── */
 
 .checkout-form {
     background: var(--clr-white);
@@ -216,7 +189,7 @@
     top: 120px;
 }
 
-/* ── 8. Success Confirmation ────────────────────────────────── */
+/* ── Success Confirmation ──────────────────────────────────── */
 
 .success-header {
     text-align: center;

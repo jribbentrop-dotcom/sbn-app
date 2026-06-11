@@ -289,7 +289,7 @@ onUnmounted(() => {
                     <li class="mega-col-featured">
                         <div class="mega-featured-image">
                             <Link href="/shop/product/top10-bossa-nova-chords" @click="closeAllMenus">
-                                <img src="/storage/products/thumbnails/top10-bossa-nova-chords.webp" alt="TOP10 Bossa Nova Chords">
+                                <img src="/images/products/thumbnails/top10-bossa-nova-chords.webp" alt="TOP10 Bossa Nova Chords">
                                 <div class="mega-featured-overlay">
                                     <span class="mega-featured-button">View Product</span>
                                 </div>
