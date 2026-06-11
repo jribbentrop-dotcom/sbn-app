@@ -59,7 +59,6 @@ return new class extends Migration
             'bass_note'         => '',
             'is_fixed_position' => false,
             'start_fret'        => 1,
-            'frets'             => 'x02110',
             'diagram_data'      => json_encode([
                 'positions' => [
                     ['string' => 4, 'fret' => 2],
@@ -89,7 +88,6 @@ return new class extends Migration
             'bass_note'         => '',
             'is_fixed_position' => false,
             'start_fret'        => 3,
-            'frets'             => 'xx3554',
             'diagram_data'      => json_encode([
                 'positions' => [
                     ['string' => 4, 'fret' => 3],
@@ -120,7 +118,6 @@ return new class extends Migration
             'bass_note'         => '',
             'is_fixed_position' => false,
             'start_fret'        => 1,
-            'frets'             => 'x0212x',
             'diagram_data'      => json_encode([
                 'positions' => [
                     ['string' => 4, 'fret' => 2],
