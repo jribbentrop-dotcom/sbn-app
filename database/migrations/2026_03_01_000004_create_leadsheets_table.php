@@ -8,6 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('sbn_leadsheets')) {
+            return;
+        }
         Schema::create('sbn_leadsheets', function (Blueprint $table) {
             $table->id();
             $table->text('title');

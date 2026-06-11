@@ -8,6 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('sbn_voicing_usage')) {
+            return;
+        }
         Schema::create('sbn_voicing_usage', function (Blueprint $table) {
             $table->id();
             $table->foreignId('leadsheet_id')->constrained('sbn_leadsheets')->cascadeOnDelete();

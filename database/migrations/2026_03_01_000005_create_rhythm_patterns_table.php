@@ -8,6 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('sbn_rhythm_patterns')) {
+            return;
+        }
         Schema::create('sbn_rhythm_patterns', function (Blueprint $table) {
             $table->id();
             $table->text('slug')->unique();

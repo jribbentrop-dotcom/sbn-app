@@ -8,6 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('sbn_chord_diagrams')) {
+            return;
+        }
         Schema::create('sbn_chord_diagrams', function (Blueprint $table) {
             $table->id();
             $table->text('slug')->unique();

@@ -8,6 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('sbn_chord_diagram_aliases')) {
+            return;
+        }
         Schema::create('sbn_chord_diagram_aliases', function (Blueprint $table) {
             $table->id();
             $table->foreignId('diagram_id')->constrained('sbn_chord_diagrams')->cascadeOnDelete();

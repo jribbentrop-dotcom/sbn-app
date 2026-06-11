@@ -8,6 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('sbn_chord_progressions')) {
+            return;
+        }
         Schema::create('sbn_chord_progressions', function (Blueprint $table) {
             $table->id();
             $table->text('name')->default('');
