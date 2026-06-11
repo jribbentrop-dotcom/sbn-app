@@ -36,7 +36,14 @@ return new class extends Migration
     // We store them root-relative (root_note='A') with is_fixed_position=false
     // so ChordShapeCalculator can transpose to any root.
     // Frets string: 6 chars, low-E first. x=muted, digits=fret, 0=open.
-    private array $voicings = [
+    /**
+     * Voicing rows. Defined as a method (not a property default) because the
+     * rows call json_encode(), which is not a constant expression and would
+     * raise "Constant expression contains invalid operations" as a default.
+     */
+    private function voicings(): array
+    {
+        return [
         // ── Shape 1: open-position Am(b6) ────────────────────────────────────
         // x 0 2 1 1 0  (strings 6→1)
         // String 5 (A) = root A, string 4 (D→E@2) = 5th, string 3 (G→Ab@1) = b6,
@@ -128,11 +135,12 @@ return new class extends Migration
             'name'              => 'm(b6) — Closed Position (A-root)',
             'slug'              => 'm-closed-roota-b6',
         ],
-    ];
+        ];
+    }
 
     public function up(): void
     {
-        foreach ($this->voicings as $v) {
+        foreach ($this->voicings() as $v) {
             // Skip if slug already exists (idempotent)
             if (DB::table('sbn_chord_diagrams')->where('slug', $v['slug'])->exists()) {
                 continue;
@@ -156,7 +164,7 @@ return new class extends Migration
     public function down(): void
     {
         DB::table('sbn_chord_diagrams')
-            ->whereIn('slug', array_column($this->voicings, 'slug'))
+            ->whereIn('slug', array_column($this->voicings(), 'slug'))
             ->delete();
     }
 };
