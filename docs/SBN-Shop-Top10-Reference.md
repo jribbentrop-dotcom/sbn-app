@@ -35,13 +35,13 @@ For payment processing see `SBN-Customer-Reference.md §12`. For auth and course
 | Column | Notes |
 |---|---|
 | `slug` | URL key |
-| `title`, `excerpt`, `description` | Display fields |
+| `title`, `excerpt`, `description` | Display fields. `description` may contain YouTube iframes — controller strips them and exposes `video_id` separately. |
 | `price_cents` | EUR cents (always EUR — USD is display-only) |
 | `payment_ref` | Provider's product/price ID for checkout session |
 | `tax_code` | Stripe tax code e.g. `txcd_10302000` for digital goods |
 | `status` | `publish` / `draft` |
 | `published_at` | Sort field for "by date" |
-| `format`, `pages`, `level`, `composer`, `performer` | Meta table fields on detail page |
+| `attributes` | JSON — `composer`, `performer`, `pages`, `notation`. Editable via admin product form. |
 
 #### `sbn_product_categories`, `sbn_product_tags`
 Pivot tables. `Product::categories()` and `Product::tags()` relationships.
@@ -116,24 +116,41 @@ Download link URL: `/shop/download/{token}/{productId}`
 
 | File | Role |
 |---|---|
-| `Pages/Shop/Index.vue` | 4-column catalog grid + `CategoryFilter` sidebar |
-| `Pages/Shop/Show.vue` | Product detail: gallery, meta table, feature chips, related products grid |
+| `Pages/Shop/Index.vue` | Library-pattern catalog: `sbn-lib-page-header` + search bar + 4-column grid + filter sidebar right |
+| `Pages/Shop/Show.vue` | Product detail: image/video gallery toggle, meta, feature chips, related grid |
 | `Pages/Shop/Cart.vue` | Cart summary page |
 | `Pages/Shop/Checkout.vue` | Checkout form |
 | `Pages/Shop/OrderSuccess.vue` | Post-payment confirmation |
-| `Components/Shop/ProductCard.vue` | Grid card — gradient, style badge, difficulty stars, hover overlay |
+| `Components/Shop/ProductCard.vue` | Course-card style: border frame, genre badge top-left, gradient hover overlay, type chips bottom, card body with level + title + excerpt + price + Add to Cart |
 | `Components/Shop/CartDrawer.vue` | Slide-in cart drawer |
 | `Components/Shop/CartLineItem.vue` | Single cart item row |
-| `Components/Shop/CategoryFilter.vue` | Sidebar with product counts and active state |
-| `Components/Shop/ProductPrice.vue` | EUR/USD price display |
+| `Components/Shop/CategoryFilter.vue` | Legacy component — kept for reference; Index.vue inlines the sidebar directly |
+| `Components/Shop/ProductPrice.vue` | EUR/USD price display (`eurCents` prop) |
 
-**CSS:** `public/css/shop.css` — shared layout (container/sidebar grid, products grid, pagination, breadcrumb, checkout form, order success). Component-internal styles (card hover, badge positioning) stay scoped.
+**CSS:** `public/css/shop.css` — shop-specific overrides only. Layout shell uses `sbn-design-system.css` library classes (`sbn-lib-*`). Component-internal styles stay scoped.
+
+#### Index page — filtering model
+- **Categories** — navigation links (`/shop/category/{slug}`); no query param
+- **Search + sort** — GET form params (`?search=`, `?sort=`); server-side, preserves pagination
+- Filter sidebar uses `sbn-lib-filter-sidebar` + `sbn-lib-sidebar-option` chips grouped into **Style / Difficulty / Type** via `parent_id` on `sbn_product_categories`
+
+#### Category groups (migration `2026_06_12_000001`)
+Three parent categories (`group-style`, `group-difficulty`, `group-type`) group the leaf categories. Parents are display-only section headers; only children are filterable. Admin multi-select shows all categories including parents — don't assign products directly to group parents.
+
+#### Show page — gallery
+- Left column: sticky image/video gallery with tab buttons centered below
+- **Image tab**: original `thumbnail_path` image
+- **Video tab**: click-to-play poster using `https://img.youtube.com/vi/{id}/maxresdefault.jpg`; on click loads `youtube.com/embed/{id}?autoplay=1`
+- `video_id` is extracted by `ShopController::show` via regex on the description iframe (iframe is stripped from the description before passing to Vue)
+- `getDifficultyFromCategories(categories[])` in `useCategoryColors.ts` maps difficulty category slugs to star counts (1–5)
 
 ---
 
 ### 8. Admin
 
 `/admin/orders` — Blade-rendered orders index (`Admin\OrderController`). Read-only table; no order editing UI.
+
+`/admin/products/{id}/edit` — product form includes: title, slug, price, status, excerpt, description, meta description, thumbnail path, **composer, performer, pages, notation** (saved to `attributes` JSON), categories multi-select, Stripe price ID + tax code.
 
 ---
 
