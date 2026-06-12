@@ -133,6 +133,109 @@ function makeSbnNode(type: SbnNodeType) {
 
 const sbnExtensions = SBN_TYPES.map(makeSbnNode);
 
+// ── sbn-info block node ───────────────────────────────────────────────────────
+// Stored as: <sbn-info heading="Practice focus" items="line 1|line 2|line 3" />
+// Renders in the editor as a block chip with an edit button.
+
+const makeInfoNode = () => Node.create({
+    name: 'sbn-info',
+    group: 'block',
+    atom: true,
+
+    addAttributes() {
+        return {
+            heading: { default: 'Practice focus' },
+            items:   { default: '' },
+        };
+    },
+
+    parseHTML() { return [{ tag: 'sbn-info' }]; },
+
+    renderHTML({ HTMLAttributes }) {
+        return ['sbn-info', mergeAttributes(HTMLAttributes)];
+    },
+
+    addNodeView() {
+        return ({ node, getPos, editor: ed }) => {
+            const dom = document.createElement('div');
+            dom.className = 'sbn-chip sbn-chip--block';
+            dom.dataset.type = 'info';
+            dom.contentEditable = 'false';
+
+            function render() {
+                const items = node.attrs.items
+                    ? node.attrs.items.split('|').map((s: string) => s.trim()).filter(Boolean)
+                    : [];
+                dom.innerHTML = '';
+
+                const head = document.createElement('div');
+                head.className = 'sbn-chip-block-head';
+
+                const label = document.createElement('span');
+                label.className = 'sbn-chip-label';
+                label.textContent = `ℹ info: "${node.attrs.heading}" · ${items.length} item${items.length !== 1 ? 's' : ''}`;
+                head.appendChild(label);
+
+                const editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.className = 'sbn-chip-edit';
+                editBtn.setAttribute('aria-label', 'Edit');
+                editBtn.textContent = '✎';
+                editBtn.addEventListener('click', () => {
+                    const h = window.prompt('Heading:', node.attrs.heading);
+                    if (h === null) return;
+                    const raw = window.prompt('Items (one per line):', items.join('\n'));
+                    if (raw === null) return;
+                    const newItems = raw.split('\n').map(s => s.trim()).filter(Boolean).join('|');
+                    const pos = typeof getPos === 'function' ? getPos() : null;
+                    if (pos == null) return;
+                    ed.chain().focus().command(({ tr }) => {
+                        tr.setNodeMarkup(pos, undefined, { heading: h, items: newItems });
+                        return true;
+                    }).run();
+                });
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.type = 'button';
+                deleteBtn.className = 'sbn-chip-delete';
+                deleteBtn.setAttribute('aria-label', 'Remove');
+                deleteBtn.textContent = '✕';
+                deleteBtn.addEventListener('click', () => {
+                    const pos = typeof getPos === 'function' ? getPos() : null;
+                    if (pos == null) return;
+                    ed.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run();
+                });
+
+                head.appendChild(editBtn);
+                head.appendChild(deleteBtn);
+                dom.appendChild(head);
+
+                if (items.length) {
+                    const list = document.createElement('ul');
+                    list.className = 'sbn-chip-block-preview';
+                    items.forEach((item: string) => {
+                        const li = document.createElement('li');
+                        li.textContent = item;
+                        list.appendChild(li);
+                    });
+                    dom.appendChild(list);
+                }
+            }
+
+            render();
+            return {
+                dom,
+                update(updatedNode) {
+                    if (updatedNode.type !== node.type) return false;
+                    (node as any).attrs = updatedNode.attrs;
+                    render();
+                    return true;
+                },
+            };
+        };
+    },
+});
+
 const makeYoutubeNode = () => {
     return Node.create({
         name: 'sbn-youtube',
@@ -264,6 +367,21 @@ function updateFmt() {
         ol:         editor.isActive('orderedList'),
         blockquote: editor.isActive('blockquote'),
     };
+}
+
+function convertSelectionToInfoBox() {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    if (from === to) return;
+    const text = editor.state.doc.textBetween(from, to, '\n');
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return;
+    const heading = lines[0];
+    const items = lines.slice(1).join('|');
+    editor.chain().focus()
+        .deleteRange({ from, to })
+        .insertContent({ type: 'sbn-info', attrs: { heading, items } })
+        .run();
 }
 
 function tb(action: string, arg?: any) {
@@ -426,6 +544,7 @@ onMounted(() => {
             SlashCommands,
             Image.configure({ inline: true }),
             makeYoutubeNode(),
+            makeInfoNode(),
             MediaHandlingExtension,
             ...sbnExtensions,
         ],
@@ -520,6 +639,15 @@ onBeforeUnmount(() => {
       <div class="sbn-tiptap-divider" />
       <button type="button" class="sbn-tiptap-btn"                                           title="Undo (Ctrl+Z)"       @click="tb('undo')">↩</button>
       <button type="button" class="sbn-tiptap-btn"                                           title="Redo (Ctrl+Y)"       @click="tb('redo')">↪</button>
+      <div class="sbn-tiptap-divider" />
+      <button
+        type="button"
+        class="sbn-tiptap-btn"
+        :class="{ 'is-active': false, 'is-disabled': !hasSelection }"
+        :disabled="!hasSelection"
+        title="Convert selection to info box (first line = heading, rest = items)"
+        @click="convertSelectionToInfoBox"
+      >❋</button>
     </div>
     <!-- Editor body -->
     <div class="sbn-tiptap-wrap">

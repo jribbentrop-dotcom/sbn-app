@@ -43,6 +43,7 @@ Stored in `content` as plain HTML. Always require explicit closing tags (`<sbn-f
 | `<sbn-song>` | no — link only | `slug` (required), `label` (optional, default = slug) | none — see §5.2 |
 | `<sbn-youtube>` | yes (no fetch) | `id` (required), `start` (optional, seconds) | inline `<iframe>` to `youtube-nocookie.com` |
 | `<sbn-fretboard>` | yes (vanilla JS, no Vue) | `slug` (required) | `sbnHydrateFretboard()` in `public/js/chords.js` — see [SBN-Fretboard-Reference.md](SBN-Fretboard-Reference.md) |
+| `<sbn-info>` | no — pure DOM | `heading` (required), `items` (pipe-separated list) | animated conic-gradient card — see §11 |
 
 **Attr semantics:**
 
@@ -183,7 +184,9 @@ Defined in [`routes/web.php`](../routes/web.php) under `Route::middleware('auth'
 [`resources/js/admin/LessonEditor.vue`](../resources/js/admin/LessonEditor.vue)
 
 - **TipTap** with `StarterKit`, `Placeholder`, `Image`, `SlashCommands`, plus the SBN custom nodes.
-- **Chip nodes** — one per type via `makeSbnNode(type)`. Each is `inline + atom` (or `block + atom` for youtube). Attrs per type are declared in the `ATTRS` map. `parseHTML` matches the tag; `renderHTML` round-trips with `mergeAttributes`. NodeView renders a `<span class="sbn-chip">` with type label, slug suffix, ✎ edit, ✕ delete.
+- **Chip nodes** — one per type via `makeSbnNode(type)`. Each is `inline + atom` (or `block + atom` for youtube/info). Attrs per type are declared in the `ATTRS` map. `parseHTML` matches the tag; `renderHTML` round-trips with `mergeAttributes`. NodeView renders a `<span class="sbn-chip">` with type label, slug suffix, ✎ edit, ✕ delete.
+- **`sbn-info` block chip** — separate `makeInfoNode()` factory (block atom, not inline). Attrs: `heading`, `items` (pipe-separated). NodeView renders a full-width chip showing heading + item count + a preview list. ✎ edit opens two sequential `window.prompt` calls (heading, then items as newline-separated text). See §11.
+- **"Convert to info box" toolbar button** (`❋`) — appears at the right of the toolbar, disabled when no text is selected. Grabs the selected plain text (`textBetween`), splits on newlines, treats line 1 as heading and lines 2+ as items, replaces the selection with an `sbn-info` node. No prompts needed — the workflow is: type lines normally, select, click ❋.
 - **`__sbnInsert(type, slug, extras)`** — bridge function on `window` that the palette calls. Inserts `{ type: 'sbn-{type}', attrs: { slug, ...extras } }` at the cursor. `image`/`media` go through TipTap's image node instead.
 - **`__sbnPalette(type)`** — bridge function on `window` that switches the palette to a tab and focuses its search input. Called by slash commands and Ctrl+Shift keyboard shortcuts.
 - **`__sbnEditor`** — bridge object on `window` for the AI panel (§6.5): `getSelection()`, `getContext()` (≤800-char plain-text excerpt), `insertAtCursor(html)`, `replaceSelection(html)`. The panel touches the document *only* through these — AI output never lands without an explicit click.
@@ -207,7 +210,7 @@ Defined in [`routes/web.php`](../routes/web.php) under `Route::middleware('auth'
 
 [`resources/js/admin/slashCommands.ts`](../resources/js/admin/slashCommands.ts)
 
-Typing `/` opens an inline popup with the SBN types, image, and youtube. Picking a type calls `window.__sbnPalette(type)` — which switches the palette and focuses search. Insertion happens through the normal palette path, not the slash menu. One code path. YouTube is the exception: it prompts for a URL and inserts directly.
+Typing `/` opens an inline popup with the SBN types, image, youtube, and info box. Picking a type calls `window.__sbnPalette(type)` — which switches the palette and focuses search. Insertion happens through the normal palette path, not the slash menu. One code path. Two exceptions insert directly: YouTube (prompts for URL), and Info box (prompts for heading then items as newlines). For info box the toolbar button (§6.2) is usually faster than the slash command.
 
 ### 6.5 LessonAiPanel.vue — inline AI assistant
 
@@ -538,3 +541,91 @@ Extensions past the original plan, progression-only:
 - **Practice-panel layout** — the right-rail companion is now flat stacked
   sections with hairline dividers (no nested cards); the `VideoEmbed` is
   full-bleed to the sidebar edge.
+
+---
+
+## 11. Style colour system
+
+### 11.1 Course colour tokens
+
+Every course player surface (sidebar, content, practice companion) is tinted by the course's `primaryGenre`. One CSS custom property drives everything:
+
+```css
+/* Set on .vC-grid root in Player.vue */
+--genre-color: var(--clr-style-bossa);   /* amber */
+
+/* Derived tints (defined in course-player.css at .vC-grid) */
+--genre-bg:       color-mix(in srgb, var(--genre-color) 8%,  var(--clr-white));
+--genre-border:   color-mix(in srgb, var(--genre-color) 30%, var(--clr-border));
+--genre-text:     color-mix(in srgb, var(--genre-color) 70%, #000);
+--genre-glow:     color-mix(in srgb, var(--genre-color) 20%, transparent);
+--genre-gradient: linear-gradient(135deg, var(--genre-color) 0%, color-mix(…) 100%);
+```
+
+`getCategoryColor(slug)` in [`useCategoryColors.ts`](../resources/js/composables/useCategoryColors.ts) maps `bossa-nova` → `var(--clr-style-bossa)` etc. The Course Show page uses the same system under `--category-color` / `--cat-bg` / `--cat-border` / `--cat-text`.
+
+Primary buttons inside `.vC-grid` override the global `.sbn-btn-primary` rule via `.vC-grid .sbn-btn.sbn-btn-primary` (specificity 0,3,0 beats the global 0,1,0 regardless of load order).
+
+Genre badges everywhere use `sbn-cat-badge sbn-cat-badge-filled` with `:style="{ '--cat-clr': genreColor }"`. Raw slug display (`bossa-nova`) is a bug — always apply `.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())` before rendering.
+
+### 11.2 Collapsible panels
+
+Both side rails support collapse:
+
+| Panel | State key | localStorage key | Collapsed width |
+|---|---|---|---|
+| Left (lesson list) | `navCollapsed` | `sbn_nav_collapsed` | 64px slim rail |
+| Right (practice companion) | `practiceCollapsed` | `sbn_practice_collapsed` | 40px slim rail |
+
+Grid class `is-practice-collapsed` → column shrinks to 40px. Both collapsed: `64px | 1fr | 40px`. On mobile (`≤900px`) both rails are hidden; panels stack vertically.
+
+When `onChordSelect` fires (user clicks a chord in the lesson body or sheet), `practiceCollapsed` is auto-set to `false` so the panel expands to show the selected chord.
+
+---
+
+## 12. `<sbn-info>` — Practice focus box
+
+A lesson-level callout card with a spinning conic-gradient border that uses the course style colour.
+
+### 12.1 Storage format
+
+```html
+<sbn-info heading="Practice focus" items="Learn the A minor voicing|Apply it over a ii-V-I|Play at 80 BPM first"></sbn-info>
+```
+
+- `heading` — displayed as a small caps label above the list
+- `items` — pipe-separated (`|`); each item becomes a checkmark bullet
+
+### 12.2 Rendering (`mountSbnNodes`)
+
+`sbn-info` is handled before the fetch loop — pure DOM replacement, no API call, no Vue app. The element is replaced (not mounted) with:
+
+```html
+<div class="sbn-info-box">
+  <div class="sbn-info-box-inner">
+    <div class="sbn-info-box-heading">…</div>
+    <ul class="sbn-info-box-list">
+      <li class="sbn-info-box-item"><span class="sbn-info-box-check">…</span><span>item</span></li>
+    </ul>
+  </div>
+</div>
+```
+
+`.sbn-info-box` gets its spinning border via `@property --info-angle` + `@keyframes info-spin` + `conic-gradient` using `--genre-color` tints (defined in `course-player.css §8`). The checkmark circles use `--genre-bg` / `--genre-text`.
+
+### 12.3 Authoring workflow
+
+**Fastest path — toolbar button:**
+1. Type lines in the editor: first line = heading, subsequent lines = items
+2. Select all those lines
+3. Click **❋** in the toolbar (disabled when nothing is selected)
+4. Selection is replaced by the `sbn-info` block chip
+
+**Alternative — slash command:**
+`/` → "Info box" → prompted for heading → prompted for items (one per line)
+
+**Editing after insertion:** click ✎ on the chip → heading prompt → items prompt (pre-filled with current values, newline-separated).
+
+### 12.4 TipTap node
+
+`makeInfoNode()` in `LessonEditor.vue` — `block + atom` (same as `sbn-youtube`). Stored by `renderHTML` as `<sbn-info heading="…" items="…">`. The chip NodeView is a full-width block (`sbn-chip--block`) showing heading + item count + a preview list. The `update()` hook re-renders the preview when attrs change.

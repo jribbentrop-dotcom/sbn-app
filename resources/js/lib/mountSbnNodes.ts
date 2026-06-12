@@ -158,10 +158,49 @@ export async function mountSbnNodes(
     onChordSelect?: ((slug: string, root: string, voicingData?: any) => void) | null;
     /** snippet id → sync anchor, for inline <sbn-progression> video sync. */
     snippetSync?: Record<string, SnippetSyncInfo> | null;
+    /** Called when a sheet/progression play button is pressed so the practice panel auto-expands. */
+    onExpandPractice?: (() => void) | null;
   } = {},
 ): Promise<() => void> {
   const apps: App[] = [];
   const tasks: Promise<void>[] = [];
+
+  // ── <sbn-info> — animated practice focus card, attrs only, no fetch ─────────
+  container.querySelectorAll<HTMLElement>('sbn-info').forEach((el) => {
+    const heading = el.getAttribute('heading') ?? 'Practice focus';
+    const items = (el.getAttribute('items') ?? '')
+      .split('|').map(s => s.trim()).filter(Boolean);
+
+    const card = document.createElement('div');
+    card.className = 'sbn-info-box';
+
+    const inner = document.createElement('div');
+    inner.className = 'sbn-info-box-inner';
+
+    const h = document.createElement('div');
+    h.className = 'sbn-info-box-heading';
+    h.textContent = heading;
+    inner.appendChild(h);
+
+    if (items.length) {
+      const ul = document.createElement('ul');
+      ul.className = 'sbn-info-box-list';
+      items.forEach(item => {
+        const li = document.createElement('li');
+        li.className = 'sbn-info-box-item';
+        li.innerHTML = `<span class="sbn-info-box-check">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <path d="M2.5 6.5l3 3 5-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span><span>${item}</span>`;
+        ul.appendChild(li);
+      });
+      inner.appendChild(ul);
+    }
+
+    card.appendChild(inner);
+    el.replaceWith(card);
+  });
 
   // ── <sbn-youtube> — attrs only, no fetch ──────────────────────────────────
   container.querySelectorAll<HTMLElement>('sbn-youtube').forEach((el) => {
@@ -346,14 +385,23 @@ export async function mountSbnNodes(
                   // mapping's videoTime (= start of the exercise in the recording)
                   // if the playhead is before it or has drifted past the last mark.
                   onVideoPlay: () => {
-                    const mappings: Array<{ videoTime: number }> = videoSync.mappings ?? [];
-                    if (mappings.length) {
-                      const first = mappings.reduce((a: any, b: any) => a.videoTime < b.videoTime ? a : b);
-                      const last  = mappings.reduce((a: any, b: any) => a.videoTime > b.videoTime ? a : b);
-                      const cur = ph.playheadSec.value;
-                      if (cur < first.videoTime || cur > last.videoTime) ph.seek(first.videoTime);
+                    const doPlay = () => {
+                      const mappings: Array<{ videoTime: number }> = videoSync.mappings ?? [];
+                      if (mappings.length) {
+                        const first = mappings.reduce((a: any, b: any) => a.videoTime < b.videoTime ? a : b);
+                        const last  = mappings.reduce((a: any, b: any) => a.videoTime > b.videoTime ? a : b);
+                        const cur = ph.playheadSec.value;
+                        if (cur < first.videoTime || cur > last.videoTime) ph.seek(first.videoTime);
+                      }
+                      ph.play();
+                    };
+                    if (!ph.embedRef.value) {
+                      // Panel is collapsed — expand it, then wait for VideoEmbed to mount.
+                      options.onExpandPractice?.();
+                      setTimeout(doPlay, 300);
+                    } else {
+                      doPlay();
                     }
-                    ph.play();
                   },
                   onVideoPause: () => ph.pause(),
                   onVideoSeek: (seconds: number) => { ph.seek(seconds); ph.play(); },

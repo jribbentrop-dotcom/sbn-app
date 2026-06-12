@@ -35,11 +35,14 @@ const props = defineProps<{
   rhythms?: RhythmOption[];
   progressions?: ProgressionOption[];
   sheets?: Record<string, SheetVideo>;
+  collapsed?: boolean;
 }>();
 
 const emit = defineEmits<{
   selectChord: [slug: string, root: string];
   clearChord: [];
+  collapse: [];
+  expand: [];
 }>();
 
 const bpm = ref(108);
@@ -274,10 +277,36 @@ watch(() => props.lesson?.slug, () => { conceptsMounted.value = {}; });
 </script>
 
 <template>
-  <aside class="vC-practice" ref="practiceEl" @toggle.capture="onPanelToggle">
+  <!-- ── COLLAPSED: slim rail ── -->
+  <aside v-if="collapsed" class="vC-practice-rail">
+    <button
+      type="button"
+      class="vC-practice-rail-toggle"
+      title="Expand practice companion"
+      @click="emit('expand')"
+    >
+      <svg width="14" height="14" viewBox="0 0 16 16">
+        <path d="M10 4L6 8l4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <span class="vC-practice-rail-label">Practice</span>
+  </aside>
+
+  <!-- ── EXPANDED ── -->
+  <aside v-else class="vC-practice" ref="practiceEl" @toggle.capture="onPanelToggle">
     <div class="vC-practice-head">
       <span class="vC-practice-dot" />
       Practice companion
+      <button
+        type="button"
+        class="vC-practice-collapse"
+        title="Collapse practice companion"
+        @click="emit('collapse')"
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16">
+          <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
     </div>
 
     <!-- ── Chords ── -->
@@ -460,6 +489,67 @@ watch(() => props.lesson?.slug, () => { conceptsMounted.value = {}; });
 </template>
 
 <style scoped>
+/* ── Collapsed rail ── */
+.vC-practice-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  background: var(--clr-white);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius);
+  position: sticky;
+  top: calc(var(--header-height, 96px) + 16px);
+  align-self: start;
+  width: 40px;
+}
+
+.vC-practice-rail-toggle {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--clr-border);
+  background: transparent;
+  color: var(--clr-text-dim);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.vC-practice-rail-toggle:hover {
+  background: var(--genre-bg);
+  color: var(--genre-text);
+  border-color: var(--genre-border);
+}
+
+.vC-practice-rail-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--clr-text-dim);
+}
+
+/* ── Collapse button inside header ── */
+.vC-practice-collapse {
+  margin-left: auto;
+  width: 24px; height: 24px;
+  border-radius: 4px;
+  border: 1px solid var(--clr-border);
+  background: transparent;
+  color: var(--clr-text-dim);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.vC-practice-collapse:hover {
+  background: var(--genre-bg);
+  color: var(--genre-text);
+  border-color: var(--genre-border);
+}
+
 /* ── Unified collapsible panel ── */
 .vC-panel {
   border: 1px solid var(--clr-border);

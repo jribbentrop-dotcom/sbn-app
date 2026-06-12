@@ -60,6 +60,9 @@ const flatLessons = computed(() => props.lessons);
 const stars = computed(() => levelToStars[props.course.primaryLevel ?? ''] ?? 0);
 const levelLabel = computed(() => difficultyLabel(stars.value));
 const genreColor = computed(() => getCategoryColor(props.course.primaryGenre ?? undefined));
+const genreLabel = computed(() =>
+  (props.course.primaryGenre ?? 'Course').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+);
 const doneCount = 0; // Phase 12 will track real completion
 const totalCount = computed(() => props.lessons.length);
 
@@ -124,11 +127,11 @@ function lessonIndex(slug: string): number {
   </aside>
 
   <!-- ── EXPANDED: full course nav ── -->
-  <aside v-else class="vC-nav" :style="{ '--genre-color': genreColor }">
+  <aside v-else class="vC-nav">
     <div class="vC-nav-hero">
       <div class="vC-nav-hero-top">
-        <span class="sbn-cat-badge" :style="{ '--cat-clr': genreColor }">
-          {{ course.primaryGenre ?? 'Course' }}
+        <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': genreColor }">
+          {{ genreLabel }}
         </span>
         <button
           type="button"

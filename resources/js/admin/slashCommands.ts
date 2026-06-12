@@ -15,7 +15,7 @@ import { Extension } from '@tiptap/core';
 import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion';
 import { type Editor }  from '@tiptap/core';
 
-type NodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'image' | 'youtube' | 'widget' | 'fretboard';
+type NodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'image' | 'youtube' | 'widget' | 'fretboard' | 'info';
 
 interface SlashItem { label: string; type: NodeType; shortcut: string }
 
@@ -29,6 +29,7 @@ const ITEMS: SlashItem[] = [
     { label: 'Widget',      type: 'widget',       shortcut: '⇧W' },
     { label: 'Image',       type: 'image',        shortcut: '⇧M' },
     { label: 'YouTube',     type: 'youtube',      shortcut: '' },
+    { label: 'Info box',    type: 'info',         shortcut: '' },
 ];
 
 // ── Popup DOM ─────────────────────────────────────────────────────────────────
@@ -167,7 +168,7 @@ export const SlashCommands = Extension.create({
                     if (props.type === 'youtube') {
                         const url = window.prompt('Enter YouTube URL:');
                         if (!url) return;
-                        
+
                         const idMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
                         if (idMatch && idMatch[1]) {
                             editor.chain().focus().insertContent({
@@ -177,6 +178,19 @@ export const SlashCommands = Extension.create({
                         } else {
                             alert('Invalid YouTube URL');
                         }
+                        return;
+                    }
+
+                    if (props.type === 'info') {
+                        const heading = window.prompt('Box heading:', 'Practice focus');
+                        if (heading === null) return;
+                        const raw = window.prompt('Items (one per line):');
+                        if (raw === null) return;
+                        const items = raw.split('\n').map(s => s.trim()).filter(Boolean).join('|');
+                        editor.chain().focus().insertContent({
+                            type: 'sbn-info',
+                            attrs: { heading, items },
+                        }).run();
                         return;
                     }
 

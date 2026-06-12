@@ -21,7 +21,7 @@ const levelToStars: Record<string, number> = {
 const props = defineProps<{ course: CourseShelfCardData }>();
 
 const cardStyle  = computed(() => getCategoryStyle(props.course.primaryGenre ?? undefined));
-const genreLabel = computed(() => (props.course.primaryGenre ?? 'course').replace(/-/g, ' '));
+const genreLabel = computed(() => (props.course.primaryGenre ?? 'Course').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()));
 const stars      = computed(() => levelToStars[props.course.primaryLevel ?? ''] ?? 0);
 const levelLabel = computed(() => difficultyLabel(stars.value));
 </script>

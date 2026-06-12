@@ -6,6 +6,7 @@ import LessonSidebar from '@/Components/Course/LessonSidebar.vue';
 import LessonContent from '@/Components/Course/LessonContent.vue';
 import PracticePanel from '@/Components/Course/PracticePanel.vue';
 import { getAudioEngine } from '@/audio/engine/AudioEngine.js';
+import { getCategoryColor } from '@/composables/useCategoryColors';
 
 defineOptions({ layout: PublicLayout });
 
@@ -68,6 +69,7 @@ const snippetSync = computed<Record<string, { startSec: number; tempoBpm: number
 const contentRef = ref<InstanceType<typeof LessonContent> | null>(null);
 const activeSubsection = ref<string | null>(null);
 const navCollapsed = ref(localStorage.getItem('sbn_nav_collapsed') === 'true');
+const practiceCollapsed = ref(localStorage.getItem('sbn_practice_collapsed') === 'true');
 const mobileSidebarOpen = ref(false);
 const activeSoundSource = ref<'sheet' | null>(null);
 const selectedChord = ref<SelectedChord | null>(null);
@@ -82,6 +84,9 @@ const unsubEnded = engine.on('ended', () => {
 watch(navCollapsed, (val) => {
   localStorage.setItem('sbn_nav_collapsed', val ? 'true' : 'false');
 });
+watch(practiceCollapsed, (val) => {
+  localStorage.setItem('sbn_practice_collapsed', val ? 'true' : 'false');
+});
 
 const flatIndex = computed(() => props.lessons.findIndex(l => l.slug === props.lesson?.slug));
 const prevLesson = computed(() => flatIndex.value > 0 ? props.lessons[flatIndex.value - 1] : null);
@@ -92,6 +97,7 @@ function jumpSubsection(slug: string): void {
 }
 function onChordSelect(slug: string, root: string, voicingData?: any): void {
   selectedChord.value = { slug, root, voicingData };
+  practiceCollapsed.value = false;
 }
 function clearChord(): void {
   selectedChord.value = null;
@@ -113,8 +119,10 @@ watch(() => props.lesson?.slug, () => {
       class="vC-grid"
       :class="{
         'is-collapsed': navCollapsed,
+        'is-practice-collapsed': practiceCollapsed,
         'mobile-sidebar-open': mobileSidebarOpen,
       }"
+      :style="{ '--genre-color': getCategoryColor(course.primaryGenre ?? undefined) }"
     >
       <!-- Mobile overlay toggle -->
       <button
@@ -148,6 +156,7 @@ watch(() => props.lesson?.slug, () => {
           :course-slug="course.slug"
           :on-chord-select="onChordSelect"
           :snippet-sync="snippetSync"
+          :on-expand-practice="() => practiceCollapsed = false"
           @subsection-change="activeSubsection = $event"
           @open-sidebar="mobileSidebarOpen = true"
         />
@@ -164,8 +173,11 @@ watch(() => props.lesson?.slug, () => {
         :rhythms="props.rhythms ?? []"
         :progressions="props.progressions ?? []"
         :sheets="props.sheets ?? {}"
+        :collapsed="practiceCollapsed"
         @select-chord="onChordSelect"
         @clear-chord="clearChord"
+        @collapse="practiceCollapsed = true"
+        @expand="practiceCollapsed = false"
       />
     </div>
   </div>

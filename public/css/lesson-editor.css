@@ -32,6 +32,7 @@
 }
 .sbn-tiptap-btn:hover    { background: var(--clr-surface-2); color: var(--clr-text); border-color: var(--clr-border); }
 .sbn-tiptap-btn.is-active { background: var(--clr-white); color: var(--clr-primary); border-color: var(--clr-border); }
+.sbn-tiptap-btn:disabled, .sbn-tiptap-btn.is-disabled { opacity: 0.35; cursor: default; pointer-events: none; }
 
 .sbn-tiptap-divider {
     width: 1px;
@@ -120,6 +121,32 @@
 .sbn-chip[data-type="progression"] { background: #eaf4ea; border-color: #9fcf9f; }
 .sbn-chip[data-type="song"]        { background: #f4eafd; border-color: #c89fdf; }
 .sbn-chip[data-type="widget"]      { background: #fde8f0; border-color: #f5b3cc; }
+.sbn-chip[data-type="info"]        { background: #fff8e8; border-color: #f5d28c; }
+
+/* Block variant for sbn-info — full width, shows item preview */
+.sbn-chip--block {
+    display: block;
+    white-space: normal;
+    margin: 8px 0;
+    padding: 0;
+    overflow: hidden;
+}
+.sbn-chip-block-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+}
+.sbn-chip-block-preview {
+    list-style: none;
+    margin: 0;
+    padding: 4px 8px 8px 24px;
+    font-size: 11.5px;
+    color: var(--clr-text-dim);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
 
 .sbn-chip-label { pointer-events: none; }
 
@@ -269,6 +296,7 @@
 .sbn-slash-dot--rhythm      { background: #f59e0b; }
 .sbn-slash-dot--progression { background: #22c55e; }
 .sbn-slash-dot--song        { background: #a855f7; }
+.sbn-slash-dot--info        { background: #f39c12; }
 
 .sbn-slash-label { flex: 1; font-weight: 600; }
 
