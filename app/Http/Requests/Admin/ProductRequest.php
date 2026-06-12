@@ -27,6 +27,10 @@ class ProductRequest extends FormRequest
             'payment_ref'      => ['nullable', 'string', 'max:255'],
             'tax_code'         => ['nullable', 'string', 'max:255'],
             'thumbnail_path'   => ['nullable', 'string', 'max:500'],
+            'attr_composer'    => ['nullable', 'string', 'max:255'],
+            'attr_performer'   => ['nullable', 'string', 'max:255'],
+            'attr_pages'       => ['nullable', 'integer', 'min:1'],
+            'attr_notation'    => ['nullable', 'string', 'max:255'],
             'categories'       => ['nullable', 'array'],
             'categories.*'     => ['integer'],
         ];
@@ -35,9 +39,16 @@ class ProductRequest extends FormRequest
     /** Return data ready to pass to Product::create/update (maps price euros -> price_cents). */
     public function productData(): array
     {
-        $data = $this->safe()->except(['price', 'categories']);
+        $data = $this->safe()->except(['price', 'categories', 'attr_composer', 'attr_performer', 'attr_pages', 'attr_notation']);
 
         $data['price_cents'] = (int) round($this->input('price', 0) * 100);
+
+        $data['attributes'] = array_filter([
+            'composer'  => $this->input('attr_composer'),
+            'performer' => $this->input('attr_performer'),
+            'pages'     => $this->input('attr_pages') ? (int) $this->input('attr_pages') : null,
+            'notation'  => $this->input('attr_notation'),
+        ], fn($v) => $v !== null && $v !== '');
 
         return $data;
     }

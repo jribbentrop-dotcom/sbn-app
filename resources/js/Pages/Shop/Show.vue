@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import ProductCard from '@/Components/Shop/ProductCard.vue';
 import ProductPrice from '@/Components/Shop/ProductPrice.vue';
@@ -25,6 +25,9 @@ const pageStyle = computed(() => {
 });
 
 const handleAddToCart = () => addToCart(props.product, 1);
+
+const activeSlide = ref<'image' | 'video'>('image');
+const videoPlaying = ref(false);
 
 // ── Attribute helper ─────────────────────────────────────────
 const attr = (key: string): string => {
@@ -96,17 +99,57 @@ const hasAnyFeature = computed(() =>
 
                 <!-- Left: sticky gallery -->
                 <div class="sbn-product-gallery">
+
                     <div class="sbn-gallery-main">
-                        <div class="sbn-media-container">
-                            <div class="sbn-main-image">
+                        <!-- Image slide -->
+                        <div v-show="activeSlide === 'image'" class="sbn-main-image">
+                            <img
+                                v-if="product.thumbnail_url"
+                                :src="product.thumbnail_url"
+                                :alt="product.title"
+                            />
+                            <div v-else class="sbn-no-image">No Image Available</div>
+                        </div>
+
+                        <!-- Video slide -->
+                        <div v-if="product.video_id" v-show="activeSlide === 'video'" class="sbn-main-video">
+                            <!-- Poster: click to play -->
+                            <div v-if="!videoPlaying" class="sbn-video-poster" @click="videoPlaying = true">
                                 <img
-                                    v-if="product.thumbnail_url"
-                                    :src="product.thumbnail_url"
+                                    :src="`https://img.youtube.com/vi/${product.video_id}/maxresdefault.jpg`"
                                     :alt="product.title"
                                 />
-                                <div v-else class="sbn-no-image">No Image Available</div>
+                                <div class="sbn-video-play-btn">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                </div>
                             </div>
+                            <!-- Iframe: only mounted after click -->
+                            <iframe
+                                v-if="videoPlaying"
+                                :src="`https://www.youtube.com/embed/${product.video_id}?autoplay=1`"
+                                :title="product.title"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowfullscreen
+                            ></iframe>
                         </div>
+                    </div>
+
+                    <!-- Slide tabs — centered below -->
+                    <div v-if="product.video_id" class="sbn-gallery-tabs">
+                        <button
+                            :class="['sbn-gallery-tab', { active: activeSlide === 'image' }]"
+                            @click="activeSlide = 'image'; videoPlaying = false"
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                            Image
+                        </button>
+                        <button
+                            :class="['sbn-gallery-tab', { active: activeSlide === 'video' }]"
+                            @click="activeSlide = 'video'"
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                            Video
+                        </button>
                     </div>
                 </div>
 
@@ -255,10 +298,10 @@ const hasAnyFeature = computed(() =>
     );
 }
 
-/* Breadcrumb bleeds to shell edges and connects flush to content below */
+/* Breadcrumb sits naturally inside shell, flush above the detail hero frame */
 .sbn-single-product > .sbn-breadcrumb {
-    margin: -20px -20px 0;
     border-radius: var(--radius) var(--radius) 0 0;
+    margin-bottom: 0;
 }
 
 /* ── Two-column main ────────────────────────────────────────── */
@@ -266,7 +309,7 @@ const hasAnyFeature = computed(() =>
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 50px;
-    padding: 28px;
+    padding: 28px 0;
     margin-bottom: 50px;
     align-items: start;
 }
@@ -278,30 +321,114 @@ const hasAnyFeature = computed(() =>
     height: fit-content;
 }
 
+.sbn-gallery-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.sbn-gallery-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--clr-border);
+    background: var(--clr-white);
+    color: var(--clr-text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: var(--font-body);
+}
+
+.sbn-gallery-tab:hover {
+    border-color: var(--clr-text-muted);
+    color: var(--clr-text);
+}
+
+.sbn-gallery-tab.active {
+    background: var(--clr-text);
+    border-color: var(--clr-text);
+    color: #fff;
+}
+
 .sbn-gallery-main {
+    position: relative;
+    aspect-ratio: 4 / 3;
     background: var(--clr-white);
     border-radius: var(--radius-lg);
     overflow: hidden;
 }
 
 .sbn-main-image {
-    aspect-ratio: 1;
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--clr-white);
-    padding: 20px;
+    padding: 16px;
 }
 
 .sbn-main-image img {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
+    image-rendering: auto;
 }
 
 .sbn-no-image {
     color: var(--clr-text-muted);
     font-size: 14px;
+}
+
+.sbn-main-video {
+    position: absolute;
+    inset: 0;
+}
+
+.sbn-main-video iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+}
+
+.sbn-video-poster {
+    position: absolute;
+    inset: 0;
+    cursor: pointer;
+}
+
+.sbn-video-poster img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    background: #000;
+}
+
+.sbn-video-play-btn {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sbn-video-play-btn svg {
+    width: 64px;
+    height: 64px;
+    color: #fff;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
+    transition: transform 0.15s;
+}
+
+.sbn-video-poster:hover .sbn-video-play-btn svg {
+    transform: scale(1.12);
 }
 
 /* ── Product info (right) ───────────────────────────────────── */

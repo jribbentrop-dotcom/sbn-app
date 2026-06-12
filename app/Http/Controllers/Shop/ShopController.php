@@ -165,16 +165,27 @@ class ShopController extends Controller
                 ];
             });
 
+        // Extract YouTube video ID from description iframe, then strip it
+        $videoId = null;
+        $description = $product->description;
+        if ($description) {
+            preg_match('/youtube\.com\/embed\/([A-Za-z0-9_-]+)/', $description, $m);
+            $videoId = $m[1] ?? null;
+            $description = preg_replace('/<iframe[^>]*youtube[^>]*>.*?<\/iframe>/is', '', $description);
+            $description = trim($description);
+        }
+
         return Inertia::render('Shop/Show', [
             'product' => [
                 'id' => $product->id,
                 'slug' => $product->slug,
                 'title' => $product->title,
                 'excerpt' => $product->excerpt,
-                'description' => $product->description,
+                'description' => $description,
                 'price_cents' => $product->price_cents,
                 'price_cents_usd' => $product->price_cents_usd,
                 'thumbnail_url' => $product->thumbnail_url,
+                'video_id' => $videoId,
                 'attributes' => $product->attributes,
                 'categories' => $product->categories->map(fn($c) => ['id' => $c->id, 'slug' => $c->slug, 'name' => $c->name]),
                 'tags' => $product->tags->map(fn($t) => ['id' => $t->id, 'slug' => $t->slug, 'name' => $t->name]),

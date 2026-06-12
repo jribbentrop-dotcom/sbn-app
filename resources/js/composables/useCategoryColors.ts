@@ -27,6 +27,23 @@ export function getStyleSlug(categories: Array<{ slug: string }>): string | unde
     return categories.find(c => STYLE_SLUGS.has(c.slug))?.slug;
 }
 
+const DIFFICULTY_SLUGS: Record<string, number> = {
+    'basic':              1,
+    'early-intermediate': 2,
+    'intermediate':       3,
+    'late-intermediate':  4,
+    'advanced':           5,
+};
+
+/** Return star count (1-5) from a product's category list, or 0 if none found. */
+export function getDifficultyFromCategories(categories: Array<{ slug: string }>): number {
+    for (const cat of categories) {
+        const n = DIFFICULTY_SLUGS[cat.slug];
+        if (n) return n;
+    }
+    return 0;
+}
+
 export function difficultyLabel(n: number): string {
     const labels: Record<number, string> = {
         1: 'Beginner',

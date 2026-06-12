@@ -66,6 +66,36 @@
                       placeholder="SEO meta description (150–160 chars)">{{ old('meta_description', $product->meta_description) }}</textarea>
         </div>
 
+        <div class="sbn-form-row sbn-form-row-2">
+            <div class="sbn-form-group">
+                <label for="attr_composer">Composer</label>
+                <input type="text" id="attr_composer" name="attr_composer" class="sbn-search-input" style="padding-left:14px;"
+                       value="{{ old('attr_composer', $product->attributes['composer'] ?? '') }}"
+                       placeholder="e.g. Tom Jobim">
+            </div>
+            <div class="sbn-form-group">
+                <label for="attr_performer">Performer</label>
+                <input type="text" id="attr_performer" name="attr_performer" class="sbn-search-input" style="padding-left:14px;"
+                       value="{{ old('attr_performer', $product->attributes['performer'] ?? '') }}"
+                       placeholder="e.g. João Gilberto">
+            </div>
+        </div>
+
+        <div class="sbn-form-row sbn-form-row-2">
+            <div class="sbn-form-group">
+                <label for="attr_pages">Number of pages</label>
+                <input type="number" id="attr_pages" name="attr_pages" class="sbn-search-input" style="padding-left:14px;"
+                       value="{{ old('attr_pages', $product->attributes['pages'] ?? '') }}"
+                       min="1" placeholder="e.g. 4">
+            </div>
+            <div class="sbn-form-group">
+                <label for="attr_notation">Notation</label>
+                <input type="text" id="attr_notation" name="attr_notation" class="sbn-search-input" style="padding-left:14px;"
+                       value="{{ old('attr_notation', $product->attributes['notation'] ?? '') }}"
+                       placeholder="e.g. Standard Notation + Tab">
+            </div>
+        </div>
+
         <div class="sbn-form-group">
             <label for="thumbnail_path">Thumbnail path</label>
             <input type="text" id="thumbnail_path" name="thumbnail_path" class="sbn-search-input" style="padding-left:14px;"

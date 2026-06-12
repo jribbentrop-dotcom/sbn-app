@@ -21,6 +21,7 @@ export interface Product {
     price_cents: number;
     price_cents_usd: number;
     thumbnail_url: string | null;
+    video_id?: string | null;
     attributes?: Record<string, string | string[]>;
     categories: Category[];
     tags: Tag[];
