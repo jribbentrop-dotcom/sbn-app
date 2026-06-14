@@ -27,6 +27,7 @@ class CourseRequest extends FormRequest
             'is_free'             => ['boolean'],
             'product_id'          => ['nullable', 'integer', 'exists:sbn_products,id'],
             'featured_image_path' => ['nullable', 'string', 'max:500'],
+            'learning_outcomes'   => ['nullable', 'string'],
             'sort_order'          => ['integer'],
             'status'              => ['required', Rule::in(['publish', 'draft'])],
         ];
@@ -58,8 +59,21 @@ class CourseRequest extends FormRequest
 
         $data = $this->safe()->except(['genres_raw', 'levels_raw', 'topics_raw', 'tags']);
 
+        $imagePath = $data['featured_image_path'] ?? null;
+        if ($imagePath && !str_starts_with($imagePath, '/')) {
+            $imagePath = '/' . $imagePath;
+        }
+
+        $outcomes = collect(explode("\n", $this->input('learning_outcomes', '')))
+            ->map(fn ($line) => trim($line))
+            ->filter(fn ($line) => $line !== '')
+            ->values()
+            ->implode("\n");
+
         return array_merge($data, [
-            'levels' => $this->input('levels_raw') ? [$this->input('levels_raw')] : [],
+            'levels'              => $this->input('levels_raw') ? [$this->input('levels_raw')] : [],
+            'featured_image_path' => $imagePath,
+            'learning_outcomes'   => $outcomes ?: null,
         ]);
     }
 }

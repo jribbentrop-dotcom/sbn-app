@@ -53,6 +53,12 @@
             </button>
         </div>
 
+        <div class="sbn-form-group">
+            <label for="learning_outcomes">What you'll learn <span style="font-weight:400;color:var(--clr-text-muted)">(one outcome per line)</span></label>
+            <textarea id="learning_outcomes" name="learning_outcomes" class="sbn-search-input" style="padding:10px 14px; height:140px; resize:vertical;"
+                      placeholder="Play the classic bossa nova clave rhythm&#10;Voice dominant 7th chords in the style of João Gilberto&#10;Understand the harmonic language of Antonio Carlos Jobim">{{ old('learning_outcomes', $course->learning_outcomes) }}</textarea>
+        </div>
+
         <div class="sbn-form-row sbn-form-row-2">
             <div class="sbn-form-group">
                 <label for="category">Category</label>

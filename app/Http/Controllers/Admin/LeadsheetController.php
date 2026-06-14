@@ -455,6 +455,7 @@ class LeadsheetController extends Controller
                         'measure_index' => $sel['measure_index'] ?? 0,
                         'frets'         => $v['frets'] ?? null,
                         'position'      => $v['start_fret'] ?? 1,
+                        'diagram_data'  => $v['diagram_data'] ?? null,
                         'diagram_id'    => $v['id'] ?? null,
                     ];
                 }
@@ -468,6 +469,7 @@ class LeadsheetController extends Controller
                             'measure_index' => $sel['measure_index'],
                             'frets'         => $sel['frets'],
                             'position'      => $sel['position'] ?? 1,
+                            'diagram_data'  => $sel['diagram_data'] ?? null,
                         ];
                     }
                 }
