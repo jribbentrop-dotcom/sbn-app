@@ -25,7 +25,7 @@ function cloneChordVoicings(src) {
     return JSON.parse(JSON.stringify(src));
 }
 
-export function useTabModel(melody, sections, timeSignature, repeatMarkers, voltaEndings, chordVoicings, lineBreaks) {
+export function useTabModel(melody, sections, timeSignature, repeatMarkers, voltaEndings, chordVoicings, lineBreaks, songKey) {
 
     // ── Core state ─────────────────────────────────────────
 
@@ -284,8 +284,12 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
                 // Extract chord names — handles various formats from Alpine
                 const chords = sm.chords || sm.chord_names || [];
                 if (Array.isArray(chords) && chords.length) {
+                    const key = songKey?.value || null;
+                    const reSpell = (key && typeof window !== 'undefined' && typeof window.sbnReSpellChord === 'function')
+                        ? (n) => window.sbnReSpellChord(n, key)
+                        : (n) => n;
                     measures[globalIdx].chordNames = chords.map(c =>
-                        typeof c === 'string' ? c : (c.chordName || c.name || c.chord || '')
+                        typeof c === 'string' ? reSpell(c) : reSpell(c.chordName || c.name || c.chord || '')
                     ).filter(Boolean);
 
                     // Extract per-chord beat offsets and durations from parser data.
@@ -299,9 +303,14 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
                         measures[globalIdx].chordOffsets = chords.map(c =>
                             typeof c === 'object' && c.beatInMeasure != null ? c.beatInMeasure : 0
                         );
-                        measures[globalIdx].chordBeats = chords.map(c =>
-                            typeof c === 'object' && c.beats != null ? c.beats : bpm / chords.length
-                        );
+                        // Clamp each chord's duration so it never crosses the barline.
+                        // Old imports (pre-odd-meter fix) stored `beats` in the raw numerator
+                        // unit (e.g. 6 for a whole 6/8 bar) instead of quarter-note beats (3).
+                        measures[globalIdx].chordBeats = chords.map((c, ci) => {
+                            const raw    = typeof c === 'object' && c.beats != null ? c.beats : bpm / chords.length;
+                            const offset = typeof c === 'object' && c.beatInMeasure != null ? c.beatInMeasure : 0;
+                            return Math.min(raw, bpm - offset);
+                        });
                     } else {
                         // Even distribution fallback
                         const slotBeats = bpm / chords.length;

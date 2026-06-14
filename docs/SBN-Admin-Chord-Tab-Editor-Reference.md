@@ -1,7 +1,7 @@
   j# SBN Admin — Chord / Tab Editor Reference
 
 > **Purpose:** Complete reference for the admin leadsheet editor: architecture, Vue component tree, chord grid, voicing picker, tab notation, audio playback, video sync, keyboard shortcuts, design system, and all creation flows (blank, from progression, exercises, transcription).
-> **Last updated:** 2026-06-02
+> **Last updated:** 2026-06-14
 
 ---
 
@@ -200,11 +200,28 @@ TabNote { string, fret, pitch, octave, tieStart, tieStop, tieEndEvent?, tieEndNo
 
 **Unit invariant:** `beatInMeasure` and `beats` are always in **quarter-beat units**, not raw `<beats>` count. For compound meters (6/8, 12/8 etc.) the measure length in quarter beats = `<beats> * (4 / <beat-type>)` — e.g. 6/8 → 3 quarter beats, not 6. `parseMeasure()` reads `<beat-type>` and computes `measureQuarterBeats` for the last chord's end position. `exportAlpineSections()` and `parseShortcodeClient()` use `tsBeats * (4 / tsBeatType)` for the same reason. Breaking this invariant causes chord cards to render at 200%+ width in compound meters.
 
+**Stale-data clamp (shipped 2026-06-14):** Songs imported before the compound-meter fix had `beats` stored in raw numerator units (e.g. 6 for a full 6/8 bar instead of 3). `useTabModel.js` now clamps each chord's duration to `min(raw, bpm - offset)` on load so old data is silently corrected without a DB migration. The clamp is always correct because no chord should extend past its barline.
+
 On save, `exportAlpineSections()` serializes `beatInMeasure`/`beats` back onto each chord object so timing survives round-trip through `json_data`. On load, `useTabModel.js` reads these fields into `chordOffsets[]`/`chordBeats[]`.
 
 `ChordMeasure.vue` uses `chordPositionStyle(ci)` to absolutely position each `ChordCard` at `left: (offset/bpm*100)%` with `width: (dur/bpm*100)%`. A `sbn-ve-beat-grid` layer renders one dot per quarter-beat — visual metronome markers, not barlines.
 
 **Gotcha — time sig changes must rescale existing offsets:** `chordOffsets` and `chordBeats` are stored in quarter-beat units relative to the *original* bar length. If the user changes the time sig (e.g. 4/4 → 2/4), the Vue `buildModel()` re-runs with the new `tpm` but reads the stale offset values from `sections.value` — cards overflow past the barline. Fix: `registerSetTimeSignature()` computes `scale = newQBpm / oldQBpm` and multiplies every `beatInMeasure` and `beats` in `sections.value` before setting `timeSignature.value`. The rescale is proportional — 4 chords in a 4/4 bar become 4 chords in a 2/4 bar at half spacing.
+
+### Enharmonic chord name spelling (shipped 2026-06-14)
+
+Chord names travel through four layers; each one now applies key-aware re-spelling:
+
+| Layer | Where | What it does |
+|-------|-------|--------------|
+| MusicXML import | `MusicXMLParser._reSpellNote()` in `edit.blade.php` | Re-spells root + bass immediately after parsing `root-alter`/`bass-alter` — new imports produce `D/F#` not `D/Gb` in a D-major song |
+| Model load | `useTabModel.js` chord-name extraction | Calls `window.sbnReSpellChord(name, key)` on every chord name when building the Vue model — fixes stale names already in `json_data` on the fly |
+| Viewer voicing lookup | `LeadsheetViewerService::buildChordCards()` | Calls `HarmonicContext::reSpellChordName()` before `searchByName()` — ensures the DB query finds the right chord diagram even if the stored name is misspelled |
+| Display (JS) | `window.sbnReSpellChord(name, key)` in `public/js/sbn-chord-name.js` | Shared client-side helper; mirrors `HarmonicContext::reSpellChordName()`. Used by `useTabModel`; also available globally for any future use |
+
+The PHP primitive is `HarmonicContext::reSpellChordName(string $name, string $key): string`. The JS primitive is `window.sbnReSpellChord(name, key)`. Both use the same flat-key list as `spellingUsesFlats()`. Natural notes (no accidental) pass through unchanged. The re-spelling only touches the root letter and slash-bass note — quality suffixes and extensions (`m7`, `b5`, etc.) are left intact.
+
+**Gotcha — re-spelling is NOT applied in `sbnFormatChord` / `sbnFormatChordHtml`:** these are pure presentational formatters with no key context. Re-spelling must happen upstream (at model load or data layer), not in the display function.
 
 ### Key conventions
 - Model uses **`ref()`** (deep reactive), NOT `shallowRef`

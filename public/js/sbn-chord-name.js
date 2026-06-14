@@ -110,6 +110,53 @@
      * preserving extended qualities ("Gmaj7" stays intact).
      * Mirrors App\Helpers\ChordName::normalize().
      */
+    /**
+     * Re-spell a chord name's root and bass note to match the flat/sharp family
+     * of the given key.  Mirrors HarmonicContext::reSpellChordName() in PHP.
+     * Examples: sbnReSpellChord('D/Gb', 'D') → 'D/F#'
+     *           sbnReSpellChord('Db7',  'G') → 'C#7'
+     */
+    const _SEMI = {C:0,'B#':0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,Fb:4,F:5,'E#':5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11,Cb:11};
+    const _SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    const _FLAT  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+    const _FLAT_KEYS = ['F','Bb','Eb','Ab','Db','Gb','Dm','Gm','Cm','Fm','Bbm','Ebm'];
+
+    function _keyUsesFlats(key) {
+        key = (key || '').trim();
+        const isMinor = /[mM]/.test(key);
+        if (isMinor) {
+            const root = key.replace(/[mM].*$/, '');
+            const relMajor = _FLAT[((_SEMI[root] ?? 0) + 3) % 12];
+            return _FLAT_KEYS.includes(relMajor);
+        }
+        return _FLAT_KEYS.includes(key) || _FLAT_KEYS.includes(key.replace(/[mM].*$/, ''));
+    }
+
+    function _reSpellNote(note, useFlats) {
+        const m = note.match(/^([A-G][#b]?)(.*)$/);
+        if (!m) return note;
+        const s = _SEMI[m[1]];
+        if (s === undefined) return note;
+        return (useFlats ? _FLAT[s] : _SHARP[s]) + m[2];
+    }
+
+    window.sbnReSpellChord = function (chord, key) {
+        chord = (chord || '').trim();
+        if (!chord || !key) return chord;
+        const useFlats = _keyUsesFlats(key);
+        const slash = chord.indexOf('/');
+        if (slash !== -1) {
+            const root = chord.slice(0, slash);
+            const bass = chord.slice(slash + 1);
+            const rm = root.match(/^([A-G][#b]?)(.*)$/);
+            if (!rm) return chord;
+            return _reSpellNote(rm[1], useFlats) + rm[2] + '/' + _reSpellNote(bass, useFlats);
+        }
+        const rm = chord.match(/^([A-G][#b]?)(.*)$/);
+        if (!rm) return chord;
+        return _reSpellNote(rm[1], useFlats) + rm[2];
+    };
+
     window.sbnNormalizeChord = function (chord) {
         chord = (chord || '').trim();
         if (!chord) return chord;

@@ -132,10 +132,11 @@ Inertia::render('Leadsheet/Cinema', [
 
 Built by `LeadsheetViewerService::enrich($leadsheet, $search)`. For each unique chord name in `chordVoicings`:
 
-1. Call `ChordVoicingSearch::searchByName($chordName)` — DB lookup by name.
-2. `pickBestVoicing($matches, $targetFrets)` — prefers exact fret-string match; falls back to first result.
-3. If no DB match: `synthesizeMinimalCard($chordName, $voicing, $search)` — builds a stub `ChordDiagramData` from the fret string with `popularity`/`difficulty` absent.
-4. Result stored under both the per-slot key (`"ChordName@gi.ci"`) and the bare-name key (`"ChordName"`).
+1. **Re-spell** `$chordName` via `HarmonicContext::reSpellChordName($name, $leadsheet->song_key)` — corrects enharmonic mismatches from old MusicXML imports (e.g. `"D/Gb"` → `"D/F#"` in a D-major song) so the DB query finds the right chord diagram.
+2. Call `ChordVoicingSearch::searchByName($chordName)` — DB lookup by name.
+3. `pickBestVoicing($matches, $targetFrets)` — prefers exact fret-string match; falls back to first result.
+4. If no DB match: `synthesizeMinimalCard($chordName, $voicing, $search)` — builds a stub `ChordDiagramData` from the fret string with `popularity`/`difficulty` absent.
+5. Result stored under both the per-slot key (`"ChordName@gi.ci"`) and the bare-name key (`"ChordName"`).
 
 The `root_note` field on each card is set to the **transposed** root used in the song (not the shape's native root). This is what drives the library link URL.
 

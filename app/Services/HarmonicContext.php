@@ -304,6 +304,57 @@ class HarmonicContext
     ];
 
     /**
+     * Re-spell a chord name's root and bass note to match the flat/sharp family
+     * of the given key.  Handles natural notes, enharmonic pairs, and slash chords.
+     * Examples: reSpellChordName('D/Gb', 'D') → 'D/F#'
+     *           reSpellChordName('Db7',  'G') → 'C#7'
+     * Notes that are unambiguous (naturals, or already correct) are returned as-is.
+     */
+    public static function reSpellChordName(string $name, string $key): string
+    {
+        $useFlats = self::spellingUsesFlats($key);
+        $sharp    = self::SEMI_TO_NOTE_SHARP;
+        $flat     = self::SEMI_TO_NOTE_FLAT;
+        $semi     = self::NOTE_TO_SEMI;
+
+        $reSpellNote = static function (string $note) use ($useFlats, $sharp, $flat, $semi): string {
+            // Parse note letter + accidental (handles b and #, single char accidental)
+            if (!preg_match('/^([A-G])([#b]?)$/', $note, $m)) return $note;
+            $s = $semi[$m[1] . $m[2]] ?? $semi[$m[1]] ?? null;
+            if ($s === null) return $note;
+            return $useFlats ? $flat[$s] : $sharp[$s];
+        };
+
+        // Split off slash bass
+        $slash = strpos($name, '/');
+        if ($slash !== false) {
+            $root = substr($name, 0, $slash);
+            $bass = substr($name, $slash + 1);
+        } else {
+            $root = $name;
+            $bass = null;
+        }
+
+        // Root = leading note letter + optional accidental, rest is quality
+        if (!preg_match('/^([A-G][#b]?)(.*)$/s', $root, $rm)) {
+            return $name;
+        }
+        $rootNote    = $reSpellNote($rm[1]);
+        $rootQuality = $rm[2];
+
+        $result = $rootNote . $rootQuality;
+        if ($bass !== null) {
+            // Bass is just a note (e.g. "F#", "Gb")
+            if (preg_match('/^([A-G][#b]?)(.*)$/', $bass, $bm)) {
+                $result .= '/' . $reSpellNote($bm[1]) . $bm[2];
+            } else {
+                $result .= '/' . $bass;
+            }
+        }
+        return $result;
+    }
+
+    /**
      * Whether a key should be spelled with flats (true) or sharps (false).
      * C major / A minor are treated as neutral — flats (fewer chord name accidents).
      */

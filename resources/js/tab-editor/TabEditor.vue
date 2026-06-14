@@ -369,7 +369,7 @@ const {
 // ── Working Model ──────────────────────────────────────────
 
 const tabModel = useTabModel(
-    melody, sections, timeSignature, repeatMarkers, voltaEndings, chordVoicings
+    melody, sections, timeSignature, repeatMarkers, voltaEndings, chordVoicings, undefined, songKey
 );
 const {
     model, hasData, buildModel, serializeModel, deserializeModel,

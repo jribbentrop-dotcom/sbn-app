@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ChordDiagram;
 use App\Models\ChordProgression;
 use App\Models\Leadsheet;
+use App\Services\HarmonicContext;
 
 /**
  * Enriches a leadsheet with chord cards, progression list, and quality
@@ -99,6 +100,7 @@ class LeadsheetViewerService
         $chordCards   = [];
         $qualityByKey = [];
         $searchCache  = [];
+        $songKey      = $leadsheet->song_key ?: 'C';
 
         foreach ($voicings as $key => $voicing) {
             if (preg_match('/^(.+)@\d+\.\d+$/', $key, $m)) {
@@ -106,6 +108,10 @@ class LeadsheetViewerService
             } else {
                 $chordName = $key;
             }
+
+            // Re-spell root and bass note to match the song key's flat/sharp family
+            // so that e.g. "D/Gb" stored from an old MusicXML import finds "D/F#" in the DB.
+            $chordName = HarmonicContext::reSpellChordName($chordName, $songKey);
 
             $parsed = $search->parseChordName($chordName);
             $qualityByKey[$key] = $parsed['quality'] ?? 'maj';
@@ -146,9 +152,51 @@ class LeadsheetViewerService
 
         $targetDiagram = $this->fretStringToDiagramData($targetFrets);
 
+        // Pass 1 — exact match
         foreach ($matches as $match) {
             if ($this->diagramDataMatches($match['diagram_data'] ?? [], $targetDiagram)) {
                 return $match;
+            }
+        }
+
+        // Pass 2 — enriched bass: target has open string 1 (root added below),
+        // DB shape has it muted. Strings 2–6 must match exactly.
+        $targetMapS1 = in_array(1, $targetDiagram['open'] ?? []) ? 0 : -1;
+        if ($targetMapS1 === 0) {
+            foreach ($matches as $match) {
+                if ($this->diagramDataMatches($match['diagram_data'] ?? [], $targetDiagram, [1])) {
+                    return $match;
+                }
+            }
+        }
+
+        // Pass 3 — E-string swap: strings 1 and 6 are both tuned to E so a note
+        // on string 6 with string 1 muted is the same pitch as string 1 with
+        // string 6 muted (same fret). Swap and retry exact + ignore-string-1.
+        $s1Muted = in_array(1, $targetDiagram['muted'] ?? []);
+        $s6Fret  = null;
+        foreach ($targetDiagram['positions'] ?? [] as $p) {
+            if ($p['string'] === 6) { $s6Fret = $p['fret']; break; }
+        }
+        if ($s1Muted && $s6Fret !== null) {
+            $swapped = $targetDiagram;
+            $swapped['muted']     = array_values(array_diff($swapped['muted'], [1]));
+            $swapped['positions'] = array_values(array_filter(
+                $swapped['positions'], fn($p) => $p['string'] !== 6
+            ));
+            $swapped['positions'][] = ['string' => 1, 'fret' => $s6Fret];
+            $swapped['muted'][]     = 6;
+
+            foreach ($matches as $match) {
+                if ($this->diagramDataMatches($match['diagram_data'] ?? [], $swapped)) {
+                    return $match;
+                }
+            }
+            // Also allow the swapped target to have extra open string 1 ignored
+            foreach ($matches as $match) {
+                if ($this->diagramDataMatches($match['diagram_data'] ?? [], $swapped, [6])) {
+                    return $match;
+                }
             }
         }
 
@@ -248,7 +296,7 @@ class LeadsheetViewerService
         ];
     }
 
-    private function diagramDataMatches(array $a, array $b): bool
+    private function diagramDataMatches(array $a, array $b, array $ignoreStrings = []): bool
     {
         $mapA = [];
         $mapB = [];
@@ -267,6 +315,7 @@ class LeadsheetViewerService
         }
 
         for ($s = 1; $s <= 6; $s++) {
+            if (in_array($s, $ignoreStrings)) continue;
             if ($mapA[$s] !== $mapB[$s]) return false;
         }
 
