@@ -240,7 +240,8 @@ class HomeController extends Controller
             'm6'    => 'm6',
             'mMaj7' => 'mMaj7',
             'aug7'  => 'aug7',
-            '7sus4' => '7sus4',
+            '7sus4'   => '7sus4',
+            'quartal' => 'quartal',
         ];
 
         $sym = $qualitySymbols[$quality] ?? $quality;

@@ -350,6 +350,7 @@ class ChordController extends Controller
             '5' => '5', 'sus4' => 'sus4', 'sus2' => 'sus2', 'add9' => 'add9', 'madd9' => 'madd9',
             'maj7' => 'Maj7', 'm7' => 'm7', 'dom7' => '7', 'm7b5' => 'm7♭5',
             'o7' => '°7', 'maj6' => 'Maj6', 'm6' => 'm6', 'mMaj7' => 'mMaj7', 'aug7' => 'Aug7',
+            'quartal' => 'Quartal',
         ];
         $catLabels = ChordDiagram::VOICING_CATEGORIES;
         $rootLabels = ['roote' => 'E', 'roota' => 'A', 'rootd' => 'D', 'rootg' => 'G', 'custom' => '?'];

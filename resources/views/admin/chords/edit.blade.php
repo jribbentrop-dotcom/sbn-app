@@ -332,7 +332,7 @@ const FRETS_TO_SHOW = 5;
 const FINGER_COLORS = { 1:'#3b82f6', 2:'#10b981', 3:'#f39c12', 4:'#ef4444', t:'#8b5cf6' };
 
 const QUALITY_NAME = {
-    'maj':'Maj','min':'min','aug':'Aug','dim':'Dim','5':'5','sus4':'sus4','sus2':'sus2','add9':'add9','madd9':'madd9',
+    'maj':'Maj','min':'min','aug':'Aug','dim':'Dim','5':'5','sus4':'sus4','sus2':'sus2','add9':'add9','madd9':'madd9','quartal':'Quartal',
     'maj7':'Maj7','m7':'m7','dom7':'7','m7b5':'m7♭5','o7':'°7','maj6':'Maj6','m6':'m6','mMaj7':'mMaj7','aug7':'Aug7'
 };
 const CAT_LABEL = @json($voicingCategories);

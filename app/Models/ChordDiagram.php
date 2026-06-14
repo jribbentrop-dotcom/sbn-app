@@ -65,7 +65,8 @@ class ChordDiagram extends Model
         'm6'    => 'Minor 6',
         'mMaj7' => 'Minor-Major 7',
         'aug7'  => 'Augmented 7',
-        '7sus4' => 'Dominant 7 sus4',
+        '7sus4'   => 'Dominant 7 sus4',
+        'quartal' => 'Quartal',
     ];
 
     const EXTENSIONS = [
