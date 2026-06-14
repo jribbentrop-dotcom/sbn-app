@@ -247,6 +247,7 @@ class ChordController extends Controller
             'sus4'  => 'Sus4',
             'sus2'  => 'Sus2',
             'add9'  => 'Add9',
+            'madd9' => 'Minor Add9',
             'maj7'  => 'Major 7',
             'm7'    => 'Minor 7',
             'dom7'  => 'Dominant 7',
@@ -346,7 +347,7 @@ class ChordController extends Controller
     {
         $qualityLabels = [
             'maj' => 'Maj', 'min' => 'min', 'aug' => 'Aug', 'dim' => 'Dim',
-            '5' => '5', 'sus4' => 'sus4', 'sus2' => 'sus2', 'add9' => 'add9',
+            '5' => '5', 'sus4' => 'sus4', 'sus2' => 'sus2', 'add9' => 'add9', 'madd9' => 'madd9',
             'maj7' => 'Maj7', 'm7' => 'm7', 'dom7' => '7', 'm7b5' => 'm7♭5',
             'o7' => '°7', 'maj6' => 'Maj6', 'm6' => 'm6', 'mMaj7' => 'mMaj7', 'aug7' => 'Aug7',
         ];

@@ -230,6 +230,7 @@ class HomeController extends Controller
             'sus4'  => 'sus4',
             'sus2'  => 'sus2',
             'add9'  => 'add9',
+            'madd9' => 'madd9',
             'maj7'  => 'maj7',
             'm7'    => 'm7',
             'dom7'  => '7',

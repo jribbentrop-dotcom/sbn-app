@@ -62,6 +62,11 @@ class ChordVoicingSearch
         '-9'     => ['m7', '9'],      '-11'    => ['m7', '11'],     '-13'    => ['m7', '13'],
         'm7b9'   => ['m7', 'b9'],
         'ø9'     => ['m7b5', '9'],
+        // Minor add9 compact notations (parenthesised form "m(add9)" is handled
+        // by the paren-split regex and resolves via QUALITY_PATTERNS 'm' → 'min')
+        'madd9'    => ['min', 'add9'], 'madd2'   => ['min', 'add9'],
+        'minadd9'  => ['min', 'add9'], 'minadd2' => ['min', 'add9'],
+        'min(add9)' => ['min', 'add9'], 'min(add2)' => ['min', 'add9'],
     ];
 
     private const SKIP_PATTERNS = ['maj13','maj11','maj9','m13','m11','m9','13','11','9'];
@@ -158,6 +163,12 @@ class ChordVoicingSearch
         }
 
         return ['root' => $root, 'quality' => $qualityPart, 'extension' => $extension, 'bass_note' => $bassNote];
+    }
+
+    public function computeIntervalLabels(
+        array $positions, array $openStrings, array $muted, string $root, string $quality
+    ): string {
+        return $this->calculator->computeIntervalLabelsPublic($positions, $openStrings, $muted, $root, $quality);
     }
 
     // =========================================================================

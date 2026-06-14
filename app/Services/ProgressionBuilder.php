@@ -1717,7 +1717,7 @@ class ProgressionBuilder
                 // or add9 already carries its own tone structure, so layering
                 // a "(9)" on top yields nonsense names (Dsus4(9), Dadd9(9)).
                 $chordQuality = $this->normalizeQuality($chord['quality'] ?? '');
-                if (in_array($chordQuality, ['sus2', 'sus4', 'add9'], true)) {
+                if (in_array($chordQuality, ['sus2', 'sus4', 'add9', 'madd9'], true)) {
                     $context['sections'][$secIdx]['chords'][$chordIdx]['extension'] = '';
                     continue;
                 }

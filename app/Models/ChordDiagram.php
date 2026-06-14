@@ -55,6 +55,7 @@ class ChordDiagram extends Model
         'sus4'  => 'Suspended 4th',
         'sus2'  => 'Suspended 2nd',
         'add9'  => 'Add 9',
+        'madd9' => 'Minor Add 9',
         'maj7'  => 'Major 7',
         'm7'    => 'Minor 7',
         'dom7'  => 'Dominant 7',
@@ -317,6 +318,7 @@ class ChordDiagram extends Model
             'sus4'  => [0 => 'R', 5 => '4', 7 => '5'],
             'sus2'  => [0 => 'R', 2 => '2', 7 => '5'],
             'add9'  => [0 => 'R', 2 => '9', 4 => '3', 7 => '5'],
+            'madd9' => [0 => 'R', 2 => '9', 3 => 'b3', 7 => '5'],
             '5'     => [0 => 'R', 7 => '5'],
         ];
     }

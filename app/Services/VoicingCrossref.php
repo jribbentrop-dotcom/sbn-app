@@ -85,7 +85,7 @@ class VoicingCrossref
         'o7' => ['o7', 'dim7'], 'dim7' => ['dim7', 'o7'], 'dim' => ['dim'],
         'aug' => ['aug', '+'], '+' => ['+', 'aug'],
         'mMaj7' => ['mMaj7'], 'aug7' => ['aug7'], 'maj6' => ['maj6'], 'm6' => ['m6'],
-        'sus4' => ['sus4'], 'sus2' => ['sus2'], 'add9' => ['add9'], '5' => ['5'],
+        'sus4' => ['sus4'], 'sus2' => ['sus2'], 'add9' => ['add9'], 'madd9' => ['madd9'], '5' => ['5'],
     ];
 
     /**
@@ -93,7 +93,7 @@ class VoicingCrossref
      */
     private const KNOWN_BASE_QUALITIES = [
         'mMaj7','mmaj7','maj13','maj11',
-        'maj9','maj7','maj6','m7b5','aug7','dim7','min7','min6','dom7','add9','sus4','sus2',
+        'maj9','maj7','maj6','m7b5','aug7','dim7','min7','min6','dom7','add9','madd9','sus4','sus2',
         'mM7','m13','m11','maj','min','dim','aug','sus',
         'M7','M6','o7','m9','m7','-7','m6','13','11',
         '9','7','5','M','m','-','o','+',
@@ -116,7 +116,7 @@ class VoicingCrossref
         'o7'=>[0,3,6,9],'dim7'=>[0,3,6,9],'dim'=>[0,3,6],
         'mMaj7'=>[0,3,7,11],'aug7'=>[0,4,8,10],'aug'=>[0,4,8],'+'=>[0,4,8],
         'sus4'=>[0,5,7],'sus2'=>[0,2,7],'5'=>[0,7],
-        '9'=>[0,2,4,7,10],'maj9'=>[0,2,4,7,11],'m9'=>[0,2,3,7,10],'add9'=>[0,2,4,7],
+        '9'=>[0,2,4,7,10],'maj9'=>[0,2,4,7,11],'m9'=>[0,2,3,7,10],'add9'=>[0,2,4,7],'madd9'=>[0,2,3,7],
         '13'=>[0,2,4,7,9,10],'maj13'=>[0,2,4,7,9,11],'m13'=>[0,2,3,7,9,10],
         '11'=>[0,2,4,5,7,10],'maj11'=>[0,2,4,5,7,11],'m11'=>[0,2,3,5,7,10],
     ];
@@ -369,6 +369,12 @@ class VoicingCrossref
         $bestMatch = null;
         $bestScore = 999;
 
+        // Strings 1 and 6 are both tuned to E — same fret = same pitch. When a
+        // voicing uses the high-e instead of the low-E for the root, pre-compute
+        // the swapped form so we can try it alongside the original in each pass.
+        $targetFretArraySwapped = $this->swapEStrings($targetFretArray);
+        $hasESwap = ($targetFretArraySwapped !== $targetFretArray);
+
         foreach ($shapes as $shape) {
             // Skip fixed-position shapes for different roots
             if ($shape->is_fixed_position && strtolower($shape->root_note ?? '') !== strtolower($voicing['root'])) {
@@ -403,13 +409,25 @@ class VoicingCrossref
             if ($this->fretArraysMatch($calcFretArray, $targetFretArray)) {
                 return $this->buildMatchResult($shape, 'exact', $calcFretArray);
             }
+            // Exact match against E-string-swapped target (root on high-e vs low-E)
+            if ($hasESwap && $this->fretArraysMatch($calcFretArray, $targetFretArraySwapped)) {
+                return $this->buildMatchResult($shape, 'exact', $calcFretArray);
+            }
 
             // Subset match (leadsheet omits strings from library shape)
             $subsetResult = $this->isSubsetMatch($targetFretArray, $calcFretArray);
             if ($subsetResult !== false && $subsetResult < $bestScore) {
                 $bestScore = $subsetResult;
                 $bestMatch = $this->buildMatchResult($shape, 'subset', $calcFretArray);
-                continue; // subset found for this shape, move to next
+                continue;
+            }
+            if ($hasESwap) {
+                $subsetResult = $this->isSubsetMatch($targetFretArraySwapped, $calcFretArray);
+                if ($subsetResult !== false && $subsetResult < $bestScore) {
+                    $bestScore = $subsetResult;
+                    $bestMatch = $this->buildMatchResult($shape, 'subset', $calcFretArray);
+                    continue;
+                }
             }
 
             // Superset match (leadsheet adds strings)
@@ -420,7 +438,18 @@ class VoicingCrossref
                     $bestScore = $penalized;
                     $bestMatch = $this->buildMatchResult($shape, 'superset', $calcFretArray);
                 }
-                continue; // superset found for this shape, move to next
+                continue;
+            }
+            if ($hasESwap) {
+                $superResult = $this->isSupersetMatch($targetFretArraySwapped, $calcFretArray);
+                if ($superResult !== false) {
+                    $penalized = $superResult + 100;
+                    if ($penalized < $bestScore) {
+                        $bestScore = $penalized;
+                        $bestMatch = $this->buildMatchResult($shape, 'superset', $calcFretArray);
+                    }
+                    continue;
+                }
             }
 
             // Fragment match (bass note relocated to open string)
@@ -472,16 +501,17 @@ class VoicingCrossref
             }
         }
 
-        // Dim7 symmetry pass for o7 chords: a °7 voicing is symmetric at minor-3rd
-        // intervals (C#°7 = E°7 = G°7 = Bb°7). When a shape stored under one family
-        // member fails to transpose to the requested root (due to wrap-around), retry
-        // with the 3 partner roots — any of them will produce the same fret positions.
-        if (!$bestMatch && $baseQuality === 'o7') {
+        // Dim7 symmetry pass for o7/dim chords: a °7 voicing is symmetric at minor-3rd
+        // intervals (C#°7 = E°7 = G°7 = Bb°7). Dim triads (°) share the same inversion
+        // structure and are subsets of every o7 family member — include them here.
+        // When a shape stored under one family member fails to transpose to the requested
+        // root (due to wrap-around), retry with the 3 partner roots.
+        if (!$bestMatch && in_array($baseQuality, ['o7', 'dim'], true)) {
             $reqRootSemi = self::NOTE_SEMI[$voicing['root']] ?? null;
             if ($reqRootSemi !== null) {
                 if ($this->dimShapeCache === null) {
                     $this->dimShapeCache = collect(DB::table('sbn_chord_diagrams')
-                        ->where('quality', 'o7')
+                        ->whereIn('quality', ['o7', 'dim'])
                         ->whereRaw("(bass_note = '' OR bass_note IS NULL)")
                         ->get());
                 }
@@ -516,15 +546,25 @@ class VoicingCrossref
         // extensions), every o7 shape transposed so the dominant's b9 is a chord
         // tone is a valid rootless reading. Mirrors ChordVoicingSearch logic so
         // the crossref engine can resolve voicings like Ab7(b9,13)/A against °7b13.
-        if (!$bestMatch && in_array($baseQuality, ['dom7', '7'], true) && str_contains($extensions, 'b9')) {
+        // Dim triads (°) are also valid here — they are subsets of o7 shapes and
+        // appear as rootless dom7(b9) voicings (the triad root = the b9 of the dom).
+        $isDimTriadForDom = ($baseQuality === 'dim');
+        if (!$bestMatch && (
+            (in_array($baseQuality, ['dom7', '7'], true) && str_contains($extensions, 'b9'))
+            || $isDimTriadForDom
+        )) {
             $reqRootSemi = self::NOTE_SEMI[$voicing['root']] ?? null;
             if ($reqRootSemi !== null) {
-                $dimRootPc  = ($reqRootSemi + 1) % 12;
+                // For dom7(b9): the b9 = root+1 semitone is the dim family root.
+                // For a dim triad (°): the voicing root IS the dim family root.
+                $dimRootPc = $isDimTriadForDom
+                    ? $reqRootSemi % 12
+                    : ($reqRootSemi + 1) % 12;
                 $dimRoot    = $this->dimSymmetry->spellRoot($dimRootPc);
 
                 if ($this->dimShapeCache === null) {
                     $this->dimShapeCache = collect(DB::table('sbn_chord_diagrams')
-                        ->where('quality', 'o7')
+                        ->whereIn('quality', ['o7', 'dim'])
                         ->whereRaw("(bass_note = '' OR bass_note IS NULL)")
                         ->get());
                 }
@@ -532,6 +572,12 @@ class VoicingCrossref
                 // Try all 4 symmetric roots of the dim family — the shape may be
                 // stored under any member, so transposing to each partner guarantees
                 // a wrap-around-free fret offset for at least one of them.
+                //
+                // Also prepare an E-string-swapped variant of the target: strings 1
+                // and 6 are both tuned to E, so a note on string 6 with string 1 muted
+                // is the same pitch as string 1 with string 6 muted (same fret).
+                $targetSwapped = $this->swapEStrings($targetFretArray);
+
                 foreach ([0, 3, 6, 9] as $step) {
                     $partnerPc   = ($dimRootPc + $step) % 12;
                     $partnerRoot = $this->dimSymmetry->spellRoot($partnerPc);
@@ -545,13 +591,35 @@ class VoicingCrossref
                         );
                         if (!$this->hasValidFrets($calcFretArray)) continue;
 
-                        if ($this->fretArraysMatch($calcFretArray, $targetFretArray)) {
-                            return $this->buildMatchResult($shape, 'exact', $calcFretArray);
-                        }
-                        $sub = $this->isSubsetMatch($targetFretArray, $calcFretArray);
-                        if ($sub !== false && $sub < $bestScore) {
-                            $bestScore = $sub;
-                            $bestMatch = $this->buildMatchResult($shape, 'subset', $calcFretArray);
+                        foreach ([$targetFretArray, $targetSwapped] as $target) {
+                            if ($this->fretArraysMatch($calcFretArray, $target)) {
+                                return $this->buildMatchResult($shape, 'exact', $calcFretArray);
+                            }
+                            $sub = $this->isSubsetMatch($target, $calcFretArray);
+                            if ($sub !== false && $sub < $bestScore) {
+                                $bestScore = $sub;
+                                $bestMatch = $this->buildMatchResult($shape, 'subset', $calcFretArray);
+                            }
+                            $sup = $this->isSupersetMatch($target, $calcFretArray);
+                            if ($sup !== false) {
+                                $penalized = $sup + 100;
+                                if ($penalized < $bestScore) {
+                                    $bestScore = $penalized;
+                                    $bestMatch = $this->buildMatchResult($shape, 'superset', $calcFretArray);
+                                }
+                            }
+                            // Fragment: target has dom root added as open/fretted bass
+                            // below the dim shape — strip it and check the remainder.
+                            $frag = $this->isRootRelocatedFragmentMatch(
+                                $target, $calcFretArray, $voicing['root'], $baseQuality
+                            );
+                            if ($frag !== false) {
+                                $penalized = $frag + 200;
+                                if ($penalized < $bestScore) {
+                                    $bestScore = $penalized;
+                                    $bestMatch = $this->buildMatchResult($shape, 'fragment', $calcFretArray);
+                                }
+                            }
                         }
                     }
                 }
@@ -589,6 +657,28 @@ class VoicingCrossref
     // =========================================================================
     // FRET ARRAY COMPARISON
     // =========================================================================
+
+    /**
+     * Swap string 1 (low E) and string 6 (high e) in a fret array.
+     * Both strings are tuned to E, so the same fret on either produces the
+     * same pitch. Used to match voicings where the root sits on the high e
+     * instead of the low E (or vice versa).
+     * Only swaps when exactly one of the two E strings is sounding.
+     */
+    private function swapEStrings(array $frets): array
+    {
+        if (count($frets) !== 6) return $frets;
+        $s1 = $frets[0];
+        $s6 = $frets[5];
+        if ($s1 === 'x' && $s6 !== 'x') {
+            $frets[0] = $s6;
+            $frets[5] = 'x';
+        } elseif ($s6 === 'x' && $s1 !== 'x') {
+            $frets[5] = $s1;
+            $frets[0] = 'x';
+        }
+        return $frets;
+    }
 
     private function fretArraysMatch(array $a, array $b): bool
     {
@@ -887,6 +977,7 @@ class VoicingCrossref
         'dim'=>'dim','o'=>'dim','°'=>'dim',
         'sus4'=>'sus4','sus2'=>'sus2','sus'=>'sus4',
         'add9'=>'add9','(add9)'=>'add9','add2'=>'add9',
+        'madd9'=>'madd9','madd2'=>'madd9','minadd9'=>'madd9','minadd2'=>'madd9',
         '5'=>'5',
         'maj'=>'maj','M'=>'maj','Maj'=>'maj',
         'minor'=>'min','min'=>'min','m'=>'min','-'=>'min',
@@ -910,6 +1001,9 @@ class VoicingCrossref
         '-9'=>['m7','9'],'-11'=>['m7','11'],'-13'=>['m7','13'],
         'm7b9'=>['m7','b9'],
         'ø9'=>['m7b5','9'],
+        'madd9'=>['min','add9'],'madd2'=>['min','add9'],
+        'minadd9'=>['min','add9'],'minadd2'=>['min','add9'],
+        'min(add9)'=>['min','add9'],'min(add2)'=>['min','add9'],
     ];
 
     private const SKIP_PATTERNS = ['maj13','maj11','maj9','m13','m11','m9','13','11','9'];
@@ -1238,6 +1332,7 @@ class VoicingCrossref
         'dim7'  => [0, 3, 6, 9],
         'mMaj7' => [0, 3, 7, 11],
         'add9'  => [0, 2, 4, 7],
+        'madd9' => [0, 2, 3, 7],
         'aug'   => [0, 4, 8],
         'dim'   => [0, 3, 6],
         'sus4'  => [0, 5, 7],
@@ -2343,7 +2438,7 @@ class VoicingCrossref
     {
         return match ($quality) {
             'maj', 'maj7', 'maj6', 'add9' => 'major',
-            'min', 'm', 'm7', 'm6', 'mMaj7' => 'minor',
+            'min', 'm', 'm7', 'm6', 'mMaj7', 'madd9' => 'minor',
             'dom7', '7'                   => 'dom',
             'm7b5'                        => 'hdim',
             'o7', 'dim7', 'dim'           => 'dim',
