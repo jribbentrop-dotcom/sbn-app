@@ -118,15 +118,12 @@ function stopPlayback() {
 
 function togglePlayback() {
   if (props.videoSync?.videoId) {
-    // Video is the clock — delegate play/pause to the shared playhead via callbacks.
-    if (props.videoPlayhead != null || props.onVideoPlay) {
-      if (isPlaying.value) {
-        props.onVideoPause?.();
-        isPlaying.value = false;
-      } else {
-        props.onVideoPlay?.();
-        isPlaying.value = true;
-      }
+    if (isPlaying.value) {
+      props.onVideoPause?.();
+      isPlaying.value = false;
+    } else {
+      props.onVideoPlay?.();
+      isPlaying.value = true;
     }
     return;
   }
@@ -343,13 +340,13 @@ provide('inlineRenameTarget', ref(null));
 <template>
   <div class="sbn-sheet-player">
 
-    <!-- Play/Pause button -->
+    <!-- Play/Pause button — vertically centred beside the notation -->
     <button
       type="button"
-      class="sbn-play-btn sbn-sheet-play"
+      class="sbn-sheet-play"
       :class="{ 'is-playing': isPlaying }"
       :title="isPlaying ? 'Pause' : 'Play'"
-      @click="togglePlayback"
+      @click.stop="togglePlayback"
     >
       <svg v-if="isPlaying" width="14" height="14" viewBox="0 0 14 14">
         <rect x="2" y="1" width="3.5" height="12" fill="currentColor" />
@@ -377,11 +374,13 @@ provide('inlineRenameTarget', ref(null));
             <TabMeasure
               :measure="measure"
               :is-first-of-section="si === 0 && ri === 0 && li === 0"
+              :show-clef="si === 0 && ri === 0 && li === 0"
+              :time-signature="timeSignatureRef"
               :ticks-per-measure="model.ticksPerMeasure"
               :next-measure="getNextTabMeasure(measure.index)"
               :is-next-first-of-section="isNextTabMeasureFirstOfSection(measure.index)"
               :chord-names="measure.chordNames || []"
-              :bars-per-row="row._intendedCount"
+              :bars-per-row="Math.max(row._intendedCount, 4)"
               :read-only="true"
               :allow-chord-click="true"
               :cursor="null"
@@ -403,7 +402,7 @@ provide('inlineRenameTarget', ref(null));
 /* ── Container ────────────────────────────────────────────────────────────── */
 .sbn-sheet-player {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   padding: 12px 0 12px 4px;
   background: #ffffff;
@@ -412,27 +411,26 @@ provide('inlineRenameTarget', ref(null));
 
 /* ── Play/Pause button ── */
 .sbn-sheet-play {
+  flex-shrink: 0;
+  align-self: center;
+  margin-top: -22px;
   width: 28px;
   height: 28px;
-  --play-color: #f39c12;
-  background: var(--clr-gradient, linear-gradient(135deg, #f39c12 0%, #e74c3c 100%));
-  border-color: transparent;
-  color: #fff;
-}
-.sbn-sheet-play:hover {
-  background: var(--clr-gradient, linear-gradient(135deg, #f39c12 0%, #e74c3c 100%));
-  filter: brightness(1.08);
-}
-.sbn-sheet-play.is-playing {
-  box-shadow: 0 0 0 3px color-mix(in srgb, #f39c12 25%, transparent);
+  border-radius: 50%;
+  background: var(--clr-surface-3, #f3f4f6);
+  border: 1px solid var(--clr-border, #e5e7eb);
+  color: var(--clr-text-muted, #9ca3af);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
 }
 
-/* ── Measures ──────────────────────────────────────────────────────────────── */
+/* ── Measures ── */
 .sbn-sheet-measures {
   display: flex;
   flex-direction: column;
   gap: 0;
-  flex: 1 1 auto;
   min-width: 0;
   overflow-x: auto;
 }
@@ -442,8 +440,13 @@ provide('inlineRenameTarget', ref(null));
   flex-direction: row;
 }
 
+.sbn-sheet-row:not(:first-child) {
+  padding-left: 28px;
+}
+
 .sbn-sheet-measure-wrap {
   cursor: pointer;
+  min-width: 0;
 }
 
 .sbn-sheet-empty {

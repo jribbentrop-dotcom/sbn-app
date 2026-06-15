@@ -3083,8 +3083,8 @@
 }
 
 .sbn-tab-metronome-col {
-    fill: var(--clr-accent, #f39c12);
-    opacity: 0.1;
+    fill: #9ca3af;
+    opacity: 0.18;
     pointer-events: none;
 }
 
@@ -3229,21 +3229,16 @@
     white-space: nowrap;
     cursor: default;
     font-family: var(--font-chord);
-    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: font-size 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sbn-tab-chord-name--clickable {
     cursor: pointer;
-    transition: color 0.1s;
 }
 
+.sbn-tab-chord-name.is-active,
 .sbn-tab-chord-name--clickable:hover {
-    color: var(--clr-red, #e74c3c);
-}
-
-.sbn-tab-chord-name.is-active {
-    transform: scale(1.15);
-    color: var(--clr-red, #e74c3c) !important;
+    font-size: 21px;
 }
 
 /* SVG canvas */

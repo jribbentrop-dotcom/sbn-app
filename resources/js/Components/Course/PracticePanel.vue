@@ -210,34 +210,40 @@ async function loadHeroChord(sel: SelectedChord | null | undefined): Promise<voi
     return;
   }
 
-  loadingHero.value = true;
+  // Don't clear heroChord while loading — keep the previous chord visible until
+  // the new one is ready to avoid flicker when switching chords.
+  let fetched: any = null;
   try {
     const res = await fetch(`/api/sbn/chords/${encodeURIComponent(sel.slug)}?root=${encodeURIComponent(sel.root)}`, { headers: { Accept: 'application/json' } });
     if (res.ok) {
-      heroChord.value = await res.json();
-      return;
+      fetched = await res.json();
+    } else {
+      const search = await fetch(`/api/sbn/chords?q=${encodeURIComponent(sel.slug)}`, { headers: { Accept: 'application/json' } });
+      if (search.ok) {
+        const data = await search.json();
+        const results: any[] = data.results ?? [];
+        if (results.length) {
+          const targetFrets = sel.voicingData?.frets ?? null;
+          fetched = targetFrets
+            ? (results.find(r => fretsFromDiagramData(r.diagram_data) === targetFrets) ?? results[0])
+            : results[0];
+        }
+      }
     }
-
-    const search = await fetch(`/api/sbn/chords?q=${encodeURIComponent(sel.slug)}`, { headers: { Accept: 'application/json' } });
-    if (!search.ok) { heroChord.value = null; return; }
-
-    const data = await search.json();
-    const results: any[] = data.results ?? [];
-    if (!results.length) { heroChord.value = null; return; }
-
-    const targetFrets = sel.voicingData?.frets ?? null;
-    const match = targetFrets
-      ? (results.find(r => fretsFromDiagramData(r.diagram_data) === targetFrets) ?? results[0])
-      : results[0];
-
-    heroChord.value = match;
   } finally {
+    heroChord.value = fetched;
     loadingHero.value = false;
   }
 }
 
 watch(() => props.chordTags ?? props.chordSlugs, () => { void loadLessonChords(); }, { immediate: true, deep: true });
-watch(() => props.selectedChord, (v) => { void loadHeroChord(v ?? null); }, { immediate: true });
+watch(() => props.selectedChord, (v) => { void loadHeroChord(v ?? null); if (v) chordPanelOpen.value = true; }, { immediate: true });
+
+const chordPanelOpen = ref(false);
+const videoPanelOpen = ref(true);
+
+function expandVideo() { videoPanelOpen.value = true; }
+defineExpose({ expandVideo });
 
 const heroChordUrl = computed(() => {
   if (!heroChord.value?.slug) return null;
@@ -313,6 +319,8 @@ watch(() => props.lesson?.slug, () => { conceptsMounted.value = {}; });
     <details
       v-if="selectedChord || lessonChordData.length"
       class="vC-panel"
+      :open="chordPanelOpen"
+      @toggle="chordPanelOpen = ($event.target as HTMLDetailsElement).open"
     >
       <summary class="vC-panel-summary">
         <span class="vC-panel-title">{{ selectedChord ? 'Selected chord' : 'Chords' }}</span>
@@ -321,14 +329,18 @@ watch(() => props.lesson?.slug, () => { conceptsMounted.value = {}; });
       <div class="vC-panel-body">
         <div v-if="selectedChord" style="display:flex; flex-direction:column; gap:10px;">
           <button type="button" class="sbn-btn sbn-btn-ghost sbn-btn-sm" style="align-self:flex-start;" @click="emit('clearChord')">← Back</button>
-          <div v-if="loadingHero" class="sbn-text-dim">Loading chord…</div>
-          <template v-else-if="heroChord">
-            <a v-if="heroChordUrl" :href="heroChordUrl" class="vC-hero-chord-link">
-              <ChordCard :chord="heroChord" :show-root="true" :mini="true" />
-            </a>
-            <ChordCard v-else :chord="heroChord" :show-root="true" :mini="true" />
-          </template>
-          <div v-else class="sbn-text-dim">Chord unavailable.</div>
+          <div v-if="loadingHero && !heroChord" class="sbn-text-dim">Loading chord…</div>
+          <div class="vC-chord-hero-wrap">
+            <Transition name="vC-chord-swap" mode="out-in">
+              <template v-if="heroChord" :key="heroChord.slug">
+                <a v-if="heroChordUrl" :href="heroChordUrl" class="vC-hero-chord-link">
+                  <ChordCard :chord="heroChord" :show-root="true" :mini="true" />
+                </a>
+                <ChordCard v-else :chord="heroChord" :show-root="true" :mini="true" />
+              </template>
+              <div v-else key="unavailable" class="sbn-text-dim">Chord unavailable.</div>
+            </Transition>
+          </div>
         </div>
 
         <div v-else class="vC-chord-list">
@@ -379,6 +391,8 @@ watch(() => props.lesson?.slug, () => { conceptsMounted.value = {}; });
     <details
       v-if="videoSnippet"
       class="vC-panel vC-panel--video"
+      :open="videoPanelOpen"
+      @toggle="videoPanelOpen = ($event.target as HTMLDetailsElement).open"
     >
       <summary class="vC-panel-summary">
         <span class="vC-panel-title">Video example</span>
@@ -489,6 +503,15 @@ watch(() => props.lesson?.slug, () => { conceptsMounted.value = {}; });
 </template>
 
 <style scoped>
+/* ── Chord swap transition ── */
+.vC-chord-hero-wrap {
+  min-height: 250px;
+  display: flex;
+  align-items: flex-start;
+}
+.vC-chord-swap-enter-active, .vC-chord-swap-leave-active { transition: opacity 0.15s ease; }
+.vC-chord-swap-enter-from, .vC-chord-swap-leave-to      { opacity: 0; }
+
 /* ── Collapsed rail ── */
 .vC-practice-rail {
   display: flex;

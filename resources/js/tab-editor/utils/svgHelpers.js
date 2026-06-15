@@ -307,15 +307,15 @@ export function renderTies(measureEvents, globalMeasureIdx, getXFn, measureWidth
 
 // ── Repeat barlines ────────────────────────────────────────
 
-export function renderRepeatStart(sT, sB, sH) {
+export function renderRepeatStart(sT, sB, sH, xOffset = 0) {
     const dR = sH * 0.03;
     const rY1 = sT + sH * 1.5 / 5;
     const rY2 = sT + sH * 3.5 / 5;
     let html = '';
-    html += `<line x1="2" y1="${sT}" x2="2" y2="${sB}" stroke="#000" stroke-width="${(sH * 0.066).toFixed(2)}" stroke-linecap="butt"/>`;
-    html += `<line x1="6" y1="${sT}" x2="6" y2="${sB}" stroke="#000" stroke-width="${(sH * 0.021).toFixed(2)}" stroke-linecap="butt"/>`;
-    html += `<circle cx="11" cy="${rY1.toFixed(2)}" r="${dR.toFixed(2)}" fill="#000"/>`;
-    html += `<circle cx="11" cy="${rY2.toFixed(2)}" r="${dR.toFixed(2)}" fill="#000"/>`;
+    html += `<line x1="${xOffset + 2}" y1="${sT}" x2="${xOffset + 2}" y2="${sB}" stroke="#000" stroke-width="${(sH * 0.066).toFixed(2)}" stroke-linecap="butt"/>`;
+    html += `<line x1="${xOffset + 6}" y1="${sT}" x2="${xOffset + 6}" y2="${sB}" stroke="#000" stroke-width="${(sH * 0.021).toFixed(2)}" stroke-linecap="butt"/>`;
+    html += `<circle cx="${xOffset + 11}" cy="${rY1.toFixed(2)}" r="${dR.toFixed(2)}" fill="#000"/>`;
+    html += `<circle cx="${xOffset + 11}" cy="${rY2.toFixed(2)}" r="${dR.toFixed(2)}" fill="#000"/>`;
     return html;
 }
 

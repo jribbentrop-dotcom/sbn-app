@@ -166,8 +166,8 @@ resources/js/tab-editor/
     useChordAudio.js                                     ← chord grid audio playback
     useVideoSync.js                                      ← audioSource, isVideoMaster, mappings, videoBeat
   utils/
-    constants.js                                         ← SMUFL glyphs, layout dims, tick math
-    svgHelpers.js                                        ← beam/tie/flag/rest SVG generation
+    constants.js                                         ← SMUFL glyphs, layout dims, tick math (LAYOUT.xPaddingClef for time-sig gutter)
+    svgHelpers.js                                        ← beam/tie/flag/rest SVG generation (renderRepeatStart accepts xOffset param)
     musicXmlWriter.js                                    ← TabModel → MusicXML string
     chordFormat.js                                       ← wrappers for sbnFormatChordHtml / sbnRenderDiagramSVG
     voicingApi.js                                        ← AJAX wrappers for voicing search endpoints
@@ -494,6 +494,19 @@ const transportBeat = computed(() => {
     return currentBeat.value || chordCurrentBeat.value;
 });
 ```
+
+---
+
+## TIME SIGNATURE + CLEF DISPLAY (2026-06-15)
+
+`TabMeasure` accepts two new props: `showClef: Boolean` and `timeSignature: String`. When `showClef` is true (only on the globally first measure, `si===0 && ri===0 && li===0`):
+
+- Renders Bravura SMuFL time-sig glyphs (U+E080+digit) for numerator and denominator stacked in the string zone gutter.
+- `LAYOUT.xPaddingClef = 52` pushes note content right to clear the gutter. All other section-first measures still use `LAYOUT.xPaddingFirst = 22`.
+- `getXm()` uses `xPaddingClef` when `showClef`, `xPaddingFirst` when `isFirstOfSection`, else `xPadding`.
+- `renderRepeatStart(sT, sB, sH, xOffset)` gains an `xOffset` param (default 0). When `showClef && m.repeatStart`, offset = `xPaddingClef - 14` so the repeat barline clears the time sig.
+- All 5 render sites pass `:show-clef` and `:time-signature`: `SheetMiniPlayer`, `LeadsheetViewer`, `StageSectionsGrid`, `TabEditor`, `Cinema.vue → StageSectionsGrid`.
+- `StageSectionsGrid` uses `measure.index === 0` (not section index) since it renders only the active section at a time.
 
 ---
 

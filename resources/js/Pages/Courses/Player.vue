@@ -67,6 +67,7 @@ const snippetSync = computed<Record<string, { startSec: number; tempoBpm: number
 });
 
 const contentRef = ref<InstanceType<typeof LessonContent> | null>(null);
+const practicePanelRef = ref<InstanceType<typeof PracticePanel> | null>(null);
 const activeSubsection = ref<string | null>(null);
 const navCollapsed = ref(localStorage.getItem('sbn_nav_collapsed') === 'true');
 const practiceCollapsed = ref(localStorage.getItem('sbn_practice_collapsed') === 'true');
@@ -101,6 +102,10 @@ function onChordSelect(slug: string, root: string, voicingData?: any): void {
 }
 function clearChord(): void {
   selectedChord.value = null;
+}
+function onExpandVideo(): void {
+  practiceCollapsed.value = false;
+  practicePanelRef.value?.expandVideo();
 }
 
 onBeforeUnmount(() => {
@@ -157,12 +162,14 @@ watch(() => props.lesson?.slug, () => {
           :on-chord-select="onChordSelect"
           :snippet-sync="snippetSync"
           :on-expand-practice="() => practiceCollapsed = false"
+          :on-expand-video="onExpandVideo"
           @subsection-change="activeSubsection = $event"
           @open-sidebar="mobileSidebarOpen = true"
         />
       </main>
 
       <PracticePanel
+        ref="practicePanelRef"
         :lesson="lesson"
         :course="course"
         :selected-chord="selectedChord"

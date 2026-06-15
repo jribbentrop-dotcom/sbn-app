@@ -65,6 +65,8 @@
                     :key="measure.index"
                     :measure="measure"
                     :is-first-of-section="ri === 0 && li === 0"
+                    :show-clef="si === 0 && ri === 0 && li === 0"
+                    :time-signature="timeSignatureRef"
                     :ticks-per-measure="model.ticksPerMeasure"
                     :next-measure="getNextTabMeasure(measure.index)"
                     :is-next-first-of-section="isNextTabMeasureFirstOfSection(measure.index)"

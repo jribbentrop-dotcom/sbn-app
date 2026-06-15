@@ -298,7 +298,9 @@ Palette search: `GET /api/sbn/exercises?q=…`
 
 [`SheetMiniPlayer.vue`](../resources/js/Components/Course/SheetMiniPlayer.vue) — feeds `content_json` through `useTabModel`, renders with `TabMeasure` (`readOnly=true`, `allowChordClick=true`).
 
-**Layout:** rows respect `section.lineBreaks` from `content_json` (the authored row layout). Falls back to 4 bars/row when `lineBreaks` is absent. Each row is a `.sbn-sheet-row` flex container; rows stack vertically in `.sbn-sheet-measures`.
+**Layout:** rows respect `section.lineBreaks` from `content_json` (the authored row layout). Falls back to 4 bars/row when `lineBreaks` is absent. Each row is a `.sbn-sheet-row` flex container; rows stack vertically in `.sbn-sheet-measures`. Rows after the first are indented 28px (`.sbn-sheet-row:not(:first-child) { padding-left: 28px }`).
+
+**Time signature display:** the first measure of the piece renders a Bravura SMuFL time signature (U+E080+digit for numerator/denominator) in the left gutter via `showClef=true` on `TabMeasure`. The note area is pushed right by `LAYOUT.xPaddingClef` (52px). If the first measure also has a repeat-start barline, it is offset by `xPaddingClef - 14` so it sits after the time signature. All callers pass `:show-clef="si===0 && ri===0 && li===0"` and `:time-signature`.
 
 **Play button:** styled `.sbn-play-btn` (design system), 28px, always filled with the orange-red gradient. When `videoSync` is present the button drives the shared video clock via `onVideoPlay`/`onVideoPause` callbacks (see §9.7). When no video sync, drives the AudioEngine synth as before.
 
@@ -320,6 +322,8 @@ Chord clicks in `SheetMiniPlayer` emit `@chord-click` from `TabMeasure`, which c
 `onChordSelect` is threaded from `Player.vue` → `LessonContent.vue` → `mountSbnNodes.ts` via `el.__onChordSelect` DOM side-channel (isolated Vue app instances cannot receive function props through normal prop passing).
 
 `sbn-chord` inline tags also fire `onChordSelect` through the same channel.
+
+**Auto-open behaviour (2026-06-15):** clicking any chord auto-opens the PracticePanel (`practiceCollapsed = false`) and expands the chords `<details>` panel (`chordPanelOpen = true`). The panel stays open when switching between chords — `heroChord` is not cleared during fetch so the previous diagram remains visible until the new one arrives, eliminating flicker. A `<Transition name="vC-chord-swap" mode="out-in">` (150ms opacity fade) animates the swap. The chord card container has a fixed `min-height` to prevent layout shift between cards of different heights. Active chord names in the tab grid grow slightly (`font-size: 21px`) with a smooth `transition: font-size 0.2s`.
 
 ### 9.5 PracticePanel states
 
@@ -390,8 +394,9 @@ Sheet exercises that have been video-synced in the editor (via the same tap-to-m
 - When `exercise.videoSync.videoId` is present, registers a playhead under key `"sheet:{slug}"` in the `useVideoPlayhead` registry.
 - Mounts `SheetMiniPlayer` via a reactive render function that reads `ph.playing` and `ph.playheadSec` — same pattern as the `<sbn-progression>` branch.
 - Passes `onVideoPlay`, `onVideoPause`, `onVideoSeek` callbacks bound to `ph`.
-- `onVideoPlay`: finds the earliest mapping's `videoTime`, seeks there if the playhead is outside the mapped range, then calls `ph.play()`.
+- `onVideoPlay`: finds the earliest mapping's `videoTime`, seeks there if the playhead is outside the mapped range, then calls `ph.play()`. Also calls `options.onExpandVideo?.()` so the video panel auto-opens in the PracticePanel (both when the panel was collapsed and when it was already open but the video `<details>` was closed).
 - `onVideoSeek(seconds)`: calls `ph.seek(seconds)` then `ph.play()` — bar clicks seek and start playing.
+- `onExpandVideo` is threaded: `mountSbnNodes` option → `LessonContent` prop → `Player.onExpandVideo()` → `practiceCollapsed=false` + `practicePanelRef.expandVideo()` → `videoPanelOpen=true`. The video `<details>` defaults to open (`videoPanelOpen=true`) and syncs its state back via `@toggle`.
 
 **`VideoEmbed` — first-play fix:**
 - Added `_seekOnReady` queue: if `seekTo()` is called while `_ytPlayer` is null (facade not yet loaded), the target seconds are stored and applied in `onYTReady` before `playVideo()`. Without this, the first bar click or first play-from-exercise-start would start from the video's beginning.

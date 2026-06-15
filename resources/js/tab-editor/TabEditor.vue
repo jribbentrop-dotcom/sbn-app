@@ -100,6 +100,8 @@
                                         :key="measure.index"
                                         :measure="measure"
                                         :is-first-of-section="ri === 0 && li === 0"
+                                        :show-clef="si === 0 && ri === 0 && li === 0"
+                                        :time-signature="timeSignature"
                                         :ticks-per-measure="model.ticksPerMeasure"
                                         :next-measure="getNextMeasure(measure.index)"
                                         :is-next-first-of-section="isNextMeasureFirstOfSection(measure.index)"

@@ -63,7 +63,7 @@
       </div>
     </div>
 
-    <!-- ── Tab view ── -->
+    <!-- ── Tab view — horizontal scroll, smooth follow-cam ── -->
     <div v-if="view === 'tab' && tabModel" class="stage-tab-panel">
       <div ref="tabScrollEl" class="stage-tab-scroll">
         <template v-for="(section, si) in tabSections" :key="section.id || si">
@@ -77,6 +77,8 @@
             <TabMeasure
               :measure="measure"
               :is-first-of-section="si === 0 && measure === section.measures[0]"
+              :show-clef="measure.index === 0"
+              :time-signature="props.timeSignature"
               :ticks-per-measure="tabModel.ticksPerMeasure"
               :next-measure="getNextTabMeasure(measure.index)"
               :is-next-first-of-section="isNextTabMeasureFirstOfSection(measure.index)"
@@ -96,18 +98,23 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import { formatChordHtml } from '@/tab-editor/utils/chordFormat.js';
 import TabMeasure from '@/tab-editor/components/TabMeasure.vue';
 
 const props = defineProps({
-  sections:        { type: Array,   default: () => [] },
-  currentBarIndex: { type: Number,  default: 0 },
-  playing:         { type: Boolean, default: false },
-  chordVoicings:   { type: Object,  default: () => ({}) },
-  activeVoltaPass: { type: Number,  default: 1 },
-  tabModel:        { type: Object,  default: null },
-  tabHasData:      { type: Boolean, default: false },
+  sections:               { type: Array,   default: () => [] },
+  currentBarIndex:        { type: Number,  default: 0 },
+  // Fractional play position (e.g. 2.73 = bar 2, 73% through). Used for
+  // sub-bar continuous scroll — updated on every video timeupdate (~10 Hz),
+  // which combined with RAF lerp gives smooth motion between beats.
+  fractionalPlayPosition: { type: Number,  default: 0 },
+  playing:                { type: Boolean, default: false },
+  chordVoicings:          { type: Object,  default: () => ({}) },
+  activeVoltaPass:        { type: Number,  default: 1 },
+  tabModel:               { type: Object,  default: null },
+  tabHasData:             { type: Boolean, default: false },
+  timeSignature:          { type: String,  default: '4/4' },
 });
 
 const emit = defineEmits(['seek-measure']);
@@ -119,7 +126,106 @@ const activeSection = computed(() => props.sections[activeSectionIndex.value] ??
 const chordsScrollEl = ref(null);
 const tabScrollEl    = ref(null);
 
-// Auto-advance section tab + scroll active measure into view
+// ── Continuous follow-cam scroll ─────────────────────────────────────────────
+// Driven by fractionalPlayPosition (a global float like 5.73 = bar 5, 73%
+// through) so the scroll target moves SUB-BAR every frame, not just at bar
+// boundaries. Each RAF tick:
+//   1. measure the active bar's offset + width (per-bar layout map),
+//   2. compute the playhead pixel-X = bar.offset + frac × bar.width,
+//   3. target scrollLeft to keep that playhead centered in the viewport,
+//   4. lerp scrollLeft toward the target for smoothness.
+//
+// The beat metronome column inside TabMeasure / the active chord card is a
+// separate, beat-snapped cursor and is intentionally left untouched.
+
+const LERP = 0.20;
+
+let _scrollRaf     = null;
+let _scrollTarget  = 0;
+let _measureLayout = [];   // per-visible-bar { offset, width } in active strip
+
+function activeContainer() {
+  return view.value === 'tab' ? tabScrollEl.value : chordsScrollEl.value;
+}
+
+function barSelector() {
+  return view.value === 'tab' ? '.stage-tab-measure-wrap' : '.stage-sec-measure';
+}
+
+function rebuildLayout() {
+  const container = activeContainer();
+  if (!container) { _measureLayout = []; return; }
+  const els = container.querySelectorAll(barSelector());
+  _measureLayout = Array.from(els).map(el => ({ offset: el.offsetLeft, width: el.offsetWidth }));
+}
+
+// Pixel-X of the playhead inside the active section's strip.
+// currentBarIndex (a gi) picks the bar (repeat/volta-aware); the sub-bar
+// fraction comes from fractionalPlayPosition.
+function playheadX() {
+  if (!_measureLayout.length) return null;
+  const measures = activeSection.value?.measures ?? [];
+  let visibleIdx = -1;
+  for (let mi = 0; mi < measures.length; mi++) {
+    if (!isMeasureVisible(measures[mi])) continue;
+    visibleIdx++;
+    if (measures[mi].globalIndex === props.currentBarIndex) break;
+  }
+  if (visibleIdx < 0 || visibleIdx >= _measureLayout.length) return null;
+  const bar  = _measureLayout[visibleIdx];
+  const pos  = props.fractionalPlayPosition;
+  const frac = pos - Math.floor(pos);
+  return bar.offset + frac * bar.width;
+}
+
+function scrollTargetFor(container, px) {
+  const vw = container.clientWidth;
+  const maxScroll = Math.max(0, container.scrollWidth - vw);
+  return Math.max(0, Math.min(maxScroll, px - vw * 0.9));   // center the playhead
+}
+
+function startScrollFollow() {
+  if (_scrollRaf) return;
+  function tick() {
+    const container = activeContainer();
+    if (container) {
+      const px = playheadX();
+      if (px !== null) {
+        _scrollTarget = scrollTargetFor(container, px);
+        const diff = _scrollTarget - container.scrollLeft;
+        if (Math.abs(diff) > 0.5) container.scrollLeft += diff * LERP;
+      }
+    }
+    _scrollRaf = requestAnimationFrame(tick);
+  }
+  _scrollRaf = requestAnimationFrame(tick);
+}
+
+function stopScrollFollow() {
+  if (_scrollRaf) { cancelAnimationFrame(_scrollRaf); _scrollRaf = null; }
+}
+
+function snapToCurrent() {
+  rebuildLayout();
+  const container = activeContainer();
+  if (!container) return;
+  const px = playheadX();
+  if (px === null) return;
+  container.scrollLeft = _scrollTarget = scrollTargetFor(container, px);
+}
+
+onUnmounted(() => stopScrollFollow());
+
+watch(() => props.playing, async (isPlaying) => {
+  if (isPlaying) {
+    await nextTick();
+    rebuildLayout();
+    startScrollFollow();
+  } else {
+    stopScrollFollow();
+  }
+}, { immediate: true });
+
 watch(() => props.currentBarIndex, async (barIndex) => {
   const si = props.sections.findIndex(sec =>
     (sec.measures ?? []).some(m => (m.globalIndex ?? -1) === barIndex)
@@ -127,23 +233,10 @@ watch(() => props.currentBarIndex, async (barIndex) => {
   if (si !== -1 && si !== activeSectionIndex.value) {
     activeSectionIndex.value = si;
     await nextTick();
+    rebuildLayout();
   }
-  scrollToActive(barIndex);
+  if (!props.playing) snapToCurrent();   // paused seek — snap directly
 });
-
-function scrollToActive(barIndex) {
-  // Chords view — find the active .stage-sec-measure card
-  if (view.value === 'chords' && chordsScrollEl.value) {
-    const active = chordsScrollEl.value.querySelector('.stage-sec-measure--active');
-    if (active) active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-    return;
-  }
-  // Tab view — find the TabMeasure wrapper by data-measure attribute
-  if (view.value === 'tab' && tabScrollEl.value) {
-    const active = tabScrollEl.value.querySelector(`[data-measure="${barIndex}"]`);
-    if (active) active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-  }
-}
 
 // A volta measure is visible only when its number matches the active pass.
 function isMeasureVisible(measure) {
@@ -212,27 +305,27 @@ function isNextTabMeasureFirstOfSection(index) {
   align-items: center;
   gap: 7px;
   padding: 6px 14px 6px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--stage-line-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--clr-border);
   background: transparent;
   cursor: pointer;
   transition: all 0.15s ease;
-  color: var(--stage-text-dim);
+  color: var(--clr-text-dim);
 }
 
 .stage-sec-tab:hover {
-  background: var(--stage-bg-2);
-  color: var(--stage-text);
+  background: var(--clr-surface-2);
+  color: var(--clr-text);
 }
 
 .stage-sec-tab--active {
-  background: var(--stage-bg-2);
+  background: var(--clr-surface-2);
   border-color: rgba(var(--stage-accent-rgb), 0.4);
-  color: var(--stage-text);
+  color: var(--clr-text);
 }
 
 .stage-sec-tab-letter {
-  font-family: var(--stage-font-mono);
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
   width: 20px;
@@ -240,23 +333,24 @@ function isNextTabMeasureFirstOfSection(index) {
   border-radius: 4px;
   display: grid;
   place-items: center;
-  background: var(--stage-bg-3);
-  color: var(--stage-text-dim);
+  background: var(--clr-surface-3);
+  color: var(--clr-text-dim);
   flex-shrink: 0;
 }
 
 .stage-sec-tab--active .stage-sec-tab-letter,
 .stage-sec-tab[data-sec="0"] .stage-sec-tab-letter,
 .stage-sec-tab[data-sec="1"] .stage-sec-tab-letter {
-  background: rgba(var(--stage-accent-rgb), 0.15);
-  color: var(--stage-accent-2);
+  background: rgba(var(--stage-accent-rgb), 0.12);
+  color: var(--stage-accent);
 }
 
-.stage-sec-tab[data-sec="2"] .stage-sec-tab-letter { background: rgba(107,70,246,0.15); color: #a88bff; }
-.stage-sec-tab[data-sec="3"] .stage-sec-tab-letter { background: rgba(74,222,128,0.15); color: var(--stage-good); }
+/* Section identity tints — kept as local literals, not DS-mapped */
+.stage-sec-tab[data-sec="2"] .stage-sec-tab-letter { background: rgba(139,92,246,0.12); color: #7c3aed; }
+.stage-sec-tab[data-sec="3"] .stage-sec-tab-letter { background: rgba(16,185,129,0.12); color: var(--clr-success); }
 
 .stage-sec-tab-name {
-  font-family: var(--stage-font-chord);
+  font-family: var(--font-chord);
   font-style: italic;
   font-size: 13px;
 }
@@ -264,8 +358,8 @@ function isNextTabMeasureFirstOfSection(index) {
 /* ── View toggle ── */
 .stage-view-toggle {
   display: flex;
-  border: 1px solid var(--stage-line-2);
-  border-radius: 8px;
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-sm);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -274,8 +368,8 @@ function isNextTabMeasureFirstOfSection(index) {
   padding: 5px 14px;
   background: transparent;
   border: none;
-  color: var(--stage-text-dim);
-  font-family: var(--stage-font-mono);
+  color: var(--clr-text-dim);
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.5px;
@@ -284,16 +378,16 @@ function isNextTabMeasureFirstOfSection(index) {
 }
 
 .stage-view-btn + .stage-view-btn {
-  border-left: 1px solid var(--stage-line-2);
+  border-left: 1px solid var(--clr-border);
 }
 
 .stage-view-btn:hover {
-  background: var(--stage-bg-2);
-  color: var(--stage-text);
+  background: var(--clr-surface-2);
+  color: var(--clr-text);
 }
 
 .stage-view-btn--active {
-  background: rgba(var(--stage-accent-rgb), 0.12);
+  background: rgba(var(--stage-accent-rgb), 0.1);
   color: var(--stage-accent);
 }
 
@@ -301,7 +395,7 @@ function isNextTabMeasureFirstOfSection(index) {
 .stage-sec-panel {
   background: transparent;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 4px 0 14px;
 }
 
@@ -310,12 +404,12 @@ function isNextTabMeasureFirstOfSection(index) {
   overflow-x: auto;
   padding-bottom: 6px;
   scrollbar-width: thin;
-  scrollbar-color: var(--stage-line-2) transparent;
+  scrollbar-color: var(--clr-border) transparent;
 }
 
 .stage-sec-scroll::-webkit-scrollbar { height: 4px; }
 .stage-sec-scroll::-webkit-scrollbar-track { background: transparent; }
-.stage-sec-scroll::-webkit-scrollbar-thumb { background: var(--stage-line-2); border-radius: 2px; }
+.stage-sec-scroll::-webkit-scrollbar-thumb { background: var(--clr-border); border-radius: 2px; }
 
 .stage-sec-measure {
   display: flex;
@@ -324,10 +418,10 @@ function isNextTabMeasureFirstOfSection(index) {
   flex-shrink: 0;
   cursor: pointer;
   padding: 8px 10px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--stage-line-2);
-  background: var(--stage-bg-1);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--clr-border);
+  background: var(--clr-white);
+  box-shadow: var(--clr-shadow-sm);
   min-width: 80px;
   position: relative;
   margin-right: 8px;
@@ -346,17 +440,17 @@ function isNextTabMeasureFirstOfSection(index) {
 
 .stage-sec-measure:hover {
   border-color: rgba(var(--stage-accent-rgb), 0.4);
-  box-shadow: 0 2px 8px rgba(var(--stage-accent-rgb), 0.1);
+  box-shadow: var(--clr-shadow);
 }
 
 .stage-sec-measure--active {
   border-color: var(--stage-accent);
-  background: rgba(var(--stage-accent-rgb), 0.06);
-  box-shadow: 0 0 0 1px rgba(var(--stage-accent-rgb), 0.2), 0 4px 12px rgba(var(--stage-accent-rgb), 0.12);
+  background: rgba(var(--stage-accent-rgb), 0.04);
+  box-shadow: 0 0 0 1px rgba(var(--stage-accent-rgb), 0.12), var(--clr-shadow);
 }
 
 .stage-sec-measure--past {
-  opacity: 0.35;
+  opacity: 0.4;
 }
 
 .stage-sec-measure--hidden {
@@ -370,9 +464,9 @@ function isNextTabMeasureFirstOfSection(index) {
 }
 
 .stage-sec-bar-num {
-  font-family: var(--stage-font-mono);
+  font-family: var(--font-mono);
   font-size: 9px;
-  color: var(--stage-text-mute);
+  color: var(--clr-text-muted);
   font-weight: 500;
 }
 
@@ -395,11 +489,11 @@ function isNextTabMeasureFirstOfSection(index) {
 }
 
 .stage-chord-name {
-  font-family: var(--stage-font-chord);
+  font-family: var(--font-chord);
   font-size: 14px;
   font-weight: 600;
-  color: var(--stage-text);
-  --sbn-chord-color: var(--stage-text);
+  color: var(--clr-text);
+  --sbn-chord-color: var(--clr-text);
   text-align: center;
   line-height: 1;
   white-space: nowrap;
@@ -430,45 +524,40 @@ function isNextTabMeasureFirstOfSection(index) {
   overflow-x: auto;
   padding-bottom: 6px;
   scrollbar-width: thin;
-  scrollbar-color: var(--stage-line-2) transparent;
-  /* Dark theme overrides for tab SVG */
-  --sbn-tab-bg:          transparent;
-  --sbn-tab-string-color: rgba(255,255,255,0.25);
-  --sbn-tab-text-color:   rgba(255,255,255,0.85);
-  --sbn-tab-beat-color:   rgba(255,255,255,0.1);
-  --sbn-tab-active-bg:    rgba(var(--stage-accent-rgb), 0.15);
-  --sbn-chord-color:      var(--stage-text);
+  scrollbar-color: var(--clr-border) transparent;
+  --sbn-tab-bg:           transparent;
+  --sbn-tab-active-bg:    rgba(var(--stage-accent-rgb), 0.08);
+  --sbn-chord-color:      var(--clr-text);
 }
 
 .stage-tab-scroll::-webkit-scrollbar { height: 4px; }
 .stage-tab-scroll::-webkit-scrollbar-track { background: transparent; }
-.stage-tab-scroll::-webkit-scrollbar-thumb { background: var(--stage-line-2); border-radius: 2px; }
-
+.stage-tab-scroll::-webkit-scrollbar-thumb { background: var(--clr-border); border-radius: 2px; }
 
 /* Tab measure wrapper — click target + active highlight */
 .stage-tab-measure-wrap {
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: background 0.15s;
   flex-shrink: 0;
 }
 
 .stage-tab-measure-wrap:hover {
-  background: rgba(var(--stage-accent-rgb), 0.05);
+  background: rgba(var(--stage-accent-rgb), 0.04);
 }
 
 .stage-tab-measure-wrap--active {
-  background: rgba(var(--stage-accent-rgb), 0.1);
-  outline: 1px solid rgba(var(--stage-accent-rgb), 0.35);
+  background: rgba(var(--stage-accent-rgb), 0.07);
+  outline: 1px solid rgba(var(--stage-accent-rgb), 0.3);
   outline-offset: -1px;
 }
 
-/* Chord names in tab view — larger, stage colors */
+/* Chord names in tab view */
 .stage-tab-scroll :deep(.sbn-tab-chord-bar .sbn-tab-chord-name) {
   font-size: 26px;
-  color: var(--stage-text);
-  --sbn-chord-color: var(--stage-text);
-  --clr-text: var(--stage-text);
+  color: var(--clr-text);
+  --sbn-chord-color: var(--clr-text);
+  --clr-text: var(--clr-text);
 }
 
 .stage-tab-scroll :deep(.sbn-tab-chord-bar) {

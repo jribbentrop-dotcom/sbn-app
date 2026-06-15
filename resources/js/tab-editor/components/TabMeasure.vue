@@ -1,4 +1,4 @@
-<template>
+﻿<template>
     <div class="sbn-tab-measure"
          :class="{
              'sbn-tab-measure--overfill':  isOverfilled,
@@ -188,6 +188,19 @@ const props = defineProps({
      * and measure selection / click-to-seek intact.
      */
     readOnly: {
+        type: Boolean,
+        default: false,
+    },
+    /**
+     * Time signature string (e.g. "4/4", "3/4") — rendered alongside the
+     * TAB clef when showClef is true.
+     */
+    timeSignature: {
+        type: String,
+        default: '4/4',
+    },
+    /** Show the TAB clef + time signature (first measure of the entire piece). */
+    showClef: {
         type: Boolean,
         default: false,
     },
@@ -492,7 +505,7 @@ function getXm(xPos) {
     // xPos is already relative to effectiveTicks (0..1 range),
     // so we map it to the effective pixel width.
     const w = effectiveWidth.value;
-    const xL = props.isFirstOfSection ? LAYOUT.xPaddingFirst : LAYOUT.xPadding;
+    const xL = props.showClef ? LAYOUT.xPaddingClef : props.isFirstOfSection ? LAYOUT.xPaddingFirst : LAYOUT.xPadding;
     const xRng = w - xL - LAYOUT.xPadding;
     return xL + xPos * xRng;
 }
@@ -615,7 +628,21 @@ const svgContent = computed(() => {
         html += `<line x1="0" y1="${y}" x2="${w}" y2="${y}" class="sbn-tab-string-line"/>`;
     }
 
-    if (m.repeatStart) html += renderRepeatStart(sT, sB, sH);
+    // Time signature on the first measure of the piece
+    if (props.showClef) {
+        const tParts = String(props.timeSignature ?? '4/4').split('/');
+        const tsNum  = parseInt(tParts[0], 10) || 4;
+        const tsDen  = parseInt(tParts[1], 10) || 4;
+        // SMuFL time-sig digit: U+E080 + digit value; multi-digit numbers concatenate glyphs
+        const tsGlyph = n => String(n).split('').map(c => String.fromCodePoint(0xE080 + parseInt(c, 10))).join('');
+        const tsX    = 10;
+        const tsOff  = 3;  // nudge both numbers down
+        const qtrH   = (sB - sT) / 6;
+        html += `<text x="${tsX}" y="${sT + qtrH + tsOff}"       dominant-baseline="middle" text-anchor="middle" font-family="Bravura,serif" font-size="35" fill="#222">${tsGlyph(tsNum)}</text>`;
+        html += `<text x="${tsX}" y="${sT + qtrH * 3.2 + tsOff}" dominant-baseline="middle" text-anchor="middle" font-family="Bravura,serif" font-size="35" fill="#222">${tsGlyph(tsDen)}</text>`;
+    }
+
+    if (m.repeatStart) html += renderRepeatStart(sT, sB, sH, props.showClef ? LAYOUT.xPaddingClef - 29 : 0);
     html += renderBeams(events, getXm);
     html += renderTies(events, m.index, getXm, w, props.nextMeasure ? getNextXm : null, nextEffectiveWidth.value);
 

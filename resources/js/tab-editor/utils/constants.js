@@ -8,6 +8,8 @@
 // ── SMuFL Glyphs (Bravura font) ────────────────────────────
 
 export const SMUFL = {
+    guitarTabClef: '\uE06D',
+    timeSig0:    '\uE080',  // U+E080..E089 = SMuFL time-sig digits 0\u20139
     flag8thUp:   '\uE240',
     flag16thUp:  '\uE242',
     flag8thDown: '\uE241',
@@ -31,7 +33,8 @@ export const LAYOUT = {
     bottomPadding:  23,      // headroom for stems below strings (increased: stem must clear string-6 hit zone)
     stringAreaTop:  5,      // top string Y position (raised for volta clearance)
     xPadding:       11,      // standard left/right note padding
-    xPaddingFirst:  22,      // first measure in a section: extra left indent (clears repeat sign)
+    xPaddingFirst:  22,      // first measure of a section: extra indent (clears repeat sign)
+    xPaddingClef:   62,      // first measure of the piece: room for time signature
     stemBaseOffset: 8,       // stem starts 8px below bottomStringY (must clear string-6 hit zone at +6px)
     stemLength:     15,      // uniform stem length
     beamThickness:  3.2,

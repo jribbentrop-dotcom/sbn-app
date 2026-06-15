@@ -160,6 +160,8 @@ export async function mountSbnNodes(
     snippetSync?: Record<string, SnippetSyncInfo> | null;
     /** Called when a sheet/progression play button is pressed so the practice panel auto-expands. */
     onExpandPractice?: (() => void) | null;
+    /** Called when a sheet with video starts playing so the video panel auto-opens. */
+    onExpandVideo?: (() => void) | null;
   } = {},
 ): Promise<() => void> {
   const apps: App[] = [];
@@ -396,10 +398,12 @@ export async function mountSbnNodes(
                       ph.play();
                     };
                     if (!ph.embedRef.value) {
-                      // Panel is collapsed — expand it, then wait for VideoEmbed to mount.
+                      // Panel is collapsed — expand it + open video panel, then wait for VideoEmbed to mount.
                       options.onExpandPractice?.();
+                      options.onExpandVideo?.();
                       setTimeout(doPlay, 300);
                     } else {
+                      options.onExpandVideo?.();
                       doPlay();
                     }
                   },

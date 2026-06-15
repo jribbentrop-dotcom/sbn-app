@@ -22,14 +22,6 @@ const props = defineProps({
   chordCards: { type: Object, default: () => ({}) },
 });
 
-// ── Theme (light / dark) ─────────────────────────────────────────────────
-const THEME_KEY = 'cinema-theme';
-const theme = ref('dark');
-try { theme.value = localStorage.getItem(THEME_KEY) ?? 'dark'; } catch {}
-function toggleTheme() {
-  theme.value = theme.value === 'dark' ? 'light' : 'dark';
-  try { localStorage.setItem(THEME_KEY, theme.value); } catch {}
-}
 
 // ── Flat bar list from leadsheet JSON data ───────────────────────────────
 const jsonData = computed(() => props.leadsheet.jsonData ?? {});
@@ -146,15 +138,28 @@ const beatsPerMeasure = computed(() => {
 const heroRef = ref(null);
 
 // ── Playback state (bar/beat clock driven by video time when synced) ─────
-const currentBarIndex    = ref(0);
-const currentBeat        = ref(0);
-const currentPlayPosition = ref(0);   // linear play position in expandedSequence
+const currentBarIndex         = ref(0);
+const currentBeat             = ref(0);
+const currentPlayPosition     = ref(0);   // floored linear play position
+const fractionalPlayPosition  = ref(0);   // raw float — used for smooth scroll
 const playing = ref(false);
 
 // Toggle/loop/count/click toggles
-const countOn = ref(false);
-const loopOn  = ref(false);
-const clickOn = ref(false);
+const loopOn       = ref(false);
+const playbackRate = ref(1);
+
+const RATE_STEPS = [0.5, 0.75, 1, 1.25];
+
+function setRate(rate) {
+  playbackRate.value = rate;
+  if (hasVideo.value) {
+    heroRef.value?.setPlaybackRate(rate);
+  } else if (_intervalId) {
+    // Restart fallback clock at new tempo
+    stopFallbackClock();
+    if (playing.value) startFallbackClock();
+  }
+}
 
 // ── Video sync state ─────────────────────────────────────────────────────
 const videoSync = computed(() => jsonData.value.videoSync ?? null);
@@ -257,9 +262,10 @@ function onVideoTimeUpdate(time) {
   const fraction = pos - Math.floor(pos);
   const beat = Math.floor(fraction * beatsPerMeasure.value);
 
-  currentBarIndex.value    = Math.max(0, Math.min(totalBars.value - 1, bar));
-  currentBeat.value        = Math.max(0, beat);
-  currentPlayPosition.value = floored;
+  currentBarIndex.value        = Math.max(0, Math.min(totalBars.value - 1, bar));
+  currentBeat.value            = Math.max(0, beat);
+  currentPlayPosition.value    = floored;
+  fractionalPlayPosition.value = Math.max(0, pos);
 }
 
 function onVideoPlayState(playing_) {
@@ -274,7 +280,7 @@ const tempo = computed(() => props.leadsheet.tempo ?? 120);
 
 function startFallbackClock() {
   if (_intervalId) return;
-  const ms = (60 / (tempo.value || 120)) * 1000;
+  const ms = (60 / ((tempo.value || 120) * (playbackRate.value || 1))) * 1000;
   _intervalId = setInterval(() => {
     if (!playing.value) return;
     let beat = currentBeat.value + 1;
@@ -296,9 +302,10 @@ function startFallbackClock() {
         }
       }
     }
-    currentBeat.value         = beat;
-    currentBarIndex.value     = bar;
-    currentPlayPosition.value = pos;
+    currentBeat.value            = beat;
+    currentBarIndex.value        = bar;
+    currentPlayPosition.value    = pos;
+    fractionalPlayPosition.value = pos + beat / beatsPerMeasure.value;
   }, ms);
 }
 
@@ -500,11 +507,8 @@ provide('tapCursor',      ref(null));
 <template>
   <Head :title="`${leadsheet.title} — Cinema | SBN`" />
 
-  <!-- Full-page dark stage wrapper -->
-  <div class="leadsheet-stage" :data-theme="theme">
-    <!-- Stage scrim -->
-    <div class="stage-scrim" aria-hidden="true"></div>
-
+  <!-- Full-page stage wrapper -->
+  <div class="leadsheet-stage">
     <div class="stage-content">
       <!-- Top bar -->
       <StageTopBar
@@ -514,8 +518,6 @@ provide('tapCursor',      ref(null));
         :time-signature="leadsheet.timeSignature ?? '4/4'"
         :bar-count="totalBars"
         :classic-url="classicUrl"
-        :theme="theme"
-        @toggle-theme="toggleTheme"
       />
 
       <!-- Hero: video + Now Playing -->
@@ -545,27 +547,28 @@ provide('tapCursor',      ref(null));
         :total-bars="totalBars"
         :beats-per-measure="beatsPerMeasure"
         :sections="sections"
-        :count-on="countOn"
         :loop-on="loopOn"
-        :click-on="clickOn"
+        :playback-rate="playbackRate"
+        :rate-steps="RATE_STEPS"
         @toggle="onTransportToggle"
         @prev="onPrev"
         @next="onNext"
         @seek-bar="onSeekBar"
-        @toggle-count="countOn = !countOn"
         @toggle-loop="loopOn = !loopOn"
-        @toggle-click="clickOn = !clickOn"
+        @set-rate="setRate"
       />
 
       <!-- Sections grid -->
       <StageSectionsGrid
         :sections="sections"
         :current-bar-index="currentFlatBar?.globalIndex ?? currentFlatBar?.index ?? 0"
+        :fractional-play-position="fractionalPlayPosition"
         :playing="playing"
         :chord-voicings="chordVoicings"
         :active-volta-pass="activeVoltaPass"
         :tab-model="tabModel"
         :tab-has-data="tabHasData"
+        :time-signature="props.leadsheet.timeSignature ?? '4/4'"
         @seek-measure="onSeekMeasure"
       />
     </div>
@@ -573,82 +576,53 @@ provide('tapCursor',      ref(null));
 </template>
 
 <style>
-/* ── Stage palette — scoped so tokens don't leak into the rest of the app */
+/* ── Stage palette — aliases onto the DS token set ── */
 .leadsheet-stage {
-  --stage-bg:          #0a0a0c;
-  --stage-bg-1:        #111117;
-  --stage-bg-2:        #16161e;
-  --stage-bg-3:        #1d1d27;
-  --stage-line:        rgba(255,255,255,0.08);
-  --stage-line-2:      rgba(255,255,255,0.14);
-  --stage-text:        #e8e4dc;
-  --stage-text-dim:    #8a8a96;
-  --stage-text-mute:   #545460;
-  --stage-accent:      #ff7a1a;
-  --stage-accent-2:    #ffb347;
-  --stage-accent-rgb:  255,122,26;
-  --stage-good:        #4ade80;
-  --stage-scrim-1:     rgba(255,122,26,0.08);
-  --stage-scrim-2:     rgba(100,80,255,0.05);
-  --stage-primary-ink: #1a0b00;
-  --stage-font-body:   'DM Sans', system-ui, sans-serif;
-  --stage-font-chord:  'Crimson Text', Georgia, serif;
-  --stage-font-mono:   'JetBrains Mono', monospace;
+  /* Accent — brand gradient for filled elements, amber for text/borders */
+  --stage-accent:       var(--clr-accent-dim);   /* #e67e22 — softer on white */
+  --stage-accent-2:     var(--clr-accent);        /* #f39c12 — lighter variant */
+  --stage-accent-rgb:   230,126,34;               /* matches --clr-accent-dim */
+  --stage-gradient:     var(--clr-gradient);
+  --stage-gradient-hover: var(--clr-gradient-hover);
+
+  /* Surfaces — map directly to DS */
+  --stage-bg:   var(--clr-white);
+  --stage-bg-1: var(--clr-white);
+  --stage-bg-2: var(--clr-surface-2);
+  --stage-bg-3: var(--clr-surface-3);
+
+  /* Lines — DS border tokens */
+  --stage-line:   var(--clr-border-dim);
+  --stage-line-2: var(--clr-border);
+
+  /* Text */
+  --stage-text:      var(--clr-text);
+  --stage-text-dim:  var(--clr-text-dim);
+  --stage-text-mute: var(--clr-text-muted);
+
+  /* Misc */
+  --stage-good:        var(--clr-success);
+  --stage-primary-ink: var(--clr-white);
+
+  /* Fonts — identical to DS */
+  --stage-font-body:  var(--font-body);
+  --stage-font-chord: var(--font-chord);
+  --stage-font-mono:  var(--font-mono);
 
   min-height: 100vh;
   background: var(--stage-bg);
   color: var(--stage-text);
   font-family: var(--stage-font-body);
   -webkit-font-smoothing: antialiased;
-  position: relative;
   overflow-x: hidden;
-}
-
-/* ── Light theme overrides ── */
-.leadsheet-stage[data-theme="light"] .chord-svg-neon {
-  --neon-grid:        rgba(0,0,0,0.25);
-  --neon-grid-strong: rgba(0,0,0,0.6);
-  --neon-txt:         rgba(0,0,0,0.7);
-}
-
-.leadsheet-stage[data-theme="light"] {
-  --stage-bg:          #ffffff;
-  --stage-bg-1:        #ffffff;
-  --stage-bg-2:        #f8f8f8;
-  --stage-bg-3:        #f0f0f0;
-  --stage-line:        rgba(30,20,12,0.1);
-  --stage-line-2:      rgba(30,20,12,0.18);
-  --stage-text:        #1c150e;
-  --stage-text-dim:    #6b5d4d;
-  --stage-text-mute:   #a89782;
-  --stage-accent:      #d64a0c;
-  --stage-accent-2:    #b83808;
-  --stage-accent-rgb:  214,74,12;
-  --stage-good:        #15803d;
-  --stage-scrim-1:     rgba(214,74,12,0.06);
-  --stage-scrim-2:     rgba(100,80,255,0.03);
-  --stage-primary-ink: #ffffff;
-}
-
-/* Vignette / spotlight scrim */
-.stage-scrim {
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 1200px 800px at 50% 110%, var(--stage-scrim-2), transparent 60%);
-  pointer-events: none;
-  z-index: 0;
 }
 
 .stage-content {
   max-width: 1400px;
   margin: 0 auto;
   padding: 24px 28px 64px;
-  position: relative;
-  z-index: 1;
 }
 
-/* Ensure child components inherit the stage font vars */
 .leadsheet-stage * {
   box-sizing: border-box;
 }
