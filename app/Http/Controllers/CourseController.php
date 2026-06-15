@@ -6,7 +6,6 @@ use App\Models\ChordProgression;
 use App\Models\Course;
 use App\Models\Exercise;
 use App\Models\Lesson;
-use App\Models\Leadsheet;
 use App\Models\RhythmPattern;
 use App\Services\EduContentService;
 use Illuminate\Http\Request;
@@ -40,48 +39,61 @@ class CourseController extends Controller
             ->get()
             ->map(fn ($lesson) => $this->serializeLessonStub($lesson));
 
-        // Related songs: match by genre slug stored in leadsheet rhythm category
-        // or simply pull all songs — genre filtering on Leadsheet uses the rhythm slug
-        // mapping. For now pull songs that have matching genre or all songs ordered by title.
-        $genre = $course->primary_genre; // e.g. "bossa-nova"
-        $relatedSongs = Leadsheet::published()
-            ->whereNotNull('title')
-            ->where(function ($q) use ($genre) {
-                // Try course_id first, then genre-style match via rhythm slug prefix
-                $q->where('course_id', null); // open to all styles for now
-            })
-            ->orderByRaw("CASE WHEN rhythm LIKE ? THEN 0 ELSE 1 END", ["%{$genre}%"])
-            ->orderBy('title')
-            ->limit(6)
-            ->get(['id', 'slug', 'title', 'composer', 'song_key', 'tempo', 'rhythm']);
+        // Scan per-lesson so we can record the first lesson each tag appears in.
+        // Cap at 5 items per type — sidebar is a teaser, not a full inventory.
+        $sidebarCap = 5;
+        $allLessons = $course->lessons()->published()->orderBy('sort_order')->get();
+        $rhythmMap = $chordMap = $exerciseMap = $songMap = $progressionMap = $widgetMap = [];
 
-        // Rhythm patterns actually used in this course — scan all published lesson content
-        $allLessonContent = $course->lessons()->published()->pluck('content');
-        $rhythmSlugs = [];
-        foreach ($allLessonContent as $content) {
-            if (!$content) continue;
-            preg_match_all('/<sbn-rhythm\b[^>]*\bslug="([^"]+)"/i', $content, $matches);
-            foreach ($matches[1] as $slug) {
-                $rhythmSlugs[$slug] = true;
+        foreach ($allLessons as $scanLesson) {
+            if (!$scanLesson->content) continue;
+            $ls = $scanLesson->slug;
+
+            foreach ([
+                'sbn-rhythm'      => &$rhythmMap,
+                'sbn-chord'       => &$chordMap,
+                'sbn-sheet'       => &$exerciseMap,
+                'sbn-song'        => &$songMap,
+                'sbn-progression' => &$progressionMap,
+                'sbn-widget'      => &$widgetMap,
+            ] as $tag => &$bag) {
+                if (count($bag) >= $sidebarCap) continue;
+                preg_match_all('/<' . $tag . '\b[^>]*\bslug="([^"]+)"/i', $scanLesson->content, $m);
+                foreach ($m[1] as $s) {
+                    if (!isset($bag[$s])) {
+                        $bag[$s] = $ls;
+                        if (count($bag) >= $sidebarCap) break;
+                    }
+                }
             }
+            unset($bag);
         }
-        $rhythmPatterns = RhythmPattern::whereIn('slug', array_keys($rhythmSlugs))
-            ->orderBy('sort_order')
-            ->get();
+
+        $rhythmPatterns = RhythmPattern::whereIn('slug', array_keys($rhythmMap))
+            ->orderBy('sort_order')->get();
+
+        $chordDiagrams = \App\Models\ChordDiagram::whereIn('slug', array_keys($chordMap))
+            ->orderBy('root_note')->orderBy('name')->get();
+
+        $exercises = \App\Models\Exercise::whereIn('slug', array_keys($exerciseMap))
+            ->orderBy('title')->get();
+
+        $songs = \App\Models\Leadsheet::whereIn('slug', array_keys($songMap))
+            ->orderBy('title')->get();
+
+        $progressions = \App\Models\ChordProgression::whereIn('slug', array_keys($progressionMap))
+            ->orderBy('name')->get();
+
+        $eduService = app(EduContentService::class);
+        $widgets = collect(array_keys($widgetMap))->map(function ($slug) use ($eduService) {
+            $topic = $eduService->topic('concept', $slug);
+            return $topic ? ['slug' => $topic->slug, 'title' => $topic->title] : null;
+        })->filter()->values();
 
         return Inertia::render('Courses/Show', [
-            'course'   => $this->serializeCourse($course),
-            'lessons'  => $lessons,
-            'songs'    => $relatedSongs->map(fn ($s) => [
-                'id'       => $s->id,
-                'slug'     => $s->slug,
-                'title'    => $s->title,
-                'composer' => $s->composer,
-                'key'      => $s->song_key,
-                'tempo'    => $s->tempo,
-                'rhythm'   => $s->rhythm,
-            ]),
-            'rhythms'  => $rhythmPatterns->map(fn ($r) => [
+            'course'       => $this->serializeCourse($course),
+            'lessons'      => $lessons,
+            'rhythms'      => $rhythmPatterns->map(fn ($r) => [
                 'id'            => $r->id,
                 'slug'          => $r->slug,
                 'name'          => $r->name,
@@ -90,6 +102,37 @@ class CourseController extends Controller
                 'bpm'           => $r->default_bpm,
                 'timeSignature' => $r->time_signature,
                 'playerData'    => $r->toPlayerData(),
+                'lessonSlug'    => $rhythmMap[$r->slug] ?? null,
+            ]),
+            'chords'       => $chordDiagrams->map(fn ($c) => [
+                'slug'       => $c->slug,
+                'name'       => $c->name,
+                'rootNote'   => $c->root_note,
+                'lessonSlug' => $chordMap[$c->slug] ?? null,
+            ]),
+            'exercises'    => $exercises->map(fn ($e) => [
+                'slug'       => $e->slug,
+                'title'      => $e->title,
+                'keyCenter'  => $e->key_center,
+                'type'       => $e->type,
+                'lessonSlug' => $exerciseMap[$e->slug] ?? null,
+            ]),
+            'songs'        => $songs->map(fn ($s) => [
+                'slug'       => $s->slug,
+                'title'      => $s->title,
+                'composer'   => $s->composer ?: null,
+                'lessonSlug' => $songMap[$s->slug] ?? null,
+            ]),
+            'progressions' => $progressions->map(fn ($p) => [
+                'slug'       => $p->slug,
+                'name'       => $p->name,
+                'category'   => $p->category,
+                'lessonSlug' => $progressionMap[$p->slug] ?? null,
+            ]),
+            'widgets'      => $widgets->map(fn ($w) => [
+                'slug'       => $w['slug'],
+                'title'      => $w['title'],
+                'lessonSlug' => $widgetMap[$w['slug']] ?? null,
             ]),
         ]);
     }
@@ -404,7 +447,11 @@ class CourseController extends Controller
             'isGated' => $course->is_gated,
             'lessonCount' => $course->lesson_count,
             'featuredImagePath' => $course->featured_image_path,
-            'productSlug' => $course->product?->slug,
+            'productSlug'       => $course->product?->slug,
+            'learningOutcomes'  => array_values(array_filter(array_map(
+                'trim',
+                explode("\n", $course->learning_outcomes ?? '')
+            ))),
         ];
     }
 
@@ -423,9 +470,13 @@ class CourseController extends Controller
 
     private function serializeLesson(Lesson $lesson, bool $withContent): array
     {
+        $content = null;
+        if ($withContent && $lesson->content) {
+            $content = str_replace('&amp;amp;', '&amp;', $lesson->content);
+        }
         return [
             ...$this->serializeLessonStub($lesson),
-            'content' => $withContent ? $lesson->content : null,
+            'content' => $content,
         ];
     }
 }

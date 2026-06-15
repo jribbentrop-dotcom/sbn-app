@@ -40,7 +40,7 @@ Stored in `content` as plain HTML. Always require explicit closing tags (`<sbn-f
 | `<sbn-rhythm>` | yes | `slug` (required) | [`RhythmStrip.vue`](../resources/js/Components/Library/RhythmStrip.vue) — TODO: migrate embed in `mountSbnNodes.ts` from `RhythmCard` (see `SBN-Rhythm-Reference.md §11`) |
 | `<sbn-progression>` | yes | `slug` (required), `key` (optional, default `C`) | [`ChordProgressionViewer.vue`](../resources/js/Components/Library/ChordProgressionViewer.vue) |
 | `<sbn-sheet>` | yes | `slug` (required), `key` (optional, default `C`) | [`SheetMiniPlayer.vue`](../resources/js/Components/Course/SheetMiniPlayer.vue) — see §9 |
-| `<sbn-song>` | no — link only | `slug` (required), `label` (optional, default = slug) | none — see §5.2 |
+| `<sbn-song>` | yes | `slug` (required), `bars` (optional, e.g. `"5-8"`) | [`SheetMiniPlayer.vue`](../resources/js/Components/Course/SheetMiniPlayer.vue) — see §7.4 |
 | `<sbn-youtube>` | yes (no fetch) | `id` (required), `start` (optional, seconds) | inline `<iframe>` to `youtube-nocookie.com` |
 | `<sbn-fretboard>` | yes (vanilla JS, no Vue) | `slug` (required) | `sbnHydrateFretboard()` in `public/js/chords.js` — see [SBN-Fretboard-Reference.md](SBN-Fretboard-Reference.md) |
 | `<sbn-info>` | no — pure DOM | `heading` (required), `items` (pipe-separated list) | animated conic-gradient card — see §11 |
@@ -50,7 +50,7 @@ Stored in `content` as plain HTML. Always require explicit closing tags (`<sbn-f
 - `<sbn-chord root="F">` — server-side fret-shifts the stored shape to the requested root. See §7.2.
 - `<sbn-progression key="Bb">` — runs the progression builder in that key, returns voiced tiles.
 - `<sbn-sheet key="G">` — fetches from `/api/sbn/exercises/{slug}?key=G`; key is advisory (transposition). See §9.
-- `<sbn-song label="…">` — text shown in the link. If absent, slug is shown.
+- `<sbn-song bars="5-8">` — render only bars 5–8 (1-indexed inclusive). Omit for the full song.
 - `<sbn-fretboard slug="…">` — no extra attrs; all display options (mode, theme, guide tones, RH fingers) are baked into the stored record.
 
 ---
@@ -122,7 +122,8 @@ Public, no auth. Defined in [`routes/web.php`](../routes/web.php) under `Route::
 | GET | `/api/sbn/chords/{slug}?root=F` | Mount payload for `<sbn-chord>` | `ChordSerializer::serialize()` shape, with `root_note` / `diagram_data` / `start_fret` / `interval_labels` / `notes` shifted when `root` is given |
 | GET | `/api/sbn/rhythms/{slug}` | Mount payload for `<sbn-rhythm>` | Pattern object — `RhythmCard`'s `pattern` prop |
 | GET | `/api/sbn/progressions/{slug}?key=Bb&pass2=1` | Mount payload for `<sbn-progression>` | `{ progression, key, chords: [{chordName, diagramData, beats, slug}] }` |
-| GET | `/api/sbn/songs/{slug}/viewer-data` | Used by future leadsheet embed (not by `<sbn-song>` link) | Full leadsheet viewer payload via `LeadsheetViewerService` |
+| GET | `/api/sbn/songs/{slug}/sheet?bars=5-8` | Mount payload for `<sbn-song>` | LeadsheetJson-shaped payload: sections (with lineBreaks), melody (re-offset to bar 0), timeSignature, repeatMarkers, voltaEndings, chordVoicings, meta. `bars` omit = full song. |
+| GET | `/api/sbn/songs/{slug}/viewer-data` | Full leadsheet viewer page | Full leadsheet viewer payload via `LeadsheetViewerService` |
 | GET | `/api/sbn/fretboards/{slug}` | Mount payload for `<sbn-fretboard>` | Full fretboard record — see [SBN-Fretboard-Reference.md §6](SBN-Fretboard-Reference.md#6-course-tag--sbn-fretboard) |
 | GET | `/api/sbn/{type}` | Palette search (admin) | `{ results: […] }` |
 
@@ -147,7 +148,7 @@ Controllers: [`ChordLibraryController::apiShow`](../app/Http/Controllers/Library
 1. **Chunking** (`refreshChunks`): if the lesson has `<h2 id="section-…">` headings, the body is split into subsection chunks wrapped in `<div class="sbn-subsection-chunk">`. Tabs at the top switch chunks via `display:none`. Lessons without those headings render flat.
 2. **Mount** (`mountNodes`): walks the article DOM, runs `mountSbnNodes()` to attach Vue apps to every `<sbn-*>` tag.
 
-`<sbn-song>` is rendered inline in this step as a styled link — no Vue component, no fetch. Its element gets `innerHTML = '<a class="sbn-song-link" href="/library/songs/{slug}/viewer">{label} ↗</a>'`. See §7.4 for why.
+`<sbn-song>` mounts a `SheetMiniPlayer` fed from the leadsheet's `json_data`. See §7.4.
 
 On lesson change, `unmountSbnNodes()` is called before re-running. On `onBeforeUnmount`, same.
 
@@ -241,9 +242,16 @@ When `<sbn-chord root="F">` is mounted, transposition happens in `ChordLibraryCo
 
 `<sbn-progression key="Bb">` triggers the same `harmonicContext->buildFromNumerals('Bb', $progression->numerals)` + `progressionBuilder->buildVoicings()` pipeline the library page uses. `apiShow` returns `{ chords: [...] }` in the exact shape `ChordProgressionViewer` accepts. No service factoring beyond what already exists in the library controller.
 
-### 7.4 `<sbn-song>` is a link, not an embed
+### 7.4 `<sbn-song>` — leadsheet embed
 
-The leadsheet viewer is a full Inertia page with its own layout, related-songs section, and audio engine. Embedding it inline in a lesson would be wrong on principle, not just technically. So `<sbn-song>` renders as a styled link to `/library/songs/{slug}/viewer`. No component, no fetch, no payload. If a future need arises for a richer in-lesson preview, build a dedicated `LeadsheetEmbed.vue` then — don't reuse the page component.
+`<sbn-song slug="the-girl-from-ipanema" bars="5-8">` fetches `/api/sbn/songs/{slug}/sheet?bars=5-8` and mounts `SheetMiniPlayer` with the excerpt. Omitting `bars` loads the full song.
+
+The `apiSheet` controller (`SongLibraryController::apiSheet`) returns a LeadsheetJson-shaped payload:
+- **sections** — original section structure with `lineBreaks` preserved; for excerpts each section is sliced and its `lineBreaks` recomputed for just the included rows.
+- **melody** — note events filtered to the bar range and re-offset to tick 0 (so the excerpt always starts at beat 0). Null for chord-only leadsheets.
+- **timeSignature / chordVoicings / repeatMarkers / voltaEndings** — passed through from the original `json_data`; full song gets original repeat/volta markers, excerpts get empty objects.
+
+`SheetMiniPlayer` renders it identically to an exercise — same `useTabModel`, `TabMeasure`, playback engine.
 
 ### 7.5 HTML normalization
 

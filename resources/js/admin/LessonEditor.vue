@@ -47,7 +47,7 @@ const ATTRS: Record<SbnNodeType, Record<string, AttrSpec>> = {
     sheet:       { slug: { default: '' }, key: { default: 'C' }, videoSnippet: videoSnippetAttr,
                    startSec: { default: '', parseHTML: (el) => el.getAttribute('start-sec') || '', renderHTML: (attrs) => attrs.startSec ? { 'start-sec': attrs.startSec } : {} },
                    bpm: { default: '', parseHTML: (el) => el.getAttribute('bpm') || '', renderHTML: (attrs) => attrs.bpm ? { bpm: attrs.bpm } : {} } },
-    song:        { slug: { default: '' }, label: { default: '' } },
+    song:        { slug: { default: '' }, bars: { default: '' }, label: { default: '' } },
     widget:      { slug: { default: '' } },
     fretboard:   { slug: { default: '' } },
 };
@@ -85,7 +85,7 @@ function makeSbnNode(type: SbnNodeType) {
                 if (type === 'chord'       && node.attrs.root)  extras.push(node.attrs.root);
                 if (type === 'progression' && node.attrs.key)   extras.push(`key: ${node.attrs.key}`);
                 if (type === 'sheet'       && node.attrs.key)   extras.push(`key: ${node.attrs.key}`);
-                if (type === 'song'        && node.attrs.label) extras.push(node.attrs.label);
+                if (type === 'song'        && node.attrs.bars)  extras.push(`bars ${node.attrs.bars}`);
                 if ((type === 'rhythm' || type === 'progression') && node.attrs.videoSnippet) extras.push('▶ video');
                 const suffix = extras.length ? ` (${extras.join(', ')})` : '';
 

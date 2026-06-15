@@ -20,7 +20,7 @@
         @click.stop
         @pointerdown.stop
       />
-      <span v-else v-html="formattedChordName || '<span class=\'sbn-ve-chord-name-empty\'>?</span>'"></span>
+      <span v-else v-html="formattedChordName || (readOnly ? '' : '<span class=\'sbn-ve-chord-name-empty\'>?</span>')"></span>
     </div>
 
     <!-- Diagram area — drag to move, click opens voicing picker -->

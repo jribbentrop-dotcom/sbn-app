@@ -70,6 +70,7 @@
         :chord-offset="measure.chordOffsets?.[chordIndex]"
         :chord-duration="measure.chordBeats?.[chordIndex]"
         :is-being-dragged="drag?.ci === chordIndex || resize?.ci === chordIndex"
+        :read-only="readOnly"
         :style="(drag?.ci === chordIndex || resize?.ci === chordIndex) ? { opacity: '0.35', ...chordPositionStyle(chordIndex) } : chordPositionStyle(chordIndex)"
         @contextmenu="onCardContextMenu"
         @chord-drag-start="onChordDragStart(chordIndex, $event)"
@@ -91,9 +92,9 @@
       <div v-if="resizeLeft" class="sbn-ve-chord-ghost sbn-ve-chord-ghost--resize" :style="resizeLeftGhostStyle">
         <span class="sbn-ve-chord-ghost-name" v-html="resizeLeftGhostName"></span>
       </div>
-      <!-- Ghost slot — shown when bar is empty so it stays clickable/right-clickable -->
+      <!-- Ghost slot — editor only; keeps empty bar clickable/right-clickable -->
       <ChordCard
-        v-if="chordNamesArray.length === 0"
+        v-if="chordNamesArray.length === 0 && !readOnly"
         :chord="{ name: '', beats: 1 }"
         :section-index="sectionIndex"
         :measure-index="globalIdx"

@@ -320,6 +320,112 @@ class SongLibraryController extends Controller
 
     // ── Phase 11b: JSON endpoints for mountSbnNodes.ts + palette search ───────
 
+    public function apiSheet(\Illuminate\Http\Request $request, string $slug): \Illuminate\Http\JsonResponse
+    {
+        $leadsheet = Leadsheet::where('slug', $slug)->firstOrFail();
+
+        $data = $leadsheet->parsed_data ?? [];
+
+        // Ticks per measure — same formula as calcTicksPerMeasure() in useTabModel.js.
+        $timeSig = $data['timeSignature'] ?? $leadsheet->time_signature ?? '4/4';
+        [$num, $den] = array_map('intval', explode('/', $timeSig . '/4'));
+        $tpm = $den > 0 ? (int) round($num * 1920 / $den) : 1920;
+
+        $barsParam = trim((string) $request->query('bars', ''));
+        $melody    = $data['melody'] ?? null;
+
+        if ($barsParam === '') {
+            // Full song — preserve original section structure, lineBreaks, repeats, voltas.
+            $sections      = $data['sections'] ?? [];
+            $repeatMarkers = $data['repeatMarkers'] ?? (object) [];
+            $voltaEndings  = $data['voltaEndings']  ?? (object) [];
+        } else {
+            // Excerpt — slice measures and rebuild section/lineBreaks for the range.
+            if (!preg_match('/^(\d+)-(\d+)$/', $barsParam, $m)) {
+                abort(422, 'Invalid bars parameter');
+            }
+            $start  = max(0, (int) $m[1] - 1);
+            $length = max(0, (int) $m[2] - $start);
+            $end    = $start + $length - 1; // inclusive, 0-based
+
+            $sections  = [];
+            $globalPos = 0;
+            foreach ($data['sections'] ?? [] as $sec) {
+                $secMeasures = $sec['measures'] ?? [];
+                $secCount    = count($secMeasures);
+                $secStart    = $globalPos;
+                $secEnd      = $globalPos + $secCount - 1;
+
+                if ($secEnd < $start || $secStart > $end) {
+                    $globalPos += $secCount;
+                    continue;
+                }
+
+                $localStart     = max(0, $start - $secStart);
+                $localEnd       = min($secCount - 1, $end - $secStart);
+                $slicedMeasures = array_slice($secMeasures, $localStart, $localEnd - $localStart + 1);
+
+                // Rebuild lineBreaks: walk the original row counts and keep only
+                // the bars that fall within [$localStart, $localEnd].
+                $newLb  = null;
+                $origLb = $sec['lineBreaks'] ?? null;
+                if (is_array($origLb) && count($origLb)) {
+                    $newLb = [];
+                    $pos   = 0;
+                    foreach ($origLb as $rowCount) {
+                        $rowEnd  = $pos + $rowCount - 1;
+                        $overlap = max(0, min($rowEnd, $localEnd) - max($pos, $localStart) + 1);
+                        if ($overlap > 0) {
+                            $newLb[] = $overlap;
+                        }
+                        $pos += $rowCount;
+                    }
+                }
+
+                $newSec = ['id' => $sec['id'] ?? 'excerpt', 'name' => $sec['name'] ?? '', 'lineBreaks' => $newLb, 'measures' => $slicedMeasures];
+                foreach (['rhythmSlug', 'tonality'] as $k) {
+                    if (isset($sec[$k])) $newSec[$k] = $sec[$k];
+                }
+                $sections[] = $newSec;
+                $globalPos += $secCount;
+            }
+
+            // Filter melody notes to the bar range and re-offset ticks to 0.
+            if (is_array($melody) && count($melody)) {
+                $startTick = $start * $tpm;
+                $endTick   = ($start + $length) * $tpm;
+                $melody    = array_values(array_map(
+                    fn ($note) => array_merge($note, ['tick' => ($note['tick'] ?? 0) - $startTick]),
+                    array_filter($melody, fn ($note) =>
+                        ($note['tick'] ?? 0) >= $startTick && ($note['tick'] ?? 0) < $endTick
+                    )
+                ));
+            }
+
+            $repeatMarkers = (object) [];
+            $voltaEndings  = (object) [];
+        }
+
+        $titleSuffix = $barsParam ? " (bars {$barsParam})" : '';
+
+        return response()->json([
+            'sections'      => $sections,
+            'melody'        => $melody ?: null,
+            'timeSignature' => $data['timeSignature'] ?? $leadsheet->time_signature ?? '4/4',
+            'repeatMarkers' => $repeatMarkers,
+            'voltaEndings'  => $voltaEndings,
+            'chordVoicings' => $data['chordVoicings'] ?? (object) [],
+            'meta'          => [
+                'slug'        => $leadsheet->slug,
+                'title'       => $leadsheet->title . $titleSuffix,
+                'key_center'  => $leadsheet->song_key,
+                'time_sig'    => $leadsheet->time_signature ?? '4/4',
+                'bpm_default' => $leadsheet->tempo ?? 120,
+                'type'        => 'leadsheet-excerpt',
+            ],
+        ]);
+    }
+
     public function apiSearch(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
     {
         $q = trim((string) $request->get('q', ''));

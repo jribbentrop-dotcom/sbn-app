@@ -52,7 +52,7 @@ const errorMsg   = ref('');
 
 const selectedSlug = ref<string | null>(null);
 const configRoot   = ref('C');
-const configLabel  = ref('');
+const configBars   = ref('');
 // Video-example picker — holds the chosen snippet id ('' = none).
 const configSnippet      = ref('');
 const configSnippetList  = ref<SnippetRef[]>([]);
@@ -186,8 +186,7 @@ function insert(item: PaletteItem) {
         selectedSlug.value = null;
     } else {
         selectedSlug.value = item.slug;
-        // Defaults
-        if (activeTab.value === 'song') configLabel.value = item.label;
+        if (activeTab.value === 'song') configBars.value = '';
         // Rhythm and progression both host the video-example picker.
         if (activeTab.value === 'rhythm' || activeTab.value === 'progression') {
             configSnippet.value     = '';
@@ -200,7 +199,7 @@ function doConfirmInsert() {
     if (!selectedSlug.value) return;
     const extras: Record<string, string> = {};
     if (activeTab.value === 'chord')       extras.root = configRoot.value;
-    if (activeTab.value === 'song')        extras.label = configLabel.value;
+    if (activeTab.value === 'song')        extras.bars = configBars.value;
     // Emitted as the `video-snippet` tag attribute; '' = no example.
     if ((activeTab.value === 'rhythm' || activeTab.value === 'progression') && configSnippet.value) {
         extras.videoSnippet = configSnippet.value;
@@ -321,8 +320,8 @@ function onDragStart(e: DragEvent, item: PaletteItem) {
         <!-- Inline Config Panel -->
         <div v-if="selectedSlug === item.slug" class="sbn-palette-config" @keydown.enter="doConfirmInsert">
           <div v-if="activeTab === 'song'" class="sbn-palette-config-row">
-            <label>Label:</label>
-            <input v-model="configLabel" type="text" class="sbn-search-input" style="height:28px; flex:1; font-size:12px;" />
+            <label>Bars:</label>
+            <input v-model="configBars" type="text" class="sbn-search-input" style="height:28px; flex:1; font-size:12px;" placeholder="e.g. 5-8" />
           </div>
           <div v-if="activeTab === 'rhythm' || activeTab === 'progression'" class="sbn-palette-config-row">
             <label>Video example:</label>

@@ -5,7 +5,8 @@ import LessonAiPanel from './LessonAiPanel.vue';
 
 const editorMount = document.getElementById('lesson-editor');
 if (editorMount) {
-    const initial = editorMount.dataset.initial ?? '';
+    const dataEl = document.getElementById('lesson-content-data');
+    const initial = dataEl ? JSON.parse(dataEl.textContent ?? 'null') ?? '' : '';
     createApp(LessonEditor, { initial }).mount(editorMount);
 }
 

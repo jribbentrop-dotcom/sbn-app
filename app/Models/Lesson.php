@@ -21,6 +21,7 @@ class Lesson extends Model
     {
         static::saving(function ($lesson) {
             if ($lesson->content) {
+                $lesson->content = str_replace('&amp;amp;', '&amp;', $lesson->content);
                 $lesson->content = preg_replace_callback('/<h2([^>]*)>(.*?)<\/h2>/is', function($matches) {
                     $attrs = $matches[1];
                     $title = strip_tags($matches[2]);

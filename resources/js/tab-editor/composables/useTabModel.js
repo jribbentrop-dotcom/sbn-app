@@ -62,7 +62,7 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
         const eventsByKey = new Map();   // key: "tick-voice" → TabEvent
         const allNotes    = [];          // flat list for beam/tie passes
 
-        mel.forEach((note, idx) => {
+        (mel || []).forEach((note, idx) => {
             const measureIdx    = Math.floor(note.tick / tpm);
             const tickInMeasure = note.tick % tpm;
             const ticks         = note.ticks || durationToTicks(note.duration);

@@ -56,9 +56,9 @@
                          picks up the value unchanged. --}}
                     <div class="sbn-form-group" style="margin-top:4px;">
                         <label>Content</label>
-                        <textarea id="content-sync" name="content" style="display:none;">{{ old('content', $lesson->content) }}</textarea>
+                        <textarea id="content-sync" name="content" style="display:none;"></textarea>
+                        <script id="lesson-content-data" type="application/json">{!! json_encode(old('content', $lesson->content ?? ''), JSON_HEX_TAG) !!}</script>
                         <div id="lesson-editor"
-                             data-initial="{{ old('content', $lesson->content ?? '') }}"
                              data-lesson-id="{{ $lesson->id }}"
                              style="border:1px solid var(--clr-border); border-radius:var(--radius-sm); overflow:hidden;">
                         </div>

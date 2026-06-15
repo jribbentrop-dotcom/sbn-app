@@ -5,7 +5,7 @@ export function formatChordHtml(name) {
     if (typeof window.sbnFormatChord === 'function') {
         return window.sbnFormatChord(name);
     }
-    if (!name) return '?';
+    if (!name) return '';
     const m = name.match(/^([A-G][#b♯♭]?)(.*)$/);
     if (!m) return name;
     let root = m[1].replace('#','♯').replace(/b(?=[^0-9]|$)/,'♭');

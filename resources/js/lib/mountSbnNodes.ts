@@ -8,7 +8,7 @@
  *   <sbn-rhythm         slug="…">
  *   <sbn-progression    slug="…">
  *   <sbn-sheet          slug="…" key="C">
- *   <sbn-song           slug="…">
+ *   <sbn-song           slug="…" bars="5-8">    ← leadsheet excerpt → SheetMiniPlayer
  *   <sbn-youtube        id="…" start="…">          ← attrs only, no fetch
  *   <sbn-widget         slug="…" …attrs>           ← edu interactive, no fetch
  *   <sbn-fretboard      slug="…">                  ← vanilla JS hydration via chords.js
@@ -229,12 +229,36 @@ export async function mountSbnNodes(
     apps.push(app);
   });
 
-  // ── <sbn-song> — render as styled link to leadsheet viewer (no fetch) ─────
+  // ── <sbn-song> — mounts SheetMiniPlayer; bars="5-8" for excerpt, omit for full song ──
   container.querySelectorAll<HTMLElement>('sbn-song').forEach((el) => {
     const slug = el.getAttribute('slug') ?? '';
     if (!slug) return;
-    const label = el.getAttribute('label') ?? slug;
-    el.innerHTML = `<a class="sbn-song-link" href="/library/songs/${slug}/viewer">${label} ↗</a>`;
+
+    const bars = el.getAttribute('bars') ?? '';
+    if (options.onChordSelect) {
+      (el as any).__onChordSelect = options.onChordSelect;
+    }
+    const url = bars
+      ? `/api/sbn/songs/${slug}/sheet?bars=${encodeURIComponent(bars)}`
+      : `/api/sbn/songs/${slug}/sheet`;
+    const task = fetch(url, { headers: { Accept: 'application/json' } })
+      .then((r) => {
+        if (!r.ok) throw new Error(`song-sheet fetch failed: ${r.status}`);
+        return r.json();
+      })
+      .then(async (data: any) => {
+        const mod = await import('../Components/Course/SheetMiniPlayer.vue');
+        const Component = (mod as any).default ?? mod;
+        const app = createApp(Component, propsFor.sheet(data, el));
+        app.mount(el);
+        apps.push(app);
+      })
+      .catch((err) => {
+        console.warn(`[mountSbnNodes] Failed to mount <sbn-song slug="${slug}">:`, err);
+        el.innerHTML = `<span class="sbn-node-error">song: ${slug}${bars ? ` bars ${bars}` : ''}</span>`;
+      });
+
+    tasks.push(task);
   });
 
   // ── <sbn-widget> — edu interactive from the widget registry, no fetch ─────

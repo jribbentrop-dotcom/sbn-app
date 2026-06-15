@@ -1,8 +1,8 @@
 ﻿<script setup lang="ts">
 import { ref, computed, provide, watch, onMounted, onBeforeUnmount } from 'vue';
 import { getAudioEngine } from '@/audio/engine/AudioEngine.js';
+import { getSharedNylon } from '@/audio/engine/voices/sharedNylon.js';
 import { tabModelToEvents } from '@/audio/adapters/tabMeasureToEvents.js';
-import { chordVoicingsToEvents } from '@/audio/adapters/chordVoicingsToEvents.js';
 import { expandMeasureSequence, firstPositionForGi } from '@/audio/adapters/expandMeasureSequence.js';
 import { useTabModel } from '@/tab-editor/composables/useTabModel.js';
 import TabMeasure from '@/tab-editor/components/TabMeasure.vue';
@@ -95,10 +95,11 @@ let _unsubs: Array<() => void> = [];
 async function loadAllEvents() {
   if (!model.value) return;
   await engine.init({ bpm: bpm.value, samplesBaseUrl: '/audio/rhythm-samples/' });
-  const tabEvents   = tabModelToEvents(model.value, { startBeat: 0 });
-  const chordEvents = chordVoicingsToEvents(model.value, { startBeat: 0 });
-  const combined    = [...tabEvents, ...chordEvents].sort((a: any, b: any) => a.time - b.time);
-  engine.load(combined);
+  // Ensure nylon samples are loaded before scheduling note events.
+  const nylon = getSharedNylon();
+  if (nylon._readyPromise) await nylon._readyPromise;
+  const tabEvents = tabModelToEvents(model.value, { startBeat: 0, voice: 'nylon' });
+  engine.load(tabEvents);
   engine.setTempo(bpm.value);
   _eventsLoaded = true;
 }
@@ -439,6 +440,7 @@ provide('inlineRenameTarget', ref(null));
   display: flex;
   flex-direction: row;
 }
+
 
 .sbn-sheet-row:not(:first-child) {
   padding-left: 28px;

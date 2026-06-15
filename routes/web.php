@@ -39,6 +39,7 @@ use App\Http\Controllers\Admin\AdminFretboardController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\GradesController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\SitemapController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -343,6 +344,7 @@ Route::prefix('api/sbn')->name('api.sbn.')->group(function () {
     Route::get('/exercises/{slug}',    [ExerciseLibraryController::class,    'apiShow'])->name('exercises.show');
     Route::get('/fretboards',          [AdminFretboardController::class,     'apiSearch'])->name('fretboards.search');
     Route::get('/fretboards/{slug}',   [AdminFretboardController::class,     'apiShow'])->name('fretboards.show');
+    Route::get('/songs/{slug}/sheet',                 [SongLibraryController::class, 'apiSheet'])->name('songs.sheet');
     Route::get('/songs/{leadsheet:slug}/viewer-data', [SongLibraryController::class, 'apiViewerData'])->name('songs.viewer-data');
     Route::get('/synced-player/{slug}',  [\App\Http\Controllers\Library\SyncedPlayerController::class, 'apiShow'])->name('synced-player.show');
 
@@ -399,6 +401,7 @@ if (! app()->environment('production')) {
 |--------------------------------------------------------------------------
 */
 Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/grades', [GradesController::class, 'index'])->name('grades.index');
 
 Route::get('/hello', function () {
