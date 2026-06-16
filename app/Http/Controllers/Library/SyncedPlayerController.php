@@ -175,27 +175,38 @@ class SyncedPlayerController extends Controller
 
     private function resolveCard(string $chordName, string $gi, int $ci, array $voicings): ?array
     {
-        // Try per-slot key first, then bare name
-        $slotKey  = "{$chordName}@{$gi}.{$ci}";
-        $voicing  = $voicings[$slotKey] ?? $voicings[$chordName] ?? null;
+        // Per-slot key takes priority over bare name key
+        $slotKey = "{$chordName}@{$gi}.{$ci}";
+        $voicing = $voicings[$slotKey] ?? $voicings[$chordName] ?? null;
 
-        $matches = $this->search->searchByName($chordName);
-
-        if ($voicing && !empty($matches)) {
-            $best = $this->viewer->pickBestVoicing($matches, $voicing['frets'] ?? null);
-            if ($best) return $best;
-        }
-
-        // Fall back to first DB match
-        if (!empty($matches)) {
-            return $matches[0];
-        }
-
-        // Synthesise a minimal card from the voicing data
+        // Leadsheet voicings are curated — trust the fret positions directly
         if ($voicing) {
-            return $this->viewer->synthesizeMinimalCard($chordName, $voicing, $this->search);
+            $card = $this->viewer->synthesizeMinimalCard($chordName, $voicing, $this->search);
+            $dd   = $card['diagram_data'] ?? [];
+
+            // If fingers were never authored (all zeros), try to overlay them from a DB match
+            $fingers = $voicing['fingers'] ?? '000000';
+            if (preg_match('/^0+$/', $fingers)) {
+                $matches = $this->search->searchByName($chordName);
+                $best = $this->viewer->pickBestVoicing($matches, $voicing['frets'] ?? null);
+                if ($best) {
+                    $card['diagram_data']['positions'] = $best['diagram_data']['positions'] ?? $dd['positions'];
+                    $dd = $card['diagram_data'];
+                }
+            }
+
+            $card['interval_labels'] = $this->search->computeIntervalLabels(
+                $dd['positions'] ?? [],
+                $dd['open']     ?? [],
+                $dd['muted']    ?? [],
+                $card['root_note'],
+                $card['quality'],
+            );
+            return $card;
         }
 
-        return null;
+        // No stored voicing — fall back to most popular DB shape
+        $matches = $this->search->searchByName($chordName);
+        return $matches[0] ?? null;
     }
 }

@@ -84,30 +84,48 @@ class VoicingMaterializer
             $ticksPerChord = (int) ($tpm / $chordCount);
 
             foreach ($mChords as $cIdx => $sel) {
-                $chordName = $sel['chord_name'] ?? '';
-                $frets     = $sel['frets']      ?? null;
-                $position  = (int) ($sel['position'] ?? 1);
-                $chordTick = $globalTick + ($cIdx * $ticksPerChord);
+                $chordName   = $sel['chord_name']  ?? '';
+                $frets       = $sel['frets']       ?? null;
+                $position    = (int) ($sel['position'] ?? 1);
+                $diagramData = $sel['diagram_data'] ?? null;
+                $chordTick   = $globalTick + ($cIdx * $ticksPerChord);
+
+                // Derive fingers string from diagram_data positions
+                $fingers = null;
+                if ($diagramData && !empty($diagramData['positions'])) {
+                    $f = ['0','0','0','0','0','0'];
+                    foreach ($diagramData['positions'] as $pos) {
+                        $s = ($pos['string'] ?? 0) - 1;
+                        if ($s >= 0 && $s < 6 && !empty($pos['finger']) && $pos['finger'] !== '0') {
+                            $f[$s] = (string) $pos['finger'];
+                        }
+                    }
+                    $fingersStr = implode('', $f);
+                    if (!preg_match('/^0+$/', $fingersStr)) {
+                        $fingers = $fingersStr;
+                    }
+                }
 
                 // Use unique key for the Chord Editor if indices are available
-                $voicingKey = ($hasExplicitMeasures) 
-                    ? "{$chordName}@{$mIdx}.{$cIdx}" 
+                $voicingKey = ($hasExplicitMeasures)
+                    ? "{$chordName}@{$mIdx}.{$cIdx}"
                     : $chordName;
-                
+
                 if ($frets && strlen($frets) === 6) {
-                    $chordVoicings[$voicingKey] = [
-                        'frets'      => $frets, 
+                    $entry = [
+                        'frets'      => $frets,
                         'position'   => $position,
-                        'start_fret' => $position, // Alias for frontend compatibility
+                        'start_fret' => $position,
                     ];
-                    
+                    if ($fingers && strlen($fingers) === 6 && !preg_match('/^0+$/', $fingers)) {
+                        $entry['fingers'] = $fingers;
+                    }
+
+                    $chordVoicings[$voicingKey] = $entry;
+
                     // Fallback: also store under the generic chord name
                     if (!isset($chordVoicings[$chordName])) {
-                        $chordVoicings[$chordName] = [
-                            'frets'      => $frets, 
-                            'position'   => $position,
-                            'start_fret' => $position, // Alias for frontend compatibility
-                        ];
+                        $chordVoicings[$chordName] = $entry;
                     }
                 }
 
