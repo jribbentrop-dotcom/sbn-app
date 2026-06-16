@@ -844,3 +844,42 @@ title, composer, song_key, tempo, time_signature, rhythm, measure_count, slug
 ```
 
 `chordVoicings` is always a JSON object (`{}`), never an array — the editor's `cv["name@gi.ci"] || cv["name"]` lookup requires object access.
+
+---
+
+## §11 — VoicingCrossref matching engine
+
+`App\Services\VoicingCrossref` matches leadsheet voicings (chord name + fret string) to library shapes in `sbn_chord_diagrams`. Called by the "Reprocess" button in the admin editor and by batch reprocess. Results land in `sbn_voicing_refs` (matched) or `sbn_voicing_drafts` (unmatched).
+
+### Match pipeline (per voicing)
+
+1. **Main loop** — queries DB shapes for the base quality, tries exact → subset → superset → fragment against each transposition. Also tries the E-string-swapped target (see below).
+2. **Inversion fallback** — for slash-inversion chords, retries root-position shapes.
+3. **Dim7 symmetry pass** (`o7` and `dim` qualities) — the °7 chord is symmetric at m3 intervals (C#°7 = E°7 = G°7 = Bb°7). When wrap-around prevents a match, retries with all 3 partner roots. Also handles **dim triads (°)** — they share the same inversion structure and are subsets of every o7 family member.
+4. **Dom7(b9) dim7 pass** — every o7 / dim shape transposed so the dominant's b9 is a chord tone is a valid rootless reading. Tries all 4 symmetric roots. Also applies fragment check (dom root added as open bass below the dim shape). Handles **dim triads** here too: `Bdim` = rootless `E7(b9)`, dim root = voicing root directly.
+5. **True slash fallback** — for `/bass` chords not resolvable as inversions.
+
+### E-string swap
+
+Strings 1 (low E) and 6 (high e) are both tuned to E — same fret = same pitch. A voicing with the root on string 6 and string 1 muted (e.g. `xx9769` = Db7(b9)) is equivalent to the mirrored form with root on string 1 (`9x976x`). `swapEStrings()` pre-computes this alternative before the main loop so both forms are tested at no extra DB cost.
+
+Only fires when exactly one E string is sounding — safe against voicings that use both E strings.
+
+### Dim triad as rootless dom7(b9)
+
+A dim triad (quality=`dim`) routes through both the o7 symmetry pass AND the dom7(b9) pass:
+
+- **o7 pass**: tries all 3 partner roots (subset match covers the 3-note triad inside the 4-note °7 shape).
+- **Dom7(b9) pass**: `dimRootPc = voicingRoot` (not `+1` like for dom7 — the triad root IS the dim family root). Fragment check handles the case where the dom root is added as open bass below the triad (e.g. `0x310x` = open-E + Fdim triad = E7(b9)).
+
+### SyncedPlayer resolution (`resolveCard`)
+
+`SyncedPlayerController::resolveCard()` trusts stored voicing fret positions directly (leadsheets are curated). It calls `synthesizeMinimalCard()` to build a card from stored frets, then:
+
+- If stored `fingers` are all-zeros → enriches with `pickBestVoicing()` from DB matches (Pass 1 exact, Pass 2 open-bass, Pass 3 E-string swap on string 6).
+- Always computes `interval_labels` from the final `diagram_data`.
+- Falls back to first DB match only when no voicing is stored at all.
+
+### VoicingMaterializer finger derivation
+
+At import time (`LeadsheetController` → `VoicingMaterializer`), `diagram_data` is passed through the selections chain. `VoicingMaterializer` derives a `fingers` string from `diagram_data.positions[].finger` and stores it in `chordVoicings` only when non-trivial (not all-zeros). This ensures curated position data survives the MusicXML round-trip.
