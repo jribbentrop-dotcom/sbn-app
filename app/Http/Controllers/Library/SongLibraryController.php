@@ -408,6 +408,44 @@ class SongLibraryController extends Controller
 
         $titleSuffix = $barsParam ? " (bars {$barsParam})" : '';
 
+        // Build videoSync: full song passes through unchanged; excerpts filter
+        // mappings to the bar range, re-index measureIndex to 0, and subtract
+        // the video-time of the first included mapping so playback starts at 0.
+        $rawVideoSync = $data['videoSync'] ?? null;
+        if ($rawVideoSync === null || !isset($rawVideoSync['mappings'])) {
+            $videoSync = $rawVideoSync;
+        } elseif ($barsParam === '') {
+            $videoSync = $rawVideoSync;
+        } else {
+            $allMappings = $rawVideoSync['mappings'];
+            usort($allMappings, fn($a, $b) => $a['measureIndex'] <=> $b['measureIndex']);
+
+            // Find the video time of the first bar in range to use as offset.
+            $videoTimeOffset = 0.0;
+            foreach ($allMappings as $mapping) {
+                if ($mapping['measureIndex'] >= $start) {
+                    $videoTimeOffset = (float) $mapping['videoTime'];
+                    break;
+                }
+            }
+
+            $slicedMappings = [];
+            foreach ($allMappings as $mapping) {
+                if ($mapping['measureIndex'] < $start || $mapping['measureIndex'] > $end) continue;
+                $slicedMappings[] = [
+                    'measureIndex' => $mapping['measureIndex'] - $start,
+                    'videoTime'    => (float) $mapping['videoTime'] - $videoTimeOffset,
+                ];
+            }
+
+            $videoSync = $slicedMappings ? [
+                'videoId'         => $rawVideoSync['videoId']   ?? '',
+                'videoType'       => $rawVideoSync['videoType'] ?? 'youtube',
+                'mappings'        => $slicedMappings,
+                'videoTimeOffset' => $videoTimeOffset,
+            ] : null;
+        }
+
         return response()->json([
             'sections'      => $sections,
             'melody'        => $melody ?: null,
@@ -415,6 +453,7 @@ class SongLibraryController extends Controller
             'repeatMarkers' => $repeatMarkers,
             'voltaEndings'  => $voltaEndings,
             'chordVoicings' => $data['chordVoicings'] ?? (object) [],
+            'videoSync'     => $videoSync,
             'meta'          => [
                 'slug'        => $leadsheet->slug,
                 'title'       => $leadsheet->title . $titleSuffix,

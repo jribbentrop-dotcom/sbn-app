@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ChordProgression;
 use App\Models\Course;
 use App\Models\Exercise;
+use App\Models\Leadsheet;
 use App\Models\Lesson;
 use App\Models\RhythmPattern;
 use App\Services\EduContentService;
@@ -161,6 +162,7 @@ class CourseController extends Controller
         $rhythmTags = [];      // one entry per <sbn-rhythm> tag: { slug, videoSnippet }
         $progressionTags = []; // one entry per <sbn-progression> tag: { slug, key, videoSnippet }
         $sheetSlugs = [];      // unique slugs of <sbn-sheet> tags that have videoSync
+        $songSlugs  = [];      // unique slugs of <sbn-song> tags that have videoSync
         $lessonConcepts = [];
 
         if ($activeLesson) {
@@ -217,6 +219,14 @@ class CourseController extends Controller
             preg_match_all('/<sbn-sheet\b[^>]*\bslug="([^"]+)"/i', $scanLesson->content, $sheetMatches);
             foreach ($sheetMatches[1] as $slug) {
                 if (!isset($seenSheets[$slug])) { $seenSheets[$slug] = true; $sheetSlugs[] = ['slug' => $slug, 'lessonSlug' => $lessonSlug]; }
+            }
+
+            preg_match_all('/<sbn-song\b[^>]*\bslug="([^"]+)"/i', $scanLesson->content, $songMatches);
+            foreach ($songMatches[1] as $slug) {
+                if (!isset($seenSheets['song:' . $slug])) {
+                    $seenSheets['song:' . $slug] = true;
+                    $songSlugs[] = ['slug' => $slug, 'lessonSlug' => $lessonSlug];
+                }
             }
 
             preg_match_all('/<sbn-widget\b[^>]*\bslug="([^"]+)"/i', $scanLesson->content, $widgetMatches);
@@ -345,6 +355,28 @@ class CourseController extends Controller
                 })
                 ->filter()
                 ->keyBy('slug');
+        }
+
+        // <sbn-song> tags — pull videoSync from the leadsheet's parsed_data.
+        // Keyed as "song:{slug}" to avoid collisions with exercise slugs.
+        if (!empty($songSlugs)) {
+            $slugOnly     = array_column($songSlugs, 'slug');
+            $lessonBySlug = array_column($songSlugs, 'lessonSlug', 'slug');
+            Leadsheet::whereIn('slug', $slugOnly)
+                ->get()
+                ->each(function (Leadsheet $ls) use (&$sheets, $lessonBySlug) {
+                    $parsed = $ls->parsed_data ?? [];
+                    $vs = $parsed['videoSync'] ?? null;
+                    if (!$vs || empty($vs['videoId'])) return;
+                    $key = 'song:' . $ls->slug;
+                    $sheets[$key] = [
+                        'slug'       => $key,
+                        'title'      => $ls->title,
+                        'videoId'    => $vs['videoId'],
+                        'videoType'  => $vs['videoType'] ?? 'youtube',
+                        'lessonSlug' => $lessonBySlug[$ls->slug] ?? null,
+                    ];
+                });
         }
 
         return Inertia::render('Courses/Player', [
