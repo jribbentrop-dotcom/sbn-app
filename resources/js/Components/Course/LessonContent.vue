@@ -137,6 +137,24 @@ function subLabel(slug: string): string {
   if (sub) return sub.title;
   return slug.replace('section-', '').replace(/-/g, ' ');
 }
+
+const activeChunkIndex = computed(() => chunkIds.value.indexOf(activeSubsection.value ?? ''));
+const isLastChunk = computed(() => !chunkIds.value.length || activeChunkIndex.value >= chunkIds.value.length - 1);
+const isFirstChunk = computed(() => !chunkIds.value.length || activeChunkIndex.value <= 0);
+
+function scrollToTop(): void {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function goNextChunk(): void {
+  const next = chunkIds.value[activeChunkIndex.value + 1];
+  if (next) { setActiveChunk(next); scrollToTop(); }
+}
+
+function goPrevChunk(): void {
+  const prev = chunkIds.value[activeChunkIndex.value - 1];
+  if (prev) { setActiveChunk(prev); scrollToTop(); }
+}
 </script>
 
 <template>
@@ -184,8 +202,17 @@ function subLabel(slug: string): string {
 
     <!-- Prev / Next footer -->
     <footer class="vC-foot">
+      <!-- Back a chunk first, then previous lesson -->
+      <button
+        v-if="!isFirstChunk"
+        type="button"
+        class="sbn-btn sbn-btn-secondary"
+        @click="goPrevChunk"
+      >
+        ← Previous
+      </button>
       <Link
-        v-if="prevLesson"
+        v-else-if="prevLesson"
         :href="`/learn/${courseSlug}/play/${prevLesson.slug}`"
         class="sbn-btn sbn-btn-secondary"
         :only="['lesson']"
@@ -193,8 +220,18 @@ function subLabel(slug: string): string {
         ← Previous
       </Link>
       <span v-else />
+
+      <!-- Advance a chunk first, then next lesson -->
+      <button
+        v-if="!isLastChunk"
+        type="button"
+        class="sbn-btn sbn-btn-primary"
+        @click="goNextChunk"
+      >
+        Next →
+      </button>
       <Link
-        v-if="nextLesson"
+        v-else-if="nextLesson"
         :href="`/learn/${courseSlug}/play/${nextLesson.slug}`"
         class="sbn-btn sbn-btn-primary"
         :only="['lesson']"

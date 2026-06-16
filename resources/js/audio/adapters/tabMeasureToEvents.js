@@ -29,11 +29,13 @@ const TICKS_PER_BEAT = 480; // matches tab-editor/utils/constants.js TICKS.perBe
  * @param {Object} model  The reactive tab model from useTabModel.
  * @param {Object} [ctx]  AdapterContext overrides.
  * @param {Beats}  [ctx.startBeat=0]
+ * @param {string} [ctx.voice='pitched']  Voice name passed to the engine ('pitched' or 'nylon').
  * @returns {EngineEvent[]}
  */
 export function tabModelToEvents(model, ctx = {}) {
     if (!model?.sections?.length) return [];
     const startBeat = ctx.startBeat ?? 0;
+    const voice = ctx.voice ?? 'pitched';
     const beatsPerMeasure = (model.ticksPerMeasure ?? 1920) / TICKS_PER_BEAT;
 
     // Flat measure list + gi → measure lookup.
@@ -89,7 +91,7 @@ export function tabModelToEvents(model, ctx = {}) {
 
                 out.push({
                     time:     beatTime,
-                    voice:    'pitched',
+                    voice,
                     pitch:    midi,
                     duration: beatDur,
                     velocity: 0.8,
