@@ -52,6 +52,14 @@ const props = defineProps<{
     muted?: boolean;
     /** Category tint color (e.g. getCategoryColor('classical')). Applied to strip cells. */
     color?: string | null;
+    /** Optional short caption shown below the rhythm name row (Top10 use). */
+    rhythmCaption?: string;
+    /** Optional link URL for the rhythm pattern (e.g. /library/rhythms/{slug}). */
+    rhythmLink?: string;
+    /** Optional recording reference shown below the chord board (Top10 use). */
+    citation?: string;
+    /** If set, seek to the first bar whose chordName matches this value on mount. */
+    startChordName?: string;
 }>();
 
 const emit = defineEmits<{
@@ -562,6 +570,10 @@ function thumbCellClass(i: number): Record<string, boolean> {
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
+    if (props.startChordName && BARS.value) {
+        const idx = BARS.value.findIndex(b => b.chordName === props.startChordName);
+        if (idx > 0) { currentBarIdx.value = idx; head.value = idx; }
+    }
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!reduce && props.autoplay !== false) audioPlay();
 });
@@ -570,7 +582,7 @@ onBeforeUnmount(() => {
     engineUnsubs.forEach(fn => fn?.());
     engineUnsubs = [];
     engineListened = false;
-    if (isPlaying.value) engine.stop();
+    engine.stop();
     nylon.dispose();
 });
 
@@ -607,6 +619,9 @@ defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying }
             </div>
         </div>
 
+        <!-- Recording citation (below chord board) -->
+        <p v-if="props.citation" class="sp-citation" v-html="props.citation"></p>
+
         <!-- Rhythm strip -->
         <div class="mini-rhythm">
             <div class="mini-label-row">
@@ -614,7 +629,8 @@ defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying }
                     <svg v-if="!isPlaying" viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M6.3 3.8L16.4 10 6.3 16.2V3.8z"/></svg>
                     <svg v-else viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><rect x="5" y="4" width="4" height="12" rx="1"/><rect x="11" y="4" width="4" height="12" rx="1"/></svg>
                 </button>
-                <span class="mini-label">{{ RHYTHM.name }} · {{ RHYTHM.timeSignature }} · {{ BPM }} bpm</span>
+                <span class="mini-label"><a :href="props.rhythmLink ?? (RHYTHM.slug ? `/library/rhythms/${RHYTHM.slug}` : undefined)" class="sp-rhythm-link">{{ RHYTHM.name }}</a> · {{ RHYTHM.timeSignature }} · {{ BPM }} bpm</span>
+
                 <button class="sp-mute-btn" @click="toggleMute" :aria-label="isMuted ? 'Unmute' : 'Mute'">
                     <!-- Sound on -->
                     <svg v-if="!isMuted" viewBox="0 0 20 20" fill="currentColor" width="15" height="15">
@@ -629,6 +645,7 @@ defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying }
                     </svg>
                 </button>
             </div>
+            <p v-if="props.rhythmCaption" class="sp-rhythm-caption" v-html="props.rhythmCaption"></p>
 
             <div class="mini-bar mini-bar-fingers">
                 <div v-for="(_, i) in RHYTHM.beats" :key="`f${i}`" class="mini-cell" :class="fingerCellClass(i)"></div>
@@ -784,6 +801,22 @@ defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying }
     letter-spacing: .06em;
     text-transform: uppercase;
 }
+.sp-rhythm-caption {
+    font-size: 0.78rem;
+    color: var(--clr-text-dim);
+    line-height: 1.5;
+    margin: 4px 0 4px;
+    padding: 0 2px;
+}
+
+.sp-citation {
+    font-size: 0.75rem;
+    color: var(--clr-text-muted);
+    text-align: center;
+    margin: 6px 0 4px;
+    font-style: italic;
+}
+
 .sp-play-btn {
     flex-shrink: 0;
     display: flex;

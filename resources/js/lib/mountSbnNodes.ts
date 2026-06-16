@@ -249,9 +249,51 @@ export async function mountSbnNodes(
       .then(async (data: any) => {
         const mod = await import('../Components/Course/SheetMiniPlayer.vue');
         const Component = (mod as any).default ?? mod;
-        const app = createApp(Component, propsFor.sheet(data, el));
-        app.mount(el);
-        apps.push(app);
+        const videoSync = data.videoSync ?? null;
+
+        if (videoSync?.videoId) {
+          const phKey = `sheet:song:${slug}`;
+          const ph = getVideoPlayhead(phKey);
+          const offset = (videoSync.videoTimeOffset as number) ?? 0;
+          const app = createApp({
+            render: () => h(Component, {
+              ...propsFor.sheet(data, el),
+              videoPlayhead: ph.playing.value ? ph.playheadSec.value - offset : null,
+              videoSync,
+              onVideoPlay: () => {
+                const doPlay = () => {
+                  const offset = (videoSync.videoTimeOffset as number) ?? 0;
+                  const mappings: Array<{ videoTime: number }> = videoSync.mappings ?? [];
+                  if (mappings.length) {
+                    const firstRel = mappings.reduce((a: any, b: any) => a.videoTime < b.videoTime ? a : b).videoTime;
+                    const lastRel  = mappings.reduce((a: any, b: any) => a.videoTime > b.videoTime ? a : b).videoTime;
+                    const cur = ph.playheadSec.value;
+                    const firstAbs = firstRel + offset;
+                    const lastAbs  = lastRel  + offset;
+                    if (cur < firstAbs || cur > lastAbs) ph.seek(firstAbs);
+                  }
+                  ph.play();
+                };
+                if (!ph.embedRef.value) {
+                  options.onExpandPractice?.();
+                  options.onExpandVideo?.();
+                  setTimeout(doPlay, 300);
+                } else {
+                  options.onExpandVideo?.();
+                  doPlay();
+                }
+              },
+              onVideoPause: () => ph.pause(),
+              onVideoSeek: (seconds: number) => { ph.seek(seconds + ((videoSync.videoTimeOffset as number) ?? 0)); ph.play(); },
+            }),
+          });
+          app.mount(el);
+          apps.push(app);
+        } else {
+          const app = createApp(Component, propsFor.sheet(data, el));
+          app.mount(el);
+          apps.push(app);
+        }
       })
       .catch((err) => {
         console.warn(`[mountSbnNodes] Failed to mount <sbn-song slug="${slug}">:`, err);
@@ -402,22 +444,27 @@ export async function mountSbnNodes(
             if (videoSync?.videoId) {
               const slug = el.getAttribute('slug') ?? '';
               const ph = getVideoPlayhead(`sheet:${slug}`);
+              const offset = (videoSync.videoTimeOffset as number) ?? 0;
               const app = createApp({
                 render: () => h(Component, {
                   ...baseProps,
-                  videoPlayhead: ph.playing.value ? ph.playheadSec.value : null,
+                  videoPlayhead: ph.playing.value ? ph.playheadSec.value - offset : null,
                   videoSync,
-                  // Play button drives the shared video clock. Seek to the first
-                  // mapping's videoTime (= start of the exercise in the recording)
-                  // if the playhead is before it or has drifted past the last mark.
+                  // Play button drives the shared video clock. Seek to the start
+                  // of the exercise/excerpt in the recording if the playhead is
+                  // outside the mapped range. videoTimeOffset shifts re-based
+                  // (0-relative) mapping times back to real video positions.
                   onVideoPlay: () => {
                     const doPlay = () => {
+                      const offset = (videoSync.videoTimeOffset as number) ?? 0;
                       const mappings: Array<{ videoTime: number }> = videoSync.mappings ?? [];
                       if (mappings.length) {
-                        const first = mappings.reduce((a: any, b: any) => a.videoTime < b.videoTime ? a : b);
-                        const last  = mappings.reduce((a: any, b: any) => a.videoTime > b.videoTime ? a : b);
+                        const firstRel = mappings.reduce((a: any, b: any) => a.videoTime < b.videoTime ? a : b).videoTime;
+                        const lastRel  = mappings.reduce((a: any, b: any) => a.videoTime > b.videoTime ? a : b).videoTime;
                         const cur = ph.playheadSec.value;
-                        if (cur < first.videoTime || cur > last.videoTime) ph.seek(first.videoTime);
+                        const firstAbs = firstRel + offset;
+                        const lastAbs  = lastRel  + offset;
+                        if (cur < firstAbs || cur > lastAbs) ph.seek(firstAbs);
                       }
                       ph.play();
                     };
@@ -432,7 +479,7 @@ export async function mountSbnNodes(
                     }
                   },
                   onVideoPause: () => ph.pause(),
-                  onVideoSeek: (seconds: number) => { ph.seek(seconds); ph.play(); },
+                  onVideoSeek: (seconds: number) => { ph.seek(seconds + ((videoSync.videoTimeOffset as number) ?? 0)); ph.play(); },
                 }),
               });
               app.mount(el);
@@ -489,7 +536,7 @@ export async function mountSbnNodes(
         const app = createApp(Component, {
           bars:          data.bars ?? [],
           rhythmPattern: data.rhythmPattern ?? undefined,
-          autoplay:      autoplay === null ? true : autoplay !== 'false',
+          autoplay:      autoplay === 'true',
           loop:          true,
         });
         app.mount(el);

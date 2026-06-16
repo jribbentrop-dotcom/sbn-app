@@ -464,6 +464,16 @@
     box-shadow: 0 30px 60px -28px rgba(80,60,20,.18);
 }
 
+/* Rhythm name link inside any SyncedPlayer — inherits text colour, underlines on hover. */
+.sp-rhythm-link {
+    color: inherit;
+    text-decoration: none;
+}
+.sp-rhythm-link:hover {
+    color: var(--sbn-accent);
+    text-decoration: underline;
+}
+
 /* ──────────────────────────────────────────────────────────
    2d. RHYTHM CARD  (.sbn-rhythm-card)
    ──────────────────────────────────────────────────────────

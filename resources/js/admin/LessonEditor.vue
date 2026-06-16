@@ -10,18 +10,19 @@ import { hasSelection } from './editorSelection';
 
 // ── SBN chip node factory ────────────────────────────────────────────────────
 
-type SbnNodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'widget' | 'fretboard';
+type SbnNodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'widget' | 'fretboard' | 'synced-player';
 
-const SBN_TYPES: SbnNodeType[] = ['chord', 'rhythm', 'progression', 'sheet', 'song', 'widget', 'fretboard'];
+const SBN_TYPES: SbnNodeType[] = ['chord', 'rhythm', 'progression', 'sheet', 'song', 'widget', 'fretboard', 'synced-player'];
 
 const LABELS: Record<SbnNodeType, string> = {
-    chord:       'chord',
-    rhythm:      'rhythm',
-    progression: 'progression',
-    sheet:       'sheet',
-    song:        'song',
-    widget:      'widget',
-    fretboard:   'fretboard',
+    chord:           'chord',
+    rhythm:          'rhythm',
+    progression:     'progression',
+    sheet:           'sheet',
+    song:            'song',
+    widget:          'widget',
+    fretboard:       'fretboard',
+    'synced-player': 'synced-player',
 };
 
 // Attribute objects may carry parseHTML/renderHTML so a camelCase TipTap attr
@@ -47,9 +48,16 @@ const ATTRS: Record<SbnNodeType, Record<string, AttrSpec>> = {
     sheet:       { slug: { default: '' }, key: { default: 'C' }, videoSnippet: videoSnippetAttr,
                    startSec: { default: '', parseHTML: (el) => el.getAttribute('start-sec') || '', renderHTML: (attrs) => attrs.startSec ? { 'start-sec': attrs.startSec } : {} },
                    bpm: { default: '', parseHTML: (el) => el.getAttribute('bpm') || '', renderHTML: (attrs) => attrs.bpm ? { bpm: attrs.bpm } : {} } },
-    song:        { slug: { default: '' }, bars: { default: '' }, label: { default: '' } },
-    widget:      { slug: { default: '' } },
-    fretboard:   { slug: { default: '' } },
+    song:            { slug: { default: '' }, bars: { default: '' }, label: { default: '' } },
+    widget:          { slug: { default: '' } },
+    fretboard:       { slug: { default: '' } },
+    'synced-player': {
+        slug:     { default: '' },
+        type:     { default: 'leadsheet' },
+        start:    { default: '' },
+        end:      { default: '' },
+        autoplay: { default: '' },
+    },
 };
 
 function makeSbnNode(type: SbnNodeType) {
@@ -85,7 +93,8 @@ function makeSbnNode(type: SbnNodeType) {
                 if (type === 'chord'       && node.attrs.root)  extras.push(node.attrs.root);
                 if (type === 'progression' && node.attrs.key)   extras.push(`key: ${node.attrs.key}`);
                 if (type === 'sheet'       && node.attrs.key)   extras.push(`key: ${node.attrs.key}`);
-                if (type === 'song'        && node.attrs.bars)  extras.push(`bars ${node.attrs.bars}`);
+                if (type === 'song'             && node.attrs.bars)  extras.push(`bars ${node.attrs.bars}`);
+                if (type === 'synced-player'   && node.attrs.start !== '') extras.push(`bars ${node.attrs.start}–${node.attrs.end}`);
                 if ((type === 'rhythm' || type === 'progression') && node.attrs.videoSnippet) extras.push('▶ video');
                 const suffix = extras.length ? ` (${extras.join(', ')})` : '';
 
@@ -97,17 +106,38 @@ function makeSbnNode(type: SbnNodeType) {
                 editBtn.setAttribute('aria-label', 'Edit');
                 editBtn.textContent = '✎';
                 editBtn.addEventListener('click', () => {
-                    const newSlug = window.prompt(`Edit ${type} slug:`, node.attrs.slug);
-                    if (newSlug && newSlug !== node.attrs.slug) {
-                        const pos = typeof getPos === 'function' ? getPos() : null;
-                        if (pos == null) return;
-                        ed.chain().focus().command(({ tr }) => {
-                            // Preserve every other attr (key, videoSnippet, …);
-                            // only the slug changes.
-                            tr.setNodeMarkup(pos, undefined, { ...node.attrs, slug: newSlug });
-                            return true;
-                        }).run();
+                    const pos = typeof getPos === 'function' ? getPos() : null;
+                    if (pos == null) return;
+
+                    const newAttrs: Record<string, any> = { ...node.attrs };
+
+                    if (type === 'song') {
+                        const newSlug = window.prompt('Slug:', node.attrs.slug);
+                        if (newSlug === null) return;
+                        const newBars = window.prompt('Bars (e.g. 5-8, leave blank for full song):', node.attrs.bars ?? '');
+                        if (newBars === null) return;
+                        newAttrs.slug = newSlug || node.attrs.slug;
+                        newAttrs.bars = newBars;
+                    } else if (type === 'synced-player') {
+                        const newSlug = window.prompt('Slug:', node.attrs.slug);
+                        if (newSlug === null) return;
+                        const newStart = window.prompt('Start bar (0-based, leave blank for beginning):', node.attrs.start ?? '');
+                        if (newStart === null) return;
+                        const newEnd = window.prompt('End bar (0-based inclusive, leave blank for end):', node.attrs.end ?? '');
+                        if (newEnd === null) return;
+                        newAttrs.slug  = newSlug || node.attrs.slug;
+                        newAttrs.start = newStart;
+                        newAttrs.end   = newEnd;
+                    } else {
+                        const newSlug = window.prompt(`Edit ${type} slug:`, node.attrs.slug);
+                        if (newSlug === null) return;
+                        newAttrs.slug = newSlug || node.attrs.slug;
                     }
+
+                    ed.chain().focus().command(({ tr }) => {
+                        tr.setNodeMarkup(pos, undefined, newAttrs);
+                        return true;
+                    }).run();
                 });
 
                 const deleteBtn = document.createElement('button');

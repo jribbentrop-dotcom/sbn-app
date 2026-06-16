@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 
-type NodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'media' | 'widget' | 'fretboard';
+type NodeType = 'chord' | 'rhythm' | 'progression' | 'sheet' | 'song' | 'media' | 'widget' | 'fretboard' | 'synced-player';
 
 interface SnippetRef { id: string; label: string; key?: string | null }
 interface PaletteItem {
@@ -16,25 +16,27 @@ interface PaletteItem {
 }
 
 const TABS: { type: NodeType; label: string }[] = [
-    { type: 'chord',       label: 'Chord' },
-    { type: 'rhythm',      label: 'Rhythm' },
-    { type: 'progression', label: 'Progression' },
-    { type: 'sheet',       label: 'Exercise' },
-    { type: 'fretboard',   label: 'Fretboard' },
-    { type: 'song',        label: 'Song' },
-    { type: 'widget',      label: 'Widget' },
-    { type: 'media',       label: 'Media' },
+    { type: 'chord',          label: 'Chord' },
+    { type: 'rhythm',         label: 'Rhythm' },
+    { type: 'progression',    label: 'Progression' },
+    { type: 'sheet',          label: 'Exercise' },
+    { type: 'fretboard',      label: 'Fretboard' },
+    { type: 'song',           label: 'Song' },
+    { type: 'synced-player',  label: 'Synced' },
+    { type: 'widget',         label: 'Widget' },
+    { type: 'media',          label: 'Media' },
 ];
 
 const API: Record<NodeType, string> = {
-    chord:       '/api/sbn/chords',
-    rhythm:      '/api/sbn/rhythms',
-    progression: '/api/sbn/progressions',
-    sheet:       '/api/sbn/exercises',
-    fretboard:   '/api/sbn/fretboards',
-    song:        '/api/sbn/songs',
-    widget:      '',
-    media:       '',
+    chord:           '/api/sbn/chords',
+    rhythm:          '/api/sbn/rhythms',
+    progression:     '/api/sbn/progressions',
+    sheet:           '/api/sbn/exercises',
+    fretboard:       '/api/sbn/fretboards',
+    song:            '/api/sbn/songs',
+    'synced-player': '',   // URL built dynamically from configSyncedType
+    widget:          '',
+    media:           '',
 };
 
 // Static widget list injected by the server via data-widgets on the mount node.
@@ -51,8 +53,11 @@ const errorMsg   = ref('');
 // ── Inline Config ────────────────────────────────────────────────────────────
 
 const selectedSlug = ref<string | null>(null);
-const configRoot   = ref('C');
-const configBars   = ref('');
+const configRoot         = ref('C');
+const configBars         = ref('');
+const configSyncedType   = ref<'leadsheet' | 'exercise'>('leadsheet');
+const configSyncedStart  = ref('');
+const configSyncedEnd    = ref('');
 // Video-example picker — holds the chosen snippet id ('' = none).
 const configSnippet      = ref('');
 const configSnippetList  = ref<SnippetRef[]>([]);
@@ -119,6 +124,12 @@ async function doSearch() {
                 url: img.url,
             }));
             results.value = q ? allImages.filter((i: any) => i.label.toLowerCase().includes(q)) : allImages;
+        } else if (activeTab.value === 'synced-player') {
+            const base = configSyncedType.value === 'exercise' ? '/api/sbn/exercises' : '/api/sbn/songs';
+            const res = await fetch(`${base}?q=${encodeURIComponent(query.value)}`, { headers: { Accept: 'application/json' } });
+            if (!res.ok) throw new Error(`${res.status}`);
+            const data = await res.json();
+            results.value = data.results ?? [];
         } else {
             const url = `${API[activeTab.value]}?q=${encodeURIComponent(query.value)}`;
             const res = await fetch(url, { headers: { Accept: 'application/json' } });
@@ -152,7 +163,8 @@ function scheduleSearch() {
 }
 
 watch(query, () => { selectedSlug.value = null; scheduleSearch(); });
-watch(activeTab, () => { query.value = ''; results.value = []; selectedSlug.value = null; doSearch(); });
+watch(activeTab, () => { query.value = ''; results.value = []; selectedSlug.value = null; configSyncedType.value = 'leadsheet'; configSyncedStart.value = ''; configSyncedEnd.value = ''; doSearch(); });
+watch(configSyncedType, () => { results.value = []; selectedSlug.value = null; doSearch(); });
 
 // ── Insert ────────────────────────────────────────────────────────────────────
 
@@ -160,6 +172,17 @@ function insert(item: PaletteItem) {
     // Media, Exercise, Widget, and Fretboard have no config — insert straight away.
     if (activeTab.value === 'media' || activeTab.value === 'sheet' || activeTab.value === 'widget' || activeTab.value === 'fretboard') {
         doInsert(item.slug);
+        return;
+    }
+
+    if (activeTab.value === 'synced-player') {
+        if (selectedSlug.value === item.slug) {
+            selectedSlug.value = null;
+        } else {
+            selectedSlug.value = item.slug;
+            configSyncedStart.value = '';
+            configSyncedEnd.value   = '';
+        }
         return;
     }
 
@@ -198,8 +221,13 @@ function insert(item: PaletteItem) {
 function doConfirmInsert() {
     if (!selectedSlug.value) return;
     const extras: Record<string, string> = {};
-    if (activeTab.value === 'chord')       extras.root = configRoot.value;
-    if (activeTab.value === 'song')        extras.bars = configBars.value;
+    if (activeTab.value === 'chord')          extras.root  = configRoot.value;
+    if (activeTab.value === 'song')           extras.bars  = configBars.value;
+    if (activeTab.value === 'synced-player') {
+        if (configSyncedType.value === 'exercise') extras.type = 'exercise';
+        if (configSyncedStart.value !== '') extras.start = configSyncedStart.value;
+        if (configSyncedEnd.value   !== '') extras.end   = configSyncedEnd.value;
+    }
     // Emitted as the `video-snippet` tag attribute; '' = no example.
     if ((activeTab.value === 'rhythm' || activeTab.value === 'progression') && configSnippet.value) {
         extras.videoSnippet = configSnippet.value;
@@ -278,6 +306,12 @@ function onDragStart(e: DragEvent, item: PaletteItem) {
       >{{ tab.label }}</button>
     </div>
 
+    <!-- Synced-player type toggle -->
+    <div v-if="activeTab === 'synced-player'" class="sbn-palette-search" style="display:flex; gap:4px;">
+      <button type="button" class="sbn-palette-tab" :class="{ 'is-active': configSyncedType === 'leadsheet' }" style="flex:1;" @click="configSyncedType = 'leadsheet'">Leadsheet</button>
+      <button type="button" class="sbn-palette-tab" :class="{ 'is-active': configSyncedType === 'exercise' }"  style="flex:1;" @click="configSyncedType = 'exercise'">Exercise</button>
+    </div>
+
     <!-- Search input -->
     <div class="sbn-palette-search" style="display:flex; gap:8px;">
       <input
@@ -323,6 +357,16 @@ function onDragStart(e: DragEvent, item: PaletteItem) {
             <label>Bars:</label>
             <input v-model="configBars" type="text" class="sbn-search-input" style="height:28px; flex:1; font-size:12px;" placeholder="e.g. 5-8" />
           </div>
+          <template v-if="activeTab === 'synced-player'">
+            <div class="sbn-palette-config-row">
+              <label>Start bar:</label>
+              <input v-model="configSyncedStart" type="number" min="0" class="sbn-search-input" style="height:28px; width:60px; font-size:12px;" placeholder="0" />
+            </div>
+            <div class="sbn-palette-config-row">
+              <label>End bar:</label>
+              <input v-model="configSyncedEnd" type="number" min="0" class="sbn-search-input" style="height:28px; width:60px; font-size:12px;" placeholder="optional" />
+            </div>
+          </template>
           <div v-if="activeTab === 'rhythm' || activeTab === 'progression'" class="sbn-palette-config-row">
             <label>Video example:</label>
             <select v-model="configSnippet" class="sbn-search-input" style="height:28px; flex:1; font-size:12px;">
