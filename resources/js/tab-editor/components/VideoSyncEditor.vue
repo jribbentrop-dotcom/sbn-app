@@ -55,6 +55,15 @@
             @ready="onPlayerReady"
         />
 
+        <!-- Transport: rewind / play-pause / forward -->
+        <div v-if="videoId" class="sbn-vsync-transport">
+            <button class="sbn-btn sbn-btn-xs sbn-btn-secondary" @click="nudgeVideo(-10)" title="Back 10s (Shift+←)">⏮ 10s</button>
+            <button class="sbn-btn sbn-btn-xs sbn-btn-secondary" @click="nudgeVideo(-2)"  title="Back 2s (←)">◀ 2s</button>
+            <button class="sbn-btn sbn-btn-sm sbn-btn-primary"   @click="emit('toggle-playback')" title="Play/Pause (Space)">⏯</button>
+            <button class="sbn-btn sbn-btn-xs sbn-btn-secondary" @click="nudgeVideo(2)"   title="Forward 2s (→)">2s ▶</button>
+            <button class="sbn-btn sbn-btn-xs sbn-btn-secondary" @click="nudgeVideo(10)"  title="Forward 10s (Shift+→)">10s ⏭</button>
+        </div>
+
         <!-- D2: Playback rate slider -->
         <div v-if="videoId" class="sbn-vsync-rate-row">
             <span class="sbn-vsync-label">Speed</span>
@@ -543,6 +552,14 @@ onUnmounted(() => { document.removeEventListener('keydown', onKeydown); });
     left: 0;
     width: 100%;
     height: 100%;
+}
+
+/* Transport row */
+.sbn-vsync-transport {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    justify-content: center;
 }
 
 /* D2: Playback rate row */

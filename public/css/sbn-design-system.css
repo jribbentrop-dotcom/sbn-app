@@ -1648,6 +1648,114 @@
     animation: sbnVpCardIn 0.2s var(--ease) both;
 }
 
+/* ── Alias group card ─────────────────────────────────────── */
+
+.sbn-vp-card--alias {
+    position: relative;
+}
+
+/* Badge — compact circular number in top-right corner */
+.sbn-vp-alias-badge {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 18px;
+    height: 18px;
+    background: #4f6ef7;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    font-family: var(--font-body, sans-serif);
+    line-height: 18px;
+    text-align: center;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    z-index: 2;
+    padding: 0;
+    display: block;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+}
+
+.sbn-vp-alias-badge:hover {
+    background: #3a56d4;
+}
+
+/* Popover — overlays the grid without pushing content.
+   Spans all 3 columns but uses negative margin-bottom so following
+   cards slide under it. z-index keeps it on top. */
+.sbn-vp-alias-popover {
+    grid-column: 1 / -1;
+    position: relative;
+    z-index: 20;
+    margin-bottom: -200px; /* lift following cards behind it */
+    background: #fff;
+    border: 1px solid #c7d0e8;
+    border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.13);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: auto;
+}
+
+.sbn-vp-alias-popover-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #8a94a8;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #e8ecf4;
+}
+
+/* Popover alt cards in a horizontal row */
+.sbn-vp-alias-popover-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.sbn-vp-alias-popover-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid #dde3f0;
+    cursor: pointer;
+    background: #f7f9ff;
+    width: 72px;
+    flex-shrink: 0;
+    transition: border-color 0.1s, background 0.1s;
+}
+
+.sbn-vp-alias-popover-card svg {
+    width: 56px !important;
+    height: auto !important;
+    display: block;
+}
+
+.sbn-vp-alias-popover-card:hover {
+    border-color: #4f6ef7;
+    background: #fff;
+}
+
+.sbn-vp-alias-popover-card.is-selected {
+    border-color: #4f6ef7;
+    background: #eef1ff;
+}
+
+.sbn-vp-alias-popover-name {
+    font-size: 11px;
+    font-family: var(--font-chord, monospace);
+    font-weight: 600;
+    color: #3a3f52;
+    white-space: nowrap;
+}
+
 /* ── Footer ──────────────────────────────────────────────── */
 
 .sbn-vp-footer {

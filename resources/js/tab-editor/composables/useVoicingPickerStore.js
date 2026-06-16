@@ -212,13 +212,18 @@ async function _fetchVoicings() {
                     frets,
                     fingers,
                     position:         pos,
+                    id:               v.id ?? null,
                     name:             v.name || '',
-                    dim_name:         v.dim_inversion || v.alias_match ? (v.name || '') : '',
+                    dim_name:         (v.dim_inversion || v.alias_match) ? (v.name || '') : '',
                     voicing_category: v.voicing_category,
                     inversion:        v.inversion,
                     root_string:      v.root_string,
                     popularity:       v.popularity || 0,
                     rootless:         v.rootless ?? false,
+                    alias_match:      v.alias_match ?? false,
+                    dim_inversion:    v.dim_inversion ?? false,
+                    alias_root:       v.alias_root ?? '',
+                    alias_quality:    v.alias_quality ?? '',
                 };
             }).filter(v => v.frets);
         }

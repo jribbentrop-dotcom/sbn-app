@@ -1,7 +1,7 @@
   j# SBN Admin — Chord / Tab Editor Reference
 
 > **Purpose:** Complete reference for the admin leadsheet editor: architecture, Vue component tree, chord grid, voicing picker, tab notation, audio playback, video sync, keyboard shortcuts, design system, and all creation flows (blank, from progression, exercises, transcription).
-> **Last updated:** 2026-06-14
+> **Last updated:** 2026-06-16
 
 ---
 
@@ -425,6 +425,25 @@ Both chord and tab views support multi-bar selection for clipboard and structura
 - **`keyMatch` path** (picker opened from chord grid): sets chord name globally + applies tab frets with `skipIfTabExists: true` — will NOT overwrite an existing tab bar that already has notes
 - **`tabSrc` path** (picker opened from tab view via `voicingPickerStore.openForTab(...)`): always writes through; uses specific `gi/ci` coords; if `!keyMatch && _tabSource && !oldName`, writes name directly into `m.chordNames[ci]` and keys voicing as `"newName@gi.ci"`
 
+### Voicing picker — alias grouping (dim7 / m6 / m7b5)
+
+`VoicingPicker.vue` collapses alias and inversion results into a single face card per physical shape to avoid flooding the grid.
+
+**Two-pass grouping** (order-independent):
+1. Pass 1 — `dim_inversion: true` results group by `id` into `dimMap`. Face card = root-position inversion; the other 3 inversions go to `alts[]`.
+2. Pass 2 — `alias_match: true` results:
+   - If `id` is already in `dimMap` (same physical shape) → folded into that group's `alts[]` (dom7(b9) readings appear alongside the 3 dim inversions in the popover).
+   - If `rootless: true` and NOT in `dimMap` → rendered as a normal primary card (dim-derived dom7(b9) voicings in a dom7(b9) search are legitimate primaries, not cross-quality aliases).
+   - Otherwise → grouped by `id` into `aliasMap`; only shown when `alts.length > 0` (m6/m7b5 cross-quality aliases).
+
+**Face card badge** — blue circle showing the alt count. Clicking opens an inline popover that spans all 3 grid columns and overlays following cards (`z-index: 20; margin-bottom: -200px`). The popover shows each alt as a mini card (72 px wide, 56 px SVG) with its chord name. Selecting a popover card calls `picker.applyVoicing(alt)` normally.
+
+**Key fields used** (all passed through from API → store → grouping):
+- `dim_inversion` — set by `findDiminishedPickerResults` on the 4 inversion slots
+- `alias_match` — set by `findAliasMatches` and `findDiminishedPickerResults` dom readings
+- `rootless` — set on dim-derived dom7(b9) rootless voicings
+- `id` — DB shape id; the shared key that collapses a shape's readings into one group
+
 ### Keyboard shortcuts (tab editor)
 | Key | Action |
 |-----|--------|
@@ -594,7 +613,7 @@ The tap cursor (`useVideoSync.tapCursor`) is a **play position**, not a gi. Each
 |-----------|---------|
 | `VideoPlayer.vue` | YouTube iframe API wrapper; rAF timeupdate; exposes `seekTo(t)`, `play()`, `pause()` |
 | `useVideoSync.js` | Composable: mappings[], audioSource, isVideoMaster, `mappingsByGi`, `mappingsByPosition`, `videoPlayPosition`, `videoBeat`, `tapCursor`/`tapCursorGi`, bidirectional sync |
-| `VideoSyncEditor.vue` | Tap-to-mark UI; per-pass row table with `1/2`, `2/2` labels; drag-to-nudge for single-mark bars; clicking a row uses `seek-to-mapping` to land on the right pass |
+| `VideoSyncEditor.vue` | Tap-to-mark UI; per-pass row table with `1/2`, `2/2` labels; clicking a row uses `seek-to-mapping` to land on the right pass. **Transport row** (⏮ 10s / ◀ 2s / ⏯ / 2s ▶ / 10s ⏭) mirrors the keyboard nudge shortcuts (← → Shift+← Shift+→ Space) as clickable buttons. |
 | `SyncPointBadge.vue` | Orange dot on the barline. Widens to a pill with `N·count` when a bar has multiple marks; drag-to-nudge disabled in that case (ambiguous which pass — per-pass editing happens in the editor table) |
 | `TransportBar.vue` | Audio source toggle (Synth / Video audio) |
 
