@@ -159,6 +159,20 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    /** Show the TAB clef + time signature (first measure of the entire piece). */
+    showClef: {
+        type: Boolean,
+        default: false,
+    },
+    /**
+     * Fraction of the full bar that precedes pickup content (0 for normal bars).
+     * e.g. 0.75 for a 1-beat pickup in 4/4. Used to remap full-bar-space xPos
+     * values into the narrowed pickup SVG coordinate space.
+     */
+    pickupXOffset: {
+        type: Number,
+        default: 0,
+    },
 });
 
 const emit = defineEmits([
@@ -173,11 +187,16 @@ const voice1Events = computed(() =>
 );
 
 function getEvX(ev) {
-    // xPos is in 0..1 range relative to effectiveTicks (set by repositionMeasure)
     const w = props.effectiveWidth;
-    const xL = props.isFirstOfSection ? LAYOUT.xPaddingFirst : LAYOUT.xPadding;
-    const xRng = w - xL - LAYOUT.xPadding;
-    return xL + ev.xPos * xRng;
+    const xL = props.showClef ? LAYOUT.xPaddingClef
+        : ((props.isFirstOfSection && props.measure.pickupBeats == null) || props.measure.repeatStart) ? LAYOUT.xPaddingFirst
+        : LAYOUT.xPadding;
+    const xRng = w - xL - LAYOUT.xPaddingRight;
+    // ev.xPos is in full-bar space; remap into narrowed pickup SVG space
+    const offset = props.pickupXOffset;
+    const range  = 1 - offset || 1;
+    const normalized = offset > 0 ? (ev.xPos - offset) / range : ev.xPos;
+    return xL + normalized * xRng;
 }
 
 function stringYForHit(s) {

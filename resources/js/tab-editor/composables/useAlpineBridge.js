@@ -36,6 +36,7 @@ export function useAlpineBridge() {
     const sections      = ref([]);       // parsed.sections array
     const chordVoicings = ref({});       // parsed.chordVoicings — mirrored into TabModel
     const timeSignature = ref('4/4');
+    const tempo         = ref(120);      // mirrors Alpine parsed.tempo
     const songKey       = ref('C');
     const title         = ref('');
     const composer      = ref('');
@@ -56,6 +57,7 @@ export function useAlpineBridge() {
             melody.value        = d.parsed.melody || null;
             sections.value      = d.parsed.sections || [];
             timeSignature.value = d.parsed.timeSignature || '4/4';
+            tempo.value         = d.parsed.tempo || 120;
             songKey.value       = d.parsed.key || 'C';
             title.value         = d.parsed.title || '';
             composer.value      = d.parsed.composer || '';
@@ -190,6 +192,7 @@ export function useAlpineBridge() {
         sections,
         chordVoicings,
         timeSignature,
+        tempo,
         songKey,
         title,
         composer,

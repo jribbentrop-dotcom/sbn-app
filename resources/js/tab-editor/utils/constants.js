@@ -32,9 +32,10 @@ export const LAYOUT = {
     topPadding:     25,      // headroom for stems + beams + volta above strings
     bottomPadding:  23,      // headroom for stems below strings (increased: stem must clear string-6 hit zone)
     stringAreaTop:  5,      // top string Y position (raised for volta clearance)
-    xPadding:       11,      // standard left/right note padding
-    xPaddingFirst:  22,      // first measure of a section: extra indent (clears repeat sign)
-    xPaddingClef:   62,      // first measure of the piece: room for time signature
+    xPadding:       11,      // standard left note padding
+    xPaddingRight:  0,      // standard right note padding
+    xPaddingFirst:  20,      // first measure of a section: extra indent (clears repeat sign)
+    xPaddingClef:   52,      // first measure of the piece: room for time signature
     stemBaseOffset: 8,       // stem starts 8px below bottomStringY (must clear string-6 hit zone at +6px)
     stemLength:     15,      // uniform stem length
     beamThickness:  3.2,

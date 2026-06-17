@@ -5,9 +5,8 @@
              'sbn-tab-measure--playing':   isPlayingMeasure,
              'is-tap-target':              isTapTarget,     // D2: tap-to-mark cursor
          }"
-         :style="measureStyle"
+         :style="[measureStyle, { position: 'relative' }]"
          :data-measure="measure.index"
-         style="position:relative"
          @contextmenu.prevent.stop="onMeasureContextMenu"
     >
 
@@ -49,7 +48,7 @@
                     ></span>
                 </span>
             </template>
-            <template v-else-if="!readOnly">
+            <template v-else-if="!readOnly && !measure.pickup && measure.pickupBeats == null">
                 <!-- Empty bar placeholder — click opens the chord name picker.
                      The chord bar has a fixed height so this never causes offset. -->
                 <span class="sbn-tab-chord-name-wrap sbn-tab-chord-empty-wrap"
@@ -95,6 +94,8 @@
                 :measure="measure"
                 :cursor="cursor"
                 :is-first-of-section="isFirstOfSection"
+                :show-clef="showClef"
+                :pickup-x-offset="pickupXOffset"
                 :effective-width="effectiveWidth"
                 :pending-digit="pendingDigit"
                 :selected-events="selectedEvents"
@@ -204,6 +205,15 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    /**
+     * Explicit flex percentage override for this bar (0–100). When set, overrides
+     * the barsPerRow-derived width. Used in pickup rows so each bar gets a
+     * precisely computed share of the full row width.
+     */
+    flexPct: {
+        type: Number,
+        default: null,
+    },
 });
 
 const emit = defineEmits([
@@ -274,11 +284,12 @@ const isOverfilled = computed(() => {
 
 // Dynamic layout widths
 const baseWidth = computed(() => {
-    // Calculate the total available row width using the default layout constants
     const standardBars = LAYOUT.measuresPerRow || 4;
     const standardTotalWidth = LAYOUT.measureWidth * standardBars;
-    
-    // Distribute that total width perfectly across the intended number of bars in this row
+    if (props.flexPct != null) {
+        // flexPct is a share of the full row; convert to absolute pixels
+        return standardTotalWidth * (props.flexPct / 100);
+    }
     return standardTotalWidth / Math.max(1, props.barsPerRow);
 });
 
@@ -288,11 +299,20 @@ const widthRatio = computed(() => {
     return actual / props.ticksPerMeasure;
 });
 
+// Pickup bars are visually narrowed to their actual beat content.
+// e.g. a 1-beat pickup in 4/4 takes 1/4 of a normal slot width.
+const pickupRatio = computed(() => {
+    if (props.measure.pickupBeats == null) return 1;
+    const globalBpm = beatsPerMeasureRef?.value ?? 4;
+    return Math.min(1, Math.max(0.05, props.measure.pickupBeats / globalBpm));
+});
+
 const effectiveWidth = computed(() => baseWidth.value * widthRatio.value);
 
 const measureStyle = computed(() => {
-    const pct = 100 / Math.max(1, props.barsPerRow);
-    if (widthRatio.value <= 1) return { flex: `0 0 ${pct}%` };
+    const pct = props.flexPct != null
+        ? props.flexPct
+        : (100 / Math.max(1, props.barsPerRow)) * pickupRatio.value;
     return { flex: `0 0 ${pct * widthRatio.value}%` };
 });
 
@@ -400,7 +420,9 @@ const metronomeBeatX = computed(() => {
     const globalBpm = beatsPerMeasureRef?.value ?? 4;
     const bpm       = props.measure.pickupBeats ?? globalBpm;
     const bSnapped  = Math.floor(beatInThisMeasure.value);
-    const xPos      = pickupXOffset.value + Math.min(bSnapped, bpm - 1) / globalBpm;
+    // In a narrowed pickup SVG the coordinate space starts at beat 0 of the
+    // pickup content, so xPos is just the beat fraction within the pickup.
+    const xPos = Math.min(bSnapped, bpm - 1) / bpm;
     return getXm(xPos);
 });
 
@@ -502,18 +524,28 @@ watch(isPlayingMeasure, (playing) => {
 });
 
 function getXm(xPos) {
-    // xPos is already relative to effectiveTicks (0..1 range),
-    // so we map it to the effective pixel width.
     const w = effectiveWidth.value;
-    const xL = props.showClef ? LAYOUT.xPaddingClef : props.isFirstOfSection ? LAYOUT.xPaddingFirst : LAYOUT.xPadding;
-    const xRng = w - xL - LAYOUT.xPadding;
-    return xL + xPos * xRng;
+    const xL = props.showClef ? LAYOUT.xPaddingClef
+        : (props.isFirstOfSection && props.measure.pickupBeats == null) || props.measure.repeatStart ? LAYOUT.xPaddingFirst
+        : LAYOUT.xPadding;
+    const xRng = w - xL - LAYOUT.xPaddingRight;
+    // For pickup bars the SVG is narrowed to pickupRatio of a full slot, but xPos
+    // values from useReflow are still in full-bar space (right-aligned, so they
+    // start at pickupXOffset and end at 1.0). Re-map that sub-range to [0..1]
+    // so notes fill the narrowed SVG naturally.
+    const offset = pickupXOffset.value;
+    const range  = 1 - offset || 1;
+    const normalized = offset > 0 ? (xPos - offset) / range : xPos;
+    return xL + normalized * xRng;
 }
 
 function getChordStyle(ci) {
     const total = props.chordNames.length;
     let xPos = null;
-    
+    // Whether xPos was computed in content space (0..1 within pickup content)
+    // vs full-bar space (pickupOffset..1). getXm expects full-bar space.
+    let isContentSpace = false;
+
     // 1. Try explicit chordOffsets
     if (props.measure.chordOffsets && props.measure.chordOffsets[ci] != null) {
         const offset = props.measure.chordOffsets[ci];
@@ -522,6 +554,7 @@ function getChordStyle(ci) {
             : props.ticksPerMeasure;
         const effectiveTicks = Math.max(props.measure.actualTicks || 0, capTicks);
         xPos = (offset * 480) / effectiveTicks;
+        isContentSpace = props.measure.pickupBeats != null;
     }
 
     // 2. Try binding to chordal event inside expected slot
@@ -532,22 +565,29 @@ function getChordStyle(ci) {
         const slotTicks = capTicks / total;
         const startTick = ci * slotTicks;
         const endTick = (ci + 1) * slotTicks;
-        
+
         const chordEvent = (props.measure.events || []).find(ev =>
             !ev.isRest &&
             ev.notes.length >= 3 &&
             ev.tickInMeasure >= startTick &&
             ev.tickInMeasure < endTick
         );
-        
+
         if (chordEvent) {
+            // chordEvent.xPos is always full-bar space (useReflow bakes in pickupOffset)
             xPos = chordEvent.xPos;
         }
     }
-    
-    // 3. Ultimate fallback: strictly even division
+
+    // 3. Ultimate fallback: strictly even division within content
     if (xPos === null) {
         xPos = ci / total;
+        isContentSpace = props.measure.pickupBeats != null;
+    }
+
+    // Normalize content-space xPos to full-bar space so getXm remapping works uniformly
+    if (isContentSpace && pickupXOffset.value > 0) {
+        xPos = pickupXOffset.value + xPos * pickupRatio.value;
     }
     
     const xPx = getXm(xPos);
@@ -573,14 +613,14 @@ function getNextXm(xPos) {
     const nm = props.nextMeasure;
     if (!nm) {
         const xL = props.isNextFirstOfSection ? LAYOUT.xPaddingFirst : LAYOUT.xPadding;
-        const xRng = baseWidth.value - xL - LAYOUT.xPadding;
+        const xRng = baseWidth.value - xL - LAYOUT.xPaddingRight;
         return xL + xPos * xRng;
     }
     const nextActual = nm.actualTicks || 0;
     const nextRatio = nextActual > props.ticksPerMeasure ? nextActual / props.ticksPerMeasure : 1;
     const nextW = baseWidth.value * nextRatio;
     const xL = props.isNextFirstOfSection ? LAYOUT.xPaddingFirst : LAYOUT.xPadding;
-    const xRng = nextW - xL - LAYOUT.xPadding;
+    const xRng = nextW - xL - LAYOUT.xPaddingRight;
     return xL + xPos * xRng;
 }
 
@@ -693,6 +733,9 @@ const svgContent = computed(() => {
 
     if (m.repeatEnd) {
         html += renderRepeatEnd(w, sT, sB, sH);
+    } else if (m.pickupBeats != null) {
+        html += `<line x1="${w - 3.5}" y1="${sT}" x2="${w - 3.5}" y2="${sB}" class="sbn-tab-bar-line"/>`;
+        html += `<line x1="${w - 0.5}" y1="${sT}" x2="${w - 0.5}" y2="${sB}" class="sbn-tab-bar-line"/>`;
     } else {
         html += `<line x1="${w - 0.5}" y1="${sT}" x2="${w - 0.5}" y2="${sB}" class="sbn-tab-bar-line"/>`;
     }

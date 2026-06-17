@@ -108,6 +108,7 @@
                                         :chord-names="measure.chordNames || []"
                                         :cursor="cursorState"
                                         :bars-per-row="row._intendedCount"
+                                        :flex-pct="row._pickupPct != null ? (li === 0 ? row._pickupPct : row._regularPct) : null"
                                         :pending-digit="pendingDigit"
                                         :selected-events="selectedEvents"
                                         @cursor-mousedown-event="onCursorMousedownEvent"
@@ -254,7 +255,7 @@
             :is-playing="transportPlaying"
             :current-beat="transportBeat"
             :total-beats="totalBeats"
-            :tempo="model?.tempo ?? 120"
+            :tempo="bridgeTempo"
             :beats-per-measure="beatsPerMeasure"
             :view-mode="viewMode"
             :show-mixer="true"
@@ -358,7 +359,7 @@ function toggleResearchSidebar() {
 
 const bridge = useAlpineBridge();
 const {
-    melody, sections, chordVoicings, timeSignature, songKey,
+    melody, sections, chordVoicings, timeSignature, tempo: bridgeTempo, songKey,
     title, composer,
     tabXml, repeatMarkers, voltaEndings,
     videoSync: bridgeVideoSync,
@@ -685,7 +686,7 @@ function beatToMeasureEvent(beat) {
 }
 
 function onTransportTempo(bpm) {
-    if (model.value) model.value.tempo = bpm;
+    bridgeTempo.value = bpm;
     getAudioEngine().setTempo(bpm);
 }
 
@@ -2730,19 +2731,19 @@ function measureRows(section) {
         let idx = 0;
         lineBreaks.forEach(count => {
             if (idx < section.measures.length) {
-                // Bug 5 fix: mark rows from lineBreaks so emptySlots skips padding.
                 const row = section.measures.slice(idx, idx + count);
                 row._fromLineBreaks = true;
-                    row._intendedCount = count;
+                row._intendedCount = count;
+                _stampPickupFlexPcts(row);
                 rows.push(row);
                 idx += count;
             }
         });
-        // Any remaining measures beyond lineBreaks sum go into a final row
         if (idx < section.measures.length) {
             const row = section.measures.slice(idx);
             row._fromLineBreaks = true;
-                row._intendedCount = row.length; // Just fill the remaining space
+            row._intendedCount = row.length;
+            _stampPickupFlexPcts(row);
             rows.push(row);
         }
         return rows;
@@ -2751,9 +2752,10 @@ function measureRows(section) {
     // Fallback: uniform rows of LAYOUT.measuresPerRow
     const rows = [];
     for (let i = 0; i < section.measures.length; i += LAYOUT.measuresPerRow) {
-            const row = section.measures.slice(i, i + LAYOUT.measuresPerRow);
-            row._intendedCount = LAYOUT.measuresPerRow;
-            rows.push(row);
+        const row = section.measures.slice(i, i + LAYOUT.measuresPerRow);
+        row._intendedCount = LAYOUT.measuresPerRow;
+        _stampPickupFlexPcts(row);
+        rows.push(row);
     }
     return rows;
 }
@@ -2765,10 +2767,32 @@ function emptySlots(row) {
     // Only pad fallback rows (uniform LAYOUT.measuresPerRow) so all rows in a
     // section have the same number of visual slots.
     if (row._fromLineBreaks) return [];
-        const intended = row._intendedCount || LAYOUT.measuresPerRow || 4;
-        if (row.length >= intended) return [];
-        const count = intended - row.length;
+    const intended = row._intendedCount || LAYOUT.measuresPerRow || 4;
+    if (row.length >= intended) return [];
+    const count = intended - row.length;
     return count > 0 ? Array.from({ length: count }, (_, i) => i) : [];
+}
+
+/**
+ * Stamps _pickupPct and _regularPct onto a row array when the first bar is a
+ * pickup. Called once per row in measureRows() so the template reads cached values.
+ *
+ * Example: 1-beat pickup in 4/4, N=4 bars:
+ *   pickupPct  = 100/4 * (1/4) = 6.25%   (pickup bar width)
+ *   regularPct = (100 - 6.25) / 3 = 31.25% (each remaining bar)
+ */
+function _stampPickupFlexPcts(row) {
+    const first = row[0];
+    if (!first || first.pickupBeats == null) {
+        row._pickupPct  = null;
+        row._regularPct = null;
+        return;
+    }
+    const N = row._intendedCount || row.length;
+    const globalBpm = beatsPerMeasure.value || 4;
+    const ratio = Math.min(1, Math.max(0.05, first.pickupBeats / globalBpm));
+    row._pickupPct  = (100 / N) * ratio * 2;
+    row._regularPct = N > 1 ? (100 - row._pickupPct) / (N - 1) : 100;
 }
 
 /**
