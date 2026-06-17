@@ -102,9 +102,10 @@ const props = defineProps({
 defineEmits(['video-timeupdate', 'video-play-state', 'video-ready']);
 
 defineExpose({
-  play:  () => playerRef.value?.play(),
-  pause: () => playerRef.value?.pause(),
-  seekTo: (s) => playerRef.value?.seekTo(s),
+  play:            () => playerRef.value?.play(),
+  pause:           () => playerRef.value?.pause(),
+  seekTo:          (s) => playerRef.value?.seekTo(s),
+  setPlaybackRate: (r) => playerRef.value?.setPlaybackRate(r),
 });
 
 </script>
@@ -119,9 +120,9 @@ defineExpose({
 
 /* ── Video card ─────────────────────────────────────── */
 .stage-video-card {
-  background: #000;
-  border: 1px solid var(--stage-line);
-  border-radius: 14px;
+  background: var(--clr-surface-3);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-lg);
   position: relative;
   overflow: hidden;
   aspect-ratio: 16/9;
@@ -132,7 +133,7 @@ defineExpose({
 }
 
 .stage-video-card--live {
-  border-color: rgba(var(--stage-accent-rgb), 0.35);
+  border-color: rgba(var(--stage-accent-rgb), 0.4);
 }
 
 /* VideoPlayer fills the card */
@@ -172,15 +173,15 @@ defineExpose({
   align-items: center;
   gap: 8px;
   padding: 6px 10px 6px 8px;
-  background: rgba(0, 0, 0, 0.65);
+  background: var(--clr-overlay-dark);
   backdrop-filter: blur(8px);
   border-radius: 100px;
-  font-family: var(--stage-font-mono);
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--clr-white);
   z-index: 2;
 }
 
@@ -201,9 +202,9 @@ defineExpose({
   align-items: center;
   justify-content: center;
   gap: 14px;
-  background: radial-gradient(ellipse 400px 200px at 50% 0%, rgba(var(--stage-accent-rgb), 0.12), transparent 70%),
-              linear-gradient(180deg, var(--stage-bg-2) 0%, var(--stage-bg) 100%);
-  color: var(--stage-text);
+  background: radial-gradient(ellipse 400px 200px at 50% 0%, rgba(var(--stage-accent-rgb), 0.1), transparent 70%),
+              linear-gradient(180deg, var(--clr-surface-2) 0%, var(--clr-bg) 100%);
+  color: var(--clr-text);
   text-align: center;
   padding: 32px;
 }
@@ -213,17 +214,17 @@ defineExpose({
   height: 56px;
   border-radius: 50%;
   background: var(--stage-accent);
-  color: var(--stage-primary-ink);
+  color: var(--clr-white);
   display: grid;
   place-items: center;
   font-size: 18px;
-  box-shadow: 0 0 0 8px rgba(var(--stage-accent-rgb), 0.15), 0 8px 24px rgba(var(--stage-accent-rgb), 0.4);
+  box-shadow: 0 0 0 8px rgba(var(--stage-accent-rgb), 0.12), 0 8px 24px rgba(var(--stage-accent-rgb), 0.25);
 }
 
 .stage-video-placeholder-hint {
   margin: 0;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--clr-text-muted);
   max-width: 28ch;
   line-height: 1.5;
 }
@@ -237,28 +238,28 @@ defineExpose({
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--clr-overlay-dark);
   backdrop-filter: blur(10px);
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.85);
-  font-family: var(--stage-font-mono);
+  border-radius: var(--radius-sm);
+  color: var(--clr-white);
+  font-family: var(--font-mono);
   font-size: 11px;
   z-index: 2;
 }
 
 .stage-video-sync-strip strong {
-  color: #fff;
+  color: var(--clr-white);
   font-weight: 600;
 }
 
 .stage-sync-on  { color: var(--stage-accent); }
-.stage-sync-off { color: var(--stage-text-mute); }
+.stage-sync-off { color: var(--clr-text-muted); }
 
 /* ── Now playing card ───────────────────────────────── */
 .stage-hero-card {
-  background: linear-gradient(180deg, var(--stage-bg-2) 0%, var(--stage-bg-1) 100%);
-  border: 1px solid var(--stage-line);
-  border-radius: 14px;
+  background: linear-gradient(180deg, var(--clr-surface-2) 0%, var(--clr-white) 100%);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-lg);
   padding: 28px 32px;
   position: relative;
   overflow: hidden;
@@ -267,18 +268,14 @@ defineExpose({
 
 .stage-hero-card--now {
   border-color: rgba(var(--stage-accent-rgb), 0.35);
-  box-shadow: inset 0 0 0 1px rgba(var(--stage-accent-rgb), 0.15);
-}
-
-.stage-hero-card--now::before {
-  display: none;
+  box-shadow: inset 0 0 0 1px rgba(var(--stage-accent-rgb), 0.1);
 }
 
 .stage-hero-label {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--stage-font-mono);
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -312,7 +309,7 @@ defineExpose({
 }
 
 .stage-hero-chord {
-  font-family: var(--stage-font-chord);
+  font-family: var(--font-chord);
   font-size: 128px;
   line-height: 0.88;
   letter-spacing: -0.03em;
@@ -343,19 +340,19 @@ defineExpose({
 .stage-hero-chord-sub {
   margin-top: 16px;
   font-size: 13px;
-  color: var(--stage-text-dim);
+  color: var(--clr-text-dim);
   letter-spacing: 0.3px;
 }
 
 .stage-hero-chord-sub strong {
-  color: var(--stage-text);
+  color: var(--clr-text);
   font-weight: 600;
 }
 
 .stage-next-row {
   margin-top: 18px;
   padding-top: 16px;
-  border-top: 1px dashed var(--stage-line-2);
+  border-top: 1px dashed var(--clr-border);
   display: flex;
   align-items: baseline;
   gap: 12px;
@@ -363,19 +360,19 @@ defineExpose({
 }
 
 .stage-next-label {
-  font-family: var(--stage-font-mono);
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: var(--stage-text-mute);
+  color: var(--clr-text-muted);
 }
 
 .stage-next-chord {
-  font-family: var(--stage-font-chord);
+  font-family: var(--font-chord);
   font-size: 32px;
   font-weight: 700;
-  color: var(--stage-text-dim);
+  color: var(--clr-text-dim);
   line-height: 1;
   letter-spacing: -0.01em;
 }
@@ -386,7 +383,7 @@ defineExpose({
 
 .stage-next-countdown {
   font-size: 12px;
-  color: var(--stage-text-mute);
+  color: var(--clr-text-muted);
 }
 
 .stage-next-countdown strong {
@@ -413,12 +410,12 @@ defineExpose({
 .stage-beat {
   height: 5px;
   border-radius: 3px;
-  background: var(--stage-line-2);
+  background: var(--clr-border);
 }
 
 .stage-beat--active {
-  background: var(--stage-accent);
-  box-shadow: 0 0 8px rgba(var(--stage-accent-rgb), 0.5);
+  background: var(--stage-gradient);
+  box-shadow: 0 0 6px rgba(var(--stage-accent-rgb), 0.3);
 }
 
 @keyframes stagePulse {

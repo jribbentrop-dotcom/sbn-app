@@ -6,34 +6,42 @@ return [
         'shortTitle' => 'Girl from Ipanema',
         'artist' => 'Tom Jobim',
         'image' => '/images/top10/bossa-nova-songs/5.webp',
-        'description' => "Not least because of the Netflix series of the same name, this song is on everyone's lips again. Without a doubt the most famous bossa nova song of all time. The famous Brazilian guitarist Joao Gilberto interprets the piece in his own unmistakable style that defined the Bossa Nova.",
+        'description' => "Without a doubt the most famous Bossa Nova song of all time — and one of the most recorded songs in history. Written by Tom Jobim and Vinícius de Moraes in 1962, it became a worldwide hit through the legendary <em>Getz/Gilberto</em> recording of 1964, featuring <strong>João Gilberto's</strong> fingerstyle guitar and <strong>Astrud Gilberto's</strong> unforgettable vocal.",
         'recordings' => '822 Recordings',
         'voicingName' => 'Key Chords',
-        'voicingCaption' => "<strong>Tom Jobim</strong> borrowed the harmonic idea of switching from the I to the II7 from <strong>Duke Ellington's</strong> famous song <em>Take the A-Train</em>. This can be heard in many of his songs, most famously in <em>The Girl from Ipanema</em>.",
+        'voicingSlug' => 'maj6-custom-roote-inv2-9',
+        'rootOverride' => 'Db',
+        'voicingCaption' => "The <strong>Dbmaj6(9)</strong> with 5th (Ab) in the bass opens the song. Unlike traditional chords, this chord is voiced on 4ths, giving it a more open sound.",
         'progressionName' => 'Ellington Progression',
         'progressionLibrarySlug' => 'ellington-progression',
         'progressionSeedKey' => 'F',
-        'progressionCaption' => "<strong>Tom Jobim</strong> borrowed the harmonic idea of switching from the I to the II7 from <strong>Duke Ellington's</strong> famous song <em>Take the A-Train</em>. This can be heard in many of his songs, most famously in <em>The Girl from Ipanema</em>.",
+        'progressionCaption' => "<strong>Tom Jobim</strong> borrowed the idea of leaping from the <strong>I</strong> chord to the <strong>II7</strong> from <strong>Duke Ellington's</strong> <em>Take the A-Train</em>. A favourite Jobim move that reappears across his catalogue.",
         'progressionSlugs' => ['maj6-custom-roote-inv2-9-overAb', 'dom7-shell-roota-9'],
         // Live leadsheet bars — replaces progressionTiles in the SyncedPlayer panel
         'syncedPlayer' => ['slug' => 'the-girl-from-ipanema', 'start' => 5, 'end' => 12],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'gilberto-rhythm',
-        'rhythmCaption' => "This is the classic pattern that defines the feel of many Bossa Nova songs.",
-        'rhythmCitation' => "<strong>Stan Getz & Joao Gilberto</strong>, <em>Getz / Gilberto</em>, 1964",
+        'rhythmCaption' => "The classic Gilberto pattern has three accents. The thumb handles the bass on beat 1 and 3, the fingers pluck  the upper strings.",
+        'rhythmCitation' => "<strong>Stan Getz & João Gilberto</strong>, <em>Getz / Gilberto</em>, 1964",
         'relatedProducts' => [
             [
-                'title' => 'The Girl from Ipanema - Sheet Music',
-                'description' => 'Complete arrangement with tabs and chord diagrams',
-                'url' => 'https://soulbossanova.com/product/girl-from-ipanema',
-                'type' => 'product'
+                'title' => 'Gilberto plays Jobim',
+                'description' => 'Learn the exact chord voicings and rhythms João Gilberto used on the Getz/Gilberto recording.',
+                'url' => '/learn/gilberto-plays-jobim',
+                'type' => 'course',
             ],
             [
-                'title' => 'Bossa Nova Basics Course',
-                'description' => 'Learn the fundamentals with step-by-step video lessons',
-                'url' => 'https://soulbossanova.com/product/bossa-basics',
-                'type' => 'course'
-            ]
+                'title' => 'Bossa Nova Chords',
+                'description' => 'Master the essential chord shapes and extensions that define the Bossa Nova sound.',
+                'url' => '/learn/bossa-nova-chords-ii',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'TOP10 Bossa Nova Chords',
+                'description' => 'Ten essential Bossa Nova guitar chords with voicing diagrams, practice patterns and song examples.',
+                'url' => '/shop/product/top10-bossa-nova-chords',
+                'type' => 'product',
+            ],
         ]
     ],
     'manha-de-carnaval' => [
@@ -41,14 +49,16 @@ return [
         'shortTitle' => 'Manhã de Carnaval',
         'artist' => 'Luiz Bonfá',
         'image' => '/images/top10/bossa-nova-songs/7.webp',
-        'description' => "The guitarist Luiz Bonfa has set a monument with Manha de Carnaval. One of the most popular pieces for getting started in the world of bossa nova, but also for advanced improvisation, as three of the most virtuoso guitarists of the 20th century prove here.",
+        'description' => "<strong>Luiz Bonfá</strong> composed this theme for the 1959 film <em>Black Orpheus</em> (<em>Orfeu Negro</em>) and it became one of the most beloved Brazilian melodies ever written. The song is a touchstone for solo guitar — famously reimagined by <strong>Paco de Lucía</strong>, <strong>John McLaughlin</strong>, and <strong>Al Di Meola</strong> on their 1980 live recording <em>Friday Night in San Francisco</em>. Here we feature <strong>Bonfá's own original recording</strong>, which captures the song in its purest, most intimate form.",
         'recordings' => '706 Recordings',
         'voicingName' => 'Key Chords',
-        'voicingCaption' => "This half-diminished chord is used a lot in <em>Manhã de Carnaval</em>, so make sure you're prepared!",
-        'progressionName' => 'The Minor Jazz Cadence',
-        'progressionLibrarySlug' => 'the-minor-jazz-cadence',
+        'voicingSlug' => 'dom7-archetype-roota',
+        'rootOverride' => 'E',
+        'voicingCaption' => "This <strong>E7</strong> is an all-star guitar voicing used in Blues, Jazz, Pop and Bossa Nova.",
+        'progressionName' => 'Perfect Authentic Cadence',
+        'progressionLibrarySlug' => 'perfect-authentic-cadence',
         'progressionSeedKey' => 'A',
-        'progressionCaption' => "This half-diminished chord is used a lot in <em>Manhã de Carnaval</em>, so make sure you're prepared!",
+        'progressionCaption' => "Although the <strong>minor ii-V</strong> appears repeatedly in jazz renditions of <em>Manhã de Carnaval</em>, Luiz Bonfá used a simple, classical progression in his wonderful arrangement.",
         'progressionSlugs' => ['m7b5-drop2-roota', 'dom7-shell-roote'],
         // Live leadsheet bars — replaces progressionTiles in the SyncedPlayer panel
         'syncedPlayer' => ['slug' => 'black-orpheus', 'start' => 1, 'end' => 3],
@@ -58,11 +68,17 @@ return [
         'rhythmCitation' => "<strong>Luiz Bonfá</strong>, <em>Solo In Rio</em>, 1959",
         'relatedProducts' => [
             [
-                'title' => 'The Gentle Rain',
-                'description' => 'An original solo guitar arrangement of another Luiz Bonfá classic.',
-                'url' => '/shop/product/the-gentle-rain',
-                'type' => 'product'
-            ]
+                'title' => 'Bossa Nova Basics',
+                'description' => 'Learn the fundamentals of Bossa Nova guitar — rhythms, chord shapes, and a first song.',
+                'url' => '/learn/bossa-nova-basics',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Music Theory Basics',
+                'description' => 'Understand the harmony behind Bossa Nova — intervals, chord construction, and how progressions work.',
+                'url' => '/learn/music-theory-basics',
+                'type' => 'course',
+            ],
         ]
     ],
     'corcovado' => [
@@ -70,14 +86,16 @@ return [
         'shortTitle' => 'Corcovado',
         'artist' => 'Tom Jobim',
         'image' => '/images/top10/bossa-nova-songs/3.webp',
-        'description' => "Astrud Gilberto sang about \"Quiet Night of Quiet Stars\" in 1963 and the world is still at her feet today. Corcovado is the name of the famous mountain in Rio de Janeiro, on which the Christ the Redeemer statue also stands.",
+        'description' => "Jobim named this song after the <em>Corcovado</em> mountain in Rio de Janeiro — the peak crowned by the Christ the Redeemer statue — and the music carries the silence of that high place at night: hushed, intimate, suspended. <strong>Astrud Gilberto's</strong> vocal on <em>Getz/Gilberto</em> (1964) made \"Quiet Night of Quiet Stars\" one of the most tender recordings in jazz and bossa nova history.",
         'recordings' => '651 Recordings',
         'voicingName' => 'Key Chords',
-        'voicingCaption' => "This minor chord, extended with the sixth, has a deep, resonant tone that captures the essence of longing, the saudade. Combined with the diminished chord, it is an absolute trademark of the bossa nova sound.",
+        'voicingSlug' => 'm6-drop3-roote',
+        'rootOverride' => 'A',
+        'voicingCaption' => "The <strong>Am6</strong> chord anchors the root on the E-string. It is one of the TOP10 Bossa Nova chords and a fundamental part of the Bossa Nova and Jazz sound.",
         'progressionName' => 'The Corcovado Progression',
         'progressionLibrarySlug' => 'the-corcovado-progression',
         'progressionSeedKey' => 'A',
-        'progressionCaption' => "This minor chord, extended with the sixth, has a deep, resonant tone that captures the essence of longing, the saudade. Combined with the diminished chord, it is an absolute trademark of the bossa nova sound.",
+        'progressionCaption' => "Together the <strong>Am6</strong> and <strong>G#dim7</strong> form the <strong>Line Cliché</strong> at the heart of <em>Corcovado</em>. This chord motion — tonic colour shifting into passing dissonance — is the sound of <strong>saudade</strong> on the guitar.",
         'progressionSlugs' => ['m6-drop3-roota', 'o7-drop3-roota'],
         // Live leadsheet bars — replaces progressionTiles in the SyncedPlayer panel
         'syncedPlayer' => ['slug' => 'untitled-6', 'start' => 0, 'end' => 7],
@@ -87,11 +105,23 @@ return [
         'rhythmCitation' => "<strong>João Gilberto</strong>, <em>O Amor, O Sorriso E A Flor</em>, 1960",
         'relatedProducts' => [
             [
-                'title' => 'Corcovado',
-                'description' => "Transcription of João Gilberto's chord voicings, with a simplified arrangement in the same key.",
-                'url' => '/shop/product/corcovado-joao-gilberto',
-                'type' => 'product'
-            ]
+                'title' => 'Gilberto plays Jobim',
+                'description' => 'Learn the exact chord voicings and rhythms João Gilberto used on the Getz/Gilberto recording.',
+                'url' => '/learn/gilberto-plays-jobim',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Bossa Nova Chords',
+                'description' => 'Master the essential chord shapes and extensions that define the Bossa Nova sound.',
+                'url' => '/learn/bossa-nova-chords-ii',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'TOP10 Bossa Nova Chords',
+                'description' => 'Ten essential Bossa Nova guitar chords with voicing diagrams, practice patterns and song examples.',
+                'url' => '/shop/product/top10-bossa-nova-chords',
+                'type' => 'product',
+            ],
         ]
     ],
     'how-insensitive' => [
@@ -99,28 +129,41 @@ return [
         'shortTitle' => 'How Insensitive',
         'artist' => 'Tom Jobim',
         'image' => '/images/top10/bossa-nova-songs/6.webp',
-        'description' => "How Insensitive is one of the most beautiful ballads by Tom Jobim. The harmonic structure is very similar to Corcovado, featuring many diminished chords that create that special, melancholic feeling…",
+        'description' => "The Portuguese title <em>Insensatez</em> means \"foolishness\" — Jobim wrote it as a lament for a love handled badly, and the English adaptation \"How Insensitive\" perfectly captures the same self-reproach. The chromatic descending bass line echoes the Corcovado tradition, but here it moves slower, heavier — a favourite ballad vehicle for jazz improvisers ever since <strong>Stan Getz</strong> recorded it on <em>Getz/Gilberto</em>.",
         'recordings' => '556 Recordings',
         'voicingName' => 'Key Chords',
-        'voicingCaption' => "<em>Insensatez</em> has some great diminished passing chords. These are the secret weapons of Bossa Nova. Because a diminished chord is built entirely of minor 3rds, this shape repeats every 3 frets.",
+        'voicingSlug' => 'dom7-drop3-roote-b13',
+        'rootOverride' => 'F#',
+        'voicingCaption' => "This <strong>Dominant 7</strong> voicing is enriched with the colour tone b13. The b13 is a common alteration in Jobim's ballads, giving the chords a darker, more melancholic sound that perfectly suits the mood of <em>Insensatez</em>.",
         'progressionName' => 'Minor Blues Cadenza',
         'progressionLibrarySlug' => 'minor-blues-cadenza',
         'progressionSeedKey' => 'B',
-        'progressionCaption' => "<em>Insensatez</em> has some great diminished passing chords. These are the secret weapons of Bossa Nova. Because a diminished chord is built entirely of minor 3rds, this shape repeats every 3 frets.",
-        'progressionSlugs' => ['dom7-drop2-roota-inv1', 'o7-drop3-roota', 'maj7-drop3-roote'],
+        'progressionCaption' => "The Minor Blues Cadenza in <em>Insensatez</em> features a distinctive harmonic movement. The voicings here are rooted in the minor blues tradition but are coloured with Jobim's unique harmonic language, including the use of the b13 for added tension and emotional depth.",
         // Live leadsheet bars — Gmaj7(#11) F#7 Bm7 progression at the end
-        'syncedPlayer' => ['slug' => 'joao-gilberto-insensatez', 'start' => 18, 'end' => 19],
+        'syncedPlayer' => ['slug' => 'joao-gilberto-insensatez', 'start' => 21, 'end' => 23],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'insensatez',
         'rhythmCaption' => "<strong>João Gilberto's</strong> recording of <em>Insensatez</em> features an interesting rhythm pattern. Like the clave patterns of Cuba, it dominates the song, dictating the flow of the music.",
         'rhythmCitation' => "<strong>João Gilberto</strong>, <em>João Gilberto</em>, 1961",
         'relatedProducts' => [
             [
-                'title' => 'How Insensitive',
-                'description' => 'Solo guitar arrangement modelled on João Gilberto\'s recording, packed with diminished chord colour.',
-                'url' => '/shop/product/how-insensitive',
-                'type' => 'product'
-            ]
+                'title' => 'Gilberto plays Jobim',
+                'description' => 'Learn the exact chord voicings and rhythms João Gilberto used on the Getz/Gilberto recording.',
+                'url' => '/learn/gilberto-plays-jobim',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Bossa Nova Chords',
+                'description' => 'Master the essential chord shapes and extensions that define the Bossa Nova sound.',
+                'url' => '/learn/bossa-nova-chords-ii',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'TOP10 Bossa Nova Chords',
+                'description' => 'Ten essential Bossa Nova guitar chords with voicing diagrams, practice patterns and song examples.',
+                'url' => '/shop/product/top10-bossa-nova-chords',
+                'type' => 'product',
+            ],
         ]
     ],
     'wave' => [
@@ -128,28 +171,42 @@ return [
         'shortTitle' => 'Wave',
         'artist' => 'Tom Jobim',
         'image' => '/images/top10/bossa-nova-songs/9.webp',
-        'description' => "Since its first recording in 1967, Wave has become an instant favourite among musicians. Jobim crafted a sophisticated voice leading below the melody and the form of the first part is basically a blues. No wonder that especially jazz musicians came to like it!",
+        'description' => "Since its first recording in 1967, <em>Wave</em> has been a favourite of both bossa nova and jazz musicians. Jobim built a sophisticated descending bass line beneath the melody and structured the first section as a loose blues — a rare convergence that made the song irresistible to improvisers. The intro's triad-over-bass technique is one of the most distinctive moments in Brazilian guitar writing.",
         'recordings' => '488 Recordings',
-        'voicingName' => 'Key Chords',
-        'voicingCaption' => "The song's introduction is constructed using triads that move over a static bass note. This technique is an effective method of creating interesting sounds.",
+        'voicingName' => 'Key Chord',
+        'voicingSlug' => 'm7-shell-roota-9',
+        'rootOverride' => 'D',
+        'voicingCaption' => "This Dm7(9) chord is a perfect fit for the introduction to Wave.",
         'progressionName' => 'The Jazz Half Cadence',
         'progressionLibrarySlug' => 'the-jazz-half-cadence',
         'progressionSeedKey' => 'C',
-        'progressionCaption' => "The song's introduction is constructed using triads that move over a static bass note. This technique is an effective method of creating interesting sounds.",
+        'progressionCaption' => "The <strong>Jazz Half Cadence</strong> sets up the rhythm for Wave, sustaining tension before the melody appears.",
         'progressionSlugs' => ['min7-shell-roote', 'min7-shell-roote'],
         // Live leadsheet bars — Wave bars 0-1
         'syncedPlayer' => ['slug' => 'untitled-7', 'start' => 0, 'end' => 1],
         'rhythmName' => 'The "Wave" Syncopation',
         'rhythmSlug' => 'partido-alto',
-        'rhythmCaption' => "<em>Wave</em> uses a rhythm often linked to the \"Partido Alto\" style. Note the anticipation: the chord attacks often land on the weak off-beats.",
+        'rhythmCaption' => "<em>Wave</em> uses a rhythm often linked to the <strong>\"Partido Alto\"</strong> style. Note the anticipation: the chord attacks often land on the weak off-beats.",
         'rhythmCitation' => "<strong>Antonio Carlos Jobim</strong>, <em>Wave</em>, 1967",
         'relatedProducts' => [
             [
-                'title' => 'Wave',
-                'description' => 'Advanced solo guitar arrangement of Wave (Vou Te Contar) by Tom Jobim.',
-                'url' => '/shop/product/wave',
-                'type' => 'product'
-            ]
+                'title' => 'Gilberto plays Jobim',
+                'description' => 'Learn the exact chord voicings and rhythms João Gilberto used on the Getz/Gilberto recording.',
+                'url' => '/learn/gilberto-plays-jobim',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Bossa Nova Chords',
+                'description' => 'Master the essential chord shapes and extensions that define the Bossa Nova sound.',
+                'url' => '/learn/bossa-nova-chords-ii',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'TOP10 Bossa Nova Chords',
+                'description' => 'Ten essential Bossa Nova guitar chords with voicing diagrams, practice patterns and song examples.',
+                'url' => '/shop/product/top10-bossa-nova-chords',
+                'type' => 'product',
+            ],
         ]
     ],
     'one-note-samba' => [
@@ -157,28 +214,36 @@ return [
         'shortTitle' => 'One Note Samba',
         'artist' => 'Tom Jobim',
         'image' => '/images/top10/bossa-nova-songs/8.webp',
-        'description' => "The title of the song refers indeed to the melody which, for most part of the song, consists of a repeated single note. It is one of the first released Bossa Nova tunes, dating back to 1960, when Joao Gilberto recorded it on his album O Amor, o Sorriso e a Flor.",
+        'description' => "The melody truly does return to a single repeated note — and yet the song never feels static, because beneath it <strong>Jobim</strong> builds a cascading sequence of <strong>tritone substitutions</strong> that draws jazz musicians like few bossa nova tunes do. Recorded by <strong>João Gilberto</strong> in 1960 on <em>O Amor, O Sorriso E A Flor</em>, it quickly became a jam-session staple for its rapid chord changes at medium-up tempos.",
         'recordings' => '476 Recordings',
-        'voicingName' => 'Key Chords',
-        'voicingCaption' => "<em>One Note Samba</em> is the perfect song for practising Shell Voicing like this Bm7, since it's got loads of chord changes and is usually played at a faster tempo.",
+        'voicingName' => 'Key Chord',
+        'voicingSlug' => 'm7-shell-roote',
+        'rootOverride' => 'B',
+        'voicingCaption' => "The three-note <strong>shell voicing</strong> — root, 7th and 3rd — is the practical key to <em>One Note Samba</em>: the changes move fast and the melody note sits on top of the shape. Lock in this <strong>Bm7</strong> frame and the subsequent chords will fall naturally under the fingers.",
         'progressionName' => 'Tritone Substitution Jazz Cadence',
         'progressionLibrarySlug' => 'tritone-substitution-jazz-cadence',
         'progressionSeedKey' => 'Ab',
-        'progressionCaption' => "<em>One Note Samba</em> is the perfect song for practising Shell Voicing like this Bm7, since it's got loads of chord changes and is usually played at a faster tempo.",
+        'progressionCaption' => "The <strong>Tritone Substitution</strong> is an advanced jazz concept that replaces the expected dominant chord with one a tritone away. In <em>One Note Samba</em> this produces a smooth chromatic bass descent while the melody holds its ground on a single pitch.",
         'progressionSlugs' => ['m7-shell-roote', 'dom7-shell-roote', 'm7-shell-roote'],
         // Live leadsheet bars — One Note Samba bars 1-4
         'syncedPlayer' => ['slug' => 'one-note-samba', 'start' => 1, 'end' => 4],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'bossa-nova-clave',
-        'rhythmCaption' => "The Bossa Nova Clave is the definitive pattern for jazz recordings of Bossa Nova songs.",
+        'rhythmCaption' => "The <strong>Bossa Nova Clave</strong> locks the 3+2 pattern that defines the jazz-ensemble arrangement of this song. At faster tempos, keep the clave crisp — the rest of the rhythm section anchors off it.",
         'rhythmCitation' => "<strong>Quincy Jones</strong>, <em>Big Band Bossa Nova</em>, 1962",
         'relatedProducts' => [
             [
-                'title' => 'TOP10 Bossa Nova Chords',
-                'description' => 'Ten essential bossa nova guitar chords with practice patterns and song examples — perfect for shell voicing practice.',
-                'url' => '/shop/product/top10-bossa-nova-chords',
-                'type' => 'product'
-            ]
+                'title' => 'Gilberto plays Jobim',
+                'description' => 'Learn the exact chord voicings and rhythms João Gilberto used on the Getz/Gilberto recording.',
+                'url' => '/learn/gilberto-plays-jobim',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Bossa Nova Chords',
+                'description' => 'Master the essential chord shapes and extensions that define the Bossa Nova sound.',
+                'url' => '/learn/bossa-nova-chords-ii',
+                'type' => 'course',
+            ],
         ]
     ],
     'aquarela-do-brasil' => [
@@ -186,26 +251,40 @@ return [
         'shortTitle' => 'Brasil',
         'artist' => 'Ary Barroso',
         'image' => '/images/top10/bossa-nova-songs/1.webp',
-        'description' => "Ary Barroso was one of the stars of samba music. So this song has a different flair, a different tempo, than many of the tracks on this list. With its catchy melody, it is one of the hits of Brazilian music.",
+        'description' => "<em>Aquarela do Brasil</em> is one of the great samba anthems — composed by <strong>Ary Barroso</strong> in 1939 and first recorded by <strong>Francisco Alves</strong> that same year. Unlike the cool introspection of <strong>bossa nova</strong>, this is <strong>samba</strong> in full celebration: big melody, driving rhythm, and the most famous descending <strong>Line Cliché</strong> in Brazilian music — a bass-voice sequence every guitarist must have under their fingers.",
         'recordings' => '435 Recordings',
-        'voicingName' => 'Key Chords',
-        'voicingCaption' => "<em>Aquarela do Brasil</em> has one of the most iconic Line Clichés of all time. You can play it easily starting on this beautiful G(add9) chord voicing.",
+        'voicingName' => 'Key Chord',
+        'voicingSlug' => 'add9-archetype-roote',
+        'rootOverride' => 'G',
+        'voicingCaption' => "This <strong>G(add9)</strong> chord is one of the most basic chords. From this starting position, the inner voice moves chromatically through the rest of the Line Cliché without requiring a dramatic shift in hand position.",
         'progressionName' => 'The Samba Line Cliché',
-        'progressionCaption' => "<em>Aquarela do Brasil</em> has one of the most iconic Line Clichés of all time. You can play it easily starting on this beautiful G(add9) chord voicing.",
+        'progressionCaption' => "The <strong>Samba Line Cliché</strong> keeps the tonic chord rooted while an inner voice moves one semitone at a time. A simple mechanism with a dramatically emotional effect.",
         'progressionSlugs' => ['maj7-shell-roote', 'maj7-shell-roote', 'maj6-shell-roote'],
-        // Live leadsheet bars — Aquarela do Brasil bars 1-4
-        'syncedPlayer' => ['slug' => 'aqualera-do-brasil', 'start' => 1, 'end' => 4],
+        // Live leadsheet bars — Aquarela do Brasil bars 0-3
+        'syncedPlayer' => ['slug' => 'aqualera-do-brasil', 'start' => 0, 'end' => 3],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'samba-brasil',
         'rhythmCaption' => "Another iconic rhythm: this Samba rhythm has a wonderful symmetry of three strong and three weak beat accents.",
         'rhythmCitation' => "<em>Aquarela do Brasil</em>, <strong>Francisco Alves</strong>, 1939",
         'relatedProducts' => [
             [
-                'title' => 'Bossa Nova Basics Course',
-                'description' => 'Learn the fundamentals of bossa nova guitar — rhythms, chord shapes, and classic songs — with step-by-step video lessons.',
-                'url' => '/shop/product/bossa-basics',
-                'type' => 'course'
-            ]
+                'title' => 'Music Theory Basics',
+                'description' => 'Understand the harmony behind Bossa Nova — intervals, chord construction, and how progressions work.',
+                'url' => '/learn/music-theory-basics',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Bossa Nova Chords',
+                'description' => 'Master the essential chord shapes and extensions that define the Bossa Nova sound.',
+                'url' => '/learn/bossa-nova-chords-ii',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Bossa Nova Basics',
+                'description' => 'Learn the fundamentals of Bossa Nova guitar — rhythms, chord shapes, and a first song.',
+                'url' => '/learn/bossa-nova-basics',
+                'type' => 'course',
+            ],
         ]
     ],
     'desafinado' => [
@@ -213,14 +292,16 @@ return [
         'shortTitle' => 'Desafinado',
         'artist' => 'Tom Jobim',
         'image' => '/images/top10/bossa-nova-songs/4.webp',
-        'description' => "A piece by Jobim for a change. \"Slightly out of Tune\" is the musical response to criticism of Bossa Nova music. A succesful response!",
+        'description' => "When critics dismissed Bossa Nova as \"out of tune,\" Tom Jobim answered with <em>Desafinado</em> — a song whose title literally means \"Slightly Out of Tune.\" The harmony makes the joke flesh: the dissonant <strong>#11</strong> on the secondary dominant is precisely the \"wrong\" note the critics complained about, and here it is the point of the whole song. The <strong>Stan Getz & João Gilberto</strong> recording on <em>Getz/Gilberto</em> (1964) turned this wry retort into a worldwide hit.",
         'recordings' => '424 Recordings',
-        'voicingName' => 'The \"Off-Key\" Pair',
-        'voicingCaption' => "The title <em>Desafinado</em> translates to \"Slightly Out of Tune.\" This effect is achieved by the <strong>Secondary Dominant (II7)</strong> equipped with a <strong>#11</strong> (the note C#).",
+        'voicingName' => 'Key Chord',
+        'voicingSlug' => 'dom7-archetype-roote-9',
+        'rootOverride' => 'E',
+        'voicingCaption' => "The title <em>Desafinado</em> translates to \"Slightly Out of Tune.\" This effect is achieved by the <strong>Secondary Dominant (<strong>II7</strong>)</strong>. Joao Gilberto choses a simple E7 chord without any alteration.",
         'progressionName' => 'Ellington Progression in F',
         'progressionLibrarySlug' => 'ellington-progression',
         'progressionSeedKey' => 'F',
-        'progressionCaption' => "For this <em>Desafinado</em> excerpt, we use the <strong>Ellington Progression</strong> in F and color the <strong>II7</strong> with a <strong>G7(#11)</strong> for the characteristic \"off-key\" flavor.",
+        'progressionCaption' => "For this <em>Desafinado</em> excerpt, we use the <strong>Ellington Progression</strong> in <strong>D</strong> just like Joao Gilberto does in the recording. The progression is a favourite of Tom Jobim's and appears in many of his songs.",
         'progressionVoicingOverrides' => [
             2 => 'dom7-drop3-roote-s11',
         ],
@@ -229,14 +310,20 @@ return [
         'rhythmName' => 'Syncopated Phrasing',
         'rhythmSlug' => 'desafinado',
         'rhythmCaption' => "The melody of <em>Desafinado</em> is famous for starting on the \"and\" of beats. Your guitar accompaniment should be steady to support the \"stumbling\" vocal melody.",
-        'rhythmCitation' => "<strong>Stan Getz & Joao Gilberto</strong>, <em>Getz / Gilberto</em>, 1964",
+        'rhythmCitation' => "<strong>Stan Getz & João Gilberto</strong>, <em>Getz / Gilberto</em>, 1964",
         'relatedProducts' => [
             [
-                'title' => 'Jazz & Bossa Chords',
-                'description' => 'A quick guide to the most important Jazz guitar chords — how they are used and how they are constructed.',
-                'url' => '/shop/product/jazz-bossa-chords',
-                'type' => 'product'
-            ]
+                'title' => 'Gilberto plays Jobim',
+                'description' => 'Learn the exact chord voicings and rhythms João Gilberto used on the Getz/Gilberto recording.',
+                'url' => '/learn/gilberto-plays-jobim',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Bossa Nova Chords',
+                'description' => 'Master the essential chord shapes and extensions that define the Bossa Nova sound.',
+                'url' => '/learn/bossa-nova-chords-ii',
+                'type' => 'course',
+            ],
         ]
     ],
     'chega-de-saudade' => [
@@ -244,14 +331,16 @@ return [
         'shortTitle' => 'Chega de Saudade',
         'artist' => 'Tom Jobim',
         'image' => '/images/top10/bossa-nova-songs/2.webp',
-        'description' => "No More Blues! said Tom Jobim and is said to be the first bossa nova song recorded. What is interesting is the connection between the blues feeling and the classic Portuguese saudade, which could possibly be compared to the feeling of longing.",
+        'description' => "\"No More Blues\" — yet the title is ironic: <em>saudade</em> is the untranslatable Portuguese word for a bittersweet longing that never truly disappears. <strong>João Gilberto's</strong> 1958 recording is widely regarded as the <strong>birth of Bossa Nova</strong>: the cool, introverted guitar style and the fusion of samba rhythm with jazz harmony crystallised in a single track. The chord changes here represent the harmonic heart of the genre.",
         'recordings' => '404 Recordings',
-        'voicingName' => 'The \"Saudade\" Pair',
-        'voicingCaption' => "To capture its essence, you need the <strong>Minor 7(9)</strong>. By anchoring your middle finger on the 5th fret (A-string) for the minor chord, and then wrapping your thumb around the 5th fret (E-string) for the dominant, you can cycle through the \"sadness\" and \"tension\" that defines the song without leaving the 5th position.",
-        'progressionName' => 'Minor II-V-I in Dm',
-        'progressionLibrarySlug' => 'the-minor-jazz-cadence',
+        'voicingName' => 'Key Chord',
+        'voicingSlug' => 'o7-drop3-roote',
+        'rootOverride' => 'B',
+        'voicingCaption' => "This chord is one of the most important in the Bossa Nova vocabulary. The diminished 7th chord is a common passing chord but also works as a dominant chord with b9.",
+        'progressionName' => 'Secondary Dominant Cadence',
+        'progressionLibrarySlug' => 'secondary-dominant-ii-v',
         'progressionSeedKey' => 'Dm',
-        'progressionCaption' => "A classic <strong>minor II-V-I</strong> in D minor captures the tension-and-release core of <em>Chega de Saudade</em>.",
+        'progressionCaption' => "The <strong>Secondary Dominant Cadence</strong> captures the tension-and-release core of <em>Chega de Saudade</em>. Although the song features some interesting passing chords, the main harmonic motion is a simple.",
         // Live leadsheet bars — Chega de Saudade bars 8-15
         'syncedPlayer' => ['slug' => 'untitled-13', 'start' => 8, 'end' => 15],
         'rhythmName' => 'The Original Beat',
@@ -260,11 +349,17 @@ return [
         'rhythmCitation' => "<strong>João Gilberto</strong>, <em>João Voz E Violão</em>, 2000",
         'relatedProducts' => [
             [
-                'title' => 'The Girl from Ipanema',
-                'description' => 'Transcription of the chord voicings as performed by Joao Gilberto on the Getz/Gilberto recording.',
-                'url' => '/shop/product/the-girl-from-ipanema',
-                'type' => 'product'
-            ]
+                'title' => 'Gilberto plays Jobim',
+                'description' => 'Learn the exact chord voicings and rhythms João Gilberto used on the Getz/Gilberto recording.',
+                'url' => '/learn/gilberto-plays-jobim',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Bossa Nova Chords',
+                'description' => 'Master the essential chord shapes and extensions that define the Bossa Nova sound.',
+                'url' => '/learn/bossa-nova-chords-ii',
+                'type' => 'course',
+            ],
         ]
     ],
     'dindi' => [
@@ -272,14 +367,16 @@ return [
         'shortTitle' => 'Dindi',
         'artist' => 'Tom Jobim',
         'image' => '/images/top10/bossa-nova-songs/10.webp',
-        'description' => "Once again, an ouststanding ballad by Tom Jobim. The chords in the first part are very suitable to exercise your basic seventh chords on the guitar.",
+        'description' => "<em>Dindi</em> is one of Jobim's most intimate ballads — a love poem addressed to the sky, the wind, and a faraway beloved. <strong>Astrud Gilberto's</strong> 1965 recording on <em>The Astrud Gilberto Album</em> introduced it to international audiences with characteristic tenderness. The opening sequence — a slow descent through major and minor seventh chords — makes it an ideal piece for developing a singing, legato touch on the guitar.",
         'recordings' => '386 Recordings',
-        'voicingName' => 'The Ballad Shift',
-        'voicingCaption' => "<em>Dindi</em> requires the emotional depth of the <strong>Major 7th</strong>. By pairing the <strong>Root-6 Maj7</strong> with the <strong>Root-6 Min7</strong>, you can play the main verse progression (I &rarr; ii) just by sliding your hand up 2 frets.",
+        'voicingName' => 'Key Chord',
+        'voicingSlug' => 'maj7-drop2-roota',
+        'rootOverride' => 'C',
+        'voicingCaption' => "This Major7 voicing has to be a part of every guitarist's repertoire. In Dindi, you can play the first bars just by sliding this chord down 2 frets.",
         'progressionName' => 'Modal Interchange in C',
         'progressionLibrarySlug' => 'modal-interchange',
         'progressionSeedKey' => 'C',
-        'progressionCaption' => "<em>Dindi</em> blooms with a classic <strong>modal interchange</strong> color shift in C: major tonic moving to its parallel minor.",
+        'progressionCaption' => "<em>Dindi</em> blooms with a classic <strong>modal interchange</strong> color. The BbMaj7 is part of the minor mode on the 5th degree.",
         // Live leadsheet bars — Dindi bars 0-1
         'syncedPlayer' => ['slug' => 'dindi', 'start' => 0, 'end' => 1],
         'rhythmName' => 'Ballad Bossa Pattern',
@@ -288,11 +385,17 @@ return [
         'rhythmCitation' => "<strong>Astrud Gilberto</strong>, <em>The Astrud Gilberto Album</em>, 1965",
         'relatedProducts' => [
             [
-                'title' => 'Bossa Nova Basics Course',
-                'description' => 'Learn the fundamentals of bossa nova guitar — rhythms, chord shapes, and classic songs — with step-by-step video lessons.',
-                'url' => '/shop/product/bossa-basics',
-                'type' => 'course'
-            ]
+                'title' => 'Gilberto plays Jobim',
+                'description' => 'Learn the exact chord voicings and rhythms João Gilberto used on the Getz/Gilberto recording.',
+                'url' => '/learn/gilberto-plays-jobim',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Bossa Nova Chords',
+                'description' => 'Master the essential chord shapes and extensions that define the Bossa Nova sound.',
+                'url' => '/learn/bossa-nova-chords-ii',
+                'type' => 'course',
+            ],
         ]
     ]
 ];

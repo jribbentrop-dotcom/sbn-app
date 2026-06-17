@@ -50,6 +50,7 @@ interface Top10DataItem {
     } | null;
     progressionSeedKey?: string;
     rhythmData: any | null;
+    rhythmSlug: string;
     rhythmName: string;
     rhythmCaption: string;
     rhythmCitation?: string;
@@ -139,12 +140,23 @@ function prevChord() {
 
 <template>
     <Head>
-        <title>TOP 10 Bossa Nova Songs | Soul Bossa Nova</title>
-        <meta name="description" content="Explore the essential TOP 10 Bossa Nova Songs, featuring history, chords, and rhythms for guitarists." />
+        <title>10 Essential Bossa Nova Songs for Guitar | Soul Bossa Nova</title>
+        <meta name="description" content="The 10 essential Bossa Nova songs every guitarist should know — Girl from Ipanema, Corcovado, Wave and more. Includes key chord voicings, signature progressions and rhythm patterns." />
+        <meta property="og:title" content="10 Essential Bossa Nova Songs for Guitar | Soul Bossa Nova" />
+        <meta property="og:description" content="From Tom Jobim to João Gilberto — the 10 Bossa Nova songs every guitarist needs, with chords, progressions and rhythm patterns." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://www.soulbossanova.com/top10/bossa-nova-songs" />
+        <meta property="og:image" content="https://www.soulbossanova.com/images/top10/bossa-nova-songs/5.webp" />
     </Head>
 
     <div class="sbn-top10-page">
         <Top10HeaderBar active="/top10/bossa-nova-songs" />
+
+        <!-- Static intro — visible to search engines and no-JS users -->
+        <div class="sbn-top10-intro">
+            <h1 class="sbn-top10-intro-title">10 Essential Bossa Nova Songs for Guitar</h1>
+            <p class="sbn-top10-intro-text">The Bossa Nova songs every guitarist should know — from the timeless melodies of Tom Jobim to the virtuoso guitar of João Gilberto. Each entry covers the key <Link href="/library/chords" class="sbn-intro-link">chord voicing</Link>, the signature <Link href="/library/progressions" class="sbn-intro-link">progression</Link>, and the <Link href="/library/rhythms" class="sbn-intro-link">rhythm pattern</Link> that defines the song's sound.</p>
+        </div>
 
         <!-- Loading State -->
         <div v-if="isLoading" class="sbn-top10-loading">
@@ -195,8 +207,11 @@ function prevChord() {
                 <!-- Detail View -->
                 <div v-if="selectedChord" class="sbn-top10-detail">
                     <div class="sbn-detail-header">
-                        <h1 class="sbn-detail-title">{{ selectedChord.title }}</h1>
-                        <p class="sbn-detail-artist">{{ selectedChord.artist }}</p>
+                        <h2 class="sbn-detail-title">{{ selectedChord.title }}</h2>
+                        <p class="sbn-detail-artist">
+                            {{ selectedChord.artist }}
+                            <span v-if="selectedChord.recordings" class="sbn-recordings-badge">{{ selectedChord.recordings }}</span>
+                        </p>
                         <p class="sbn-detail-description" v-html="selectedChord.description"></p>
                     </div>
 
@@ -212,13 +227,17 @@ function prevChord() {
                                     :on-chord-click="() => goToChordLibrary(selectedChord!.voicingData!)"
                                 />
                                 <p class="sbn-panel-caption" v-html="selectedChord.voicingCaption"></p>
+                                <Link v-if="selectedChord.voicingData?.slug" :href="chordShowUrl(selectedChord.voicingData)" class="sbn-panel-link">Explore in Chord Library →</Link>
                             </div>
                         </div>
 
                         <!-- Progression Panel -->
                         <div class="sbn-panel">
-                            <h3 class="sbn-panel-title">{{ selectedChord.progressionName }}</h3>
+                            <div class="sbn-panel-heading">
+                                <h3 class="sbn-panel-title"><span class="sbn-panel-label">Key Chord Progression:</span> <Link v-if="selectedChord.progressionMeta?.slug" :href="`/library/progressions/${selectedChord.progressionMeta.slug}`" class="sbn-panel-title-link">{{ selectedChord.progressionName }}</Link><span v-else>{{ selectedChord.progressionName }}</span></h3>
+                            </div>
                             <div class="sbn-panel-content">
+                                <p class="sbn-panel-caption sbn-progression-caption" v-html="selectedChord.progressionCaption"></p>
                                 <div class="sbn-synced-hero-card">
                                     <!-- Live leadsheet bars mode -->
                                     <SyncedPlayer
@@ -228,6 +247,10 @@ function prevChord() {
                                         :autoplay="false"
                                         :loop="true"
                                         :key="selectedChord.slug + '-synced'"
+                                        :rhythm-caption="selectedChord.rhythmCaption"
+                                        :rhythm-link="selectedChord.rhythmSlug ? `/library/rhythms/${selectedChord.rhythmSlug}` : undefined"
+                                        :citation="selectedChord.rhythmCitation"
+                                        :start-chord-name="selectedChord.voicingData?.name ?? undefined"
                                     />
                                     <!-- Loading placeholder -->
                                     <div v-else-if="selectedChord.syncedPlayer && syncedFetching" class="sbn-synced-loading">
@@ -241,18 +264,21 @@ function prevChord() {
                                         :bars-per-chord="1"
                                         :autoplay="false"
                                         :key="selectedChord.slug"
+                                        :rhythm-caption="selectedChord.rhythmCaption"
+                                        :rhythm-link="selectedChord.rhythmSlug ? `/library/rhythms/${selectedChord.rhythmSlug}` : undefined"
+                                        :citation="selectedChord.rhythmCitation"
                                     />
                                 </div>
-                                <p class="sbn-panel-caption" v-html="selectedChord.progressionCaption"></p>
                                 <div v-if="selectedChord.progressionCitation" class="sbn-panel-citation" v-html="selectedChord.progressionCitation"></div>
+
                             </div>
                         </div>
                     </div>
 
                     <!-- Navigation Buttons -->
                     <div class="sbn-detail-nav">
-                        <button @click="prevChord" class="sbn-nav-btn sbn-nav-btn--outline">← Previous</button>
-                        <button @click="nextChord" class="sbn-nav-btn sbn-nav-btn--outline">Next →</button>
+                        <button @click="prevChord" class="sbn-nav-btn sbn-nav-btn--outline">← Previous Song</button>
+                        <button @click="nextChord" class="sbn-nav-btn sbn-nav-btn--outline">Next Song →</button>
                     </div>
 
                     <!-- Related Products -->
@@ -311,6 +337,49 @@ function prevChord() {
     letter-spacing: 0;
 }
 
+.sbn-intro-link {
+    color: var(--sbn-accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.sbn-panel-link {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--sbn-accent);
+    text-decoration: none;
+    letter-spacing: 0.02em;
+}
+.sbn-panel-link:hover { text-decoration: underline; }
+
+.sbn-panel-heading {
+    margin-bottom: 12px;
+}
+.sbn-panel-heading .sbn-panel-title {
+    margin-bottom: 2px;
+}
+.sbn-panel-label {
+    color: var(--sbn-text-muted, #888);
+    font-weight: 400;
+}
+.sbn-panel-sublink {
+    display: inline-block;
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: var(--sbn-text-muted, #999);
+    text-decoration: none;
+    letter-spacing: 0.01em;
+}
+.sbn-panel-sublink:hover { color: var(--sbn-accent); text-decoration: underline; }
+
+.sbn-panel-title-link {
+    color: inherit;
+    text-decoration: none;
+}
+.sbn-panel-title-link:hover { color: var(--sbn-accent); text-decoration: underline; }
+
 .sbn-panel-content {
     gap: 16px;
     justify-content: center;
@@ -330,6 +399,11 @@ function prevChord() {
 .sbn-panel-caption {
     color: var(--clr-text-muted);
     margin-top: 12px;
+}
+
+.sbn-progression-caption {
+    margin-top: 0;
+    margin-bottom: 14px;
 }
 
 /* Voicing panel: no border on mobile, card fills available width */
@@ -368,4 +442,42 @@ function prevChord() {
         width: 100%;
     }
 }
+
+/* ── Static intro ─────────────────────────────────────────────────────────── */
+.sbn-top10-intro {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 32px 20px 0;
+    text-align: center;
+}
+
+.sbn-top10-intro-title {
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--clr-text);
+}
+
+.sbn-top10-intro-text {
+    color: var(--clr-text-muted);
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 0;
+}
+
+
+/* ── Recordings badge ─────────────────────────────────────────────────────── */
+.sbn-recordings-badge {
+    display: inline-block;
+    margin-left: 10px;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 999px;
+    background: var(--clr-surface-2);
+    border: 1px solid var(--clr-border);
+    color: var(--clr-text-muted);
+    vertical-align: middle;
+}
+
 </style>

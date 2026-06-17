@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, Head } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
@@ -188,6 +188,15 @@ function toggleSidebar(key: SidebarSection) {
 </script>
 
 <template>
+    <Head>
+        <title>{{ course.title }} | Soul Bossa Nova</title>
+        <meta name="description" :content="course.excerpt || `Learn ${course.title} — a Bossa Nova guitar course with ${course.lessonCount} lessons on Soul Bossa Nova.`" />
+        <meta property="og:title" :content="`${course.title} | Soul Bossa Nova`" />
+        <meta property="og:description" :content="course.excerpt || `Bossa Nova guitar course: ${course.title}`" />
+        <meta property="og:type" content="website" />
+        <meta v-if="course.featuredImagePath" property="og:image" :content="course.featuredImagePath" />
+    </Head>
+
   <div class="sbn-page-detail sbn-course-show" :style="heroStyle">
 
     <Breadcrumb

@@ -1,2 +1,6 @@
 User-agent: *
-Disallow:
+Disallow: /admin/
+Disallow: /account/
+Disallow: /dev/
+
+Sitemap: https://www.soulbossanova.com/sitemap.xml

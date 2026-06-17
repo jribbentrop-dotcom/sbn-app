@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { Head } from '@inertiajs/vue3';
 import CourseCard from '@/Components/Course/CourseCard.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 
@@ -66,6 +67,14 @@ function clearFilters() {
 </script>
 
 <template>
+    <Head>
+        <title>Bossa Nova Guitar Courses | Soul Bossa Nova</title>
+        <meta name="description" content="Video courses for Bossa Nova guitar — from beginner fundamentals to advanced harmony and technique, with leadsheets and interactive exercises." />
+        <meta property="og:title" content="Bossa Nova Guitar Courses | Soul Bossa Nova" />
+        <meta property="og:description" content="Structured Bossa Nova guitar courses with video lessons, leadsheets and interactive exercises for all levels." />
+        <meta property="og:type" content="website" />
+    </Head>
+
   <main class="sbn-page sbn-course-library-main">
     <div class="sbn-lib-page-header">
       <h1 class="sbn-lib-page-title">Course Library</h1>

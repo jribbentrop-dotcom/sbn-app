@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
 import ChordDiagram from '@/Components/Library/ChordDiagram.vue';
@@ -650,6 +650,14 @@ function jumpToLevel(n: number) {
 </script>
 
 <template>
+    <Head>
+        <title>Bossa Nova &amp; Jazz Guitar Chords | Soul Bossa Nova</title>
+        <meta name="description" content="Browse hundreds of guitar chords with interactive diagrams — voicings, intervals and fingerings for Bossa Nova and Latin Jazz." />
+        <meta property="og:title" content="Bossa Nova & Jazz Guitar Chords | Soul Bossa Nova" />
+        <meta property="og:description" content="Interactive chord library with voicings, interval labels and fingerings for Bossa Nova and Latin Jazz guitarists." />
+        <meta property="og:type" content="website" />
+    </Head>
+
     <div class="sbn-page sbn-chord-library-main">
 
         <!-- ── Header ── -->

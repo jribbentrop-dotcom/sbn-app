@@ -6,11 +6,12 @@ return [
         'shortTitle' => 'Blue Bossa',
         'artist' => 'Kenny Dorham',
         'image' => '/images/top10/latin-jazz-standards/1.webp',
-        'description' => "<em>Blue Bossa</em> is one of the most played jazz bossa pieces and a popular song for jam sessions and improvisations. The short form (the piece is only 16 bars long) and the simple but catchy melody are certainly the main reasons for this success. The fact that <strong>Kenny Dorham</strong> recorded the piece with jazz legends <strong>Joe Henderson</strong> and <strong>McCoy Tyner</strong> certainly didn't hurt the quality.",
+        'description' => "<em>Blue Bossa</em> is one of the most played jazz standards and essential learning for guitarists. The 16-bar form and the foundational minor II-V-I progression make it perfect for jam sessions and building improvisation skills. Recorded by <strong>Kenny Dorham</strong> with jazz legends <strong>Joe Henderson</strong> and <strong>McCoy Tyner</strong>, it remains a staple of the jazz canon.",
         'voicingName' => 'Key Chords',
-        'voicingCaption' => "These iconic Bossa Nova chords are perfect for a Latin guitar treatment of <em>Blue Bossa</em>.",
+        'voicingSlug' => 'm7-shell-roota-9',
+        'voicingCaption' => "The Cm7(9) shell voicing keeps the chord compact and transparent — root, 3rd and 7th on the lower strings, with the 9th on top. One shape, moveable to any key.",
         'progressionName' => 'Minor II-V-I',
-        'progressionCaption' => "The <em>minor II-V-I</em> in C minor is the harmonic engine of <em>Blue Bossa</em>. These shell voicing provide a professional jazz sound with minimum movement.",
+        'progressionCaption' => "The minor II-V-I in C minor is the harmonic foundation of Blue Bossa and appears in countless standards. These shell voicings provide a professional sound with minimal hand movement—essential for building fluency.",
         'progressionCitation' => "<strong>Kenny Dorham</strong>, <em>Page One</em>, 1963",
         'progressionLibrarySlug' => 'the-minor-jazz-cadence',
         'progressionSeedKey' => 'Cm',
@@ -18,16 +19,35 @@ return [
             2 => 'm7-shell-roota-9',
         ],
         'category' => 'latin',
+        'syncedPlayer' => [
+            'slug' => 'untitled-8',
+            'type' => 'leadsheet',
+            'start' => 0,
+            'end' => 7,
+        ],
         'rhythmName' => 'Trademark Rhythm',
         'rhythmSlug' => 'jazz-bossa-nova',
-        'rhythmCaption' => "This rhythm pattern is the standard for jazz treatments of bossa nova songs. It fits very nicely, but it is not a \"real\" Brazilian rhythm.",
+        'rhythmCaption' => "This simplified jazz-bossa rhythm prioritizes smooth phrasing over authentic Brazilian syncopation, making it ideal for swinging interpretations.",
+        'rhythmCitation' => "<strong>Kenny Dorham</strong>, <em>Page One</em>, 1963",
         'relatedProducts' => [
             [
-                'title' => 'Blue Bossa',
-                'description' => 'The lead sheet for the song, along with two accompaniment patterns for nylon guitar.',
-                'url' => 'https://soulbossanova.com/product/blue-bossa/',
-                'type' => 'product'
-            ]
+                'title' => 'The Clave: Latin Rhythm 101',
+                'description' => 'Master the rhythmic foundation of Latin music — essential for playing Blue Bossa and any jazz standard with a Latin feel.',
+                'url' => '/learn/the-clave',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Music Theory Basics',
+                'description' => 'Understand the minor II-V-I and the harmonic language behind Latin jazz standards.',
+                'url' => '/learn/music-theory-basics',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Jazz & Bossa Chords',
+                'description' => 'A quick guide to the most important Jazz guitar chords — how they are used and how they are constructed.',
+                'url' => '/shop/product/jazz-bossa-chords',
+                'type' => 'product',
+            ],
         ]
     ],
     'song-for-my-father' => [
@@ -35,9 +55,10 @@ return [
         'shortTitle' => 'Song for my Father',
         'artist' => 'Horace Silver',
         'image' => '/images/top10/latin-jazz-standards/8.webp',
-        'description' => "<strong>Horace Silver</strong> is known for his compositions on the borderline between Jazz, Groove and Latin music. A decade later, the Fusion label would be created for this kind of music. <em>Song for my Father</em> is said to be inspired by the musician's tour of Brazil and combines a groovy bossa nova rhythm with a blues-inspired melody.",
+        'description' => "<strong>Horace Silver</strong> is known for compositions that blur the line between jazz, groove, and Latin music—a sound that would later define the Fusion era. <em>Song for my Father</em> combines a groovy samba-based rhythm with a blues-inspired melody and is a perfect vehicle for learning how to integrate Latin feels into jazz improvisation. Essential repertoire for any jazz guitarist.",
         'voicingName' => 'Key Chords',
-        'voicingCaption' => "This song has a pretty straightforward chord progression. I particularly like the resolution from the dominant seventh (sus4) chord to the minor tonic.",
+        'voicingSlug' => 'maj-slash-roote-overG',
+        'voicingCaption' => "The slash voicing with root on the E-string and G in the bass creates an open, modern sound that works beautifully in both comping and melodic contexts.",
         'progressionName' => 'Minor Blues Cadenza',
         'progressionLibrarySlug' => 'minor-blues-cadenza',
         'progressionSeedKey' => 'Fm',
@@ -51,15 +72,27 @@ return [
         ],
         'rhythmName' => 'Trademark Rhythm',
         'rhythmSlug' => 'samba',
-        'rhythmCaption' => "A syncopated hybrid groove blending a Samba bass pattern with Hard Bop.",
+        'rhythmCaption' => "A syncopated hybrid groove: the samba-inspired bass pattern meets hard bop sensibility. Listen to how the rhythm sits just behind the beat, creating forward momentum.",
         'rhythmCitation' => "<strong>The Horace Silver Quintet</strong>, <em>Song For My Father</em>, 1964",
         'relatedProducts' => [
             [
+                'title' => 'The Clave: Latin Rhythm 101',
+                'description' => 'Explore the samba-inspired grooves that drive this Horace Silver classic.',
+                'url' => '/learn/the-clave',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'The Latin Side of Pat Metheny',
+                'description' => 'Explore how modern jazz guitarists blend Latin grooves with sophisticated harmony.',
+                'url' => '/learn/latin-side-pat-metheny',
+                'type' => 'course',
+            ],
+            [
                 'title' => 'Jazz & Bossa Chords',
-                'description' => 'A quick guide to the most important Jazz guitar chords. How they are used and how they are constructed.',
-                'url' => 'https://soulbossanova.com/product/jazz-bossa-chords/',
-                'type' => 'product'
-            ]
+                'description' => 'A quick guide to the most important Jazz guitar chords — how they are used and how they are constructed.',
+                'url' => '/shop/product/jazz-bossa-chords',
+                'type' => 'product',
+            ],
         ]
     ],
     'night-and-day' => [
@@ -67,9 +100,10 @@ return [
         'shortTitle' => 'Night and Day',
         'artist' => 'Cole Porter',
         'image' => '/images/top10/latin-jazz-standards/5.webp',
-        'description' => "<strong>Cole Porter</strong> explicitly marked the song as a Beguine (a slow, rolling Caribbean dance rhythm). This was revolutionary in 1932, introducing complex Latin syncopation to Broadway audiences who were used to simple marches and waltzes. The A-Section is often played in a Bossa Nova or Latin feel, honoring Porter's original Beguine intent.",
+        'description' => "<strong>Cole Porter</strong> marked this song as a Beguine—a slow, rolling Caribbean rhythm—revolutionary in 1932 when audiences were accustomed to simple marches and waltzes. Guitarist <strong>Anthony Wilson's</strong> arrangement on the <strong>Diana Krall</strong> recording brings sophisticated jazz harmony and a <strong>bossa nova</strong> feel to the A-section, honoring Porter's original Latin intent while showcasing modern jazz guitar voicings.",
         'voicingName' => 'Key Chords',
-        'voicingCaption' => "The minor chord progression resolving to the major tonic is a key sound of <em>Night and Day</em>.",
+        'voicingSlug' => 'maj7-custom-roota-s11',
+        'voicingCaption' => "The opening Maj7#11 voicing creates a luminous, suspended sound—perfect for capturing the song's dreamy quality. This sophisticated chord opens many harmonic possibilities for improvisation.",
         'progressionName' => 'Minor II-V to Major',
         'progressionLibrarySlug' => 'minor-ii-v-to-major',
         'progressionSeedKey' => 'C',
@@ -83,15 +117,27 @@ return [
         ],
         'rhythmName' => 'Trademark Rhythm',
         'rhythmSlug' => 'bossa-nova-clave',
-        'rhythmCaption' => "This is an interesting rhythm pattern similar in style to the clave patterns of Cuba or the Partido Alto from Brazil.",
+        'rhythmCaption' => "A bossa nova clave pattern that echoes the rhythmic DNA of Cuban and Brazilian music. The offbeat syncopation drives the gentle forward motion of the performance.",
         'rhythmCitation' => "<strong>Diana Krall</strong>, <em>Turn up the quiet</em>, 2017",
         'relatedProducts' => [
             [
-                'title' => 'Night & Day',
-                'description' => 'Transcription of the guitar chord voicings on Diana Krall\'s recording.',
-                'url' => '/shop/product/night-and-day',
-                'type' => 'product'
-            ]
+                'title' => 'Music Theory Basics',
+                'description' => 'Understand the harmonic language of Cole Porter — minor II-V resolutions, modal interchange, and jazz voice leading.',
+                'url' => '/learn/music-theory-basics',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'The Latin Side of Wes Montgomery',
+                'description' => 'Classic jazz guitar phrasing and voicings applied to Latin standards — perfect companion to Night and Day.',
+                'url' => '/learn/latin-side-wes-montgomery',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Jazz & Bossa Chords',
+                'description' => 'A quick guide to the most important Jazz guitar chords — how they are used and how they are constructed.',
+                'url' => '/shop/product/jazz-bossa-chords',
+                'type' => 'product',
+            ],
         ]
     ],
     'the-shadow-of-your-smile' => [
@@ -99,19 +145,20 @@ return [
         'shortTitle' => 'Shadow of Smile',
         'artist' => 'Johnny Mandel',
         'image' => '/images/top10/latin-jazz-standards/4.webp',
-        'description' => "A song typically had a life before its inclusion in the canon of jazz standards: either as a musical song on Broadway or as a film score. <em>The Shadow of your Smile</em> was composed for the 1965 film \"The Sandpiper\". Shortly afterwards, <strong>Astrud Gilberto</strong> covered it in the Bossa Nova style.",
-        'voicingName' => 'The Ballad Pair',
-        'voicingCaption' => "<strong>Astrud Gilberto's</strong> recording features a wonderful, unusual chord progression in the end that is impossible to ignore!",
+        'description' => "A song that began as a film score for the 1965 film \"The Sandpiper,\" <em>The Shadow of Your Smile</em> became a jazz standard through iconic recordings by <strong>Astrud Gilberto</strong> and others. However, it's guitarist <strong>Baden Powell's</strong> solo interpretation that reveals the song's harmonic depth—his sophisticated voicings and <strong>modal interchange</strong> create a haunting, introspective arrangement that showcases advanced jazz guitar playing.",
+        'voicingName' => 'Key Voicing',
+        'voicingSlug' => 'o7-drop3-roote',
+        'voicingCaption' => "A diminished voicing that appears throughout the song—a typical bossa nova color that adds sophistication and tension to the harmonic movement.",
         'progressionName' => 'Major II-V to Minor',
         'progressionLibrarySlug' => 'major-ii-v-to-minor',
         'progressionSeedKey' => 'Em',
-        'progressionCaption' => "<strong>Astrud Gilberto's</strong> recording features a beautiful <strong>major II-V to minor</strong> movement, voiced here in E minor.",
-        'progressionCitation' => "<strong>Astrud Gilberto</strong>, <em>The Shadow Of Your Smile</em>, 1965",
+        'progressionCaption' => "What makes this progression distinctive is the use of a natural minor <strong>II</strong> chord instead of the typical half-diminished (<strong>IIm7b5</strong>). This <strong>IIm → V7 → Im</strong> movement creates a warmer, more lyrical sound than the standard minor jazz cadence, perfectly capturing the ballad's romantic quality.",
+        'progressionCitation' => "<strong>Johnny Mandel</strong>, <em>The Sandpiper</em>, 1965",
         'syncedPlayer' => [
             'slug' => 'the-shadow-of-your-smile',
             'type' => 'leadsheet',
-            'start' => 6,
-            'end' => 9,
+            'start' => 8,
+            'end' => 11,
         ],
         'rhythmName' => 'Trademark Rhythm',
         'rhythmSlug' => 'gilberto-rhythm',
@@ -119,11 +166,23 @@ return [
         'rhythmCitation' => "<strong>Astrud Gilberto</strong>, <em>The Shadow Of Your Smile</em>, 1965",
         'relatedProducts' => [
             [
-                'title' => 'The Shadow of your smile',
-                'description' => "Baden Powell's version is a beautiful, calm instrumental guitar interpretation in his very unique guitar style.",
-                'url' => 'https://soulbossanova.com/product/the-shadow-of-your-smile/',
-                'type' => 'product'
-            ]
+                'title' => 'Music Theory Basics',
+                'description' => 'Understand the modal interchange and diminished passing chords that define this song\'s harmonic character.',
+                'url' => '/learn/music-theory-basics',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Gilberto plays Jobim',
+                'description' => 'Explore the bossa nova guitar language that influenced Astrud Gilberto\'s interpretation of this song.',
+                'url' => '/learn/gilberto-plays-jobim',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Jazz & Bossa Chords',
+                'description' => 'A quick guide to the most important Jazz guitar chords — how they are used and how they are constructed.',
+                'url' => '/shop/product/jazz-bossa-chords',
+                'type' => 'product',
+            ],
         ]
     ],
     'on-green-dolphin-street' => [
@@ -133,23 +192,38 @@ return [
         'image' => '/images/top10/latin-jazz-standards/10.webp',
         'description' => "<em>On Green Dolphin Street</em> also began its life as a film score and was quickly adapted by many jazz musicians. The unusual first part with a bass pedal and the changing harmony from major to minor is mostly played in Latin style. Guitarist <strong>Barney Kessel</strong> was one of the first to experiment with the different rhythm of the A-section, even before <strong>Miles Davis</strong> recorded his classic version.",
         'voicingName' => 'Key Chords',
-        'voicingCaption' => "The modal shift from major to minor is a key progression in many jazz standards. This simple harmonic progression, often stretched out over several bars, lends itself to feature unusual rhythms.",
+        'voicingSlug' => 'maj7-custom-roota-9',
+        'voicingCaption' => "The <strong>Maj7(9)</strong> voicing combines open strings with fretted notes, creating a resonant, shimmering sound. This blend of open resonance and fretted color is perfect for the song's <strong>modal interchanges</strong>.",
         'progressionName' => 'Modal Interchange I to Im',
         'progressionLibrarySlug' => 'modal-interchange-i-to-im',
-        'progressionSeedKey' => 'Eb',
-        'progressionCaption' => "The modal shift from major tonic to parallel minor (<strong>I to Im</strong>) is a signature color in this tune, shown here in E-flat.",
+        'progressionSeedKey' => 'A',
+        'progressionCaption' => "The modal shift from major tonic to parallel minor (<strong>I to Im</strong>) is a signature color in this tune, shown here in A.",
         'progressionCitation' => "<strong>Miles Davis</strong>, <em>'58 Sessions</em>, 1958",
+        // Live leadsheet bars — On Green Dolphin Street bars 0-3
+        'syncedPlayer' => ['slug' => 'on-green-dolphin-street', 'type' => 'leadsheet', 'start' => 0, 'end' => 3],
         'rhythmName' => 'Trademark Rhythm',
         'rhythmSlug' => 'son-clave-2-3',
         'rhythmCaption' => "This off-beat pattern is a universal rhythm that you can find in all kinds of music.",
         'rhythmCitation' => "<strong>Barney Kessell</strong>, <em>The Poll Winners</em>, 1957",
         'relatedProducts' => [
             [
-                'title' => 'On Green Dolphin Street',
-                'description' => 'An original solo guitar arrangement in a free-flowing Latin rhythm.',
-                'url' => '/shop/product/on-green-dolphin-street',
-                'type' => 'product'
-            ]
+                'title' => 'The Clave: Latin Rhythm 101',
+                'description' => 'Learn the rhythmic foundation that gives On Green Dolphin Street its distinctive Latin feel.',
+                'url' => '/learn/the-clave',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'The Latin Side of Pat Metheny',
+                'description' => 'Explore how modern jazz guitarists blend Latin grooves with sophisticated harmony.',
+                'url' => '/learn/latin-side-pat-metheny',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Jazz & Bossa Chords',
+                'description' => 'A quick guide to the most important Jazz guitar chords — how they are used and how they are constructed.',
+                'url' => '/shop/product/jazz-bossa-chords',
+                'type' => 'product',
+            ],
         ]
     ],
     'swonderful' => [
@@ -157,9 +231,10 @@ return [
         'shortTitle' => "S'Wonderful",
         'artist' => 'George Gershwin',
         'image' => '/images/top10/latin-jazz-standards/7.webp',
-        'description' => "<strong>George Gershwin</strong> is one of the central figures in the development of the harmonic elements of mainstream jazz as it is established today. He has composed for solo instruments as well as for orchestra or classical piano. Bossa Nova guitar legend <strong>Joao Gilberto</strong> has arranged one of his songs into a beautiful ballad.",
+        'description' => "<strong>George Gershwin</strong> is one of the central figures in the development of harmonic jazz language. <em>S'Wonderful</em> opens with a distinctive chromatic progression featuring diminished colors—a key harmonic element of the tune. Bossa nova guitar legend <strong>João Gilberto's</strong> recording is the definitive interpretation, transforming this Broadway classic into an intimate, sophisticated bossa nova ballad.",
         'voicingName' => 'Key Chords',
-        'voicingCaption' => "<em>S'Wonderful</em> opens with a chromatic chord progression, featuring a diminished chord.",
+        'voicingSlug' => 'maj6-drop3-roote',
+        'voicingCaption' => "The Fmaj6 voicing is a staple of bossa nova guitar—João Gilberto favored this exact chord, and it appears throughout his arrangements. Bright, open, and perfect for establishing the gentle, sophisticated tone of the song.",
         'progressionName' => 'Ascending Diminished',
         'progressionLibrarySlug' => 'ascending-diminished',
         'progressionSeedKey' => 'F',
@@ -173,15 +248,21 @@ return [
         ],
         'rhythmName' => 'Trademark Rhythm',
         'rhythmSlug' => 'gilberto-rhythm',
-        'rhythmCaption' => "The wonderful <strong>Joao Gilberto</strong> was the first to put this song through the Bossa Nova filter.",
+        'rhythmCaption' => "The wonderful <strong>João Gilberto</strong> was the first to put this song through the Bossa Nova filter.",
         'rhythmCitation' => "<strong>João Gilberto</strong>, <em>Amoroso</em>, 1977",
         'relatedProducts' => [
             [
+                'title' => 'Gilberto plays Jobim',
+                'description' => 'Learn the exact chord voicings and rhythms João Gilberto used on the Getz/Gilberto recording.',
+                'url' => '/learn/gilberto-plays-jobim',
+                'type' => 'course',
+            ],
+            [
                 'title' => "S'Wonderful",
-                'description' => "This is the transcription of João Gilberto's chord voicings.",
-                'url' => 'https://soulbossanova.com/product/swonderful/',
-                'type' => 'product'
-            ]
+                'description' => "Transcription of João Gilberto's chord voicings from the Amoroso recording.",
+                'url' => '/shop/product/swonderful',
+                'type' => 'product',
+            ],
         ]
     ],
     'watch-what-happens' => [
@@ -189,9 +270,10 @@ return [
         'shortTitle' => 'Watch What Happens',
         'artist' => 'Michel Legrand',
         'image' => '/images/top10/latin-jazz-standards/3.webp',
-        'description' => "<strong>Michel Legrand</strong> was a French film composer whose songs are very popular with jazz musicians. With its short form and creative chord changes, <em>Watch What Happens</em> is a suitable vehicle for improvisation. This hasn't gone unnoticed by chord specialist <strong>Joe Pass</strong> whose treatment of the song is as elegant as it gets.",
+        'description' => "<strong>Michel Legrand</strong> was a French film composer whose songs are beloved by jazz musicians. With its short form and creative chord changes, <em>Watch What Happens</em> is an ideal vehicle for improvisation. Guitarist and chord specialist <strong>Joe Pass</strong> is famous for his elegant treatment of the tune, showcasing sophisticated voicings and effortless phrasing.",
         'voicingName' => 'Key Chords',
-        'voicingCaption' => "<strong>Michel Legrand's</strong> introduction to this song is unmistakable. The tonic chord is surrounded by two dominant chords, creating a unique and distinctive sound.",
+        'voicingSlug' => 'maj6-archetype-roota',
+        'voicingCaption' => "The Cmaj6 opening voicing is bright and accessible—Joe Pass used this exact chord to introduce the song's harmonic landscape with warmth and clarity.",
         'progressionName' => 'Ellington Progression',
         'progressionLibrarySlug' => 'ellington-progression',
         'progressionSeedKey' => 'Eb',
@@ -209,11 +291,17 @@ return [
         'rhythmCitation' => "<strong>Joe Pass</strong>, <em>Intercontinental</em>, 1971",
         'relatedProducts' => [
             [
-                'title' => 'Watch What Happens',
-                'description' => 'This is an original solo guitar arrangement. In this late intermediate arrangement, the focus is on swift chord movements and an uplifting bossa groove.',
-                'url' => 'https://soulbossanova.com/product/watch-what-happens/',
-                'type' => 'product'
-            ]
+                'title' => 'The Latin Side of Pat Metheny',
+                'description' => 'Explore how modern jazz guitarists blend Latin grooves with sophisticated harmony.',
+                'url' => '/learn/latin-side-pat-metheny',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Jazz & Bossa Chords',
+                'description' => 'A quick guide to the most important Jazz guitar chords — how they are used and how they are constructed.',
+                'url' => '/shop/product/jazz-bossa-chords',
+                'type' => 'product',
+            ],
         ]
     ],
     'ill-remember-april' => [
@@ -221,25 +309,40 @@ return [
         'shortTitle' => 'Remember April',
         'artist' => 'Gene DePaul',
         'image' => '/images/top10/latin-jazz-standards/2.webp',
-        'description' => "<em>I'll Remember April</em> is a jazz standard from the very beginning, established by icons of the style such as <strong>Charlie Parker</strong> and <strong>Miles Davis</strong>. The song is usually played at a fast tempo, so Samba or Afro-Cuban rhythms are usually used in the arrangements.",
+        'description' => "<em>I'll Remember April</em> is a jazz standard established by bebop legends <strong>Charlie Parker</strong> and <strong>Miles Davis</strong>. The song's fast tempo and straightforward changes make it ideal for exploring Latin jazz interpretation—particularly Samba and Afro-Cuban feels. The modal interchange from major to minor gives it harmonic sophistication perfect for improvisation over driving Latin rhythms.",
         'voicingName' => 'Key Chords',
-        'voicingCaption' => "The distinctive modal shift from major to minor is a key sound of many latin jazz standards.",
+        'voicingSlug' => 'maj7-drop3-roote',
+        'voicingCaption' => "The Maj7(drop3) voicing is an absolute must-know for any jazz guitarist. This chord shape is fundamental to jazz comping, appears in countless standards, and sits beautifully against any tempo—from ballads to fast bebop and Latin grooves. Master this shape and you'll unlock dozens of songs.",
         'progressionName' => 'Modal Interchange in G',
         'progressionLibrarySlug' => 'modal-interchange-i-to-im',
         'progressionSeedKey' => 'G',
         'progressionCaption' => "A modal interchange in G: moving from major tonic to its parallel minor (I to Im).",
         'progressionCitation' => "<strong>Clifford Brown</strong>, <em>At Basin Street</em>, 1956",
+        // Live leadsheet bars — I'll Remember April bars 0-7
+        'syncedPlayer' => ['slug' => 'ill-remember-april', 'type' => 'leadsheet', 'start' => 0, 'end' => 7],
         'rhythmName' => 'Trademark Rhythm',
         'rhythmSlug' => 'son-clave-3-2',
-        'rhythmCaption' => "The Tresillo pattern has been identified as a universal rhythm found in all music cultures.",
+        'rhythmCaption' => "The Tresillo pattern (3-2 clave) is a universal rhythm found across all music cultures. Here it drives the forward momentum of this fast-moving standard.",
         'rhythmCitation' => "<strong>Clifford Brown And Max Roach</strong>, <em>At Basin Street</em>, 1956",
         'relatedProducts' => [
+            [
+                'title' => 'The Clave: Latin Rhythm 101',
+                'description' => 'The Tresillo pattern driving this song is covered in depth — essential for any Latin jazz repertoire.',
+                'url' => '/learn/the-clave',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'The Latin Side of Wes Montgomery',
+                'description' => 'Classic jazz guitar phrasing and voicings applied to Latin standards.',
+                'url' => '/learn/latin-side-wes-montgomery',
+                'type' => 'course',
+            ],
             [
                 'title' => 'Jazz & Bossa Chords',
                 'description' => 'A quick guide to the most important Jazz guitar chords — how they are used and how they are constructed.',
                 'url' => '/shop/product/jazz-bossa-chords',
-                'type' => 'product'
-            ]
+                'type' => 'product',
+            ],
         ]
     ],
     'love-for-sale' => [
@@ -247,31 +350,40 @@ return [
         'shortTitle' => 'Love For Sale',
         'artist' => 'Cole Porter',
         'image' => '/images/top10/latin-jazz-standards/6.webp',
-        'description' => "<em>Love for Sale</em> was originally banned from radio because it is sung from the perspective of a prostitute advertising her services. Today, it is considered to be one of the most popular songs in the jazz standard canon. It follows the Latin-to-Swing Formula, which has become the Golden Rule for many <strong>Cole Porter</strong> tunes.",
+        'description' => "Originally banned from radio for its provocative lyrics, <em>Love For Sale</em> has become one of the most beloved songs in the jazz canon. <strong>Cole Porter's</strong> harmonic sophistication is on full display here—the modal interchange and unconventional chord movements create harmonic depth that appeals to improvising musicians. <strong>Dexter Gordon's</strong> classic recording showcases how the Latin-to-swing formula transforms this standard into a vehicle for sophisticated jazz expression.",
         'voicingName' => 'Key Chords',
-        'voicingCaption' => "<strong>Cole Porter's</strong> harmonic twist is brilliant: the sub-dominant chord resolving to a minor chord on the tonic.",
+        'voicingSlug' => 'dom7-drop3-roote-13',
+        'voicingCaption' => "The Dom7(13) voicing with the 13th on top provides a warm, open dominant sound. This voicing resolves beautifully and works equally well in Latin and swing contexts.",
         'progressionName' => 'Modal Interchange with Vm',
         'progressionLibrarySlug' => 'modal-interchange',
         'progressionSeedKey' => 'C',
         'progressionCaption' => "<strong>Cole Porter's</strong> harmonic twist is brilliant: a modal interchange color using I to Vm.",
         'progressionCitation' => "<strong>Dexter Gordon</strong>, <em>Go!</em>, 1962",
-        'syncedPlayer' => [
-            'slug' => 'untitled-10',
-            'type' => 'leadsheet',
-            'start' => 0,
-            'end' => 3,
-        ],
+        // Live leadsheet bars — Love For Sale bars 0-3
+        'syncedPlayer' => ['slug' => 'untitled-10', 'type' => 'leadsheet', 'start' => 0, 'end' => 3],
         'rhythmName' => 'Trademark Rhythm',
         'rhythmSlug' => 'son-clave-3-2',
         'rhythmCaption' => "Drummer <strong>Billy Higgins</strong> invented a unique, driving Latin texture that is a variation of the Bossa Nova Clave.",
         'rhythmCitation' => "<strong>Dexter Gordon</strong>, <em>Go!</em>, 1962",
         'relatedProducts' => [
             [
+                'title' => 'The Clave: Latin Rhythm 101',
+                'description' => 'Learn the clave patterns that define the Latin feel of this Cole Porter classic.',
+                'url' => '/learn/the-clave',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'The Latin Side of Pat Metheny',
+                'description' => 'Explore how modern jazz guitarists blend Latin grooves with sophisticated harmony.',
+                'url' => '/learn/latin-side-pat-metheny',
+                'type' => 'course',
+            ],
+            [
                 'title' => 'Jazz & Bossa Chords',
                 'description' => 'A quick guide to the most important Jazz guitar chords — how they are used and how they are constructed.',
                 'url' => '/shop/product/jazz-bossa-chords',
-                'type' => 'product'
-            ]
+                'type' => 'product',
+            ],
         ]
     ],
     'moon-and-sand' => [
@@ -279,24 +391,39 @@ return [
         'shortTitle' => 'Moon and Sand',
         'artist' => 'Alec Wilder',
         'image' => '/images/top10/latin-jazz-standards/9.webp',
-        'description' => "<em>Moon and Sand</em> is a lesser-known jazz standard by film and musical composer <strong>Alec Wilder</strong>. The slow flowing chords and the melancholic melody are ideal for a bossa nova treatment. The fantastic recording by jazz guitar legend <strong>Kenny Burrell</strong> and arranger <strong>Gil Evans</strong> paved the way for this.",
+        'description' => "<em>Moon and Sand</em> is a lesser-known gem by film and musical composer <strong>Alec Wilder</strong>. The slow-flowing chords and melancholic melody create an ideal canvas for bossa nova interpretation. Jazz guitar legend <strong>Kenny Burrell</strong> and arranger <strong>Gil Evans</strong> created a definitive recording that showcases how sophisticated voicings and subtle rhythmic phrasing can transform an understated standard into an intimate, introspective masterpiece.",
         'voicingName' => 'Key Chords',
-        'voicingCaption' => "Although the song is in the key of D minor, it swiftly transitions to other tonalities.",
+        'voicingSlug' => 'maj7-shell-roote-13',
+        'voicingCaption' => "The Maj7(13) shell voicing combines root, 7th, and 13th with minimal notes—creating space and clarity. This efficient voicing is perfect for ballads where every note needs to resonate.",
         'progressionName' => 'Key Progression',
         'progressionCaption' => "Although the song is in the key of D minor, it swiftly transitions to other tonalities.",
         'progressionCitation' => "<strong>Kenny Burrell</strong>, <em>Guitar Forms</em>, 1965",
         'progressionSlugs' => ['m7-shell-roota-9', 'maj7-drop3-roote', 'maj7-drop3-roote'],
+        // Live leadsheet bars — Moon and Sand bars 2-5
+        'syncedPlayer' => ['slug' => 'moon-and-sand', 'type' => 'leadsheet', 'start' => 2, 'end' => 5],
         'rhythmName' => 'Trademark Rhythm',
         'rhythmSlug' => 'bossa-nova-clave',
         'rhythmCaption' => "The Bossa Nova Clave is the most effective pattern for Bossa Nova treatments of jazz standards.",
         'rhythmCitation' => "<strong>Kenny Burrell</strong>, <em>Guitar Forms</em>, 1965",
         'relatedProducts' => [
             [
-                'title' => 'Bossa Nova Basics Course',
-                'description' => 'Learn the fundamentals of bossa nova guitar — rhythms, chord shapes, and classic songs — with step-by-step video lessons.',
-                'url' => '/shop/product/bossa-basics',
-                'type' => 'course'
-            ]
+                'title' => 'Music Theory Basics',
+                'description' => 'Understand the modal interchange and the slow-moving jazz harmony that defines this Alec Wilder ballad.',
+                'url' => '/learn/music-theory-basics',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'The Latin Side of Wes Montgomery',
+                'description' => 'Classic jazz guitar phrasing applied to ballads and Latin standards — a natural companion to Kenny Burrell.',
+                'url' => '/learn/latin-side-wes-montgomery',
+                'type' => 'course',
+            ],
+            [
+                'title' => 'Jazz & Bossa Chords',
+                'description' => 'A quick guide to the most important Jazz guitar chords — how they are used and how they are constructed.',
+                'url' => '/shop/product/jazz-bossa-chords',
+                'type' => 'product',
+            ],
         ]
     ]
 ];

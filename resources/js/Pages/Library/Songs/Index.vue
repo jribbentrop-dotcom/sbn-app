@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import SongCard from '@/Components/Library/SongCard.vue';
 import type { SongCardData } from '@/Components/Library/SongCard.vue';
@@ -74,6 +75,14 @@ function rhythmLabel(slug: string): string {
 </script>
 
 <template>
+    <Head>
+        <title>Bossa Nova &amp; Latin Jazz Songs | Soul Bossa Nova</title>
+        <meta name="description" content="Browse our full leadsheet library — Bossa Nova classics, Latin Jazz standards and more. Interactive chord diagrams and synced playback." />
+        <meta property="og:title" content="Bossa Nova & Latin Jazz Songs | Soul Bossa Nova" />
+        <meta property="og:description" content="Interactive leadsheet library with Bossa Nova classics and Latin Jazz standards — chords, rhythm and synced playback." />
+        <meta property="og:type" content="website" />
+    </Head>
+
   <div class="sbn-page sbn-song-library-main">
 
     <!-- ── Header ── -->

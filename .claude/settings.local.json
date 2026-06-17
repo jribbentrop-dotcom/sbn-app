@@ -44,7 +44,14 @@
       "Bash(gh repo *)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:react-guitar.com)",
-      "WebFetch(domain:gleitz.github.io)"
+      "WebFetch(domain:gleitz.github.io)",
+      "Bash(python -c ' *)",
+      "Bash(php /c/Users/info/sbn-app/artisan tinker --execute=\"echo implode\\('\\\\n', \\\\App\\\\Models\\\\Course::pluck\\('slug'\\)->toArray\\(\\)\\);\")",
+      "Bash(node -e ' *)",
+      "Bash(ls /mnt/)",
+      "Bash(ls /sessions/)",
+      "PowerShell($db = \"C:\\\\Users\\\\info\\\\sbn-app\\\\database\\\\sbn.db\"; $tmpDb = \"$env:TEMP\\\\sbn_work.db\"; Copy-Item $db $tmpDb -Force; & sqlite3 $tmpDb \"SELECT slug, substr\\(json_data,1,900\\) FROM sbn_leadsheets WHERE slug='the-girl-from-ipanema';\")",
+      "Bash(python3 -c ' *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\info\\.claude\\projects\\c--Users-info-sbn-app\\memory",

@@ -82,6 +82,7 @@ interface Top10DataItem {
         category?: string;
         videoSnippets?: VideoSnippet[];
     } | null;
+    citation?: string;
     relatedProducts: RelatedProduct[];
     syncedPlayer?: SyncedPlayerConfig | null;
 }
@@ -146,6 +147,7 @@ function loadChords() {
         progressionCaption: item.progressionCaption,
         progressionSeedKey: item.progressionSeedKey,
         progressionMeta: item.progressionMeta,
+        citation: item.citation,
         relatedProducts: item.relatedProducts,
         syncedPlayer: item.syncedPlayer,
     }));
@@ -185,12 +187,23 @@ function goToChordLibrary(chord: ChordDiagramData) {
 
 <template>
     <Head>
-        <title>TOP 10 Bossa Nova Chords | Soul Bossa Nova</title>
-        <meta name="description" content="Explore the essential TOP 10 Bossa Nova Chords for guitar — voicings, progressions, and song context." />
+        <title>10 Essential Bossa Nova Guitar Chords | Soul Bossa Nova</title>
+        <meta name="description" content="The 10 most important Bossa Nova guitar chords — authentic voicings, the progressions they appear in, and the songs that made them famous. Build your chord vocabulary here." />
+        <meta property="og:title" content="10 Essential Bossa Nova Guitar Chords | Soul Bossa Nova" />
+        <meta property="og:description" content="Maj7, m7, dom7 and more — the 10 Bossa Nova chords every guitarist needs, with voicings, progressions and song context." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://www.soulbossanova.com/top10/bossa-nova-chords" />
+        <meta property="og:image" content="https://www.soulbossanova.com/images/products/thumbnails/top10-bossa-nova-chords.webp" />
     </Head>
 
     <div class="sbn-top10-page">
         <Top10HeaderBar active="/top10/bossa-nova-chords" />
+
+        <!-- Static intro — visible to search engines and no-JS users -->
+        <div class="sbn-top10-intro">
+            <h1 class="sbn-top10-intro-title">10 Essential Bossa Nova Guitar Chords</h1>
+            <p class="sbn-top10-intro-text">The most important <Link href="/library/chords" class="sbn-intro-link">chords in Bossa Nova guitar</Link> — with authentic voicings, the <Link href="/library/progressions" class="sbn-intro-link">progressions</Link> they appear in, and the <Link href="/library/songs" class="sbn-intro-link">songs</Link> that made them famous. Whether you're building your chord vocabulary or refining your jazz sound, start here.</p>
+        </div>
 
         <!-- Loading State -->
         <div v-if="isLoading" class="sbn-top10-loading">
@@ -243,7 +256,7 @@ function goToChordLibrary(chord: ChordDiagramData) {
                     <div class="sbn-detail-header">
                         <span class="sbn-detail-badge">CHORD #{{ selectedChord.id }}</span>
                         <h1 class="sbn-detail-title">{{ selectedChord.title }}</h1>
-                        <p class="sbn-detail-description">{{ selectedChord.description }}</p>
+                        <p class="sbn-detail-description" v-html="selectedChord.description"></p>
                     </div>
 
                     <!-- Panels Grid -->
@@ -252,19 +265,23 @@ function goToChordLibrary(chord: ChordDiagramData) {
                         <div v-if="selectedChord.voicingData" class="sbn-panel sbn-voicing-panel">
                             <h3 class="sbn-panel-title">Chord Voicing</h3>
                             <div class="sbn-panel-content">
-                                <ChordCard 
-                                    :chord="selectedChord.voicingData" 
-                                    :show-root="true" 
+                                <ChordCard
+                                    :chord="selectedChord.voicingData"
+                                    :show-root="true"
                                     :on-chord-click="() => goToChordLibrary(selectedChord!.voicingData!)"
                                 />
-                                <p class="sbn-panel-caption">{{ selectedChord.voicingCaption }}</p>
+                                <p class="sbn-panel-caption" v-html="selectedChord.voicingCaption"></p>
+                                <Link v-if="selectedChord.voicingData?.slug" :href="chordShowUrl(selectedChord.voicingData)" class="sbn-panel-link">Explore in Chord Library →</Link>
                             </div>
                         </div>
 
                         <!-- Progression Panel -->
                         <div class="sbn-panel">
-                            <h3 class="sbn-panel-title">{{ selectedChord.progressionName }}</h3>
+                            <div class="sbn-panel-heading">
+                                <h3 class="sbn-panel-title"><span class="sbn-panel-label">Key Chord Progression:</span> <Link v-if="selectedChord.progressionMeta?.slug" :href="`/library/progressions/${selectedChord.progressionMeta.slug}`" class="sbn-panel-title-link">{{ selectedChord.progressionName }}</Link><span v-else>{{ selectedChord.progressionName }}</span></h3>
+                            </div>
                             <div class="sbn-panel-content">
+                                <p class="sbn-panel-caption sbn-progression-caption" v-html="selectedChord.progressionCaption"></p>
                                 <div class="sbn-synced-hero-card">
                                     <!-- Live leadsheet bars mode -->
                                     <SyncedPlayer
@@ -274,6 +291,8 @@ function goToChordLibrary(chord: ChordDiagramData) {
                                         :autoplay="false"
                                         :loop="true"
                                         :key="selectedChord.slug + '-synced'"
+                                        :citation="selectedChord.citation"
+                                        :start-chord-name="selectedChord.voicingData?.name ?? undefined"
                                     />
                                     <!-- Loading placeholder -->
                                     <div v-else-if="selectedChord.syncedPlayer && syncedFetching" class="sbn-synced-loading">
@@ -287,17 +306,17 @@ function goToChordLibrary(chord: ChordDiagramData) {
                                         :bars-per-chord="1"
                                         :autoplay="false"
                                         :key="selectedChord.slug"
+                                        :citation="selectedChord.citation"
                                     />
                                 </div>
-                                <p class="sbn-panel-caption">{{ selectedChord.progressionCaption }}</p>
                             </div>
                         </div>
                     </div>
 
                     <!-- Navigation Buttons -->
                     <div class="sbn-detail-nav">
-                        <button @click="prevChord" class="sbn-nav-btn sbn-nav-btn--outline">← Previous</button>
-                        <button @click="nextChord" class="sbn-nav-btn sbn-nav-btn--outline">Next →</button>
+                        <button @click="prevChord" class="sbn-nav-btn sbn-nav-btn--outline">← Previous Chord</button>
+                        <button @click="nextChord" class="sbn-nav-btn sbn-nav-btn--outline">Next Chord →</button>
                     </div>
 
                     <!-- Related Products -->
@@ -356,6 +375,49 @@ function goToChordLibrary(chord: ChordDiagramData) {
     letter-spacing: 0;
 }
 
+.sbn-intro-link {
+    color: var(--sbn-accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.sbn-panel-link {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--sbn-accent);
+    text-decoration: none;
+    letter-spacing: 0.02em;
+}
+.sbn-panel-link:hover { text-decoration: underline; }
+
+.sbn-panel-heading {
+    margin-bottom: 12px;
+}
+.sbn-panel-heading .sbn-panel-title {
+    margin-bottom: 2px;
+}
+.sbn-panel-label {
+    color: var(--sbn-text-muted, #888);
+    font-weight: 400;
+}
+.sbn-panel-sublink {
+    display: inline-block;
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: var(--sbn-text-muted, #999);
+    text-decoration: none;
+    letter-spacing: 0.01em;
+}
+.sbn-panel-sublink:hover { color: var(--sbn-accent); text-decoration: underline; }
+
+.sbn-panel-title-link {
+    color: inherit;
+    text-decoration: none;
+}
+.sbn-panel-title-link:hover { color: var(--sbn-accent); text-decoration: underline; }
+
 .sbn-panel-content {
     gap: 16px;
     justify-content: center;
@@ -363,7 +425,6 @@ function goToChordLibrary(chord: ChordDiagramData) {
 
 .sbn-synced-hero-card {
     width: 100%;
-    max-width: 480px;
 }
 
 .sbn-synced-loading {
@@ -373,9 +434,18 @@ function goToChordLibrary(chord: ChordDiagramData) {
     min-height: 200px;
 }
 
+.sbn-detail-description {
+    color: var(--clr-text);
+}
+
 .sbn-panel-caption {
-    color: var(--clr-text-muted);
+    color: var(--clr-text-dim);
     margin-top: 12px;
+}
+
+.sbn-progression-caption {
+    margin-top: 0;
+    margin-bottom: 14px;
 }
 
 /* Voicing panel: no border on mobile, card fills available width */
@@ -434,5 +504,27 @@ function goToChordLibrary(chord: ChordDiagramData) {
 
 .sbn-nav-thumb--active .sbn-nav-thumb-title {
     font-weight: bold;
+}
+
+/* ── Static intro ─────────────────────────────────────────────────────────── */
+.sbn-top10-intro {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 32px 20px 0;
+    text-align: center;
+}
+
+.sbn-top10-intro-title {
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--clr-text);
+}
+
+.sbn-top10-intro-text {
+    color: var(--clr-text-muted);
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 0;
 }
 </style>

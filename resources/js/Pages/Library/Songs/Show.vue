@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, Head } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { getCategoryStyle, getCategoryColor } from '@/composables/useCategoryColors';
@@ -102,6 +102,15 @@ const songPopularityTier = computed(() => {
 </script>
 
 <template>
+    <Head>
+        <title>{{ song.title }}<template v-if="song.composer"> — {{ song.composer }}</template> | Soul Bossa Nova</title>
+        <meta name="description" :content="song.description || `Interactive leadsheet for ${song.title}${song.composer ? ' by ' + song.composer : ''} — chords, rhythm and synced playback on Soul Bossa Nova.`" />
+        <meta property="og:title" :content="`${song.title} | Soul Bossa Nova`" />
+        <meta property="og:description" :content="song.description || `Bossa Nova leadsheet: ${song.title}${song.composer ? ' by ' + song.composer : ''}`" />
+        <meta property="og:type" content="music.song" />
+        <meta v-if="song.coverImagePath" property="og:image" :content="song.coverImagePath" />
+    </Head>
+
   <div class="sbn-page-detail sbn-song-show sbn-has-category-gradient" :style="categoryStyle">
 
     <Breadcrumb :segments="[{ label: 'Song Library', href: '/library/songs' }, { label: song.title }]" :color="categoryColor" />

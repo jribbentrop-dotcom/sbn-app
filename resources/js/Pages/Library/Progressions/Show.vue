@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
@@ -116,6 +116,14 @@ function onSnippetSelected(snippet: VideoSnippet) {
 </script>
 
 <template>
+    <Head>
+        <title>{{ progression.name }} ({{ progression.numeralsDisplay }}) | Soul Bossa Nova</title>
+        <meta name="description" :content="progression.description || `Learn the ${progression.name} chord progression (${progression.numeralsDisplay}) — a key pattern in Bossa Nova and Latin Jazz guitar.`" />
+        <meta property="og:title" :content="`${progression.name} | Soul Bossa Nova`" />
+        <meta property="og:description" :content="progression.description || `${progression.name} (${progression.numeralsDisplay}) — Bossa Nova chord progression with interactive diagrams and audio.`" />
+        <meta property="og:type" content="website" />
+    </Head>
+
     <div class="sbn-page-detail sbn-prog-detail-page">
         <Breadcrumb :segments="[{ label: 'Progressions', href: '/library/progressions' }, { label: progression.name }]" :color="getCategoryColor(progression.category)" />
 

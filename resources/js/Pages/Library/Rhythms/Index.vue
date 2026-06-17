@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
+import { Link, Head, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import type { RhythmPatternWithMeta } from '@/Components/Library/RhythmPattern.vue';
@@ -112,6 +112,14 @@ const CATEGORY_LABELS: Record<string, string> = {
 </script>
 
 <template>
+    <Head>
+        <title>Bossa Nova &amp; Latin Jazz Rhythm Patterns | Soul Bossa Nova</title>
+        <meta name="description" content="Learn authentic Bossa Nova and Latin Jazz guitar rhythm patterns with interactive notation and playback. From basic samba to advanced syncopation." />
+        <meta property="og:title" content="Bossa Nova & Latin Jazz Rhythm Patterns | Soul Bossa Nova" />
+        <meta property="og:description" content="Interactive rhythm pattern library for Bossa Nova and Latin Jazz guitarists — visual notation, audio and fingering guides." />
+        <meta property="og:type" content="website" />
+    </Head>
+
   <div class="sbn-page sbn-rhythm-library-main">
 
     <!-- ── Header ── -->

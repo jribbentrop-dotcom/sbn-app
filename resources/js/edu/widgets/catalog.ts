@@ -136,6 +136,12 @@ export const widgetCatalog: WidgetEntry[] = [
     summary: 'The eight essential open chords — E, Em, A, Am, D, Dm, C, G — with finger numbers on a fretboard diagram.',
     tags: ['guitar', 'chords', 'general'],
   },
+  {
+    slug: 'scale-steps',
+    title: 'Whole & Half Steps',
+    summary: 'The building blocks of every scale — see how the pattern of whole and half steps differs between major and natural minor.',
+    tags: ['scales', 'harmony', 'general'],
+  },
 ];
 
 /** All unique tags across the catalog, sorted alphabetically. */

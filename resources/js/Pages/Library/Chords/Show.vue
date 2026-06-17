@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { Head } from '@inertiajs/vue3';
 
 const siblingsCanLeft  = ref(false);
 const siblingsCanRight = ref(false);
@@ -488,6 +489,14 @@ const formattedChordName = computed(() => {
 </script>
 
 <template>
+    <Head>
+        <title>{{ chord.name }} Guitar Chord — {{ chord.quality_label }} | Soul Bossa Nova</title>
+        <meta name="description" :content="chord.description || `Learn the ${chord.name} guitar chord — voicings, fingerings, intervals and how to use it in Bossa Nova and Latin Jazz.`" />
+        <meta property="og:title" :content="`${chord.name} Guitar Chord | Soul Bossa Nova`" />
+        <meta property="og:description" :content="chord.description || `${chord.name} chord: voicings, fingerings and music theory for Bossa Nova guitarists.`" />
+        <meta property="og:type" content="website" />
+    </Head>
+
     <div class="sbn-page-detail sbn-chord-detail">
 
         <Breadcrumb :segments="[{ label: 'Chord Library', href: '/library/chords' }, { label: chord.name }]" />

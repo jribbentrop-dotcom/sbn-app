@@ -1,9 +1,23 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, reactive, ref, watch, onUnmounted } from 'vue';
 
-// Circle of fifths order — starting at C (top), moving clockwise
 const KEYS = ['C', 'G', 'D', 'A', 'E', 'B', 'F♯/G♭', 'D♭', 'A♭', 'E♭', 'B♭', 'F'] as const;
 const RELATIVE_MINORS = ['Am', 'Em', 'Bm', 'F♯m', 'C♯m', 'G♯m', 'D♯m/E♭m', 'B♭m', 'Fm', 'Cm', 'Gm', 'Dm'] as const;
+
+const SCALES: Record<string, string[]> = {
+  'C':     ['C',  'D',  'E',  'F',  'G',  'A',  'B' ],
+  'G':     ['G',  'A',  'B',  'C',  'D',  'E',  'F♯'],
+  'D':     ['D',  'E',  'F♯', 'G',  'A',  'B',  'C♯'],
+  'A':     ['A',  'B',  'C♯', 'D',  'E',  'F♯', 'G♯'],
+  'E':     ['E',  'F♯', 'G♯', 'A',  'B',  'C♯', 'D♯'],
+  'B':     ['B',  'C♯', 'D♯', 'E',  'F♯', 'G♯', 'A♯'],
+  'F♯/G♭': ['F♯', 'G♯', 'A♯', 'B',  'C♯', 'D♯', 'E♯'],
+  'D♭':    ['D♭', 'E♭', 'F',  'G♭', 'A♭', 'B♭', 'C' ],
+  'A♭':    ['A♭', 'B♭', 'C',  'D♭', 'E♭', 'F',  'G' ],
+  'E♭':    ['E♭', 'F',  'G',  'A♭', 'B♭', 'C',  'D' ],
+  'B♭':    ['B♭', 'C',  'D',  'E♭', 'F',  'G',  'A' ],
+  'F':     ['F',  'G',  'A',  'B♭', 'C',  'D',  'E' ],
+};
 
 const props = withDefaults(defineProps<{
   initialKey?: string;
@@ -18,10 +32,10 @@ const selectedIndex = ref<number | null>(
 // SVG geometry constants
 const CX = 200;
 const CY = 200;
-const OUTER_R = 180;   // outer edge of a segment
-const MAJOR_R = 152;   // radius where major key label sits
-const MINOR_R = 118;   // radius where relative minor label sits
-const INNER_R = 60;    // inner edge of a segment (creates the donut hole)
+const OUTER_R = 180;
+const MAJOR_R = 152;
+const MINOR_R = 118;
+const INNER_R = 60;
 
 function toRad(deg: number) { return (deg * Math.PI) / 180; }
 
@@ -30,16 +44,11 @@ function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   return { x: cx + r * Math.sin(rad), y: cy - r * Math.cos(rad) };
 }
 
-// Build the SVG <path> d-string for one donut segment (30° each)
-// startAngle / endAngle are in degrees from top (12 o'clock = 0°), clockwise
 function segmentPath(startDeg: number, endDeg: number, innerR: number, outerR: number): string {
-  // Outer arc: start → end
   const o1 = polarToCartesian(CX, CY, outerR, startDeg);
   const o2 = polarToCartesian(CX, CY, outerR, endDeg);
-  // Inner arc: end → start (reverse, to close the donut segment)
   const i1 = polarToCartesian(CX, CY, innerR, endDeg);
   const i2 = polarToCartesian(CX, CY, innerR, startDeg);
-
   return [
     `M ${o1.x} ${o1.y}`,
     `A ${outerR} ${outerR} 0 0 1 ${o2.x} ${o2.y}`,
@@ -56,16 +65,14 @@ interface Segment {
   path: string;
   majorLabelPos: { x: number; y: number };
   minorLabelPos: { x: number; y: number };
-  // rotation for text readability — slant each label toward segment center
   labelAngle: number;
 }
 
 const segments = computed<Segment[]>(() =>
   KEYS.map((key, i) => {
-    const startDeg = i * 30 - 15;    // center each segment on its clock position
-    const endDeg = startDeg + 30;
-    const midDeg = i * 30;           // center angle for label placement
-
+    const startDeg = i * 30 - 15;
+    const endDeg   = startDeg + 30;
+    const midDeg   = i * 30;
     return {
       index: i,
       key,
@@ -73,7 +80,6 @@ const segments = computed<Segment[]>(() =>
       path: segmentPath(startDeg, endDeg, INNER_R, OUTER_R),
       majorLabelPos: polarToCartesian(CX, CY, MAJOR_R, midDeg),
       minorLabelPos: polarToCartesian(CX, CY, MINOR_R, midDeg),
-      // rotate text so it reads radially; top/bottom keys don't need rotation
       labelAngle: midDeg,
     };
   }),
@@ -87,12 +93,39 @@ function segmentClass(i: number) {
   return selectedIndex.value === i ? 'cof-seg cof-seg--selected' : 'cof-seg';
 }
 
-// Info line shown below the wheel when a key is selected
+// Scale notes for selected key
+const scaleNotes = computed(() => {
+  if (selectedIndex.value === null) return [];
+  return SCALES[KEYS[selectedIndex.value]] ?? [];
+});
+
+// Per-note highlight state — snaps to amber, slow fade back to white
+const noteHighlights = reactive<boolean[]>(Array(7).fill(false));
+let animTimers: ReturnType<typeof setTimeout>[] = [];
+
+watch(selectedIndex, () => {
+  animTimers.forEach(t => clearTimeout(t));
+  animTimers = [];
+  for (let i = 0; i < 7; i++) noteHighlights[i] = false;
+
+  if (selectedIndex.value === null) return;
+
+  // Stagger the amber highlight across all 7 scale notes (root → leading tone)
+  for (let i = 0; i < 7; i++) {
+    const onAt  = i * 90;   // 90 ms between each note
+    const offAt = onAt + 950;
+    animTimers.push(
+      setTimeout(() => { noteHighlights[i] = true;  }, onAt),
+      setTimeout(() => { noteHighlights[i] = false; }, offAt),
+    );
+  }
+});
+
+onUnmounted(() => { animTimers.forEach(t => clearTimeout(t)); });
+
 const infoText = computed(() => {
   if (selectedIndex.value === null) return '';
-  const key = KEYS[selectedIndex.value];
-  const rel = RELATIVE_MINORS[selectedIndex.value];
-  return `${key} major — relative minor: ${rel}`;
+  return `${KEYS[selectedIndex.value]} major · ${RELATIVE_MINORS[selectedIndex.value]}`;
 });
 </script>
 
@@ -101,6 +134,7 @@ const infoText = computed(() => {
     <div class="cof-header">
       <div class="cof-label">Circle of Fifths</div>
     </div>
+
     <svg
       viewBox="-10 -10 420 420"
       width="100%"
@@ -124,7 +158,7 @@ const infoText = computed(() => {
         />
       </g>
 
-      <!-- Dividing lines between segments (thin radial lines) -->
+      <!-- Dividing lines between segments -->
       <g class="cof-dividers">
         <line
           v-for="i in 12"
@@ -136,7 +170,7 @@ const infoText = computed(() => {
         />
       </g>
 
-      <!-- Major key labels (outer ring) -->
+      <!-- Major key labels -->
       <text
         v-for="seg in segments"
         :key="`maj-${seg.index}`"
@@ -147,7 +181,7 @@ const infoText = computed(() => {
         dominant-baseline="middle"
       >{{ seg.key }}</text>
 
-      <!-- Relative minor labels (inner ring) -->
+      <!-- Relative minor labels -->
       <text
         v-for="seg in segments"
         :key="`min-${seg.index}`"
@@ -168,9 +202,17 @@ const infoText = computed(() => {
       </text>
     </svg>
 
-    <!-- Selected key info strip -->
+    <!-- Selected key info + scale notes -->
     <div class="cof-info" :class="{ 'cof-info--visible': selectedIndex !== null }">
-      {{ infoText }}
+      <div class="cof-info-text">{{ infoText }}</div>
+      <div class="cof-scale-notes">
+        <span
+          v-for="(note, i) in scaleNotes"
+          :key="i"
+          class="cof-note"
+          :class="{ 'cof-note--highlight': noteHighlights[i] }"
+        >{{ note }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -191,100 +233,74 @@ const infoText = computed(() => {
 .cof-header { width: 100%; display: flex; align-items: center; justify-content: space-between; }
 .cof-label { font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: #ffffff; }
 
-.cof-svg {
-  max-width: 420px;
-  cursor: pointer;
-  display: block;
-}
+.cof-svg { max-width: 420px; cursor: pointer; display: block; }
 
-/* Base segment */
 .cof-seg {
   fill: rgba(255,255,255,0.05);
   stroke: #0f0f17;
   stroke-width: 2;
   transition: fill 0.15s ease;
 }
-
-.cof-seg:hover {
-  fill: rgba(255,255,255,0.12);
-}
-
-.cof-seg:focus {
-  outline: none;
-  fill: rgba(255,255,255,0.12);
-}
-
-/* Selected key — higher specificity beats :hover */
+.cof-seg:hover { fill: rgba(255,255,255,0.12); }
+.cof-seg:focus { outline: none; fill: rgba(255,255,255,0.12); }
 .cof-seg.cof-seg--selected,
 .cof-seg.cof-seg--selected:hover,
-.cof-seg.cof-seg--selected:focus {
-  fill: rgba(255,255,255,0.88) !important;
-}
+.cof-seg.cof-seg--selected:focus { fill: rgba(255,255,255,0.88) !important; }
 
-/* Outer accent ring */
-.cof-outer-ring {
-  fill: none;
-  stroke: rgba(255,255,255,0.35);
-  stroke-width: 0.75;
-  pointer-events: none;
-}
+.cof-outer-ring { fill: none; stroke: rgba(255,255,255,0.35); stroke-width: 0.75; pointer-events: none; }
+.cof-dividers line { stroke: rgba(255,255,255,0.35); stroke-width: 0.75; }
 
-/* Divider lines */
-.cof-dividers line {
-  stroke: rgba(255,255,255,0.35);
-  stroke-width: 0.75;
-}
+.cof-label-major { font-size: 20px; font-weight: 700; fill: #ffffff; cursor: pointer; pointer-events: none; }
+.cof-label-minor { font-size: 13px; font-weight: 500; fill: #ffffff; cursor: pointer; pointer-events: none; }
+.cof-label--selected { fill: #0f0f17; }
 
-/* Major key text */
-.cof-label-major {
-  font-size: 20px;
-  font-weight: 700;
-  fill: #ffffff;
-  cursor: pointer;
-  pointer-events: none;
-}
+.cof-center { fill: #0f0f17; stroke: rgba(255,255,255,0.35); stroke-width: 0.75; }
+.cof-center-label { font-size: 12px; font-weight: 600; fill: #ffffff; letter-spacing: 0.5px; text-transform: uppercase; pointer-events: none; }
 
-/* Minor key text */
-.cof-label-minor {
-  font-size: 13px;
-  font-weight: 500;
-  fill: #ffffff;
-  cursor: pointer;
-  pointer-events: none;
-}
-
-/* Labels on selected segment */
-.cof-label--selected {
-  fill: #0f0f17;
-}
-
-/* Centre circle */
-.cof-center {
-  fill: #0f0f17;
-  stroke: rgba(255,255,255,0.35);
-  stroke-width: 0.75;
-}
-
-.cof-center-label {
-  font-size: 12px;
-  font-weight: 600;
-  fill: #ffffff;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  pointer-events: none;
-}
-
-/* Info strip below the wheel */
+/* Info strip */
 .cof-info {
-  min-height: 20px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #ffffff;
+  width: 100%;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.3s ease;
+}
+.cof-info--visible { opacity: 1; }
+
+.cof-info-text {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.08em;
+  text-align: center;
 }
 
-.cof-info--visible {
-  opacity: 1;
+/* Scale notes row */
+.cof-scale-notes {
+  display: flex;
+  gap: 2px;
+  justify-content: center;
+  align-items: center;
+}
+
+.cof-note {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.95rem;
+  font-weight: 500;
+  min-width: 2.4rem;
+  text-align: center;
+  color: rgba(255,255,255,0.85);
+  transition: color 0.65s ease; /* slow fade back to white */
+  padding: 0.2rem 0;
+}
+
+/* Fast snap to amber on highlight, then the cof-note transition carries the fade out */
+.cof-note--highlight {
+  color: #f59e0b;
+  transition: color 0.08s ease;
 }
 </style>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import { Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { widgetCatalog, allWidgetTags } from '@/edu/widgets/catalog';
 import { eduWidgets, isEduWidget } from '@/edu/widgets/registry';
@@ -81,6 +82,14 @@ watch(visible, mountVisible);
 </script>
 
 <template>
+    <Head>
+        <title>Music Theory for Guitarists | Soul Bossa Nova</title>
+        <meta name="description" content="Interactive music theory widgets for guitarists: Triad Builder, Circle of Fifths, Drop-2 Voicings and Voice Leading — visual, hands-on and instantly understandable." />
+        <meta property="og:title" content="Music Theory for Guitarists | Soul Bossa Nova" />
+        <meta property="og:description" content="Learn music theory visually with interactive widgets — triads, circle of fifths, drop voicings and voice leading for guitar." />
+        <meta property="og:type" content="website" />
+    </Head>
+
     <div class="theory-page">
         <div class="theory-main">
 

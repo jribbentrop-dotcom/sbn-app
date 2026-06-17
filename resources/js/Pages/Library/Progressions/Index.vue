@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
+import { Link, Head, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { getCategoryColor } from '@/composables/useCategoryColors';
 
@@ -127,6 +127,14 @@ function setExampleQuery(query: string) {
 </script>
 
 <template>
+    <Head>
+        <title>Jazz &amp; Bossa Nova Chord Progressions | Soul Bossa Nova</title>
+        <meta name="description" content="Explore ii-V-I, Bossa Nova and Latin Jazz chord progressions with interactive diagrams and audio playback. Essential patterns for guitarists." />
+        <meta property="og:title" content="Jazz & Bossa Nova Chord Progressions | Soul Bossa Nova" />
+        <meta property="og:description" content="Interactive chord progression library — ii-V-I, Bossa Nova patterns and Latin Jazz harmony for guitarists." />
+        <meta property="og:type" content="website" />
+    </Head>
+
     <div class="sbn-page sbn-prog-lib" id="sbn-prog-lib">
         <!-- Page Header -->
         <div class="sbn-lib-page-header">

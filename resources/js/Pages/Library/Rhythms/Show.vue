@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, Head } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmPattern from '@/Components/Library/RhythmPattern.vue';
@@ -47,6 +47,14 @@ watch(() => props.pattern.slug, () => {
 </script>
 
 <template>
+    <Head>
+        <title>{{ pattern.name }} Rhythm Pattern | Soul Bossa Nova</title>
+        <meta name="description" :content="pattern.description || `Learn the ${pattern.name} guitar rhythm pattern — interactive notation, audio playback and fingering guide for Bossa Nova and Latin Jazz.`" />
+        <meta property="og:title" :content="`${pattern.name} | Soul Bossa Nova`" />
+        <meta property="og:description" :content="pattern.description || `${pattern.name} — Bossa Nova rhythm pattern with interactive notation and audio.`" />
+        <meta property="og:type" content="website" />
+    </Head>
+
   <div class="sbn-page-detail sbn-rhythm-show">
     <Breadcrumb :segments="[{ label: 'Rhythm Library', href: '/library/rhythms' }, { label: pattern.name }]" :color="getCategoryColor(pattern.styleSlug)" />
     <header class="sbn-rhythm-show-header sbn-detail-hero" :style="categoryStyle">

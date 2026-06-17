@@ -15,21 +15,29 @@ const AM_NOTES: NoteSpec[] = [
 const PHASE_LABELS = ['Fretboard', 'Tab', 'Chord Diagram'];
 const PHASE_DURATION = 1800;
 
-// Horizontal layout constants
-const H_W = 240, H_H = 90;
+// Fretboard layout constants (phase 0)
+const H_W = 380, H_H = 160;
 const H_PAD_LEFT = 28, H_PAD_RIGHT = 12, H_PAD_TOP = 12, H_PAD_BOTTOM = 12;
 const N_STRINGS = 6, N_FRETS = 4;
 const H_STRING_GAP = (H_H - H_PAD_TOP - H_PAD_BOTTOM) / (N_STRINGS - 1);
 const H_FRET_GAP = (H_W - H_PAD_LEFT - H_PAD_RIGHT) / N_FRETS;
-const DOT_R = 11;
+const DOT_R = 10;
 
-// Vertical layout constants
-const V_W = 90, V_H = 110, V_PAD_TOP = 28, V_PAD_LEFT = 12, V_PAD_RIGHT = 12;
+// Tab layout constants (phase 1)
+const T_PAD_TOP = 22, T_PAD_BOTTOM = 22;
+const T_STRING_GAP = (H_H - T_PAD_TOP - T_PAD_BOTTOM) / (N_STRINGS - 1);
+const T_LINE_X0 = 38;
+const T_LINE_X1 = H_W - 10;
+const T_NUMBER_X = 100;
+
+// Chord diagram layout constants (phase 2)
+const V_W = 130, V_H = 160, V_PAD_TOP = 32, V_PAD_LEFT = 14, V_PAD_RIGHT = 14;
 const V_STRING_GAP = (V_W - V_PAD_LEFT - V_PAD_RIGHT) / (N_STRINGS - 1);
-const V_FRET_GAP = (V_H - V_PAD_TOP - 12) / N_FRETS;
+const V_FRET_GAP = (V_H - V_PAD_TOP - 14) / N_FRETS;
 
 function hStringY(s: number) { return H_PAD_TOP + (N_STRINGS - 1 - s) * H_STRING_GAP; }
 function hFretX(fret: number) { return H_PAD_LEFT + (fret - 0.5) * H_FRET_GAP; }
+function tabStringY(s: number) { return T_PAD_TOP + (N_STRINGS - 1 - s) * T_STRING_GAP; }
 function vStringX(s: number) { return V_PAD_LEFT + s * V_STRING_GAP; }
 function vFretY(fret: number) { return V_PAD_TOP + (fret - 0.5) * V_FRET_GAP; }
 
@@ -92,70 +100,82 @@ onUnmounted(() => { if (timer) clearTimeout(timer); });
 
     <!-- Stage -->
     <div class="td-stage">
+
       <!-- Phase 0 + 1 — horizontal fretboard / tab -->
       <div :class="['td-h-wrap', phase < 2 ? 'visible' : 'hidden']">
         <svg :key="`h-${animKey}`" :width="H_W + 20" :height="H_H + 20" :viewBox="`-10 -10 ${H_W + 20} ${H_H + 20}`">
-          <!-- TAB label -->
-          <g v-if="phase === 1" class="fade-in">
-            <text v-for="(l, i) in ['T','A','B']" :key="l"
-              x="-2" :y="H_PAD_TOP + i * (H_STRING_GAP * 1.8) + 4"
-              text-anchor="middle" font-family="'DM Mono', monospace" font-size="7"
-              fill="rgba(255,255,255,0.3)"
-            >{{ l }}</text>
+
+          <!-- ═══ PHASE 0: Fretboard ═══ -->
+          <g :style="{ opacity: phase === 0 ? 1 : 0, transition: 'opacity 0.5s ease' }">
+            <!-- Nut -->
+            <line :x1="H_PAD_LEFT" :y1="H_PAD_TOP" :x2="H_PAD_LEFT" :y2="H_H - H_PAD_BOTTOM"
+              stroke="rgba(255,255,255,0.75)" stroke-width="3" stroke-linecap="round"/>
+
+            <!-- Fret lines -->
+            <line v-for="i in N_FRETS + 1" :key="`fret-${i}`"
+              :x1="H_PAD_LEFT + (i - 1) * H_FRET_GAP" :y1="H_PAD_TOP"
+              :x2="H_PAD_LEFT + (i - 1) * H_FRET_GAP" :y2="H_H - H_PAD_BOTTOM"
+              stroke="rgba(255,255,255,0.22)" stroke-width="1"/>
+
+            <!-- String lines -->
+            <line v-for="s in N_STRINGS" :key="`str-${s}`"
+              :x1="H_PAD_LEFT" :y1="hStringY(s - 1)"
+              :x2="H_W - H_PAD_RIGHT" :y2="hStringY(s - 1)"
+              stroke="rgba(255,255,255,0.4)"
+              :stroke-width="(s - 1) < 2 ? 1.6 : (s - 1) < 4 ? 1.1 : 0.75"/>
+
+            <!-- Mute markers -->
+            <text v-for="(n, i) in mutedNotes" :key="`mute-${i}`"
+              :x="H_PAD_LEFT - 10" :y="hStringY(n.string) + 4"
+              text-anchor="middle" font-family="'DM Mono', monospace" font-size="11"
+              fill="rgba(255,255,255,0.25)"
+            >×</text>
+
+            <!-- Open string circles -->
+            <circle v-for="(n, i) in openNotes" :key="`open-c-${i}`"
+              :cx="H_PAD_LEFT - 10" :cy="hStringY(n.string)" :r="DOT_R * 0.6"
+              fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+
+            <!-- Fretted dots -->
+            <circle v-for="(n, i) in frettedNotes" :key="`dot-${i}`"
+              :cx="hFretX(n.fret as number)" :cy="hStringY(n.string)" :r="DOT_R"
+              fill="rgba(255,255,255,0.85)"/>
           </g>
 
-          <!-- Nut -->
-          <line :x1="H_PAD_LEFT" :y1="H_PAD_TOP" :x2="H_PAD_LEFT" :y2="H_H - H_PAD_BOTTOM"
-            stroke="rgba(255,255,255,0.5)" stroke-width="3" stroke-linecap="round"/>
+          <!-- ═══ PHASE 1: Tab notation ═══ -->
+          <g :style="{ opacity: phase === 1 ? 1 : 0, transition: 'opacity 0.5s ease' }">
+            <!-- TAB label, vertically centred in the staff -->
+            <text x="14" :y="H_H * 0.3 + 4" text-anchor="middle"
+              font-family="'DM Mono', monospace" font-size="11" fill="rgba(255,255,255,0.35)">T</text>
+            <text x="14" :y="H_H * 0.5 + 4" text-anchor="middle"
+              font-family="'DM Mono', monospace" font-size="11" fill="rgba(255,255,255,0.35)">A</text>
+            <text x="14" :y="H_H * 0.7 + 4" text-anchor="middle"
+              font-family="'DM Mono', monospace" font-size="11" fill="rgba(255,255,255,0.35)">B</text>
 
-          <!-- Fret lines -->
-          <line v-for="i in N_FRETS + 1" :key="`fret-${i}`"
-            :x1="H_PAD_LEFT + (i - 1) * H_FRET_GAP" :y1="H_PAD_TOP"
-            :x2="H_PAD_LEFT + (i - 1) * H_FRET_GAP" :y2="H_H - H_PAD_BOTTOM"
-            stroke="rgba(255,255,255,0.1)" stroke-width="1"
-            :style="{ opacity: phase === 1 ? 0 : 1, transition: 'opacity 0.5s ease' }"/>
+            <!-- 6 horizontal string lines spanning the full staff -->
+            <line v-for="s in N_STRINGS" :key="'tstr'+s"
+              :x1="T_LINE_X0" :y1="tabStringY(s - 1)"
+              :x2="T_LINE_X1" :y2="tabStringY(s - 1)"
+              stroke="rgba(255,255,255,0.22)" stroke-width="1"/>
 
-          <!-- String lines -->
-          <line v-for="s in N_STRINGS" :key="`str-${s}`"
-            :x1="H_PAD_LEFT" :y1="hStringY(s - 1)"
-            :x2="H_W - H_PAD_RIGHT" :y2="hStringY(s - 1)"
-            stroke="rgba(255,255,255,0.2)"
-            :stroke-width="(s - 1) < 2 ? 1.6 : (s - 1) < 4 ? 1.1 : 0.75"/>
-
-          <!-- Mute markers -->
-          <text v-for="(n, i) in mutedNotes" :key="`mute-${i}`"
-            :x="H_PAD_LEFT - 10" :y="hStringY(n.string) + 4"
-            text-anchor="middle" font-family="'DM Mono', monospace" font-size="10"
-            fill="rgba(255,255,255,0.25)"
-          >×</text>
-
-          <!-- Fretted dots -->
-          <g v-for="(n, i) in frettedNotes" :key="`dot-${i}`">
-            <circle :cx="hFretX(n.fret as number)" :cy="hStringY(n.string)" :r="DOT_R"
-              :fill="phase === 1 ? '#f59e0b' : 'rgba(255,255,255,0.85)'"
-              style="transition: fill 0.4s ease"/>
-            <text v-if="phase === 1"
-              :key="`num-${i}-${animKey}-${phase}`"
-              :x="hFretX(n.fret as number)" :y="hStringY(n.string) + 4"
-              text-anchor="middle" font-family="'DM Mono', monospace" font-size="10" font-weight="400"
-              fill="#000000" class="num-pop"
-            >{{ n.fret }}</text>
+            <!-- Chord numbers stacked at T_NUMBER_X, one per string line -->
+            <g v-for="note in AM_NOTES" :key="'tn'+note.string">
+              <!-- Clear the string line behind the number -->
+              <rect
+                :x="T_NUMBER_X - 11"
+                :y="tabStringY(note.string) - 10"
+                width="22" height="20"
+                fill="#0f0f17"/>
+              <text
+                :x="T_NUMBER_X"
+                :y="tabStringY(note.string) + 5"
+                text-anchor="middle"
+                font-family="'DM Mono', monospace" font-size="14"
+                :fill="note.fret === null ? 'rgba(255,255,255,0.35)' : '#f59e0b'"
+              >{{ note.fret === null ? 'x' : note.fret }}</text>
+            </g>
           </g>
 
-          <!-- Open string circles -->
-          <circle v-for="(n, i) in openNotes" :key="`open-c-${i}`"
-            :cx="H_PAD_LEFT - 10" :cy="hStringY(n.string)" :r="DOT_R * 0.6"
-            fill="none"
-            :stroke="phase === 1 ? '#f59e0b' : 'rgba(255,255,255,0.5)'"
-            stroke-width="1.5"
-            style="transition: stroke 0.4s ease"/>
-
-          <!-- Open string numbers in tab mode -->
-          <text v-if="phase === 1" v-for="(n, i) in openNotes" :key="`open-num-${i}`"
-            :x="H_PAD_LEFT - 10" :y="hStringY(n.string) + 4"
-            text-anchor="middle" font-family="'DM Mono', monospace" font-size="10"
-            fill="#f59e0b" class="num-pop"
-          >0</text>
         </svg>
       </div>
 
@@ -184,21 +204,21 @@ onUnmounted(() => { if (timer) clearTimeout(timer); });
 
             <!-- String labels -->
             <text v-for="(l, s) in ['E','A','D','G','B','e']" :key="`vlabel-${s}`"
-              :x="vStringX(s)" :y="V_PAD_TOP - 8"
-              text-anchor="middle" font-family="'DM Mono', monospace" font-size="7"
+              :x="vStringX(s)" :y="V_PAD_TOP - 10"
+              text-anchor="middle" font-family="'DM Mono', monospace" font-size="8"
               fill="rgba(255,255,255,0.25)"
             >{{ l }}</text>
 
             <!-- Mute markers -->
             <text v-for="(n, i) in mutedNotes" :key="`vmute-${i}`"
-              :x="vStringX(n.string)" :y="V_PAD_TOP - 14"
-              text-anchor="middle" font-family="'DM Mono', monospace" font-size="9"
+              :x="vStringX(n.string)" :y="V_PAD_TOP - 18"
+              text-anchor="middle" font-family="'DM Mono', monospace" font-size="10"
               fill="rgba(255,255,255,0.3)"
             >×</text>
 
             <!-- Open circles -->
             <circle v-for="(n, i) in openNotes" :key="`vopen-${i}`"
-              :cx="vStringX(n.string)" :cy="V_PAD_TOP - 14" r="4"
+              :cx="vStringX(n.string)" :cy="V_PAD_TOP - 18" r="5"
               fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/>
 
             <!-- Fretted dots -->
@@ -215,7 +235,7 @@ onUnmounted(() => { if (timer) clearTimeout(timer); });
 
     <!-- Explanation -->
     <div class="td-explanation">
-      <template v-if="phase === 0">A guitar neck — 6 strings, frets running left to right. Dots show where to place your fingers.</template>
+      <template v-if="phase === 0">You're looking down at the guitar in your lap: the horizontal lines are strings, the vertical lines are frets. Each dot is a finger.</template>
       <template v-else-if="phase === 1">Tab reads the same neck from above. Each line is a string, each number is a fret. Simple.</template>
       <template v-else>Rotate 90° and you have a chord diagram — strings now run top to bottom, frets left to right. Same chord, different view.</template>
     </div>
@@ -228,7 +248,7 @@ onUnmounted(() => { if (timer) clearTimeout(timer); });
 .td-label { font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: #ffffff; }
 .td-replay { background: none; border: 1px solid rgba(255,255,255,0.15); color: #ffffff; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 0.75rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; }
 .td-replay:hover { border-color: rgba(255,255,255,0.25); color: rgba(255,255,255,0.85); }
-.td-stage { width: 100%; display: flex; align-items: center; justify-content: center; min-height: 130px; position: relative; }
+.td-stage { width: 100%; display: flex; align-items: center; justify-content: center; min-height: 200px; position: relative; }
 .td-h-wrap { position: absolute; display: flex; align-items: center; justify-content: center; transition: opacity 0.6s ease, transform 0.8s cubic-bezier(0.65,0,0.35,1); }
 .td-h-wrap.hidden { opacity: 0; pointer-events: none; transform: rotate(-90deg) scale(0.7); }
 .td-h-wrap.visible { opacity: 1; transform: rotate(0deg) scale(1); }

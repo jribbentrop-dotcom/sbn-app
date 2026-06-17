@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
@@ -23,6 +23,14 @@ const props = defineProps<{
 </script>
 
 <template>
+    <Head>
+        <title>Soul Bossa Nova — Guitar Lessons for Bossa Nova &amp; Latin Jazz</title>
+        <meta name="description" content="Learn Bossa Nova guitar with interactive leadsheets, chord library, rhythm patterns and video courses. For beginners and advanced players." />
+        <meta property="og:title" content="Soul Bossa Nova — Guitar Lessons for Bossa Nova & Latin Jazz" />
+        <meta property="og:description" content="Interactive Bossa Nova guitar platform with leadsheets, theory widgets, chord library and courses." />
+        <meta property="og:type" content="website" />
+    </Head>
+
     <div class="home-page">
 
         <!-- ── Hero ──────────────────────────────────────── -->

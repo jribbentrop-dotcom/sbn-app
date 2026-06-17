@@ -33,23 +33,20 @@
       </div>
     </div>
 
-    <!-- Count / Loop / Click toggles -->
+    <!-- Rate + Loop toggles -->
     <div class="stage-deck-toggles">
       <button
+        v-for="r in rateSteps" :key="r"
         class="stage-d-toggle"
-        :class="{ 'stage-d-toggle--on': countOn }"
-        @click="$emit('toggle-count')"
-      >Count</button>
+        :class="{ 'stage-d-toggle--on': playbackRate === r }"
+        @click="$emit('set-rate', r)"
+      >{{ r === 1 ? '1×' : r + '×' }}</button>
+      <div class="stage-deck-toggle-divider"></div>
       <button
         class="stage-d-toggle"
         :class="{ 'stage-d-toggle--on': loopOn }"
         @click="$emit('toggle-loop')"
       >Loop</button>
-      <button
-        class="stage-d-toggle"
-        :class="{ 'stage-d-toggle--on': clickOn }"
-        @click="$emit('toggle-click')"
-      >Click</button>
     </div>
   </section>
 </template>
@@ -64,12 +61,12 @@ const props = defineProps({
   totalBars:  { type: Number, default: 1 },
   beatsPerMeasure: { type: Number, default: 4 },
   sections:   { type: Array, default: () => [] },
-  countOn:    { type: Boolean, default: false },
-  loopOn:     { type: Boolean, default: false },
-  clickOn:    { type: Boolean, default: false },
+  loopOn:        { type: Boolean, default: false },
+  playbackRate:  { type: Number,  default: 1 },
+  rateSteps:     { type: Array,   default: () => [0.5, 0.75, 1, 1.25] },
 });
 
-const emit = defineEmits(['toggle', 'prev', 'next', 'seek-bar', 'toggle-count', 'toggle-loop', 'toggle-click']);
+const emit = defineEmits(['toggle', 'prev', 'next', 'seek-bar', 'toggle-loop', 'set-rate']);
 
 const fillPct = computed(() => {
   const total = props.totalBars || 1;
@@ -87,9 +84,9 @@ function onTrackClick(e) {
 
 <style scoped>
 .stage-deck {
-  background: var(--stage-bg-2);
-  border: 1px solid var(--stage-line);
-  border-radius: 12px;
+  background: var(--clr-surface-2);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius);
   padding: 14px 18px;
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -108,9 +105,9 @@ function onTrackClick(e) {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  border: 1px solid var(--stage-line-2);
-  background: var(--stage-bg-3);
-  color: var(--stage-text);
+  border: 1px solid var(--clr-border);
+  background: var(--clr-surface-3);
+  color: var(--clr-text);
   cursor: pointer;
   display: grid;
   place-items: center;
@@ -119,23 +116,23 @@ function onTrackClick(e) {
 }
 
 .stage-t-btn:hover {
-  background: var(--stage-bg-1);
+  background: var(--clr-white);
 }
 
 .stage-t-btn--primary {
   width: 48px;
   height: 48px;
-  background: var(--stage-accent);
-  border-color: var(--stage-accent);
-  color: var(--stage-primary-ink);
+  background: var(--stage-gradient);
+  border-color: transparent;
+  color: var(--clr-white);
   font-size: 15px;
   font-weight: 700;
-  box-shadow: 0 0 0 4px rgba(var(--stage-accent-rgb), 0.15);
+  box-shadow: 0 0 0 4px rgba(var(--stage-accent-rgb), 0.12);
 }
 
 .stage-t-btn--primary:hover {
-  background: var(--stage-accent-2);
-  box-shadow: 0 0 0 6px rgba(var(--stage-accent-rgb), 0.18);
+  background: var(--stage-gradient-hover);
+  box-shadow: 0 0 0 6px rgba(var(--stage-accent-rgb), 0.15);
 }
 
 .stage-deck-timeline {
@@ -146,22 +143,22 @@ function onTrackClick(e) {
 }
 
 .stage-deck-pos {
-  font-family: var(--stage-font-mono);
+  font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--stage-text-dim);
+  color: var(--clr-text-dim);
   min-width: 70px;
   white-space: nowrap;
 }
 
 .stage-deck-pos strong {
-  color: var(--stage-text);
+  color: var(--clr-text);
   font-weight: 600;
 }
 
 .stage-deck-track {
   flex: 1;
   height: 6px;
-  background: var(--stage-bg-3);
+  background: var(--clr-surface-3);
   border-radius: 3px;
   position: relative;
   cursor: pointer;
@@ -175,7 +172,7 @@ function onTrackClick(e) {
 
 .stage-deck-track-section {
   flex: 1;
-  border-right: 1px solid var(--stage-bg);
+  border-right: 1px solid var(--clr-bg);
   opacity: 0.6;
 }
 
@@ -184,19 +181,19 @@ function onTrackClick(e) {
 }
 
 .stage-deck-track-section[data-sec="0"] {
-  background: linear-gradient(90deg, rgba(var(--stage-accent-rgb), 0.12), transparent);
+  background: linear-gradient(90deg, rgba(var(--stage-accent-rgb), 0.18), transparent);
 }
 
 .stage-deck-track-section[data-sec="1"] {
-  background: linear-gradient(90deg, rgba(var(--stage-accent-rgb), 0.06), transparent);
+  background: linear-gradient(90deg, rgba(var(--stage-accent-rgb), 0.09), transparent);
 }
 
 .stage-deck-track-section[data-sec="2"] {
-  background: linear-gradient(90deg, rgba(107, 70, 246, 0.12), transparent);
+  background: linear-gradient(90deg, rgba(139, 92, 246, 0.15), transparent);
 }
 
 .stage-deck-track-section[data-sec="3"] {
-  background: linear-gradient(90deg, rgba(74, 222, 128, 0.12), transparent);
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.15), transparent);
 }
 
 .stage-deck-track-fill {
@@ -204,9 +201,9 @@ function onTrackClick(e) {
   left: 0;
   top: 0;
   bottom: 0;
-  background: var(--stage-accent);
+  background: var(--stage-gradient);
   border-radius: 3px;
-  box-shadow: 0 0 8px rgba(var(--stage-accent-rgb), 0.4);
+  box-shadow: 0 0 6px rgba(var(--stage-accent-rgb), 0.25);
   transition: width 0.15s linear;
 }
 
@@ -217,11 +214,11 @@ function onTrackClick(e) {
 
 .stage-d-toggle {
   padding: 6px 11px;
-  border-radius: 6px;
-  border: 1px solid var(--stage-line-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--clr-border);
   background: transparent;
-  color: var(--stage-text-dim);
-  font-family: var(--stage-font-mono);
+  color: var(--clr-text-dim);
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 1px;
@@ -231,13 +228,21 @@ function onTrackClick(e) {
 }
 
 .stage-d-toggle:hover {
-  color: var(--stage-text);
+  color: var(--clr-text);
 }
 
 .stage-d-toggle--on {
-  background: rgba(var(--stage-accent-rgb), 0.15);
-  color: var(--stage-accent-2);
-  border-color: rgba(var(--stage-accent-rgb), 0.4);
+  background: rgba(var(--stage-accent-rgb), 0.1);
+  color: var(--stage-accent);
+  border-color: rgba(var(--stage-accent-rgb), 0.35);
+}
+
+.stage-deck-toggle-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--clr-border);
+  align-self: center;
+  margin: 0 2px;
 }
 
 @media (max-width: 960px) {
