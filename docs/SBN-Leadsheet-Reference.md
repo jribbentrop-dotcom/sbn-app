@@ -251,19 +251,35 @@ Props: `currentChord`, `currentSectionId`, `selectionKey`, `song`, `progressions
 - Chord-quality blurb from `eduChordQualities[qualitySlug]` (keyed by `quality` field on the card).
 - Progressions: shows all song progressions. Each list entry emits `progression-hover` (id, or `null` on leave) so `LeadsheetViewer` can intensify the matching bars in the grid; the entry hovered (`hoveredProgressionId`) gets an `is-active` marker.
 
-### 6.6 Detected-progression grid highlight
+### 6.6 Detected-progression chord-level highlight
 
-Each `ProgressionRef` carries a `ranges` array — one entry per occurrence — built by `LeadsheetViewerService::fetchProgressions()` from `sbn_progression_occurrences`. Each range is `{ sectionId, startMeasure, length }` where `startMeasure` is **section-relative**.
+Each `ProgressionRef` carries a `ranges` array — one entry per occurrence — built by `LeadsheetViewerService::fetchProgressions()` from `sbn_progression_occurrences`. Each range is:
 
-`LeadsheetViewer` builds `progressionHighlights` — `Map<globalIndex, progressionId[]>` — and `provide()`s `progressionHighlights` + `hoveredProgressionId`.
+```ts
+{
+  sectionId:     string,
+  startMeasure:  number,   // section-relative, 0-based
+  length:        number,   // in measures
+  startChord:    number,   // ci within startMeasure where progression begins
+  endChord:      number,   // ci within endMeasure where progression ends (inclusive)
+  endChordStart: number,   // first ci in endMeasure belonging to this progression
+}
+```
 
-`ChordMeasure` injects both (with `null` defaults):
-- `.in-progression` — rotating conic-gradient border ring (blue, `--clr-primary` `#3b82f6`). Implemented as `::before` on `.sbn-ve-measure-content` using `padding + mask-composite: exclude` to show only the border zone. `@property --prog-angle` animates the sweep at 4s/orbit.
-- `.in-progression--active` — brighter sweep (2.5s orbit), faint blue tint fill via `::after`.
+`LeadsheetViewer` builds `progressionHighlights` — `Map<gi, { chords: Set<ci>, byId: Map<progId, Set<ci>> }>` — and `provide()`s it alongside `hoveredProgressionId`.
+
+- `chords`: merged set of all chord indices in any progression for this measure (used for passive `.in-progression` highlight).
+- `byId`: per-progression chord sets (used for `.in-progression--active` hover highlight — prevents cross-contamination when two progressions share a measure).
+
+`ChordMeasure` injects both and calls `isChordInProgression(ci)` / `isChordInHoveredProgression(ci)` to pass `:in-progression` / `:in-hovered-progression` props to each `ChordCard`.
+
+**CSS** (in `public/css/sbn-design-system.css`, scoped under `.sbn-leadsheet-viewer`):
+- `.sbn-ve-chord.in-progression` — faint blue background (`rgba(59,130,246,0.08)`)
+- `.sbn-ve-chord.in-progression--active` — intensified blue (`rgba(59,130,246,0.18)`) on hover
+
+**Do not add `position: relative` to `.in-progression`** — `.sbn-ve-grid .sbn-ve-chord` is `position: absolute` for beat-offset placement; overriding it with `relative` shifts chord cards out of the grid layout.
 
 **Classic viewer accent override:** `.sbn-leadsheet-viewer` overrides `--clr-accent` / `--clr-accent-bg` / `--clr-accent-border` / `--clr-accent-dim` to blue (`#3b82f6`) so all accent-colored UI on the viewer page (toggle buttons, EduPanel borders, chord focus ring, hover frame) is blue rather than the global orange.
-
-CSS lives in `public/css/sbn-design-system.css`, scoped under `.sbn-leadsheet-viewer`.
 
 ### 6.7 Transport placement
 

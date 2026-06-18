@@ -249,10 +249,50 @@ Palette search — returns `{ slug, label, meta, snippets[] }`. Used by the less
 
 ---
 
-## 8. Cross-references
+## 8. Detection Engine (`ProgressionDetector`)
+
+**File:** `app/Services/ProgressionDetector.php`
+
+Detects which progressions occur in a leadsheet and writes to `sbn_progression_occurrences`. Run via the admin panel or `php artisan sbn:detect-progressions`.
+
+### `sbn_progression_occurrences` schema
+
+| Column | Notes |
+|---|---|
+| `progression_id` | FK → `sbn_chord_progressions.id` |
+| `leadsheet_id` | FK → `sbn_leadsheets.id` |
+| `section_id` | Section letter e.g. `"A"` |
+| `start_measure` | **Section-relative** measure index (0-based) |
+| `length_measures` | Span in measures |
+| `start_chord` | Chord index within `start_measure` (0-based) where the progression starts |
+| `end_chord` | Chord index within `end_measure` where the progression ends (inclusive) |
+| `end_chord_start` | First chord index in `end_measure` that belongs to this progression (may be < `end_chord` when multiple progression chords share the end measure) |
+| `detected_root` | Detected tonic note |
+| `confidence` | Match confidence 0–1 |
+
+### Key detection logic
+
+- Chords are deduplicated into **slots** (consecutive identical numerals collapsed into one).
+- `slotMap[i]` = first occurrence of slot `i` in the chord stream; `slotEndMap[i]` = last occurrence.
+- Match boundaries: `storeStart = slotEndMap[firstPatternSlot]` (last repeat of the first chord), `storeEnd = slotMap[lastPatternSlot]` (first occurrence of the last chord). This ensures only the resolving instance is highlighted, not any run-up repetitions.
+- `slotToMeasure()` / `slotToChordIndex()` convert slot index → (measure, ci) for precise chord-level storage.
+- `end_chord_start` is computed by walking backwards from `storeEnd` while still in `endMeasure` — captures the first ci in that measure belonging to the progression.
+
+### `flexTonic` rule
+
+When a pattern slot is marked as a tonic (`flexTonic=true`), the detector allows `major` ↔ `minor` quality matching (e.g. Im vs I). **Dominant (`dom`) is explicitly excluded** — I7 must only match I7, not a plain I or Im, so "Tonic Dominant" (I7→IV) is not triggered by a plain I→IV.
+
+### Parser alignment
+
+`LeadsheetParser` preserves **empty bars** (e.g. pickup bars) so its measure indices match the `json_data` array that the frontend builds from the stored shortcode. Previously `array_filter` dropped whitespace-only segments, causing all occurrence indices to be off by one for songs with pickup bars. The fix: strip only the leading/trailing empty segment (artifact of leading/trailing `|` on a measure line), keep inner empty segments as `['chords' => []]`.
+
+---
+
+## 9. Cross-references
 
 - Songs featuring a progression: `sbn_progression_occurrences.progression_id` → `sbn_leadsheets`
 - Progressions in a song: `sbn_progression_occurrences.leadsheet_id` → `sbn_chord_progressions`
+- Chord-level highlight in the viewer: see `SBN-Leadsheet-Reference.md §6.6`
 - Progression tile building: see `SBN-Builder-Reference.md`
 - `<sbn-progression>` lesson tag: see `SBN-Course-Reference.md §3`
 - Video snippets on progressions: same shape as rhythm snippets — see `SBN-Rhythm-Reference.md §12`
