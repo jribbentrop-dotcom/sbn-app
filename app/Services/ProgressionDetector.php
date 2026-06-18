@@ -651,8 +651,10 @@ class ProgressionDetector
         // Different families → no match (unless tonic flex)
         if ($sqFamily !== $pqFamily) {
             if ($flexTonic) {
-                $tonicFamilies = ['major', 'minor', 'dom'];
-                if (in_array($sqFamily, $tonicFamilies, true) && in_array($pqFamily, $tonicFamilies, true)) {
+                // Only flex major ↔ minor (parallel key tonic). Dominant (I7) is a
+                // distinct harmonic function and must not match a plain I or Im.
+                $flexFamilies = ['major', 'minor'];
+                if (in_array($sqFamily, $flexFamilies, true) && in_array($pqFamily, $flexFamilies, true)) {
                     return 0.8;
                 }
             }
@@ -771,8 +773,8 @@ class ProgressionDetector
                 $confidence = $scoreSum / $plen;
 
                 if ($confidence >= $minConfidence) {
-                    $origStart  = $slotMap[$start];
-                    $origEnd    = $slotEndMap[$start + $plen - 1];
+                    $origStart  = $slotEndMap[$start];           // last repeat of first pattern chord
+                    $origEnd    = $slotMap[$start + $plen - 1];  // first occurrence of last pattern chord
                     $origLength = $origEnd - $origStart + 1;
 
                     $matches[] = [
@@ -888,6 +890,22 @@ class ProgressionDetector
             $cursor += $count;
         }
         return max(0, count($section['measures']) - 1);
+    }
+
+    /**
+     * Convert a chord-slot index to the chord index within its measure.
+     */
+    private function slotToChordIndex(array $section, int $slotIdx): int
+    {
+        $cursor = 0;
+        foreach ($section['measures'] as $measure) {
+            $count = count($measure['chords']);
+            if ($slotIdx < $cursor + $count) {
+                return $slotIdx - $cursor;
+            }
+            $cursor += $count;
+        }
+        return 0;
     }
 
     // =========================================================================
@@ -1070,6 +1088,16 @@ class ProgressionDetector
                     $startMeasure   = $this->slotToMeasure($section, $storeStart);
                     $endMeasure     = $this->slotToMeasure($section, $storeEnd);
                     $lengthMeasures = max(1, $endMeasure - $startMeasure + 1);
+                    $startChord     = $this->slotToChordIndex($section, $storeStart);
+                    $endChord       = $this->slotToChordIndex($section, $storeEnd);
+                    // First chord index in the end measure that belongs to this progression.
+                    // Walk the match slots backwards from storeEnd to find the first slot
+                    // still in the end measure — that slot's ci is where highlighting starts.
+                    $endChordStart  = $endChord;
+                    for ($s = $storeEnd - 1; $s >= $storeStart; $s--) {
+                        if ($this->slotToMeasure($section, $s) !== $endMeasure) break;
+                        $endChordStart = $this->slotToChordIndex($section, $s);
+                    }
 
                     DB::table('sbn_progression_occurrences')->insert([
                         'progression_id'  => $m['progression_id'],
@@ -1079,6 +1107,9 @@ class ProgressionDetector
                         'section_id'      => $section['id'],
                         'start_measure'   => $startMeasure,
                         'length_measures' => $lengthMeasures,
+                        'start_chord'     => $startChord,
+                        'end_chord'       => $endChord,
+                        'end_chord_start' => $endChordStart,
                         'detected_root'   => $detectedRoot,
                         'confidence'      => $m['confidence'],
                     ]);

@@ -2034,74 +2034,17 @@
 }
 
 /* ── Detected-progression highlight (leadsheet viewer only) ──────────────────
-   Rotating conic-gradient border on every bar in a detected progression.
-   Uses ::before on .sbn-ve-measure-content: 2px padding + background-clip trick
-   so only the border ring shows; no background fill on the measure itself.
-   --prog-angle is a registered custom property so transition/animation is smooth.
+   Chord cards that belong to a detected progression get a faint blue background.
+   Hovered progression intensifies the tint. No border animation.
    ──────────────────────────────────────────────────────────────────────── */
 
-@property --prog-angle {
-    syntax: '<angle>';
-    inherits: false;
-    initial-value: 0deg;
+.sbn-leadsheet-viewer .sbn-ve-chord.in-progression {
+    background: rgba(59, 130, 246, 0.08);
 }
 
-@keyframes prog-spin {
-    to { --prog-angle: 360deg; }
-}
-
-/* Border ring via ::before — static base + rotating sweep in one element */
-.sbn-leadsheet-viewer .sbn-ve-measure.in-progression .sbn-ve-measure-content::before {
-    content: '';
-    position: absolute;
-    inset: 0 0 18px 0;
-    border-radius: 3px;
-    padding: 1.5px;
-    background:
-        conic-gradient(
-            from var(--prog-angle),
-            rgba(59, 130, 246, 0.18) 0%,
-            rgba(59, 130, 246, 0.18) 55%,
-            rgba(59, 130, 246, 0.6) 70%,
-            rgba(147, 197, 253, 0.85) 78%,
-            rgba(59, 130, 246, 0.6) 86%,
-            rgba(59, 130, 246, 0.18) 100%
-        );
-    -webkit-mask:
-        linear-gradient(#fff 0 0) content-box,
-        linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask:
-        linear-gradient(#fff 0 0) content-box,
-        linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-    pointer-events: none;
-    z-index: 1;
-    animation: prog-spin 4s linear infinite;
-}
-
-/* Active: brighter sweep, slightly faster */
-.sbn-leadsheet-viewer .sbn-ve-measure.in-progression--active .sbn-ve-measure-content::before {
-    background:
-        conic-gradient(
-            from var(--prog-angle),
-            rgba(59, 130, 246, 0.35) 0%,
-            rgba(59, 130, 246, 0.35) 48%,
-            rgba(59, 130, 246, 0.75) 65%,
-            rgba(147, 197, 253, 1.0) 76%,
-            rgba(59, 130, 246, 0.75) 85%,
-            rgba(59, 130, 246, 0.35) 100%
-        );
-    animation-duration: 2.5s;
-}
-
-.sbn-leadsheet-viewer .sbn-ve-measure.in-progression--active {
+.sbn-leadsheet-viewer .sbn-ve-chord.in-progression--active {
+    background: rgba(59, 130, 246, 0.18);
     z-index: 2;
-}
-
-.sbn-leadsheet-viewer .sbn-ve-measure.in-progression--active .sbn-ve-measure-content::after {
-    background: rgba(59, 130, 246, 0.06);
-    border-radius: 3px;
 }
 
 /* Playback: measure z-index only (chord card gets the visual effect) */

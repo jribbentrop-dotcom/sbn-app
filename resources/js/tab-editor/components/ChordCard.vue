@@ -1,7 +1,7 @@
 <template>
   <div
     class="sbn-ve-chord"
-    :class="[densityClass, { 'is-selected': selected, 'is-active': isPlayingCard, 'is-being-dragged': isBeingDragged }]"
+    :class="[densityClass, { 'is-selected': selected, 'is-active': isPlayingCard, 'is-being-dragged': isBeingDragged, 'in-progression': inProgression, 'in-progression--active': inHoveredProgression }]"
     @click.stop="onBodyClick"
     @contextmenu.prevent="onContextMenu"
   >
@@ -96,6 +96,14 @@ const props = defineProps({
     default: false,
   },
   readOnly: {
+    type: Boolean,
+    default: false,
+  },
+  inProgression: {
+    type: Boolean,
+    default: false,
+  },
+  inHoveredProgression: {
     type: Boolean,
     default: false,
   },

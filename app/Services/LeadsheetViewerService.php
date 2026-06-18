@@ -63,6 +63,9 @@ class LeadsheetViewerService
                 'o.section_id as occ_section_id',
                 'o.start_measure as occ_start_measure',
                 'o.length_measures as occ_length_measures',
+                'o.start_chord as occ_start_chord',
+                'o.end_chord as occ_end_chord',
+                'o.end_chord_start as occ_end_chord_start',
             )
             ->orderBy('sbn_chord_progressions.name')
             ->get();
@@ -84,6 +87,9 @@ class LeadsheetViewerService
                 'sectionId'    => $p->occ_section_id,
                 'startMeasure' => (int) $p->occ_start_measure,
                 'length'       => max(1, (int) $p->occ_length_measures),
+                'startChord'    => (int) $p->occ_start_chord,
+                'endChord'      => (int) $p->occ_end_chord,
+                'endChordStart' => (int) $p->occ_end_chord_start,
             ];
         }
 

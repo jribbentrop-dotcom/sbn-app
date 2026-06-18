@@ -154,10 +154,18 @@ class LeadsheetParser
                     ];
                 }
 
-                $measures = array_filter(
-                    explode('|', $trimmed),
-                    fn($m) => trim($m) !== ''
-                );
+                // Split on bar lines. Keep all segments including whitespace-only
+                // ones (empty bars / pickup bars) so measure indices stay aligned
+                // with the JS model built from json_data.
+                $rawSegments = explode('|', $trimmed);
+                // Drop only the first and last if they're empty (artifact of leading/trailing |)
+                if (count($rawSegments) >= 2 && trim($rawSegments[0]) === '') {
+                    array_shift($rawSegments);
+                }
+                if (count($rawSegments) >= 1 && trim($rawSegments[count($rawSegments) - 1]) === '') {
+                    array_pop($rawSegments);
+                }
+                $measures = $rawSegments;
 
                 foreach ($measures as $measureStr) {
                     $chordNames = array_values(array_filter(preg_split('/\s+/', trim($measureStr))));
@@ -174,6 +182,10 @@ class LeadsheetParser
                         }
 
                         $currentSection['measures'][] = ['chords' => $chords];
+                    } else {
+                        // Preserve empty bars (e.g. pickup bars) so measure indices
+                        // stay aligned with the JS model built from json_data.
+                        $currentSection['measures'][] = ['chords' => []];
                     }
                 }
             }

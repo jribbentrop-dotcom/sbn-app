@@ -71,6 +71,8 @@
         :chord-duration="measure.chordBeats?.[chordIndex]"
         :is-being-dragged="drag?.ci === chordIndex || resize?.ci === chordIndex"
         :read-only="readOnly"
+        :in-progression="isChordInProgression(chordIndex)"
+        :in-hovered-progression="isChordInHoveredProgression(chordIndex)"
         :style="(drag?.ci === chordIndex || resize?.ci === chordIndex) ? { opacity: '0.35', ...chordPositionStyle(chordIndex) } : chordPositionStyle(chordIndex)"
         @contextmenu="onCardContextMenu"
         @chord-drag-start="onChordDragStart(chordIndex, $event)"
@@ -248,20 +250,22 @@ const pickupBadgeLabel = computed(() =>
 );
 
 // ── Detected-progression highlight ────────────────────────────────────────────
-// Progression ids whose detected range covers this bar (empty in the editor).
-const progressionIds = computed(() =>
-  progressionHighlights?.value?.get(globalIdx.value) ?? []
+// Entry for this bar: { chords: Set<ci>, byId: Map<progId, Set<ci>> } or null.
+const progressionEntry = computed(() =>
+  progressionHighlights?.value?.get(globalIdx.value) ?? null
 );
 
-// Persistent subtle band when this bar belongs to any detected progression.
-const inProgression = computed(() => progressionIds.value.length > 0);
+// Returns true if a specific chord slot (ci) is in any detected progression.
+function isChordInProgression(ci) {
+  return progressionEntry.value?.chords.has(ci) ?? false;
+}
 
-// Intensified highlight: this bar is covered by the progression the user is
-// hovering in the EduPanel list. One progression at a time.
-const inHoveredProgression = computed(() => {
+// Returns true if a specific chord slot (ci) belongs to the currently-hovered progression.
+function isChordInHoveredProgression(ci) {
   const hid = hoveredProgressionId?.value;
-  return hid != null && progressionIds.value.includes(hid);
-});
+  if (hid == null) return false;
+  return progressionEntry.value?.byId.get(hid)?.has(ci) ?? false;
+}
 
 const measureClasses = computed(() => ({
   'has-volta':      !!volta.value,
@@ -272,8 +276,6 @@ const measureClasses = computed(() => ({
   'is-tap-target':  tapCursor?.value === globalIdx.value,  // D2: pulse when this measure is tap cursor
   'is-compact':     props.density === 'compact',
   'is-full':        props.density === 'full',
-  'in-progression':         inProgression.value,
-  'in-progression--active': inHoveredProgression.value,
 }));
 
 // ── Ghost overlay computeds ───────────────────────────────────────────────────

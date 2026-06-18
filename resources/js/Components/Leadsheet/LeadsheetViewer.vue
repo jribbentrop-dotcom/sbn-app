@@ -568,11 +568,13 @@ const hoveredProgressionId = ref(null);
 // Map: globalIndex → array of progression ids whose detected range covers that
 // bar. `start_measure` is section-relative; we resolve it to the grid's global
 // measure index by matching the occurrence's sectionId against model.sections.
+// Map: gi → { chords: Set<ci>, byId: Map<progId, Set<ci>> }
+// chords = merged set of all ci in any progression (for passive highlight).
+// byId   = per-progression ci sets (for hover highlight — avoids cross-contamination).
 const progressionHighlights = computed(() => {
   const map = new Map();
   if (!model.value) return map;
 
-  // Build sectionId → its measures (in order) once.
   const sectionsById = new Map();
   for (const sec of model.value.sections || []) {
     if (sec.id != null) sectionsById.set(String(sec.id), sec.measures || []);
@@ -582,13 +584,31 @@ const progressionHighlights = computed(() => {
     for (const range of prog.ranges || []) {
       const measures = sectionsById.get(String(range.sectionId));
       if (!measures) continue;
-      const start = range.startMeasure ?? 0;
-      const end = start + (range.length ?? 1);
-      for (let mi = start; mi < end && mi < measures.length; mi++) {
+      const startMeasure  = range.startMeasure ?? 0;
+      const endMeasure    = startMeasure + (range.length ?? 1) - 1;
+      const startChord    = range.startChord    ?? 0;
+      const endChord      = range.endChord      ?? 999;
+      const endChordStart = range.endChordStart ?? 0;
+
+      for (let mi = startMeasure; mi <= endMeasure && mi < measures.length; mi++) {
         const gi = measures[mi].index;
         if (gi == null) continue;
-        if (!map.has(gi)) map.set(gi, []);
-        map.get(gi).push(prog.id);
+
+        if (!map.has(gi)) map.set(gi, { chords: new Set(), byId: new Map() });
+        const entry = map.get(gi);
+
+        if (!entry.byId.has(prog.id)) entry.byId.set(prog.id, new Set());
+        const progChords = entry.byId.get(prog.id);
+
+        const totalChords = measures[mi].chordNames?.length ?? measures[mi].chords?.length ?? 0;
+        const ciStart = (mi === startMeasure) ? startChord
+                      : (mi === endMeasure)   ? endChordStart
+                      : 0;
+        const ciEnd   = (mi === endMeasure) ? Math.min(endChord, totalChords - 1) : totalChords - 1;
+        for (let ci = ciStart; ci <= ciEnd; ci++) {
+          entry.chords.add(ci);
+          progChords.add(ci);
+        }
       }
     }
   }
