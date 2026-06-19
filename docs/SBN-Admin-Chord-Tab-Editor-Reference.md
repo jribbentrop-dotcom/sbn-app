@@ -251,7 +251,8 @@ undo.wrapCommand('Insert bar', [], () => { tabModel.insertMeasureAfter(si, mi); 
 - `togglePickup(gi)` — flips `m.pickup`; clears `pickupBeats` when unmarking
 - `setPickupBeats(gi, beats)` — sets exact quarter-beat count; marks `pickup:true`. Pass `null` to unmark. UI: right-click → beat-count row (1…N buttons matching time sig + ✕ clear)
 - `pickup` / `pickupBeats` flow: `buildModel()` reads from section data → `patchChordNames()` re-syncs on chord change → `exportAlpineSections()` serializes back to Alpine
-- MusicXML import: `parseMeasure()` detects `implicit="yes"` on `<measure>` → sets `pickup:true`, `pickupBeats` from actual note-cursor ticks; chord `beats` capped to pickup length. **Gotcha:** `const isImplicit` must be declared *before* the `chords.length > 0` block that uses it — `const` has no hoisting (TDZ). Declaring it after caused a ReferenceError on every MusicXML import.
+- MusicXML import (Alpine editor): `parseMeasure()` detects `implicit="yes"` on `<measure>` → sets `pickup:true`, `pickupBeats` from actual note-cursor ticks; chord `beats` capped to pickup length. **Gotcha:** `const isImplicit` must be declared *before* the `chords.length > 0` block that uses it — `const` has no hoisting (TDZ). Declaring it after caused a ReferenceError on every MusicXML import.
+- MusicXML server-side (`TabXmlParser.php`): detects pickup by comparing measure 1's total note-tick sum against `$tpm`; if less and > 0, sets `pickup: true`, `pickupBeats` (quarter-beat float), and `actualTicks`. Does NOT require `implicit="yes"` — works purely from tick arithmetic (2026-06-19).
 - `useReflow.repositionMeasure()` uses `pickupBeats*480` as capacity, right-aligns xPos: `xPos = (tpm-capacityTicks)/tpm + tickInMeasure/tpm`
 - Audio adapters (`tabMeasureToEvents`, `chordVoicingsToEvents`): build `positionBeatStart[]` accumulating `m.pickupBeats ?? beatsPerMeasure` per position — no silence gap
 - Playback: `playPositionBeatTable` (TabEditor) accumulates per-position beat starts; `measureBeatStartMap` (provided) lets TabMeasure/ChordMeasure compute true beat-within-measure; metronome cursor starts at `pickupXOffset = (globalBpm - pickupBeats) / globalBpm` so it aligns with the right-aligned note
@@ -420,6 +421,8 @@ Both chord and tab views support multi-bar selection for clipboard and structura
 
 **Single-bar / note-level operations are unchanged** when only one measure is selected.
 
+**Tie preservation on copy/paste:** `cloneEvent()` in `useSelection.js` preserves `tieStart`/`tieStop` boolean flags. Runtime cross-references (`tieEndEvent`, `tieStartEvent`, etc.) are stripped and rebuilt by `relinkTiesGlobally()`, which is called after every `wrapCommand()` mutation (not only undo/redo). This means ties render correctly immediately after paste.
+
 ### Applying voicings from tab view
 `useVoicingPickerStore.applyVoicing()` has two paths:
 - **`keyMatch` path** (picker opened from chord grid): sets chord name globally + applies tab frets with `skipIfTabExists: true` — will NOT overwrite an existing tab bar that already has notes
@@ -453,11 +456,12 @@ Both chord and tab views support multi-bar selection for clipboard and structura
 | Home / End | First/last event in measure |
 | 0–9 | Enter fret number (two-digit with 600ms timeout) |
 | Delete / Backspace | Remove note on cursor string (single bar); structural delete of selected bars (multi-bar) |
-| Ctrl+↑ / Ctrl+↓ | Shift note to adjacent string, transposing fret (±5; ±4 across the B↔G boundary). No-op at string 1/6 boundary or if new fret would be out of 0–24 range. |
+| Ctrl+↑ / Ctrl+↓ | Shift note(s) to adjacent string, transposing fret (±5; ±4 across B↔G). Works on cursor note **and** on multi-note/multi-bar selections — all selected events shift together. No-op at boundary or if any fret would go out of 0–24. |
 | Ctrl+1–6 | Set duration (whole→32nd) |
 | + / = / - | Shorter / longer duration |
 | . | Toggle dotted |
-| T | Toggle tie |
+| T | Toggle tie on cursor note; when a **multi-note selection** is active, ties **all** selected notes simultaneously. |
+| Ctrl+S | Quick save (same as the Save button; works anywhere in the editor) |
 | A | Insert rest after cursor event |
 | Shift+←/→ | Extend note selection (within measure) |
 | Shift+↑/↓ | Select all events at the current beat (same `tickInMeasure`) — column-select across strings |
@@ -847,9 +851,16 @@ Key services: `SongLookup.php`, `AnalysisToLeadsheet.php`, `RhythmHintMapper.php
 
 ### Audio transcription (L3a) — experimental
 
-Produces a leadsheet from a YouTube URL. Embedded in the song lookup modal. Functional but imperfect. Full pipeline, known problems, and improvement roadmap in [Audio-Transcription-Architecture.md](Audio-Transcription-Architecture.md).
+Produces a leadsheet from audio. Embedded in the song lookup modal. Functional but imperfect. Full pipeline, known problems, and improvement roadmap in [Audio-Transcription-Architecture.md](Audio-Transcription-Architecture.md).
 
-Six-stage summary: yt-dlp download → ffmpeg WAV → Python (`basic-pitch` + `librosa`) beat/pitch analysis → PHP melody reconstruction (range filter, beat-boundary clamping, no-dots grid) → optional Gemini pass → assembly.
+**Input sources (switchable via tab in the modal):**
+- **YouTube search** — pick a video from search results
+- **YouTube URL** — paste any YouTube URL directly; regex extracts the 11-char video ID
+- **Local file** — upload an MP3/WAV/M4A/OGG/FLAC (max 100 MB); title defaults to filename; no `youtube_id` is stored
+
+Six-stage summary: yt-dlp download (or local file) → ffmpeg WAV → Python (`basic-pitch` + `librosa`) beat/pitch analysis → PHP melody reconstruction (range filter, beat-boundary clamping, no-dots grid) → optional Gemini pass → assembly.
+
+No duration cap — the 90-second `librosa.load()` limit was removed 2026-06-19.
 
 ### Storage contract
 
