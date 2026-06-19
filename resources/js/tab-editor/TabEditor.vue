@@ -218,7 +218,7 @@
                             <div class="sbn-tab-shortcut-group-title">Note Entry</div>
                             <div class="sbn-tab-shortcut-row"><kbd>0 – 9</kbd><span>Enter fret number</span></div>
                             <div class="sbn-tab-shortcut-row"><kbd>Del / ⌫</kbd><span>Remove note on string</span></div>
-                            <div class="sbn-tab-shortcut-row"><kbd>Ctrl+↑ ↓</kbd><span>Shift note to adjacent string (transposes fret)</span></div>
+                            <div class="sbn-tab-shortcut-row"><kbd>Ctrl+↑ ↓</kbd><span>Shift note / selection to adjacent string (transposes fret)</span></div>
                             <div class="sbn-tab-shortcut-row"><kbd>A</kbd><span>Append rest at end</span></div>
                             <div class="sbn-tab-shortcut-row"><kbd>→ (at end)</kbd><span>Fill measure with rest</span></div>
                         </div>
@@ -1741,13 +1741,59 @@ function onKeydown(e) {
     // 0. ArrowRight: fill with rests when at end of incomplete measure (Phase 7d)
     if (e.key === 'ArrowRight' && !e.shiftKey && handleArrowRight(e)) return;
 
-    // Ctrl+Up / Ctrl+Down: shift note to adjacent string (transposes fret accordingly).
+    // Ctrl+Up / Ctrl+Down: shift note(s) to adjacent string (transposes fret accordingly).
     // Up → lower str# (higher pitch, toward high e); Down → higher str# (toward low E).
+    // Works on single cursor note OR the entire multi-note / multi-bar selection.
     if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey
         && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault();
-        const targetStr = shiftNoteToString(e.key === 'ArrowUp' ? -1 : 1);
-        if (targetStr) moveTo(cursor.value.measureIndex, cursor.value.eventIndex, targetStr);
+        const direction = e.key === 'ArrowUp' ? -1 : 1;
+
+        if (hasNoteSelection.value && selectedEvents.value.size > 0) {
+            // ── Multi-note selection: shift every selected note on each event ──
+            // intervalBetween mirrors the helper in useNoteInput (not exported).
+            const intervalBetween = (a, b) => {
+                const lo = Math.min(a, b), hi = Math.max(a, b);
+                return (lo === 2 && hi === 3) ? 4 : 5; // B↔G = maj3, all others = P4
+            };
+            const MIN_FRET = 0, MAX_FRET = 24;
+
+            // Collect affected measure indices for undo snapshot.
+            const affectedIndices = getSelectedMeasureIndices();
+            if (affectedIndices.length === 0) return;
+
+            wrapCommand('shift-string-selection', affectedIndices, () => {
+                const frozenIds = selectedEvents.value;
+                for (const measure of allMeasures.value) {
+                    for (const ev of measure.events) {
+                        if (!frozenIds.has(ev.id) || ev.isRest) continue;
+                        // Shift every note in this event that has a valid target string.
+                        // We process in order so notes moving toward each other don't collide.
+                        const notes = ev.notes.slice().sort((a, b) =>
+                            direction === -1 ? a.string - b.string : b.string - a.string
+                        );
+                        for (const n of notes) {
+                            const targetStr = n.string + direction;
+                            if (targetStr < 1 || targetStr > 6) continue;
+                            const newFret = n.fret + direction * intervalBetween(n.string, targetStr);
+                            if (newFret < MIN_FRET || newFret > MAX_FRET) continue;
+                            // Remove any existing note on the target string.
+                            const colIdx = ev.notes.findIndex(x => x.string === targetStr);
+                            if (colIdx !== -1) ev.notes.splice(colIdx, 1);
+                            const srcIdx = ev.notes.findIndex(x => x.string === n.string);
+                            if (srcIdx === -1) continue;
+                            ev.notes[srcIdx].string = targetStr;
+                            ev.notes[srcIdx].fret   = newFret;
+                        }
+                        ev.notes.sort((a, b) => a.string - b.string);
+                    }
+                }
+            });
+        } else {
+            // ── Single cursor note ──
+            const targetStr = shiftNoteToString(direction);
+            if (targetStr) moveTo(cursor.value.measureIndex, cursor.value.eventIndex, targetStr);
+        }
         return;
     }
 
@@ -1760,6 +1806,27 @@ function onKeydown(e) {
     }
 
     // 2. Duration / tie shortcuts (Phase 7d)
+    // T key with a multi-note selection: tie all selected events.
+    if ((e.key === 't' || e.key === 'T') && !e.altKey && !e.ctrlKey && !e.metaKey
+        && cursor.value.mode === 'navigate'
+        && hasNoteSelection.value && selectedEvents.value.size > 0) {
+        e.preventDefault();
+        const affectedIndices = getSelectedMeasureIndices();
+        if (affectedIndices.length > 0) {
+            wrapCommand('tie-selection', affectedIndices, () => {
+                const frozenIds = selectedEvents.value;
+                for (const measure of allMeasures.value) {
+                    for (const ev of measure.events) {
+                        if (!frozenIds.has(ev.id) || ev.isRest) continue;
+                        for (const note of ev.notes) {
+                            toggleTie(ev, note.string);
+                        }
+                    }
+                }
+            });
+        }
+        return;
+    }
     if (cmdHandleDurationKey(e, currentEvent.value, cursor.value.mode, cursor.value.stringIndex)) return;
 
     // 3. "A" key: insert new event at end of measure (Phase 7d)

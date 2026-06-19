@@ -281,12 +281,14 @@ function tabMeasureRows(section: any) {
       if (idx >= measures.length) break;
       const row: any = measures.slice(idx, idx + count);
       row._intendedCount = count;
+      stampPickupFlexPcts(row);
       rows.push(row);
       idx += count;
     }
     if (idx < measures.length) {
       const row: any = measures.slice(idx);
       row._intendedCount = row.length;
+      stampPickupFlexPcts(row);
       rows.push(row);
     }
     return rows;
@@ -298,9 +300,24 @@ function tabMeasureRows(section: any) {
   for (let i = 0; i < measures.length; i += bpr) {
     const row: any = measures.slice(i, i + bpr);
     row._intendedCount = bpr;
+    stampPickupFlexPcts(row);
     rows.push(row);
   }
   return rows;
+}
+
+function stampPickupFlexPcts(row: any) {
+  const first = row[0];
+  if (!first || first.pickupBeats == null) {
+    row._pickupPct  = null;
+    row._regularPct = null;
+    return;
+  }
+  const N = row._intendedCount || row.length;
+  const globalBpm = beatsPerMeasure.value || 4;
+  const ratio = Math.min(1, Math.max(0.05, first.pickupBeats / globalBpm));
+  row._pickupPct  = (100 / N) * ratio * 2;
+  row._regularPct = N > 1 ? (100 - row._pickupPct) / (N - 1) : 100;
 }
 
 function getNextTabMeasure(index: number) {
@@ -382,6 +399,7 @@ provide('inlineRenameTarget', ref(null));
               :is-next-first-of-section="isNextTabMeasureFirstOfSection(measure.index)"
               :chord-names="measure.chordNames || []"
               :bars-per-row="Math.max(row._intendedCount, 4)"
+              :flex-pct="row._pickupPct != null ? (li === 0 ? row._pickupPct : row._regularPct) : null"
               :read-only="true"
               :allow-chord-click="true"
               :cursor="null"

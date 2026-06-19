@@ -123,6 +123,25 @@ class MidiTranscriptionService
         return $outputPath;
     }
 
+    /**
+     * Transcribe a locally-uploaded audio file (mp3/wav/m4a/ogg).
+     * Converts to WAV via ffmpeg then runs the same Python pipeline as transcribe().
+     */
+    public function transcribeLocalFile(string $uploadedPath, array $detectionParams = []): array
+    {
+        $wavPath = $this->convertToWav($uploadedPath);
+
+        try {
+            $result = $this->runPythonTranscription($wavPath, $detectionParams);
+        } finally {
+            if (file_exists($wavPath) && $wavPath !== $uploadedPath) {
+                unlink($wavPath);
+            }
+        }
+
+        return $result;
+    }
+
     protected function runPythonTranscription(string $audioPath, array $detectionParams = []): array
     {
         // Use forward slashes even on Windows for Python/Librosa stability

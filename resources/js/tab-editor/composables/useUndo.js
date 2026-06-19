@@ -203,6 +203,11 @@ export function useUndo(model) {
         // Run the mutation
         fn();
 
+        // Re-link tie references across all measures after any mutation —
+        // the render depends on tieEndEvent/tieStartEvent object refs, which
+        // are nulled in snapshots and must be rebuilt whenever events change.
+        relinkTiesGlobally(model.value);
+
         // After snapshots
         const after = measures.map(snapshotMeasure);
 

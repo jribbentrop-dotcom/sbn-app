@@ -6,7 +6,7 @@
             <button class="sbn-modal-close" @click="close" :disabled="loading">×</button>
         </div>
 
-        <form method="POST" action="{{ route('admin.leadsheets.create-from-lookup') }}">
+        <form method="POST" action="{{ route('admin.leadsheets.create-from-lookup') }}" enctype="multipart/form-data">
             @csrf
 
             <div class="sbn-modal-body">
@@ -72,10 +72,10 @@
                             </div>
                         </label>
                         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                            <input type="radio" name="mode_display" value="audio" x-model="modeDisplay" :disabled="loading" @change="mode = 'audio'">
+                            <input type="radio" name="mode_display" value="audio" x-model="modeDisplay" :disabled="loading" @change="mode = 'audio'; audioSource = 'youtube'">
                             <div>
                                 <div style="font-weight: 600;">Audio Transcription</div>
-                                <div style="font-size: 11px; color: #6b7280;">High-precision via YouTube.</div>
+                                <div style="font-size: 11px; color: #6b7280;">High-precision via YouTube or local file.</div>
                             </div>
                         </label>
                     </div>
@@ -90,18 +90,54 @@
                 </div>
 
                 <div x-show="mode === 'audio'" style="margin-top: 15px; border-top: 1px solid #e5e7eb; padding-top: 15px;">
-                    <div class="sbn-form-group">
-                        <label>YouTube Search</label>
-                        <div style="display: flex; gap: 10px;">
-                            <input type="text" class="sbn-input" placeholder="Search YouTube for a song..." x-model="youtubeQuery" @keydown.enter.prevent="searchYoutube" :disabled="loading">
-                            <button type="button" class="sbn-btn sbn-btn-secondary" @click="searchYoutube" :disabled="loading || youtubeSearching">
-                                <span x-show="!youtubeSearching">Search</span>
-                                <span x-show="youtubeSearching">...</span>
-                            </button>
+
+                    <!-- Audio source tabs -->
+                    <div style="display: flex; gap: 0; margin-bottom: 16px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+                        <button type="button"
+                            @click="audioSource = 'youtube'"
+                            :style="audioSource === 'youtube' ? 'background:#3b82f6;color:#fff;' : 'background:#f9fafb;color:#374151;'"
+                            style="flex:1; padding: 7px 12px; font-size: 12px; font-weight: 600; border: none; cursor: pointer; transition: background 0.15s;"
+                            :disabled="loading">YouTube</button>
+                        <button type="button"
+                            @click="audioSource = 'local'"
+                            :style="audioSource === 'local' ? 'background:#3b82f6;color:#fff;' : 'background:#f9fafb;color:#374151;'"
+                            style="flex:1; padding: 7px 12px; font-size: 12px; font-weight: 600; border: none; border-left: 1px solid #e5e7eb; cursor: pointer; transition: background 0.15s;"
+                            :disabled="loading">Local File</button>
+                    </div>
+
+                    <!-- Local file picker -->
+                    <div x-show="audioSource === 'local'" class="sbn-form-group">
+                        <label>Audio File <span style="font-size:11px; color:#6b7280;">(mp3, wav, m4a, ogg, flac — max 100 MB)</span></label>
+                        <input type="file" name="local_audio" accept=".mp3,.wav,.m4a,.ogg,.flac"
+                            @change="handleLocalFile($event)" :disabled="loading"
+                            style="margin-top: 6px; font-size: 13px;">
+                        <div x-show="localFileName" style="margin-top: 6px; font-size: 12px; color: #16a34a;">
+                            ✓ <span x-text="localFileName"></span>
                         </div>
                     </div>
 
-                    <div x-show="youtubeError" style="color: #ef4444; font-size: 12px; margin-top: 8px;" x-text="youtubeError"></div>
+                    <div x-show="audioSource === 'youtube'">
+                        <div class="sbn-form-group">
+                            <label>YouTube Search</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" class="sbn-input" placeholder="Search YouTube for a song..." x-model="youtubeQuery" @keydown.enter.prevent="searchYoutube" :disabled="loading">
+                                <button type="button" class="sbn-btn sbn-btn-secondary" @click="searchYoutube" :disabled="loading || youtubeSearching">
+                                    <span x-show="!youtubeSearching">Search</span>
+                                    <span x-show="youtubeSearching">...</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="sbn-form-group" style="margin-top: 10px;">
+                            <label style="font-size: 12px; color: #6b7280;">or paste a YouTube URL directly</label>
+                            <input type="text" class="sbn-input" placeholder="https://www.youtube.com/watch?v=..." x-model="youtubeUrlInput" @input="handleYoutubeUrl()" :disabled="loading" style="margin-top: 4px;">
+                            <div x-show="youtubeUrlError" style="color: #ef4444; font-size: 12px; margin-top: 4px;" x-text="youtubeUrlError"></div>
+                            <div x-show="youtubeUrlInput && selectedVideoId && !youtubeUrlError" style="color: #16a34a; font-size: 12px; margin-top: 4px;">
+                                ✓ Video ID <span x-text="selectedVideoId" style="font-family: monospace;"></span> ready to transcribe.
+                            </div>
+                        </div>
+
+                        <div x-show="youtubeError" style="color: #ef4444; font-size: 12px; margin-top: 8px;" x-text="youtubeError"></div>
 
                     <!-- YouTube Results -->
                     <div x-show="youtubeResults.length > 0" style="margin-top: 15px; max-height: 250px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
@@ -120,8 +156,9 @@
                         </template>
                     </div>
 
-                    <input type="hidden" name="youtube_id" :value="selectedVideoId">
-                    <input type="hidden" name="youtube_title" :value="selectedVideoTitle">
+                        <input type="hidden" name="youtube_id" :value="selectedVideoId">
+                        <input type="hidden" name="youtube_title" :value="selectedVideoTitle">
+                    </div><!-- /audioSource youtube -->
 
                     <div class="sbn-form-group" style="margin-top: 15px;">
                         <label class="sbn-checkbox">
@@ -323,6 +360,10 @@
                 }
             },
 
+            // Audio source: 'youtube' | 'local'
+            audioSource: 'youtube',
+            localFileName: '',
+
             // YouTube Search State
             youtubeQuery: '',
             youtubeSearching: false,
@@ -330,6 +371,8 @@
             selectedVideoId: '',
             selectedVideoTitle: '',
             youtubeError: '',
+            youtubeUrlInput: '',
+            youtubeUrlError: '',
 
             init() {
                 if (window.location.hash === '#lookup') {
@@ -353,11 +396,15 @@
                 this.restrictGuitarRange = false;
                 this.applyDetectionPreset();
 
+                this.audioSource = 'youtube';
+                this.localFileName = '';
                 this.youtubeQuery = '';
                 this.youtubeResults = [];
                 this.selectedVideoId = '';
                 this.selectedVideoTitle = '';
                 this.youtubeError = '';
+                this.youtubeUrlInput = '';
+                this.youtubeUrlError = '';
                 
                 document.getElementById('lookup-modal').classList.add('sbn-modal-open');
                 setTimeout(() => {
@@ -374,17 +421,31 @@
             get canSubmit() {
                 if (this.loading) return false;
                 if (this.mode === 'audio') {
+                    if (this.audioSource === 'local') return this.localFileName !== '';
                     return this.selectedVideoId !== '';
                 }
                 return this.title.trim().length > 0;
             },
 
+            handleLocalFile(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    this.localFileName = file.name;
+                } else {
+                    this.localFileName = '';
+                }
+            },
+
             startLoading() {
                 if (!this.canSubmit) return;
-                
-                // If audio mode, auto-fill title from YouTube if empty
+
+                // If audio mode, auto-fill title from YouTube or filename if empty
                 if (this.mode === 'audio' && this.title.trim() === '') {
-                    this.title = this.selectedVideoTitle;
+                    if (this.audioSource === 'local' && this.localFileName) {
+                        this.title = this.localFileName.replace(/\.[^.]+$/, '');
+                    } else {
+                        this.title = this.selectedVideoTitle;
+                    }
                 }
                 
                 setTimeout(() => {
@@ -425,6 +486,31 @@
             selectVideo(video) {
                 this.selectedVideoId = video.videoId;
                 this.selectedVideoTitle = video.title;
+            },
+
+            extractYoutubeId(url) {
+                const m = url.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/v\/)([A-Za-z0-9_-]{11})/);
+                return m ? m[1] : null;
+            },
+
+            handleYoutubeUrl() {
+                const id = this.extractYoutubeId(this.youtubeUrlInput.trim());
+                if (!this.youtubeUrlInput.trim()) {
+                    this.youtubeUrlError = '';
+                    return;
+                }
+                if (id) {
+                    this.selectedVideoId = id;
+                    this.selectedVideoTitle = this.youtubeUrlInput.trim();
+                    this.youtubeResults = [];
+                    this.youtubeUrlError = '';
+                } else {
+                    this.youtubeUrlError = 'Could not extract a video ID — paste a full YouTube URL.';
+                    if (this.selectedVideoId && !this.youtubeQuery) {
+                        this.selectedVideoId = '';
+                        this.selectedVideoTitle = '';
+                    }
+                }
             }
         };
     };

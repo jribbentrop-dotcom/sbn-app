@@ -27,8 +27,8 @@ def transcribe(audio_path, params=None):
         if maximum_frequency is not None:
             maximum_frequency = float(maximum_frequency)
         
-        # 1. Load Audio (Limit to first 90 seconds)
-        y, sr = librosa.load(audio_path, sr=22050, duration=90)
+        # 1. Load Audio (full duration)
+        y, sr = librosa.load(audio_path, sr=22050)
         
         # Save a temporary clipped version for basic-pitch to read
         # this ensures it only processes the 90s we want.

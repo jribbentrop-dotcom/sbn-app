@@ -1497,6 +1497,14 @@ function leadsheetEditor() {
             window._sbnLeadsheetId   = this.itemId;
             window._sbnLeadsheetType = this.itemType; // 'leadsheets' | 'exercises'
 
+            // Ctrl+S / Cmd+S: quick save from anywhere on the page
+            document.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 's' && !e.altKey) {
+                    e.preventDefault();
+                    if (!this.saving) this.save();
+                }
+            });
+
             document.addEventListener('desc-editor:save:leadsheet', (e) => {
                 this.description = e.detail;
                 this.markDirty();

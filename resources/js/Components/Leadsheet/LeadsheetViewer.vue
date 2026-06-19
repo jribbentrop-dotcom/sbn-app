@@ -72,6 +72,7 @@
                     :is-next-first-of-section="isNextTabMeasureFirstOfSection(measure.index)"
                     :chord-names="measure.chordNames || []"
                     :bars-per-row="row._intendedCount"
+                    :flex-pct="row._pickupPct != null ? (li === 0 ? row._pickupPct : row._regularPct) : null"
                     :read-only="true"
                     :allow-chord-click="true"
                     :cursor="null"
@@ -718,12 +719,14 @@ function tabMeasureRows(section) {
       if (idx >= measures.length) break;
       const row = measures.slice(idx, idx + count);
       row._intendedCount = count;
+      _stampPickupFlexPcts(row);
       rows.push(row);
       idx += count;
     }
     if (idx < measures.length) {
       const row = measures.slice(idx);
       row._intendedCount = row.length;
+      _stampPickupFlexPcts(row);
       rows.push(row);
     }
     return rows;
@@ -735,9 +738,24 @@ function tabMeasureRows(section) {
   for (let i = 0; i < measures.length; i += barsPerRow) {
     const row = measures.slice(i, i + barsPerRow);
     row._intendedCount = barsPerRow;
+    _stampPickupFlexPcts(row);
     rows.push(row);
   }
   return rows;
+}
+
+function _stampPickupFlexPcts(row) {
+  const first = row[0];
+  if (!first || first.pickupBeats == null) {
+    row._pickupPct  = null;
+    row._regularPct = null;
+    return;
+  }
+  const N = row._intendedCount || row.length;
+  const globalBpm = beatsPerMeasure.value || 4;
+  const ratio = Math.min(1, Math.max(0.05, first.pickupBeats / globalBpm));
+  row._pickupPct  = (100 / N) * ratio * 2;
+  row._regularPct = N > 1 ? (100 - row._pickupPct) / (N - 1) : 100;
 }
 
 /** Get the next measure in the tab sequence (for cross-measure ties). */

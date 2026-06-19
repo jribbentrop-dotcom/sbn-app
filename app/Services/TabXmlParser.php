@@ -68,13 +68,31 @@ class TabXmlParser
                 $isRest   = isset($noteNode->rest);
                 $voice    = (int) ($noteNode->voice ?? 1);
 
+                // Read <tie type="start/stop"> elements
+                $tieStart = false;
+                $tieStop  = false;
+                foreach ($noteNode->tie as $tieNode) {
+                    $ttype = (string) ($tieNode['type'] ?? '');
+                    if ($ttype === 'start') $tieStart = true;
+                    if ($ttype === 'stop')  $tieStop  = true;
+                }
+
                 $noteData = null;
                 if (! $isRest && isset($noteNode->notations->technical)) {
                     $tech   = $noteNode->notations->technical;
                     $str    = isset($tech->string)  ? (int) $tech->string  : null;
                     $fret   = isset($tech->fret)    ? (int) $tech->fret    : null;
                     if ($str !== null && $fret !== null) {
-                        $noteData = ['string' => $str, 'fret' => $fret, 'tieStart' => false, 'tieEndEvent' => null];
+                        $noteData = ['string' => $str, 'fret' => $fret, 'tieStart' => $tieStart, 'tieStop' => $tieStop, 'tieEndEvent' => null, 'tieEndNote' => null];
+                    }
+                }
+
+                // Read MusicXML beam element for this note
+                $beam1 = null;
+                foreach ($noteNode->beam as $beamNode) {
+                    if ((int) ($beamNode['number'] ?? 1) === 1) {
+                        $beam1 = (string) $beamNode;
+                        break;
                     }
                 }
 
@@ -101,6 +119,7 @@ class TabXmlParser
                         'stemDir'       => $voice === 2 ? 'up' : 'down',
                         'flagCount'     => $this->flagCount($durTicks),
                         'notes'         => $noteData ? [$noteData] : [],
+                        'measureIdx'    => $measureIdx,
                         'beamWith'      => null,
                         'beamStart'     => false,
                         'beamContinue'  => false,
@@ -108,6 +127,7 @@ class TabXmlParser
                         'noBeamBar'     => false,
                         'tupletActual'  => null,
                         'tupletBracket' => false,
+                        '_beam1'        => $beam1,
                     ];
 
                     $currentTick += $durTicks;
@@ -118,6 +138,16 @@ class TabXmlParser
                 $events[] = $this->finalizeEvent($pendingNotes, $tpm, $globalTick);
             }
 
+            // Derive event-level tie flags
+            foreach ($events as &$ev) {
+                $ev['tieStart'] = !$ev['isRest'] && collect($ev['notes'])->contains('tieStart', true);
+                $ev['tieStop']  = !$ev['isRest'] && collect($ev['notes'])->contains('tieStop',  true);
+            }
+            unset($ev);
+
+            // Build beamWith groups from _beam1 markers
+            $events = $this->linkBeamGroups($events);
+
             // Barline repeat markers
             foreach ($mNode->barline as $bl) {
                 $loc = (string) ($bl['location'] ?? '');
@@ -126,6 +156,18 @@ class TabXmlParser
                 if ($rpt === 'backward') $repeatEnd   = true;
             }
 
+            // Compute actual ticks used in this measure (sum of non-chord note durations)
+            $actualTicks = 0;
+            foreach ($mNode->note as $noteNode) {
+                if (!isset($noteNode->chord)) {
+                    $actualTicks += $this->durationTicks($noteNode, $tpm);
+                }
+            }
+
+            // Pickup bar: measure 1 with fewer ticks than a full measure
+            $isPickup    = ($measureIdx === 0 && $actualTicks < $tpm && $actualTicks > 0);
+            $pickupBeats = $isPickup ? ($actualTicks / ($tpm / ($this->beatsFromTimeSig($timeSig)))) : null;
+
             $measures[] = [
                 'index'       => $measureIdx,
                 'chordNames'  => $chordNames[$measureIdx] ?? [],
@@ -133,13 +175,18 @@ class TabXmlParser
                 'repeatStart' => $repeatStart,
                 'repeatEnd'   => $repeatEnd,
                 'volta'       => null,
-                'pickupBeats' => null,
-                'actualTicks' => null,
+                'pickup'      => $isPickup,
+                'pickupBeats' => $pickupBeats,
+                'actualTicks' => $actualTicks,
             ];
 
             $globalTick += $tpm;
             $measureIdx++;
         }
+
+        // Link tie pairs across all measures: per voice, match tieStart note to
+        // the next event on the same string with tieStop.
+        $this->linkTies($measures);
 
         return [
             'timeSig'  => $timeSig,
@@ -153,6 +200,12 @@ class TabXmlParser
     {
         [$beats, $beatType] = array_map('intval', explode('/', $timeSig) + [4, 4]);
         return (int) (480 * $beats * (4 / max(1, $beatType)));
+    }
+
+    private function beatsFromTimeSig(string $timeSig): int
+    {
+        [$beats] = array_map('intval', explode('/', $timeSig) + [4, 4]);
+        return max(1, $beats);
     }
 
     private function durationTicks(\SimpleXMLElement $noteNode, int $tpm): int
@@ -181,6 +234,121 @@ class TabXmlParser
             640  => 960, 320 => 240, 160 => 160, 80  => 80,
             default => $ticks,
         };
+    }
+
+    private function linkBeamGroups(array $events): array
+    {
+        $group = [];
+
+        $flush = function () use (&$group, &$events) {
+            if (count($group) >= 2) {
+                // Build the beamWith array (same structure as useTabModel.js)
+                $refs = array_map(fn($e) => [
+                    'id'           => $e['id'],
+                    'xPos'         => $e['xPos'],
+                    'stemDir'      => $e['stemDir'],
+                    'voice'        => $e['voice'],
+                    'ticks'        => $e['ticks'],
+                    'isRest'       => $e['isRest'],
+                    'measureIdx'   => $e['measureIdx'],
+                    'noBeamBar'    => false,
+                    'tupletActual' => null,
+                ], $group);
+
+                foreach ($group as $ev) {
+                    foreach ($events as &$e) {
+                        if ($e['id'] === $ev['id']) {
+                            $e['beamWith'] = $refs;
+                            break;
+                        }
+                    }
+                    unset($e);
+                }
+            }
+            $group = [];
+        };
+
+        foreach ($events as &$ev) {
+            $beam1 = $ev['_beam1'] ?? null;
+            unset($ev['_beam1']);
+
+            if ($beam1 === 'begin') {
+                $flush();
+                $group = [&$ev];
+            } elseif (($beam1 === 'continue' || $beam1 === 'end') && count($group)) {
+                $group[] = &$ev;
+                if ($beam1 === 'end') {
+                    $flush();
+                }
+            } else {
+                $flush();
+            }
+        }
+        unset($ev);
+        $flush();
+
+        return $events;
+    }
+
+    /**
+     * Cross-measure tie linking.
+     * Collects all events across all measures into per-voice lists (sorted by tick),
+     * then for each note with tieStart finds the next event on the same string
+     * with tieStop and writes tieEndEvent/tieEndNote back into the measure arrays.
+     */
+    private function linkTies(array &$measures): void
+    {
+        // Build flat per-voice event list with measure references
+        $byVoice = [];
+        foreach ($measures as $mIdx => &$measure) {
+            foreach ($measure['events'] as $eIdx => &$ev) {
+                if ($ev['isRest']) continue;
+                $v = $ev['voice'] ?? 1;
+                if (!isset($byVoice[$v])) $byVoice[$v] = [];
+                $byVoice[$v][] = [
+                    'mIdx' => $mIdx,
+                    'eIdx' => $eIdx,
+                    'ev'   => &$ev,
+                ];
+            }
+        }
+        unset($measure, $ev);
+
+        foreach ($byVoice as &$voiceList) {
+            usort($voiceList, fn($a, $b) => $a['ev']['tick'] - $b['ev']['tick']);
+            $count = count($voiceList);
+
+            for ($i = 0; $i < $count; $i++) {
+                $entry = &$voiceList[$i];
+                $ev    = &$entry['ev'];
+
+                foreach ($ev['notes'] as &$note) {
+                    if (!($note['tieStart'] ?? false)) continue;
+
+                    // Find next event on same string with tieStop
+                    for ($j = $i + 1; $j < $count; $j++) {
+                        $tEntry = &$voiceList[$j];
+                        $tEv    = &$tEntry['ev'];
+
+                        foreach ($tEv['notes'] as &$tNote) {
+                            if (($tNote['tieStop'] ?? false) && $tNote['string'] === $note['string']) {
+                                $note['tieEndEvent'] = [
+                                    'xPos'       => $tEv['xPos'],
+                                    'measureIdx' => $tEv['measureIdx'],
+                                ];
+                                $note['tieEndNote'] = ['string' => $tNote['string']];
+                                break 2;
+                            }
+                        }
+                        unset($tNote);
+                    }
+                    unset($tEntry, $tEv);
+                }
+                unset($note);
+            }
+            unset($entry, $ev);
+        }
+        unset($voiceList);
     }
 
     private function finalizeEvent(array $ev, int $tpm, int $globalTick): array

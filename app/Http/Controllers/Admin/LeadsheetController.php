@@ -555,6 +555,7 @@ class LeadsheetController extends Controller
             'rhythm_override' => 'nullable|string|max:50',
             'mode'          => 'nullable|string|in:quick,assistant,audio',
             'youtube_id'    => 'nullable|string',
+            'local_audio'   => 'nullable|file|mimes:mp3,wav,m4a,ogg,flac|max:102400',
             'ai_cleanup'    => 'nullable|boolean',
             'bass_snap'     => 'nullable|boolean',
             'tab_position_style' => 'nullable|string|in:fretted,open',
@@ -567,16 +568,39 @@ class LeadsheetController extends Controller
         ]);
 
         if (($validated['mode'] ?? '') === 'audio') {
-            if (empty($validated['youtube_id'])) {
-                return back()->withErrors(['lookup' => 'You must select a YouTube video for audio transcription.']);
+            $hasYoutube = !empty($validated['youtube_id']);
+            $hasLocal   = $request->hasFile('local_audio');
+
+            if (!$hasYoutube && !$hasLocal) {
+                return back()->withErrors(['lookup' => 'You must select a YouTube video or upload a local audio file for transcription.']);
             }
-            
+
             // Resolve basic-pitch detection knobs from the modal's preset
             // (balanced / sensitive / strict) plus any custom overrides.
             $detectionParams = $this->resolveDetectionParams($validated);
 
             try {
-                $rawResult = $transcriber->transcribe($validated['youtube_id'], $detectionParams);
+                if ($hasLocal) {
+                    $uploadedFile = $request->file('local_audio');
+                    $tempDir  = storage_path('app/temp_audio');
+                    if (!is_dir($tempDir)) mkdir($tempDir, 0777, true);
+                    $tempPath = $tempDir . '/' . uniqid('local_', true) . '.' . $uploadedFile->getClientOriginalExtension();
+                    $uploadedFile->move($tempDir, basename($tempPath));
+
+                    try {
+                        $rawResult = $transcriber->transcribeLocalFile($tempPath, $detectionParams);
+                    } finally {
+                        if (file_exists($tempPath)) unlink($tempPath);
+                    }
+
+                    $audioTitle  = pathinfo($uploadedFile->getClientOriginalName(), PATHINFO_FILENAME);
+                    $youtubeId   = null;
+                } else {
+                    $rawResult  = $transcriber->transcribe($validated['youtube_id'], $detectionParams);
+                    $audioTitle = $request->input('youtube_title') ?: 'Audio Transcription';
+                    $youtubeId  = $validated['youtube_id'];
+                }
+
                 if (!($rawResult['success'] ?? false)) {
                     throw new \Exception($rawResult['error'] ?? "Unknown transcription error.");
                 }
@@ -592,9 +616,9 @@ class LeadsheetController extends Controller
             $aiCleanup = !empty($validated['ai_cleanup']);
 
             $analysis = $this->assembleTranscription($rawResult, [
-                'title'       => $request->input('youtube_title') ?: 'Audio Transcription',
+                'title'       => $audioTitle,
                 'key'         => $validated['preferred_key'] ?: 'C',
-                'youtube_id'  => $validated['youtube_id'],
+                'youtube_id'  => $youtubeId ?? '',
                 // Bass-snap beat correction — on by default; the user can
                 // re-shift from the editor if it misfires on a given tune.
                 'bass_snap'   => !array_key_exists('bass_snap', $validated) || !empty($validated['bass_snap']),
