@@ -102,6 +102,14 @@ class VoicingCrossref
     /** Standard tuning: 0-based index → open semitone. Index 0 = low E. */
     private const TUNING = [4, 9, 2, 7, 11, 4];
 
+    /** Drop-D tuning: same as standard but index 0 (low string) = D (2). */
+    private const TUNING_DROP_D = [2, 9, 2, 7, 11, 4];
+
+    private static function tuningArray(string $tuning = 'standard'): array
+    {
+        return $tuning === 'drop-d' ? self::TUNING_DROP_D : self::TUNING;
+    }
+
     /** Note → semitone. */
     private const NOTE_SEMI = [
         'C'=>0,'C#'=>1,'Db'=>1,'D'=>2,'D#'=>3,'Eb'=>3,'E'=>4,
@@ -454,7 +462,7 @@ class VoicingCrossref
 
             // Fragment match (bass note relocated to open string)
             $fragResult = $this->isRootRelocatedFragmentMatch(
-                $targetFretArray, $calcFretArray, $voicing['root'], $baseQuality
+                $targetFretArray, $calcFretArray, $voicing['root'], $baseQuality, $tuning
             );
             if ($fragResult !== false) {
                 $penalized = $fragResult + 200;
@@ -489,7 +497,7 @@ class VoicingCrossref
                 }
 
                 $fragResult = $this->isRootRelocatedFragmentMatch(
-                    $targetFretArray, $calcFretArray, $voicing['root'], $baseQuality
+                    $targetFretArray, $calcFretArray, $voicing['root'], $baseQuality, $tuning
                 );
                 if ($fragResult !== false) {
                     $penalized = $fragResult + 250;
@@ -611,7 +619,7 @@ class VoicingCrossref
                             // Fragment: target has dom root added as open/fretted bass
                             // below the dim shape — strip it and check the remainder.
                             $frag = $this->isRootRelocatedFragmentMatch(
-                                $target, $calcFretArray, $voicing['root'], $baseQuality
+                                $target, $calcFretArray, $voicing['root'], $baseQuality, $tuning
                             );
                             if ($frag !== false) {
                                 $penalized = $frag + 200;
@@ -733,7 +741,7 @@ class VoicingCrossref
      * Fragment: bass note relocated to a different open string.
      * Strips the bass, verifies it's a chord tone, runs subset on remainder.
      */
-    private function isRootRelocatedFragmentMatch(array $leadFrets, array $libFrets, string $rootNote, string $baseQuality): int|false
+    private function isRootRelocatedFragmentMatch(array $leadFrets, array $libFrets, string $rootNote, string $baseQuality, string $tuning = 'standard'): int|false
     {
         if (count($leadFrets) !== 6 || count($libFrets) !== 6) return false;
 
@@ -754,7 +762,8 @@ class VoicingCrossref
         if ($libFrets[$bassIdx] !== 'x' && intval($leadFrets[$bassIdx]) === intval($libFrets[$bassIdx])) return false;
 
         // Verify bass is a chord tone
-        $bassPitch = (self::TUNING[$bassIdx] + intval($leadFrets[$bassIdx])) % 12;
+        $t = self::tuningArray($tuning);
+        $bassPitch = ($t[$bassIdx] + intval($leadFrets[$bassIdx])) % 12;
         if (!in_array($bassPitch, $validPitches, true)) return false;
 
         // Strip bass and check remaining fragment
@@ -1200,7 +1209,7 @@ class VoicingCrossref
             );
             $addedNotes = $this->classifyExtraNotes(
                 $targetFretArray, $match['calculated_frets'],
-                $voicing['root'], $qualityParts['base'], $match['match_type']
+                $voicing['root'], $qualityParts['base'], $match['match_type'], $tuning
             );
         }
 
@@ -1272,7 +1281,7 @@ class VoicingCrossref
     /**
      * Classify extra notes between leadsheet and matched library shape.
      */
-    private function classifyExtraNotes(array $leadFrets, array $libFrets, string $rootNote, string $baseQuality, string $matchType): string
+    private function classifyExtraNotes(array $leadFrets, array $libFrets, string $rootNote, string $baseQuality, string $matchType, string $tuning = 'standard'): string
     {
         if ($matchType === 'exact' || $matchType === 'subset') return '';
         if (count($leadFrets) !== 6 || count($libFrets) !== 6) return '';
@@ -1282,11 +1291,12 @@ class VoicingCrossref
 
         $intervalLabels = [0=>'R',1=>'b2',2=>'2',3=>'b3',4=>'3',5=>'4',6=>'b5',7=>'5',8=>'b6',9=>'6',10=>'b7',11=>'7'];
 
+        $t = self::tuningArray($tuning);
         $libPitches = [];
         $libLowest = null;
         for ($i = 0; $i < 6; $i++) {
             if ($libFrets[$i] !== 'x') {
-                $libPitches[] = (self::TUNING[$i] + intval($libFrets[$i])) % 12;
+                $libPitches[] = ($t[$i] + intval($libFrets[$i])) % 12;
                 if ($libLowest === null) $libLowest = $i;
             }
         }
@@ -1296,7 +1306,7 @@ class VoicingCrossref
             if ($leadFrets[$i] === 'x') continue;
             if ($libFrets[$i] !== 'x' && intval($leadFrets[$i]) === intval($libFrets[$i])) continue;
 
-            $extraPitch = (self::TUNING[$i] + intval($leadFrets[$i])) % 12;
+            $extraPitch = ($t[$i] + intval($leadFrets[$i])) % 12;
             $interval = ($extraPitch - $rootSemi + 12) % 12;
             $label = $intervalLabels[$interval] ?? '?';
 
@@ -1452,7 +1462,7 @@ class VoicingCrossref
      * @param  array|null $harmonicContext  Output of HarmonicContext::buildFromLeadsheet() or null
      * @return array                        Assoc array: placeholderName → result
      */
-    public function identifyVoicingsBatch(array $voicings, ?array $harmonicContext = null): array
+    public function identifyVoicingsBatch(array $voicings, ?array $harmonicContext = null, string $tuning = 'standard'): array
     {
         // Pass 1: identify all voicings without context
         $results = [];
@@ -1461,7 +1471,7 @@ class VoicingCrossref
             $position = (int)($voicing['position'] ?? 1);
             if (strlen($frets) !== 6) continue;
 
-            $identified = $this->identifyFromFrets($frets, $position);
+            $identified = $this->identifyFromFrets($frets, $position, null, $tuning);
             $results[$placeholderName] = $identified;
         }
 
@@ -1537,16 +1547,17 @@ class VoicingCrossref
      *
      * @return array { name, root, quality, extensions, bass_note, inversion, diagram_id, confidence }
      */
-    public function identifyFromFrets(string $frets, int $position = 1, ?string $songKey = null): array
+    public function identifyFromFrets(string $frets, int $position = 1, ?string $songKey = null, string $tuning = 'standard'): array
     {
         $pitchClasses = [];
         $bassPc       = null;
+        $t            = self::tuningArray($tuning);
 
         for ($i = 0; $i < 6; $i++) {
             $ch = strtolower($frets[$i]);
             if ($ch === 'x') continue;
             $fret = ctype_xdigit($ch) ? hexdec($ch) : (int)$ch;
-            $pc   = (self::TUNING[$i] + $fret) % 12;
+            $pc   = ($t[$i] + $fret) % 12;
             $pitchClasses[] = $pc;
             if ($bassPc === null) $bassPc = $pc;
         }
@@ -1558,7 +1569,7 @@ class VoicingCrossref
         $pcSet      = array_values(array_unique($pitchClasses));
         $noteCount  = strlen(str_replace('x', '', strtolower($frets)));
 
-        return $this->identifyFromPcSetFull($pcSet, $bassPc, $noteCount, $frets, $position, $songKey);
+        return $this->identifyFromPcSetFull($pcSet, $bassPc, $noteCount, $frets, $position, $songKey, $tuning);
     }
 
     // ── Shared core algorithm ─────────────────────────────────────────────────
@@ -1590,7 +1601,8 @@ class VoicingCrossref
         int $noteCount,
         ?string $frets,
         int $position = 1,
-        ?string $songKey = null
+        ?string $songKey = null,
+        string $tuning = 'standard'
     ): array {
         // ── Pass 1: Score (root, quality) pairs ──
         $bassBoost       = 4;
@@ -2188,15 +2200,17 @@ class VoicingCrossref
         $songKey    = $context['song_key'] ?? 'C';
         $prevChords = $context['prev_chords'] ?? [];
         $nextChords = $context['next_chords'] ?? [];
+        $tuning     = $context['tuning'] ?? 'standard';
 
         // ── Step 1: Compute pitch classes (same as identifyFromFrets) ──
         $pitchClasses = [];
         $bassPc       = null;
+        $t            = self::tuningArray($tuning);
         for ($i = 0; $i < 6; $i++) {
             $ch = strtolower($frets[$i]);
             if ($ch === 'x') continue;
             $fret = ctype_xdigit($ch) ? hexdec($ch) : (int)$ch;
-            $pc   = (self::TUNING[$i] + $fret) % 12;
+            $pc   = ($t[$i] + $fret) % 12;
             $pitchClasses[] = $pc;
             if ($bassPc === null) $bassPc = $pc;
         }
@@ -2893,6 +2907,6 @@ class VoicingCrossref
         // Use unique pitch class count (analogous to fretted string count).
         $noteCount = count($pcSet);
 
-        return $this->identifyFromPcSetFull($pcSet, $bassPc, $noteCount, null, 1);
+        return $this->identifyFromPcSetFull($pcSet, $bassPc, $noteCount, null, 1, null, $tuning);
     }
 }

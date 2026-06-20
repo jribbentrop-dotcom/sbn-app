@@ -1,14 +1,13 @@
 /**
  * Pitch string + octave → MIDI note.
  * Accepts forms like "C", "F#", "Bb", "C♯", "E♭".
- * If pitch string is missing, falls back to {string, fret} in standard guitar tuning.
+ * If pitch string is missing, falls back to {string, fret} using the given tuning.
  */
 
 const STEP_TO_SEMITONE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 
 // SBN string numbering: 1 = high e, 6 = low E.
-// Open-string MIDI values in standard tuning.
-const OPEN_STRING_MIDI = {
+const OPEN_STRING_MIDI_STANDARD = {
     1: 64, // E4
     2: 59, // B3
     3: 55, // G3
@@ -16,6 +15,15 @@ const OPEN_STRING_MIDI = {
     5: 45, // A2
     6: 40, // E2
 };
+
+const OPEN_STRING_MIDI_DROP_D = {
+    ...OPEN_STRING_MIDI_STANDARD,
+    6: 38, // D2
+};
+
+function openStringMidi(tuning) {
+    return tuning === 'drop-d' ? OPEN_STRING_MIDI_DROP_D : OPEN_STRING_MIDI_STANDARD;
+}
 
 export function pitchToMidi(pitchStr, octave) {
     if (!pitchStr || octave == null) return null;
@@ -30,8 +38,8 @@ export function pitchToMidi(pitchStr, octave) {
     return (octave + 1) * 12 + semis + alter;
 }
 
-export function stringFretToMidi(string, fret) {
-    const open = OPEN_STRING_MIDI[string];
+export function stringFretToMidi(string, fret, tuning = 'standard') {
+    const open = openStringMidi(tuning)[string];
     if (open == null) return null;
     return open + (fret || 0);
 }
@@ -39,11 +47,12 @@ export function stringFretToMidi(string, fret) {
 /**
  * Resolve a tab note to MIDI, preferring explicit pitch+octave, falling back to string+fret.
  * @param {{pitch?:string, octave?:number, string?:number, fret?:number}} note
+ * @param {string} [tuning] - 'standard' or 'drop-d'
  * @returns {number|null}
  */
-export function noteToMidi(note) {
+export function noteToMidi(note, tuning = 'standard') {
     if (!note) return null;
     const fromPitch = pitchToMidi(note.pitch, note.octave);
     if (fromPitch != null) return fromPitch;
-    return stringFretToMidi(note.string, note.fret);
+    return stringFretToMidi(note.string, note.fret, tuning);
 }

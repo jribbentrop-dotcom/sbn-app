@@ -42,10 +42,9 @@ const DURATION_TYPE = {
     td: '32nd',
 };
 
-// Standard guitar tuning: string 1 (high e) → string 6 (low E)
-// MusicXML staff-tuning line numbers are bottom-up: line 1 = low E (string 6)
-// SBN string numbering: 1 = high e, 6 = low E
-const TUNING = [
+// MusicXML staff-tuning: line numbers are bottom-up (line 1 = lowest string).
+// SBN string numbering: 1 = high e, 6 = low E/D.
+const TUNING_STANDARD = [
     { line: 1, step: 'E', octave: 2 },  // string 6 — low E
     { line: 2, step: 'A', octave: 2 },  // string 5
     { line: 3, step: 'D', octave: 3 },  // string 4
@@ -53,6 +52,17 @@ const TUNING = [
     { line: 5, step: 'B', octave: 3 },  // string 2
     { line: 6, step: 'E', octave: 4 },  // string 1 — high e
 ];
+const TUNING_DROP_D = [
+    { line: 1, step: 'D', octave: 2 },  // string 6 — low D
+    { line: 2, step: 'A', octave: 2 },  // string 5
+    { line: 3, step: 'D', octave: 3 },  // string 4
+    { line: 4, step: 'G', octave: 3 },  // string 3
+    { line: 5, step: 'B', octave: 3 },  // string 2
+    { line: 6, step: 'E', octave: 4 },  // string 1 — high e
+];
+function getTuningTable(tuning) {
+    return tuning === 'drop-d' ? TUNING_DROP_D : TUNING_STANDARD;
+}
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -82,15 +92,17 @@ function parsePitch(pitchStr) {
     return { step, alter };
 }
 
-// Open-string pitches in standard tuning, indexed by SBN string (1 = high e, 6 = low E).
-const OPEN_STRING_SEMITONES = { 1: 64, 2: 59, 3: 55, 4: 50, 5: 45, 6: 40 }; // MIDI
+// Open-string MIDI values indexed by SBN string number (1 = high e, 6 = low E/D).
+const OPEN_STRING_SEMITONES_STANDARD = { 1: 64, 2: 59, 3: 55, 4: 50, 5: 45, 6: 40 };
+const OPEN_STRING_SEMITONES_DROP_D   = { 1: 64, 2: 59, 3: 55, 4: 50, 5: 45, 6: 38 };
 
 /**
  * Derive { step, alter, octave } from a fretted string+fret pair.
  * Used as a fallback when note.pitch is absent (fret-only entry).
  */
-function pitchFromStringFret(string, fret) {
-    const open = OPEN_STRING_SEMITONES[string];
+function pitchFromStringFret(string, fret, tuning = 'standard') {
+    const map = tuning === 'drop-d' ? OPEN_STRING_SEMITONES_DROP_D : OPEN_STRING_SEMITONES_STANDARD;
+    const open = map[string];
     if (open == null || fret == null) return null;
     const midi = open + fret;
     const octave = Math.floor(midi / 12) - 1;
@@ -378,7 +390,7 @@ function serializeNote(note, event, opts) {
             ({ step, alter } = parsePitch(note.pitch));
             octave = note.octave ?? 3;
         } else if (note.string != null && note.fret != null) {
-            const derived = pitchFromStringFret(note.string, note.fret);
+            const derived = pitchFromStringFret(note.string, note.fret, opts.tuning);
             if (derived) ({ step, alter, octave } = derived);
         }
         if (step) {
@@ -480,7 +492,7 @@ function serializeNote(note, event, opts) {
  * @param {boolean} isFirst       - true for the very first measure (emits attributes)
  * @param {string}  timeSig       - e.g. '4/4'
  */
-function serializeMeasure(measure, measureNumber, isFirst, timeSig) {
+function serializeMeasure(measure, measureNumber, isFirst, timeSig, tuning = 'standard') {
     const parts = [];
 
     // ── Opening barline (repeat start / volta start) ──
@@ -520,7 +532,7 @@ function serializeMeasure(measure, measureNumber, isFirst, timeSig) {
             '  </clef>',
             '  <staff-details>',
             '    <staff-lines>6</staff-lines>',
-            ...TUNING.map(t =>
+            ...getTuningTable(tuning).map(t =>
                 `    <staff-tuning line="${t.line}"><tuning-step>${t.step}</tuning-step><tuning-octave>${t.octave}</tuning-octave></staff-tuning>`
             ),
             '  </staff-details>',
@@ -548,7 +560,7 @@ function serializeMeasure(measure, measureNumber, isFirst, timeSig) {
 
         if (event.isRest) {
             // Single rest note — no chord notes
-            parts.push(serializeNote({}, event, { isFirst: true, voice, stemDir }));
+            parts.push(serializeNote({}, event, { isFirst: true, voice, stemDir, tuning }));
         } else {
             // Sort chord notes: string 1 (high) first → string 6 (low) last
             const notes = [...(event.notes || [])].sort((a, b) => a.string - b.string);
@@ -557,6 +569,7 @@ function serializeMeasure(measure, measureNumber, isFirst, timeSig) {
                     isFirst: ni === 0,
                     voice,
                     stemDir,
+                    tuning,
                 }));
             });
         }
@@ -596,6 +609,7 @@ export function modelToMusicXml(model, meta = {}) {
     const title    = meta.title    || 'Untitled';
     const composer = meta.composer || '';
     const timeSig  = model.timeSignature || '4/4';
+    const tuning   = meta.tuning || 'standard';
 
     // Flatten all measures in section order
     const allMeasures = model.sections.flatMap(sec => sec.measures || []);
@@ -603,7 +617,7 @@ export function modelToMusicXml(model, meta = {}) {
 
     // ── Build measure XML strings ──
     const measureXmls = allMeasures.map((measure, i) => {
-        const inner = serializeMeasure(measure, i + 1, i === 0, timeSig);
+        const inner = serializeMeasure(measure, i + 1, i === 0, timeSig, tuning);
         return `    <measure number="${i + 1}">\n${indent(inner, 6)}\n    </measure>`;
     });
 

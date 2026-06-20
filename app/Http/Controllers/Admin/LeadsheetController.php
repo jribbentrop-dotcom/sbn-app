@@ -1237,9 +1237,10 @@ class LeadsheetController extends Controller
         }
 
         $songKey = $request->input('songKey');
+        $tuning  = $request->input('tuning', 'standard');
         $harmonicContext = $songKey !== null ? ['song_key' => $songKey] : null;
 
-        $results = $crossref->identifyVoicingsBatch($voicings, $harmonicContext);
+        $results = $crossref->identifyVoicingsBatch($voicings, $harmonicContext, $tuning);
 
         return response()->json(['success' => true, 'results' => $results]);
     }

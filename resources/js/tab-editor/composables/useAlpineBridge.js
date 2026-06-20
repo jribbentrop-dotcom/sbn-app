@@ -46,7 +46,7 @@ export function useAlpineBridge() {
     const voltaEndings  = ref({});
     const videoSync     = ref(null);   // Phase D: passed through from sbn-tab-init
     const openVideoSidebar = ref(false);
-    const research      = ref(null);   // Transcribing Assistant v1
+    const tuning        = ref('standard'); // 'standard' | 'drop-d'
     const initialized   = _globalInitialized; // shared singleton
 
     // ── Event handlers ─────────────────────────────────────
@@ -65,7 +65,6 @@ export function useAlpineBridge() {
             voltaEndings.value  = d.parsed.voltaEndings || {};
             lineBreaks.value    = d.parsed.lineBreaks || {}; // Sync layout
             chordVoicings.value = JSON.parse(JSON.stringify(d.parsed.chordVoicings || {}));
-            research.value      = d.parsed.research || null;
         }
         if (d.tabXml !== undefined) {
             tabXml.value = d.tabXml;
@@ -75,6 +74,9 @@ export function useAlpineBridge() {
         }
         if (d.openVideoSidebar !== undefined) {
             openVideoSidebar.value = d.openVideoSidebar;
+        }
+        if (d.tuning) {
+            tuning.value = d.tuning;
         }
         initialized.value = true;
         // Ack so Alpine knows Vue received the data and can stop retrying.
@@ -213,7 +215,7 @@ export function useAlpineBridge() {
         videoSync,
         openVideoSidebar,
 
-        // Transcribing Assistant v1
-        research,
+        // Tuning
+        tuning,
     };
 }

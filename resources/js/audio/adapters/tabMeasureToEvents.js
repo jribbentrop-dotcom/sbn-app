@@ -36,6 +36,7 @@ export function tabModelToEvents(model, ctx = {}) {
     if (!model?.sections?.length) return [];
     const startBeat = ctx.startBeat ?? 0;
     const voice = ctx.voice ?? 'pitched';
+    const tuning = ctx.tuning ?? 'standard';
     const beatsPerMeasure = (model.ticksPerMeasure ?? 1920) / TICKS_PER_BEAT;
 
     // Flat measure list + gi → measure lookup.
@@ -86,7 +87,7 @@ export function tabModelToEvents(model, ctx = {}) {
                 // full tied duration via tieNext chaining.
                 if (note.tieStop && !note.tieStart) continue;
 
-                const midi = noteToMidi(note);
+                const midi = noteToMidi(note, tuning);
                 if (midi == null) continue;
 
                 out.push({

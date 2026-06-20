@@ -324,12 +324,6 @@
              style="display:none;flex-direction:column;flex:1;min-height:0;overflow:auto;border-top:1px solid var(--clr-border);margin-top:8px;padding-top:8px;">
         </div>
 
-        {{-- ── Research panel — rendered by Vue via Teleport into #sbn-research-slot ──────── --}}
-        <div id="sbn-research-slot"
-             x-show="researchSidebarOpen"
-             style="display:none;flex-direction:column;flex:1;min-height:0;overflow:auto;border-top:1px solid var(--clr-border);margin-top:8px;padding-top:8px;">
-        </div>
-
         {{-- ── Analysis sidebar — ANALYSIS view only ──────── --}}
         <template x-if="alpineViewMode === 'analysis' && !videoSidebarOpen">
         <div style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
@@ -449,6 +443,7 @@ class MusicXMLParser {
         this.divisions = 1;
         this.beatsPerMeasure = 4;
         this.beatType = 4;
+        this.tuning = this.getTuning(); // set early so _openPC()/_stringFretToMidi() work during parse
     }
 
     parse() {
@@ -458,6 +453,7 @@ class MusicXMLParser {
             tempo: this.getTempo(),
             timeSignature: this.getTimeSignature(),
             key: this.getKey(),
+            tuning: this.getTuning(),
             measures: [],
             chordVoicings: {},
             melody: []
@@ -670,6 +666,12 @@ class MusicXMLParser {
         const val = parseInt(fifths.textContent);
         if (isMinor) return val >= 0 ? (minorKeys[val] || 'Am') : (minorKeysFlat[Math.abs(val)] || 'Am');
         return val >= 0 ? (keys[val] || 'C') : (keysFlat[Math.abs(val)] || 'C');
+    }
+    getTuning() {
+        // MusicXML staff-tuning line="1" = lowest string (low E in standard, low D in drop D).
+        const line1 = this.doc.querySelector('staff-tuning[line="1"] tuning-step');
+        if (line1 && line1.textContent.trim().toUpperCase() === 'D') return 'drop-d';
+        return 'standard';
     }
 
     parseMeasure(measure, measureIndex) {
@@ -1040,9 +1042,9 @@ class MusicXMLParser {
         });
 
         // Distinct pitch classes in a 6-char fret string. Fret-string index
-        // 0..5 maps to XML strings 6..1; _OPEN_PC is keyed by XML string number.
+        // 0..5 maps to XML strings 6..1; _openPC() is keyed by XML string number.
         const _fretsPcCount = (frets) => {
-            const OPEN = MusicXMLParser._OPEN_PC;
+            const OPEN = this._openPC();
             const pcs = new Set();
             for (let idx = 0; idx < 6; idx++) {
                 const ch = (frets[idx] || 'x').toLowerCase();
@@ -1183,12 +1185,24 @@ class MusicXMLParser {
         return out;
     }
 
-    _stringFretToMidi(string,fret){const os={1:64,2:59,3:55,4:50,5:45,6:40};return(os[string]||40)+fret;}
+    _openStringMidi() {
+        // MusicXML string numbering: 1 = high e, 6 = low E/D.
+        return this.tuning === 'drop-d'
+            ? { 1: 64, 2: 59, 3: 55, 4: 50, 5: 45, 6: 38 }  // D2 on string 6
+            : { 1: 64, 2: 59, 3: 55, 4: 50, 5: 45, 6: 40 }; // E2 on string 6
+    }
+    _stringFretToMidi(string, fret) {
+        const os = this._openStringMidi();
+        return (os[string] || 40) + fret;
+    }
 
-    // Open-string pitch classes keyed by MusicXML <string> number, which uses
-    // the standard tab convention: string 1 = high E … string 6 = low E.
-    // These are `_stringFretToMidi`'s open MIDI values mod 12 — keep them in
-    // sync with that map (E A D G B E read 6→1): 64,59,55,50,45,40 → %12.
+    // Open-string pitch classes keyed by MusicXML <string> number.
+    // Derived from _openStringMidi() values mod 12.
+    _openPC() {
+        return this.tuning === 'drop-d'
+            ? { 1: 4, 2: 11, 3: 7, 4: 2, 5: 9, 6: 2 }  // D on string 6
+            : { 1: 4, 2: 11, 3: 7, 4: 2, 5: 9, 6: 4 }; // E on string 6
+    }
     static get _OPEN_PC() { return { 1: 4, 2: 11, 3: 7, 4: 2, 5: 9, 6: 4 }; }
 
     /**
@@ -1214,7 +1228,7 @@ class MusicXMLParser {
      * `detectHarmonyMismatches` identifies the slot voicings.
      */
     _flagHarmonyNoteMismatches(result) {
-        const OPEN = MusicXMLParser._OPEN_PC;
+        const OPEN = this._openPC();
         (result.measures || []).forEach(md => {
             if (md._fromTab) return;                       // tab-path bars: no written harmony
             const chords = md.chords || [];
@@ -1293,8 +1307,8 @@ class MusicXMLParser {
      * voicing — just a PC-faithful carrier of the right set + bass.
      */
     _pcSetToFretString(pcs, bassPc) {
-        // Must match VoicingCrossref::TUNING — fret-string index 0..5.
-        const TUNING = [4, 9, 2, 7, 11, 4];
+        // Must match VoicingCrossref::tuningArray() — fret-string index 0..5.
+        const TUNING = this.tuning === 'drop-d' ? [2, 9, 2, 7, 11, 4] : [4, 9, 2, 7, 11, 4];
         const frets = ['x','x','x','x','x','x'];
         const placeAt = (i, pc) => { frets[i] = (((pc - TUNING[i]) % 12 + 12) % 12).toString(16); };
 
@@ -1423,7 +1437,6 @@ function leadsheetEditor() {
         // View mode (Phase 5d)
         alpineViewMode: 'chords',
         videoSidebarOpen: false,  // Phase D: toggle independent of viewMode
-        researchSidebarOpen: false,
         analysisData: null,
         analysisLoading: false,
         highlightMatch: null,
@@ -1597,11 +1610,6 @@ function leadsheetEditor() {
             });
             document.addEventListener('sbn-video-sidebar-toggle', (e) => {
                 this.videoSidebarOpen = e.detail.open;
-                if (this.videoSidebarOpen) this.researchSidebarOpen = false;
-            });
-            document.addEventListener('sbn-research-sidebar-toggle', (e) => {
-                this.researchSidebarOpen = e.detail.open;
-                if (this.researchSidebarOpen) this.videoSidebarOpen = false;
             });
 
             // Also dispatch whenever tab data changes — but NOT when the tab editor
@@ -2024,6 +2032,7 @@ function leadsheetEditor() {
                         tabXml: this.tabXml,
                         videoSync: this.parsed.videoSync ? JSON.parse(JSON.stringify(this.parsed.videoSync)) : null,
                         openVideoSidebar: this.videoSidebarOpen,
+                        tuning: this.parsed.tuning || 'standard',
                     }
                 }));
             }, 0);
@@ -2118,7 +2127,7 @@ function leadsheetEditor() {
                 const resp = await fetch('/api/admin/leadsheets/identify-voicings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
-                    body: JSON.stringify({ voicings: tabVoicings, songKey: key })
+                    body: JSON.stringify({ voicings: tabVoicings, songKey: key, tuning: this.parsed.tuning || 'standard' })
                 });
                 const data = await resp.json();
                 if (data.success && data.results && logPass) {
@@ -2240,7 +2249,7 @@ function leadsheetEditor() {
                 const resp = await fetch('/api/admin/leadsheets/identify-voicings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
-                    body: JSON.stringify({ voicings, songKey: this.parsed.key || null })
+                    body: JSON.stringify({ voicings, songKey: this.parsed.key || null, tuning: this.parsed.tuning || 'standard' })
                 });
                 const data = await resp.json();
                 results = (data.success && data.results) ? data.results : null;

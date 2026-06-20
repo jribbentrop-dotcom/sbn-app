@@ -18,8 +18,7 @@
                     @click="setViewMode('analysis')">Analysis</button>
             <button class="sbn-ve-tab" :class="{ 'is-active': videoSidebarOpen }"
                     @click="toggleVideoSidebar">🎬 Video</button>
-            <button class="sbn-ve-tab" :class="{ 'is-active': researchSidebarOpen }"
-                    @click="toggleResearchSidebar">📚 Research</button>
+            <span v-if="tuning === 'drop-d'" class="sbn-ve-tuning-badge">Drop D</span>
         </div>
 
         <!-- Chords Grid (Phase B) -->
@@ -183,16 +182,6 @@
             </div>
         </Teleport>
         
-        <Teleport v-if="researchSidebarOpen" to="#sbn-research-slot">
-            <div class="sbn-research-sidebar-panel">
-                <ResearchPanel
-                    v-if="research"
-                    :data="research"
-                    @set-video="({ id, type }) => videoSync.setVideoId(id, type)"
-                />
-            </div>
-        </Teleport>
-
         <!-- Voicing picker panel — Teleports itself into #sbn-vp-slot -->
         <VoicingPicker v-if="voicingPickerStore" />
 
@@ -286,7 +275,6 @@ import { computed, defineExpose, ref, onMounted, onUnmounted, watch, nextTick, p
 import ChordGridView from './components/ChordGridView.vue';
 import VoicingPicker from './components/VoicingPicker.vue';
 import VideoSyncEditor from './components/VideoSyncEditor.vue';
-import ResearchPanel from './components/ResearchPanel.vue';
 import { LAYOUT, generateId } from './utils/constants.js';
 import { useAlpineBridge } from './composables/useAlpineBridge.js';
 import { useTabModel } from './composables/useTabModel.js';
@@ -327,7 +315,7 @@ provide('viewMode', viewMode);
 
 // Video sidebar open state — mirrors Alpine's videoSidebarOpen, driven via CustomEvent
 const videoSidebarOpen = ref(false);
-const researchSidebarOpen = ref(false);
+
 
 function setViewMode(mode) {
     viewMode.value = mode;
@@ -339,7 +327,6 @@ function setViewMode(mode) {
 
 function toggleVideoSidebar() {
     videoSidebarOpen.value = !videoSidebarOpen.value;
-    if (videoSidebarOpen.value) researchSidebarOpen.value = false;
     document.dispatchEvent(new CustomEvent('sbn-video-sidebar-toggle', {
         detail: { open: videoSidebarOpen.value }
     }));
@@ -347,13 +334,6 @@ function toggleVideoSidebar() {
     videoSync.setAudioSource(videoSidebarOpen.value ? 'video' : 'synth');
 }
 
-function toggleResearchSidebar() {
-    researchSidebarOpen.value = !researchSidebarOpen.value;
-    if (researchSidebarOpen.value) videoSidebarOpen.value = false;
-    document.dispatchEvent(new CustomEvent('sbn-research-sidebar-toggle', {
-        detail: { open: researchSidebarOpen.value }
-    }));
-}
 
 // ── Alpine Bridge ──────────────────────────────────────────
 
@@ -364,7 +344,7 @@ const {
     tabXml, repeatMarkers, voltaEndings,
     videoSync: bridgeVideoSync,
     openVideoSidebar: bridgeOpenVideoSidebar,
-    research,
+    tuning,
     initialized, setSaveHandler,
     setStructureHandler,
 } = bridge;
@@ -467,7 +447,7 @@ async function loadAllEvents() {
     await engine.init({ bpm: model.value.tempo || 120 });
 
     // Gather events from all voices
-    const tabEvents = tabModelToEvents(model.value, { startBeat: 0 });
+    const tabEvents = tabModelToEvents(model.value, { startBeat: 0, tuning: tuning.value });
     const chordEvents = chordVoicingsToEvents(model.value, { startBeat: 0 });
     // Future: const rhythmEvents = rhythmPatternToEvents(rhythmModel.value, { startBeat: 0 });
 
@@ -869,7 +849,6 @@ watch(bridgeVideoSync, (data) => {
 watch(bridgeOpenVideoSidebar, (val) => {
     if (val) {
         videoSidebarOpen.value = true;
-        researchSidebarOpen.value = false;
         videoSync.setAudioSource('video');
     }
 }, { immediate: true });
@@ -1468,6 +1447,7 @@ onMounted(() => {
         return modelToMusicXml(model.value, {
             title:    title.value    || undefined,
             composer: composer.value || undefined,
+            tuning:   tuning.value   || 'standard',
         });
     });
 
@@ -2905,5 +2885,19 @@ defineExpose({
 }
 .sbn-tab-rest.sbn-playing {
     fill: #ef4444 !important;
+}
+.sbn-ve-tuning-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    background: #1e40af;
+    color: #fff;
+    border-radius: 4px;
+    pointer-events: none;
+    user-select: none;
 }
 </style>
