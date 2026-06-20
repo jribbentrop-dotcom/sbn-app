@@ -462,7 +462,7 @@ class VoicingCrossref
 
             // Fragment match (bass note relocated to open string)
             $fragResult = $this->isRootRelocatedFragmentMatch(
-                $targetFretArray, $calcFretArray, $voicing['root'], $baseQuality, $tuning
+                $targetFretArray, $calcFretArray, $voicing['root'], $baseQuality
             );
             if ($fragResult !== false) {
                 $penalized = $fragResult + 200;
@@ -497,7 +497,7 @@ class VoicingCrossref
                 }
 
                 $fragResult = $this->isRootRelocatedFragmentMatch(
-                    $targetFretArray, $calcFretArray, $voicing['root'], $baseQuality, $tuning
+                    $targetFretArray, $calcFretArray, $voicing['root'], $baseQuality
                 );
                 if ($fragResult !== false) {
                     $penalized = $fragResult + 250;
@@ -619,7 +619,7 @@ class VoicingCrossref
                             // Fragment: target has dom root added as open/fretted bass
                             // below the dim shape — strip it and check the remainder.
                             $frag = $this->isRootRelocatedFragmentMatch(
-                                $target, $calcFretArray, $voicing['root'], $baseQuality, $tuning
+                                $target, $calcFretArray, $voicing['root'], $baseQuality
                             );
                             if ($frag !== false) {
                                 $penalized = $frag + 200;
@@ -1209,7 +1209,7 @@ class VoicingCrossref
             );
             $addedNotes = $this->classifyExtraNotes(
                 $targetFretArray, $match['calculated_frets'],
-                $voicing['root'], $qualityParts['base'], $match['match_type'], $tuning
+                $voicing['root'], $qualityParts['base'], $match['match_type']
             );
         }
 
