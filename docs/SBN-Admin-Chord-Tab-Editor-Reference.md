@@ -336,7 +336,7 @@ Right-clicking a chord slot in tab view or the measure background dispatches to 
 **Note:** The voicing written is derived from actual tab frets, not the DB diagram library. It will not automatically match a DB-canonical voicing even if the frets are identical — the diagram shows exactly what was played.
 
 ### Import identifier policy
-Two identifier paths run after every MusicXML import (`inferKeyFromChords` → `identifyTabVoicings` → `detectHarmonyMismatches`):
+Two identifier paths run after every MusicXML import (`inferKeyFromChords` → `identifyTabVoicings` → `detectHarmonyMismatches`). Both POST `tuning` to the identify-voicings endpoint so `VoicingCrossref` uses the correct open-string values for pitch-class extraction.
 
 | Source | Behavior |
 |--------|----------|
@@ -849,6 +849,8 @@ Used for pop/rock not in the Jazz Standards DB. Pipeline: title + optional artis
 
 Key services: `SongLookup.php`, `AnalysisToLeadsheet.php`, `RhythmHintMapper.php`.
 
+**Note (2026-06-20):** The "Include Deep Research" checkbox and `assistant` mode have been removed from the lookup modal — the ResearchPanel Vue component that consumed that data no longer exists. The modal only uses `quick` mode for the AI Search path.
+
 ### Audio transcription (L3a) — experimental
 
 Produces a leadsheet from audio. Embedded in the song lookup modal. Functional but imperfect. Full pipeline, known problems, and improvement roadmap in [Audio-Transcription-Architecture.md](Audio-Transcription-Architecture.md).
@@ -913,3 +915,56 @@ A dim triad (quality=`dim`) routes through both the o7 symmetry pass AND the dom
 ### VoicingMaterializer finger derivation
 
 At import time (`LeadsheetController` → `VoicingMaterializer`), `diagram_data` is passed through the selections chain. `VoicingMaterializer` derives a `fingers` string from `diagram_data.positions[].finger` and stores it in `chordVoicings` only when non-trivial (not all-zeros). This ensures curated position data survives the MusicXML round-trip.
+
+---
+
+## §12 — Alternate tuning support (2026-06-20)
+
+### Overview
+
+The editor supports alternate guitar tunings stored as `parsed.tuning` (a string) inside `json_data` / `content_json`. Currently two values are recognised:
+
+| Value | String 6 open | String 6 MIDI |
+|---|---|---|
+| `'standard'` (default) | E2 | 40 |
+| `'drop-d'` | D2 | 38 |
+
+### Detection on import
+
+`MusicXMLParser.getTuning()` reads `<staff-tuning line="1"><tuning-step>` from the imported MusicXML. A `D` step → `'drop-d'`; anything else → `'standard'`. The result is set on `this.tuning` in the constructor (before `parse()` runs) so all internal helpers use it immediately.
+
+### Persistence
+
+`tuning` lives on the `parsed` object and is spread into `finalJsonData` on save. No DB column needed — it round-trips inside `json_data`/`content_json`.
+
+### Data flow
+
+```
+MusicXMLParser.parse() → parsed.tuning
+  → sbn-tab-init detail.tuning
+    → useAlpineBridge tuning ref
+      → TabEditor destructures tuning
+        → modelToMusicXml(model, { tuning })   // writes correct <staff-tuning>
+        → tabModelToEvents(model, { tuning })   // MIDI fallback for fret-only notes
+        → POST identify-voicings { tuning }     // chord identifier uses correct open-string PCs
+```
+
+### Key files
+
+| File | What changed |
+|---|---|
+| `edit.blade.php` — `MusicXMLParser` | `getTuning()`, `_openStringMidi()`, `_openPC()`, `_stringFretToMidi()`, `_pcSetToFretString()` all tuning-aware; `_dispatchTabInit` sends `tuning` |
+| `audio/adapters/pitchToMidi.js` | `stringFretToMidi(string, fret, tuning)`, `noteToMidi(note, tuning)` |
+| `audio/adapters/tabMeasureToEvents.js` | reads `ctx.tuning`, passes to `noteToMidi` |
+| `tab-editor/utils/musicXmlWriter.js` | `TUNING_STANDARD` / `TUNING_DROP_D` / `getTuningTable()`; `pitchFromStringFret(string, fret, tuning)`; `modelToMusicXml` accepts `meta.tuning` |
+| `tab-editor/composables/useAlpineBridge.js` | `tuning` ref, populated from `sbn-tab-init` |
+| `tab-editor/TabEditor.vue` | destructures `tuning`; passes to writer + events; "Drop D" badge in tab bar |
+| `app/Services/VoicingCrossref.php` | `TUNING_DROP_D`, `tuningArray()`; `identifyVoicingsBatch`, `identifyFromFrets`, `identifyFromPcSetFull`, `isRootRelocatedFragmentMatch`, `classifyExtraNotes`, `identifyFromFretsWithContext` all accept `$tuning` |
+| `app/Http/Controllers/Admin/LeadsheetController.php` | reads `tuning` from request, passes to `identifyVoicingsBatch` |
+
+### Adding new tunings
+
+1. Add a value to `getTuning()` in `MusicXMLParser`
+2. Add the open-string MIDI map to `pitchToMidi.js` and `musicXmlWriter.js`
+3. Add `TUNING_*` constant + branch in `VoicingCrossref::tuningArray()`
+4. Add `TUNING_*` array in `_pcSetToFretString` inside `edit.blade.php`
