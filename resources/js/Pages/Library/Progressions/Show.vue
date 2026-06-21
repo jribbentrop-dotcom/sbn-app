@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Head, router } from '@inertiajs/vue3';
+import { Head } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordProgressionViewer from '@/Components/Library/ChordProgressionViewer.vue';
@@ -9,8 +9,9 @@ import MediaShelf from '@/Components/Library/MediaShelf.vue';
 import SongShelfCard from '@/Components/Library/SongShelfCard.vue';
 import CourseShelfCard from '@/Components/Course/CourseShelfCard.vue';
 import type { CourseShelfCardData } from '@/Components/Course/CourseShelfCard.vue';
-import type { ProgressionChord, VideoSnippet } from '@/Components/Library/ChordProgressionViewer.vue';
+import type { ProgressionChord, StyleVariant } from '@/Components/Library/ChordProgressionViewer.vue';
 import { getCategoryColor } from '@/composables/useCategoryColors';
+import { difficultyBreadcrumbSegment } from '@/composables/useBreadcrumb';
 
 interface ProgressionTile {
     chordName: string;
@@ -31,16 +32,6 @@ interface SongData {
     popularity: number | null;
 }
 
-interface VideoSnippet {
-    id: string;
-    label: string;
-    videoId: string;
-    videoType: string;
-    startSec: number;
-    endSec: number;
-    tempoBpm: number;
-}
-
 interface ProgressionData {
     id: number;
     slug: string;
@@ -54,7 +45,7 @@ interface ProgressionData {
     description?: string;
     chordCount: number;
     songCount: number;
-    videoSnippets?: VideoSnippet[];
+    difficulty?: number | null;
 }
 
 interface Props {
@@ -105,14 +96,35 @@ const chords = computed((): ProgressionChord[] =>
     }))
 );
 
+const stubVariants = computed((): StyleVariant[] => [
+    { id: 'basic',      label: 'Basic',       chords: chords.value },
+    { id: 'extensions', label: 'Extensions',  chords: chords.value },
+    { id: 'wes',        label: 'Wes Style',   chords: chords.value },
+    { id: 'joao',       label: 'João Style',  chords: chords.value },
+]);
+
 const n = parseInt(new URLSearchParams(window.location.search).get('highlight') ?? '', 10);
 const highlightIndex = (!isNaN(n) && n >= 0) ? n : 0;
 
-function onSnippetSelected(snippet: VideoSnippet) {
-    const params: Record<string, string> = { snippet: snippet.id };
-    if (snippet.key) params.key = snippet.key;
-    router.get(window.location.pathname, params, { preserveScroll: true, preserveState: false });
-}
+
+const breadcrumbSegments = computed(() => {
+    const segs = [{ label: 'Progressions', href: '/library/progressions' }];
+    const filterParams: Record<string, string> = {};
+
+    if (props.progression.category) {
+        filterParams.category = props.progression.category;
+        segs.push({
+            label: categoryLabel.value,
+            href: `/library/progressions?category=${encodeURIComponent(props.progression.category)}`,
+        });
+    }
+
+    const difficultySeg = difficultyBreadcrumbSegment(props.progression.difficulty, '/library/progressions', filterParams);
+    if (difficultySeg) segs.push(difficultySeg);
+
+    segs.push({ label: props.progression.name });
+    return segs;
+});
 </script>
 
 <template>
@@ -125,7 +137,7 @@ function onSnippetSelected(snippet: VideoSnippet) {
     </Head>
 
     <div class="sbn-page-detail sbn-prog-detail-page">
-        <Breadcrumb :segments="[{ label: 'Progressions', href: '/library/progressions' }, { label: progression.name }]" :color="getCategoryColor(progression.category)" />
+        <Breadcrumb :segments="breadcrumbSegments" :color="getCategoryColor(progression.category)" />
 
         <header class="sbn-prog-detail-header sbn-detail-hero" :style="{ '--category-color': getCategoryColor(progression.category) }">
             <div class="sbn-show-hero-badges">
@@ -148,6 +160,7 @@ function onSnippetSelected(snippet: VideoSnippet) {
                 <section v-if="tiles.length" class="sbn-prog-detail-section">
                     <ChordProgressionViewer
                         :chords="chords"
+                        :variants="stubVariants"
                         :interactive="true"
                         :show-flow-arrows="true"
                         :name="progression.name"

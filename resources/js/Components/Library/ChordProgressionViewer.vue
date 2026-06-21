@@ -2,10 +2,9 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import type { ChordDiagramData } from './ChordDiagram.vue';
 import ChordDiagram from './ChordDiagram.vue';
-import VideoEmbed from './Video/VideoEmbed.vue';
 import { getAudioEngine } from '../../audio/engine/AudioEngine.js';
 import { chordDiagramToEvents } from '../../audio/adapters/chordDiagramToEvents.js';
-import { buildPitchMap, findResolutionPairs, arrowColor } from './guideToneResolution.js';
+import { buildPitchMap, findResolutionPairs, findResolutionPairsFromFired, arrowColor } from './guideToneResolution.js';
 
 const QUALITY_MAP: Record<string, [string, string]> = {
     'maj':   ['', ''],
@@ -53,16 +52,6 @@ function chordDisplayHtml(chord: ProgressionChord): string {
     return html + inv;
 }
 
-export interface VideoSnippet {
-    id: string;
-    label: string;
-    videoId: string;
-    videoType: string;
-    startSec: number;
-    endSec: number;
-    tempoBpm: number;
-}
-
 export interface ProgressionChord {
     chordName: string;
     diagramData: ChordDiagramData | null;
@@ -70,10 +59,18 @@ export interface ProgressionChord {
     slug?: string | null;
     numeral?: string;
     functionalRole?: string | null;
+    firedResolutions?: string[];
+}
+
+export interface StyleVariant {
+    id: string;
+    label: string;
+    chords: ProgressionChord[];
 }
 
 export interface ChordProgressionViewerProps {
     chords: ProgressionChord[];
+    variants?: StyleVariant[];
     interactive?: boolean;
     compact?: boolean;
     /** @deprecated Arrows are removed in the Living Fretboard redesign; kept for prop compatibility. */
@@ -104,17 +101,7 @@ export interface ChordProgressionViewerProps {
      */
     onVideoPlay?: (() => void) | null;
     onVideoPause?: (() => void) | null;
-    /**
-     * Self-contained video snippets. When provided, the viewer renders its own
-     * snippet picker + VideoEmbed and drives videoPlayhead internally — no
-     * external video sync wiring needed.
-     */
-    snippets?: VideoSnippet[];
 }
-
-const emit = defineEmits<{
-    snippetSelected: [snippet: VideoSnippet]
-}>();
 
 const props = withDefaults(defineProps<ChordProgressionViewerProps>(), {
     interactive: true,
@@ -131,69 +118,25 @@ const props = withDefaults(defineProps<ChordProgressionViewerProps>(), {
     tempoBpm: 120,
     onVideoPlay: null,
     onVideoPause: null,
-    snippets: () => [],
+    variants: () => [],
+});
+
+// ---------- Style variants ----------
+const activeVariantId = ref<string | null>(null);
+const activeChords = computed<ProgressionChord[]>(() => {
+    if (!props.variants.length) return props.chords;
+    const v = props.variants.find(v => v.id === activeVariantId.value) ?? props.variants[0];
+    return v.chords;
 });
 
 /** True when this viewer is wired to an external video clock (course player). */
 const isVideoSynced = computed(() => !!props.onVideoPlay);
 
-// ---------- Self-contained snippet player ----------
-const videoEmbedRef = ref<InstanceType<typeof VideoEmbed> | null>(null);
-const activeSnippetId = ref<string | null>(null);
-const internalPlayhead = ref<number | null>(null);
-const internalPlaying = ref(false);
+/** Effective videoPlayhead: external when course-synced. */
+const effectivePlayhead = computed<number | null>(() => props.videoPlayhead ?? null);
 
-const activeSnippet = computed<VideoSnippet | null>(() =>
-    props.snippets.find(s => s.id === activeSnippetId.value) ?? props.snippets[0] ?? null
-);
-
-/** True when we have our own snippets and should manage video internally. */
-const hasSelfSnippets = computed(() => props.snippets.length > 0);
-
-function selectSnippet(snippet: VideoSnippet) {
-    activeSnippetId.value = snippet.id;
-    internalPlayhead.value = null;
-    internalPlaying.value = false;
-    emit('snippetSelected', snippet);
-}
-
-function onInternalTimeUpdate(t: number) {
-    internalPlayhead.value = t;
-    // Loop within snippet bounds
-    if (activeSnippet.value && t >= activeSnippet.value.endSec) {
-        videoEmbedRef.value?.seekTo(activeSnippet.value.startSec);
-    }
-}
-
-function onInternalPlayState(playing: boolean) {
-    internalPlaying.value = playing;
-}
-
-/** Seek the internal video to the recording-time where chord at `idx` starts. */
-function seekToChord(idx: number) {
-    const snippet = activeSnippet.value;
-    if (!snippet) return;
-    const tl = chordTimeline.value;
-    if (!tl[idx]) return;
-    const beatOffset = tl[idx].startBeat;
-    const sec = snippet.startSec + beatOffset * (60 / snippet.tempoBpm);
-    videoEmbedRef.value?.seekTo(sec);
-    videoEmbedRef.value?.play();
-}
-
-/** Effective videoPlayhead: internal when self-contained, external when course-synced. */
-const effectivePlayhead = computed<number | null>(() => {
-    if (hasSelfSnippets.value) return internalPlayhead.value;
-    return props.videoPlayhead ?? null;
-});
-
-/** Effective startSec/tempoBpm: from active snippet when self-contained. */
-const effectiveStartSec = computed(() =>
-    hasSelfSnippets.value ? (activeSnippet.value?.startSec ?? 0) : props.videoStartSec
-);
-const effectiveTempoBpm = computed(() =>
-    hasSelfSnippets.value ? (activeSnippet.value?.tempoBpm ?? 120) : props.tempoBpm
-);
+const effectiveStartSec = computed(() => props.videoStartSec);
+const effectiveTempoBpm = computed(() => props.tempoBpm);
 
 const isPlayingAll = ref(false);
 const currentPlayingIndex = ref<number | null>(null);
@@ -272,9 +215,11 @@ const doubleInlays = [12].flatMap(f => [
     { cx: fretCenterX(f), cy: PAD_T + stringH * 3.5 },
 ]);
 const fretNumbers = (() => {
+    const labeled = new Set([3, 5, 7, 9, 12, 15]);
     const out: Array<{ x: number; y: number; n: number }> = [];
     for (let f = FRET_FROM; f <= FRET_TO; f++) {
-        out.push({ x: fretCenterX(f), y: VB_H - PAD_B + 13, n: f });
+        if (!labeled.has(f)) continue;
+        out.push({ x: fretCenterX(f), y: VB_H - PAD_B + 18, n: f });
     }
     return out;
 })();
@@ -285,7 +230,7 @@ const fretNumbers = (() => {
 interface ChordSpan { startBeat: number; endBeat: number; }
 const chordTimeline = computed<ChordSpan[]>(() => {
     let cursor = 0;
-    return props.chords.map(c => {
+    return activeChords.value.map(c => {
         const startBeat = cursor;
         cursor += c.beats || 0.5;
         return { startBeat, endBeat: cursor };
@@ -322,7 +267,7 @@ const activeIndex = computed<number>(() => {
 const selectedIndex = ref(props.initialIndex);
 
 const activeChordDiagramData = computed<ChordDiagramData | null>(() =>
-    props.chords[activeIndex.value]?.diagramData ?? null
+    activeChords.value[activeIndex.value]?.diagramData ?? null
 );
 
 interface Position { string: number; fret: number; finger: string; }
@@ -355,7 +300,7 @@ function positionsForChord(chord: ProgressionChord | undefined): Position[] {
         }));
 }
 
-const activePositions = computed<Position[]>(() => positionsForChord(props.chords[activeIndex.value]));
+const activePositions = computed<Position[]>(() => positionsForChord(activeChords.value[activeIndex.value]));
 
 // ---------- Fretboard excerpt (cropped viewBox) ----------
 // excerptWindow: [loFret, hiFret] inclusive — always exactly FRET_WINDOW frets wide,
@@ -421,17 +366,18 @@ function intervalLabelsForChord(chord: ProgressionChord | undefined): string[] {
 const dots = computed<Dot[]>(() => {
     const byString = new Map<number, Position>();
     for (const p of activePositions.value) byString.set(p.string, p);
-    const intervalLabels = intervalLabelsForChord(props.chords[activeIndex.value]);
+    const intervalLabels = intervalLabelsForChord(activeChords.value[activeIndex.value]);
 
     // Build VL color map for this chord without depending on vlPairs (avoid circular deps).
     const vlColorMap = new Map<string, string>();
-    const chordA = props.chords[activeIndex.value];
-    const chordB = props.chords[activeIndex.value + 1];
+    const chordA = activeChords.value[activeIndex.value];
+    const chordB = activeChords.value[activeIndex.value + 1];
     if (chordA?.diagramData && chordB?.diagramData) {
-        const pairs = findResolutionPairs(
+        const pairs = findResolutionPairsFromFired(
             buildPitchMap(chordA.diagramData),
             buildPitchMap(chordB.diagramData),
-            chordB.diagramData.quality ?? '', 2
+            chordA.firedResolutions ?? [],
+            chordB.diagramData.quality ?? '',
         );
         for (const p of pairs as any[]) {
             vlColorMap.set(`${p.from.string + 1},${p.from.fret}`, arrowColor(p.type));
@@ -464,13 +410,13 @@ interface VLPair {
 }
 
 const vlPairs = computed<VLPair[]>(() => {
-    const chordA = props.chords[activeIndex.value];
-    const chordB = props.chords[activeIndex.value + 1];
+    const chordA = activeChords.value[activeIndex.value];
+    const chordB = activeChords.value[activeIndex.value + 1];
     if (!chordA?.diagramData || !chordB?.diagramData) return [];
 
     const mapA = buildPitchMap(chordA.diagramData);
     const mapB = buildPitchMap(chordB.diagramData);
-    const pairs = findResolutionPairs(mapA, mapB, chordB.diagramData.quality ?? '', 2);
+    const pairs = findResolutionPairsFromFired(mapA, mapB, chordA.firedResolutions ?? [], chordB.diagramData.quality ?? '');
 
     return pairs.map((p: any) => ({
         fromString: p.from.string + 1, // buildPitchMap uses 0-based string index
@@ -490,7 +436,7 @@ const ghostDots = computed<GhostDot[]>(() =>
         cx:     fretCenterX(pair.toFret),
         cy:     stringY(pair.toString),
         color:  pair.color,
-        label:  intervalLabelsForChord(props.chords[activeIndex.value + 1])[pair.toString - 1] ?? '',
+        label:  intervalLabelsForChord(activeChords.value[activeIndex.value + 1])[pair.toString - 1] ?? '',
     }))
 );
 
@@ -499,9 +445,53 @@ const pulsingDotKeys = computed<Set<string>>(() =>
     new Set(vlPairs.value.map(p => `${p.fromString},${p.fromFret}`))
 );
 
+// ---------- VL text rows ----------
+const TYPE_LABEL: Record<string, string> = {
+    'seventh-to-third': '7th → 3rd',
+    'third-to-root':    '3rd → root',
+    'ninth-ext':        '9th ext',
+    'eleventh-ext':     '11th ext',
+    'fifth-ext':        '5th cont.',
+};
+
+interface VLRow {
+    fromInterval: string;
+    toInterval: string;
+    motion: string; // '↓ half step' | '↓ whole step' | '↑ half step' | etc.
+    typeLabel: string;
+    color: string;
+}
+
+const vlRows = computed<VLRow[]>(() => {
+    const chordA = activeChords.value[activeIndex.value];
+    const chordB = activeChords.value[activeIndex.value + 1];
+    if (!chordA?.diagramData || !chordB?.diagramData) return [];
+
+    const mapA = buildPitchMap(chordA.diagramData);
+    const mapB = buildPitchMap(chordB.diagramData);
+    const pairs = findResolutionPairsFromFired(mapA, mapB, chordA.firedResolutions ?? [], chordB.diagramData.quality ?? '') as any[];
+
+    return pairs.map(p => {
+        const semitones = p.to.midi - p.from.midi;
+        const abs = Math.abs(semitones);
+        const dir = semitones < 0 ? '↓' : semitones > 0 ? '↑' : '';
+        const dist = abs === 0 ? 'common tone'
+            : abs === 1 ? `${dir} half step`
+            : abs === 2 ? `${dir} whole step`
+            : `${dir} ${abs} st`;
+        return {
+            fromInterval: p.from.label,
+            toInterval:   p.to.label,
+            motion:       dist,
+            typeLabel:    TYPE_LABEL[p.type] ?? p.type,
+            color:        arrowColor(p.type),
+        };
+    });
+});
+
 // ---------- Playback ----------
 async function playChordAtIndex(index: number) {
-    const chord = props.chords[index];
+    const chord = activeChords.value[index];
     if (!chord?.diagramData) return;
 
     await engine.init({ samplesBaseUrl: '/audio/rhythm-samples/' });
@@ -526,11 +516,11 @@ async function playNextChord() {
         return;
     }
     const nextIndex = currentPlayingIndex.value + 1;
-    if (nextIndex >= props.chords.length) {
+    if (nextIndex >= activeChords.value.length) {
         stopPlayback();
         return;
     }
-    const nextChord = props.chords[nextIndex];
+    const nextChord = activeChords.value[nextIndex];
     if (nextChord?.diagramData) {
         await playChordAtIndex(nextIndex);
     } else {
@@ -540,9 +530,9 @@ async function playNextChord() {
 }
 
 async function playProgression() {
-    if (props.chords.length === 0) return;
+    if (activeChords.value.length === 0) return;
     isPlayingAll.value = true;
-    if (currentPlayingIndex.value === null || currentPlayingIndex.value >= props.chords.length - 1) {
+    if (currentPlayingIndex.value === null || currentPlayingIndex.value >= activeChords.value.length - 1) {
         currentPlayingIndex.value = selectedIndex.value;
     }
     await playChordAtIndex(currentPlayingIndex.value);
@@ -569,24 +559,17 @@ function togglePlayback() {
 }
 
 /** True while the synced video is actually playing (vs. paused/stopped). */
-const videoPlaying = computed(() =>
-    (isVideoSynced.value && props.videoPlayhead !== null) ||
-    (hasSelfSnippets.value && internalPlaying.value)
-);
+const videoPlaying = computed(() => isVideoSynced.value && props.videoPlayhead !== null);
 
 /** Unified "is playing" for the button UI — audio path or video path. */
-const showAsPlaying = computed(() => (isVideoSynced.value || hasSelfSnippets.value) ? videoPlaying.value : isPlayingAll.value);
+const showAsPlaying = computed(() => isVideoSynced.value ? videoPlaying.value : isPlayingAll.value);
 
 function canPlayAll(): boolean {
-    return props.chords.some(c => c.diagramData !== null);
+    return activeChords.value.some(c => c.diagramData !== null);
 }
 
 function goTo(idx: number) {
-    if (idx < 0 || idx >= props.chords.length) return;
-    if (hasSelfSnippets.value) {
-        seekToChord(idx);
-        return;
-    }
+    if (idx < 0 || idx >= activeChords.value.length) return;
     if (isPlayingAll.value) stopPlayback();
     selectedIndex.value = idx;
 }
@@ -635,7 +618,7 @@ function onFocusOut(e: FocusEvent) {
         @focusout="onFocusOut"
     ><div class="sbn-prog-inner">
         <!-- Header -->
-        <div v-if="name || category || keyLabel || chords.length || numerals" class="head">
+        <div v-if="name || category || keyLabel || activeChords.length || numerals" class="head">
             <div class="head-left">
                 <h4 v-if="name" class="head-title" v-html="name" />
                 <div v-if="category || keyLabel" class="head-meta">
@@ -644,15 +627,16 @@ function onFocusOut(e: FocusEvent) {
                 </div>
             </div>
             <!-- Chord selector chips — clickable when chords available, static fallback from numerals prop -->
-            <div v-if="chords.length" class="head-numerals">
+            <div v-if="activeChords.length" class="head-numerals">
                 <button
-                    v-for="(chord, i) in chords"
+                    v-for="(chord, i) in activeChords"
                     :key="i"
                     type="button"
                     class="sbn-numeral-chip sbn-numeral-chip--btn"
                     :class="{ active: i === activeIndex }"
-                    @click="goTo(i)"
+                    @click="goTo(i); interactive && playChordAtIndex(i)"
                 >
+                    <svg class="chip-play-icon" viewBox="0 0 8 8" fill="currentColor" aria-hidden="true"><path d="M1.5 1l5 3-5 3z"/></svg>
                     <span v-if="chord.numeral">{{ chord.numeral }}</span>
                     <span v-else v-html="chordDisplayHtml(chord)" />
                 </button>
@@ -666,48 +650,9 @@ function onFocusOut(e: FocusEvent) {
             </div>
         </div>
 
-        <!-- Video snippet: above the fretboard -->
-        <div v-if="hasSelfSnippets" class="snippet-section">
-            <div v-if="snippets.length > 1" class="snippet-picker">
-                <button
-                    v-for="s in snippets"
-                    :key="s.id"
-                    type="button"
-                    class="snippet-tab"
-                    :class="{ active: s.id === activeSnippet?.id }"
-                    @click="selectSnippet(s)"
-                >{{ s.label }}</button>
-            </div>
-            <div v-if="activeSnippet" class="snippet-embed">
-                <VideoEmbed
-                    ref="videoEmbedRef"
-                    :video-id="activeSnippet.videoId"
-                    :video-type="activeSnippet.videoType"
-                    :start-sec="activeSnippet.startSec"
-                    :facade="true"
-                    @timeupdate="onInternalTimeUpdate"
-                    @play-state-change="onInternalPlayState"
-                />
-            </div>
-        </div>
 
-        <!-- Stage: play button + fretboard + chord diagram card -->
+        <!-- Stage: fretboard + chord diagram card -->
         <div class="stage">
-            <button
-                v-if="interactive && canPlayAll() && !hasSelfSnippets"
-                class="sbn-play-btn play-btn"
-                :class="{ 'is-playing': showAsPlaying }"
-                :aria-label="showAsPlaying ? 'Stop progression' : 'Play progression'"
-                @click="togglePlayback"
-            >
-                <svg v-if="showAsPlaying" viewBox="0 0 12 12" fill="currentColor">
-                    <rect x="2" y="2" width="3" height="8" />
-                    <rect x="7" y="2" width="3" height="8" />
-                </svg>
-                <svg v-else viewBox="0 0 12 12" fill="currentColor">
-                    <path d="M3 2l7 4-7 4z" />
-                </svg>
-            </button>
             <div class="board-wrap">
                 <svg class="board" :viewBox="excerptViewBox" preserveAspectRatio="xMidYMid meet" style="overflow: hidden">
                     <!-- Neck surface panel — drawn first so it sits behind everything -->
@@ -790,9 +735,39 @@ function onFocusOut(e: FocusEvent) {
             </div>
             <!-- Chord diagram card (current chord) -->
             <div v-if="activeChordDiagramData" class="chord-card-aside">
-                <span class="aside-chord-name" v-html="chordDisplayHtml(chords[activeIndex])" />
+                <span class="aside-chord-name" v-html="chordDisplayHtml(activeChords[activeIndex])" />
                 <ChordDiagram :chord="activeChordDiagramData" />
             </div>
+        </div>
+
+        <!-- Voice-leading guide tone table -->
+        <div v-if="vlRows.length" class="vl-table-wrap">
+            <div class="vl-table-label">Guide tone movements → next chord</div>
+            <div class="vl-table">
+                <div
+                    v-for="(row, i) in vlRows"
+                    :key="i"
+                    class="vl-row"
+                >
+                    <span class="vl-dot" :style="{ background: row.color }" />
+                    <span class="vl-interval vl-from">{{ row.fromInterval }}</span>
+                    <span class="vl-arrow">→</span>
+                    <span class="vl-interval vl-to">{{ row.toInterval }}</span>
+                    <span class="vl-motion">{{ row.motion }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Style variant tab strip -->
+        <div v-if="variants.length" class="style-tabs">
+            <button
+                v-for="v in variants"
+                :key="v.id"
+                type="button"
+                class="style-tab"
+                :class="{ active: v.id === (activeVariantId ?? variants[0]?.id) }"
+                @click="activeVariantId = v.id; selectedIndex = 0; currentPlayingIndex = null"
+            >{{ v.label }}</button>
         </div>
 
     </div></div>
@@ -814,8 +789,6 @@ function onFocusOut(e: FocusEvent) {
 }
 
 .sbn-prog-inner {
-    --btn-size: 36px;
-    --btn-icon: 12px;
     --ribbon-name: 18px;
     --ribbon-num: 8px;
     --ribbon-pad: 6px 10px 5px;
@@ -823,8 +796,6 @@ function onFocusOut(e: FocusEvent) {
 }
 
 .sbn-prog-viewer[data-size="sm"] .sbn-prog-inner {
-    --btn-size: 34px;
-    --btn-icon: 11px;
     --ribbon-name: 13px;
     --ribbon-num: 8px;
     --ribbon-pad: 6px 4px 4px;
@@ -832,8 +803,6 @@ function onFocusOut(e: FocusEvent) {
 }
 
 .sbn-prog-viewer[data-size="xs"] .sbn-prog-inner {
-    --btn-size: 28px;
-    --btn-icon: 9px;
     --ribbon-name: 11px;
     --ribbon-num: 7px;
     --ribbon-pad: 4px 3px 3px;
@@ -890,22 +859,13 @@ function onFocusOut(e: FocusEvent) {
     gap: 4px;
 }
 
+
 /* Stage */
 .stage {
     display: flex;
     align-items: center;
     gap: var(--stage-gap);
 }
-/* Size driven by responsive CSS vars — color/state from global .sbn-play-btn */
-.play-btn {
-    width: var(--btn-size);
-    height: var(--btn-size);
-}
-.play-btn svg {
-    width: var(--btn-icon);
-    height: var(--btn-icon);
-}
-
 .board-wrap {
     flex: 1;
     min-width: 0;
@@ -1019,36 +979,85 @@ function onFocusOut(e: FocusEvent) {
     letter-spacing: -0.02em;
 }
 
-/* Video snippet — above the fretboard */
-.snippet-section {
-    margin-bottom: 12px;
+/* VL guide tone table */
+.vl-table-wrap {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--clr-border-dim, #eef1f5);
 }
-.snippet-picker {
+.vl-table-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--clr-text-muted);
+    margin-bottom: 6px;
+}
+.vl-table {
     display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    margin-bottom: 8px;
+    flex-direction: column;
+    gap: 4px;
 }
-.snippet-tab {
+.vl-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
     font-size: 12px;
+    line-height: 1.4;
+}
+.vl-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.vl-interval {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--clr-text);
+    min-width: 28px;
+}
+.vl-arrow {
+    color: var(--clr-text-muted);
+    font-size: 11px;
+}
+.vl-motion {
+    color: var(--clr-text-dim);
+    font-size: 11px;
+}
+
+/* Style variant tab strip */
+.style-tabs {
+    display: flex;
+    gap: 0;
+    margin-top: 14px;
+    border-top: 1px solid var(--clr-border-dim, #eef1f5);
+    padding-top: 10px;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.style-tab {
+    font-size: 11px;
     font-weight: 500;
-    padding: 4px 10px;
+    padding: 4px 12px;
     border-radius: 999px;
     border: 1px solid var(--clr-border);
-    background: var(--clr-surface-2);
+    background: transparent;
     color: var(--clr-text-muted);
     cursor: pointer;
-    transition: background 0.12s, color 0.12s, border-color 0.12s;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    line-height: 1.5;
 }
-.snippet-tab.active,
-.snippet-tab:hover {
+.style-tab:hover {
+    background: var(--clr-surface-2);
+    color: var(--clr-text);
+}
+.style-tab.active {
     background: color-mix(in srgb, var(--prog-color) 14%, transparent);
-    border-color: var(--prog-color);
+    border-color: color-mix(in srgb, var(--prog-color) 50%, transparent);
     color: var(--prog-color);
-}
-.snippet-embed {
-    border-radius: var(--radius);
-    overflow: hidden;
+    font-weight: 600;
 }
 
 /* Responsive */
@@ -1056,5 +1065,35 @@ function onFocusOut(e: FocusEvent) {
     .sbn-prog-viewer { padding: 16px 14px 14px; }
     .head { flex-direction: column; align-items: flex-start; }
     .head-numerals { flex-wrap: wrap; }
+}
+</style>
+
+<style>
+.sbn-numeral-chip--btn {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 4px;
+}
+.chip-play-icon {
+    width: 7px;
+    height: 7px;
+    opacity: 0.25;
+    flex-shrink: 0;
+    transition: opacity 0.12s;
+    animation: chip-pulse 2.4s ease-in-out infinite;
+}
+.sbn-numeral-chip--btn:hover .chip-play-icon {
+    opacity: 0.7;
+    animation: none;
+}
+.sbn-numeral-chip--btn.active .chip-play-icon {
+    opacity: 0;
+    width: 0;
+    margin: 0;
+    animation: none;
+}
+@keyframes chip-pulse {
+    0%, 100% { opacity: 0.18; }
+    50%       { opacity: 0.45; }
 }
 </style>

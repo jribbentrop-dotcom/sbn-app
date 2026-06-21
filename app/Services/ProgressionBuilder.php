@@ -253,6 +253,17 @@ class ProgressionBuilder
         if ($voicingStyle === 'auto' || $voicingStyle === '') {
             $voicingStyle = $this->settings->getDefaultVoicingStyle($category);
         }
+
+        // Resolve bass-string hard constraints from the voicing_style preset.
+        // The range is enforced as a hard per-slot filter after transposition
+        // (see fetchVoicingsForChord), replacing the old soft 0.075 penalty that
+        // got out-voted by voice-leading and register costs on every progression.
+        $stylePreset   = (isset($voicingStyle) && $voicingStyle !== 'auto' && $voicingStyle !== '')
+            ? (self::VOICING_STYLE_PRESETS[$voicingStyle] ?? null)
+            : null;
+        $presetBassMin = $stylePreset['bass_string_min'] ?? null;
+        $presetBassMax = $stylePreset['bass_string_max'] ?? null;
+
         $vlLevel    = $extensions ? 2 : 1;
 
         // Diagnostics container
@@ -363,7 +374,9 @@ class ProgressionBuilder
                 $functionalRole,
                 $strictBasic,
                 $explicitQuality,
-                $tonality
+                $tonality,
+                $presetBassMin,
+                $presetBassMax
             );
         }
         $lattice = $this->buildAnchorFreeLattice($chordVoicings, $style, $rootOnly, $category);
@@ -471,6 +484,11 @@ class ProgressionBuilder
         $vlScores = [];
         $pathCost = 0.0;
         $actualVlLevel = ($runPass2 && $selections === $pass2Selections) ? 2 : 1;
+        // Per-edge fired named resolutions — indexed by source slot i.
+        // Used by the frontend to draw accurate guide-tone arrows rather than
+        // the proximity heuristic.
+        $edgeFiredResolutions = [];
+
         for ($i = 0; $i < $n - 1; $i++) {
             $sel1 = $selections[$i] ?? null;
             $sel2 = $selections[$i + 1] ?? null;
@@ -490,8 +508,10 @@ class ProgressionBuilder
                 ], $breakdown);
                 $pathCost += $breakdown['total'];
                 $diagnostics['observed_raw_vl_max'] = max($diagnostics['observed_raw_vl_max'], $breakdown['raw_voice_leading']);
+                $edgeFiredResolutions[$i] = $breakdown['fired_named_resolutions'] ?? [];
             } else {
                 $vlScores[] = null;
+                $edgeFiredResolutions[$i] = [];
             }
         }
         $diagnostics['path_cost'] = round($pathCost, 4);
@@ -502,11 +522,14 @@ class ProgressionBuilder
             $sel  = $selections[$i];
             $pool = $chordVoicings[$i] ?? [];
             $result[] = [
-                'chord_name'    => $chord['chord_name'],
-                'roman_numeral' => $chord['roman_numeral'],
-                'measure_index' => $chord['measure_index'],
-                'voicing'       => $sel ? $this->formatVoicing($sel, $chord['chord_name'], $chord) : null,
-                'voicings'      => array_values(array_map(fn($v) => $this->formatVoicing($v, $chord['chord_name'], $chord), $pool)),
+                'chord_name'       => $chord['chord_name'],
+                'roman_numeral'    => $chord['roman_numeral'],
+                'measure_index'    => $chord['measure_index'],
+                'voicing'          => $sel ? $this->formatVoicing($sel, $chord['chord_name'], $chord) : null,
+                'voicings'         => array_values(array_map(fn($v) => $this->formatVoicing($v, $chord['chord_name'], $chord), $pool)),
+                // Named resolutions fired on the edge FROM this slot to the next.
+                // Empty array for the last slot (no outgoing edge).
+                'fired_resolutions' => $edgeFiredResolutions[$i] ?? [],
             ];
         }
 
@@ -556,7 +579,9 @@ class ProgressionBuilder
         ?string $functionalRole = null,
         bool $strictBasic = false,
         bool $explicitQuality = false,
-        string $tonality = 'major'
+        string $tonality = 'major',
+        ?int $bassStringMin = null,
+        ?int $bassStringMax = null
     ): array {
         if (!$root) return [];
 
@@ -691,6 +716,33 @@ class ProgressionBuilder
             $voicing->frets = $fretStr;
 
             $results[] = $voicing;
+        }
+
+        // Hard bass-string filter from voicing_style preset.
+        // Only applied when the preset specifies a range (non-null min/max) and
+        // the filtered pool is non-empty — if the filter would leave the slot
+        // empty (e.g. no A-string shapes for a rare quality), we fall back to
+        // the full pool and log a diagnostic so the soft costStyle penalty still
+        // applies but the slot doesn't go dark.
+        if ($results !== [] && ($bassStringMin !== null || $bassStringMax !== null)) {
+            $filtered = array_values(array_filter($results, function ($v) use ($bassStringMin, $bassStringMax) {
+                $bs = $v->bass_string ?? $this->inferBassString($v);
+                if ($bs === null) return true; // can't determine — keep
+                if ($bassStringMin !== null && $bs < $bassStringMin) return false;
+                if ($bassStringMax !== null && $bs > $bassStringMax) return false;
+                return true;
+            }));
+
+            if ($filtered !== []) {
+                $results = $filtered;
+            } elseif ($diagnostics !== null) {
+                $diagnostics['category_pool_fallbacks'][] = [
+                    'slot' => $slotIndex,
+                    'requested_pool' => "bass_string {$bassStringMin}–{$bassStringMax}",
+                    'fallback_pool' => 'unrestricted bass_string',
+                    'reason' => 'no candidates in bass-string range',
+                ];
+            }
         }
 
         return $results;

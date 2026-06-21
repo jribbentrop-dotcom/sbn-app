@@ -1,19 +1,17 @@
 /**
  * Guide tone resolution helpers for ChordProgressionViewer.
  *
- * Mirror of ProgressionBuilder::scoreVL() — role-agnostic, proximity-based,
- * exactly matching the builder's VL scoring logic:
+ * Two modes:
  *
- * Level 1 (always):
- *   b7/7/maj7 of A → nearest 3/b3 of B
- *   3/b3 of A      → nearest R/b7/7/maj7/9 of B
+ * 1. findResolutionPairsFromFired(mapA, mapB, firedIds) — authoritative.
+ *    Uses the builder's named resolution IDs (from fired_resolutions on each
+ *    tile) to draw only arrows that the builder actually scored. Each ID maps
+ *    to a specific source tone and target tone; we find the matching dots in
+ *    the pitch maps. Preferred when firedIds is non-empty.
  *
- * Level 2 (Pass 2 / extensions):
- *   9/b9/#9 of A   → nearest 13/b13/9/R/5 of B  (b9 only if target is minor)
- *   #11/11 of A    → nearest 5/3/9 of B
- *   5 of A         → nearest R/5 of B
- *
- * A pair is shown when the nearest-target distance ≤ MAX_DIST semitones.
+ * 2. findResolutionPairs(mapA, mapB, qualityB, level) — heuristic fallback.
+ *    Role-agnostic, proximity-based mirror of ProgressionBuilder::scoreVL().
+ *    Used when no fired_resolutions are available (e.g. Pass 1 / pinned voicings).
  *
  * SVG coordinate constants match sbnRenderDiagramSVG in public/js/chords.js:
  *   viewBox 80×95, left=14, top=12, strSp=12, fretSp=16, numFrets=4
@@ -234,4 +232,63 @@ export function arrowColor(type) {
     if (type === 'eleventh-ext')     return '#059669'; // green  — #11 ext
     if (type === 'fifth-ext')        return '#6b7280'; // gray   — 5th cont.
     return '#6b7280';
+}
+
+/**
+ * Source tone → target tone → arrow type for every named resolution ID.
+ * Mirrors Phase-E-Extension-Table.yaml named_resolutions section.
+ * "3" in a dom→minor edge becomes "b3" at the PHP layer — we match both.
+ */
+const RESOLUTION_TONES = {
+    'vl.dom.b7_to_3':       { src: 'b7',  tgt: ['3', 'b3'], type: 'seventh-to-third' },
+    'vl.dom.3_to_root':     { src: '3',   tgt: ['R'],        type: 'third-to-root'   },
+    'vl.dom.b13_to_5':      { src: 'b13', tgt: ['9', '5'],   type: 'ninth-ext'       },
+    'vl.dom.b9_to_5':       { src: 'b9',  tgt: ['5'],        type: 'ninth-ext'       },
+    'vl.dom.13_to_9':       { src: '13',  tgt: ['9'],        type: 'ninth-ext'       },
+    'vl.dom.9_to_5':        { src: '9',   tgt: ['5'],        type: 'ninth-ext'       },
+    'vl.tritone.sharp11_to_5': { src: '#11', tgt: ['5'],     type: 'eleventh-ext'    },
+    'vl.tritone.b7_to_3':   { src: 'b7',  tgt: ['7', '3'],   type: 'seventh-to-third'},
+    'vl.iiV.b7_to_3':       { src: 'b7',  tgt: ['3'],        type: 'seventh-to-third'},
+    'vl.iiV.3_to_b7':       { src: 'b3',  tgt: ['b7'],       type: 'third-to-root'   },
+    'vl.iiV.9_to_b13':      { src: '9',   tgt: ['b13'],      type: 'ninth-ext'       },
+    'vl.iiV.5_to_b9':       { src: '5',   tgt: ['b9'],       type: 'fifth-ext'       },
+};
+
+/**
+ * Build resolution pairs from the builder's fired named resolution IDs.
+ * For each fired ID, find the dot in mapA carrying the source tone and the
+ * dot in mapB carrying the target tone; emit an arrow between them.
+ * Falls back to findResolutionPairs() when firedIds is empty.
+ *
+ * @param {Array}    mapA      buildPitchMap output for source chord
+ * @param {Array}    mapB      buildPitchMap output for target chord
+ * @param {string[]} firedIds  builder's fired_resolutions for this edge
+ * @param {string}   qualityB  target quality (for heuristic fallback)
+ */
+export function findResolutionPairsFromFired(mapA, mapB, firedIds, qualityB = '') {
+    if (!firedIds || firedIds.length === 0) {
+        return findResolutionPairs(mapA, mapB, qualityB, 2);
+    }
+
+    const pairs = [];
+    const usedSrcKeys = new Set();
+
+    for (const id of firedIds) {
+        const spec = RESOLUTION_TONES[id];
+        if (!spec) continue;
+
+        const src = mapA.find(p => p.label === spec.src);
+        if (!src) continue;
+
+        const srcKey = `${src.string},${src.fret}`;
+        if (usedSrcKeys.has(srcKey)) continue;
+
+        const tgt = mapB.find(p => spec.tgt.includes(p.label));
+        if (!tgt) continue;
+
+        usedSrcKeys.add(srcKey);
+        pairs.push({ from: src, to: tgt, type: spec.type });
+    }
+
+    return pairs;
 }

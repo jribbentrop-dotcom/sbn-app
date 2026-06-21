@@ -83,41 +83,21 @@ class ProgressionLibraryController extends Controller
             ->get()
             ->map(fn ($p) => $this->serializeProgression($p));
 
-        // Determine the playing key + pinned slugs. Priority:
-        //   1. ?snippet=<id>  — explicit snippet selected (or first snippet on plain load)
-        //   2. ?key=X         — explicit key override (e.g. chord-detail back-link)
-        //   3. ?chord=&highlight= pin arriving from chord detail page
-        //   4. Default C
+        // Determine the playing key. Priority:
+        //   1. ?key=X         — explicit key override (e.g. chord-detail back-link)
+        //   2. ?chord=&highlight= pin arriving from chord detail page
+        //   3. Default C
         $progressionKey = 'C';
         $pinnedSlot     = null;
         $pinnedVoicing  = null;
-        $pinnedSlugs    = [];
 
-        // --- Path A: snippet pin ---
-        // Use ?snippet=<id> when specified, otherwise auto-apply the first snippet
-        // so the page always loads in the key the recording was authored in.
-        $allSnippets = $progression->video_snippets ?? [];
-        $snippetId   = $request->query('snippet');
-        $activeSnippet = $snippetId !== null
-            ? collect($allSnippets)->firstWhere('id', $snippetId)
-            : (count($allSnippets) ? $allSnippets[0] : null);
-
-        if ($activeSnippet) {
-            if (!empty($activeSnippet['key']) && in_array($activeSnippet['key'], \App\Models\ChordDiagram::ROOT_NOTES)) {
-                $progressionKey = $activeSnippet['key'];
-            }
-            if (!empty($activeSnippet['chords']) && is_array($activeSnippet['chords'])) {
-                $pinnedSlugs = $activeSnippet['chords'];
-            }
-        }
-
-        // --- Path B: explicit ?key= overrides snippet key ---
+        // --- Path A: explicit ?key= ---
         $explicitKey = trim((string) $request->query('key', ''));
         if ($explicitKey !== '' && in_array($explicitKey, \App\Models\ChordDiagram::ROOT_NOTES)) {
             $progressionKey = $explicitKey;
         }
 
-        // --- Path C: chord-detail page pin (?chord=&highlight=) ---
+        // --- Path B: chord-detail page pin (?chord=&highlight=) ---
         $chordSlug     = $request->query('chord');
         $highlightSlot = $request->query('highlight');
         if ($chordSlug !== null && $highlightSlot !== null) {
@@ -153,7 +133,7 @@ class ProgressionLibraryController extends Controller
 
                 // Derive key from the pinned chord's root + its numeral slot
                 // (only when no explicit key was already set via ?key= or snippet).
-                if ($explicitKey === '' && $snippetId === null) {
+                if ($explicitKey === '') {
                     $tokens = array_values(array_filter(array_map('trim', explode(',', $progression->numerals))));
                     if (isset($tokens[$pinnedSlot]) && $effectiveRoot !== '') {
                         $progressionKey = $this->harmonicContext->keyFromNumeralAndRoot(
@@ -165,28 +145,23 @@ class ProgressionLibraryController extends Controller
             }
         }
 
-        // Build tiles — snippet path uses buildChordsFor (handles pinned slugs),
-        // chord-detail path uses buildVoicings directly (single pinnedVoicing).
-        if (!empty($pinnedSlugs)) {
-            $tiles = $this->buildChordsFor($progression, $progressionKey, true, $pinnedSlugs);
-        } else {
-            $context = $this->harmonicContext->buildFromNumerals($progressionKey, $progression->numerals);
-            $built   = $this->progressionBuilder->buildVoicings($context, [
-                'category'      => $progression->category,
-                'pinnedSlot'    => $pinnedSlot,
-                'pinnedVoicing' => $pinnedVoicing,
-            ]);
-            $tiles = array_map(function ($sel) {
-                $v = $sel['voicing'] ?? null;
-                return [
-                    'chordName'      => $sel['chord_name'],
-                    'numeral'        => $sel['roman_numeral'] ?? null,
-                    'diagramData'    => $v,
-                    'functionalRole' => $v['functional_role'] ?? null,
-                    'slug'           => null,
-                ];
-            }, $built['selections']);
-        }
+        $context = $this->harmonicContext->buildFromNumerals($progressionKey, $progression->numerals);
+        $built   = $this->progressionBuilder->buildVoicings($context, [
+            'category'      => $progression->category,
+            'pinnedSlot'    => $pinnedSlot,
+            'pinnedVoicing' => $pinnedVoicing,
+        ]);
+        $tiles = array_map(function ($sel) {
+            $v = $sel['voicing'] ?? null;
+            return [
+                'chordName'        => $sel['chord_name'],
+                'numeral'          => $sel['roman_numeral'] ?? null,
+                'diagramData'      => $v,
+                'functionalRole'   => $v['functional_role'] ?? null,
+                'slug'             => null,
+                'firedResolutions' => $sel['fired_resolutions'] ?? [],
+            ];
+        }, $built['selections']);
 
         $courses = $this->courseRepo->relatedTo($progression, $progression->category);
 
@@ -246,7 +221,7 @@ class ProgressionLibraryController extends Controller
             'description'    => $progression->description,
             'chordCount'     => count(explode(',', $progression->numerals)),
             'songCount'      => $progression->song_count ?? 0,
-            'videoSnippets'  => $progression->video_snippets ?? [],
+            'difficulty'     => $progression->difficulty,
         ];
     }
 
@@ -315,12 +290,13 @@ class ProgressionLibraryController extends Controller
 
         if (empty($pinnedSlugs)) {
             return array_map(fn ($sel) => [
-                'chordName'      => $sel['chord_name'],
-                'diagramData'    => $sel['voicing'] ?? null,
-                'functionalRole' => $sel['voicing']['functional_role'] ?? null,
-                'beats'          => 4,
-                'slug'           => null,
-                'numeral'        => $sel['roman_numeral'] ?? null,
+                'chordName'        => $sel['chord_name'],
+                'diagramData'      => $sel['voicing'] ?? null,
+                'functionalRole'   => $sel['voicing']['functional_role'] ?? null,
+                'beats'            => 4,
+                'slug'             => null,
+                'numeral'          => $sel['roman_numeral'] ?? null,
+                'firedResolutions' => $sel['fired_resolutions'] ?? [],
             ], $builtSelections);
         }
 
@@ -354,12 +330,13 @@ class ProgressionLibraryController extends Controller
             } else {
                 // Pinned slug missing or unresolvable — fall back to builder voicing.
                 $result[] = [
-                    'chordName'      => $sel['chord_name'],
-                    'diagramData'    => $sel['voicing'] ?? null,
-                    'functionalRole' => $sel['voicing']['functional_role'] ?? null,
-                    'beats'          => 4,
-                    'slug'           => null,
-                    'numeral'        => $sel['roman_numeral'] ?? null,
+                    'chordName'        => $sel['chord_name'],
+                    'diagramData'      => $sel['voicing'] ?? null,
+                    'functionalRole'   => $sel['voicing']['functional_role'] ?? null,
+                    'beats'            => 4,
+                    'slug'             => null,
+                    'numeral'          => $sel['roman_numeral'] ?? null,
+                    'firedResolutions' => $sel['fired_resolutions'] ?? [],
                 ];
             }
         }
