@@ -242,7 +242,7 @@ export function arrowColor(type) {
 const RESOLUTION_TONES = {
     'vl.dom.b7_to_3':       { src: 'b7',  tgt: ['3', 'b3'], type: 'seventh-to-third' },
     'vl.dom.3_to_root':     { src: '3',   tgt: ['R'],        type: 'third-to-root'   },
-    'vl.dom.b13_to_5':      { src: 'b13', tgt: ['9', '5'],   type: 'ninth-ext'       },
+    'vl.dom.b13_to_9':      { src: 'b13', tgt: ['9'],         type: 'ninth-ext'       },
     'vl.dom.b9_to_5':       { src: 'b9',  tgt: ['5'],        type: 'ninth-ext'       },
     'vl.dom.13_to_9':       { src: '13',  tgt: ['9'],        type: 'ninth-ext'       },
     'vl.dom.9_to_5':        { src: '9',   tgt: ['5'],        type: 'ninth-ext'       },
@@ -258,7 +258,10 @@ const RESOLUTION_TONES = {
  * Build resolution pairs from the builder's fired named resolution IDs.
  * For each fired ID, find the dot in mapA carrying the source tone and the
  * dot in mapB carrying the target tone; emit an arrow between them.
- * Falls back to findResolutionPairs() when firedIds is empty.
+ * Returns [] when firedIds is empty — the role-agnostic proximity heuristic
+ * (findResolutionPairs) is no longer used as a fallback here, so Pass-1 /
+ * non-jazz / pinned voicings draw no spurious arrows. Callers that explicitly
+ * want the heuristic call findResolutionPairs directly.
  *
  * @param {Array}    mapA      buildPitchMap output for source chord
  * @param {Array}    mapB      buildPitchMap output for target chord
@@ -267,7 +270,7 @@ const RESOLUTION_TONES = {
  */
 export function findResolutionPairsFromFired(mapA, mapB, firedIds, qualityB = '') {
     if (!firedIds || firedIds.length === 0) {
-        return findResolutionPairs(mapA, mapB, qualityB, 2);
+        return [];
     }
 
     const pairs = [];

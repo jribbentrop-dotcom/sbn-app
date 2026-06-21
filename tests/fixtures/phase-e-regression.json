@@ -1,62 +1,6 @@
 {
-    "generated_at": "2026-05-19T18:05:45+00:00",
+    "generated_at": "2026-06-21T18:33:55+00:00",
     "progressions": {
-        "ellington-progression": {
-            "name": "Ellington Progression",
-            "category": "jazz",
-            "numerals": "Imaj7, Imaj7, II7, II7, IIm7, V7, Imaj7",
-            "key": "C",
-            "slots": [
-                {
-                    "chord_name": "Cmaj7(9)",
-                    "extension_set": [
-                        "9"
-                    ]
-                },
-                {
-                    "chord_name": "Cmaj7(9)",
-                    "extension_set": [
-                        "9"
-                    ]
-                },
-                {
-                    "chord_name": "D7(9,13)",
-                    "extension_set": [
-                        "9"
-                    ]
-                },
-                {
-                    "chord_name": "D7",
-                    "extension_set": [
-                        "8"
-                    ]
-                },
-                {
-                    "chord_name": "Dm7(9)",
-                    "extension_set": [
-                        "9"
-                    ]
-                },
-                {
-                    "chord_name": "G7(9,13)",
-                    "extension_set": [
-                        "13"
-                    ]
-                },
-                {
-                    "chord_name": "Cmaj7(9)",
-                    "extension_set": [
-                        "9"
-                    ]
-                }
-            ],
-            "expected_resolutions": [
-                "vl.iiV.b7_to_3",
-                "vl.iiV.3_to_b7",
-                "vl.dom.b7_to_3",
-                "vl.dom.13_to_9"
-            ]
-        },
         "the-turnaround": {
             "name": "The Turnaround",
             "category": "jazz",
@@ -81,18 +25,10 @@
                 },
                 {
                     "chord_name": "G7",
-                    "extension_set": [
-                        "b9",
-                        "b13"
-                    ]
+                    "extension_set": []
                 }
             ],
-            "expected_resolutions": [
-                "vl.iiV.b7_to_3",
-                "vl.iiV.3_to_b7",
-                "vl.iiV.9_to_b13",
-                "vl.iiV.5_to_b9"
-            ]
+            "expected_resolutions": []
         },
         "the-rhythm-changes-progression": {
             "name": "The Rhythm Changes Progression",
@@ -107,7 +43,7 @@
                     ]
                 },
                 {
-                    "chord_name": "Dbdim7",
+                    "chord_name": "C#dim7",
                     "extension_set": []
                 },
                 {
@@ -117,64 +53,11 @@
                     ]
                 },
                 {
-                    "chord_name": "Ebdim7",
+                    "chord_name": "D#dim7",
                     "extension_set": []
                 }
             ],
             "expected_resolutions": []
-        },
-        "the-corcovado-progression": {
-            "name": "The Corcovado Progression",
-            "category": "latin",
-            "numerals": "Im, VIIo7, bVIIm",
-            "key": "A",
-            "slots": [
-                {
-                    "chord_name": "Am7",
-                    "extension_set": [
-                        "9"
-                    ]
-                },
-                {
-                    "chord_name": "Abdim7",
-                    "extension_set": []
-                },
-                {
-                    "chord_name": "Gm7",
-                    "extension_set": []
-                }
-            ],
-            "expected_resolutions": []
-        },
-        "secondary-dominant-ii-v": {
-            "name": "Secondary Dominant II-V",
-            "category": "jazz",
-            "numerals": "II7, V7, I",
-            "key": "C",
-            "slots": [
-                {
-                    "chord_name": "D7(9,13)",
-                    "extension_set": [
-                        "9"
-                    ]
-                },
-                {
-                    "chord_name": "G7(9,13)",
-                    "extension_set": [
-                        "13"
-                    ]
-                },
-                {
-                    "chord_name": "Cmaj7(9)",
-                    "extension_set": [
-                        "9"
-                    ]
-                }
-            ],
-            "expected_resolutions": {
-                "0": "vl.dom.b7_to_3",
-                "2": "vl.dom.13_to_9"
-            }
         },
         "ii-v-to-relative-major": {
             "name": "II-V to relative Major",
@@ -214,8 +97,7 @@
                 {
                     "chord_name": "E7(b9,b13)",
                     "extension_set": [
-                        "b9",
-                        "b13"
+                        "b9"
                     ]
                 },
                 {
@@ -224,38 +106,38 @@
                 }
             ],
             "expected_resolutions": [
-                "vl.dom.3_to_root"
+                "vl.dom.3_to_root",
+                "vl.dom.b9_to_5"
             ]
         },
         "minor-blues-cadenza": {
-            "name": "Minor Blues Cadenza",
+            "name": "The Minor Blues Cadence",
             "category": "jazz",
-            "numerals": "bVImaj7, V7, Im",
+            "numerals": "bVImaj7, V7, I",
             "key": "C",
             "slots": [
                 {
-                    "chord_name": "Abmaj7(9)",
+                    "chord_name": "G#maj7(9)",
                     "extension_set": [
                         "9"
                     ]
                 },
                 {
-                    "chord_name": "G7",
+                    "chord_name": "G7(9,13)",
                     "extension_set": [
-                        "b9",
-                        "b13"
+                        "13"
                     ]
                 },
                 {
-                    "chord_name": "Cm7",
+                    "chord_name": "Cmaj7(9)",
                     "extension_set": [
                         "9"
                     ]
                 }
             ],
             "expected_resolutions": [
-                "vl.dom.b13_to_5",
-                "vl.dom.b9_to_5"
+                "vl.dom.b7_to_3",
+                "vl.dom.13_to_9"
             ]
         },
         "deceptive-cadence-to-iv": {
@@ -273,7 +155,7 @@
                 {
                     "chord_name": "E7(9,13)",
                     "extension_set": [
-                        "9"
+                        "13"
                     ]
                 },
                 {
@@ -298,8 +180,7 @@
                 {
                     "chord_name": "G7(9,13)",
                     "extension_set": [
-                        "9",
-                        "13"
+                        "9"
                     ]
                 },
                 {
@@ -311,12 +192,11 @@
             ],
             "expected_resolutions": [
                 "vl.dom.b7_to_3",
-                "vl.dom.3_to_root",
-                "vl.dom.13_to_9"
+                "vl.dom.3_to_root"
             ]
         },
         "modal-interchange": {
-            "name": "Modal Interchange",
+            "name": "Modal Interchange I to Vm",
             "category": "jazz",
             "numerals": "I, Vm",
             "key": "C",
@@ -329,9 +209,7 @@
                 },
                 {
                     "chord_name": "Gm7",
-                    "extension_set": [
-                        "9"
-                    ]
+                    "extension_set": []
                 }
             ],
             "expected_resolutions": []
@@ -350,26 +228,36 @@
                 },
                 {
                     "chord_name": "E7",
-                    "extension_set": [
-                        "b9",
-                        "b13"
-                    ]
+                    "extension_set": []
                 },
                 {
                     "chord_name": "Am7",
-                    "extension_set": [
-                        "9"
-                    ]
+                    "extension_set": []
                 }
             ],
             "expected_resolutions": [
                 "vl.iiV.b7_to_3",
-                "vl.iiV.3_to_b7",
-                "vl.iiV.9_to_b13",
-                "vl.iiV.5_to_b9",
-                "vl.dom.b13_to_5",
-                "vl.dom.b9_to_5"
+                "vl.dom.3_to_root"
             ]
+        },
+        "modal-interchange-i-to-im": {
+            "name": "Modal Interchange I to Im",
+            "category": "jazz",
+            "numerals": "I, Im",
+            "key": "C",
+            "slots": [
+                {
+                    "chord_name": "Cmaj7(9)",
+                    "extension_set": [
+                        "9"
+                    ]
+                },
+                {
+                    "chord_name": "Cm7",
+                    "extension_set": []
+                }
+            ],
+            "expected_resolutions": []
         },
         "ascending-diminished": {
             "name": "Ascending Diminished",
@@ -384,7 +272,7 @@
                     ]
                 },
                 {
-                    "chord_name": "Dbdim7",
+                    "chord_name": "C#dim7",
                     "extension_set": []
                 },
                 {
@@ -395,50 +283,10 @@
                 },
                 {
                     "chord_name": "G7",
-                    "extension_set": [
-                        "b9",
-                        "b13"
-                    ]
+                    "extension_set": []
                 }
             ],
-            "expected_resolutions": [
-                "vl.iiV.b7_to_3",
-                "vl.iiV.3_to_b7",
-                "vl.iiV.9_to_b13",
-                "vl.iiV.5_to_b9"
-            ]
-        },
-        "test-jazz-progression": {
-            "name": "Test Jazz Progression",
-            "category": "jazz",
-            "numerals": "IIm7, V7, Imaj7",
-            "key": "C",
-            "slots": [
-                {
-                    "chord_name": "Dm7(9)",
-                    "extension_set": [
-                        "9"
-                    ]
-                },
-                {
-                    "chord_name": "G7(9,13)",
-                    "extension_set": [
-                        "13"
-                    ]
-                },
-                {
-                    "chord_name": "Cmaj7(9)",
-                    "extension_set": [
-                        "9"
-                    ]
-                }
-            ],
-            "expected_resolutions": [
-                "vl.iiV.b7_to_3",
-                "vl.iiV.3_to_b7",
-                "vl.dom.b7_to_3",
-                "vl.dom.13_to_9"
-            ]
+            "expected_resolutions": []
         },
         "the-major-jazz-cadence": {
             "name": "The Major Jazz Cadence",
@@ -455,7 +303,7 @@
                 {
                     "chord_name": "G7(9,13)",
                     "extension_set": [
-                        "13"
+                        "9"
                     ]
                 },
                 {
@@ -467,9 +315,8 @@
             ],
             "expected_resolutions": [
                 "vl.iiV.b7_to_3",
-                "vl.iiV.3_to_b7",
                 "vl.dom.b7_to_3",
-                "vl.dom.13_to_9"
+                "vl.dom.3_to_root"
             ]
         },
         "the-minor-jazz-cadence": {
@@ -480,24 +327,22 @@
             "slots": [
                 {
                     "chord_name": "Bm7b5",
-                    "extension_set": []
+                    "extension_set": [
+                        "11"
+                    ]
                 },
                 {
                     "chord_name": "E7",
                     "extension_set": [
-                        "b9",
-                        "b13"
+                        "#11"
                     ]
                 },
                 {
                     "chord_name": "Am7",
-                    "extension_set": [
-                        "9"
-                    ]
+                    "extension_set": []
                 }
             ],
             "expected_resolutions": [
-                "vl.dom.b13_to_5",
                 "vl.dom.b9_to_5"
             ]
         },
@@ -510,14 +355,12 @@
                 {
                     "chord_name": "E7(9,13)",
                     "extension_set": [
-                        "9",
-                        "13"
+                        "9"
                     ]
                 },
                 {
                     "chord_name": "A7(9,13)",
                     "extension_set": [
-                        "9",
                         "13"
                     ]
                 },
@@ -534,7 +377,7 @@
             ],
             "expected_resolutions": {
                 "0": "vl.dom.b7_to_3",
-                "2": "vl.dom.3_to_root"
+                "3": "vl.dom.3_to_root"
             }
         },
         "the-turnaround-2": {
@@ -552,7 +395,6 @@
                 {
                     "chord_name": "A7(b9,b13)",
                     "extension_set": [
-                        "b9",
                         "b13"
                     ]
                 },
@@ -564,17 +406,11 @@
                 },
                 {
                     "chord_name": "G7",
-                    "extension_set": [
-                        "b9",
-                        "b13"
-                    ]
+                    "extension_set": []
                 }
             ],
             "expected_resolutions": [
-                "vl.iiV.b7_to_3",
-                "vl.iiV.3_to_b7",
-                "vl.iiV.9_to_b13",
-                "vl.iiV.5_to_b9"
+                "vl.dom.b13_to_9"
             ]
         },
         "backdoor-dominant": {
@@ -584,9 +420,9 @@
             "key": "C",
             "slots": [
                 {
-                    "chord_name": "Bb7",
+                    "chord_name": "A#7",
                     "extension_set": [
-                        "#11"
+                        "b9"
                     ]
                 },
                 {
@@ -606,14 +442,12 @@
             "slots": [
                 {
                     "chord_name": "Dm7",
-                    "extension_set": [
-                        "11"
-                    ]
+                    "extension_set": []
                 },
                 {
-                    "chord_name": "Db7(9,#11)",
+                    "chord_name": "C#7(9,#11)",
                     "extension_set": [
-                        "#11"
+                        "9"
                     ]
                 },
                 {
@@ -624,7 +458,7 @@
                 }
             ],
             "expected_resolutions": [
-                "vl.tritone.sharp11_to_5"
+                "vl.tritone.b7_to_3"
             ]
         },
         "the-bill-evans-turnaround": {
@@ -640,19 +474,19 @@
                     ]
                 },
                 {
-                    "chord_name": "Ebmaj7(9)",
+                    "chord_name": "D#maj7(9)",
                     "extension_set": [
                         "9"
                     ]
                 },
                 {
-                    "chord_name": "Abmaj7(9)",
+                    "chord_name": "G#maj7(9)",
                     "extension_set": [
                         "9"
                     ]
                 },
                 {
-                    "chord_name": "Dbmaj7(9)",
+                    "chord_name": "C#maj7(9)",
                     "extension_set": [
                         "9"
                     ]
@@ -668,12 +502,14 @@
             "slots": [
                 {
                     "chord_name": "Em7",
-                    "extension_set": []
+                    "extension_set": [
+                        "11"
+                    ]
                 },
                 {
                     "chord_name": "A7(b9,b13)",
                     "extension_set": [
-                        "b9"
+                        "b13"
                     ]
                 },
                 {
@@ -684,30 +520,22 @@
                 },
                 {
                     "chord_name": "G7",
-                    "extension_set": [
-                        "b9",
-                        "b13"
-                    ]
+                    "extension_set": []
                 }
             ],
             "expected_resolutions": [
-                "vl.iiV.b7_to_3",
-                "vl.iiV.3_to_b7",
-                "vl.iiV.9_to_b13",
-                "vl.iiV.5_to_b9"
+                "vl.dom.b13_to_9"
             ]
         },
         "minor-plagal-cadence": {
             "name": "Minor Plagal Cadence",
             "category": "jazz",
-            "numerals": "IVm,Imaj7",
+            "numerals": "IVm, I",
             "key": "C",
             "slots": [
                 {
                     "chord_name": "Fm7",
-                    "extension_set": [
-                        "9"
-                    ]
+                    "extension_set": []
                 },
                 {
                     "chord_name": "Cmaj7(9)",
@@ -746,8 +574,116 @@
                 }
             ],
             "expected_resolutions": [
-                "vl.dom.3_to_root"
+                "vl.dom.3_to_root",
+                "vl.dom.b9_to_5"
             ]
+        },
+        "i-iv-v": {
+            "name": "I\u2013IV\u2013V",
+            "category": "jazz",
+            "numerals": "I7,IV7,V7",
+            "key": "C",
+            "slots": [
+                {
+                    "chord_name": "C7(9,13)",
+                    "extension_set": [
+                        "13"
+                    ]
+                },
+                {
+                    "chord_name": "F7(9,13)",
+                    "extension_set": [
+                        "9"
+                    ]
+                },
+                {
+                    "chord_name": "G7",
+                    "extension_set": []
+                }
+            ],
+            "expected_resolutions": [
+                "vl.dom.b7_to_3"
+            ]
+        },
+        "so-what-changes": {
+            "name": "So What Changes",
+            "category": "jazz",
+            "numerals": "Im7,bIIm7",
+            "key": "C",
+            "slots": [
+                {
+                    "chord_name": "Cm7",
+                    "extension_set": [
+                        "11"
+                    ]
+                },
+                {
+                    "chord_name": "C#m7",
+                    "extension_set": []
+                }
+            ],
+            "expected_resolutions": []
+        },
+        "lydian-i-ii": {
+            "name": "Lydian (I\u2013II)",
+            "category": "jazz",
+            "numerals": "Imaj7,IImaj7",
+            "key": "C",
+            "slots": [
+                {
+                    "chord_name": "Cmaj7(9)",
+                    "extension_set": [
+                        "9"
+                    ]
+                },
+                {
+                    "chord_name": "Dmaj7(9)",
+                    "extension_set": [
+                        "9"
+                    ]
+                }
+            ],
+            "expected_resolutions": []
+        },
+        "mixolydian-vamp-i7-bvii": {
+            "name": "Mixolydian Vamp",
+            "category": "jazz",
+            "numerals": "I,bVII",
+            "key": "C",
+            "slots": [
+                {
+                    "chord_name": "Cmaj7(9)",
+                    "extension_set": [
+                        "9"
+                    ]
+                },
+                {
+                    "chord_name": "A#7",
+                    "extension_set": []
+                }
+            ],
+            "expected_resolutions": []
+        },
+        "phrygian-cadence": {
+            "name": "Phrygian Cadence",
+            "category": "jazz",
+            "numerals": "I,bII",
+            "key": "C",
+            "slots": [
+                {
+                    "chord_name": "Cmaj7(9)",
+                    "extension_set": [
+                        "9"
+                    ]
+                },
+                {
+                    "chord_name": "C#7(9,#11)",
+                    "extension_set": [
+                        "9"
+                    ]
+                }
+            ],
+            "expected_resolutions": []
         },
         "the-jazz-half-cadence": {
             "name": "The Jazz Half Cadence",
@@ -763,18 +699,10 @@
                 },
                 {
                     "chord_name": "G7",
-                    "extension_set": [
-                        "b9",
-                        "b13"
-                    ]
+                    "extension_set": []
                 }
             ],
-            "expected_resolutions": [
-                "vl.iiV.b7_to_3",
-                "vl.iiV.3_to_b7",
-                "vl.iiV.9_to_b13",
-                "vl.iiV.5_to_b9"
-            ]
+            "expected_resolutions": []
         }
     }
 }

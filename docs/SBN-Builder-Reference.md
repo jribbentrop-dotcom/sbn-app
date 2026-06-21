@@ -374,8 +374,22 @@ Three sections:
 3. **`named_resolutions`** — guide-tone resolutions with stable IDs
    (`vl.dom.b7_to_3`, `vl.tritone.sharp11_to_5`, etc.). Each entry that
    fires contributes a negative cost on top of §7.5's per-voice
-   distance. `same_voice` means pitch-rank equality (sort both voicings
-   by ascending MIDI; compare at same array index), not same-string.
+   distance. `same_voice` means **nearest-voice motion** (since
+   2026-06-21): the source tone moves to the target tone by the exact
+   signed interval via the closest actual note pair. This supersedes the
+   original pitch-rank-equality definition, which required both tones at
+   the same bass-up sort index and so never fired the bedrock `b7→3` on
+   ordinary guitar drop voicings (the target's 3rd usually sits below
+   where the dominant's b7 was — ranks cross). See
+   `Phase-E-Extension-Table.yaml` `same_voice_definition`.
+
+> **Fret-decode bug (fixed 2026-06-21).** `getVoicingMidiNotes` decoded
+> the 6-char `frets` string with a naive `(int)` cast, so frets ≥ 10
+> (encoded as hex letters: `a`=10, `c`=12) silently became open strings.
+> Every voicing above fret 9 had a corrupted pitch set, which made
+> guide-tone tone-presence checks fail and starved Pass 2 of named
+> resolutions corpus-wide. Now uses the same `ctype_digit ? (int) :
+> hexdec` decode as the rest of the class.
 
 #### §8.2 Decision rule
 

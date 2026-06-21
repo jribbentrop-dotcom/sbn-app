@@ -2747,36 +2747,36 @@ class ProgressionBuilder
                                        int $sourceRootPc, int $targetRootPc,
                                        string $sourceTone, string $targetTone, int $expectedSemitones): bool
     {
-        // Get sounded notes (non-muted) and sort by pitch
-        $soundedSource = array_filter($sourceNotes, fn($note) => $note !== -1);
-        $soundedTarget = array_filter($targetNotes, fn($note) => $note !== -1);
-        
-        sort($soundedSource);
-        sort($soundedTarget);
+        // NEAREST-VOICE motion (supersedes the original pitch-rank model).
+        //
+        // The pitch-rank definition (source tone and target tone must occupy the
+        // SAME index in each voicing's bass-up sort) was chosen in the original
+        // spec but proved too strict for guitar: in a real V7->I drop voicing the
+        // target's 3rd routinely sits BELOW where the dominant's b7 was, so the
+        // ranks cross and the bedrock b7->3 resolution never fires. Guitarists
+        // (and the ear) hear it as one voice regardless of where it lands on the
+        // staff. We therefore fire when the source tone moves to the target tone
+        // by the expected signed interval via the CLOSEST actual note pair —
+        // voicing-shape-agnostic, but still pinned to the exact interval (so it
+        // is not the looser any-voice / pitch-class-only test).
+        $soundedSource = array_values(array_filter($sourceNotes, fn($n) => $n !== -1));
+        $soundedTarget = array_values(array_filter($targetNotes, fn($n) => $n !== -1));
 
-        // Get target pitch classes for the tones
-        $sourceOffset = Interval::offset($sourceTone);
-        $targetOffset = Interval::offset($targetTone);
-        $sourceTargetPc = ($sourceRootPc + $sourceOffset) % 12;
-        $targetTargetPc = ($targetRootPc + $targetOffset) % 12;
+        $sourceTargetPc = ($sourceRootPc + Interval::offset($sourceTone)) % 12;
+        $targetTargetPc = ($targetRootPc + Interval::offset($targetTone)) % 12;
 
-        // Check each voice position
-        $maxIndex = min(count($soundedSource), count($soundedTarget));
-        for ($i = 0; $i < $maxIndex; $i++) {
-            $sourceNote = $soundedSource[$i];
-            $targetNote = $soundedTarget[$i];
-
-            // Check if this voice position contains both required tones
-            if (($sourceNote % 12) === $sourceTargetPc && ($targetNote % 12) === $targetTargetPc) {
-                // Check semitone motion
-                $actualSemitones = $targetNote - $sourceNote;
-                if ($actualSemitones === $expectedSemitones) {
-                    return true;
-                }
+        $bestDist = PHP_INT_MAX;
+        foreach ($soundedSource as $s) {
+            if (($s % 12) !== $sourceTargetPc) continue;
+            foreach ($soundedTarget as $t) {
+                if (($t % 12) !== $targetTargetPc) continue;
+                if (($t - $s) !== $expectedSemitones) continue;
+                $dist = abs($t - $s);
+                if ($dist < $bestDist) $bestDist = $dist;
             }
         }
 
-        return false;
+        return $bestDist !== PHP_INT_MAX;
     }
 
     /**
@@ -2825,32 +2825,33 @@ class ProgressionBuilder
      */
     private function getVoicingMidiNotes(object $voicing): array
     {
-        $notes = [];
-        
-        // Handle different voicing data formats
-        if (isset($voicing->midi_notes)) {
-            $notes = $voicing->midi_notes;
-        } elseif (isset($voicing->diagram_data)) {
-            // Extract from diagram data
-            $diagram = $voicing->diagram_data;
-            $frets = $diagram->frets ?? [];
-            
-            // If diagram_data frets is empty, try the direct frets property
-            if (empty($frets) && isset($voicing->frets)) {
-                $frets = $voicing->frets;
-            }
-            
-            for ($string = 0; $string < 6; $string++) {
-                $fret = $frets[$string] ?? 'x';
-                if ($fret === 'x' || $fret === -1) {
-                    $notes[] = -1; // muted
-                } else {
-                    $openMidi = self::OPEN_MIDI[$string + 1];
-                    $notes[] = $openMidi + (int)$fret;
-                }
-            }
+        // Pre-computed MIDI notes win when present.
+        if (isset($voicing->midi_notes) && is_array($voicing->midi_notes)) {
+            return $voicing->midi_notes;
         }
-        
+
+        // The canonical representation is the 6-char `frets` string, low-E first
+        // (e.g. "xa9aax"). Frets 10+ are encoded as hex letters (a=10, b=11, …),
+        // so they MUST be decoded with hexdec — a naive (int) cast silently turns
+        // every fret >= 10 into an open string, corrupting the pitch set and
+        // breaking guide-tone resolution firing for any voicing above fret 9.
+        // Mirrors the decode at positionHintCost() / VoicingMaterializer.
+        $fretStr = (string) ($voicing->frets ?? '');
+        if ($fretStr === '') {
+            return [];
+        }
+
+        $notes = [];
+        for ($string = 0; $string < 6; $string++) {
+            $ch = $fretStr[$string] ?? 'x';
+            if ($ch === 'x' || $ch === 'X' || $ch === '-') {
+                $notes[] = -1; // muted
+                continue;
+            }
+            $fret = ctype_digit($ch) ? (int) $ch : hexdec($ch); // 10+ frets are hex
+            $notes[] = self::OPEN_MIDI[$string + 1] + $fret;
+        }
+
         return $notes;
     }
 
