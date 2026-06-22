@@ -4717,4 +4717,5 @@
 @media (max-width: 600px) {
     .sbn-lib-page-title { font-size: 28px; }
     .sbn-lib-row-title  { font-size: 17px; }
+    .sbn-lib-filter-sidebar { display: none; }
 }
