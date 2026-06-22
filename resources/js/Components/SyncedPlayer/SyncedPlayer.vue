@@ -713,6 +713,8 @@ defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying }
     font-size: 1.9rem;
     font-weight: 600;
     margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: visible;
     transform-origin: center top;
     transition:
         transform v-bind("slideMs + 'ms'") v-bind("SLIDE_EASE"),

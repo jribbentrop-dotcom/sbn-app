@@ -54,12 +54,13 @@
 }
 
 /* -- Extensions (7, 9, ♭5, ♯11, add9…) — superscript ---- */
-
+/* vertical-align:super is browser-controlled and too aggressive at large font
+   sizes. Use a fixed em offset instead so the superscript stays proportional. */
 .sbn-chord-ext {
-    font-size: 0.75em;
+    font-size: 0.72em;
     font-weight: 600;
     line-height: 0;
-    vertical-align: super;
+    vertical-align: 0.4em;
 }
 
 /* -- Bass note (/E, /B♭) --------------------------------- */
