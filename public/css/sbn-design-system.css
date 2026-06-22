@@ -1,4 +1,4 @@
-/* ===========================================================
+﻿/* ===========================================================
    SBN Teaching Hub — Design System
    ──────────────────────────────────────────────────────────
    LOAD ORDER: This file must be loaded BEFORE admin2.css and
@@ -3837,6 +3837,13 @@
 .sbn-card-scroll-btn:hover { background: var(--clr-surface-2); }
 .sbn-card-scroll-btn--prev { left: -14px; }
 .sbn-card-scroll-btn--next { right: -14px; }
+@media (max-width: 600px) {
+    /* Arrow buttons bleed outside wrapper on narrow screens; touch-scroll sufficient */
+    .sbn-card-scroll-btn { display: none; }
+    /* Widen sibling tiles to show ~2 per view */
+    .sbn-card-scroll-item { flex: 0 0 calc(50vw - 32px); }
+    .sbn-chord-siblings-wrap { max-width: none; }
+}
 
 /* ── Show-page section heading row ───────────────────────────
    .sbn-section-heading-row  — flex row: title left, link right
@@ -4719,3 +4726,4 @@
     .sbn-lib-row-title  { font-size: 17px; }
     .sbn-lib-filter-sidebar { display: none; }
 }
+

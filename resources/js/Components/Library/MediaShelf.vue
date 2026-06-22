@@ -20,7 +20,9 @@ function updateScrollState() {
 
 function scroll(dir: 'left' | 'right') {
     if (!track.value) return;
-    track.value.scrollBy({ left: dir === 'right' ? 142 : -142, behavior: 'smooth' });
+    const firstCard = track.value.firstElementChild as HTMLElement | null;
+    const step = firstCard ? firstCard.offsetWidth + 10 : 170;
+    track.value.scrollBy({ left: dir === 'right' ? step : -step, behavior: 'smooth' });
 }
 
 let ro: ResizeObserver | null = null;

@@ -59,6 +59,10 @@ const levelLabel = computed(() => difficultyLabel(stars.value));
     flex-shrink: 0;
 }
 
+@media (max-width: 600px) {
+    .sbn-course-shelf-card { width: calc(50vw - 20px); }
+}
+
 .sbn-course-shelf-card__image {
     position: relative;
     aspect-ratio: 1 / 1;
