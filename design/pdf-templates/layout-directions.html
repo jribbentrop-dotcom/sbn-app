@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SBN Layout Directions — TOP10 Bossa Nova Chords</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&display=swap" rel="stylesheet">
+
+<style>
+:root {
+    --clr-bg:          #f8f9fb;
+    --clr-white:       #ffffff;
+    --clr-text:        #2c3e50;
+    --clr-text-dim:    #5a5a5a;
+    --clr-text-muted:  #8896a4;
+    --clr-accent:      #f39c12;
+    --clr-accent-dim:  #e67e22;
+    --clr-red:         #e74c3c;
+    --clr-border:      #e2e8f0;
+    --clr-style-bossa: #f39c12;
+
+    --font-body:    'DM Sans', system-ui, sans-serif;
+    --font-chord:   'Crimson Text', Georgia, serif;
+    --font-display: 'Fraunces', Georgia, serif;
+
+    --radius-sm: 6px;
+    --radius: 10px;
+}
+
+@page { size: A4 portrait; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-body); font-size: 10pt; color: var(--clr-text); background:#fff; }
+
+.pdf-page { page-break-after: always; break-after: page; position: relative; width: 210mm; height: 297mm; overflow: hidden; }
+.pdf-page:last-child { page-break-after: avoid; }
+
+.direction-label {
+    position: absolute; top: 8mm; right: 12mm;
+    font-size: 7pt; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--clr-text-muted); z-index: 10;
+}
+
+/* ============================================================
+   DIRECTION 1 — ENCYCLOPEDIA / VISUAL REFERENCE
+   Oversized numeral, fixed diagram column, color-coded spine tab.
+   Reference: DK visual encyclopedias, type-specimen catalogs.
+   ============================================================ */
+.dir-encyclo { padding: 0; }
+.dir-encyclo__spine {
+    position: absolute; top: 0; left: 0; bottom: 0; width: 14mm;
+    background: linear-gradient(180deg, var(--clr-accent), var(--clr-red));
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    padding-top: 18mm;
+}
+.dir-encyclo__spine-label {
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    font-size: 8pt; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;
+    color: #fff; opacity: 0.92;
+}
+.dir-encyclo__body { margin-left: 14mm; padding: 16mm 16mm 14mm 14mm; }
+.dir-encyclo__num {
+    font-family: var(--font-display); font-weight: 800; font-size: 86pt; line-height: 0.8;
+    color: var(--clr-text); opacity: 0.92; margin-bottom: -4pt;
+}
+.dir-encyclo__kicker {
+    font-size: 8pt; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--clr-accent-dim); margin-bottom: 4pt;
+}
+.dir-encyclo__title {
+    font-family: var(--font-display); font-weight: 700; font-size: 22pt;
+    color: var(--clr-text); margin-bottom: 18pt; line-height: 1.1;
+}
+.dir-encyclo__grid { display: grid; grid-template-columns: 60mm 1fr; gap: 14mm; align-items: start; }
+.dir-encyclo__diagram {
+    border: 1pt solid var(--clr-border); border-radius: var(--radius);
+    padding: 10pt; background: var(--clr-white);
+}
+.dir-encyclo__diagram img { width: 100%; display: block; }
+.dir-encyclo__facts { display: flex; flex-direction: column; gap: 12pt; }
+.dir-encyclo__fact-label {
+    font-size: 7.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--clr-text-muted); margin-bottom: 3pt;
+}
+.dir-encyclo__fact-value { font-size: 10.5pt; line-height: 1.55; color: var(--clr-text); }
+.dir-encyclo__fact-rule { border-top: 0.75pt solid var(--clr-border); padding-top: 10pt; }
+.dir-encyclo__footer {
+    position: absolute; bottom: 10mm; left: 14mm; right: 16mm;
+    display: flex; justify-content: space-between; font-size: 7.5pt; color: var(--clr-text-muted);
+    border-top: 0.75pt solid var(--clr-border); padding-top: 6pt;
+}
+
+/* ============================================================
+   DIRECTION 2 — METHOD BOOK
+   Full-width running text, narrow margin column for asides.
+   Reference: Berklee Press / Hal Leonard guitar method books.
+   ============================================================ */
+.dir-method { padding: 20mm 18mm 16mm 18mm; }
+.dir-method__eyebrow {
+    font-size: 8pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--clr-text-muted); border-bottom: 1.5pt solid var(--clr-border);
+    padding-bottom: 8pt; margin-bottom: 18pt; display: flex; justify-content: space-between;
+}
+.dir-method__layout { display: grid; grid-template-columns: 1fr 38mm; gap: 12mm; }
+.dir-method__title {
+    font-family: var(--font-display); font-weight: 700; font-size: 21pt;
+    color: var(--clr-text); margin-bottom: 12pt;
+}
+.dir-method__lede {
+    font-family: var(--font-chord); font-style: italic; font-size: 12.5pt; line-height: 1.6;
+    color: var(--clr-text-dim); margin-bottom: 16pt;
+}
+.dir-method__diagram-inline {
+    float: left; width: 70pt; margin: 0 16pt 8pt 0;
+    border: 1pt solid var(--clr-border); border-radius: var(--radius-sm); padding: 6pt; background: #fff;
+}
+.dir-method__diagram-inline img { width: 100%; display: block; }
+.dir-method__body { font-size: 10.5pt; line-height: 1.7; color: var(--clr-text); }
+.dir-method__section-label {
+    font-size: 8pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--clr-accent-dim); margin: 18pt 0 8pt; clear: both;
+}
+.dir-method__pattern img { width: 100%; display: block; border-radius: var(--radius-sm); }
+.dir-method__margin {
+    border-left: 1.5pt solid var(--clr-border); padding-left: 10mm;
+    display: flex; flex-direction: column; gap: 16pt;
+}
+.dir-method__margin-label {
+    font-size: 7pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--clr-text-muted); margin-bottom: 4pt;
+}
+.dir-method__margin-note {
+    font-size: 9pt; line-height: 1.5; color: var(--clr-text-dim);
+}
+.dir-method__margin-note strong { color: var(--clr-text); }
+.dir-method__footer {
+    position: absolute; bottom: 10mm; left: 18mm; right: 18mm;
+    display: flex; justify-content: space-between; font-size: 7.5pt; color: var(--clr-text-muted);
+    border-top: 0.75pt solid var(--clr-border); padding-top: 6pt;
+}
+
+/* ============================================================
+   DIRECTION 3 — SONGBOOK CROSS-REFERENCE
+   Branded chip system linking repertoire excerpts back to the
+   chord catalog. Reference: cookbook "see technique on p.X"
+   apparatus / DK cross-reference chips.
+   ============================================================ */
+.dir-songbook { padding: 20mm 18mm 16mm 18mm; }
+.dir-songbook__eyebrow {
+    font-size: 8pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--clr-text-muted); margin-bottom: 6pt;
+}
+.dir-songbook__title {
+    font-family: var(--font-display); font-weight: 700; font-size: 24pt; color: var(--clr-text);
+    margin-bottom: 4pt;
+}
+.dir-songbook__sub {
+    font-family: var(--font-chord); font-style: italic; font-size: 11pt; color: var(--clr-text-dim);
+    margin-bottom: 18pt;
+}
+.dir-songbook__legend {
+    display: flex; gap: 10pt; align-items: center; margin-bottom: 22pt;
+    padding: 10pt 14pt; border: 1pt solid var(--clr-border); border-radius: var(--radius);
+    background: var(--clr-white);
+}
+.dir-songbook__legend-title {
+    font-size: 7.5pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--clr-text-muted); margin-right: 4pt;
+}
+.chip {
+    display: inline-flex; align-items: center; gap: 5pt;
+    font-size: 8.5pt; font-weight: 600; color: var(--clr-text-dim);
+}
+.chip__num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16pt; height: 16pt; border-radius: 50%;
+    background: linear-gradient(135deg, var(--clr-accent), var(--clr-red));
+    color: #fff; font-size: 7.5pt; font-weight: 700; font-family: var(--font-body);
+}
+.dir-songbook__notation-wrap { position: relative; margin-bottom: 14pt; }
+.dir-songbook__notation-wrap img { width: 100%; display: block; }
+.dir-songbook__tag-row { display: flex; gap: 8pt; margin: -4pt 0 16pt 2pt; }
+.dir-songbook__note {
+    font-size: 9.5pt; line-height: 1.6; color: var(--clr-text-dim);
+    border-left: 2.5pt solid var(--clr-accent); padding-left: 10pt; margin-top: 16pt;
+}
+.dir-songbook__footer {
+    position: absolute; bottom: 10mm; left: 18mm; right: 18mm;
+    display: flex; justify-content: space-between; font-size: 7.5pt; color: var(--clr-text-muted);
+    border-top: 0.75pt solid var(--clr-border); padding-top: 6pt;
+}
+</style>
+</head>
+<body>
+
+<!-- ================= DIRECTION 1: ENCYCLOPEDIA / VISUAL REFERENCE ================= -->
+<div class="pdf-page dir-encyclo">
+    <span class="direction-label">Direction 1 · Encyclopedia / Visual Reference</span>
+    <div class="dir-encyclo__spine"><span class="dir-encyclo__spine-label">CHORD CATALOG · SEVENTH CHORDS</span></div>
+    <div class="dir-encyclo__body">
+        <div class="dir-encyclo__num">01</div>
+        <div class="dir-encyclo__kicker">Catalog Entry &middot; Major Family</div>
+        <div class="dir-encyclo__title">The Major Seventh Chord with 9</div>
+
+        <div class="dir-encyclo__grid">
+            <div class="dir-encyclo__diagram">
+                <img src="layout-directions-assets/chord1-diagram.png" alt="CMaj7(9) diagram">
+            </div>
+            <div class="dir-encyclo__facts">
+                <div>
+                    <div class="dir-encyclo__fact-label">Formula</div>
+                    <div class="dir-encyclo__fact-value">Root &middot; 3 &middot; 5 &middot; 7 &middot; 9 — the major triad with a major seventh and a major ninth on top.</div>
+                </div>
+                <div class="dir-encyclo__fact-rule">
+                    <div class="dir-encyclo__fact-label">Sound</div>
+                    <div class="dir-encyclo__fact-value">The ninth adds extra warmth to the major triad with a major seventh — open, lush, unmistakably bossa.</div>
+                </div>
+                <div class="dir-encyclo__fact-rule">
+                    <div class="dir-encyclo__fact-label">Where you'll hear it</div>
+                    <div class="dir-encyclo__fact-value">The first chord of <strong>The Girl from Ipanema</strong> — and the opening chord of countless bossa nova standards since.</div>
+                </div>
+                <div class="dir-encyclo__fact-rule">
+                    <div class="dir-encyclo__fact-label">Cross-reference</div>
+                    <div class="dir-encyclo__fact-value">Used in the repertoire examples on p.7 (Girl from Ipanema) and p.11 (Wave) — see Songbook section.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="dir-encyclo__footer"><span>SBN Teaching Hub &middot; TOP10 Bossa Nova Chords</span><span>soulbossanova.com</span></div>
+</div>
+
+<!-- ================= DIRECTION 2: METHOD BOOK ================= -->
+<div class="pdf-page dir-method">
+    <span class="direction-label">Direction 2 · Method Book</span>
+    <div class="dir-method__eyebrow"><span>SBN Teaching Hub &middot; Chord Catalog</span><span>02 / 10</span></div>
+
+    <div class="dir-method__layout">
+        <div>
+            <div class="dir-method__title">The Minor Seventh Chord with 9</div>
+            <p class="dir-method__lede">The little sister of the Major9 chord — a bit more mellow, and at least as beautiful.</p>
+
+            <div class="dir-method__diagram-inline">
+                <img src="layout-directions-assets/chord2-diagram.png" alt="Cm7(9) diagram">
+            </div>
+            <div class="dir-method__body">
+                Drop the third of a plain m7 chord by a step and you land on the m9 — softer, rounder, and far less
+                stark than its parent chord. Where the m7 can feel a little severe in isolation, the added ninth
+                rounds out the voicing and gives it room to breathe, which is exactly why it shows up everywhere
+                in jazz-leaning bossa nova writing.
+                <br><br>
+                The jazz bossa standard <strong>Blue Bossa</strong> makes extensive use of this chord — try comping
+                through the changes slowly before bringing it up to tempo, and listen for how the ninth colours
+                the line differently depending on what the melody is doing above it.
+            </div>
+
+            <div class="dir-method__section-label">Suggested Practice Pattern</div>
+            <div class="dir-method__pattern">
+                <img src="layout-directions-assets/chord2-pattern.png" alt="Practice pattern Cm7(9) to Fm7(9)">
+            </div>
+        </div>
+
+        <div class="dir-method__margin">
+            <div>
+                <div class="dir-method__margin-label">Listen</div>
+                <div class="dir-method__margin-note"><strong>Blue Bossa</strong> — Kenny Dorham / Joe Henderson. Note how the m9 sits under the melody in the A section.</div>
+            </div>
+            <div>
+                <div class="dir-method__margin-label">Try this</div>
+                <div class="dir-method__margin-note">Play the pattern with your thumb only, then add fingerstyle arpeggiation once the shape feels secure.</div>
+            </div>
+            <div>
+                <div class="dir-method__margin-label">Related</div>
+                <div class="dir-method__margin-note">Compare with the plain m7 shell voicing (Shell Voicings booklet, p.1) — same family, different colour.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dir-method__footer"><span>SBN Teaching Hub</span><span>TOP10 Bossa Nova Chords</span><span>soulbossanova.com</span></div>
+</div>
+
+<!-- ================= DIRECTION 3: SONGBOOK CROSS-REFERENCE ================= -->
+<div class="pdf-page dir-songbook">
+    <span class="direction-label">Direction 3 · Songbook Cross-Reference</span>
+    <div class="dir-songbook__eyebrow">Repertoire Example &middot; 1 of 7</div>
+    <div class="dir-songbook__title">The Girl from Ipanema</div>
+    <div class="dir-songbook__sub">Bars 1&ndash;8 &middot; built entirely from three chords in this catalog</div>
+
+    <div class="dir-songbook__legend">
+        <span class="dir-songbook__legend-title">Chords used</span>
+        <span class="chip"><span class="chip__num">01</span>Maj7(9)</span>
+        <span class="chip"><span class="chip__num">02</span>m7(9)</span>
+        <span class="chip"><span class="chip__num">08</span>Dom7(9)</span>
+    </div>
+
+    <div class="dir-songbook__notation-wrap">
+        <img src="layout-directions-assets/ipanema-notation.png" alt="Girl from Ipanema notation excerpt">
+    </div>
+    <div class="dir-songbook__tag-row">
+        <span class="chip"><span class="chip__num">01</span>FMaj7(9)</span>
+        <span class="chip"><span class="chip__num">08</span>G7(9)</span>
+    </div>
+
+    <p class="dir-songbook__note">
+        Almost the entire A section alternates between just two voicings from this catalog — entry 01 and entry 08.
+        Once those two shapes are comfortable, this song is largely a rhythm exercise rather than a chord-memorisation one.
+    </p>
+
+    <div class="dir-songbook__footer"><span>SBN Teaching Hub</span><span>TOP10 Bossa Nova Chords &middot; Examples</span><span>soulbossanova.com</span></div>
+</div>
+
+</body>
+</html>

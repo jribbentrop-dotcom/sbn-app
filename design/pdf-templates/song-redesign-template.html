@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SBN Song Redesign Template</title>
+
+<!-- Same Google Fonts as the existing chord-book pipeline template -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&display=swap" rel="stylesheet">
+
+<style>
+:root {
+    --clr-bg:          #f8f9fb;
+    --clr-white:       #ffffff;
+    --clr-surface-2:   #f7fafc;
+    --clr-text:        #2c3e50;
+    --clr-text-dim:    #5a5a5a;
+    --clr-text-muted:  #8896a4;
+    --clr-accent:      #f39c12;
+    --clr-accent-dim:  #e67e22;
+    --clr-red:         #e74c3c;
+    --clr-border:      #e2e8f0;
+
+    --clr-style-bossa:     #f39c12;
+    --clr-style-jazz:      #3b82f6;
+    --clr-style-classical: #10b981;
+    --clr-style-pop:       #ec4899;
+
+    --g1: #5b9bff; --g2: #46c2a8; --g3: #f39c12; --g4: #e06cd6; --g5: #1d2127;
+
+    --font-body:    'DM Sans', system-ui, sans-serif;
+    --font-chord:   'Crimson Text', Georgia, serif;
+    --font-display: 'Fraunces', Georgia, serif;
+
+    --radius-sm: 6px;
+    --radius: 10px;
+}
+
+@page { size: A4 portrait; margin: 15mm 18mm 20mm 18mm; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: var(--font-body);
+    font-size: 10pt;
+    color: var(--clr-text);
+    background: #fff;
+}
+
+.pdf-page { page-break-after: always; break-after: page; position: relative; min-height: 100vh; }
+.pdf-page:last-child { page-break-after: avoid; break-after: avoid; }
+
+.pdf-cover {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; text-align: center; padding: 40pt 30pt;
+}
+.pdf-cover__logo { width: 56pt; height: 56pt; margin-bottom: 22pt; }
+.pdf-cover__series {
+    font-family: var(--font-body); font-size: 9pt; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--clr-accent); margin-bottom: 10pt;
+}
+.pdf-cover__title {
+    font-family: var(--font-display); font-size: 30pt; font-weight: 700;
+    line-height: 1.15; color: var(--clr-text); margin-bottom: 8pt;
+}
+.pdf-cover__subtitle {
+    font-family: var(--font-chord); font-style: italic; font-size: 13pt;
+    color: var(--clr-text-dim); margin-bottom: 4pt;
+}
+.pdf-cover__composer {
+    font-size: 9.5pt; color: var(--clr-text-muted); margin-bottom: 20pt;
+}
+
+.pdf-meta-row { display: flex; gap: 8pt; justify-content: center; margin-bottom: 26pt; }
+.pdf-meta-pill {
+    display: inline-flex; align-items: center; gap: 5pt;
+    font-size: 8pt; font-weight: 600; letter-spacing: 0.03em;
+    padding: 4pt 11pt; border-radius: 20pt; border: 0.75pt solid var(--clr-border);
+    color: var(--clr-text-dim); background: var(--clr-white); white-space: nowrap;
+}
+.pdf-meta-pill .dot { width: 7pt; height: 7pt; border-radius: 50%; flex-shrink: 0; }
+.pdf-meta-pill.style-bossa { color: #99581a; background: #fdf2e3; border-color: #f3d4a3; }
+.pdf-meta-pill.style-bossa .dot { background: var(--clr-style-bossa); }
+
+.pdf-cover__divider {
+    width: 60pt; height: 3pt; border-radius: 2pt; margin-bottom: 26pt;
+    background: linear-gradient(90deg, #f39c12, #e74c3c);
+}
+.pdf-cover__desc { max-width: 340pt; font-size: 10pt; line-height: 1.65; color: var(--clr-text-dim); }
+.pdf-cover__footer {
+    position: absolute; bottom: 12pt; left: 0; right: 0; text-align: center;
+    font-size: 8pt; color: var(--clr-text-muted); letter-spacing: 0.06em;
+}
+
+.pdf-page-header {
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1.5pt solid var(--clr-border); padding-bottom: 6pt; margin-bottom: 16pt;
+}
+.pdf-page-header__brand { font-size: 7.5pt; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--clr-text-muted); }
+.pdf-page-header__title { font-family: var(--font-chord); font-style: italic; font-size: 10pt; color: var(--clr-text-dim); }
+
+.pdf-page-footer {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 6pt; border-top: 0.75pt solid var(--clr-border);
+    font-size: 7.5pt; color: var(--clr-text-muted);
+}
+
+.pdf-song-title {
+    font-family: var(--font-display); font-size: 19pt; font-weight: 700;
+    color: var(--clr-text); margin-bottom: 4pt;
+}
+.pdf-song-byline { font-size: 9.5pt; color: var(--clr-text-muted); margin-bottom: 14pt; }
+.pdf-song-info-bar { display: flex; gap: 6pt; margin-bottom: 18pt; }
+
+.pdf-notation-card {
+    border: 0.75pt solid var(--clr-border);
+    border-radius: var(--radius);
+    padding: 14pt 14pt 10pt;
+    margin-bottom: 16pt;
+    background: var(--clr-white);
+}
+.pdf-notation-card__label {
+    font-size: 7.5pt; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--clr-text-muted); margin-bottom: 8pt;
+}
+.pdf-notation-card img, .pdf-notation-card svg {
+    display: block; margin: 0 auto;
+    width: auto; height: auto;
+    max-width: 100%; max-height: 540pt;
+}
+
+.pdf-tip-box {
+    border-radius: var(--radius);
+    padding: 2pt;
+    background: linear-gradient(135deg, #f39c12, #e74c3c);
+    margin-top: 4pt;
+}
+.pdf-tip-box__inner {
+    background: var(--clr-white);
+    border-radius: calc(var(--radius) - 2pt);
+    padding: 13pt 16pt 11pt;
+}
+.pdf-tip-box__heading {
+    font-size: 8.5pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--clr-accent-dim); margin-bottom: 8pt;
+}
+.pdf-tip-box__list { list-style: none; display: flex; flex-direction: column; gap: 5pt; }
+.pdf-tip-box__item { display: flex; gap: 7pt; font-size: 9pt; line-height: 1.4; color: var(--clr-text); }
+.pdf-tip-box__check {
+    flex-shrink: 0; width: 13pt; height: 13pt; border-radius: 50%;
+    background: #fdf2e3; color: var(--clr-accent-dim);
+    display: flex; align-items: center; justify-content: center; font-size: 8pt; margin-top: 1pt;
+}
+</style>
+</head>
+<body>
+
+<div class="pdf-page pdf-cover">
+    <svg class="pdf-cover__logo" viewBox="0 0 56 56" fill="none">
+        <defs>
+            <linearGradient id="lg" x1="0" y1="0" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#f39c12"/>
+                <stop offset="100%" stop-color="#e74c3c"/>
+            </linearGradient>
+        </defs>
+        <rect width="56" height="56" rx="12" fill="url(#lg)"/>
+        <path d="M12 40V16l16 12-16 12z" fill="#fff" opacity="0.9"/>
+        <path d="M28 40V16l16 12-16 12z" fill="#fff" opacity="0.6"/>
+    </svg>
+
+    <div class="pdf-cover__series">SBN Teaching Hub &middot; Song Series</div>
+    <h1 class="pdf-cover__title">Caminhos Cruzados</h1>
+    <p class="pdf-cover__subtitle">as played by Joao Bosco</p>
+    <p class="pdf-cover__composer">Tom Jobim &amp; Newton Mendonca</p>
+
+    <div class="pdf-meta-row">
+        <span class="pdf-meta-pill style-bossa"><span class="dot"></span>Bossa Nova</span>
+        <span class="pdf-meta-pill">Key: A</span>
+        <span class="pdf-meta-pill"><span class="dot" style="background:var(--g3)"></span>Intermediate</span>
+    </div>
+
+    <div class="pdf-cover__divider"></div>
+    <p class="pdf-cover__desc">Solo guitar arrangement with full notation, TAB and chord diagrams &mdash; reformatted from the original transcription into the SBN Teaching Hub layout.</p>
+
+    <div class="pdf-cover__footer">soulbossanova.com &nbsp;&middot;&nbsp; 2026</div>
+</div>
+
+<div class="pdf-page">
+    <div class="pdf-page-header">
+        <span class="pdf-page-header__brand">SBN Teaching Hub</span>
+        <span class="pdf-page-header__title">Caminhos Cruzados</span>
+    </div>
+
+    <div class="pdf-song-title">Caminhos Cruzados</div>
+    <div class="pdf-song-byline">Tom Jobim &amp; Newton Mendonca &nbsp;&middot;&nbsp; as played by Joao Bosco</div>
+    <div class="pdf-song-info-bar">
+        <span class="pdf-meta-pill style-bossa"><span class="dot"></span>Bossa Nova</span>
+        <span class="pdf-meta-pill">Key: A</span>
+        <span class="pdf-meta-pill"><span class="dot" style="background:var(--g3)"></span>Intermediate</span>
+    </div>
+
+    <div class="pdf-tip-box" style="margin-top:30pt">
+        <div class="pdf-tip-box__inner">
+            <div class="pdf-tip-box__heading">Practice Approach</div>
+            <ul class="pdf-tip-box__list">
+                <li class="pdf-tip-box__item"><span class="pdf-tip-box__check">&#10003;</span>Start at half tempo with a metronome, focusing on clean chord changes.</li>
+                <li class="pdf-tip-box__item"><span class="pdf-tip-box__check">&#10003;</span>Isolate the Amaj7 to A9sus4 to A9 turnaround before playing it in context.</li>
+                <li class="pdf-tip-box__item"><span class="pdf-tip-box__check">&#10003;</span>Once comfortable, add the melody back in over the bass/chord pattern.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="pdf-page-footer">
+        <span>SBN Teaching Hub</span>
+        <span>Caminhos Cruzados</span>
+        <span>soulbossanova.com</span>
+    </div>
+</div>
+
+<div class="pdf-page">
+    <div class="pdf-page-header">
+        <span class="pdf-page-header__brand">SBN Teaching Hub</span>
+        <span class="pdf-page-header__title">Caminhos Cruzados</span>
+    </div>
+
+    <div class="pdf-notation-card">
+        <div class="pdf-notation-card__label">Notation &amp; TAB &middot; Page 1</div>
+        <img src="sample-assets/caminhos-1.png" alt="Caminhos Cruzados notation">
+    </div>
+
+    <div class="pdf-page-footer">
+        <span>SBN Teaching Hub</span>
+        <span>Caminhos Cruzados</span>
+        <span>soulbossanova.com</span>
+    </div>
+</div>
+
+</body>
+</html>
