@@ -6,19 +6,34 @@
    ============================================================ */
 
 /* ── Grain overlay (scoped to home layout) ─────────────────── */
-.home-page ~ .home-grain,
+/* position:absolute keeps this inside .home-page, avoiding the Safari
+   stacking-context bug that collapsed child z-indices when fixed. */
 .home-page::before {
     content: "";
-    position: fixed;
+    position: absolute;
     inset: 0;
     pointer-events: none;
-    z-index: 1;
+    z-index: 0;
     opacity: .035;
     mix-blend-mode: overlay;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /* ── Shared layout ─────────────────────────────────────────── */
+
+/* Contains the absolute ::before grain and prevents horizontal overflow
+   from absolutely-positioned children (chord rain canvas, blobs). */
+.home-page {
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* Safari / Firefox don't support animation-timeline so grade blocks stay at
+   their default opacity:0 from .grade-block. Force them visible as fallback. */
+@supports not (animation-timeline: scroll()) {
+    .grade-block { opacity: 1 !important; transform: none !important; }
+}
+
 .home-wrap {
     max-width: 1200px;
     margin: 0 auto;
@@ -239,6 +254,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden; /* prevent absolutely-positioned rain cards from causing x-overflow on mobile */
 }
 
 /* Brand gradient blob — sits behind the rain */
@@ -733,6 +749,12 @@
     .grade-block { grid-template-columns: 1fr; }
     .grade-img { order: -1 !important; }
 }
+@media (max-width: 768px) {
+    /* Skip chord rain on mobile — rAF animation over ~60 DOM nodes is too
+       costly on mid-range devices; the section is decorative on touch anyway */
+    .chord-rain-section { display: none; }
+}
+
 @media (max-width: 600px) {
     .hero-stats { flex-wrap: wrap; gap: 20px; }
     .hero-cta { flex-direction: column; }

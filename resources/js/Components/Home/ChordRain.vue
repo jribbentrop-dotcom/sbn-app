@@ -15,15 +15,9 @@ const props = defineProps<{
 
 const sectionEl = ref<HTMLElement | null>(null);
 
-const MAGNET_RADIUS = 160;
-const MAGNET_SCALE  = 1.38;
-const MAGNET_LIFT   = 18;
-
 let rafId = 0;
 let running = false;
 let resizeTimer = 0;
-let mouseX = -9999;
-let mouseY = -9999;
 
 interface CardState {
     el: HTMLElement;
@@ -33,9 +27,7 @@ interface CardState {
     baseOpacity: number;
     y: number;
     cardH: number;
-    cardW: number;
     chordIdx: number;
-    x: number;
 }
 
 let cards: CardState[] = [];
@@ -132,9 +124,7 @@ function scatter() {
                 baseOpacity: baseOpacity + (Math.random() * 0.1 - 0.05),
                 y: startY,
                 cardH,
-                cardW: w,
                 chordIdx: (chordIdx - 1) % props.chords.length,
-                x: colX,
             });
         }
     }
@@ -184,26 +174,9 @@ function tick(ts: number) {
         // Depth fade
         const fadeIn  = smoothstep((state.y + state.cardH) / (sectionH * 0.12));
         const fadeOut = smoothstep((sectionH - state.y)    / (sectionH * 0.12));
-        let opacity = state.baseOpacity * Math.min(fadeIn, fadeOut);
+        const opacity = state.baseOpacity * Math.min(fadeIn, fadeOut);
 
-        // Magnetic field
-        const cx = state.x + state.cardW / 2;
-        const cy = state.y + state.cardH / 2;
-        const dist = Math.hypot(cx - mouseX, cy - mouseY);
-        const proximity = Math.max(0, 1 - dist / MAGNET_RADIUS);
-        const ease = proximity * proximity;
-        const scale = 1 + ease * (MAGNET_SCALE - 1);
-
-        if (ease > 0.02) {
-            opacity = Math.min(1, opacity + ease * 0.3);
-            state.el.style.boxShadow = `0 ${ease * MAGNET_LIFT}px ${ease * MAGNET_LIFT * 2 + 12}px -4px rgba(80,60,20,${(ease * 0.30).toFixed(2)})`;
-            state.el.style.zIndex = ease > 0.05 ? '10' : '';
-        } else {
-            state.el.style.boxShadow = '';
-            state.el.style.zIndex = '';
-        }
-
-        state.el.style.transform = `translate(0, ${state.y}px) scale(${scale})`;
+        state.el.style.transform = `translate(0, ${state.y}px)`;
         state.el.style.opacity   = String(opacity);
     }
 
@@ -216,40 +189,48 @@ function teardown() {
     cards = [];
 }
 
-function onMouseMove(e: MouseEvent) {
-    if (!sectionEl.value) return;
-    const rect = sectionEl.value.getBoundingClientRect();
-    mouseX = e.clientX - rect.left;
-    mouseY = e.clientY - rect.top;
-}
-
-function onMouseLeave() {
-    mouseX = -9999;
-    mouseY = -9999;
-}
-
 function onResize() {
     clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(scatter, 200);
 }
 
-const reduce = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const reduce  = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+
+let io: IntersectionObserver | null = null;
 
 onMounted(() => {
-    if (!sectionEl.value || !props.chords.length) return;
+    if (!sectionEl.value || !props.chords.length || isMobile) return;
     window.addEventListener('resize', onResize);
+
+    // Pause the rAF loop when scrolled out of view; resume when back in view.
+    io = new IntersectionObserver(
+        ([entry]) => {
+            if (entry.isIntersecting) {
+                if (!running && cards.length) {
+                    lastTs = performance.now();
+                    running = true;
+                    rafId = requestAnimationFrame(tick);
+                }
+            } else {
+                running = false;
+                cancelAnimationFrame(rafId);
+            }
+        },
+        { threshold: 0 },
+    );
+    io.observe(sectionEl.value);
+
     // Wait a frame for sbnRenderDiagramSVG to be available
     requestAnimationFrame(() => {
+        if (reduce) return;
         scatter();
-        if (reduce) {
-            running = false;
-            cancelAnimationFrame(rafId);
-        }
     });
 });
 
 onUnmounted(() => {
     teardown();
+    io?.disconnect();
     window.removeEventListener('resize', onResize);
     clearTimeout(resizeTimer);
 });
@@ -259,8 +240,6 @@ onUnmounted(() => {
     <section
         ref="sectionEl"
         class="chord-rain-section"
-        @mousemove="onMouseMove"
-        @mouseleave="onMouseLeave"
     >
         <!-- Rain canvas — z-index 1 -->
         <div class="chord-rain-canvas" />

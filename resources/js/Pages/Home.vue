@@ -2,7 +2,6 @@
 import { defineAsyncComponent } from 'vue';
 import { Link, Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
-import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
 import type { LeadsheetBar } from '@/Components/SyncedPlayer/SyncedPlayer.vue';
 import type { ChordShape } from '@/Components/Home/ChordRain.vue';

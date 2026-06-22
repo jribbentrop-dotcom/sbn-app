@@ -15,7 +15,7 @@ defineProps<{
         <SyncedPlayer
             :bars="bars"
             :rhythm-pattern="rhythmPattern"
-            :autoplay="true"
+            :autoplay="false"
             :muted="muted"
         />
     </div>
