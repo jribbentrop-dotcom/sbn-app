@@ -753,6 +753,11 @@
     /* Skip chord rain on mobile — rAF animation over ~60 DOM nodes is too
        costly on mid-range devices; the section is decorative on touch anyway */
     .chord-rain-section { display: none; }
+
+    /* SyncedPlayer uses hardcoded 160px board widths with pixel translateX offsets
+       that overflow on narrow screens. Hide the whole hero widget on mobile —
+       the copy + CTA alone make a cleaner phone hero. */
+    .synced-hero { display: none; }
 }
 
 @media (max-width: 600px) {

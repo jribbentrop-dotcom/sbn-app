@@ -27,21 +27,27 @@ interface ChordNameData {
     transposed_from?: any;
 }
 
+function wrapAccidentals(str: string): string {
+    return str
+        .replace(/♭/g, '<span class="sbn-chord-accidental">♭</span>')
+        .replace(/♯/g, '<span class="sbn-chord-accidental">♯</span>');
+}
+
 export function formatChordNameHtml(chord: ChordNameData, showRoot = true): string {
     const quality   = chord.quality   ?? '';
     const extension = chord.extensions ?? '';
     const doShowRoot = showRoot || !!chord.transposed_from;
     const rootRaw   = doShowRoot ? (chord.root_note ?? '') : '';
-    const root      = rootRaw.replace(/#/g, '♯').replace(/b/g, '♭');
+    const root      = wrapAccidentals(rootRaw.replace(/#/g, '♯').replace(/b/g, '♭'));
 
     const [qual, core] = QUALITY_MAP[quality] ?? ['', quality];
-    const ext  = extension.replace(/#/g, '♯').replace(/b(?=[0-9])/g, '♭');
-    const bass = ((chord.bass_note ?? '') as string).replace(/#/g, '♯').replace(/b/g, '♭');
+    const ext  = wrapAccidentals(extension.replace(/#/g, '♯').replace(/b(?=[0-9])/g, '♭'));
+    const bass = wrapAccidentals(((chord.bass_note ?? '') as string).replace(/#/g, '♯').replace(/b/g, '♭'));
 
     let html = '<span class="sbn-chord-symbol">';
     if (root) html += `<span class="sbn-chord-root">${root}</span>`;
     if (qual) html += `<span class="sbn-chord-quality">${qual}</span>`;
-    if (core) html += `<span class="sbn-chord-ext">${core}</span>`;
+    if (core) html += `<span class="sbn-chord-ext">${wrapAccidentals(core)}</span>`;
     if (ext)  html += `<span class="sbn-chord-ext sbn-chord-ext--extra">(${ext})</span>`;
     if (bass) html += `<span class="sbn-chord-bass">/${bass}</span>`;
     html += '</span>';

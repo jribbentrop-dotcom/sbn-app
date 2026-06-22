@@ -44,11 +44,13 @@
 }
 
 /* -- Accidental (♯, ♭) ----------------------------------- */
-
+/* ♭ has a tall ascender that inflates line-box height at large font sizes.
+   line-height:0 removes it from flow; vertical-align nudges it into position. */
 .sbn-chord-accidental {
-    font-size: 0.95em;
-    position: relative;
-    top: -0.05em;
+    font-size: 0.82em;
+    line-height: 0;
+    vertical-align: 0.08em;
+    display: inline-block;
 }
 
 /* -- Extensions (7, 9, ♭5, ♯11, add9…) — superscript ---- */
