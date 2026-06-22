@@ -21,7 +21,12 @@ function submit() {
 <template>
     <Head title="Sign In — SBN Teaching Hub" />
 
-    <AuthCard title="Welcome back" subtitle="Sign in to manage your teaching content.">
+    <AuthCard title="Welcome back" subtitle="Sign in to continue.">
+        <template #notice>
+            <strong>Free during beta.</strong> New here?
+            <Link href="/register">Create a free account</Link> — it only takes a moment.
+        </template>
+
         <form @submit.prevent="submit">
             <div class="sbn-auth-field">
                 <label class="sbn-label" for="email">Email</label>

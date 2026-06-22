@@ -18,6 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'instructor' => \App\Http\Middleware\EnsureIsInstructor::class,
         ]);
+        // Beta gate: content is free but requires an account. Guests hitting a
+        // gated route are sent to signup (not login); Laravel stores the
+        // intended URL so they return to the page after registering.
+        $middleware->redirectGuestsTo(fn () => route('register'));
         // Payment provider webhooks are authenticated by signature, not CSRF.
         $middleware->validateCsrfTokens(except: [
             'webhooks/payments',

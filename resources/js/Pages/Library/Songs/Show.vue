@@ -38,6 +38,7 @@ interface Song {
   difficulty: number | null;
   coverImagePath: string | null;
   tags: string[];
+  isPro: boolean;
 }
 
 interface ProgressionRef {
@@ -159,6 +160,7 @@ const breadcrumbSegments = computed(() => {
       <div class="sbn-ss-hero-text">
         <div class="sbn-ss-hero-badges">
           <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': categoryColor }">{{ styleLabel }}</span>
+          <span v-if="song.isPro" class="sbn-pro-badge">SBNpro</span>
           <span v-if="songPopularityTier" class="sbn-card-pop" :class="`sbn-pop-${songPopularityTier.tier}`">{{ songPopularityTier.label }}</span>
           <span v-for="tag in (song.tags ?? [])" :key="tag" class="sbn-hashtag">#{{ tag }}</span>
         </div>
@@ -174,7 +176,7 @@ const breadcrumbSegments = computed(() => {
           <span v-if="song.measureCount"  class="sbn-song-meta-chip"><strong>Bars</strong> {{ song.measureCount }}</span>
         </div>
 
-        <div class="sbn-ss-cta">
+        <div v-if="song.isPro" class="sbn-ss-cta">
           <Link :href="`/library/songs/${song.slug}/viewer`" class="sbn-btn sbn-btn-primary sbn-btn-lg">
             Open in viewer →
           </Link>
@@ -301,6 +303,18 @@ const breadcrumbSegments = computed(() => {
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+/* ── SBNpro badge ─────────────────────────────────────────────────────────── */
+.sbn-pro-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f5b942 0%, #e08e1f 100%);
+  color: #1a1a1a;
 }
 
 /* ── Shared typography ───────────────────────────────────────────────────── */

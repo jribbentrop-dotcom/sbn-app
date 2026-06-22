@@ -21,6 +21,8 @@ cp /tmp/sbn_work.db /sessions/.../mnt/sbn-app/database/sbn.db
 
 In Python use `sqlite3.connect('/tmp/sbn_work.db')`. PHP / artisan is not available in the sandbox.
 
+**Note:** `/tmp` is not reliably writable in every sandbox instance — it can reject writes outright, and any path under a mounted folder (e.g. `mnt/outputs/...`) hits the same disk I/O error as the main DB mount, even though it looks local. If `/tmp/sbn_work.db` fails, fall back to a plain folder under `$HOME` (e.g. `$HOME/work/sbn_work.db`) — anywhere that isn't itself a mounted/Windows-backed path works.
+
 ---
 
 ## Custom HTML components (lesson content)
@@ -117,7 +119,7 @@ maj7-drop2-rootd    dom7-drop2-rootd    m7-drop2-rootd    m7b5-drop2-rootd    o7
 
 ### Rhythm patterns (`sbn_rhythm_patterns`)
 
-Key slugs: `gilberto-rhythm`, `extended-gilberto-rhythm`, `bossa-nova-clave`, `desafinado`, `insensatez`, `bonfa`, `baiao`, `partido-alto`, `samba`, `swing`, `charleston`, `waltz`, `eighth-note`, `quarter-note`, `half-note`, `whole-note`, `sixteenth-note`, `tresillo`, `son-clave-2-3`, `son-clave-3-2`, `rumba-clave-2-3`, `rumba-clave-3-2`
+Key slugs: `gilberto-rhythm`, `extended-gilberto-rhythm`, `bossa-nova-clave`, `desafinado`, `insensatez`, `choro`, `baiao`, `partido-alto`, `samba`, `swing`, `charleston`, `waltz`, `eighth-note`, `quarter-note`, `half-note`, `whole-note`, `sixteenth-note`, `tresillo`, `son-clave-2-3`, `son-clave-3-2`, `rumba-clave-2-3`, `rumba-clave-3-2`
 
 ### Exercises (`sbn_exercises`)
 
@@ -208,6 +210,50 @@ is_preview, sort_order, status, created_at, updated_at, concept_slug
 - Section headers in lessons: use `<h2 id="section-{slug}">Title</h2>` — the model auto-fixes missing ids, but including them is cleaner
 - Avoid `<p></p>` empty paragraphs and orphaned `<ol><li></li></ol>` structures
 - Do not add PDF download links — these are legacy WP artifacts; the equivalent content should be in the exercises lesson
+
+---
+
+## Converting reference scores into courses (source-format workflow)
+
+When turning a reference file (theory chart, chord-progression sheet, lead sheet) into course
+content: prefer MusicXML over PDF as the source whenever notation/chords are involved, and run
+`scripts/extract_musicxml_harmony.py` rather than re-deriving the extraction from scratch.
+
+Full workflow, gotchas, and a worked example: see `SBN-MusicXml-Course-Workflow.md`.
+
+---
+
+## Content access model (beta)
+
+The app is in beta: **all content is free, but viewing it requires a (free) account.**
+
+### Route gate
+- Gated behind `auth` middleware: all `/library/*`, `/theory`, the lesson **player**
+  (`/learn/{course}/play[...]`), and the `api/sbn/*` JSON endpoints (data layer for those pages).
+- Public (marketing/teaser + auth): `/`, `/shop/*`, `/top10/*`, `/contact`, `/learn` + `/learn/{course}`
+  (catalog + course detail), and `api/sbn/synced-player/{slug}` (feeds the Top10 SyncedPlayer demo).
+- Guests hitting a gated route are redirected to **`/register`** (not login) via
+  `redirectGuestsTo()` in `bootstrap/app.php`. Both `RegisterController` and `LoginController` use
+  `redirect()->intended()` so users return to the page they wanted after signing up.
+- Auth pages (`Login.vue`/`Register.vue` via `AuthCard.vue`) are styled as a modal-card over a
+  blurred backdrop and carry a beta explainer in the `#notice` slot.
+
+### Leadsheet licensing (`sbn_leadsheets`)
+Two columns drive what a song exposes:
+- `is_pro` (bool) — editorial/monetization switch. `true` ⇒ SBNpro badge + full Viewer/Cinema
+  arrangement (tab/melody/synced). `false` ⇒ free reference page only (`show()`: edu text + top-4
+  voicings + generic progressions + rhythm). **`is_pro` must only ever be true on `public_domain` rows.**
+- `license_status` (string) — legal record: `public_domain` | `copyrighted` | `cleared` | `unknown`
+  (constants on the `Leadsheet` model). Not DB-enforced; admin checklist.
+- Rule of thumb for PD (US): published year + 95 ≤ current year. Note non-US life+70 jurisdictions
+  (e.g. `por-una-cabeza` is 1935, copyrighted).
+- Gating lives in `SongLibraryController`: `abortIfDraft()` (status≠publish ⇒ 404, instructors exempt
+  on `apiSheet`/`apiSearch`) and `abortIfNotPro()` (viewer/cinema/viewer-data/full-sheet).
+  `apiSheet` allows `bars=` excerpts for non-pro songs (lesson `<sbn-song bars="…">` embeds) but
+  blocks full-song requests.
+- One-off classification scripts: `scripts/apply_song_license.py` (+ `verify_song_license.py`).
+
+There is **no admin UI yet** for `is_pro`/`license_status` — flipping them needs SQL or the scripts.
 
 ---
 

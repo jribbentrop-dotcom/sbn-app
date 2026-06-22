@@ -38,6 +38,8 @@ class Leadsheet extends Model
         'genre',
         'cover_image_path',
         'status',
+        'is_pro',
+        'license_status',
     ];
 
     /**
@@ -47,8 +49,25 @@ class Leadsheet extends Model
         'tempo'         => 'integer',
         'measure_count' => 'integer',
         'course_id'     => 'integer',
+        'is_pro'        => 'boolean',
         'created_at'    => 'datetime',
         'updated_at'    => 'datetime',
+    ];
+
+    /**
+     * Legal status values for license_status. is_pro should only be set true
+     * when a leadsheet is PUBLIC_DOMAIN or CLEARED — see migration comment.
+     */
+    public const LICENSE_PUBLIC_DOMAIN = 'public_domain';
+    public const LICENSE_COPYRIGHTED  = 'copyrighted';
+    public const LICENSE_CLEARED      = 'cleared';
+    public const LICENSE_UNKNOWN      = 'unknown';
+
+    public const LICENSE_STATUSES = [
+        self::LICENSE_PUBLIC_DOMAIN,
+        self::LICENSE_COPYRIGHTED,
+        self::LICENSE_CLEARED,
+        self::LICENSE_UNKNOWN,
     ];
 
     // =========================================================================
@@ -61,6 +80,14 @@ class Leadsheet extends Model
     public function scopePublished($query)
     {
         return $query->where('status', 'publish');
+    }
+
+    /**
+     * Leadsheets with the full arrangement/viewer experience unlocked.
+     */
+    public function scopePro($query)
+    {
+        return $query->where('is_pro', true);
     }
 
     // =========================================================================

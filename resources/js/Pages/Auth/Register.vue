@@ -22,7 +22,13 @@ function submit() {
 <template>
     <Head title="Create Account — SBN Teaching Hub" />
 
-    <AuthCard title="Create your account" subtitle="Join the SBN Teaching Hub.">
+    <AuthCard title="Create your free account" subtitle="Join the SBN Teaching Hub.">
+        <template #notice>
+            <strong>We're in beta.</strong> Everything is free right now — we
+            just ask you to create an account so we can keep in touch and shape
+            the app around how you learn. No payment, no spam.
+        </template>
+
         <form @submit.prevent="submit">
             <div class="sbn-auth-field">
                 <label class="sbn-label" for="name">Name</label>
