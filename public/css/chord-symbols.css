@@ -44,9 +44,12 @@
 }
 
 /* -- Accidental (♯, ♭) ----------------------------------- */
-/* ♭ has a tall ascender that inflates line-box height at large font sizes.
-   line-height:0 removes it from flow; vertical-align nudges it into position. */
+/* ♭/♯ glyphs vary wildly between serif fonts — Georgia and system fallbacks
+   render them with a tall ascender that inflates line-box height.
+   Force the body sans-serif stack (DM Sans / system-ui) which has compact,
+   consistent accidental glyphs; line-height:0 removes it from flow. */
 .sbn-chord-accidental {
+    font-family: var(--font-body, 'DM Sans', system-ui, sans-serif);
     font-size: 0.82em;
     line-height: 0;
     vertical-align: 0.08em;
