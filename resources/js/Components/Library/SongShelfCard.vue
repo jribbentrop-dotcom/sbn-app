@@ -47,7 +47,7 @@ const styleLabel = computed(() => (props.song.styleSlug ?? 'song').replace(/-/g,
 }
 
 @media (max-width: 600px) {
-    .sbn-song-shelf-card { width: calc(50vw - 20px); }
+    .sbn-song-shelf-card { width: calc(42vw - 8px); }
 }
 
 .sbn-song-shelf-card__image {
