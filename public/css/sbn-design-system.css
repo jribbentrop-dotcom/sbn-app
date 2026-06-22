@@ -986,6 +986,105 @@
     );
 }
 
+/* Category-themed library detail pages (song / rhythm show, etc.) */
+.sbn-page-detail.sbn-has-category-gradient {
+    --cat-bg:     color-mix(in srgb, var(--category-color) 8%,  var(--clr-white));
+    --cat-border: color-mix(in srgb, var(--category-color) 30%, var(--clr-border));
+    --cat-text:   color-mix(in srgb, var(--category-color) 70%, #000);
+    --cat-glow:   color-mix(in srgb, var(--category-color) 20%, transparent);
+    --play-color: var(--category-color);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-btn-primary {
+    background: var(--category-gradient);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-btn-primary:hover {
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--category-color) 85%, #000) 0%,
+        color-mix(in srgb, var(--category-color) 50%, #000) 100%);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-detail-hero {
+    border-color: var(--cat-border);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-ss-section-title,
+.sbn-page-detail.sbn-has-category-gradient .sbn-section-heading {
+    border-bottom: 2px solid var(--cat-border);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-section-heading-row {
+    border-bottom-color: var(--cat-border);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-meta-chip,
+.sbn-page-detail.sbn-has-category-gradient .sbn-song-meta-chip {
+    background: var(--cat-bg);
+    border: 1px solid var(--cat-border);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-meta-chip strong,
+.sbn-page-detail.sbn-has-category-gradient .sbn-song-meta-chip strong {
+    color: var(--cat-text);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-hashtag {
+    color: var(--cat-text);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-hashtag:hover {
+    color: var(--category-color);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-section-link {
+    color: var(--cat-text);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-section-link:hover {
+    color: var(--category-color);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-ss-rhythm-link {
+    color: var(--cat-text);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-ss-rhythm-link:hover {
+    color: var(--category-color);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-card-scroll-btn {
+    border-color: var(--cat-border);
+    color: var(--cat-text);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-card-scroll-btn:hover {
+    background: var(--cat-bg);
+    border-color: var(--category-color);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-show-sidebar-card {
+    border-color: var(--cat-border);
+    border-top: 3px solid var(--category-color);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-show-sidebar-heading {
+    color: var(--cat-text);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-rhythm-link:hover {
+    background: var(--cat-bg);
+    border-color: var(--cat-border);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-rhythm-link:hover .sbn-rhythm-link__name {
+    color: var(--cat-text);
+}
+
+.sbn-page-detail.sbn-has-category-gradient .sbn-play-btn.is-playing {
+    background: var(--category-gradient);
+}
+
 /* Dynamic category badge — set --cat-clr on the element.
    Used for progression/rhythm categories where color is data-driven.
    Tinted:  <span class="sbn-cat-badge" style="--cat-clr:#f39c12">Bossa Nova</span>

@@ -100,12 +100,26 @@ class PdfController extends Controller
             ];
         }
 
+        // notation_svg config: keyed by chord slug OR positional (0-based index).
+        // Each entry: ['file' => 'svgexport/foo-2.svg', 'system' => 1]
+        $notationMap = $config['notation_svg'] ?? [];
+
         $chords = [];
-        foreach ($chordSlugs as $chordSlug) {
+        foreach ($chordSlugs as $idx => $chordSlug) {
             $row = ChordDiagram::where('slug', $chordSlug)->first();
             if (! $row) continue;
 
             $svg = $this->renderDiagramSvg($chordSlug);
+
+            // Resolve notation SVG: try slug key first, then positional index
+            $notationCfg = $notationMap[$chordSlug] ?? $notationMap[$idx] ?? null;
+            $notationSvg = null;
+            if ($notationCfg && ! empty($notationCfg['file'])) {
+                $notationSvg = self::extractTabSvg(
+                    $notationCfg['file'],
+                    $notationCfg['system'] ?? 1
+                );
+            }
 
             $chords[] = [
                 'slug'             => $row->slug,
@@ -121,6 +135,7 @@ class PdfController extends Controller
                 'notes'            => $row->notes,
                 'description'      => $row->description,
                 'svg'              => $svg,
+                'notation_svg'     => $notationSvg,
             ];
         }
 
@@ -285,6 +300,29 @@ class PdfController extends Controller
 
         // Fallback placeholder
         return '<svg viewBox="0 0 640 98" width="640" height="98"><rect x="0" y="0" width="640" height="98" fill="none" stroke="#e2e8f0" stroke-width="1"/><text x="320" y="52" text-anchor="middle" font-size="9" fill="#8896a4">TAB (render failed)</text></svg>';
+    }
+
+    /**
+     * Extract a TAB staff from a MuseScore SVG export.
+     *
+     * @param  string  $svgPath     Absolute or base_path()-relative path to the SVG file
+     * @param  int     $systemIndex 1-based index over TAB-containing systems on the page
+     */
+    public static function extractTabSvg(string $svgPath, int $systemIndex = 1): string
+    {
+        if (! str_starts_with($svgPath, '/') && ! preg_match('/^[A-Za-z]:/', $svgPath)) {
+            $svgPath = base_path($svgPath);
+        }
+
+        $scriptPath = base_path('scripts/pdf/extract-tab-svg.cjs');
+        $result     = Process::run("node \"{$scriptPath}\" \"{$svgPath}\" {$systemIndex}");
+
+        if ($result->successful()) {
+            return $result->output();
+        }
+
+        $err = trim($result->errorOutput());
+        return '<svg viewBox="0 0 560 80" width="560" height="80"><rect x="0" y="0" width="560" height="80" fill="none" stroke="#e2e8f0" stroke-width="1"/><text x="280" y="43" text-anchor="middle" font-size="9" fill="#8896a4">TAB extract failed: ' . e($err) . '</text></svg>';
     }
 
     /**

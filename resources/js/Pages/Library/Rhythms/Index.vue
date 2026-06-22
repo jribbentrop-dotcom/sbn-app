@@ -5,6 +5,7 @@ import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import type { RhythmPatternWithMeta } from '@/Components/Library/RhythmPattern.vue';
 import { getCategoryColor } from '@/composables/useCategoryColors';
+import { readDifficultyQueryParam } from '@/composables/useBreadcrumb';
 
 defineOptions({ layout: PublicLayout });
 
@@ -31,6 +32,7 @@ const props = defineProps<Props>();
 // ── Filter state ────────────────────────────────────────
 const search    = ref(props.activeFilters.search   || '');
 const fCategory = ref(props.activeFilters.category || '');
+const fDifficulty = ref(readDifficultyQueryParam());
 const fTimeSig  = ref('');
 const fGridType = ref('');
 const fSort     = ref(props.activeFilters.sort || 'popularity');
@@ -39,11 +41,12 @@ const fSort     = ref(props.activeFilters.sort || 'popularity');
 function matchesFilters(p: RhythmPatternWithCount): boolean {
   if (search.value.trim()) {
     const q = search.value.toLowerCase();
-    const haystack = [p.name, p.category, p.description]
+    const haystack = [p.name, p.category, p.descriptionExcerpt, p.description]
       .filter(Boolean).join(' ').toLowerCase();
     if (!haystack.includes(q)) return false;
   }
   if (fCategory.value && p.category !== fCategory.value) return false;
+  if (fDifficulty.value && String(p.difficulty ?? '') !== fDifficulty.value) return false;
   if (fTimeSig.value  && p.timeSignature !== fTimeSig.value)  return false;
   if (fGridType.value && p.gridType      !== fGridType.value) return false;
   return true;
@@ -61,7 +64,7 @@ const filteredPatterns = computed(() => {
 });
 
 const hasFilters = computed(() =>
-  !!(search.value || fCategory.value || fTimeSig.value || fGridType.value)
+  !!(search.value || fCategory.value || fDifficulty.value || fTimeSig.value || fGridType.value)
 );
 
 const isGroupedView = computed(() => fSort.value === 'category');
@@ -85,10 +88,11 @@ function getPopularityTier(count: number): { tier: string; label: string } {
 }
 
 // ── URL sync ─────────────────────────────────────────────
-watch([search, fCategory, fSort], () => {
+watch([search, fCategory, fDifficulty, fSort], () => {
   const params: Record<string, string> = {};
   if (search.value)                          params.search   = search.value;
   if (fCategory.value)                       params.category = fCategory.value;
+  if (fDifficulty.value)                       params.difficulty = fDifficulty.value;
   if (fSort.value && fSort.value !== 'popularity') params.sort = fSort.value;
 
   router.get('/library/rhythms', params, { preserveState: true, replace: true });
@@ -97,6 +101,7 @@ watch([search, fCategory, fSort], () => {
 function clearFilters() {
   search.value    = '';
   fCategory.value = '';
+  fDifficulty.value = '';
   fTimeSig.value  = '';
   fGridType.value = '';
   fSort.value     = 'popularity';
@@ -201,7 +206,7 @@ const CATEGORY_LABELS: Record<string, string> = {
               </h3>
 
               <!-- Description -->
-              <p v-if="pattern.description" class="sbn-lib-row-desc">{{ pattern.description }}</p>
+              <p v-if="pattern.descriptionExcerpt" class="sbn-lib-row-desc">{{ pattern.descriptionExcerpt }}</p>
 
               <!-- RhythmStrip preview -->
               <div class="sbn-rlib-row-strip">
@@ -261,7 +266,7 @@ const CATEGORY_LABELS: Record<string, string> = {
                     <span v-if="pattern.gridType !== 'sixteenth'" class="sbn-badge" :class="`sbn-badge-grid-${pattern.gridType}`">{{ pattern.gridType }}</span>
                   </span>
                 </div>
-                <p v-if="pattern.description" class="sbn-pattern-row-desc">{{ pattern.description }}</p>
+                <p v-if="pattern.descriptionExcerpt" class="sbn-pattern-row-desc">{{ pattern.descriptionExcerpt }}</p>
                 <RhythmStrip :pattern="pattern" :show-meta="false" :color="getCategoryColor(pattern.styleSlug)" :fixed-cells="true" />
                 <span v-if="pattern.songCount > 0" class="sbn-pattern-row-song-count">
                   {{ pattern.songCount }} song{{ pattern.songCount !== 1 ? 's' : '' }}

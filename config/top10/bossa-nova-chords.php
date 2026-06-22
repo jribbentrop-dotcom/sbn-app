@@ -49,7 +49,7 @@ return [
         'image' => '/images/top10/bossa-chords/2.jpg',
         'description' => "The little sister of the Major 6/9 — a bit more mellow, just as beautiful. The minor 7th with a 9th on top softens the chord's dark quality and gives it an airy, floating feel that's essential for minor-key Bossa Nova. <strong>Kenny Dorham's</strong> <em>Blue Bossa</em> is built almost entirely around this sound.",
         'voicingCaption' => "The shell voicing keeps the chord compact and transparent — root, 3rd and 7th on the lower strings, the extension in the upper string. One shape, moveable to any key.",
-        'progressionName' => 'Trademark Chord Progression',
+        'progressionName' => 'The Minor Jazz Cadence',
         'progressionLibrarySlug' => 'the-minor-jazz-cadence',
         'progressionSeedKey' => 'Cm',
         'progressionVoicingOverrides' => [
@@ -58,7 +58,7 @@ return [
         'progressionCaption' => "The minor jazz cadence is the dominant progression in <em>Blue Bossa</em>. The ear keeps returning here, and the 9th on top is what makes the resolution feel warm rather than heavy.",
         'citation' => "<strong>Kenny Dorham</strong>, <em>Page One</em>, 1963",
         // Live leadsheet bars — Blue Bossa
-        'syncedPlayer' => ['slug' => 'untitled-8', 'start' => 0, 'end' => 7],
+        'syncedPlayer' => ['slug' => 'blue-bossa', 'start' => 4, 'end' => 7],
         'relatedProducts' => [
             [
                 'title' => 'Music Theory Basics',
@@ -88,7 +88,7 @@ return [
         'image' => '/images/top10/bossa-chords/3.jpg',
         'description' => "The minor 6th chord replaces the 7th with a major 6th — a subtle swap that changes the mood entirely. Where the <strong>m7</strong> feels unresolved and floating, the <strong>m6</strong> feels grounded and final. That quality of stillness-within-minor is the defining color of <strong>Jobim</strong> ballads like <em>Corcovado</em> and <em>Insensatez</em>.",
         'voicingCaption' => "This Drop3 voicing has a rich and full sound. This is the Am6 João Gilberto used to open <em>Corcovado</em> — let the low root ring and keep the upper voices clean.",
-        'progressionName' => 'Trademark Chord Progression',
+        'progressionName' => 'Corcovado Progression',
         'progressionLibrarySlug' => 'the-corcovado-progression',
         'progressionSeedKey' => 'A',
         'progressionVoicingOverrides' => [
@@ -97,7 +97,7 @@ return [
         'progressionCaption' => "The Corcovado progression pairs the Am6 with a diminished passing chord — the contrast between the settled minor 6th and the restless diminished is what gives the song its bittersweet, quietly melancholic character.",
         'citation' => "<strong>João Gilberto</strong>, <em>O Amor, O Sorriso E A Flor</em>, 1960",
         // Live leadsheet bars — Corcovado A section
-        'syncedPlayer' => ['slug' => 'untitled-6', 'start' => 0, 'end' => 7],
+        'syncedPlayer' => ['slug' => 'corcovado', 'start' => 0, 'end' => 7],
         'relatedProducts' => [
             [
                 'title' => 'Gilberto plays Jobim',
@@ -127,9 +127,9 @@ return [
         'image' => '/images/top10/bossa-chords/4.jpg',
         'description' => "A complicated name for a simple, elegant sound. The 13th sits just a major 6th above the root — adding brightness and color without extra tension. It's the dominant chord Jobim used for smooth, sun-drenched resolutions in <em>Wave</em>, <em>The Girl from Ipanema</em>, and dozens of other songs.",
         'voicingCaption' => "The voicing puts the 13th as the highest note — that bright top voice is what you hear lifting above the bass in <em>Wave</em>'s intro. Keep the touch light so the extension sings.",
-        'progressionName' => 'Trademark Chord Progression',
-        'progressionViewerName' => 'The Major Jazz Cadence',
-        'progressionLibrarySlug' => 'minor-ii-v-to-major',
+        'progressionName' => 'The Jazz Half Cadence',
+        'progressionViewerName' => 'The Jazz Half Cadence',
+        'progressionLibrarySlug' => 'the-jazz-half-cadence',
         'progressionSeedKey' => 'C',
         'progressionVoicingOverrides' => [
             1 => 'dom7-drop3-roote-13',
@@ -137,7 +137,7 @@ return [
         'progressionCaption' => "G7(13) resolving to CMaj7 is one of the most characteristic sounds in Bossa Nova — the 13th creates a warm, almost optimistic dominant tension that melts cleanly into the major tonic. This is the cadence at the heart of <em>Wave</em>.",
         'citation' => "<strong>Antonio Carlos Jobim</strong>, <em>Wave</em>, 1967",
         // Live leadsheet bars — Wave bars 0-1
-        'syncedPlayer' => ['slug' => 'untitled-7', 'start' => 0, 'end' => 1],
+        'syncedPlayer' => ['slug' => 'wave', 'start' => 0, 'end' => 1],
         'relatedProducts' => [
             [
                 'title' => 'Music Theory Basics',
@@ -165,17 +165,19 @@ return [
         'chordName' => 'Bm7b5',
         'rootOverride' => 'B',
         'image' => '/images/top10/bossa-chords/5.jpg',
-        'description' => "The half-diminished — also written m7♭5 or ø — is the II chord in every minor jazz cadence. It has an unsettled, questioning quality that makes the dominant that follows feel inevitable. Learn this shape once and you'll recognize it in <em>Manhã de Carnaval</em>, <em>Corcovado</em>, <em>Blue Bossa</em>, and virtually every minor-key standard in the repertoire.",
+        'description' => "The half-diminished — also written m7♭5 or ø — is the II chord in every minor jazz cadence. It has an unsettled, questioning quality that makes the dominant that follows feel inevitable. Learn this shape once and you'll recognize it in <em>Manhã de Carnaval</em>, <em>Chega de Saudade</em>, <em>Blue Bossa</em>, and virtually every minor-key standard in the repertoire.",
         'voicingCaption' => "This is one of the most versatile jazz and bossa nova voicings. The shape is fully moveable — slide it to any fret and you have a new root.",
-        'progressionName' => 'Trademark Chord Progression',
+        'progressionName' => 'The Minor Jazz Cadence',
         'progressionViewerName' => 'The Minor Jazz Cadence',
         'progressionLibrarySlug' => 'the-minor-jazz-cadence',
-        'progressionSeedKey' => 'Cm',
+        'progressionSeedKey' => 'Am',
         'progressionVoicingOverrides' => [
             0 => 'm7b5-drop2-roota',
         ],
-        'progressionCaption' => "The Bm7♭5 → E7 → Am cadence is the minor ii-V-I in its purest form. Notice how the half-diminished creates a sense of suspension — it leans forward into the dominant and won't feel resolved until it reaches the Am tonic.",
+        'progressionCaption' => "The Jazz Minor Cadence in its purest form. Notice how the half-diminished creates a sense of suspension — it leans forward into the dominant and won't feel resolved until it reaches the Am tonic.",
         'citation' => "<strong>Luiz Bonfá</strong>, <em>Solo In Rio</em>, 1959",
+        // Live leadsheet bars — Manha de Carnaval bars 15-17
+        'syncedPlayer' => ['slug' => 'manha-de-carnaval', 'start' => 16, 'end' => 18],
         'relatedProducts' => [
             [
                 'title' => 'Music Theory Basics',
@@ -200,20 +202,22 @@ return [
     'dom7-shell-roota-9' => [
         'title' => 'Dominant Seventh with 9',
         'shortTitle' => '7(9)',
-        'chordName' => 'C7(9)',
-        'rootOverride' => 'C',
+        'chordName' => 'D7(9)',
+        'rootOverride' => 'D',
         'image' => '/images/top10/bossa-chords/8.jpg',
         'description' => "The Dom7(9) shell voicing is one of the most practical chords in the guitar repertoire. The 9th adds warmth without complexity, and the open shell structure leaves space for a bassline in the thumb. Listen to <strong>Astrud Gilberto's</strong> recording of Jobim's <em>Fotografia</em>: the intro builds a hypnotic cross rhythm, and the D7(9) arrives at the end of the phrase like a question mark — tense, bright, and perfectly placed.",
-        'voicingCaption' => "A shell voicing uses only the essential chord tones — root, 7th, and 9th — which keeps the sound open and lets your thumb handle the bass. This is exactly how João Gilberto comped: minimal, spacious, in the pocket.",
-        'progressionName' => 'Trademark Chord Progression',
-        'progressionViewerName' => 'Ascending Diminished',
-        'progressionLibrarySlug' => 'ascending-diminished',
-        'progressionSeedKey' => 'C',
+        'voicingCaption' => "A shell voicing uses only the essential chord tones — root, major 3rd, minor 7th, and 9th - This is exactly how João Gilberto comped: minimal, spacious, in the pocket.",
+        'progressionName' => 'Modal Interchange I to Im',
+        'progressionViewerName' => 'Modal Interchange I to Im',
+        'progressionLibrarySlug' => 'modal-interchange-i-to-im',
+        'progressionSeedKey' => 'D',
         'progressionVoicingOverrides' => [
             1 => 'dom7-shell-roota-9',
         ],
-        'progressionCaption' => "The ascending diminished progression puts the Dom7(9) in a chromatic context — the chord's brightness makes the stepwise motion feel natural and inevitable. The same principle is at work in <em>Fotografia</em>: the Dom7(9) cuts through the cross rhythm and lands with precision.",
+        'progressionCaption' => "The modal interchange progression puts the Dom7(9) in a an interesting context. The chord is borrowed from the parallel major key, creating a bright, unexpected dominant tension that resolves back to the major tonic.",
         'citation' => "<strong>Astrud Gilberto</strong>, <em>Fotografia</em>, 1965",
+                // Live leadsheet bars — Fotografia bars 0-3
+        'syncedPlayer' => ['slug' => 'fotografia', 'start' => 0, 'end' => 3],
         'relatedProducts' => [
             [
                 'title' => 'Music Theory Basics',
@@ -244,12 +248,12 @@ return [
         'description' => "The V7(♭9) is the most tension-laden chord in minor jazz harmony. The ♭9 sits just a half-step above the root, creating a dissonance that aches to resolve. <strong>Luiz Bonfá's</strong> <em>The Gentle Rain</em> gives you the ultimate workout: a chain of minor ii-V's — F#m7b5 → B7(♭9) → Em7b5 → A7(♭9) → Dm7b5 → E7(♭9) → Am6 — each Dom7(♭9) tightening the tension before the next ii takes over. An outstanding training progression.",
         'voicingCaption' => "The shell voicing keeps it lean: root, major 3rd, minor 7th, and ♭9. The ♭9 on top is the dissonant note — let it ring, then feel the relief when it resolves down a half-step to the minor tonic.",
         'progressionName' => 'Trademark Progression',
-        'progressionCaption' => "E7(♭9) → Am is the minor cadence at its most dramatic. In <em>The Gentle Rain</em>, this move repeats three times in a row through different keys — each resolution brings brief relief before the next half-diminished chord restarts the tension.",
+        'progressionCaption' => "In <em>The Gentle Rain</em>, the Minor Cadence is repeated three times in a row through different keys. Each time, the V7(♭9) creates a moment of intense tension that begs for resolution — it's the emotional core of the song.",
         'citation' => "<strong>Luiz Bonfá</strong>, <em>The Gentle Rain</em>, 1965",
         'progressionSlugs' => ['m7-drop2-roota', 'dom7-shell-roota-b9', 'maj6-shell-roota-9'],
         'progressionRoots' => ['B', 'E', 'A'],
         'relatedProducts' => [
-            [
+            [ 
                 'title' => 'Music Theory Basics',
                 'description' => 'Understand the harmony behind Bossa Nova — intervals, chord construction, and how progressions work.',
                 'url' => '/learn/music-theory-basics',
@@ -277,7 +281,7 @@ return [
         'image' => '/images/top10/bossa-chords/7.jpg',
         'description' => "Jobim's secret weapon. The diminished seventh is built entirely from minor thirds stacked on top of each other — which makes it perfectly symmetrical. Every note in the chord can function as the root, meaning one shape gives you four chords at once. Jobim exploited this in <em>How Insensitive</em>, <em>Desafinado</em>, and especially <em>Once I Loved</em>, where diminished passing chords appear throughout — sliding the shape up or down in half-steps to create smooth chromatic motion between any two chords.",
         'voicingCaption' => "The Diminished chord special trick on guitar: Try sliding this shape up three frets — you get the same chord with a different inversion. That's the symmetry at work: C#°7, E°7, G°7, and B♭°7 are all the same four notes.",
-        'progressionName' => 'Trademark Chord Progression',
+        'progressionName' => 'The Ascending Diminished',
         'progressionViewerName' => 'Ascending Diminished',
         'progressionLibrarySlug' => 'ascending-diminished',
         'progressionSeedKey' => 'C',
@@ -286,6 +290,7 @@ return [
         ],
         'progressionCaption' => "In the ascending diminished progression, the °7 acts as a chromatic bridge between the I and the II7. The half-step approach into the next chord is what gives it that smooth, inevitable feel — Jobim used exactly this motion throughout <em>Once I Loved</em> and in the verse of <em>Desafinado</em>.",
         'citation' => "<strong>Stan Getz & João Gilberto</strong>, <em>Getz/Gilberto</em>, 1964",
+                  // Live leadsheet bars — desafinado bars 36-39
         'syncedPlayer' => ['slug' => 'desafinado', 'start' => 36, 'end' => 39],
         'relatedProducts' => [
             [
@@ -316,15 +321,17 @@ return [
         'image' => '/images/top10/bossa-chords/9.jpg',
         'description' => "A refinement of the diminished seventh — adding the ♭13 softens the chord's harsh edge and gives it a more ambiguous, modal quality. Where the plain °7 cuts sharply, the °7(♭13) blurs the outline just enough to feel more impressionistic. This was a characteristic touch of <strong>João Gilberto</strong>, who used it in <em>Corcovado</em> to keep the diminished passing chord from sounding too abrupt against the song's quiet atmosphere.",
         'voicingCaption' => "The drop-3 voicing places the root on the low E string for a full, resonant sound. The ♭13 is the added color note — one extra finger, but it changes the emotional quality of the chord completely.",
-        'progressionName' => 'Trademark Chord Progression',
-        'progressionViewerName' => 'Corcovado Progression',
-        'progressionLibrarySlug' => 'the-corcovado-progression',
-        'progressionSeedKey' => 'A',
+        'progressionName' => 'The Corcovado Progression',
+        'progressionViewerName' => 'The Corcovado Progression',
+        'progressionLibrarySlug' => 'corcovado-progression',
+        'progressionSeedKey' => 'Bm',
         'progressionVoicingOverrides' => [
             1 => 'o7-drop3-roote-b13',
         ],
         'progressionCaption' => "In the Corcovado progression, this chord sits between the Am6 tonic and its return — a fleeting moment of chromatic tension. Gilberto's use of the ♭13 here is subtle but unmistakable: it's the difference between a harsh passing chord and one that floats.",
         'citation' => "<strong>João Gilberto</strong>, <em>O Amor, O Sorriso E A Flor</em>, 1960",
+          // Live leadsheet bars — Insensatez bars 4-7
+        'syncedPlayer' => ['slug' => 'insensatez', 'start' => 4, 'end' => 7],
         'relatedProducts' => [
             [
                 'title' => 'Gilberto plays Jobim',
@@ -352,17 +359,19 @@ return [
         'chordName' => 'G7(b13)',
         'rootOverride' => 'G',
         'image' => '/images/top10/bossa-chords/10.jpg',
-        'description' => "Compare this to chord #4: both are dominant sevenths with a 13th, but the ♭13 sits a half-step lower — and that single semitone changes everything. Where the Dom7(13) sounds warm and optimistic, the Dom7(♭13) sounds darker, more serious, pulling toward minor rather than major. <strong>Jobim</strong> used it in <em>How Insensitive</em> precisely for this reason: the resolution needs weight, not brightness.",
-        'voicingCaption' => "The drop-3 voicing mirrors chord #4 in shape, but the ♭13 on top gives it a completely different color. Notice the tension: that top note wants to resolve downward by a half-step to the 5th of the target chord.",
-        'progressionName' => 'Trademark Chord Progression',
-        'progressionViewerName' => 'The Minor Jazz Cadence',
-        'progressionLibrarySlug' => 'the-minor-jazz-cadence',
+        'description' => "Compare this to chord #4: both are dominant sevenths with a 13th, but the ♭13 sits a half-step lower — and that single semitone changes everything. Where the Dom7(13) sounds warm and optimistic, the Dom7(♭13) sounds darker, more serious, pulling toward minor rather than major. Bossa Nova and jazz players like to play with this expectation and resolve it to a major tonic for a surprising twist.",
+        'voicingCaption' => "The drop-3 voicing mirrors chord #4 in shape, but the ♭13 on top gives it a completely different color. Notice the tension: that top note wants to resolve downward by a half-step to the 9th of the target chord.",
+        'progressionName' => 'Minor Blues Cadence',
+        'progressionViewerName' => 'The Minor Blues Cadence',
+        'progressionLibrarySlug' => 'minor-blues-cadenza',
         'progressionSeedKey' => 'Cm',
         'progressionVoicingOverrides' => [
             1 => 'dom7-drop3-roote-b13',
         ],
-        'progressionCaption' => "G7(♭13) resolving to a minor tonic is darker and more final than its major counterpart. In <em>How Insensitive</em>, this dominant color underpins the song's sense of quiet resignation — tension that resolves, but doesn't release.",
-        'citation' => "<strong>João Gilberto</strong>, <em>Insensatez</em>, 1961",
+        'progressionCaption' => "Joao Gilberto cleverly injected this dominant color into <em>S'Wonderful</em>, turning the modulation to the new key in the B-Bart into a smooth Minor Blues Cadence.",
+        'citation' => "<strong>João Gilberto</strong>, <em>S'Wonderful</em>, 1978",
+          // Live leadsheet bars — swonderful bars 16-17
+        'syncedPlayer' => ['slug' => 'swonderful', 'start' => 14, 'end' => 17],
         'relatedProducts' => [
             [
                 'title' => 'Gilberto plays Jobim',

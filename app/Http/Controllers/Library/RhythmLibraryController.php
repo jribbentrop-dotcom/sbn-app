@@ -7,6 +7,7 @@ use App\Models\Leadsheet;
 use App\Models\RhythmPattern;
 use App\Repositories\CourseRepository;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class RhythmLibraryController extends Controller
@@ -88,7 +89,10 @@ class RhythmLibraryController extends Controller
             'id'            => $pattern->id,
             'slug'          => $pattern->slug,
             'name'          => $pattern->name,
-            'description'   => $pattern->description,
+            'description'        => $pattern->description,
+            'descriptionExcerpt' => $pattern->description
+                ? Str::limit(strip_tags($pattern->description), 120)
+                : null,
             'category'      => $pattern->category,
             'styleSlug'     => $styleSlug,
             'timeSignature' => $pattern->time_signature,
@@ -106,6 +110,7 @@ class RhythmLibraryController extends Controller
             'fingerIndex'   => $pattern->finger_index,
             'fingerMiddle'  => $pattern->finger_middle,
             'fingerRing'    => $pattern->finger_ring,
+            'difficulty'    => $pattern->difficulty,
         ];
     }
 

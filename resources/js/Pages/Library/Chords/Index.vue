@@ -7,6 +7,7 @@ import ChordDiagram from '@/Components/Library/ChordDiagram.vue';
 import AnimatedChordDiagram from '@/Components/Library/AnimatedChordDiagram.vue';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
 import { chordShowUrl } from '@/composables/useChordUrl';
+import { readDifficultyQueryParam } from '@/composables/useBreadcrumb';
 
 defineOptions({ layout: PublicLayout });
 
@@ -66,7 +67,7 @@ const search   = ref('');
 const fQuality = ref('');
 const fVoicing = ref(typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('voicing') ?? '') : '');
 const fPop     = ref('');
-const fDiff    = ref('');
+const fDiff    = ref(readDifficultyQueryParam());
 const fInv     = ref(typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('inversion') ?? '') : '');
 const fExt     = ref(typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('ext') ?? '') : '');
 

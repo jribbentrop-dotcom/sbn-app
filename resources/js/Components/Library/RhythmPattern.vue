@@ -56,7 +56,9 @@ export interface VideoSnippet {
 export interface RhythmPatternWithMeta extends RhythmPatternData {
   id: number;
   slug: string;
-  description: string;
+  description: string | null;
+  descriptionExcerpt?: string | null;
+  difficulty?: number | null;
   category: string;
   styleSlug: string;
   demoUrl?: string | null;

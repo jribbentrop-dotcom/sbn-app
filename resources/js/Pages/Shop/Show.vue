@@ -56,6 +56,13 @@ const styleCategory = computed(() => {
     return slug ? props.product.categories.find(c => c.slug === slug) ?? null : null;
 });
 
+const difficultyCategory = computed(() => {
+    for (const cat of props.product.categories) {
+        if (DIFFICULTY_SLUGS[cat.slug] !== undefined) return cat;
+    }
+    return null;
+});
+
 const breadcrumbColor = computed(() => {
     const slug = getStyleSlug(props.product.categories);
     return getCategoryColor(slug);
@@ -64,6 +71,7 @@ const breadcrumbColor = computed(() => {
 const breadcrumbSegments = computed(() => {
     const segs: { label: string; href?: string }[] = [{ label: 'Shop', href: '/shop' }];
     if (styleCategory.value) segs.push({ label: styleCategory.value.name, href: `/shop/category/${styleCategory.value.slug}` });
+    if (difficultyCategory.value) segs.push({ label: difficultyCategory.value.name, href: `/shop/category/${difficultyCategory.value.slug}` });
     segs.push({ label: props.product.title });
     return segs;
 });

@@ -61,10 +61,10 @@ return [
         'progressionCaption' => "Although the <strong>minor ii-V</strong> appears repeatedly in jazz renditions of <em>Manhã de Carnaval</em>, Luiz Bonfá used a simple, classical progression in his wonderful arrangement.",
         'progressionSlugs' => ['m7b5-drop2-roota', 'dom7-shell-roote'],
         // Live leadsheet bars — replaces progressionTiles in the SyncedPlayer panel
-        'syncedPlayer' => ['slug' => 'black-orpheus', 'start' => 1, 'end' => 3],
+        'syncedPlayer' => ['slug' => 'manha-de-carnaval', 'start' => 1, 'end' => 3],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'bonfa',
-        'rhythmCaption' => "<strong>Luiz Bonfá's</strong> favourite pattern is so simple yet effective, and it's easy to see why!",
+        'rhythmCaption' => "<strong>Luiz Bonfá's</strong> favourite pattern is so simple yet effective. The thumb plays a steady bass while the fingers pluck the upper strings in a gentle, flowing rhythm.",
         'rhythmCitation' => "<strong>Luiz Bonfá</strong>, <em>Solo In Rio</em>, 1959",
         'relatedProducts' => [
             [
@@ -98,7 +98,7 @@ return [
         'progressionCaption' => "Together the <strong>Am6</strong> and <strong>G#dim7</strong> form the <strong>Line Cliché</strong> at the heart of <em>Corcovado</em>. This chord motion — tonic colour shifting into passing dissonance — is the sound of <strong>saudade</strong> on the guitar.",
         'progressionSlugs' => ['m6-drop3-roota', 'o7-drop3-roota'],
         // Live leadsheet bars — replaces progressionTiles in the SyncedPlayer panel
-        'syncedPlayer' => ['slug' => 'untitled-6', 'start' => 0, 'end' => 7],
+        'syncedPlayer' => ['slug' => 'corcovado', 'start' => 0, 'end' => 7],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'extended-gilberto-rhythm',
         'rhythmCaption' => "<strong>João Gilberto</strong> played many variations in his rhythm patterns. This is a simple extension of the basic pattern.",
@@ -132,17 +132,17 @@ return [
         'description' => "The Portuguese title <em>Insensatez</em> means \"foolishness\" — Jobim wrote it as a lament for a love handled badly, and the English adaptation \"How Insensitive\" perfectly captures the same self-reproach. The chromatic descending bass line echoes the Corcovado tradition, but here it moves slower, heavier — a favourite ballad vehicle for jazz improvisers ever since <strong>Stan Getz</strong> recorded it on <em>Getz/Gilberto</em>.",
         'recordings' => '556 Recordings',
         'voicingName' => 'Key Chords',
-        'voicingSlug' => 'dom7-drop3-roote-b13',
-        'rootOverride' => 'F#',
+        'voicingSlug' => 'o7-drop3-roote-b13',
+        'rootOverride' => 'Bb',
         'voicingCaption' => "This <strong>Dominant 7</strong> voicing is enriched with the colour tone b13. The b13 is a common alteration in Jobim's ballads, giving the chords a darker, more melancholic sound that perfectly suits the mood of <em>Insensatez</em>.",
         'progressionName' => 'Minor Blues Cadenza',
         'progressionLibrarySlug' => 'minor-blues-cadenza',
         'progressionSeedKey' => 'B',
         'progressionCaption' => "The Minor Blues Cadenza in <em>Insensatez</em> features a distinctive harmonic movement. The voicings here are rooted in the minor blues tradition but are coloured with Jobim's unique harmonic language, including the use of the b13 for added tension and emotional depth.",
         // Live leadsheet bars — Gmaj7(#11) F#7 Bm7 progression at the end
-        'syncedPlayer' => ['slug' => 'joao-gilberto-insensatez', 'start' => 21, 'end' => 23],
+        'syncedPlayer' => ['slug' => 'insensatez', 'start' => 4, 'end' => 11],
         'rhythmName' => 'Trademark Rhythm Pattern',
-        'rhythmSlug' => 'insensatez',
+        'rhythmSlug' => 'insensatez',   
         'rhythmCaption' => "<strong>João Gilberto's</strong> recording of <em>Insensatez</em> features an interesting rhythm pattern. Like the clave patterns of Cuba, it dominates the song, dictating the flow of the music.",
         'rhythmCitation' => "<strong>João Gilberto</strong>, <em>João Gilberto</em>, 1961",
         'relatedProducts' => [
@@ -183,7 +183,7 @@ return [
         'progressionCaption' => "The <strong>Jazz Half Cadence</strong> sets up the rhythm for Wave, sustaining tension before the melody appears.",
         'progressionSlugs' => ['min7-shell-roote', 'min7-shell-roote'],
         // Live leadsheet bars — Wave bars 0-1
-        'syncedPlayer' => ['slug' => 'untitled-7', 'start' => 0, 'end' => 1],
+        'syncedPlayer' => ['slug' => 'wave', 'start' => 0, 'end' => 1],
         'rhythmName' => 'The "Wave" Syncopation',
         'rhythmSlug' => 'partido-alto',
         'rhythmCaption' => "<em>Wave</em> uses a rhythm often linked to the <strong>\"Partido Alto\"</strong> style. Note the anticipation: the chord attacks often land on the weak off-beats.",
@@ -226,10 +226,10 @@ return [
         'progressionCaption' => "The <strong>Tritone Substitution</strong> is an advanced jazz concept that replaces the expected dominant chord with one a tritone away. In <em>One Note Samba</em> this produces a smooth chromatic bass descent while the melody holds its ground on a single pitch.",
         'progressionSlugs' => ['m7-shell-roote', 'dom7-shell-roote', 'm7-shell-roote'],
         // Live leadsheet bars — One Note Samba bars 1-4
-        'syncedPlayer' => ['slug' => 'one-note-samba', 'start' => 1, 'end' => 4],
+        'syncedPlayer' => ['slug' => 'one-note-samba', 'start' => 0, 'end' => 3],
         'rhythmName' => 'Trademark Rhythm Pattern',
-        'rhythmSlug' => 'bossa-nova-clave',
-        'rhythmCaption' => "The <strong>Bossa Nova Clave</strong> locks the 3+2 pattern that defines the jazz-ensemble arrangement of this song. At faster tempos, keep the clave crisp — the rest of the rhythm section anchors off it.",
+        'rhythmSlug' => 'partido-alto',
+        'rhythmCaption' => "The <strong>Partido Alto</strong> is a traditional Brazilian rhythm pattern that underpins many samba and bossa nova songs.",
         'rhythmCitation' => "<strong>Quincy Jones</strong>, <em>Big Band Bossa Nova</em>, 1962",
         'relatedProducts' => [
             [
@@ -261,7 +261,7 @@ return [
         'progressionCaption' => "The <strong>Samba Line Cliché</strong> keeps the tonic chord rooted while an inner voice moves one semitone at a time. A simple mechanism with a dramatically emotional effect.",
         'progressionSlugs' => ['maj7-shell-roote', 'maj7-shell-roote', 'maj6-shell-roote'],
         // Live leadsheet bars — Aquarela do Brasil bars 0-3
-        'syncedPlayer' => ['slug' => 'aqualera-do-brasil', 'start' => 0, 'end' => 3],
+        'syncedPlayer' => ['slug' => 'aquarela-do-brasil', 'start' => 0, 'end' => 3],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'samba-brasil',
         'rhythmCaption' => "Another iconic rhythm: this Samba rhythm has a wonderful symmetry of three strong and three weak beat accents.",
@@ -295,18 +295,18 @@ return [
         'description' => "When critics dismissed Bossa Nova as \"out of tune,\" Tom Jobim answered with <em>Desafinado</em> — a song whose title literally means \"Slightly Out of Tune.\" The harmony makes the joke flesh: the dissonant <strong>#11</strong> on the secondary dominant is precisely the \"wrong\" note the critics complained about, and here it is the point of the whole song. The <strong>Stan Getz & João Gilberto</strong> recording on <em>Getz/Gilberto</em> (1964) turned this wry retort into a worldwide hit.",
         'recordings' => '424 Recordings',
         'voicingName' => 'Key Chord',
-        'voicingSlug' => 'dom7-archetype-roote-9',
+        'voicingSlug' => 'dom7-drop3-roote-13',
         'rootOverride' => 'E',
         'voicingCaption' => "The title <em>Desafinado</em> translates to \"Slightly Out of Tune.\" This effect is achieved by the <strong>Secondary Dominant (<strong>II7</strong>)</strong>. Joao Gilberto choses a simple E7 chord without any alteration.",
-        'progressionName' => 'Ellington Progression in F',
-        'progressionLibrarySlug' => 'ellington-progression',
+        'progressionName' => 'The Ascending Diminished Progression',
+        'progressionLibrarySlug' => 'ascending-diminished',
         'progressionSeedKey' => 'F',
-        'progressionCaption' => "For this <em>Desafinado</em> excerpt, we use the <strong>Ellington Progression</strong> in <strong>D</strong> just like Joao Gilberto does in the recording. The progression is a favourite of Tom Jobim's and appears in many of his songs.",
+        'progressionCaption' => "<em>Desafinado</em> modulates to different keys, this excerpt is from the middle section in the key of <strong>A</strong> — the <strong>Ascending Diminished Progression</strong> just like Joao Gilberto does in the recording.",
         'progressionVoicingOverrides' => [
             2 => 'dom7-drop3-roote-s11',
         ],
-        // Live leadsheet bars — Desafinado bars 4-11
-        'syncedPlayer' => ['slug' => 'desafinado', 'start' => 4, 'end' => 11],
+                 // Live leadsheet bars — desafinado bars 36-39
+        'syncedPlayer' => ['slug' => 'desafinado', 'start' => 36, 'end' => 39],
         'rhythmName' => 'Syncopated Phrasing',
         'rhythmSlug' => 'desafinado',
         'rhythmCaption' => "The melody of <em>Desafinado</em> is famous for starting on the \"and\" of beats. Your guitar accompaniment should be steady to support the \"stumbling\" vocal melody.",
@@ -342,7 +342,7 @@ return [
         'progressionSeedKey' => 'Dm',
         'progressionCaption' => "The <strong>Secondary Dominant Cadence</strong> captures the tension-and-release core of <em>Chega de Saudade</em>. Although the song features some interesting passing chords, the main harmonic motion is a simple.",
         // Live leadsheet bars — Chega de Saudade bars 8-15
-        'syncedPlayer' => ['slug' => 'untitled-13', 'start' => 8, 'end' => 15],
+        'syncedPlayer' => ['slug' => 'chega-de-saudade', 'start' => 8, 'end' => 15],
         'rhythmName' => 'The Original Beat',
         'rhythmSlug' => 'gilberto-rhythm',
         'rhythmCaption' => "This track introduced the famous \"stutter\" or syncopation that imitates the Brazilian samba percussion (the Tamborim) on the guitar strings.",

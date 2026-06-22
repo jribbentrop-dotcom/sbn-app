@@ -14,6 +14,7 @@ import type { CourseShelfCardData } from '@/Components/Course/CourseShelfCard.vu
 import type { RhythmPatternWithMeta } from '@/Components/Library/RhythmPattern.vue';
 import type { SongLinkData } from '@/Components/Library/SongLink.vue';
 import { getCategoryStyle, getCategoryColor } from '@/composables/useCategoryColors';
+import { difficultyBreadcrumbSegment } from '@/composables/useBreadcrumb';
 import { getAudioEngine } from '../../../audio/engine/AudioEngine.js';
 
 defineOptions({ layout: PublicLayout });
@@ -27,7 +28,19 @@ interface Props {
 
 const props = defineProps<Props>();
 
+const CATEGORY_LABELS: Record<string, string> = {
+  'bossa-nova': 'Bossa Nova',
+  'jazz':       'Jazz',
+  'classical':  'Classical',
+  'pop':        'Pop',
+};
+
 const categoryStyle = computed(() => getCategoryStyle(props.pattern.styleSlug));
+const categoryColor = computed(() => getCategoryColor(props.pattern.styleSlug));
+const categoryLabel = computed(() =>
+  CATEGORY_LABELS[props.pattern.category]
+  ?? props.pattern.category.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+);
 
 // Blend slider: 0 = pure samples, 1 = pure demo MP3.
 // Only shown when the pattern has a demo URL.
@@ -44,22 +57,43 @@ watch(() => props.pattern.slug, () => {
   blend.value = 0;
   if (engine.isInited) engine.setBlend(0);
 });
+
+const breadcrumbSegments = computed(() => {
+  const segs = [{ label: 'Rhythms', href: '/library/rhythms' }];
+  const filterParams: Record<string, string> = {};
+
+  if (props.pattern.category) {
+    filterParams.category = props.pattern.category;
+    segs.push({
+      label: categoryLabel.value,
+      href: `/library/rhythms?category=${encodeURIComponent(props.pattern.category)}`,
+    });
+  }
+
+  const difficultySeg = difficultyBreadcrumbSegment(props.pattern.difficulty, '/library/rhythms', filterParams);
+  if (difficultySeg) segs.push(difficultySeg);
+
+  segs.push({ label: props.pattern.name });
+  return segs;
+});
 </script>
 
 <template>
     <Head>
         <title>{{ pattern.name }} Rhythm Pattern | Soul Bossa Nova</title>
-        <meta name="description" :content="pattern.description || `Learn the ${pattern.name} guitar rhythm pattern — interactive notation, audio playback and fingering guide for Bossa Nova and Latin Jazz.`" />
+        <meta name="description" :content="pattern.descriptionExcerpt || `Learn the ${pattern.name} guitar rhythm pattern — interactive notation, audio playback and fingering guide for Bossa Nova and Latin Jazz.`" />
         <meta property="og:title" :content="`${pattern.name} | Soul Bossa Nova`" />
-        <meta property="og:description" :content="pattern.description || `${pattern.name} — Bossa Nova rhythm pattern with interactive notation and audio.`" />
+        <meta property="og:description" :content="pattern.descriptionExcerpt || `${pattern.name} — Bossa Nova rhythm pattern with interactive notation and audio.`" />
         <meta property="og:type" content="website" />
     </Head>
 
-  <div class="sbn-page-detail sbn-rhythm-show">
-    <Breadcrumb :segments="[{ label: 'Rhythm Library', href: '/library/rhythms' }, { label: pattern.name }]" :color="getCategoryColor(pattern.styleSlug)" />
-    <header class="sbn-rhythm-show-header sbn-detail-hero" :style="categoryStyle">
+  <div class="sbn-page-detail sbn-rhythm-show sbn-has-category-gradient" :style="categoryStyle">
+
+    <Breadcrumb :segments="breadcrumbSegments" :color="categoryColor" />
+
+    <header class="sbn-rhythm-show-header sbn-detail-hero">
       <div class="sbn-show-hero-badges">
-        <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': getCategoryColor(pattern.styleSlug) }">{{ pattern.category.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) }}</span>
+        <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': categoryColor }">{{ categoryLabel }}</span>
         <span v-for="tag in (pattern.tags ?? [])" :key="tag" class="sbn-hashtag">#{{ tag }}</span>
       </div>
       <h1 class="sbn-show-hero-title">{{ pattern.name }}</h1>
@@ -81,7 +115,7 @@ watch(() => props.pattern.slug, () => {
             :pattern="pattern"
             :playable="true"
             :demo-url="pattern.demoUrl"
-            :color="getCategoryColor(pattern.styleSlug)"
+            :color="categoryColor"
           >
             <template v-if="pattern.demoUrl" #transport-extra>
               <div class="sbn-blend-control">
@@ -100,7 +134,7 @@ watch(() => props.pattern.slug, () => {
             :playable="true"
             :mini="false"
             :demo-url="pattern.demoUrl"
-            :color="getCategoryColor(pattern.styleSlug)"
+            :color="categoryColor"
           >
             <template v-if="pattern.demoUrl" #transport-extra>
               <div class="sbn-blend-control">
@@ -142,7 +176,7 @@ watch(() => props.pattern.slug, () => {
       <!-- Right: related patterns sidebar -->
       <aside class="sbn-show-sidebar">
         <div class="sbn-show-sidebar-card">
-          <h3 class="sbn-show-sidebar-heading">More {{ pattern.category.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) }} patterns</h3>
+          <h3 class="sbn-show-sidebar-heading">More {{ categoryLabel }} patterns</h3>
           <div v-if="siblings.length" class="sbn-siblings-list">
             <RhythmLink
               v-for="sibling in siblings"
@@ -177,12 +211,25 @@ watch(() => props.pattern.slug, () => {
   margin-bottom: 32px;
 }
 
+.sbn-rhythm-show :deep(.sbn-section-heading) {
+  margin: 0 0 14px;
+  padding-bottom: 8px;
+}
+
+.sbn-rhythm-show :deep(.sbn-rhythm-link:hover) {
+  background: var(--cat-bg);
+  border-color: var(--cat-border);
+}
+
+.sbn-rhythm-show :deep(.sbn-rhythm-link:hover .sbn-rhythm-link__name) {
+  color: var(--cat-text);
+}
 
 .sbn-rhythm-section-body {
   margin: 0;
   font-size: 15px;
   line-height: 1.7;
-  color: var(--clr-text-muted);
+  color: var(--clr-text);
 }
 
 /* Siblings list */

@@ -205,7 +205,7 @@ function renderBeams(measureEvents, getXFn) {
         bg.forEach(n => {
             if (n.isRest) return;
             const x = getXFn(n.xPos);
-            html += `<line x1="${x}" y1="${baseY}" x2="${x}" y2="${tipY}" class="sbn-tab-stem${vc}"/>`;
+            html += `<line x1="${x}" y1="${baseY}" x2="${x}" y2="${tipY}" stroke="#333" stroke-width="1" stroke-linecap="butt"/>`;
         });
 
         if (!noBeamBar) {
@@ -387,7 +387,7 @@ function renderMeasureSvg(m, opts) {
     // String lines
     for (let s = 0; s < LAYOUT.stringCount; s++) {
         const y = LAYOUT.stringAreaTop + s * LAYOUT.stringSpacing;
-        inner += `<line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="#ccc" stroke-width="0.5"/>`;
+        inner += `<line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="#404040" stroke-width="0.6"/>`;
     }
 
     if (m.repeatStart) inner += renderRepeatStart(sT, sB, sH);

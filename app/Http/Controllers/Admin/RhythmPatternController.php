@@ -161,7 +161,7 @@ class RhythmPatternController extends Controller
                 'nullable', 'string', 'max:50', 'regex:/^[a-z0-9\-]+$/',
                 Rule::unique('sbn_rhythm_patterns', 'slug')->ignore($excludeId),
             ],
-            'description'    => 'nullable|string|max:1000',
+            'description'    => 'nullable|string|max:10000',
             'category'       => ['nullable', 'string', Rule::in(RhythmPattern::CATEGORIES)],
             'tags'           => 'nullable|string|max:500',
             'time_signature' => 'nullable|string|in:2/4,3/4,4/4,6/8',

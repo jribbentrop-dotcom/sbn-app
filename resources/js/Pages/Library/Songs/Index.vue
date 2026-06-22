@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { Head } from '@inertiajs/vue3';
+import { readDifficultyQueryParam } from '@/composables/useBreadcrumb';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import SongCard from '@/Components/Library/SongCard.vue';
 import type { SongCardData } from '@/Components/Library/SongCard.vue';
@@ -17,8 +18,17 @@ interface Props {
 
 const props = defineProps<Props>();
 
+const CANONICAL_STYLES = ['bossa-nova', 'jazz', 'classical', 'pop'] as const;
+
+const initialQuery = typeof window !== 'undefined'
+  ? new URLSearchParams(window.location.search)
+  : new URLSearchParams();
+const queryStyle = initialQuery.get('style') ?? '';
+
 // ── Filter state ─────────────────────────────────────────────
 const search     = ref('');
+const fStyle     = ref(CANONICAL_STYLES.includes(queryStyle as typeof CANONICAL_STYLES[number]) ? queryStyle : '');
+const fDifficulty = ref(readDifficultyQueryParam());
 const fKey       = ref('');
 const fComposer  = ref('');
 const fRhythm    = ref('');
@@ -39,6 +49,8 @@ function matchesFilters(s: SongCardData): boolean {
       .filter(Boolean).join(' ').toLowerCase();
     if (!haystack.includes(q)) return false;
   }
+  if (fStyle.value    && s.styleSlug !== fStyle.value)     return false;
+  if (fDifficulty.value && String(s.difficulty ?? '') !== fDifficulty.value) return false;
   if (fKey.value      && s.songKey !== fKey.value)         return false;
   if (fComposer.value && s.composer !== fComposer.value)   return false;
   if (fRhythm.value   && s.rhythm !== fRhythm.value)       return false;
@@ -49,11 +61,13 @@ function matchesFilters(s: SongCardData): boolean {
 const filtered = computed(() => props.songs.filter(matchesFilters));
 
 const hasFilters = computed(() =>
-  !!(search.value || fKey.value || fComposer.value || fRhythm.value || fTempo.value)
+  !!(search.value || fStyle.value || fDifficulty.value || fKey.value || fComposer.value || fRhythm.value || fTempo.value)
 );
 
 function clearFilters() {
   search.value    = '';
+  fStyle.value    = '';
+  fDifficulty.value = '';
   fKey.value      = '';
   fComposer.value = '';
   fRhythm.value   = '';
@@ -65,7 +79,7 @@ const examples = ['Wave', 'Jobim', 'bossa', 'Dm7'];
 
 function applyExample(ex: string) {
   search.value = ex;
-  fKey.value = fComposer.value = fRhythm.value = fTempo.value = '';
+  fStyle.value = fDifficulty.value = fKey.value = fComposer.value = fRhythm.value = fTempo.value = '';
 }
 
 // ── Rhythm display label ──────────────────────────────────────

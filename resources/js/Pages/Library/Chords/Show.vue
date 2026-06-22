@@ -19,6 +19,7 @@ import { useTheoryModal } from '@/composables/useTheoryModal';
 
 const { open: openTheoryModal } = useTheoryModal();
 import Breadcrumb from '@/Components/Breadcrumb.vue';
+import { difficultyBreadcrumbSegment } from '@/composables/useBreadcrumb';
 import { mountSbnNodes } from '@/lib/mountSbnNodes';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
@@ -81,6 +82,14 @@ interface Props {
 
 const props = defineProps<Props>();
 defineOptions({ layout: PublicLayout });
+
+const breadcrumbSegments = computed(() => {
+    const segs = [{ label: 'Chords', href: '/library/chords' }];
+    const difficultySeg = difficultyBreadcrumbSegment(props.chord.difficulty, '/library/chords');
+    if (difficultySeg) segs.push(difficultySeg);
+    segs.push({ label: props.chord.name });
+    return segs;
+});
 
 const siblingsScrollEl = ref<HTMLElement | null>(null);
 function scrollSiblings(dir: 1 | -1) {
@@ -499,7 +508,7 @@ const formattedChordName = computed(() => {
 
     <div class="sbn-page-detail sbn-chord-detail">
 
-        <Breadcrumb :segments="[{ label: 'Chord Library', href: '/library/chords' }, { label: chord.name }]" />
+        <Breadcrumb :segments="breadcrumbSegments" />
 
         <!-- ════ IDENTITY PANEL ════ -->
         <div class="sbn-chord-identity sbn-detail-hero" :style="{ '--category-color': 'var(--clr-mod-chord)' }">

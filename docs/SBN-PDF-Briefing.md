@@ -52,6 +52,18 @@ return [
         'samba',
     ],
 
+    // ── Notation / TAB (optional) ────────────────────────────────────
+    // MuseScore SVG-Exports, einem Akkord-Slug zugeordnet.
+    // Jeder Eintrag: ['file' => 'svgexport/{dateiname}.svg', 'system' => N]
+    //   file   = Pfad relativ zum App-Root (svgexport/-Ordner)
+    //   system = 1-basierter Index der TAB-Systeme auf dieser SVG-Seite
+    //            (jede MuseScore-Seite hat typischerweise 2 TAB-Systeme)
+    'notation_svg' => [
+        'maj7-drop2-roota' => ['file' => 'svgexport/MEIN-FILE-2.svg', 'system' => 1],
+        'm7-drop2-roota'   => ['file' => 'svgexport/MEIN-FILE-2.svg', 'system' => 2],
+        // ... weitere Akkorde
+    ],
+
     // ── Song-Beispiele (optional) ─────────────────────────────────────
     // Leadsheet-Slugs aus der SBN Song Library
     'songs' => [
@@ -244,9 +256,101 @@ config/pdf/{slug}.php
 
 ---
 
-## Bekannte Einschränkungen (Stand 2026-06-08)
+## TAB-Renderer Pipeline (Stand 2026-06-16)
 
-- **Notation/TABs:** Noch nicht im Template — Phase 2. MuseScore-SVGs können als Bild eingebettet werden, Implementierung ausstehend.
-- **Song-Beispiele:** Tab-XML-Parser vorhanden, funktioniert wenn Leadsheet in DB (`sbn_leadsheets`) existiert.
+Der TAB-Renderer ist **produktionsreif** für Leadsheet-basierte PDFs. Er arbeitet
+vollständig server-seitig (PHP → Node → SVG), kein Browsershot-JavaScript nötig.
+
+### Komponenten
+
+| Datei | Rolle |
+|---|---|
+| `app/Services/TabXmlParser.php` | Parsed `tab_xml` (MusicXML) aus `sbn_leadsheets` → Measure/Event-Array mit Beams, Ties, xPos |
+| `scripts/pdf/render-tab-v2.cjs` | Node-Script: rendert ein SVG-Row aus dem JSON-Payload |
+| `scripts/pdf/render-diagram-inline.cjs` | Node-Script: rendert ein B&W Chord-Diagramm aus Inline-Voicing-Daten (kein DB-Lookup) |
+| `scripts/pdf/render-diagram.cjs` | Node-Script: rendert ein Chord-Diagramm aus einem DB-Slug (mit `--bw` Flag für B&W) |
+
+### Datenfluss
+
+```
+sbn_leadsheets.tab_xml (MusicXML)
+    → TabXmlParser::parse($xml, $chordNames)
+    → { measures[], timeSig }
+
+sbn_leadsheets.json_data.sections[0]
+    → lineBreaks[]     (Takte pro Zeile)
+    → measures[].chords[].name   (Akkordnamen pro Takt)
+
+shortcode_content [sbn_voicings] Block
+    → { chordName: { frets, position, fingers } }
+    → render-diagram-inline.cjs → SVG (B&W, 3 Frets, inline)
+
+PHP baut Rows + ruft render-tab-v2.cjs auf:
+    Input: { measures, timeSig, barsPerRow, showChordNames, voicings }
+    voicings: { chordName: svgMarkup }  ← raw SVG, kein Data-URI
+    Output: <svg>...</svg> Row
+```
+
+### render-tab-v2.cjs Input-Format
+
+```json
+{
+  "measures": [...],
+  "timeSig": "2/4",
+  "barsPerRow": 4,
+  "showChordNames": true,
+  "voicings": {
+    "Db6(9)/Ab": "<svg class=\"sbn-chord-svg\"...>...</svg>",
+    "G7": "<svg ...>...</svg>"
+  }
+}
+```
+
+`voicings` ist optional. Wenn übergeben, erscheint das Diagramm **beim ersten Vorkommen**
+des Akkordnamens in der Row über dem Chord-Name-Text. Jeder Akkord erscheint nur einmal
+(PHP trackt `$seenChords` über alle Rows).
+
+### Visuelles Layout einer Row (mit Diagrammen)
+
+```
+┌────────────────────────────────────────────────┐
+│  Db6(9)/Ab          G7                          │  ← Chord-Name (zentriert über Diagramm)
+│  [Diagramm]         [Diagramm]                  │  ← B&W Chord-Diagram (65×68px)
+│  ──────────────────────────────────────────     │  ← TAB-Strings (6 Linien)
+│  4    4    4    4                               │  ← Fret-Nummern
+│  ──────────────────────────────────────────     │
+│  (Beams, Ties, Rests, Repeat Signs)             │
+└────────────────────────────────────────────────┘
+```
+
+### Schrift-Abhängigkeiten
+
+- **Bravura** (`/public/fonts/Bravura.otf`) — SMuFL-Glyphen: Flags, Rests
+- **Crimson Text** (Google Fonts CDN) — Fret-Nummern (13px, 900 weight), Chord-Namen (14px, 600 weight)
+- Beide müssen im HTML geladen sein; SVG wartet mit `document.fonts.load()` vor Anzeige
+
+### Prototype-Script
+
+`tinker_tmp.php` im App-Root ist das Prototype-Script für den Test-Render nach
+`public/pdf-test.html` → `http://sbn-app.test/pdf-test.html`. Enthält den vollen
+Datenfluss: Parser → Row-Split → Diagram-Render → TAB-Render → HTML.
+
+### Bekannte Lücken / nächste Schritte
+
+- **Voltas** (1./2. Klammer): Parser liest sie noch nicht aus MusicXML
+- **Pickup-Takte**: `pickupBeats` wird nicht aus MusicXML gelesen
+- **Diagramm-Clipping**: 3-Fret-Crop funktioniert für die meisten Shapes; ein Akkord
+  mit einer Note im 4. Fret (relativ zur Position) würde abgeschnitten — selten in der Praxis
+- **Voicings ohne `[sbn_voicings]` Block**: Manche Leadsheets haben keinen Block;
+  dann keine Diagramme, nur Chord-Namen-Text
+- **Blade-Template**: `tinker_tmp.php` ist Prototyp. Für Produktion: eigene
+  Blade-View + Controller-Route nach dem Muster von `chord-book.blade.php`
+
+---
+
+## Bekannte Einschränkungen (Stand 2026-06-16)
+
+- **Notation/TABs aus MuseScore-SVG:** Extraktion implementiert (`scripts/pdf/extract-tab-svg.cjs`). Für Chord-Book-PDFs referenziert via `notation_svg`-Key. **Layout-Integration im Chord-Book-Template steht noch aus.**
+- **Song-Beispiele als TAB:** Vollständig implementiert via `TabXmlParser` + `render-tab-v2.cjs` (siehe TAB-Renderer Pipeline oben). Funktioniert wenn Leadsheet in DB (`sbn_leadsheets`) existiert und `tab_xml` befüllt ist.
 - **Chord-Descriptions in DB:** Die meisten Voicings haben keine DB-Description — `chord_descriptions` in der Config überschreibt/ersetzt die DB.
-- **Root-Transposition:** Das System zeigt immer C-Root-Voicings. Slug-Matching ist root-unabhängig (z.B. `m7-drop2-roota` für Am7, Dm7, Gm7 etc. — selbes Shape).
+- **Root-Transposition:** Das System zeigt immer C-Root-Voicings. Slug-Matching ist root-unabhängig.

@@ -22,6 +22,7 @@ interface RelatedProduct {
 
 interface SyncedPlayerConfig {
     slug: string;
+    type?: string;
     start?: number;
     end?: number;
 }
@@ -82,7 +83,7 @@ async function fetchSyncedBars(cfg: SyncedPlayerConfig) {
     syncedBars.value = null;
     syncedFetching.value = true;
     try {
-        const params = new URLSearchParams({ type: 'leadsheet' });
+        const params = new URLSearchParams({ type: cfg.type ?? 'leadsheet' });
         if (cfg.start != null) params.set('start', String(cfg.start));
         if (cfg.end   != null) params.set('end',   String(cfg.end));
         const res = await fetch(`/api/sbn/synced-player/${cfg.slug}?${params}`, {

@@ -165,6 +165,7 @@ class HarmonicContext
         $chords = [];
         foreach ($chordData as $i => $item) {
             $name = is_array($item) ? ($item['chord_name'] ?? $item['name'] ?? '?') : $item;
+            $name = self::reSpellChordName($name, $key);
             $mIdx = is_array($item) ? ($item['measure_index'] ?? $i) : $i;
             $cIdx = is_array($item) ? ($item['chord_index'] ?? 0) : 0;
 
@@ -408,9 +409,16 @@ class HarmonicContext
         if ($accidental === 'b') $semitoneOffset--;
         if ($accidental === '#') $semitoneOffset++;
 
-        // Compute root note — spell according to the key's circle-of-fifths side
+        // Compute root note — flat numerals (bVI, bVII, bIII…) always spell flat;
+        // sharp numerals always spell sharp; natural numerals follow the key.
         $rootSemi   = ($keySemi + $semitoneOffset + 12) % 12;
-        $noteMap    = self::spellingUsesFlats($key) ? self::SEMI_TO_NOTE_FLAT : self::SEMI_TO_NOTE_SHARP;
+        if ($accidental === 'b') {
+            $noteMap = self::SEMI_TO_NOTE_FLAT;
+        } elseif ($accidental === '#') {
+            $noteMap = self::SEMI_TO_NOTE_SHARP;
+        } else {
+            $noteMap = self::spellingUsesFlats($key) ? self::SEMI_TO_NOTE_FLAT : self::SEMI_TO_NOTE_SHARP;
+        }
         $rootNote   = $noteMap[$rootSemi];
 
         // Quality suffix → display quality

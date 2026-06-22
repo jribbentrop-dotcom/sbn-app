@@ -968,3 +968,64 @@ MusicXMLParser.parse() → parsed.tuning
 2. Add the open-string MIDI map to `pitchToMidi.js` and `musicXmlWriter.js`
 3. Add `TUNING_*` constant + branch in `VoicingCrossref::tuningArray()`
 4. Add `TUNING_*` array in `_pcSetToFretString` inside `edit.blade.php`
+
+---
+
+## §13 — ProgressionBuilder voice-leading engine (audit 2026-06-21)
+
+### Overview
+
+`ProgressionBuilder` runs a two-pass Viterbi search (Phase D + Phase E) over a chord lattice to pick voicings that minimise a weighted cost function. Phase E adds a second Viterbi pass that activates when named guide-tone resolutions fire (jazz/latin only). The June 2026 audit fixed two silent correctness bugs and one UI regression that had suppressed guide-tone arrows in the chord grid.
+
+### Bug 1 — Hex fret-decode in `getVoicingMidiNotes`
+
+`ProgressionBuilder::getVoicingMidiNotes()` decodes fret strings (e.g. `"xa9aax"`) to MIDI pitches. It was casting each character with `(int)`, which silently converts `'a'`→0, `'c'`→0, etc. Frets ≥ 10 are stored as lowercase hex (`a`=10, `b`=11, `c`=12, …), so every voicing above fret 9 produced wrong pitches. This corrupted the tone-presence checks that determine whether a named guide-tone resolution fires, starving Phase E of valid resolutions across the whole corpus.
+
+**Fix:** `ctype_digit($ch) ? (int)$ch : hexdec($ch)` — matching the decode logic already used by `positionHintCost` (L3180) and `VoicingMaterializer`.
+
+### Bug 2 — `same_voice` definition: pitch-rank → nearest-voice
+
+Phase E's named resolutions (e.g. `vl.dom.b7_to_3`) require the source tone and target tone to move as the "same voice". The original implementation compared tones at the same index after `sort()` (pitch-rank). On guitar, the target's 3rd often sits below where the dominant's b7 was — ranks cross — so the canonical b7→3 resolution never fired.
+
+**Fix:** `same_voice` now means the closest note pair by signed interval — fire if the source tone → target tone is within the expected semitone motion (±2 semitones of the specified interval). Updated in:
+- `ProgressionBuilder::testSameVoiceMotion()`
+- `docs/Phase-E-Extension-Table.yaml` (`same_voice_definition` field)
+- §8.1 of `docs/Builder-Refactor-Spec.md`
+
+### Guide-tone resolution widening (2026-06-21)
+
+Two named resolutions were minor-tonic-only and missed major contexts shown in the source musicology:
+
+- `vl.dom.b9_to_5` and `vl.dom.b13_to_5` had `target: Im` — widened to `target: any_tonic` (sheet shows them resolving into Cmaj7).
+- `vl.dom.b13_to_5` renamed → `vl.dom.b13_to_9` (the target tone is the 9th of the tonic, not the 5th — the ID was wrong).
+
+Updated in `docs/Phase-E-Extension-Table.yaml` and `resources/js/lib/guideToneResolution.js` (`RESOLUTION_TONES` map).
+
+### UI fix — spurious guide-tone arrows
+
+`findResolutionPairsFromFired` (in `guideToneResolution.js`) previously fell back to the heuristic score-VL path when `firedIds` was empty, producing arrows on Pass-1 progressions, pop/classical chords, and repeated/pinned voicings where no named resolution actually fired.
+
+**Fix:** return `[]` immediately when `firedIds` is empty. The heuristic path in `findResolutionPairs` is still available for explicit opt-in callers (e.g. `GuideToneArrowBridge.vue` calls it directly).
+
+### `pass2_eligible` DB setting
+
+`sbn_builder_settings.pass2_eligible` controls which categories enter the Phase E dual-Viterbi search. It had been set to `["latin"]` (jazz disabled), silently preventing Phase E from running on jazz progressions even when `extensions: true` was passed. Restored to `["jazz","latin"]`.
+
+**Gotcha:** `BuilderSettings` caches under key `builder_settings_cache` (TTL 1 hour). Direct DB writes require `Cache::forget('builder_settings_cache')` to take effect immediately.
+
+**Gotcha:** `ProgressionBuilder.php:417` hard-ANDs the caller's `extensions` option with `isPass2Eligible($category)`. The regression suite (`phase-e:regress`) can't validate jazz when the DB disables it, even when passing `extensions=true`. Open: suite should override eligibility per-run rather than relying on the DB setting.
+
+### Enharmonic spelling — known builder gap
+
+`ProgressionBuilder::transposeBassNote` still calls `HarmonicContext::spellingUsesFlats($root)` (root-only, no quality context). The full pipeline uses `ChordShapeCalculator::useFlatsForQuality($root, $quality)` (Phase 2, 2026-05-31), which also considers whether any minor/diminished interval of the quality lands on a flat-side pitch class. For most cases this makes no difference, but natural-root minor chords (e.g. E minor bass notes) may misspell. Low risk until minor-key progressions with non-root bass notes are in scope.
+
+### Key files
+
+| File | Role |
+|---|---|
+| `app/Services/ProgressionBuilder.php` | `getVoicingMidiNotes` (hex fix), `testSameVoiceMotion` (nearest-voice), `transposeBassNote` (known gap) |
+| `app/Services/Builder/PhaseE/ExtensionTable.php` | loads `Phase-E-Extension-Table.yaml`; drives named resolutions |
+| `docs/Phase-E-Extension-Table.yaml` | authoritative for all extensions, avoid tones, named resolutions, `same_voice_definition` |
+| `docs/Builder-Refactor-Spec.md` | §8.1 `same_voice` definition, §13 Phase E spec |
+| `resources/js/lib/guideToneResolution.js` | `RESOLUTION_TONES` map, `findResolutionPairsFromFired` (empty-guard fix) |
+| `resources/js/Components/ChordGrid/GuideToneArrowBridge.vue` | calls `findResolutionPairs` directly (heuristic path, still valid) |

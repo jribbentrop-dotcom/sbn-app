@@ -1,38 +1,38 @@
 /**
- * render-diagram.cjs
+ * render-diagram-from-json.cjs
  *
- * Loads chords.js in a VM sandbox and renders a chord diagram SVG from
- * a sbn_chord_diagrams slug. Intended to be called from PHP via:
- *   node scripts/pdf/render-diagram.cjs <slug>
+ * Sandbox-safe sibling of render-diagram.cjs: same fret/finger/position
+ * mapping logic, but reads the chord row from a JSON file instead of
+ * querying sbn_chord_diagrams via better-sqlite3 (which requires a
+ * Windows-native binary unavailable in some environments).
  *
- * Outputs the SVG string to stdout.
- * On error, writes to stderr and exits 1.
+ * Input JSON file shape (matches a row from sbn_chord_diagrams):
+ *   { slug, diagram_data: {positions,barres,muted,open}, interval_labels, start_fret }
  *
- * Mapping logic ported from ChordDiagram.vue:48-106.
+ * Usage:
+ *   node render-diagram-from-json.cjs <json-file> [--bw]
+ *
+ * Output: SVG string to stdout.
  */
 
 'use strict';
 
-const fs = require('fs');
-const vm = require('vm');
+const fs   = require('fs');
+const vm   = require('vm');
 const path = require('path');
-const Database = require('better-sqlite3');
 
-// ---------------------------------------------------------------------------
-// 1. Args
-// ---------------------------------------------------------------------------
-
-const slug = process.argv[2];
-const bw   = process.argv.includes('--bw');
-if (!slug) {
-    process.stderr.write('Usage: node render-diagram.cjs <slug> [--bw]\n');
+const jsonPath = process.argv[2];
+const bw       = process.argv.includes('--bw');
+if (!jsonPath) {
+    process.stderr.write('Usage: node render-diagram-from-json.cjs <json-file> [--bw]\n');
     process.exit(1);
 }
 
-// ---------------------------------------------------------------------------
-// 2. Load chords.js into a sandboxed VM context
-// ---------------------------------------------------------------------------
+const row = JSON.parse(fs.readFileSync(path.resolve(jsonPath), 'utf8'));
 
+// ---------------------------------------------------------------------------
+// Load chords.js into a sandboxed VM context (same as render-diagram.cjs)
+// ---------------------------------------------------------------------------
 const noop = () => {};
 const fakeEl = new Proxy({}, { get: () => noop, set: () => true });
 const sandbox = {
@@ -59,28 +59,13 @@ if (typeof render !== 'function') {
 }
 
 // ---------------------------------------------------------------------------
-// 3. DB lookup
+// fret/finger mapping (ported from ChordDiagram.vue:48-89, verbatim from
+// render-diagram.cjs)
 // ---------------------------------------------------------------------------
-
-const dbPath = path.resolve(__dirname, '../../database/sbn.db');
-const db = new Database(dbPath, { readonly: true });
-
-const row = db.prepare(
-    'SELECT diagram_data, interval_labels, start_fret FROM sbn_chord_diagrams WHERE slug = ?'
-).get(slug);
-
-if (!row) {
-    process.stderr.write(`Chord slug not found: ${slug}\n`);
-    process.exit(1);
-}
 
 const data = typeof row.diagram_data === 'string'
     ? JSON.parse(row.diagram_data)
     : row.diagram_data;
-
-// ---------------------------------------------------------------------------
-// 4. fret/finger-Mapping (ported from ChordDiagram.vue:48-89)
-// ---------------------------------------------------------------------------
 
 function diagramDataToFretString(d) {
     const frets = ['x', 'x', 'x', 'x', 'x', 'x'];
@@ -116,12 +101,11 @@ function diagramDataToFingerString(d) {
     return fingers.join('');
 }
 
-// displayPosition logic (ChordDiagram.vue:94-99)
-const posFrets  = (data.positions ?? []).map(p => p.fret);
+const posFrets   = (data.positions ?? []).map(p => p.fret);
 const barreFrets = (data.barres ?? []).map(b => b.fret);
-const maxFret   = Math.max(0, ...posFrets, ...barreFrets);
-const hasOpen   = (data.open ?? []).length > 0 || posFrets.some(f => f === 0);
-const startFret = row.start_fret ?? 1;
+const maxFret     = Math.max(0, ...posFrets, ...barreFrets);
+const hasOpen      = (data.open ?? []).length > 0 || posFrets.some(f => f === 0);
+const startFret    = row.start_fret ?? 1;
 const displayPosition = (maxFret > 0 && maxFret <= 4 && hasOpen) ? 1 : startFret;
 
 const voicing = {
@@ -132,10 +116,6 @@ const voicing = {
     fingers:     diagramDataToFingerString(data),
 };
 
-// ---------------------------------------------------------------------------
-// 5. Render
-// ---------------------------------------------------------------------------
-
 let svg = render(voicing, {
     showFingers: true,
     dotColor:       bw ? '#000' : '#1a1a2e',
@@ -143,7 +123,6 @@ let svg = render(voicing, {
 });
 
 if (bw) {
-    // Replace CSS vars with hard B&W values and strip any residual color
     svg = svg
         .replace(/var\(--clr-text(?:-dim|-muted)?,?\s*[^)]*\)/g, '#000')
         .replace(/var\(--clr-text\)/g, '#000')

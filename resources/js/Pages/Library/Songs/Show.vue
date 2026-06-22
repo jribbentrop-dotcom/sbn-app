@@ -4,6 +4,7 @@ import { Link, Head } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { getCategoryStyle, getCategoryColor } from '@/composables/useCategoryColors';
+import { difficultyBreadcrumbSegment } from '@/composables/useBreadcrumb';
 import { chordShowUrl } from '@/composables/useChordUrl';
 
 import ChordCard from '@/Components/Library/ChordCard.vue';
@@ -34,6 +35,7 @@ interface Song {
   styleSlug: string;
   measureCount: number | null;
   popularity: number | null;
+  difficulty: number | null;
   coverImagePath: string | null;
   tags: string[];
 }
@@ -58,6 +60,19 @@ interface Props {
 const props = defineProps<Props>();
 
 const categoryStyle = computed(() => getCategoryStyle(props.song.styleSlug));
+const categoryColor = computed(() => getCategoryColor(props.song.styleSlug));
+
+const STYLE_LABELS: Record<string, string> = {
+  'bossa-nova': 'Bossa Nova',
+  'jazz':       'Jazz',
+  'classical':  'Classical',
+  'pop':        'Pop',
+};
+
+const styleLabel = computed(() =>
+  STYLE_LABELS[props.song.styleSlug]
+  ?? props.song.styleSlug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+);
 
 const chordsScrollEl = ref<HTMLElement | null>(null);
 const chordsCanLeft  = ref(false);
@@ -87,8 +102,6 @@ onBeforeUnmount(() => {
   chordsScrollEl.value?.removeEventListener('scroll', updateChordsScroll);
   chordsRo?.disconnect();
 });
-const categoryColor = computed(() => getCategoryColor(props.song.styleSlug));
-const styleLabel    = computed(() => (props.song.styleSlug ?? 'song').replace(/-/g, ' '));
 
 const songPopularityTier = computed(() => {
   const p = props.song.popularity ?? 0;
@@ -97,6 +110,25 @@ const songPopularityTier = computed(() => {
   if (p >= 3)  return { tier: 'common',     label: 'Common' };
   if (p >= 1)  return { tier: 'occasional', label: 'Rare' };
   return null;
+});
+
+const breadcrumbSegments = computed(() => {
+  const segs = [{ label: 'Songs', href: '/library/songs' }];
+  const filterParams: Record<string, string> = {};
+
+  if (props.song.styleSlug) {
+    filterParams.style = props.song.styleSlug;
+    segs.push({
+      label: styleLabel.value,
+      href: `/library/songs?style=${encodeURIComponent(props.song.styleSlug)}`,
+    });
+  }
+
+  const difficultySeg = difficultyBreadcrumbSegment(props.song.difficulty, '/library/songs', filterParams);
+  if (difficultySeg) segs.push(difficultySeg);
+
+  segs.push({ label: props.song.title });
+  return segs;
 });
 
 </script>
@@ -113,7 +145,7 @@ const songPopularityTier = computed(() => {
 
   <div class="sbn-page-detail sbn-song-show sbn-has-category-gradient" :style="categoryStyle">
 
-    <Breadcrumb :segments="[{ label: 'Song Library', href: '/library/songs' }, { label: song.title }]" :color="categoryColor" />
+    <Breadcrumb :segments="breadcrumbSegments" :color="categoryColor" />
 
     <!-- ── Hero ──────────────────────────────────────────────────────────── -->
     <header class="sbn-ss-hero sbn-detail-hero">
@@ -213,9 +245,8 @@ const songPopularityTier = computed(() => {
 </template>
 
 <style scoped>
-/* --category-color and --category-gradient come from .sbn-has-category-gradient
-   (sbn-design-system.css). getCategoryStyle() sets --category-color inline. */
-.sbn-song-show {}
+/* Category tint tokens + themed controls: sbn-design-system.css
+   (.sbn-page-detail.sbn-has-category-gradient) */
 
 /* ── Hero ────────────────────────────────────────────────────────────────── */
 
@@ -297,7 +328,6 @@ const songPopularityTier = computed(() => {
 }
 
 .sbn-song-meta-chip {
-  background: var(--clr-surface-2);
   border-radius: 6px;
   padding: 4px 10px;
   font-size: 0.82em;
@@ -305,7 +335,6 @@ const songPopularityTier = computed(() => {
 }
 
 .sbn-song-meta-chip strong {
-  color: var(--clr-text);
   margin-right: 4px;
 }
 
@@ -327,7 +356,6 @@ const songPopularityTier = computed(() => {
   color: var(--clr-text);
   margin: 0 0 14px;
   padding-bottom: 8px;
-  border-bottom: 2px solid var(--clr-border);
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -371,13 +399,8 @@ const songPopularityTier = computed(() => {
 .sbn-ss-rhythm-link {
   font-size: 0.82em;
   font-weight: 500;
-  color: var(--clr-text-muted);
   text-decoration: none;
   margin-left: auto;
-}
-
-.sbn-ss-rhythm-link:hover {
-  color: var(--category-color);
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */

@@ -44,8 +44,8 @@ const categoryStyle = computed(() => getCategoryStyle(props.pattern.styleSlug));
       </div>
 
       <!-- Description (if not mini) -->
-      <p v-if="!mini && pattern.description" class="sbn-rhythm-card-desc">
-        {{ pattern.description }}
+      <p v-if="!mini && pattern.descriptionExcerpt" class="sbn-rhythm-card-desc">
+        {{ pattern.descriptionExcerpt }}
       </p>
     </Link>
 

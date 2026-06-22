@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { Link, Head, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { getCategoryColor } from '@/composables/useCategoryColors';
+import { readDifficultyQueryParam } from '@/composables/useBreadcrumb';
 
 defineOptions({ layout: PublicLayout });
 
@@ -19,6 +20,7 @@ interface ProgressionData {
     description?: string;
     chordCount: number;
     songCount: number;
+    difficulty?: number | null;
 }
 
 interface Props {
@@ -38,6 +40,7 @@ const props = defineProps<Props>();
 // ── Filter state ───────────────────────────────────────────
 const search = ref(props.activeFilters.search || '');
 const fCategory = ref(props.activeFilters.category || '');
+const fDifficulty = ref(readDifficultyQueryParam());
 const fSort = ref(props.activeFilters.sort || 'popularity');
 
 // ── Category labels ─────────────────────────────────────────
@@ -55,6 +58,10 @@ const filteredProgressions = computed(() => {
     // Filter by category
     if (fCategory.value) {
         result = result.filter(p => p.category === fCategory.value);
+    }
+
+    if (fDifficulty.value) {
+        result = result.filter(p => String(p.difficulty ?? '') === fDifficulty.value);
     }
 
     // Filter by search
@@ -100,11 +107,12 @@ const exampleQueries = [
 ];
 
 // ── URL updates ─────────────────────────────────────────────
-watch([search, fCategory, fSort], () => {
+watch([search, fCategory, fDifficulty, fSort], () => {
     const params: Record<string, any> = {};
     
     if (search.value) params.search = search.value;
     if (fCategory.value) params.category = fCategory.value;
+    if (fDifficulty.value) params.difficulty = fDifficulty.value;
     if (fSort.value && fSort.value !== 'popularity') params.sort = fSort.value;
     
     router.get('/library/progressions', params, {
@@ -117,6 +125,7 @@ watch([search, fCategory, fSort], () => {
 function clearFilters() {
     search.value = '';
     fCategory.value = '';
+    fDifficulty.value = '';
     fSort.value = 'popularity';
 }
 
