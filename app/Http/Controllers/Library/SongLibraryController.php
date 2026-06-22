@@ -80,6 +80,7 @@ class SongLibraryController extends Controller
             'measureCount'    => $song->measure_count,
             'coverImagePath'  => $song->cover_image_path ? '/images/songs/' . $song->cover_image_path : null,
             'tags'            => $song->tags()->pluck('slug')->all(),
+            'isPro'           => (bool) $song->is_pro,
         ];
     }
 
@@ -131,6 +132,17 @@ class SongLibraryController extends Controller
     private function abortIfDraft(Leadsheet $leadsheet): void
     {
         abort_if($leadsheet->status !== 'publish', 404);
+    }
+
+    /**
+     * The full Viewer/Cinema experience (tab, melody, synced playback) is only
+     * available for songs explicitly marked is_pro — i.e. cleared/public-domain
+     * titles with a real arrangement. Everything else stops at the free
+     * chord/progression/rhythm reference page (Show.vue).
+     */
+    private function abortIfNotPro(Leadsheet $leadsheet): void
+    {
+        abort_if(!$leadsheet->is_pro, 404);
     }
 
     public function show(Leadsheet $leadsheet, ChordVoicingSearch $search)
@@ -262,6 +274,7 @@ class SongLibraryController extends Controller
                 'popularity'      => $leadsheet->popularity,
                 'difficulty'      => $leadsheet->difficulty,
                 'coverImagePath'  => $leadsheet->cover_image_path ? '/images/songs/' . $leadsheet->cover_image_path : null,
+                'isPro'           => (bool) $leadsheet->is_pro,
             ],
             'chordNames'   => $chordNames,
             'chords'       => $topChords,
@@ -295,6 +308,7 @@ class SongLibraryController extends Controller
     public function viewer(Leadsheet $leadsheet, ChordVoicingSearch $search, EduContentService $edu)
     {
         $this->abortIfDraft($leadsheet);
+        $this->abortIfNotPro($leadsheet);
         $enriched = $this->viewerService->enrich($leadsheet, $search);
 
         return Inertia::render('Library/Songs/Viewer', [
@@ -324,6 +338,11 @@ class SongLibraryController extends Controller
     {
         $leadsheet = Leadsheet::where('slug', $slug)->firstOrFail();
 
+        // Public route: draft leadsheets are author-only. Instructors may pull
+        // draft excerpts while authoring lesson content; everyone else 404s,
+        // consistent with abortIfDraft() on the other public song routes.
+        abort_if($leadsheet->status !== 'publish' && !$request->user()?->is_instructor, 404);
+
         $data = $leadsheet->parsed_data ?? [];
 
         // Ticks per measure — same formula as calcTicksPerMeasure() in useTabModel.js.
@@ -333,6 +352,13 @@ class SongLibraryController extends Controller
 
         $barsParam = trim((string) $request->query('bars', ''));
         $melody    = $data['melody'] ?? null;
+
+        // Lesson content embeds a few bars of a song via <sbn-song slug="…" bars="5-8">
+        // (mountSbnNodes.ts) — that excerpt use is fine even for non-pro/copyrighted
+        // titles. A full-song request (no bars param) is the one that would hand out
+        // the entire arrangement with no gating at all, so block that unless the
+        // leadsheet is explicitly marked is_pro.
+        abort_if($barsParam === '' && !$leadsheet->is_pro, 404);
 
         if ($barsParam === '') {
             // Full song — preserve original section structure, lineBreaks, repeats, voltas.
@@ -469,7 +495,13 @@ class SongLibraryController extends Controller
     {
         $q = trim((string) $request->get('q', ''));
 
+        // This route lives in the public api/sbn group. Only instructors (the
+        // lesson-palette callers) may see drafts; the public gets published
+        // songs only, matching the index/show gating.
         $query = Leadsheet::query();
+        if (!$request->user()?->is_instructor) {
+            $query->published();
+        }
         if ($q !== '') {
             $query->where(function ($qb) use ($q) {
                 $qb->where('title', 'like', "%{$q}%")
@@ -490,6 +522,7 @@ class SongLibraryController extends Controller
     public function apiViewerData(Leadsheet $leadsheet, ChordVoicingSearch $search, EduContentService $edu): \Illuminate\Http\JsonResponse
     {
         $this->abortIfDraft($leadsheet);
+        $this->abortIfNotPro($leadsheet);
         $enriched = $this->viewerService->enrich($leadsheet, $search);
 
         return response()->json([
@@ -516,6 +549,7 @@ class SongLibraryController extends Controller
     public function cinema(Leadsheet $leadsheet, ChordVoicingSearch $search)
     {
         $this->abortIfDraft($leadsheet);
+        $this->abortIfNotPro($leadsheet);
         $enriched = $this->viewerService->enrich($leadsheet, $search);
 
         return Inertia::render('Leadsheet/Cinema', [

@@ -34,6 +34,8 @@ class RegisterController extends Controller
         $request->session()->regenerate();
         $user->claimGuestOrders();
 
-        return redirect()->route('account.dashboard');
+        // Honor the intended URL so guests redirected here from a gated
+        // library/course page land back on it after signing up.
+        return redirect()->intended(route('account.dashboard'));
     }
 }

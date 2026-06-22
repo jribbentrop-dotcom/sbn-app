@@ -18,6 +18,7 @@ export interface SongCardData {
   difficulty: number | null;
   measureCount: number | null;
   coverImagePath: string | null;
+  isPro: boolean;
 }
 
 const props = defineProps<{ song: SongCardData }>();
@@ -56,9 +57,10 @@ function tempoLabel(bpm: number | null): string {
       >
       <div v-else class="sbn-song-card-fallback"></div>
 
-      <!-- Top row: style badge -->
+      <!-- Top row: style badge + SBNpro badge -->
       <div class="sbn-song-card-badge-row">
         <span class="sbn-song-badge-style">{{ styleLabel }}</span>
+        <span v-if="song.isPro" class="sbn-song-badge-pro">SBNpro</span>
       </div>
 
 
@@ -157,6 +159,16 @@ function tempoLabel(bpm: number | null): string {
   font-weight: 600;
   text-transform: capitalize;
   transition: all 0.3s var(--ease);
+}
+
+.sbn-song-badge-pro {
+  background: linear-gradient(135deg, #f5b942 0%, #e08e1f 100%);
+  color: #1a1a1a;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.68em;
+  font-weight: 700;
+  letter-spacing: 0.03em;
 }
 
 

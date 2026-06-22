@@ -26,17 +26,31 @@ defineProps<{
             <h1 class="sbn-auth-title">{{ title }}</h1>
             <p v-if="subtitle" class="sbn-auth-sub">{{ subtitle }}</p>
 
+            <div v-if="$slots.notice" class="sbn-auth-notice">
+                <slot name="notice" />
+            </div>
+
             <slot />
         </div>
     </div>
 </template>
 
 <style scoped>
+/* Presented as a centered modal-card over a dimmed, blurred backdrop. The
+   auth pages are still real routes (so gated-route redirects land here too),
+   they just read as a dialog. */
 .sbn-auth-wrap {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
+    min-height: 72vh;
     padding: clamp(2rem, 6vw, 5rem) 1rem;
+    background:
+        radial-gradient(120% 120% at 50% 0%,
+            color-mix(in srgb, var(--clr-accent, #f39c12) 10%, transparent) 0%,
+            transparent 55%),
+        color-mix(in srgb, var(--clr-text, #1a1a1a) 6%, transparent);
+    backdrop-filter: blur(2px);
 }
 
 .sbn-auth-card {
@@ -46,7 +60,9 @@ defineProps<{
     border: 1px solid var(--clr-border, #e2e8f0);
     border-radius: var(--radius-lg, 16px);
     padding: 40px 36px;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+    box-shadow:
+        0 1px 1px rgba(0, 0, 0, 0.04),
+        0 12px 40px rgba(0, 0, 0, 0.18);
 }
 
 .sbn-auth-logo {
@@ -88,6 +104,21 @@ defineProps<{
 
 <!-- Unscoped: reaches slotted form content in the auth pages -->
 <style>
+.sbn-auth-notice {
+    background: color-mix(in srgb, var(--clr-accent, #f39c12) 9%, transparent);
+    border: 1px solid color-mix(in srgb, var(--clr-accent, #f39c12) 28%, transparent);
+    color: var(--clr-text, #1a1a1a);
+    padding: 12px 14px;
+    border-radius: var(--radius, 8px);
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 22px;
+}
+
+.sbn-auth-notice strong {
+    font-weight: 700;
+}
+
 .sbn-auth-field {
     margin-bottom: 18px;
 }

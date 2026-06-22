@@ -311,32 +311,37 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
 | Public Shop
 |--------------------------------------------------------------------------
 */
-// Public library routes
-Route::get('/library/chords', [ChordLibraryController::class, 'index'])->name('library.chords.index');
-Route::get('/library/chords/search', [ChordLibraryController::class, 'search'])->name('library.chords.search');
-Route::get('/library/chords/{slug}', [ChordLibraryController::class, 'show'])->name('library.chords.show');
+// Library + theory — free during beta but require an account (see
+// redirectGuestsTo in bootstrap/app.php). Marketing pages stay public.
+Route::middleware('auth')->group(function () {
+    Route::get('/library/chords', [ChordLibraryController::class, 'index'])->name('library.chords.index');
+    Route::get('/library/chords/search', [ChordLibraryController::class, 'search'])->name('library.chords.search');
+    Route::get('/library/chords/{slug}', [ChordLibraryController::class, 'show'])->name('library.chords.show');
 
-Route::get('/library/rhythms', [RhythmLibraryController::class, 'index'])->name('library.rhythms.index');
-Route::get('/library/rhythms/{slug}', [RhythmLibraryController::class, 'show'])->name('library.rhythms.show');
+    Route::get('/library/rhythms', [RhythmLibraryController::class, 'index'])->name('library.rhythms.index');
+    Route::get('/library/rhythms/{slug}', [RhythmLibraryController::class, 'show'])->name('library.rhythms.show');
 
-Route::get('/library/progressions', [ProgressionLibraryController::class, 'index'])->name('library.progressions.index');
-Route::get('/library/progressions/{slug}', [ProgressionLibraryController::class, 'show'])->name('library.progressions.show');
+    Route::get('/library/progressions', [ProgressionLibraryController::class, 'index'])->name('library.progressions.index');
+    Route::get('/library/progressions/{slug}', [ProgressionLibraryController::class, 'show'])->name('library.progressions.show');
 
-Route::get('/library/songs', [SongLibraryController::class, 'index'])->name('library.songs.index');
-Route::get('/library/songs/{leadsheet:slug}', [SongLibraryController::class, 'show'])->name('library.songs.show');
-Route::get('/library/songs/{leadsheet:slug}/viewer', [SongLibraryController::class, 'viewer'])->name('library.songs.viewer');
-Route::get('/library/songs/{leadsheet:slug}/cinema', [SongLibraryController::class, 'cinema'])->name('library.songs.cinema');
-Route::get('/library/exercises/{exercise:slug}/cinema', [ExerciseLibraryController::class, 'cinema'])->name('library.exercises.cinema');
+    Route::get('/library/songs', [SongLibraryController::class, 'index'])->name('library.songs.index');
+    Route::get('/library/songs/{leadsheet:slug}', [SongLibraryController::class, 'show'])->name('library.songs.show');
+    Route::get('/library/songs/{leadsheet:slug}/viewer', [SongLibraryController::class, 'viewer'])->name('library.songs.viewer');
+    Route::get('/library/songs/{leadsheet:slug}/cinema', [SongLibraryController::class, 'cinema'])->name('library.songs.cinema');
+    Route::get('/library/exercises/{exercise:slug}/cinema', [ExerciseLibraryController::class, 'cinema'])->name('library.exercises.cinema');
 
-Route::get('/theory', [TheoryController::class, 'index'])->name('theory.index');
+    Route::get('/theory', [TheoryController::class, 'index'])->name('theory.index');
+});
 
 Route::get('/contact', [\App\Http\Controllers\ContactController::class, 'show'])->name('contact.show');
 Route::post('/contact', [\App\Http\Controllers\ContactController::class, 'submit'])
     ->middleware('throttle:5,1')
     ->name('contact.submit');
 
-// Phase 11b — JSON endpoints for mountSbnNodes.ts + palette search (public, no auth)
-Route::prefix('api/sbn')->name('api.sbn.')->group(function () {
+// Phase 11b — JSON endpoints for mountSbnNodes.ts + palette search.
+// Beta gate: these feed the gated library/course pages, so they require an
+// account too (authed instructors pass for the admin lesson palette).
+Route::middleware('auth')->prefix('api/sbn')->name('api.sbn.')->group(function () {
     // Show (used by mountSbnNodes)
     Route::get('/chords/{slug}',       [ChordLibraryController::class,       'apiShow'])->name('chords.show');
     Route::get('/rhythms/{slug}',      [RhythmLibraryController::class,      'apiShow'])->name('rhythms.show');
@@ -346,7 +351,6 @@ Route::prefix('api/sbn')->name('api.sbn.')->group(function () {
     Route::get('/fretboards/{slug}',   [AdminFretboardController::class,     'apiShow'])->name('fretboards.show');
     Route::get('/songs/{slug}/sheet',                 [SongLibraryController::class, 'apiSheet'])->name('songs.sheet');
     Route::get('/songs/{leadsheet:slug}/viewer-data', [SongLibraryController::class, 'apiViewerData'])->name('songs.viewer-data');
-    Route::get('/synced-player/{slug}',  [\App\Http\Controllers\Library\SyncedPlayerController::class, 'apiShow'])->name('synced-player.show');
 
     // Search (used by admin palette — must be before /{slug} wildcards)
     Route::get('/chords',       [ChordLibraryController::class,       'search'])->name('chords.search');
@@ -356,6 +360,11 @@ Route::prefix('api/sbn')->name('api.sbn.')->group(function () {
     Route::get('/songs',        [SongLibraryController::class,        'apiSearch'])->name('songs.search');
 });
 
+// Public: drives the SyncedPlayer demo on the (marketing) Top10 pages, so it
+// must stay reachable by anonymous visitors even with the beta content gate.
+Route::get('/api/sbn/synced-player/{slug}', [\App\Http\Controllers\Library\SyncedPlayerController::class, 'apiShow'])
+    ->name('api.sbn.synced-player.show');
+
 Route::get('/top10/bossa-nova-chords', [\App\Http\Controllers\Top10Controller::class, 'bossaNovaChords'])
     ->name('top10.bossa-nova-chords');
 
@@ -364,10 +373,15 @@ Route::get('/top10/latin-jazz-standards', [\App\Http\Controllers\Top10Controller
 Route::get('/top10/bossa-nova-songs', [\App\Http\Controllers\Top10Controller::class, 'bossaNovaSongs'])
     ->name('top10.bossa-nova-songs');
 
+// Courses — free during beta but require an account (see redirectGuestsTo).
+// Course catalog + detail stay public as a teaser (SEO + conversion). The
+// player — the actual lesson content — requires an account during beta.
 Route::get('/learn', [CourseController::class, 'index'])->name('courses.index');
 Route::get('/learn/{course:slug}', [CourseController::class, 'show'])->name('courses.show');
-Route::get('/learn/{course:slug}/play', [CourseController::class, 'player'])->name('courses.player');
-Route::get('/learn/{course:slug}/play/{lesson:slug}', [CourseController::class, 'player'])->name('courses.lesson');
+Route::middleware('auth')->group(function () {
+    Route::get('/learn/{course:slug}/play', [CourseController::class, 'player'])->name('courses.player');
+    Route::get('/learn/{course:slug}/play/{lesson:slug}', [CourseController::class, 'player'])->name('courses.lesson');
+});
 
 Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
 Route::get('/shop/category/{slug}', [ShopController::class, 'category'])->name('shop.category');
