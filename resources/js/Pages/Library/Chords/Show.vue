@@ -1195,5 +1195,21 @@ const formattedChordName = computed(() => {
     .sbn-chord-identity-diagram :deep(.sbn-card-chord-name .sbn-chord-symbol) {
         font-size: 1.4em;
     }
+    /* Tab bar: allow wrapping so nowrap badges don't force the box wider than viewport */
+    .sbn-chord-tab-bar {
+        flex-wrap: wrap;
+    }
+    .sbn-chord-tab {
+        flex: 1 1 45%;
+        min-width: 0;
+    }
+    /* Shrink badge text slightly */
+    .sbn-chord-tab-value {
+        font-size: 0.68em;
+        padding: 2px 6px;
+    }
+    .sbn-chord-tab-label {
+        font-size: 0.65em;
+    }
 }
 </style>
