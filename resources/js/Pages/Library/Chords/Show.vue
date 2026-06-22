@@ -1151,6 +1151,11 @@ const formattedChordName = computed(() => {
     grid-template-columns: 1fr 1fr;
     gap: 32px;
     align-items: start;
+    min-width: 0;
+}
+
+.sbn-chord-detail-lower > * {
+    min-width: 0;
 }
 
 .sbn-chord-detail-lower .sbn-section-heading-row {

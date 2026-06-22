@@ -68,10 +68,12 @@ onBeforeUnmount(() => {
     display: flex;
     gap: 10px;
     overflow-x: auto;
-    scroll-snap-type: x mandatory;
+    scroll-snap-type: x proximity;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     padding-bottom: 4px;
+    /* Trailing padding lets the last card scroll fully into view */
+    padding-right: 24px;
 }
 
 .sbn-media-shelf__track::-webkit-scrollbar {
