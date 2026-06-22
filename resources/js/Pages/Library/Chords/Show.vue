@@ -1190,7 +1190,6 @@ const formattedChordName = computed(() => {
     .sbn-chord-identity {
         padding: 16px;
         gap: 24px;
-        overflow: hidden;
     }
     /* Reduce hero chord name so it doesn't push the card wider than the viewport */
     .sbn-chord-identity-diagram :deep(.sbn-card-chord-name .sbn-chord-symbol) {
