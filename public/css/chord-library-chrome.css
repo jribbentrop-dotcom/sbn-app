@@ -484,3 +484,7 @@
         transition: opacity 0.2s ease !important;
     }
 }
+
+@media (max-width: 600px) {
+    .sbn-archetype-panel { display: none; }
+}
