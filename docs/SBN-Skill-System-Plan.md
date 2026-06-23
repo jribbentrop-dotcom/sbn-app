@@ -3,8 +3,8 @@
 > Status: **v1 SHIPPED + all 6 branches curated, courses mapped (uncommitted) 2026-06-23.**
 > Data model, models, seeder, and admin table editor built — see "v1 Implementation (As-Built)".
 > `migrate --seed` has run; the graph is now 35 nodes across all six branches with 38 prerequisite
-> edges (no cycles, no dangling refs — verified), and `sbn_course_skill_node` is populated for 16 of
-> 17 published courses (see "Course → Node Mapping"). Deferred work (style classes, repertoire, graph
+> edges (no cycles, no dangling refs — verified), and `sbn_course_skill_node` is populated for 19 of
+> 20 published courses (see "Course → Node Mapping"). Deferred work (style classes, repertoire, graph
 > viz, student UI) tracked in "Open Decisions" and "Post-v1 Roadmap".
 > Next step: review the Melody/Technique/Ear Training/Reading & Theory nodes and edges in the admin
 > editor (they're seeded from the taxonomy first draft, not yet content-evidenced the way Harmony/
@@ -152,15 +152,37 @@ Mapping by course (id → node slugs):
 | 71 The Pentatonic Scale: Five Positions | scale-patterns, pentatonic-scale |
 | 72 Intervals: The Building Blocks of Harmony | intervals, interval-recognition |
 | 73 The CAGED System | caged-system, scale-patterns, arpeggio-shapes |
+| 74 Diatonic Chords & the Nashville Number System | nashville-number-system, leadsheet-reading |
+| 75 Arpeggio Shapes: The Five Chord Qualities | arpeggio-shapes |
+| 76 Approach Notes & Enclosures | motivic-development, improvisation-over-changes |
 
 **Curriculum gaps this surfaced** (nodes with zero course coverage — legitimate targets for Post-v1
 Roadmap #1/#2, not bugs): the entire **Ear Training** branch except `interval-recognition`, which
 Course 72 now closes (no course teaches recognition/dictation as a named skill yet otherwise, even
 though e.g. Course 9's right-hand work implicitly trains rhythm feel); **Melody**'s
-`improvisation-over-changes` and `motivic-development`; **Technique**'s `barre-chords`,
-`position-shifting`, `tone-production` (note: `caged-system` is now closed by Course 73 — see below);
-**Reading & Theory**'s `leadsheet-reading` and `nashville-number-system`. None of these are mistakes
-— they reflect that the current catalog doesn't have dedicated content for them yet.
+`improvisation-over-changes` (Course 76 contributes toward it but doesn't fully close it alone —
+its other prerequisites `arpeggio-shapes` and `ii-v-i-major` are now also covered by courses 75 and
+existing courses respectively, so a student completing those three courses satisfies the node);
+**Technique**'s `barre-chords`, `position-shifting`, `tone-production` (note: `caged-system` is now
+closed by Course 73); **Reading & Theory**'s `standard-notation-basics` and `rhythm-notation`
+(note: `nashville-number-system` and `leadsheet-reading` are now closed by Course 74). None of these
+are mistakes — they reflect that the current catalog doesn't have dedicated content for them yet.
+
+**Courses 74–76 (2026-06-23)** — three intermediate courses imported together.
+- **74 Diatonic Chords & the Nashville Number System** — source: `THEORIE - Stufenvierklänge.musicxml`
+  (34 measures, m1-22 used; m11-18 skipped due to pitch/chord-symbol mismatch artifact; m23-34 deferred
+  as better suited for course 69). 4 lessons: diatonic ladder, chords in pairs, ii-V-I cadence, secondary
+  ii-V to vi. Closes `nashville-number-system` and `leadsheet-reading` (Reading & Theory).
+- **75 Arpeggio Shapes: The Five Chord Qualities** — source: four `ARPEGGIOS - Vierklänge (*-Form).musicxml`
+  files (15 measures each, all 60 measures verified pitch-by-pitch). 6 lessons: intro to the five
+  qualities, then A/C/E/G-shape 2-octave arpeggios, then synthesis. Closes `arpeggio-shapes` (Melody).
+  Uses different roots per shape than the CAGED course (by design — different source files).
+- **76 Approach Notes & Enclosures** — source: `JAZZ - Umspielungen.musicxml` (221 real measures,
+  m1-105 used as lesson content; m106-221 practice drills summarised structurally, not transcribed
+  measure-by-measure). 6 lessons: single approach notes, melodies you know, longer forms, basic
+  enclosure, multi-step enclosures, drills. Closes `motivic-development`; contributes toward
+  `improvisation-over-changes` (which also requires arpeggio-shapes + ii-v-i-major, now both covered
+  by courses 75 and existing courses). Real-tune references all use `[NOTATION: ...]` placeholders.
 
 **Course 73 (2026-06-23)** — built from `SKALEN - CAGED.musicxml` (overview, all 5 shapes) and four
 dedicated deep-dive files `SKARPAKK - Die A-Form.musicxml`, `SKARPAKK - Die C-Form.musicxml`,
@@ -468,7 +490,10 @@ In rough priority order, once the taxonomy is curated:
 (see "Course → Node Mapping"). Considered and rejected splitting courses into per-skill micro-courses;
 chose a skill-node landing page with deep-link anchors instead (see Phase 2 + TBD table).*
 *2026-06-23 (later): Course 73 "The CAGED System" imported (6 lessons); closes caged-system, scale-patterns,
-arpeggio-shapes. 16/17 courses now mapped. barre-chords and position-shifting are the next Technique gap.*
+arpeggio-shapes. barre-chords and position-shifting are the next Technique gap.*
+*2026-06-23 (later): Courses 74–76 imported (16 lessons total). 74 closes nashville-number-system +
+leadsheet-reading; 75 closes arpeggio-shapes; 76 closes motivic-development + contributes to
+improvisation-over-changes. 19/20 courses now mapped.*
 *Continue: content-evidence pass on Melody/Technique/Ear Training/Reading & Theory nodes; close the
 curriculum gaps the mapping surfaced (Ear Training has no course coverage at all); build the skill-node
 landing page when ready to go student-facing.*
