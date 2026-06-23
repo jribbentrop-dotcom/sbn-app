@@ -10,7 +10,7 @@ class ScaleExercisesSeeder extends Seeder
     public function run(): void
     {
         // G Major Scale (first position)
-        Exercise::create([
+        Exercise::updateOrCreate(['slug' => 'g-major-scale'], [
             'slug' => 'g-major-scale',
             'title' => 'G Major Scale',
             'key_center' => 'G',
@@ -247,7 +247,7 @@ class ScaleExercisesSeeder extends Seeder
         ]);
 
         // E Minor Scale (first position)
-        Exercise::create([
+        Exercise::updateOrCreate(['slug' => 'e-minor-scale'], [
             'slug' => 'e-minor-scale',
             'title' => 'E Minor Scale',
             'key_center' => 'E',
@@ -499,7 +499,7 @@ class ScaleExercisesSeeder extends Seeder
         ]);
 
         // F Major Scale (first position)
-        Exercise::create([
+        Exercise::updateOrCreate(['slug' => 'f-major-scale'], [
             'slug' => 'f-major-scale',
             'title' => 'F Major Scale',
             'key_center' => 'F',
@@ -736,7 +736,7 @@ class ScaleExercisesSeeder extends Seeder
         ]);
 
         // D Minor Scale (first position)
-        Exercise::create([
+        Exercise::updateOrCreate(['slug' => 'd-minor-scale'], [
             'slug' => 'd-minor-scale',
             'title' => 'D Minor Scale',
             'key_center' => 'D',

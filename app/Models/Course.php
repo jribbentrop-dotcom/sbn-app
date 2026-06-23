@@ -52,6 +52,12 @@ class Course extends Model
             ->withTimestamps();
     }
 
+    /** Skill nodes this course teaches (many-to-many). */
+    public function skillNodes(): BelongsToMany
+    {
+        return $this->belongsToMany(SkillNode::class, 'sbn_course_skill_node', 'course_id', 'skill_node_id');
+    }
+
     // =========================================================================
     // SCOPES
     // =========================================================================
