@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Library;
 use App\Http\Controllers\Controller;
 use App\Models\ChordProgression;
 use App\Models\Leadsheet;
+use App\Models\LeadsheetVersion;
 use App\Repositories\CourseRepository;
 use App\Services\ChordVoicingSearch;
 use App\Services\EduContentService;
@@ -145,12 +146,70 @@ class SongLibraryController extends Controller
         abort_if(!$leadsheet->is_pro, 404);
     }
 
-    public function show(Leadsheet $leadsheet, ChordVoicingSearch $search)
+    /**
+     * Resolve the active arrangement for a request.
+     *
+     * `?v={version_slug}` selects an explicit version (404 if it doesn't belong to
+     * this leadsheet); otherwise the leadsheet's default version; otherwise the first
+     * version. During the dual-read window every leadsheet has a backfilled 'basic'
+     * version, so this always returns a row — but we fall back gracefully to a
+     * synthesized version off the legacy columns if one is somehow missing.
+     */
+    private function resolveVersion(Leadsheet $leadsheet, ?string $versionSlug): LeadsheetVersion
+    {
+        if ($versionSlug) {
+            $version = $leadsheet->versions()->where('version_slug', $versionSlug)->first();
+            abort_if(!$version, 404);
+            return $version;
+        }
+
+        $version = $leadsheet->defaultVersion
+            ?? $leadsheet->versions()->first();
+
+        if ($version) {
+            return $version;
+        }
+
+        // Defensive fallback (no version row yet): wrap the legacy leadsheet columns
+        // so callers can read ->parsed_data / ->getChordNames() uniformly.
+        return new LeadsheetVersion([
+            'leadsheet_id'   => $leadsheet->id,
+            'version_slug'   => 'basic',
+            'label'          => 'Basic',
+            'song_key'       => $leadsheet->song_key,
+            'rhythm'         => $leadsheet->rhythm,
+            'tempo'          => $leadsheet->tempo,
+            'measure_count'  => $leadsheet->measure_count,
+            'json_data'      => $leadsheet->json_data,
+            'melody_tab_xml' => $leadsheet->tab_xml,
+        ]);
+    }
+
+    /**
+     * Serialize a leadsheet's versions for the Show-page arrangement dropdown.
+     */
+    private function versionList(Leadsheet $leadsheet, LeadsheetVersion $active): array
+    {
+        return $leadsheet->versions->map(fn (LeadsheetVersion $v) => [
+            'id'         => $v->id,
+            'slug'       => $v->version_slug,
+            'label'      => $v->label ?: 'Basic',
+            'performer'  => $v->performer,
+            'difficulty' => $v->difficulty,
+            'isActive'   => $v->id === $active->id,
+        ])->values()->all();
+    }
+
+    public function show(\Illuminate\Http\Request $request, Leadsheet $leadsheet, ChordVoicingSearch $search)
     {
         $this->abortIfDraft($leadsheet);
 
-        // Fetch actual voicings from the leadsheet
-        $leadsheetVoicings = $leadsheet->parsed_data['chordVoicings'] ?? [];
+        $version = $this->resolveVersion($leadsheet, $request->query('v'));
+        $songKey = $version->song_key ?: $leadsheet->song_key;
+        $rhythm  = $version->rhythm ?: $leadsheet->rhythm;
+
+        // Fetch actual voicings from the active arrangement
+        $leadsheetVoicings = $version->parsed_data['chordVoicings'] ?? [];
         $uniqueChords = [];
         $searchCache = [];
 
@@ -203,17 +262,17 @@ class SongLibraryController extends Controller
             $topChords[] = $card;
         }
 
-        // Progressions detected in this song
+        // Progressions detected in this arrangement (version-scoped)
         $progressions = ChordProgression::query()
             ->join('sbn_progression_occurrences as o', 'sbn_chord_progressions.id', '=', 'o.progression_id')
-            ->where('o.leadsheet_id', $leadsheet->id)
+            ->where('o.version_id', $version->id)
             ->select('sbn_chord_progressions.id', 'sbn_chord_progressions.slug', 'sbn_chord_progressions.name', 'sbn_chord_progressions.category', 'sbn_chord_progressions.numerals')
             ->distinct()
             ->orderBy('sbn_chord_progressions.name')
             ->get()
-            ->map(function ($p) use ($leadsheet) {
+            ->map(function ($p) use ($songKey) {
                 // Resolve chord diagram tiles via the proper voice-leading path
-                $root    = $leadsheet->song_key ?? 'C';
+                $root    = $songKey ?? 'C';
                 $context = $this->harmonicContext->buildFromNumerals($root, $p->numerals);
                 $built   = $this->progressionBuilder->buildVoicings($context, [
                     'category'   => $p->category,
@@ -240,9 +299,9 @@ class SongLibraryController extends Controller
                 ];
             });
 
-        $chordNames = $leadsheet->getChordNames();
+        $chordNames = $version->getChordNames();
 
-        $rhythmPattern = \App\Models\RhythmPattern::where('slug', $leadsheet->rhythm)->first();
+        $rhythmPattern = \App\Models\RhythmPattern::where('slug', $rhythm)->first();
 
         // Normalise style_slug → course category (courses use full slugs like 'bossa-nova')
         $rawStyle = Leadsheet::resolveStyleSlug($leadsheet->genre, $leadsheet->rhythm);
@@ -258,24 +317,26 @@ class SongLibraryController extends Controller
                 'slug'          => $leadsheet->slug,
                 'title'         => $leadsheet->title,
                 'composer'      => $leadsheet->composer,
-                'songKey'       => $leadsheet->song_key,
-                'tempo'         => $leadsheet->tempo,
+                'songKey'       => $songKey,
+                'tempo'         => $version->tempo ?: $leadsheet->tempo,
                 'timeSignature' => $leadsheet->time_signature,
                 'description'   => $leadsheet->description,
                 'harmonyNotes'  => $leadsheet->harmony_notes,
                 'formNotes'     => $leadsheet->form_notes,
                 'voicingNotes'  => $leadsheet->voicing_notes,
-                'rhythm'        => $leadsheet->rhythm,
-                'rhythmName'    => $rhythmPattern?->name ?? $leadsheet->rhythm,
+                'rhythm'        => $rhythm,
+                'rhythmName'    => $rhythmPattern?->name ?? $rhythm,
                 'rhythmCategory'=> $rhythmPattern?->category ?? 'general',
                 'rhythmData'    => $rhythmPattern ? $rhythmPattern->toPlayerData() : null,
-                'styleSlug'     => Leadsheet::resolveStyleSlug($leadsheet->genre, $leadsheet->rhythm),
-                'measureCount'    => $leadsheet->measure_count,
+                'styleSlug'     => Leadsheet::resolveStyleSlug($leadsheet->genre, $rhythm),
+                'measureCount'    => $version->measure_count ?: $leadsheet->measure_count,
                 'popularity'      => $leadsheet->popularity,
-                'difficulty'      => $leadsheet->difficulty,
+                'difficulty'      => $version->difficulty ?? $leadsheet->difficulty,
                 'coverImagePath'  => $leadsheet->cover_image_path ? '/images/songs/' . $leadsheet->cover_image_path : null,
                 'isPro'           => (bool) $leadsheet->is_pro,
             ],
+            'versions'     => $this->versionList($leadsheet, $version),
+            'activeVersion'=> $version->version_slug,
             'chordNames'   => $chordNames,
             'chords'       => $topChords,
             'progressions' => $progressions,
