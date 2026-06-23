@@ -19,6 +19,7 @@ class Leadsheet extends Model
     protected $fillable = [
         'title',
         'slug',
+        'default_version_id',
         'composer',
         'song_key',
         'tempo',
@@ -309,6 +310,25 @@ class Leadsheet extends Model
     // =========================================================================
     // RELATIONSHIPS
     // =========================================================================
+
+    /**
+     * Arrangements of this song (difficulty / performer variants).
+     * Ordered for the dropdown: easiest first, then explicit sort_order.
+     */
+    public function versions()
+    {
+        return $this->hasMany(LeadsheetVersion::class, 'leadsheet_id')
+            ->orderBy('difficulty')
+            ->orderBy('sort_order');
+    }
+
+    /**
+     * The arrangement that loads when no ?v= is specified.
+     */
+    public function defaultVersion()
+    {
+        return $this->belongsTo(LeadsheetVersion::class, 'default_version_id');
+    }
 
     /**
      * Voicing usages extracted from this leadsheet.
