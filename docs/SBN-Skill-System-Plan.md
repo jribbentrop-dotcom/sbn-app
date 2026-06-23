@@ -1,10 +1,16 @@
 # SBN Skill System — Planning & As-Built Reference
 
-> Status: **v1 SHIPPED (uncommitted) 2026-06-23.** Data model, models, seeder, and admin table
-> editor all built — see "v1 Implementation (As-Built)". Deferred work (style classes, repertoire,
-> graph viz, student UI) tracked in "Open Decisions" and "Post-v1 Roadmap".  
-> Next step: `php artisan migrate --seed`, eyeball the seeded prerequisite edges, then curate the
-> remaining branches in the admin editor.
+> Status: **v1 SHIPPED + all 6 branches curated, courses mapped (uncommitted) 2026-06-23.**
+> Data model, models, seeder, and admin table editor built — see "v1 Implementation (As-Built)".
+> `migrate --seed` has run; the graph is now 35 nodes across all six branches with 38 prerequisite
+> edges (no cycles, no dangling refs — verified), and `sbn_course_skill_node` is populated for 16 of
+> 17 published courses (see "Course → Node Mapping"). Deferred work (style classes, repertoire, graph
+> viz, student UI) tracked in "Open Decisions" and "Post-v1 Roadmap".
+> Next step: review the Melody/Technique/Ear Training/Reading & Theory nodes and edges in the admin
+> editor (they're seeded from the taxonomy first draft, not yet content-evidenced the way Harmony/
+> Rhythm are — see caveat in "Course → Node Mapping"), then start closing the curriculum gaps the
+> mapping surfaced (Ear Training has zero course coverage; several Technique/Melody/Reading nodes do
+> too).
 
 ---
 
@@ -74,11 +80,29 @@ carry a slug seeded later; resolution happens in app code via the existing tag p
 
 ### Seeder — `database/seeders/SkillNodeSeeder.php` (registered in `DatabaseSeeder`)
 
-14 starter nodes across the two best-specified branches (**Harmony** 10, **Rhythm** 4) plus their
-prerequisite edges. Two-pass build (upsert all nodes, then wire edges) so prereqs can be declared
-before their target appears. Fully idempotent: `updateOrCreate` on slug, `insertOrIgnore` on edges.
-`two-four-feel` carries `content_tag_slug => 'samba'` (a tag already populated by the categories
-migration) so the tag bridge returns real rows on day one. This is a **slice**, not the full taxonomy.
+**35 nodes across all six branches** (Harmony 10, Rhythm 4, Melody 5, Technique 8, Ear Training 4,
+Reading & Theory 4) plus 38 prerequisite edges. Two-pass build (upsert all nodes, then wire edges) so
+prereqs can be declared before their target appears. Fully idempotent: `updateOrCreate` on slug,
+`insertOrIgnore` on edges. `two-four-feel` carries `content_tag_slug => 'samba'` (a tag already
+populated by the categories migration) so the tag bridge returns real rows on day one.
+
+**Two different confidence levels, by design:** Harmony and Rhythm (the original 14) were curated
+against actual lesson content — see "Course → Node Mapping" below for the evidence. Melody, Technique,
+Ear Training, and Reading & Theory (the 21 added 2026-06-23) are seeded from the taxonomy first draft
+only — titles, branches, and musically-sound prerequisite edges, but **not yet checked against lesson
+content**. Treat them as a structural placeholder, not a curated graph, until someone does the same
+content pass on them that Harmony/Rhythm already got.
+
+**Deliberate cross-branch edges:** the graph is not six independent trees. `arpeggio-shapes` (melody)
+requires `triads` (harmony); `improvisation-over-changes` (melody) requires `ii-v-i-major` (harmony);
+`interval-recognition` / `chord-quality-recognition` (ear training) require `intervals` / `triads`
+(harmony); `rhythm-dictation` (ear training) requires `pulse-subdivision` (rhythm);
+`melodic-dictation` (ear training) requires `scale-patterns` (melody); `rhythm-notation` /
+`leadsheet-reading` (reading & theory) require `pulse-subdivision` / `triads`. Each is a real
+pedagogical dependency, not an arbitrary link — see "Graph not tree" in Key Design Principles.
+
+Verified after seeding (2026-06-23): no duplicate slugs, no dangling prerequisite or course-pivot
+references, no self-prerequisites, no two-node cycles.
 
 ### Admin editor (v1 = table, not graph)
 
@@ -94,14 +118,85 @@ migration) so the tag bridge returns real rows on day one. This is a **slice**, 
   `<select multiple>` for prereqs + courses).
 - **Nav** — `Skill Nodes` link added to the admin sidebar (`layouts/admin.blade.php`) after Courses.
 
+### Course → Node Mapping (curated 2026-06-23)
+
+`sbn_course_skill_node` is populated for 15 of the 16 published courses, against the 14 Harmony/Rhythm
+nodes plus the new Melody/Technique branches where lesson titles or content gave clear evidence. Method:
+read every lesson's `title` + `section_title` for the course (high precision — these are the actual
+authored unit headers), then spot-checked candidate body-text matches for context before including them,
+to avoid mapping on incidental keyword mentions (e.g. "triad" used once to explain what a 7th chord is
+on top of isn't "this course teaches triads"). Course 5 (*Choro: The Ancestor of Bossa Nova*) is left
+**unmapped** — it's pure repertoire with no lesson content that maps cleanly to any current node; that's
+a real gap, not an oversight, and shows up correctly in the admin index's Courses=0 column if a Choro
+node is ever added.
+
+Mapping by course (id → node slugs):
+
+| Course | Nodes |
+|---|---|
+| 1 Bossa Nova Basics | two-four-feel, pulse-subdivision, syncopation |
+| 2 Easy Bossa Nova Songs | two-four-feel, pulse-subdivision, syncopation, ii-v-i-major, ii-v-i-minor |
+| 3 Bossa Nova Chords | intervals, shell-voicings, drop2-voicings |
+| 4 Bossa Nova Rhythm | pulse-subdivision, syncopation, two-four-feel, comping-patterns |
+| 5 Choro: The Ancestor of Bossa Nova | *(none — see above)* |
+| 6 Gilberto plays Jobim | two-four-feel, syncopation, tritone-substitution |
+| 7 Latin Side of Pat Metheny | chord-inversions, drop2-voicings, drop3-voicings, triads, syncopation, pulse-subdivision |
+| 8 Latin Side of Wes Montgomery | tritone-substitution, comping-patterns, ii-v-i-major, syncopation, pulse-subdivision, two-four-feel |
+| 9 Right Hand Technique for Nylon Guitar | pulse-subdivision, syncopation, two-four-feel, fingerpicking-basics, right-hand-independence, thumb-independence, arpeggio-shapes |
+| 10 The Clave: Latin Rhythm 101 | pulse-subdivision, syncopation, two-four-feel |
+| 11 Melody Playing on Nylon Guitar | scale-patterns, legato-slurs, intervals |
+| 12 Music Theory Basics | intervals, triads, pulse-subdivision, syncopation, two-four-feel, scale-patterns, standard-notation-basics, rhythm-notation |
+| 68 Solo Guitar Style of Joe Pass | shell-voicings, ii-v-i-major, ii-v-i-minor, chord-melody |
+| 69 Diminished Chords — Secret Weapon of Bossa Nova | tritone-substitution, ii-v-i-major, ii-v-i-minor, chord-inversions, intervals |
+| 70 Chord Progressions & Voice Leading | triads, chord-inversions, ii-v-i-major |
+| 71 The Pentatonic Scale: Five Positions | scale-patterns, pentatonic-scale |
+| 72 Intervals: The Building Blocks of Harmony | intervals, interval-recognition |
+| 73 The CAGED System | caged-system, scale-patterns, arpeggio-shapes |
+
+**Curriculum gaps this surfaced** (nodes with zero course coverage — legitimate targets for Post-v1
+Roadmap #1/#2, not bugs): the entire **Ear Training** branch except `interval-recognition`, which
+Course 72 now closes (no course teaches recognition/dictation as a named skill yet otherwise, even
+though e.g. Course 9's right-hand work implicitly trains rhythm feel); **Melody**'s
+`improvisation-over-changes` and `motivic-development`; **Technique**'s `barre-chords`,
+`position-shifting`, `tone-production` (note: `caged-system` is now closed by Course 73 — see below);
+**Reading & Theory**'s `leadsheet-reading` and `nashville-number-system`. None of these are mistakes
+— they reflect that the current catalog doesn't have dedicated content for them yet.
+
+**Course 73 (2026-06-23)** — built from `SKALEN - CAGED.musicxml` (overview, all 5 shapes) and four
+dedicated deep-dive files `SKARPAKK - Die A-Form.musicxml`, `SKARPAKK - Die C-Form.musicxml`,
+`SKARPAKK - Die E-Form.musicxml`, `SKARPAKK - Die G-Form.musicxml` (all in `Partituren/Theorie/`).
+6 lessons: overview of 5 shapes, then Maj7/min7/dom7 deep-dives for A, C, E, and G shapes, then a
+connecting-the-shapes-up-the-neck capstone. **Deferred:** no `SKARPAKK` source file exists for the
+D-shape deep-dive; Lesson 1 covers the D-shape briefly from the overview file, but a full
+maj7/min7/dom7 lesson for it waits until dedicated source material is ready. Closes `caged-system`
+(Technique); also teaches `scale-patterns` and `arpeggio-shapes` (Melody). Consequential: `barre-chords`
+and `position-shifting` now have `caged-system` as a closed prerequisite — they remain open nodes and
+are good candidates for the next two Technique courses.
+
+**Course 72 (2026-06-23)** — built from `INTERVALLE - Übersicht.musicxml` and `INTERVALLE -
+Beispiele.musicxml` (exported from MuseScore via its own batch CLI export, not a custom parser — see
+`SBN-MusicXml-Course-Workflow.md` for why that's now the recommended path for bulk `.mscz` conversion).
+5 lessons: the eight core intervals, a song-anchor ear-training device (classical/traditional/jazz
+mnemonics — minor third/Greensleeves, major third/When the Saints Go Marching In, P4/Bridal Chorus,
+P5/Twinkle Twinkle, m6/The Entertainer, M6/My Bonnie, octave/Somewhere Over the Rainbow), diatonic
+thirds and sixths, and tenths. The `Beispiele` file (pop/rock riffs) was deliberately **not** used —
+it has no embedded song titles and Lucas didn't have time to attribute them in this pass; it's parked
+for a follow-up lesson once attributed. The song-anchor list is also flagged in-lesson as a first pass
+— seconds, sevenths, and the tritone still need anchors, and a bossa-nova-specific anchor for each
+interval is a good Phase 2 addition once a clean candidate is identified per interval.
+
 ### Known v1 gaps (deliberate deferrals, not bugs)
 
 - **No cycle detection** — the form allows A→B and B→A. Harmless for a 14-node hand-curated graph;
   add a topological check at the moment something actually *traverses* the graph (student "recommended
   next"), not before.
 - **Native multi-selects** — unglamorous but fine for admin-only v1; a tag-style picker is polish.
-- **No prod migration path yet** — per deploy notes, create-table migrations don't run on the server
-  (`sbn.db` is untracked + scp'd). Shipping to prod needs these tables created another way.
+- **Prod deploy** — handled by `scripts/deploy_db.sh`: it scp's the whole local `sbn.db` up (so the
+  four `sbn_*` tables AND seeded nodes ride along — no manual table creation, no remote seeding),
+  preserving prod user tables via a dump/restore list. ⚠️ **`sbn_user_skill_progress` is NOT in that
+  script's preserve list.** Harmless now (empty on prod), but once students self-report progress on
+  prod, the next `deploy_db.sh` run will WIPE it. **Before shipping roadmap #3 (student progress), add
+  `sbn_user_skill_progress` to the `TABLES` array in `scripts/deploy_db.sh`.**
 
 ---
 
@@ -243,6 +338,12 @@ Emergent identity, automatically awarded when threshold of relevant nodes is met
 - Student profile showing acquired skills, repertoire, style classes
 - Recommended next nodes based on current progress
 - Drag-and-drop path planning
+- **Skill node landing page** (discussed 2026-06-23, not yet built) — a per-node page (node title,
+  description, "where this is taught" list pulled from the `courses()` pivot, tag-bridged content via
+  `content_tag_slug`) that deep-links into the exact lesson subsection via the existing
+  `<h2 id="section-{slug}">` anchors, e.g. `/learn/bossa-nova-chords-ii/play/{lesson}#section-shell-voicings`.
+  This is the answer to "courses are too big, a skill is buried inside one" **without** restructuring
+  the course catalog into many tiny courses (considered and explicitly rejected — see TBD entry below).
 
 ---
 
@@ -256,6 +357,7 @@ Emergent identity, automatically awarded when threshold of relevant nodes is met
 | — | Quiz format and completion threshold | Deferred (v1 = self-report only) |
 | — | Style class trigger thresholds (how many nodes = class awarded?) | Deferred out of v1 |
 | — | Affiliate link strategy for external repertoire | Deferred (repertoire post-v1) |
+| — | Split large courses into per-skill micro-courses (e.g. Bossa Nova Chords II → separate Shell/Drop 2/Drop 3 courses) for "chewable bite" discoverability? | **Discussed & rejected 2026-06-23.** The many-to-many pivot already lets one course teach many nodes without forcing 1:1 alignment; splitting would 3x content-ops overhead (excerpt/description/image/SEO per micro-course) and fragment the narrative path. Chosen alternative: build the skill node landing page (Phase 2, above) as the addressable "chewable" entry point, deep-linking into the existing course via section anchors instead of relocating the content. |
 
 ---
 
@@ -345,12 +447,16 @@ still expected post-v1.
 
 In rough priority order, once the taxonomy is curated:
 
-1. **Curate remaining branches** — Melody, Technique, Ear Training, Reading & Theory nodes + edges,
-   via the admin editor. This is the real work; everything else is gated on having a populated graph.
-2. **Map existing courses** to nodes through the pivot (already editable in the admin form).
+1. **Curate remaining branches** — ✅ structurally done 2026-06-23 (21 nodes + edges added for Melody,
+   Technique, Ear Training, Reading & Theory — see "Seeder" above). ⏳ Still needs the same
+   content-evidence pass Harmony/Rhythm got before it's trustworthy, not just structurally plausible.
+2. **Map existing courses** to nodes through the pivot — ✅ done 2026-06-23 for 15/16 published courses,
+   see "Course → Node Mapping". Revisit once branches above are content-verified, and whenever a new
+   course ships.
 3. **Student-facing progress** — surface `sbn_user_skill_progress` (self-report toggle on lesson/course
    pages), then "recommended next nodes". *This* is when cycle detection / topological traversal earns
-   its place (see v1 gaps).
+   its place (see v1 gaps). ⚠️ **First** add `sbn_user_skill_progress` to the `TABLES` preserve list in
+   `scripts/deploy_db.sh`, or the next content deploy will wipe real user progress.
 4. **Style classes** — the deferred tables + auto-award logic. Treat thresholds as a tuning problem.
 5. **Repertoire nodes** — the deferred tables + acquisition types + affiliate links.
 6. **Graph visualization** — admin force-directed view, once node count justifies it.
@@ -358,4 +464,11 @@ In rough priority order, once the taxonomy is curated:
 ---
 
 *Document created during brainstorming session — June 2026. v1 implemented & documented as-built 2026-06-23.*
-*Continue: `migrate --seed`, review seeded edges, curate remaining branches in the admin editor (Post-v1 Roadmap #1).*
+*2026-06-23 (later same day): all 6 branches seeded (35 nodes, 38 edges), 15/16 courses mapped to nodes
+(see "Course → Node Mapping"). Considered and rejected splitting courses into per-skill micro-courses;
+chose a skill-node landing page with deep-link anchors instead (see Phase 2 + TBD table).*
+*2026-06-23 (later): Course 73 "The CAGED System" imported (6 lessons); closes caged-system, scale-patterns,
+arpeggio-shapes. 16/17 courses now mapped. barre-chords and position-shifting are the next Technique gap.*
+*Continue: content-evidence pass on Melody/Technique/Ear Training/Reading & Theory nodes; close the
+curriculum gaps the mapping surfaced (Ear Training has no course coverage at all); build the skill-node
+landing page when ready to go student-facing.*
