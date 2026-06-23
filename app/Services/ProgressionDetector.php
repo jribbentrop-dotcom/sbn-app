@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ChordProgression;
 use App\Models\Leadsheet;
+use App\Models\LeadsheetVersion;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -913,22 +914,39 @@ class ProgressionDetector
     // =========================================================================
 
     /**
-     * Analyse a leadsheet for progression occurrences and store results.
+     * Analyse one arrangement of a leadsheet for progression occurrences and store
+     * results. Detection runs against the version's shortcode_content; occurrences
+     * carry both version_id (the arrangement they belong to) and leadsheet_id (kept
+     * for song-level rollup / DISTINCT-leadsheet popularity counts).
      *
-     * @param  Leadsheet $leadsheet  Eloquent model (must have shortcode_content)
+     * @param  Leadsheet             $leadsheet  Parent song.
+     * @param  LeadsheetVersion|null $version    Arrangement to analyse; defaults to
+     *                                           the leadsheet's default version.
      * @return array  Summary: ['occurrences' => int, 'sections_analysed' => int]
      */
-    public function processLeadsheet(Leadsheet $leadsheet): array
+    public function processLeadsheet(Leadsheet $leadsheet, ?LeadsheetVersion $version = null): array
     {
-        $song = $this->parser->parse($leadsheet->shortcode_content ?? '');
+        $version ??= $leadsheet->defaultVersion ?? $leadsheet->versions()->first();
+
+        // Source of truth for detection is the version's shortcode_content; fall back
+        // to the leadsheet's legacy column during the dual-read window.
+        $shortcode = $version?->shortcode_content ?? $leadsheet->shortcode_content ?? '';
+
+        $song = $this->parser->parse($shortcode);
         $key  = $song['key'] ?? 'C';
 
         $songIsMinor = (bool) preg_match('/m$/i', trim($key));
 
-        // Clear previous results
-        DB::table('sbn_progression_occurrences')
-            ->where('leadsheet_id', $leadsheet->id)
-            ->delete();
+        // Clear previous results for THIS arrangement only (re-detecting one version
+        // must not wipe another version's occurrences). Falls back to leadsheet-scoped
+        // clear if there is somehow no version row.
+        $clear = DB::table('sbn_progression_occurrences');
+        if ($version) {
+            $clear->where('version_id', $version->id);
+        } else {
+            $clear->where('leadsheet_id', $leadsheet->id);
+        }
+        $clear->delete();
 
         if (empty($song['sections'])) {
             return ['occurrences' => 0, 'sections_analysed' => 0];
@@ -959,7 +977,7 @@ class ProgressionDetector
         $totalInserted  = 0;
 
         DB::transaction(function () use (
-            $song, $leadsheet, $progressions, $flatProgs, $sectionKeys, $sectionCount, &$totalInserted
+            $song, $leadsheet, $version, $progressions, $flatProgs, $sectionKeys, $sectionCount, &$totalInserted
         ) {
             foreach ($song['sections'] as $si => $section) {
                 $secKey     = $sectionKeys[$si];
@@ -1104,6 +1122,7 @@ class ProgressionDetector
                         'variant_index'   => $m['variant_index'] ?? null,
                         'variant_label'   => $m['variant_label'] ?? null,
                         'leadsheet_id'    => $leadsheet->id,
+                        'version_id'      => $version?->id,
                         'section_id'      => $section['id'],
                         'start_measure'   => $startMeasure,
                         'length_measures' => $lengthMeasures,

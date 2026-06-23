@@ -146,12 +146,17 @@ class VoicingCrossref
      * Note: does NOT recalculate popularity — caller should do that after
      * processing (once for batch, or explicitly for single-leadsheet).
      */
-    public function processLeadsheet(Leadsheet $leadsheet): array
+    public function processLeadsheet(Leadsheet $leadsheet, ?\App\Models\LeadsheetVersion $version = null): array
     {
-        $voicings = $this->extractVoicings($leadsheet->shortcode_content ?? '');
+        $version ??= $leadsheet->defaultVersion ?? $leadsheet->versions()->first();
+        $versionId = $version?->id;
 
-        // Clear previous references
-        $this->clearLeadsheetReferences($leadsheet->id);
+        // Source of truth is the version's shortcode_content (dual-read fallback to legacy).
+        $shortcode = $version?->shortcode_content ?? $leadsheet->shortcode_content ?? '';
+        $voicings  = $this->extractVoicings($shortcode);
+
+        // Clear previous references for this arrangement only.
+        $this->clearLeadsheetReferences($leadsheet->id, $versionId);
 
         if (empty($voicings)) {
             return ['matched' => 0, 'unmatched' => 0];
@@ -164,10 +169,10 @@ class VoicingCrossref
             $result = $this->matchVoicing($voicing);
 
             if ($result !== false) {
-                $this->storeMatch($leadsheet->id, $voicing, $result);
+                $this->storeMatch($leadsheet->id, $voicing, $result, $versionId);
                 $matched++;
             } else {
-                $this->storeDraft($leadsheet->id, $leadsheet->title, $voicing);
+                $this->storeDraft($leadsheet->id, $leadsheet->title, $voicing, $versionId);
                 $unmatched++;
             }
         }
@@ -1197,7 +1202,7 @@ class VoicingCrossref
     // STORAGE
     // =========================================================================
 
-    private function storeMatch(int $leadsheetId, array $voicing, array $match): void
+    private function storeMatch(int $leadsheetId, array $voicing, array $match, ?int $versionId = null): void
     {
         $qualityParts = $this->splitQualityExtensions($voicing['quality']);
 
@@ -1220,6 +1225,7 @@ class VoicingCrossref
                 'fret_string'  => $voicing['fret_string'],
             ],
             [
+                'version_id'       => $versionId,
                 'chord_diagram_id' => $match['diagram_id'],
                 'position'         => $voicing['position'],
                 'root_note'        => $voicing['root'],
@@ -1235,7 +1241,7 @@ class VoicingCrossref
         );
     }
 
-    private function storeDraft(int $leadsheetId, string $title, array $voicing): void
+    private function storeDraft(int $leadsheetId, string $title, array $voicing, ?int $versionId = null): void
     {
         DB::table('sbn_voicing_drafts')->updateOrInsert(
             [
@@ -1244,6 +1250,7 @@ class VoicingCrossref
                 'fret_string'  => $voicing['fret_string'],
             ],
             [
+                'version_id'      => $versionId,
                 'leadsheet_title' => $title,
                 'position'        => $voicing['position'],
                 'fingers'         => $voicing['fingers'],
@@ -1256,10 +1263,24 @@ class VoicingCrossref
         );
     }
 
-    private function clearLeadsheetReferences(int $leadsheetId): void
+    private function clearLeadsheetReferences(int $leadsheetId, ?int $versionId = null): void
     {
-        DB::table('sbn_voicing_usage')->where('leadsheet_id', $leadsheetId)->delete();
-        DB::table('sbn_voicing_drafts')->where('leadsheet_id', $leadsheetId)->delete();
+        // Scope the clear to one arrangement when known, so re-detecting one version
+        // does not wipe another version's voicing references. Falls back to the
+        // leadsheet-wide clear when no version is resolved.
+        $usage  = DB::table('sbn_voicing_usage');
+        $drafts = DB::table('sbn_voicing_drafts');
+
+        if ($versionId !== null) {
+            $usage->where('version_id', $versionId);
+            $drafts->where('version_id', $versionId);
+        } else {
+            $usage->where('leadsheet_id', $leadsheetId);
+            $drafts->where('leadsheet_id', $leadsheetId);
+        }
+
+        $usage->delete();
+        $drafts->delete();
     }
 
     // =========================================================================
