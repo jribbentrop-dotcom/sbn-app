@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ChordDiagram;
 use App\Models\ChordProgression;
 use App\Models\Leadsheet;
+use App\Models\LeadsheetVersion;
 use App\Services\HarmonicContext;
 
 /**
@@ -26,16 +27,43 @@ class LeadsheetViewerService
      *   qualityByKey: array,
      * }
      */
-    public function enrich(Leadsheet $leadsheet, ChordVoicingSearch $search): array
+    /**
+     * @param  LeadsheetVersion|null  $version  The arrangement to enrich. When null
+     *   (callers not yet migrated to versions), falls back to the leadsheet's default
+     *   version, then to a synthesized version off the legacy columns.
+     */
+    public function enrich(Leadsheet $leadsheet, ChordVoicingSearch $search, ?LeadsheetVersion $version = null): array
     {
-        $progressions = $this->fetchProgressions($leadsheet);
-        [$chordCards, $qualityByKey] = $this->buildChordCards($leadsheet, $search);
+        $version ??= $this->resolveVersion($leadsheet);
+
+        $progressions = $this->fetchProgressions($version);
+        [$chordCards, $qualityByKey] = $this->buildChordCards($leadsheet, $search, $version);
 
         return [
             'progressions' => $progressions,
             'chordCards'   => $chordCards,
             'qualityByKey' => $qualityByKey,
         ];
+    }
+
+    /**
+     * Default arrangement for a leadsheet, or a synthesized version wrapping the
+     * legacy columns when no version row exists (dual-read defensive fallback).
+     */
+    private function resolveVersion(Leadsheet $leadsheet): LeadsheetVersion
+    {
+        $version = $leadsheet->defaultVersion ?? $leadsheet->versions()->first();
+        if ($version) {
+            return $version;
+        }
+
+        return new LeadsheetVersion([
+            'leadsheet_id'   => $leadsheet->id,
+            'version_slug'   => 'basic',
+            'song_key'       => $leadsheet->song_key,
+            'json_data'      => $leadsheet->json_data,
+            'melody_tab_xml' => $leadsheet->tab_xml,
+        ]);
     }
 
     // =========================================================================
@@ -49,11 +77,16 @@ class LeadsheetViewerService
      * Rows are grouped by progression so the EduPanel still shows one entry
      * per progression, with a `ranges` array spanning every occurrence.
      */
-    private function fetchProgressions(Leadsheet $leadsheet): array
+    private function fetchProgressions(LeadsheetVersion $version): array
     {
+        // No persisted version (synthesized fallback) ⇒ no version-scoped occurrences.
+        if (!$version->exists) {
+            return [];
+        }
+
         $rows = ChordProgression::query()
             ->join('sbn_progression_occurrences as o', 'sbn_chord_progressions.id', '=', 'o.progression_id')
-            ->where('o.leadsheet_id', $leadsheet->id)
+            ->where('o.version_id', $version->id)
             ->select(
                 'sbn_chord_progressions.id',
                 'sbn_chord_progressions.slug',
@@ -100,13 +133,13 @@ class LeadsheetViewerService
     // Private — chord cards
     // =========================================================================
 
-    private function buildChordCards(Leadsheet $leadsheet, ChordVoicingSearch $search): array
+    private function buildChordCards(Leadsheet $leadsheet, ChordVoicingSearch $search, LeadsheetVersion $version): array
     {
-        $voicings     = $leadsheet->parsed_data['chordVoicings'] ?? [];
+        $voicings     = $version->parsed_data['chordVoicings'] ?? [];
         $chordCards   = [];
         $qualityByKey = [];
         $searchCache  = [];
-        $songKey      = $leadsheet->song_key ?: 'C';
+        $songKey      = ($version->song_key ?: $leadsheet->song_key) ?: 'C';
 
         foreach ($voicings as $key => $voicing) {
             if (preg_match('/^(.+)@\d+\.\d+$/', $key, $m)) {

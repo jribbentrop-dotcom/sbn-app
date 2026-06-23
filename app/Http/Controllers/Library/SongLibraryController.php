@@ -366,11 +366,13 @@ class SongLibraryController extends Controller
             ->all();
     }
 
-    public function viewer(Leadsheet $leadsheet, ChordVoicingSearch $search, EduContentService $edu)
+    public function viewer(\Illuminate\Http\Request $request, Leadsheet $leadsheet, ChordVoicingSearch $search, EduContentService $edu)
     {
         $this->abortIfDraft($leadsheet);
         $this->abortIfNotPro($leadsheet);
-        $enriched = $this->viewerService->enrich($leadsheet, $search);
+
+        $version  = $this->resolveVersion($leadsheet, $request->query('v'));
+        $enriched = $this->viewerService->enrich($leadsheet, $search, $version);
 
         return Inertia::render('Library/Songs/Viewer', [
             'leadsheet' => [
@@ -378,15 +380,19 @@ class SongLibraryController extends Controller
                 'slug'          => $leadsheet->slug,
                 'title'         => $leadsheet->title,
                 'composer'      => $leadsheet->composer,
-                'songKey'       => $leadsheet->song_key,
-                'tempo'         => $leadsheet->tempo,
+                'songKey'       => $version->song_key ?: $leadsheet->song_key,
+                'tempo'         => $version->tempo ?: $leadsheet->tempo,
                 'timeSignature' => $leadsheet->time_signature,
-                'rhythm'        => $leadsheet->rhythm,
-                'jsonData'      => $leadsheet->parsed_data,
+                'rhythm'        => $version->rhythm ?: $leadsheet->rhythm,
+                'jsonData'      => $version->parsed_data,
                 'harmonyNotes'  => $leadsheet->harmony_notes,
                 'formNotes'     => $leadsheet->form_notes,
                 'voicingNotes'  => $leadsheet->voicing_notes,
+                'hasMelodyTab'  => $version->has_melody_tab,
+                'hasChordTab'   => $version->has_chord_tab,
             ],
+            'versions'      => $this->versionList($leadsheet, $version),
+            'activeVersion' => $version->version_slug,
             ...$enriched,
             'eduChordQualities'   => $edu->allChordQualities(),
             'eduRelatedConcepts'  => $this->buildEduRelatedConcepts($edu),
@@ -404,7 +410,10 @@ class SongLibraryController extends Controller
         // consistent with abortIfDraft() on the other public song routes.
         abort_if($leadsheet->status !== 'publish' && !$request->user()?->is_instructor, 404);
 
-        $data = $leadsheet->parsed_data ?? [];
+        // Lesson <sbn-song> embeds address a song by slug; ?v= selects an arrangement,
+        // otherwise the default version. (is_pro gating below stays work-level.)
+        $version = $this->resolveVersion($leadsheet, $request->query('v'));
+        $data = $version->parsed_data ?? [];
 
         // Ticks per measure — same formula as calcTicksPerMeasure() in useTabModel.js.
         $timeSig = $data['timeSignature'] ?? $leadsheet->time_signature ?? '4/4';
@@ -580,11 +589,13 @@ class SongLibraryController extends Controller
         return response()->json(['results' => $results]);
     }
 
-    public function apiViewerData(Leadsheet $leadsheet, ChordVoicingSearch $search, EduContentService $edu): \Illuminate\Http\JsonResponse
+    public function apiViewerData(\Illuminate\Http\Request $request, Leadsheet $leadsheet, ChordVoicingSearch $search, EduContentService $edu): \Illuminate\Http\JsonResponse
     {
         $this->abortIfDraft($leadsheet);
         $this->abortIfNotPro($leadsheet);
-        $enriched = $this->viewerService->enrich($leadsheet, $search);
+
+        $version  = $this->resolveVersion($leadsheet, $request->query('v'));
+        $enriched = $this->viewerService->enrich($leadsheet, $search, $version);
 
         return response()->json([
             'leadsheet' => [
@@ -592,26 +603,32 @@ class SongLibraryController extends Controller
                 'slug'          => $leadsheet->slug,
                 'title'         => $leadsheet->title,
                 'composer'      => $leadsheet->composer,
-                'songKey'       => $leadsheet->song_key,
-                'tempo'         => $leadsheet->tempo,
+                'songKey'       => $version->song_key ?: $leadsheet->song_key,
+                'tempo'         => $version->tempo ?: $leadsheet->tempo,
                 'timeSignature' => $leadsheet->time_signature,
-                'rhythm'        => $leadsheet->rhythm,
-                'jsonData'      => $leadsheet->parsed_data,
+                'rhythm'        => $version->rhythm ?: $leadsheet->rhythm,
+                'jsonData'      => $version->parsed_data,
                 'harmonyNotes'  => $leadsheet->harmony_notes,
                 'formNotes'     => $leadsheet->form_notes,
                 'voicingNotes'  => $leadsheet->voicing_notes,
+                'hasMelodyTab'  => $version->has_melody_tab,
+                'hasChordTab'   => $version->has_chord_tab,
             ],
+            'versions'      => $this->versionList($leadsheet, $version),
+            'activeVersion' => $version->version_slug,
             ...$enriched,
             'eduChordQualities'   => $edu->allChordQualities(),
             'eduRelatedConcepts'  => $this->buildEduRelatedConcepts($edu),
         ]);
     }
 
-    public function cinema(Leadsheet $leadsheet, ChordVoicingSearch $search)
+    public function cinema(\Illuminate\Http\Request $request, Leadsheet $leadsheet, ChordVoicingSearch $search)
     {
         $this->abortIfDraft($leadsheet);
         $this->abortIfNotPro($leadsheet);
-        $enriched = $this->viewerService->enrich($leadsheet, $search);
+
+        $version  = $this->resolveVersion($leadsheet, $request->query('v'));
+        $enriched = $this->viewerService->enrich($leadsheet, $search, $version);
 
         return Inertia::render('Leadsheet/Cinema', [
             'leadsheet' => [
@@ -619,10 +636,10 @@ class SongLibraryController extends Controller
                 'slug'          => $leadsheet->slug,
                 'title'         => $leadsheet->title,
                 'composer'      => $leadsheet->composer,
-                'songKey'       => $leadsheet->song_key,
-                'tempo'         => $leadsheet->tempo,
+                'songKey'       => $version->song_key ?: $leadsheet->song_key,
+                'tempo'         => $version->tempo ?: $leadsheet->tempo,
                 'timeSignature' => $leadsheet->time_signature,
-                'jsonData'      => $leadsheet->parsed_data,
+                'jsonData'      => $version->parsed_data,
             ],
             'chordCards' => $enriched['chordCards'],
             'classicUrl' => route('library.songs.viewer', ['leadsheet' => $leadsheet->slug]),
