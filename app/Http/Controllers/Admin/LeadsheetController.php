@@ -1077,8 +1077,25 @@ class LeadsheetController extends Controller
         ]);
     }
 
-    public function apiShow(Leadsheet $leadsheet)
+    public function apiShow(Request $request, Leadsheet $leadsheet)
     {
+        // Resolve the arrangement being edited (?v=slug, else default version) and
+        // overlay its data onto the leadsheet so serializeLeadsheet emits THIS
+        // version's chords/tab/shortcode — not the leadsheet's legacy columns.
+        $activeVersion = $request->query('v')
+            ? $leadsheet->versions()->where('version_slug', $request->query('v'))->first()
+            : null;
+        $activeVersion ??= $leadsheet->defaultVersion ?? $leadsheet->versions()->first();
+
+        if ($activeVersion) {
+            $leadsheet->setAttribute('json_data',         $activeVersion->json_data ?? $leadsheet->json_data);
+            $leadsheet->setAttribute('tab_xml',           $activeVersion->melody_tab_xml ?? $leadsheet->tab_xml);
+            $leadsheet->setAttribute('shortcode_content', $activeVersion->shortcode_content ?? $leadsheet->shortcode_content);
+            $leadsheet->setAttribute('song_key',          $activeVersion->song_key ?: $leadsheet->song_key);
+            $leadsheet->setAttribute('rhythm',            $activeVersion->rhythm ?: $leadsheet->rhythm);
+            $leadsheet->setAttribute('tempo',             $activeVersion->tempo ?: $leadsheet->tempo);
+        }
+
         if (!empty($leadsheet->json_data)) {
             $parsed = $leadsheet->parsed_data;
             $parsed = $this->backfillFingersFromCrossref($parsed);

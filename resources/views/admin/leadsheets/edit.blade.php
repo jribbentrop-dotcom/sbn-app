@@ -1940,10 +1940,14 @@ function leadsheetEditor() {
 
         async loadExistingData() {
             try {
-                const endpoint = this.itemType === 'exercises' 
-                    ? '/admin/exercises/' + this.itemId + '/data' 
+                let endpoint = this.itemType === 'exercises'
+                    ? '/admin/exercises/' + this.itemId + '/data'
                     : '/api/admin/leadsheets/' + this.itemId + '/data';
-                
+                // Load the active arrangement's data (multi-version songs).
+                if (this.itemType !== 'exercises' && this.activeVersionSlug) {
+                    endpoint += '?v=' + encodeURIComponent(this.activeVersionSlug);
+                }
+
                 const resp = await fetch(endpoint);
                 const data = await resp.json();
                 
