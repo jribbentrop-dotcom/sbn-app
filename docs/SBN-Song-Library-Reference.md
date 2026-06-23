@@ -92,11 +92,56 @@ Color comes from `useCategoryColors.getCategoryStyle(styleSlug)` — no hex in c
 
 ---
 
-## 4. Show Page (Teaser)
+## 4. Licensing & Content Gating
+
+Two columns on `sbn_leadsheets` control what each song exposes:
+
+| Column | Values | Meaning |
+|---|---|---|
+| `is_pro` | bool | `true` = full Viewer/Cinema arrangement available (tab, melody, synced playback). Must only be set on `public_domain` rows. |
+| `license_status` | `public_domain` \| `copyrighted` \| `cleared` \| `unknown` | Legal record. Not DB-enforced — admin checklist. |
+
+### What each song gets
+
+- **All published songs** → Show page (chord cards, progressions, rhythm strip, related courses). Visible to authenticated users.
+- **`is_pro = true` only** → Viewer (`/viewer`) and Cinema (`/cinema`) routes. Full tab/melody/synced arrangement.
+- **Copyrighted songs (`is_pro = false`)** → Show page only. Viewer/cinema return 404.
+
+### Gate methods in `SongLibraryController`
+
+```php
+// All public routes
+$this->abortIfDraft($leadsheet);      // status !== 'publish' → 404
+
+// Viewer, Cinema, apiViewerData, apiCinema only
+$this->abortIfNotPro($leadsheet);     // !is_pro → 404
+
+// apiSheet (used by <sbn-song bars="…"> in lessons)
+// bars= excerpt allowed for non-pro songs; full-song request blocked if !is_pro
+abort_if($barsParam === '' && !$leadsheet->is_pro, 404);
+```
+
+### PD eligibility rule of thumb
+
+US public domain: `published_year + 95 ≤ current_year`. Note non-US life+70 jurisdictions (e.g. `por-una-cabeza` is 1935, still copyrighted in some territories).
+
+### No admin UI
+
+`is_pro` and `license_status` have no admin UI yet. Flip them via SQL or the one-off scripts:
+- `scripts/apply_song_license.py` — bulk classification
+- `scripts/verify_song_license.py` — verification pass
+
+### `isPro` prop
+
+`SongLibraryController::show` passes `isPro: (bool) $song->is_pro` to `Show.vue`. The frontend uses this to show/hide the "Open Viewer" CTA.
+
+---
+
+## 5. Show Page (Teaser)
 
 **File:** `resources/js/Pages/Library/Songs/Show.vue`
 
-A teaser page — NOT the full viewer. Shows metadata + context and links to the viewer.
+A teaser page — NOT the full viewer. Shows metadata + context and links to the viewer (only if `isPro`).
 
 Props:
 
@@ -118,7 +163,7 @@ Each detected progression is resolved via `HarmonicContext::buildFromNumerals(so
 
 ---
 
-## 5. Viewer
+## 6. Viewer
 
 The full interactive leadsheet viewer is at `/library/songs/{slug}/viewer`. Full documentation in `SBN-Leadsheet-Reference.md`.
 
@@ -130,7 +175,7 @@ The full interactive leadsheet viewer is at `/library/songs/{slug}/viewer`. Full
 
 ---
 
-## 6. API Endpoints
+## 7. API Endpoints
 
 ### `GET /api/sbn/songs/search?q=`
 
@@ -142,7 +187,7 @@ JSON version of the viewer data (same shape as the Inertia viewer props). Used b
 
 ---
 
-## 7. `SongLink` pattern
+## 8. `SongLink` pattern
 
 Any page that links to a song from outside the song library (e.g. progression Show, rhythm Show, chord Show) uses the **canonical `SongLink` pattern**:
 
@@ -153,7 +198,7 @@ Do not hand-roll song rows. See `SBN-Leadsheet-Reference.md` for the `SongLink` 
 
 ---
 
-## 8. Cross-references
+## 9. Cross-references
 
 - Full viewer (chord grid, tab, edu panel): `SBN-Leadsheet-Reference.md`
 - Cinema view: `SBN-Leadsheet-Reference.md`

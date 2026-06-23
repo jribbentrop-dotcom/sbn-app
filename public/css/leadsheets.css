@@ -867,6 +867,16 @@
 .sbn-vp-meta-title-row {
     display: flex; align-items: baseline; gap: 6px; margin-bottom: 10px;
 }
+.sbn-vp-meta-slug-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    font-size: 11px; color: var(--clr-text-muted);
+}
+.sbn-vp-meta-slug-row .sbn-vp-meta-input {
+    font-size: 11px; width: 200px; font-family: monospace;
+}
+.sbn-vp-meta-slug-row .sbn-vp-meta-hint {
+    color: var(--clr-text-muted); opacity: 0.6;
+}
 .sbn-vp-meta-title {
     font-size: 15px; font-weight: 800;
     background: transparent; border: none;

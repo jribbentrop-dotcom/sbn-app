@@ -812,6 +812,16 @@ class LeadsheetController extends Controller
             $validated['json_data'] = $this->normalizeChordNamesInJson($validated['json_data']);
         }
 
+        // Allow slug correction — only update if explicitly provided and different
+        if (!empty($validated['slug']) && $validated['slug'] !== $leadsheet->slug) {
+            $newSlug = $validated['slug'];
+            $i = 2;
+            while (Leadsheet::where('slug', $newSlug)->where('id', '!=', $leadsheet->id)->exists()) {
+                $newSlug = $validated['slug'] . '-' . $i++;
+            }
+            $leadsheet->slug = $newSlug;
+        }
+
         $leadsheet->update([
             'title'             => $validated['title'],
             'composer'          => $validated['composer'] ?? '',
@@ -1432,6 +1442,7 @@ class LeadsheetController extends Controller
     {
         return $request->validate([
             'title'             => 'required|string|max:255',
+            'slug'              => 'nullable|string|max:255|regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
             'composer'          => 'nullable|string|max:255',
             'song_key'          => 'nullable|string|max:10',
             'tempo'             => 'nullable|integer|min:20|max:300',

@@ -189,6 +189,16 @@
                 <input type="text" class="sbn-vp-meta-composer"
                        x-model="parsed.composer" placeholder="Composer" @input="markDirty()">
             </div>
+            @if(isset($leadsheet) && $leadsheet->id)
+            <div class="sbn-vp-meta-slug-row">
+                <span class="sbn-vp-meta-label">Slug</span>
+                <input type="text" class="sbn-vp-meta-input" name="slug_override"
+                       id="slug_override" value="{{ $leadsheet->slug }}"
+                       placeholder="url-slug" pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                       title="Lowercase letters, numbers and hyphens only">
+                <span class="sbn-vp-meta-hint">/library/songs/{{ $leadsheet->slug }}</span>
+            </div>
+            @endif
             <div class="sbn-vp-meta-fields">
                 <div class="sbn-vp-meta-field">
                     <span class="sbn-vp-meta-label">Key</span>
@@ -2458,6 +2468,7 @@ function leadsheetEditor() {
                     }
                     : {
                         title: this.parsed.title,
+                        slug: document.getElementById('slug_override')?.value || null,
                         composer: this.parsed.composer,
                         song_key: this.parsed.key,
                         tempo: this.parsed.tempo,
