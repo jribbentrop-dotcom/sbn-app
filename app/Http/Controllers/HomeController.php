@@ -67,8 +67,11 @@ class HomeController extends Controller
             return [null, null];
         }
 
-        $jsonData   = $leadsheet->parsed_data ?? [];
-        $rhythmSlug = $leadsheet->rhythm ?? null;
+        // Read the default arrangement (versions split — falls back to the leadsheet's
+        // legacy columns if no version row exists during the dual-read window).
+        $version    = $leadsheet->defaultVersion ?? $leadsheet->versions()->first();
+        $jsonData   = ($version?->parsed_data ?? $leadsheet->parsed_data) ?? [];
+        $rhythmSlug = ($version?->rhythm ?: $leadsheet->rhythm) ?: null;
 
         // ── Rhythm pattern ────────────────────────────────────────────────────
         $rhythmPattern = null;

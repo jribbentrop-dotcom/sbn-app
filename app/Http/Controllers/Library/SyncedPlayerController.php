@@ -44,9 +44,11 @@ class SyncedPlayerController extends Controller
             $title      = $source->title;
         } else {
             $source = Leadsheet::where('slug', $slug)->firstOrFail();
-            $jsonData  = $source->parsed_data ?? [];
-            $rhythmSlug = $source->rhythm ?? null;
-            $bpm        = $source->tempo ?? 120;
+            // Default arrangement (versions split; legacy-column fallback in dual-read).
+            $version    = $source->defaultVersion ?? $source->versions()->first();
+            $jsonData   = ($version?->parsed_data ?? $source->parsed_data) ?? [];
+            $rhythmSlug = ($version?->rhythm ?: $source->rhythm) ?: null;
+            $bpm        = ($version?->tempo ?: $source->tempo) ?: 120;
             $title      = $source->title;
         }
 

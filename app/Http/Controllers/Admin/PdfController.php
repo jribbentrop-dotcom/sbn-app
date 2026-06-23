@@ -147,10 +147,16 @@ class PdfController extends Controller
             if (! $lsSlug) continue;
 
             $ls = Leadsheet::where('slug', $lsSlug)->first();
-            if (! $ls || ! $ls->tab_xml) continue;
+            if (! $ls) continue;
+
+            // Notated melody lives on the default arrangement (melody_tab_xml), with a
+            // legacy-column fallback during the dual-read window.
+            $version = $ls->defaultVersion ?? $ls->versions()->first();
+            $tabXml  = $version?->melody_tab_xml ?: $ls->tab_xml;
+            if (! $tabXml) continue;
 
             $parser  = new TabXmlParser();
-            $tabData = $parser->parse($ls->tab_xml);
+            $tabData = $parser->parse($tabXml);
 
             $allMeasures = $tabData['measures'] ?? [];
             [$from, $to] = $songCfg['measures'] ?? [0, count($allMeasures) - 1];
@@ -300,6 +306,35 @@ class PdfController extends Controller
 
         // Fallback placeholder
         return '<svg viewBox="0 0 640 98" width="640" height="98"><rect x="0" y="0" width="640" height="98" fill="none" stroke="#e2e8f0" stroke-width="1"/><text x="320" y="52" text-anchor="middle" font-size="9" fill="#8896a4">TAB (render failed)</text></svg>';
+    }
+
+    /**
+     * Like renderTabSvg but renders chord diagrams above the staff.
+     * Use for example pages; item pages use renderTabSvg (diagram shown separately).
+     *
+     * @param  array  $voicings  Map of chordName => inner SVG markup string (from render-diagram-inline.cjs)
+     */
+    public static function renderTabSvgWithDiagrams(
+        array  $measures,
+        string $timeSig        = '4/4',
+        int    $barsPerRow     = 4,
+        bool   $showChordNames = true,
+        array  $voicings       = []
+    ): string {
+        $payload = json_encode(compact('measures', 'timeSig', 'barsPerRow', 'showChordNames', 'voicings'));
+
+        $tmpFile = tempnam(sys_get_temp_dir(), 'sbn_tabdiag_') . '.json';
+        file_put_contents($tmpFile, $payload);
+
+        $scriptPath = base_path('scripts/pdf/render-tab-diagrams.cjs');
+        $result     = Process::run("node \"{$scriptPath}\" \"{$tmpFile}\"");
+        @unlink($tmpFile);
+
+        if ($result->successful()) {
+            return $result->output();
+        }
+
+        return '<svg viewBox="0 0 640 182" width="640" height="182"><rect x="0" y="0" width="640" height="182" fill="none" stroke="#e2e8f0" stroke-width="1"/><text x="320" y="94" text-anchor="middle" font-size="9" fill="#8896a4">TAB+diagrams (render failed)</text></svg>';
     }
 
     /**

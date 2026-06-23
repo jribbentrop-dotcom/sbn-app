@@ -362,10 +362,12 @@ class CourseController extends Controller
         if (!empty($songSlugs)) {
             $slugOnly     = array_column($songSlugs, 'slug');
             $lessonBySlug = array_column($songSlugs, 'lessonSlug', 'slug');
-            Leadsheet::whereIn('slug', $slugOnly)
+            Leadsheet::with('defaultVersion')->whereIn('slug', $slugOnly)
                 ->get()
                 ->each(function (Leadsheet $ls) use (&$sheets, $lessonBySlug) {
-                    $parsed = $ls->parsed_data ?? [];
+                    // videoSync lives in the default arrangement's parsed_data.
+                    $version = $ls->defaultVersion ?? $ls->versions()->first();
+                    $parsed  = ($version?->parsed_data ?? $ls->parsed_data) ?? [];
                     $vs = $parsed['videoSync'] ?? null;
                     if (!$vs || empty($vs['videoId'])) return;
                     $key = 'song:' . $ls->slug;
