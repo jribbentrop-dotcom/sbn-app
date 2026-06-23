@@ -36,6 +36,7 @@ use App\Http\Controllers\Admin\LessonController as AdminLessonController;
 use App\Http\Controllers\Admin\ExerciseController as AdminExerciseController;
 use App\Http\Controllers\Library\ExerciseController as ExerciseLibraryController;
 use App\Http\Controllers\Admin\AdminFretboardController;
+use App\Http\Controllers\Admin\SkillNodeController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\GradesController;
 use App\Http\Controllers\HomeController;
@@ -215,6 +216,14 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
     Route::get('/fretboards/{fretboard}/edit', [AdminFretboardController::class, 'edit'])->name('fretboards.edit');
     Route::put('/fretboards/{fretboard}', [AdminFretboardController::class, 'update'])->name('fretboards.update');
     Route::delete('/fretboards/{fretboard}', [AdminFretboardController::class, 'destroy'])->name('fretboards.destroy');
+
+    // Skill nodes (admin CRUD — v1 table editor)
+    Route::get('/skill-nodes', [SkillNodeController::class, 'index'])->name('skill-nodes.index');
+    Route::get('/skill-nodes/create', [SkillNodeController::class, 'create'])->name('skill-nodes.create');
+    Route::post('/skill-nodes', [SkillNodeController::class, 'store'])->name('skill-nodes.store');
+    Route::get('/skill-nodes/{skillNode}/edit', [SkillNodeController::class, 'edit'])->name('skill-nodes.edit');
+    Route::put('/skill-nodes/{skillNode}', [SkillNodeController::class, 'update'])->name('skill-nodes.update');
+    Route::delete('/skill-nodes/{skillNode}', [SkillNodeController::class, 'destroy'])->name('skill-nodes.destroy');
 
     // Shop Orders (admin view)
     Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');

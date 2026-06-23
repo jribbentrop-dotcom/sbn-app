@@ -41,6 +41,14 @@ class User extends Authenticatable
             ->using(ConversationParticipant::class);
     }
 
+    /** Skill nodes this user has progress on (self-reported in v1). */
+    public function skillNodes(): BelongsToMany
+    {
+        return $this->belongsToMany(SkillNode::class, 'sbn_user_skill_progress', 'user_id', 'skill_node_id')
+            ->withPivot(['status', 'completed_at'])
+            ->withTimestamps();
+    }
+
     public function owns(Course $course): bool
     {
         if ($course->is_free) {
