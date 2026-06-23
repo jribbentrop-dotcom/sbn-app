@@ -22,6 +22,7 @@
     <link rel="stylesheet" href="{{ asset('css/leadsheets.css') }}">
     <style>
         /* ── Version badge + accordion ───────────────────────────────────── */
+        [x-cloak] { display: none !important; }
         .sbn-ls-title-row {
             display: inline-flex;
             align-items: center;
@@ -228,7 +229,7 @@
                                                 {{ $ls->versions_count }} ▾
                                             </button>
                                         </span>
-                                        <div class="sbn-ls-version-list" x-show="open" x-collapse style="display:none">
+                                        <div class="sbn-ls-version-list" x-show="open" x-cloak>
                                             @foreach($ls->versions as $vrow)
                                             <a class="sbn-ls-version-item"
                                                href="{{ route('admin.leadsheets.edit', ['leadsheet' => $ls, 'v' => $vrow->version_slug]) }}">
