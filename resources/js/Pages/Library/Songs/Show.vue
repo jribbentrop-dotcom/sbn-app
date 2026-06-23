@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
-import { Link, Head } from '@inertiajs/vue3';
+import { Link, Head, router } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { getCategoryStyle, getCategoryColor } from '@/composables/useCategoryColors';
@@ -50,8 +50,19 @@ interface ProgressionRef {
   tiles: any[];
 }
 
+interface VersionRef {
+  id: number;
+  slug: string;
+  label: string;
+  performer: string | null;
+  difficulty: number | null;
+  isActive: boolean;
+}
+
 interface Props {
   song: Song;
+  versions: VersionRef[];
+  activeVersion: string;
   chordNames: string[];
   chords: any[];
   progressions: ProgressionRef[];
@@ -59,6 +70,28 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+
+// Arrangement switcher: only meaningful when more than one version exists.
+const hasMultipleVersions = computed(() => (props.versions?.length ?? 0) > 1);
+
+function versionOptionLabel(v: VersionRef): string {
+  // "João Gilberto · ★★★" style: performer (or label) + difficulty dots.
+  const name = v.performer || v.label || 'Basic';
+  const d = v.difficulty ?? 0;
+  const dots = d > 0 ? ' · ' + '●'.repeat(Math.min(d, 5)) : '';
+  return name + dots;
+}
+
+function switchVersion(slug: string): void {
+  if (slug === props.activeVersion) return;
+  // Same page, swap the ?v= arrangement. Server re-resolves chords/progressions
+  // for the selected version; preserveState keeps scroll/UI steady.
+  router.get(
+    `/library/songs/${props.song.slug}`,
+    { v: slug },
+    { preserveScroll: true, preserveState: false },
+  );
+}
 
 const categoryStyle = computed(() => getCategoryStyle(props.song.styleSlug));
 const categoryColor = computed(() => getCategoryColor(props.song.styleSlug));
@@ -174,6 +207,21 @@ const breadcrumbSegments = computed(() => {
           <span v-if="song.timeSignature" class="sbn-song-meta-chip"><strong>Time</strong> {{ song.timeSignature }}</span>
           <span v-if="song.rhythm"        class="sbn-song-meta-chip"><strong>Rhythm</strong> {{ song.rhythm }}</span>
           <span v-if="song.measureCount"  class="sbn-song-meta-chip"><strong>Bars</strong> {{ song.measureCount }}</span>
+        </div>
+
+        <!-- ── Arrangement switcher (only with >1 version) ──────────────────── -->
+        <div v-if="hasMultipleVersions" class="sbn-ss-arrangement">
+          <label class="sbn-ss-arrangement-label" for="sbn-arrangement-select">Arrangement</label>
+          <select
+            id="sbn-arrangement-select"
+            class="sbn-ss-arrangement-select"
+            :value="activeVersion"
+            @change="switchVersion(($event.target as HTMLSelectElement).value)"
+          >
+            <option v-for="v in versions" :key="v.slug" :value="v.slug">
+              {{ versionOptionLabel(v) }}
+            </option>
+          </select>
         </div>
 
         <div v-if="song.isPro" class="sbn-ss-cta">
@@ -331,6 +379,37 @@ const breadcrumbSegments = computed(() => {
   font-size: 1.05em;
   color: var(--clr-text-muted);
   margin: 0 0 16px;
+}
+
+/* ── Arrangement switcher ────────────────────────────────────────────────── */
+.sbn-ss-arrangement {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+
+.sbn-ss-arrangement-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--clr-text-muted);
+}
+
+.sbn-ss-arrangement-select {
+  padding: 6px 12px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--clr-text);
+  background: var(--clr-surface, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--clr-border, rgba(255, 255, 255, 0.18));
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.sbn-ss-arrangement-select:hover {
+  border-color: var(--clr-text-muted);
 }
 
 

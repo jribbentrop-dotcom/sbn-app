@@ -188,9 +188,17 @@ split they read off the **active version**. The schema is small; this list is th
   Exercises path is unaffected (different controller; likely keep single-version).
 
 ### Frontend
-- `Pages/Library/Songs/Show.vue` — add version dropdown; consume `versions[]`.
-- `Pages/Library/Songs/Viewer.vue` + tab-editor components — version switcher + the
-  Grid/Melody-TAB/Chord-TAB toggle.
+- `Pages/Library/Songs/Show.vue` — ✅ DONE (stage 5). Arrangement `<select>` in the
+  hero, shown only when `versions.length > 1`; `switchVersion()` does
+  `router.get(?v=slug)`. Consumes `versions[]`/`activeVersion`.
+- `Pages/Library/Songs/Viewer.vue` + `LeadsheetViewer.vue` — version switcher: TODO.
+  The existing `mode` toggle (`'no-chords' | 'chords' | 'tab'`, localStorage-persisted)
+  already provides **Grid** (chords/no-chords) and **Melody TAB** (`'tab'`, renders the
+  tab model from `json_data`/`melody`). The **Chord TAB** layer is DEFERRED: `chord_tab_xml`
+  is null on every version (it's authored-later data), so a 4th mode would render an empty
+  branch for all songs. Add it only when chord-tab data exists — the `hasChordTab` flag is
+  already plumbed to the frontend props for that day. The Viewer version switcher (swap
+  `?v=` and reload viewer data) is the remaining real work here.
 - `toLinkArray()` unchanged (work-level identity).
 
 ---
