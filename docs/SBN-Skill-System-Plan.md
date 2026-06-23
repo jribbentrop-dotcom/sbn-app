@@ -1,16 +1,13 @@
 # SBN Skill System — Planning & As-Built Reference
 
-> Status: **v1 SHIPPED + all 6 branches curated, courses mapped (uncommitted) 2026-06-23.**
+> Status: **v1 SHIPPED + 2026-06-23 expansion seeded and verified.**
 > Data model, models, seeder, and admin table editor built — see "v1 Implementation (As-Built)".
-> `migrate --seed` has run; the graph is now 35 nodes across all six branches with 38 prerequisite
-> edges (no cycles, no dangling refs — verified), and `sbn_course_skill_node` is populated for 19 of
-> 20 published courses (see "Course → Node Mapping"). Deferred work (style classes, repertoire, graph
-> viz, student UI) tracked in "Open Decisions" and "Post-v1 Roadmap".
-> Next step: review the Melody/Technique/Ear Training/Reading & Theory nodes and edges in the admin
-> editor (they're seeded from the taxonomy first draft, not yet content-evidenced the way Harmony/
-> Rhythm are — see caveat in "Course → Node Mapping"), then start closing the curriculum gaps the
-> mapping surfaced (Ear Training has zero course coverage; several Technique/Melody/Reading nodes do
-> too).
+> Graph is now **53 nodes** across all six branches with **57 prerequisite edges** (no cycles, no
+> dangling refs — verified), and `sbn_course_skill_node` has **97 pivot rows** covering all 20
+> published courses (see "Course → Node Mapping"). Deferred work (style classes, repertoire, graph
+> viz, student UI, `fretboard-note-names` node) tracked in "Open Decisions" and "Post-v1 Roadmap".
+> Next step: close remaining curriculum gaps — Ear Training still has zero dedicated course coverage;
+> Technique nodes `barre-chords`, `position-shifting`, `tone-production` are open.
 
 ---
 
@@ -494,6 +491,13 @@ arpeggio-shapes. barre-chords and position-shifting are the next Technique gap.*
 *2026-06-23 (later): Courses 74–76 imported (16 lessons total). 74 closes nashville-number-system +
 leadsheet-reading; 75 closes arpeggio-shapes; 76 closes motivic-development + contributes to
 improvisation-over-changes. 19/20 courses now mapped.*
+*2026-06-23 (later): Skill node expansion seeded — 15 new nodes (Rhythm +6: meter-basics, waltz-feel,
+swing-feel, polyrhythm, clave-systems, brazilian-rhythm-styles; Harmony +7: diatonic-harmony,
+cadences, pop-progressions, turnarounds, secondary-dominants, borrowed-chords, voice-leading;
+Reading & Theory +2: scale-degrees, tab-reading-basics). 3 existing nodes updated with new prereqs
+(pulse-subdivision←meter-basics, leadsheet-reading←scale-degrees, nashville-number-system←scale-degrees).
+7 courses gained additional node mappings (70, 5, 10, 7, 8, 12, 69). Graph: 53 nodes, 57 edges,
+97 pivot rows, all 20 courses mapped. `fretboard-note-names` deliberately deferred — no lesson yet.*
 *Continue: content-evidence pass on Melody/Technique/Ear Training/Reading & Theory nodes; close the
 curriculum gaps the mapping surfaced (Ear Training has no course coverage at all); build the skill-node
 landing page when ready to go student-facing.*

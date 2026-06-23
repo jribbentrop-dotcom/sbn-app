@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             AltNumeralsSeeder::class,
             ScaleExercisesSeeder::class,
             SkillNodeSeeder::class,
+            CourseSkillNodeMappingSeeder::class,
         ]);
 
         User::factory()->create([
