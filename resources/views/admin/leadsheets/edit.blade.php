@@ -22,6 +22,19 @@
         Back
     </a>
     @if($leadsheet)
+    @if(isset($versionList) && $versionList->count() > 1)
+    <label class="sbn-version-switch" title="Arrangement being edited">
+        <span class="sbn-version-switch-label">Arrangement</span>
+        <select onchange="window.location.href = this.value">
+            @foreach($versionList as $vrow)
+            <option value="{{ route('admin.leadsheets.edit', ['leadsheet' => $leadsheet, 'v' => $vrow->version_slug]) }}"
+                    @selected(isset($activeVersion) && $activeVersion->id === $vrow->id)>
+                {{ $vrow->label ?: 'Basic' }}@if($vrow->performer && $vrow->performer !== $vrow->label) — {{ $vrow->performer }}@endif (diff {{ $vrow->difficulty }})
+            </option>
+            @endforeach
+        </select>
+    </label>
+    @endif
     <a href="{{ route('library.songs.show', $leadsheet->slug) }}" target="_blank" class="sbn-btn sbn-btn-ghost">Preview ↗</a>
     <form id="save-as-exercise-form" method="POST" action="{{ route('admin.exercises.from-leadsheet', $leadsheet) }}" style="display:inline;">
         @csrf
@@ -36,6 +49,31 @@
 @push('styles')
 <link rel="stylesheet" href="{{ asset('css/leadsheets.css') }}">
 <link rel="stylesheet" href="{{ asset('css/sbn-context-menu.css') }}">
+<style>
+    .sbn-version-switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-right: 6px;
+    }
+    .sbn-version-switch-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        opacity: 0.6;
+    }
+    .sbn-version-switch select {
+        padding: 5px 10px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        border-radius: 6px;
+        border: 1px solid rgba(127, 127, 127, 0.35);
+        background: var(--clr-surface, #fff);
+        color: var(--clr-text, inherit);
+        cursor: pointer;
+    }
+</style>
 @endpush
 
 @section('content')
@@ -1430,6 +1468,7 @@ function leadsheetEditor() {
         itemType: @json(isset($isExercise) && $isExercise ? 'exercises' : 'leadsheets'),
         typeLabel: @json(isset($isExercise) && $isExercise ? 'Exercise' : 'Leadsheet'),
         leadsheetId: @json($leadsheet->id ?? $exercise->id ?? null),
+        activeVersionSlug: @json($activeVersion->version_slug ?? null),
         rhythmSlug: '{{ $leadsheet->rhythm ?? $exercise->rhythm ?? '' }}',
         genre: '{{ $leadsheet->genre ?? $exercise->genre ?? '' }}',
         popularity: {{ $leadsheet->popularity ?? $exercise->popularity ?? 0 }},
@@ -2441,9 +2480,13 @@ function leadsheetEditor() {
             if (videoSyncData) finalJsonData.videoSync = videoSyncData;
 
             const shortcode = this.shortcodeOutput;
-            const url = this.itemType === 'exercises'
+            let url = this.itemType === 'exercises'
                 ? (this.itemId ? '/admin/exercises/' + this.itemId : '/admin/exercises')
                 : (this.itemId ? '/admin/leadsheets/' + this.itemId : '/admin/leadsheets');
+            // Carry the active arrangement so the save targets the right version.
+            if (this.itemType !== 'exercises' && this.itemId && this.activeVersionSlug) {
+                url += '?v=' + encodeURIComponent(this.activeVersionSlug);
+            }
             const method = this.itemId ? 'PUT' : 'POST';
 
             try {

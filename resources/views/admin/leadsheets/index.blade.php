@@ -21,6 +21,54 @@
 @push('styles')
     <link rel="stylesheet" href="{{ asset('css/leadsheets.css') }}">
     <style>
+        /* ── Version badge + accordion ───────────────────────────────────── */
+        .sbn-ls-title-row {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .sbn-ls-version-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            padding: 1px 7px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            line-height: 1.4;
+            color: var(--clr-accent, #5b8def);
+            background: rgba(91, 141, 239, 0.12);
+            border: 1px solid rgba(91, 141, 239, 0.35);
+            border-radius: 999px;
+            cursor: pointer;
+        }
+        .sbn-ls-version-badge:hover {
+            background: rgba(91, 141, 239, 0.22);
+        }
+        .sbn-ls-version-list {
+            margin-top: 6px;
+            padding-left: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .sbn-ls-version-item {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 3px 8px;
+            font-size: 0.85rem;
+            border-radius: 6px;
+            text-decoration: none;
+            color: var(--clr-text, inherit);
+        }
+        .sbn-ls-version-item:hover {
+            background: rgba(127, 127, 127, 0.12);
+        }
+        .sbn-ls-version-meta {
+            font-size: 0.75rem;
+            opacity: 0.6;
+        }
+
         .sbn-dropdown {
             position: relative;
             display: inline-block;
@@ -171,7 +219,28 @@
                     <tr x-ref="row{{ $ls->id }}" class="sbn-ls-row">
                         <td class="col-title">
                             @if($currentTab === 'leadsheets')
-                                <a href="{{ route('admin.leadsheets.edit', $ls) }}" class="sbn-ls-title">{{ $ls->title }}</a>
+                                @if(($ls->versions_count ?? 0) > 1)
+                                    <span class="sbn-ls-versions" x-data="{ open: false }">
+                                        <span class="sbn-ls-title-row">
+                                            <a href="{{ route('admin.leadsheets.edit', $ls) }}" class="sbn-ls-title">{{ $ls->title }}</a>
+                                            <button type="button" class="sbn-ls-version-badge" @click="open = !open"
+                                                    :aria-expanded="open" title="{{ $ls->versions_count }} arrangements">
+                                                {{ $ls->versions_count }} ▾
+                                            </button>
+                                        </span>
+                                        <div class="sbn-ls-version-list" x-show="open" x-collapse style="display:none">
+                                            @foreach($ls->versions as $vrow)
+                                            <a class="sbn-ls-version-item"
+                                               href="{{ route('admin.leadsheets.edit', ['leadsheet' => $ls, 'v' => $vrow->version_slug]) }}">
+                                                {{ $vrow->label ?: 'Basic' }}@if($vrow->performer && $vrow->performer !== $vrow->label) — {{ $vrow->performer }}@endif
+                                                <span class="sbn-ls-version-meta">{{ $vrow->song_key }} · diff {{ $vrow->difficulty }}</span>
+                                            </a>
+                                            @endforeach
+                                        </div>
+                                    </span>
+                                @else
+                                    <a href="{{ route('admin.leadsheets.edit', $ls) }}" class="sbn-ls-title">{{ $ls->title }}</a>
+                                @endif
                             @else
                                 <a href="{{ route('admin.exercises.edit', $ls) }}" class="sbn-ls-title">{{ $ls->title }}</a>
                             @endif

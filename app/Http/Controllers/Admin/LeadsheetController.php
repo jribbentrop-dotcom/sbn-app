@@ -97,7 +97,9 @@ class LeadsheetController extends Controller
                     });
                 });
             }
-            $items = $query->orderBy('title')->paginate(25)->withQueryString();
+            // Eager-load arrangements for the version badge + accordion in the list.
+            $items = $query->with('versions')->withCount('versions')
+                ->orderBy('title')->paginate(25)->withQueryString();
         }
 
         $stats = Leadsheet::getStats();
@@ -139,16 +141,41 @@ class LeadsheetController extends Controller
         ]);
     }
 
-    public function edit(Leadsheet $leadsheet)
+    public function edit(Request $request, Leadsheet $leadsheet)
     {
         $rhythms        = RhythmPattern::orderBy('category')->orderBy('name')->get();
         $rhythmPatterns = $rhythms->mapWithKeys(fn ($r) => [$r->slug => $r->toPlayerData()]);
         $existingTags   = $leadsheet->tags()->pluck('slug')->implode(',');
+
+        // Resolve which arrangement (version) we're editing. ?v=slug selects one;
+        // otherwise the default version. The editor reads this version's data so
+        // saving targets the right arrangement (multi-version songs).
+        $versionList = $leadsheet->versions;     // ordered difficulty, sort_order
+        $activeVersion = $request->query('v')
+            ? $versionList->firstWhere('version_slug', $request->query('v'))
+            : null;
+        $activeVersion ??= $leadsheet->defaultVersion ?? $versionList->first();
+
+        // Overlay the active version's arrangement data onto the leadsheet instance
+        // the editor renders from, so the existing Blade bindings ($leadsheet->json_data
+        // etc.) transparently show the selected version. Legacy columns remain the
+        // dual-read fallback when a version is somehow absent.
+        if ($activeVersion) {
+            $leadsheet->setAttribute('json_data',         $activeVersion->json_data ?? $leadsheet->json_data);
+            $leadsheet->setAttribute('tab_xml',           $activeVersion->melody_tab_xml ?? $leadsheet->tab_xml);
+            $leadsheet->setAttribute('shortcode_content', $activeVersion->shortcode_content ?? $leadsheet->shortcode_content);
+            $leadsheet->setAttribute('song_key',          $activeVersion->song_key ?: $leadsheet->song_key);
+            $leadsheet->setAttribute('rhythm',            $activeVersion->rhythm ?: $leadsheet->rhythm);
+            $leadsheet->setAttribute('tempo',             $activeVersion->tempo ?: $leadsheet->tempo);
+        }
+
         return view('admin.leadsheets.edit', [
             'leadsheet'      => $leadsheet,
             'rhythms'        => $rhythms,
             'rhythmPatterns' => $rhythmPatterns,
             'existingTags'   => $existingTags,
+            'versionList'    => $versionList,
+            'activeVersion'  => $activeVersion,
         ]);
     }
 
@@ -800,6 +827,14 @@ class LeadsheetController extends Controller
     {
         $validated = $this->validateLeadsheet($request);
 
+        // Which arrangement is being saved? ?v=slug (from the editor's version link)
+        // or the default version. Edits are written to this version row; the leadsheet
+        // legacy columns are dual-written for the read-fallback safety net.
+        $activeVersion = $request->query('v')
+            ? $leadsheet->versions()->where('version_slug', $request->query('v'))->first()
+            : null;
+        $activeVersion ??= $leadsheet->defaultVersion ?? $leadsheet->versions()->first();
+
         $parsed = null;
         if (!empty($validated['shortcode_content'])) {
             $parsed = $this->parser->parse($validated['shortcode_content']);
@@ -843,10 +878,25 @@ class LeadsheetController extends Controller
             'difficulty'        => $validated['difficulty'] ?? $leadsheet->difficulty,
         ]);
 
-        // Re-index voicing → DB chord associations whenever shortcode changes.
+        // Write the arrangement data to the active version (the source of truth for
+        // public reads). Leadsheet columns above are the dual-read fallback.
+        if ($activeVersion) {
+            $activeVersion->update([
+                'json_data'         => $validated['json_data'] ?? $activeVersion->json_data,
+                'melody_tab_xml'    => $validated['tab_xml'] ?? $activeVersion->melody_tab_xml,
+                'shortcode_content' => $shortcode,
+                'song_key'          => $validated['song_key'] ?? $activeVersion->song_key,
+                'rhythm'            => $validated['rhythm'] ?? $activeVersion->rhythm,
+                'tempo'             => $validated['tempo'] ?? $activeVersion->tempo,
+                'measure_count'     => $parsed ? $this->countMeasures($parsed) : $activeVersion->measure_count,
+            ]);
+        }
+
+        // Re-index voicing → DB chord associations whenever shortcode changes,
+        // scoped to the arrangement we just saved.
         if (!empty($shortcode)) {
             $crossref = app(VoicingCrossref::class);
-            $crossref->processLeadsheet($leadsheet->fresh());
+            $crossref->processLeadsheet($leadsheet->fresh(), $activeVersion?->fresh());
         }
 
         $this->syncTags($leadsheet, $this->parseTagSlugs($request->input('tags', '')));
@@ -855,7 +905,12 @@ class LeadsheetController extends Controller
             return response()->json(['success' => true, 'id' => $leadsheet->id, 'message' => 'Leadsheet updated.']);
         }
 
-        return redirect()->route('admin.leadsheets.edit', $leadsheet)->with('success', 'Leadsheet updated successfully.');
+        // Preserve the active arrangement so a save stays on the same version.
+        $editParams = ['leadsheet' => $leadsheet];
+        if ($activeVersion && $activeVersion->version_slug !== ($leadsheet->defaultVersion?->version_slug)) {
+            $editParams['v'] = $activeVersion->version_slug;
+        }
+        return redirect()->route('admin.leadsheets.edit', $editParams)->with('success', 'Leadsheet updated successfully.');
     }
 
     public function destroy(Leadsheet $leadsheet)

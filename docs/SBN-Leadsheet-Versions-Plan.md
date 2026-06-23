@@ -160,8 +160,14 @@ split they read off the **active version**. The schema is small; this list is th
 - `app/Http/Controllers/Library/SongLibraryController.php` — `show`, `viewer`, `cinema`,
   `apiViewerData`, `apiSheet`, `apiSearch`. Resolve active version; pass `versions[]`
   list to Show for the dropdown. **Keep `abortIfNotPro` reading `is_pro` off the work.**
-- `app/Http/Controllers/Admin/LeadsheetController.php` — CRUD now creates/edits versions;
-  the editor save target is a version, not the leadsheet.
+- `app/Http/Controllers/Admin/LeadsheetController.php` — ✅ version-aware editing DONE
+  (stage 6). `edit(?v=slug)` overlays the selected version's data onto the rendered
+  leadsheet; `update(?v=slug)` writes arrangement fields to that version (+ detects
+  against it) AND dual-writes the leadsheet legacy columns (read fallback). List query
+  eager-loads `versions`/`versions_count`. Badge "N ▾" + Alpine accordion in
+  `index.blade.php` link to `edit?v=slug`; a header `<select>` switches arrangements in
+  `edit.blade.php`. NOT yet built: create/clone/delete a version in the UI (new
+  arrangements still need the merge/SQL path).
 - `app/Http/Controllers/Admin/PdfController.php` — reads `json_data`/`tab_xml` for PDF
   render; point at active version.
 - `app/Http/Controllers/CourseController.php`, `HomeController.php`,
