@@ -878,18 +878,31 @@ class LeadsheetController extends Controller
             'difficulty'        => $validated['difficulty'] ?? $leadsheet->difficulty,
         ]);
 
-        // Write the arrangement data to the active version (the source of truth for
-        // public reads). Leadsheet columns above are the dual-read fallback.
+        // Write the arrangement data + identity to the active version (the source of
+        // truth for public reads). Leadsheet columns above are the dual-read fallback.
+        // Use empty-safe fallbacks so a blank form field never wipes an existing
+        // key/rhythm (this is what previously reset a version's key to default).
         if ($activeVersion) {
-            $activeVersion->update([
+            $versionUpdate = [
                 'json_data'         => $validated['json_data'] ?? $activeVersion->json_data,
                 'melody_tab_xml'    => $validated['tab_xml'] ?? $activeVersion->melody_tab_xml,
                 'shortcode_content' => $shortcode,
-                'song_key'          => $validated['song_key'] ?? $activeVersion->song_key,
+                'song_key'          => ($validated['song_key'] ?? '') !== '' ? $validated['song_key'] : $activeVersion->song_key,
                 'rhythm'            => $validated['rhythm'] ?? $activeVersion->rhythm,
                 'tempo'             => $validated['tempo'] ?? $activeVersion->tempo,
                 'measure_count'     => $parsed ? $this->countMeasures($parsed) : $activeVersion->measure_count,
-            ]);
+            ];
+            // Version identity fields (only overwrite when the form sent them).
+            if (array_key_exists('version_label', $validated)) {
+                $versionUpdate['label'] = $validated['version_label'] ?: $activeVersion->label;
+            }
+            if (array_key_exists('version_performer', $validated)) {
+                $versionUpdate['performer'] = $validated['version_performer'] ?: null;
+            }
+            if (array_key_exists('difficulty', $validated) && $validated['difficulty'] !== null) {
+                $versionUpdate['difficulty'] = $validated['difficulty'];
+            }
+            $activeVersion->update($versionUpdate);
         }
 
         // Re-index voicing → DB chord associations whenever shortcode changes,
@@ -1531,6 +1544,8 @@ class LeadsheetController extends Controller
             'genre'             => 'nullable|string|max:50',
             'popularity'        => 'nullable|integer|min:0|max:100',
             'difficulty'        => 'nullable|integer|min:0|max:5',
+            'version_label'     => 'nullable|string|max:120',
+            'version_performer' => 'nullable|string|max:120',
             'tags'              => 'nullable|string|max:500',
         ]);
     }

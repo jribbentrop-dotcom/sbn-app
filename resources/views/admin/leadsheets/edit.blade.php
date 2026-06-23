@@ -301,6 +301,18 @@
                     </select>
                 </div>
 
+                {{-- ── Arrangement (version) identity ───────────────── --}}
+                <div class="sbn-vp-meta-field" x-show="itemType === 'leadsheets' && activeVersionSlug">
+                    <span class="sbn-vp-meta-label">Arrangement</span>
+                    <input type="text" class="sbn-vp-meta-input" x-model="versionLabel"
+                           placeholder="e.g. Joe Pass" @input="markDirty()">
+                </div>
+                <div class="sbn-vp-meta-field" x-show="itemType === 'leadsheets' && activeVersionSlug">
+                    <span class="sbn-vp-meta-label">Performer</span>
+                    <input type="text" class="sbn-vp-meta-input" x-model="versionPerformer"
+                           placeholder="e.g. Joe Pass (optional)" @input="markDirty()">
+                </div>
+
                 {{-- ── Hashtags (leadsheets only) ───────────────── --}}
                 <div class="sbn-vp-meta-field" x-show="itemType === 'leadsheets'" style="grid-column:span 2; flex-direction:column; align-items:flex-start; gap:6px;">
                     <span class="sbn-vp-meta-label">Hashtags</span>
@@ -1469,6 +1481,8 @@ function leadsheetEditor() {
         typeLabel: @json(isset($isExercise) && $isExercise ? 'Exercise' : 'Leadsheet'),
         leadsheetId: @json($leadsheet->id ?? $exercise->id ?? null),
         activeVersionSlug: @json($activeVersion->version_slug ?? null),
+        versionLabel: @json($activeVersion->label ?? null),
+        versionPerformer: @json($activeVersion->performer ?? null),
         rhythmSlug: '{{ $leadsheet->rhythm ?? $exercise->rhythm ?? '' }}',
         genre: '{{ $leadsheet->genre ?? $exercise->genre ?? '' }}',
         popularity: {{ $leadsheet->popularity ?? $exercise->popularity ?? 0 }},
@@ -2532,6 +2546,8 @@ function leadsheetEditor() {
                         genre: this.genre || null,
                         popularity: this.popularity || 0,
                         difficulty: this.difficulty || 0,
+                        version_label: this.versionLabel || null,
+                        version_performer: this.versionPerformer || null,
                         tags: this.leadsheetTags.join(','),
                     };
 
