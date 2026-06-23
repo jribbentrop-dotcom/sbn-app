@@ -7,6 +7,19 @@
       </div>
 
       <div class="sbn-leadsheet-controls">
+        <!-- Arrangement switcher (leadsheet-versions; only with >1 version) -->
+        <select
+          v-if="hasMultipleVersions"
+          class="sbn-leadsheet-version-select"
+          :value="activeVersion"
+          title="Arrangement"
+          @change="switchVersion($event.target.value)"
+        >
+          <option v-for="v in versions" :key="v.slug" :value="v.slug">
+            {{ versionOptionLabel(v) }}
+          </option>
+        </select>
+
         <!-- Mode toggle (Phase 9b: 3-way: no-chords / chords / tab) -->
         <div class="sbn-leadsheet-density-toggle">
           <button
@@ -138,7 +151,7 @@
 
 <script setup>
 import { ref, computed, provide, watch, onMounted, onUnmounted } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 
 // Components
 import ChordGridView from '@/tab-editor/components/ChordGridView.vue';
@@ -198,6 +211,16 @@ const props = defineProps({
   cinemaUrl: {
     type: String,
     default: null,
+  },
+  /** Arrangements for the version switcher (leadsheet-versions). Empty/length-1 hides it. */
+  versions: {
+    type: Array,
+    default: () => [],
+  },
+  /** version_slug of the currently displayed arrangement. */
+  activeVersion: {
+    type: String,
+    default: '',
   },
 });
 
@@ -274,6 +297,28 @@ watch(mode, async (newMode, oldMode) => {
  * for notes with string/fret set — exactly the signal we want.
  */
 const hasTab = computed(() => hasData.value);
+
+// ── Arrangement (version) switcher ──────────────────────────────────────────
+const hasMultipleVersions = computed(() => (props.versions?.length ?? 0) > 1);
+
+function versionOptionLabel(v) {
+  const name = v.performer || v.label || 'Basic';
+  const d = v.difficulty ?? 0;
+  const dots = d > 0 ? ' · ' + '●'.repeat(Math.min(d, 5)) : '';
+  return name + dots;
+}
+
+function switchVersion(slug) {
+  if (!slug || slug === props.activeVersion) return;
+  // Reload the viewer for the chosen arrangement; server re-enriches chord cards
+  // + progressions for that version. Full reload (preserveState:false) so the tab
+  // model / audio engine rebuild cleanly from the new json_data.
+  router.get(
+    `/library/songs/${props.leadsheet.slug}/viewer`,
+    { v: slug },
+    { preserveScroll: true, preserveState: false },
+  );
+}
 
 /**
  * Density computed: maps mode → density prop for ChordGridView.
@@ -839,6 +884,22 @@ provide('globalIndexOf', (si, mi) => {
 }
 
 .sbn-leadsheet-density-toggle,
+.sbn-leadsheet-version-select {
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--clr-text);
+  background: var(--clr-surface);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.sbn-leadsheet-version-select:hover {
+  background: var(--clr-surface-2);
+}
+
 .sbn-leadsheet-view-toggle {
   display: inline-flex;
   border: 1px solid var(--clr-border);

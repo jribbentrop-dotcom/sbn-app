@@ -31,6 +31,14 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
+  versions: {
+    type: Array,
+    default: () => [],
+  },
+  activeVersion: {
+    type: String,
+    default: '',
+  },
 });
 
 const cinemaUrl = computed(() => `/library/songs/${props.leadsheet.slug}/cinema`);
@@ -62,5 +70,7 @@ const metaDescription = computed(() => {
     :edu-chord-qualities="eduChordQualities"
     :edu-related-concepts="eduRelatedConcepts"
     :cinema-url="cinemaUrl"
+    :versions="versions"
+    :active-version="activeVersion"
   />
 </template>
