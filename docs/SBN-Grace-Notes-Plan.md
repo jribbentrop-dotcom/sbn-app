@@ -1,7 +1,8 @@
 # SBN Grace Notes — Implementation Plan (for Sonnet)
 
-Status: **NOT BUILT** — spec only. Written 2026-06-24.
-Audience: implementing model (Sonnet). Opus steps in only at the Checkpoint 2 layout pass if it gets messy.
+Status: **✅ SHIPPED 2026-06-24** (round-trip parse→model→render→export→audio). Written 2026-06-24.
+Editing (Phase 2) and the layout overhaul shipped the same day — see `SBN-Grace-Notes-Phase2-Plan.md`.
+Audience: implementing model (Sonnet). This doc is now an as-built reference for the round-trip layer.
 
 ---
 

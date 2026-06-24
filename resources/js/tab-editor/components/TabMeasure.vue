@@ -98,6 +98,7 @@
                 :pickup-x-offset="pickupXOffset"
                 :effective-width="effectiveWidth"
                 :pending-digit="pendingDigit"
+                :grace-mode="graceMode"
                 :selected-events="selectedEvents"
                 :is-playing="isPlaying"
                 :read-only="readOnly"
@@ -166,6 +167,11 @@ const props = defineProps({
     pendingDigit: {
         type: String,
         default: null,
+    },
+    /** Grace-entry mode active — forwarded to TabCursor for visual hint. */
+    graceMode: {
+        type: Boolean,
+        default: false,
     },
     /** Phase 7g: Set<eventId> of Shift+Arrow selected events, passed to TabCursor. */
     selectedEvents: {
@@ -691,24 +697,45 @@ const svgContent = computed(() => {
         html += renderRest(getXm(ev.xPos), ev.ticks, ev.voice, ev.id);
     });
 
+    // ── Grace-note horizontal spacing (cumulative insert) ───────────────────
+    // Grace notes consume no tick-space, so xPos can't make room for them.
+    // Model: a grace cluster INSERTS horizontal width at its principal. We walk
+    // voice-1 events left→right keeping a running `cumShift`; each cluster adds
+    // its width to cumShift BEFORE its principal is placed, so the principal AND
+    // every later note shift right by the accumulated amount (no overlap, no
+    // collapsing onto a single note). The grace glyphs are drawn in the gap that
+    // opens up just left of the shifted principal.
+    // Pure render-space — no ticks, no model mutation, no effect on other bars.
+    const GRACE_DX_CONST   = 8;   // spacing between grace note centres
+    const GRACE_PAD_CONST  = 8;   // gap between last grace centre and principal
+    const GRACE_GLYPH_W    = 3;   // clearance from the cluster's left edge
+
+    // Width a grace cluster occupies to the left of its principal.
+    const graceClusterWidth = (count) =>
+        count > 0 ? GRACE_PAD_CONST + (count - 1) * GRACE_DX_CONST + GRACE_GLYPH_W : 0;
+
+    const graceShiftById = new Map();   // eventId → total px this event shifts right
+    {
+        const v1 = (m.events || [])
+            .filter(e => !e.isRest && e.notes.length && (e.voice || 1) === 1)
+            .sort((a, b) => a.tick - b.tick);
+        let cumShift = 0;
+        v1.forEach(ev => {
+            // A cluster on THIS event widens the gap before it — add before placing.
+            cumShift += graceClusterWidth(ev.graceNotes?.length ?? 0);
+            graceShiftById.set(ev.id, cumShift);
+            // Stash on the event so svgHelpers (beams/ties) can read it without
+            // needing the per-id map — they always have the node object in scope.
+            ev._graceShift = cumShift;
+        });
+    }
+
     events.forEach(ev => {
         if (ev.isRest || !ev.notes.length) return;
 
         const vc = ev.voice === 2 ? ' voice-2' : '';
 
-        // If this event is the first in the measure and has grace notes, push it
-        // right so the grace group sits inside the bar rather than spilling left.
-        const GRACE_DX_CONST   = 8;   // spacing between grace note centres
-        const GRACE_PAD_CONST  = 7;   // gap between last grace centre and principal
-        const GRACE_GLYPH_W    = 4;   // half-width of one grace glyph from barline
-        const graceCount = ev.graceNotes?.length ?? 0;
-        const isFirstEvent = ev.tickInMeasure === 0;
-        // Shift = room for grace glyphs + gap to principal.
-        // Use glyph half-width for the first grace's clearance from the barline,
-        // then GRACE_DX for each additional grace, then the pad to the principal.
-        const graceShift = (graceCount > 0 && isFirstEvent)
-            ? GRACE_GLYPH_W + (graceCount - 1) * GRACE_DX_CONST + GRACE_PAD_CONST
-            : 0;
+        const graceShift = graceShiftById.get(ev.id) || 0;
 
         ev.notes.forEach(note => {
             if (note.string === null || note.string === undefined || note.fret === null) return;
@@ -722,9 +749,11 @@ const svgContent = computed(() => {
             const principalX    = getXm(ev.xPos) + graceShift;
             const GRACE_DX      = GRACE_DX_CONST;
             const GRACE_PAD     = GRACE_PAD_CONST;
-            const graceFontSize = Math.round(LAYOUT.noteFontSize * 0.72);
-            const graceStemBot  = LAYOUT.topStringY - 1;
-            const graceStemTop  = graceStemBot - 8;
+            const graceFontSize = Math.round(LAYOUT.noteFontSize * 0.88);
+            // Stems DOWN to match the tab-note convention (principal notes stem
+            // down too) — keeps grace notes from pointing into the chord row.
+            const graceStemTop  = LAYOUT.bottomStringY + 1;
+            const graceStemBot  = graceStemTop + 8;
             const graceFlagSize = 20;
             const n = ev.graceNotes.length;
             const isGroup = n > 1; // beam instead of individual flags
@@ -743,22 +772,22 @@ const svgContent = computed(() => {
                 // Fret number
                 html += `<text x="${x}" y="${y}" dominant-baseline="central" text-anchor="middle" font-size="${graceFontSize}" class="sbn-tab-grace-note" data-measure="${m.index}" data-event-id="${ev.id}">${g.fret}</text>`;
 
-                // Stem
-                html += `<line x1="${x}" y1="${graceStemBot}" x2="${x}" y2="${graceStemTop}" stroke="#333" stroke-width="1" opacity="0.85"/>`;
+                // Stem (down, below the strings)
+                html += `<line x1="${x}" y1="${graceStemTop}" x2="${x}" y2="${graceStemBot}" stroke="#333" stroke-width="1" opacity="0.85"/>`;
 
                 // Flag only on solo grace notes; groups get a beam below
                 if (!isGroup) {
-                    html += `<text x="${x}" y="${graceStemTop}" font-family="Bravura" font-size="${graceFlagSize}" fill="#333" class="sbn-tab-flag smufl" opacity="0.85">${SMUFL.flag8thUp}</text>`;
+                    html += `<text x="${x}" y="${graceStemBot}" font-family="Bravura" font-size="${graceFlagSize}" fill="#333" class="sbn-tab-flag smufl" opacity="0.85">${SMUFL.flag8thDown}</text>`;
                 }
 
 
             });
 
-            // Beam across grouped grace notes (inset 0.5px so stem edges don't show)
+            // Beam across grouped grace notes, drawn at the stem bottom (inset 0.5px)
             if (isGroup) {
                 const x1 = graceXs[0] - 0.5;
                 const x2 = graceXs[n - 1] +  0.5;
-                html += `<line x1="${x1}" y1="${graceStemTop}" x2="${x2}" y2="${graceStemTop}" stroke="#333" stroke-width="${LAYOUT.beamThickness * 0.6}" stroke-linecap="butt" opacity="0.85"/>`;
+                html += `<line x1="${x1}" y1="${graceStemBot}" x2="${x2}" y2="${graceStemBot}" stroke="#333" stroke-width="${LAYOUT.beamThickness * 0.6}" stroke-linecap="butt" opacity="0.85"/>`;
             }
 
             // Slur: thin curve from last grace into the principal note.

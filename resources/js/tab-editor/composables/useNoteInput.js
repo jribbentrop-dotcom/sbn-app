@@ -14,6 +14,8 @@
  */
 
 import { ref } from 'vue';
+
+// Sticky grace-entry mode — exported so TabCursor can show a visual hint.
 import { flagCount } from '../utils/constants.js';
 
 // ── Constants ──────────────────────────────────────────────
@@ -28,6 +30,10 @@ export function useNoteInput(cursor, model, wrapCommand = null, repositionMeasur
 
     const pendingDigit = ref(null);   // string '0'-'9' or null
     const pendingTimer = ref(null);   // setTimeout handle
+
+    // ── Grace mode ─────────────────────────────────────────
+
+    const graceMode = ref(false);     // when true, fret digits attach grace notes
 
     // ── Model access helpers ───────────────────────────────
 
@@ -63,8 +69,14 @@ export function useNoteInput(cursor, model, wrapCommand = null, repositionMeasur
             const fret = parseInt(digit, 10);
             pendingDigit.value = null;
             pendingTimer.value = null;
-            commitFret(fret);
+            commitPendingFret(fret);
         }, TWO_DIGIT_TIMEOUT_MS);
+    }
+
+    // Routes a committed fret to either grace or normal entry.
+    function commitPendingFret(fret) {
+        if (graceMode.value) commitGraceFret(fret);
+        else commitFret(fret);
     }
 
     // ── Fret commit ────────────────────────────────────────
@@ -183,7 +195,7 @@ export function useNoteInput(cursor, model, wrapCommand = null, repositionMeasur
             } else {
                 // Combined out of range (e.g. '1'+'9' if MAX_FRET=18) —
                 // commit the first digit, then start fresh with this digit
-                commitFret(parseInt(firstDigit, 10));
+                commitPendingFret(parseInt(firstDigit, 10));
 
                 if (digit === '1') {
                     startPendingDigit(digit);
@@ -265,6 +277,42 @@ export function useNoteInput(cursor, model, wrapCommand = null, repositionMeasur
         return targetStr; // caller must move cursor to this string
     }
 
+    // ── Grace note mutators ────────────────────────────────
+
+    function commitGraceFret(fret) {
+        const ev = getCursorEvent();
+        if (!ev || ev.isRest) return;
+        if (isNaN(fret) || fret < MIN_FRET || fret > MAX_FRET) return;
+        const stringIdx = cursor.value.stringIndex;
+
+        const doCommit = () => {
+            if (!ev.graceNotes) ev.graceNotes = [];
+            ev.graceNotes.push({ string: stringIdx, fret, pitch: null, octave: null, slash: true, slur: true });
+        };
+
+        if (wrapCommand) wrapCommand('grace', [ev.measureIdx], doCommit);
+        else doCommit();
+
+        graceMode.value = false;
+    }
+
+    function deleteGraceAtCursor() {
+        const ev = getCursorEvent();
+        if (!ev || !ev.graceNotes?.length) return false;
+        const stringIdx = cursor.value.stringIndex;
+
+        const doDelete = () => {
+            let idx = ev.graceNotes.findIndex(g => g.string === stringIdx);
+            if (idx === -1) idx = ev.graceNotes.length - 1;
+            ev.graceNotes.splice(idx, 1);
+            if (ev.graceNotes.length === 0) delete ev.graceNotes;
+        };
+
+        if (wrapCommand) wrapCommand('grace-delete', [ev.measureIdx], doDelete);
+        else doDelete();
+        return true;
+    }
+
     // ── Keyboard handler ───────────────────────────────────
 
     function handleKeydown(e) {
@@ -272,12 +320,21 @@ export function useNoteInput(cursor, model, wrapCommand = null, repositionMeasur
 
         const key = e.key;
 
+        // 'g': toggle grace-entry mode
+        if (key === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            const ev = getCursorEvent();
+            if (ev && !ev.isRest) graceMode.value = !graceMode.value;
+            clearPending();
+            return true;
+        }
+
         // Digits 0-9: fret entry (skip if modifier held — Ctrl+num = future duration keys)
         if (/^[0-9]$/.test(key) && !e.ctrlKey && !e.metaKey) {
             e.preventDefault();
             const fret = processDigit(key);
             if (fret !== null) {
-                commitFret(fret);
+                commitPendingFret(fret);
             }
             return true;
         }
@@ -290,15 +347,26 @@ export function useNoteInput(cursor, model, wrapCommand = null, repositionMeasur
                 return true;
             }
             e.preventDefault();
-            deleteNoteAtCursor();
+            if (graceMode.value) {
+                deleteGraceAtCursor();
+            } else {
+                deleteNoteAtCursor();
+            }
             return true;
         }
 
-        // Escape: cancel pending digit (navigation escape handled by useCursor)
-        if (key === 'Escape' && pendingDigit.value !== null) {
-            clearPending();
-            e.preventDefault();
-            return true;
+        // Escape: cancel grace mode or pending digit (navigation escape handled by useCursor)
+        if (key === 'Escape') {
+            if (graceMode.value) {
+                graceMode.value = false;
+                e.preventDefault();
+                return true;
+            }
+            if (pendingDigit.value !== null) {
+                clearPending();
+                e.preventDefault();
+                return true;
+            }
         }
 
         return false;
@@ -312,9 +380,12 @@ export function useNoteInput(cursor, model, wrapCommand = null, repositionMeasur
 
     return {
         pendingDigit,
+        graceMode,
         handleKeydown,
         deleteNoteAtCursor,
         commitFret,
+        commitGraceFret,
+        deleteGraceAtCursor,
         shiftNoteToString,
         dispose,
     };

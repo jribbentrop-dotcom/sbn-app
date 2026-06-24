@@ -107,8 +107,9 @@
                                         :chord-names="measure.chordNames || []"
                                         :cursor="cursorState"
                                         :bars-per-row="row._intendedCount"
-                                        :flex-pct="row._pickupPct != null ? (li === 0 ? row._pickupPct : row._regularPct) : null"
+                                        :flex-pct="row._gracePct != null ? row._gracePct[li] : (row._pickupPct != null ? (li === 0 ? row._pickupPct : row._regularPct) : null)"
                                         :pending-digit="pendingDigit"
+                                        :grace-mode="graceMode"
                                         :selected-events="selectedEvents"
                                         @cursor-mousedown-event="onCursorMousedownEvent"
                                         @cursor-mouseenter-event="onCursorMouseenterEvent"
@@ -123,7 +124,7 @@
 
                                     <!-- Fill empty slots to hold row width -->
                                     <div v-for="f in emptySlots(row)" :key="'empty-' + f"
-                                         class="sbn-tab-measure" :style="{ flex: `0 0 ${100 / row._intendedCount}%`, visibility: 'hidden' }">
+                                         class="sbn-tab-measure" :style="{ flex: `0 0 ${row._graceEmptyPct != null ? row._graceEmptyPct : (100 / row._intendedCount)}%`, visibility: 'hidden' }">
                                     </div>
                                 </div>
 
@@ -1247,6 +1248,7 @@ const {
 
 const {
     pendingDigit,
+    graceMode,
     handleKeydown: noteInputKeydown,
     shiftNoteToString,
     dispose: disposeNoteInput,
@@ -2782,6 +2784,7 @@ function measureRows(section) {
                 row._fromLineBreaks = true;
                 row._intendedCount = count;
                 _stampPickupFlexPcts(row);
+                _stampGraceFlexPcts(row);
                 rows.push(row);
                 idx += count;
             }
@@ -2791,6 +2794,7 @@ function measureRows(section) {
             row._fromLineBreaks = true;
             row._intendedCount = row.length;
             _stampPickupFlexPcts(row);
+            _stampGraceFlexPcts(row);
             rows.push(row);
         }
         return rows;
@@ -2802,6 +2806,7 @@ function measureRows(section) {
         const row = section.measures.slice(i, i + LAYOUT.measuresPerRow);
         row._intendedCount = LAYOUT.measuresPerRow;
         _stampPickupFlexPcts(row);
+        _stampGraceFlexPcts(row);
         rows.push(row);
     }
     return rows;
@@ -2840,6 +2845,57 @@ function _stampPickupFlexPcts(row) {
     const ratio = Math.min(1, Math.max(0.05, first.pickupBeats / globalBpm));
     row._pickupPct  = (100 / N) * ratio * 2;
     row._regularPct = N > 1 ? (100 - row._pickupPct) / (N - 1) : 100;
+}
+
+/**
+ * Total px a bar's grace clusters demand (sum of cluster widths across events).
+ * Must match the cluster-width formula in TabMeasure.vue's grace renderer.
+ */
+function _graceWidthPx(measure) {
+    const GRACE_DX = 8, GRACE_PAD = 8, GRACE_GLYPH_W = 3;  // keep in sync with TabMeasure.vue
+    let total = 0;
+    for (const ev of (measure.events || [])) {
+        const c = ev.graceNotes?.length ?? 0;
+        if (c > 0) total += GRACE_PAD + (c - 1) * GRACE_DX + GRACE_GLYPH_W;
+    }
+    return total;
+}
+
+/**
+ * Proportional flex redistribution for rows containing grace notes.
+ *
+ * Each bar gets a "demand" = base (weighted by content density so busy bars
+ * resist shrinking) + grace demand (px width / standard bar width). Flex % is
+ * each bar's demand share of the row total, so the row stays exactly 100% wide:
+ * grace bars grow, slack (long-note) bars give up their room. Per-bar flex % is
+ * stamped onto row._gracePct[] and read by the template.
+ *
+ * Skipped when the row has a pickup (that owns its own flex %) or has no grace.
+ */
+function _stampGraceFlexPcts(row) {
+    row._gracePct = null;
+    if (row._pickupPct != null) return;               // pickup rows own their flex
+    if (!row.some(m => _graceWidthPx(m) > 0)) return; // no grace → leave uniform
+
+    const N = row._intendedCount || row.length;
+    const stdBar = LAYOUT.measureWidth || 160;
+
+    const demands = row.map(m => {
+        const eventCount = (m.events || []).filter(e => !e.isRest).length;
+        // Base: 0.7 (sparse) → ~1.4 (busy) so width is stolen mostly from slack bars.
+        const base = 0.6 + 0.1 * Math.min(eventCount, 8);
+        const grace = _graceWidthPx(m) / stdBar;
+        return base + grace;
+    });
+
+    // Account for empty padding slots (fallback rows) so the row still sums to 100%.
+    const emptyCount = Math.max(0, N - row.length);
+    const baseEmpty = 1.0;  // each hidden slot holds a uniform share
+    const total = demands.reduce((a, b) => a + b, 0) + emptyCount * baseEmpty;
+    if (total <= 0) return;
+
+    row._gracePct      = demands.map(d => (d / total) * 100);
+    row._graceEmptyPct = (baseEmpty / total) * 100;
 }
 
 /**

@@ -54,6 +54,7 @@ export function useUndo(model) {
                     delete clonedNote.tieEndNote;
                     return clonedNote;
                 }),
+                graceNotes: ev.graceNotes ? ev.graceNotes.map(g => ({ ...g })) : undefined,
                 // beamWith is an array of refs to sibling events in the same measure.
                 // After restore we re-link beamWith by id, so don't clone it here.
                 beamWith: null,
@@ -82,7 +83,11 @@ export function useUndo(model) {
         delete measure.pickupBar;
         // Replace events array contents in-place (keeps the same array reference
         // so TabMeasure's v-for doesn't fully remount)
-        measure.events.splice(0, measure.events.length, ...snap.events.map(ev => ({ ...ev, notes: ev.notes.map(n => ({ ...n })) })));
+        measure.events.splice(0, measure.events.length, ...snap.events.map(ev => ({
+            ...ev,
+            notes:      ev.notes.map(n => ({ ...n })),
+            graceNotes: ev.graceNotes ? ev.graceNotes.map(g => ({ ...g })) : undefined,
+        })));
         // Re-link beamWith within the restored events (by id)
         relinkBeamWith(measure.events);
     }

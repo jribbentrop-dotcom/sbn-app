@@ -41,6 +41,7 @@
             :class="{
                 'sbn-cursor-ring--input':   !readOnly && (cursor.mode === 'input' || pendingDigit !== null),
                 'sbn-cursor-ring--pending': !readOnly && pendingDigit !== null,
+                'sbn-cursor-ring--grace':   !readOnly && graceMode,
             }"
         />
 
@@ -138,6 +139,11 @@ const props = defineProps({
         type: String,
         default: null,
     },
+    /** Grace-entry mode active — tints the cursor ring green. */
+    graceMode: {
+        type: Boolean,
+        default: false,
+    },
     /**
      * Phase 7g: Set<eventId> of events selected by Shift+Arrow.
      * Rendered as dimmed orange columns so the user sees the selection range.
@@ -196,7 +202,9 @@ function getEvX(ev) {
     const offset = props.pickupXOffset;
     const range  = 1 - offset || 1;
     const normalized = offset > 0 ? (ev.xPos - offset) / range : ev.xPos;
-    return xL + normalized * xRng;
+    // Add the grace-note horizontal shift (stashed on the event by TabMeasure's
+    // precompute) so the cursor ring / hit targets track the rendered note.
+    return xL + normalized * xRng + (ev._graceShift || 0);
 }
 
 function stringYForHit(s) {
@@ -302,6 +310,13 @@ function onRestLeave(ev, event) {
 .sbn-cursor-ring--pending {
     stroke-dasharray: 3 2;
     animation: sbn-cursor-pending-pulse 0.6s ease-in-out infinite alternate;
+}
+
+.sbn-cursor-ring--grace {
+    stroke: #27ae60;
+    fill: none;
+    stroke-width: 1.5;
+    stroke-dasharray: 4 2;
 }
 
 @keyframes sbn-cursor-pending-pulse {

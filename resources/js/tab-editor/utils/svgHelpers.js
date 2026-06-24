@@ -97,8 +97,8 @@ export function renderBeams(measureEvents, getXFn) {
     beamGroups.forEach(bg => {
         if (bg.length < 2) return;
         const stemDir  = bg[0].stemDir || 'down';
-        const x1       = getXFn(bg[0].xPos);
-        const x2       = getXFn(bg[bg.length - 1].xPos);
+        const x1       = getXFn(bg[0].xPos) + (bg[0]._graceShift || 0);
+        const x2       = getXFn(bg[bg.length - 1].xPos) + (bg[bg.length - 1]._graceShift || 0);
         const vc       = bg[0].voice === 2 ? ' voice-2' : '';
         // noBeamBar: quarter-triplet groups use stems only — no connecting beam rect
         const noBeamBar = !!bg[0].noBeamBar;
@@ -116,7 +116,7 @@ export function renderBeams(measureEvents, getXFn) {
         // Draw stems for each note in the group (skip rests — they don't have stems)
         bg.forEach(n => {
             if (n.isRest) return;
-            const x = getXFn(n.xPos);
+            const x = getXFn(n.xPos) + (n._graceShift || 0);
             html += `<line x1="${x}" y1="${baseY}" x2="${x}" y2="${tipY}" class="sbn-tab-stem${vc}"/>`;
         });
 
@@ -132,8 +132,8 @@ export function renderBeams(measureEvents, getXFn) {
             // Span from first to last member of the group (not just notes)
             const spanFirst = isTupletGroup ? bg[0] : notesOnly[0];
             const spanLast  = isTupletGroup ? bg[bg.length - 1] : notesOnly[notesOnly.length - 1];
-            const bx1 = getXFn(spanFirst.xPos);
-            const bx2 = getXFn(spanLast.xPos);
+            const bx1 = getXFn(spanFirst.xPos) + (spanFirst._graceShift || 0);
+            const bx2 = getXFn(spanLast.xPos) + (spanLast._graceShift || 0);
             // Primary beam (8th-note level) — flush with stem tips
             const primaryBeamY = stemDir === 'down'
                 ? tipY - LAYOUT.beamThickness
@@ -165,8 +165,8 @@ export function renderBeams(measureEvents, getXFn) {
                             b2Group.push(n);
                         } else if (n.beam2 === 'end' && b2Group.length) {
                             b2Group.push(n);
-                            const bx1 = getXFn(b2Group[0].xPos);
-                            const bx2 = getXFn(b2Group[b2Group.length - 1].xPos);
+                            const bx1 = getXFn(b2Group[0].xPos) + (b2Group[0]._graceShift || 0);
+                            const bx2 = getXFn(b2Group[b2Group.length - 1].xPos) + (b2Group[b2Group.length - 1]._graceShift || 0);
                             html += `<rect x="${bx1}" y="${beam2Y}" width="${bx2 - bx1}" height="${LAYOUT.beamThickness}" fill="#333" class="sbn-tab-beam-2${vc}"/>`;
                             b2Group = [];
                         }
@@ -183,12 +183,12 @@ export function renderBeams(measureEvents, getXFn) {
 
                         if (prevIs16 || nextIs16) {
                             if (nextIs16) {
-                                const bx1 = getXFn(n.xPos);
-                                const bx2 = getXFn(bg[i + 1].xPos);
+                                const bx1 = getXFn(n.xPos) + (n._graceShift || 0);
+                                const bx2 = getXFn(bg[i + 1].xPos) + (bg[i + 1]._graceShift || 0);
                                 html += `<rect x="${bx1}" y="${beam2Y}" width="${bx2 - bx1}" height="${LAYOUT.beamThickness}" fill="#333" class="sbn-tab-beam-2${vc}"/>`;
                             }
                         } else {
-                            const nx = getXFn(n.xPos);
+                            const nx = getXFn(n.xPos) + (n._graceShift || 0);
                             if (i < bg.length - 1) {
                                 html += `<rect x="${nx}" y="${beam2Y}" width="${PARTIAL_BEAM_LEN}" height="${LAYOUT.beamThickness}" fill="#333" class="sbn-tab-beam-2${vc}"/>`;
                             } else {
@@ -282,16 +282,16 @@ export function renderTies(measureEvents, globalMeasureIdx, getXFn, measureWidth
             if (!note.tieStart || !note.tieEndEvent) return;
 
             const y = stringY(note.string);
-            const x1 = getXFn(ev.xPos) + 6;
+            const x1 = getXFn(ev.xPos) + (ev._graceShift || 0) + 6;
 
             if (note.tieEndEvent.measureIdx === globalMeasureIdx) {
                 // Same-measure tie — target is in this measure
-                const x2 = getXFn(note.tieEndEvent.xPos) - 6;
+                const x2 = getXFn(note.tieEndEvent.xPos) + (note.tieEndEvent._graceShift || 0) - 6;
                 html += tieArc(x1, x2, y, dir, voice);
             } else if (getNextXFn && note.tieEndNote) {
                 // Cross-measure tie — compute target X in next measure's space,
                 // then offset by this measure's width so it bleeds past the barline
-                const targetLocalX = getNextXFn(note.tieEndEvent.xPos) - 6;
+                const targetLocalX = getNextXFn(note.tieEndEvent.xPos) + (note.tieEndEvent._graceShift || 0) - 6;
                 const x2 = measureWidth + targetLocalX;
                 html += tieArc(x1, x2, y, dir, voice);
             } else {
