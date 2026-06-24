@@ -33,6 +33,7 @@ function logout(e: Event) {
         <nav class="sbn-account-nav">
             <Link href="/account" class="sbn-account-nav-link" :class="{ 'is-active': current === '/account' }">Dashboard</Link>
             <Link href="/account/courses" class="sbn-account-nav-link" :class="{ 'is-active': isActive('/account/courses') }">My Courses</Link>
+            <Link href="/account/skills" class="sbn-account-nav-link" :class="{ 'is-active': isActive('/account/skills') }">My Skills</Link>
             <Link href="/account/orders" class="sbn-account-nav-link" :class="{ 'is-active': isActive('/account/orders') }">Orders</Link>
             <Link href="/account/profile" class="sbn-account-nav-link" :class="{ 'is-active': isActive('/account/profile') }">Profile</Link>
             <Link v-if="!isInstructor" href="/account/messages" class="sbn-account-nav-link" :class="{ 'is-active': isActive('/account/messages') }">

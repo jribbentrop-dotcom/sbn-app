@@ -9,8 +9,14 @@ const user = computed(() => page.props.auth?.user);
 <template>
   <div class="user-menu">
     <template v-if="user">
-      <!-- Standard anchor tag to drop out of Inertia and load the Blade backend -->
-      <a href="/admin" class="text-sm font-medium">{{ user.name || 'Dashboard' }}</a>
+      <template v-if="user.is_instructor">
+        <a href="/admin" class="text-sm font-medium">{{ user.name || 'Admin' }}</a>
+        <span class="user-menu-sep" aria-hidden="true">·</span>
+        <Link href="/account" class="text-sm font-medium">Account</Link>
+      </template>
+      <template v-else>
+        <Link href="/account" class="text-sm font-medium">{{ user.name || 'Account' }}</Link>
+      </template>
     </template>
     <template v-else>
       <Link href="/login" class="text-sm font-medium">Log in</Link>

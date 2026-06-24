@@ -26,6 +26,7 @@ use App\Http\Controllers\Library\TheoryController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\Account\AccountController;
 use App\Http\Controllers\Account\MessageController;
+use App\Http\Controllers\Account\SkillController;
 use App\Http\Controllers\CommunityController;
 use App\Http\Controllers\Admin\MessageController as AdminMessageController;
 use App\Http\Controllers\Admin\CommunityController as AdminCommunityController;
@@ -84,6 +85,9 @@ Route::middleware('auth')->prefix('account')->name('account.')->group(function (
     Route::get('/profile', [AccountController::class, 'profile'])->name('profile');
     Route::patch('/profile', [AccountController::class, 'updateProfile'])->name('profile.update');
     Route::post('/profile/avatar', [AccountController::class, 'uploadAvatar'])->name('profile.avatar');
+
+    Route::get('/skills', [SkillController::class, 'index'])->name('skills');
+    Route::post('/skills/{skillNode:slug}/toggle', [SkillController::class, 'toggle'])->name('skills.toggle');
 
     Route::get('/messages', [MessageController::class, 'index'])->name('messages');
     Route::post('/messages/start-dm', [MessageController::class, 'startDm'])->name('messages.start-dm');

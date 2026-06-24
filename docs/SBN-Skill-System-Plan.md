@@ -366,6 +366,76 @@ Emergent identity, automatically awarded when threshold of relevant nodes is met
 
 ---
 
+## Grade ↔ Skill Node Bridge (decided 2026-06-24)
+
+The 5 difficulty grades (`basic` → `advanced`) and the skill node graph are currently two separate
+systems. **Design decision: nodes are the fine-grained step structure *inside* each grade transition.**
+Grades are the big chapters; nodes are the sentences within them.
+
+**Chosen model (Option B — nodes define grade thresholds):**
+Each grade boundary is defined by a set of skill nodes that must be completed to "enter" that grade.
+Concretely: a student is considered **grade 3 (Intermediate)** when they have completed the threshold
+node set for grade 3. The grade is soft-computed from node progress, not a manually assigned field.
+
+Implementation sketch (not yet built):
+- Add a nullable `grade` int (1–5) column to `sbn_skill_nodes` — the grade this node *belongs to*
+  (i.e. mastering it is part of reaching that grade). A node may span two grades; `grade` is its
+  primary placement.
+- Add a `grade_min` / `grade_max` pair (nullable ints) as an alternative if placement range matters
+  more than a single assignment (e.g. `shell-voicings` sits at grade 2–3).
+- Grade threshold = a sufficient subset of that grade's nodes being completed. Exact threshold
+  percentages are a tuning problem (defer, same class as style class thresholds).
+- The grades page (`/grades`) currently shows content filtered by a fixed `difficulty` int on each
+  content row. Once node-progress exists it can add a "your level" indicator derived from node
+  completion — no schema change to content rows needed.
+
+This is **not yet built** — the column additions + threshold logic are the next schema step after
+the icon system is settled.
+
+---
+
+## Icon System (decided 2026-06-24)
+
+Skill nodes need icons for the tree view, node landing pages, and inline badges wherever nodes appear
+around the app.
+
+**Two-tier approach:**
+
+### Tier 1 — Branch icons (Heroicons, permanent)
+Six branch-level icons using inline Heroicons SVGs (same style as the mega menu: `stroke-width="1.5"`,
+`stroke="currentColor"`, 24×24). These are meaningful, consistent, and done:
+
+| Branch | Heroicon |
+|---|---|
+| Harmony | `musical-note` |
+| Rhythm | `clock` (or `adjustments-horizontal`) |
+| Melody | `microphone` |
+| Technique | `hand-raised` |
+| Ear Training | `speaker-wave` |
+| Reading & Theory | `book-open` |
+
+### Tier 2 — Per-node icons (placeholder → custom)
+Individual nodes need purpose-drawn icons (`tritone-substitution`, `drop2-voicings`, etc. don't exist
+in any general icon library). **Two-phase plan:**
+
+**Phase A (now):** Add two nullable columns to `sbn_skill_nodes`:
+```
+icon_key   TEXT NULL   -- Heroicon name used as placeholder, e.g. "musical-note"
+icon_path  TEXT NULL   -- Custom SVG path, e.g. "images/skills/shell-voicings.svg" — takes priority
+```
+A small Vue component (`SkillIcon.vue`) renders: if `icon_path` is set → `<img>`, else → inline
+Heroicon SVG looked up by `icon_key`, else → branch icon fallback. Nodes within the same branch
+default to the branch icon until a specific one is assigned.
+
+**Phase B (design task):** Custom per-node SVG icons created in Canva or Illustrator, exported as
+SVGs, dropped into `public/images/skills/`, and the `icon_path` column updated. No code change
+required — the component already handles it.
+
+This means the frontend tree and node landing pages can be built now using Heroicon placeholders,
+and the icon upgrade is a pure design/content task that doesn't touch any Vue components.
+
+---
+
 ## Open Decisions (TBD)
 
 | # | Question | Status |
@@ -375,6 +445,7 @@ Emergent identity, automatically awarded when threshold of relevant nodes is met
 | 7 | Where does repertoire ownership live in the user profile? | TBD (post-v1; repertoire is not in v1) |
 | — | Quiz format and completion threshold | Deferred (v1 = self-report only) |
 | — | Style class trigger thresholds (how many nodes = class awarded?) | Deferred out of v1 |
+| — | Grade threshold percentages (what % of a grade's nodes = you've reached that grade?) | Deferred — same tuning-problem class as style class thresholds |
 | — | Affiliate link strategy for external repertoire | Deferred (repertoire post-v1) |
 | — | Split large courses into per-skill micro-courses (e.g. Bossa Nova Chords II → separate Shell/Drop 2/Drop 3 courses) for "chewable bite" discoverability? | **Discussed & rejected 2026-06-23.** The many-to-many pivot already lets one course teach many nodes without forcing 1:1 alignment; splitting would 3x content-ops overhead (excerpt/description/image/SEO per micro-course) and fragment the narrative path. Chosen alternative: build the skill node landing page (Phase 2, above) as the addressable "chewable" entry point, deep-linking into the existing course via section anchors instead of relocating the content. |
 
@@ -478,7 +549,14 @@ In rough priority order, once the taxonomy is curated:
    `scripts/deploy_db.sh`, or the next content deploy will wipe real user progress.
 4. **Style classes** — the deferred tables + auto-award logic. Treat thresholds as a tuning problem.
 5. **Repertoire nodes** — the deferred tables + acquisition types + affiliate links.
-6. **Graph visualization** — admin force-directed view, once node count justifies it.
+6. **Graph visualization (student-facing skill tree)** — NOT a force-directed auto-layout.
+   Target design: FC26-style node graph — hexagonal/diamond tiles with icons, connector lines
+   showing prerequisite edges, lock overlay on unmet prerequisites, glow/highlight on completed
+   nodes. Fixed hand-laid x/y positions per node (designed, not computed). Probably SVG-based.
+   Requires: (a) x/y position columns on `sbn_skill_nodes`, (b) a layout design pass per branch
+   in the admin editor, (c) a Vue SVG component that draws edges + tiles. **Take to Opus before
+   building** — architecture decision (SVG vs canvas vs CSS grid with absolute positioning) and
+   layout strategy need to be settled first. See FC26 screenshot reference (2026-06-24).
 
 ---
 
