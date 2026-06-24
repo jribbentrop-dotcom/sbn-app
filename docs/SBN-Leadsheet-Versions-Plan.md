@@ -310,3 +310,161 @@ risky in-place prod content migration. `migrate --force` on prod only runs schem
 ### Out of scope / carry-forward (don't fix in this work)
 - `section_id` always null in occurrences (pre-existing) — preserve behaviour.
 - Exercises versioning — Exercises stay single-version; only confirm they're unaffected.
+
+---
+
+## 8. Chord-TAB layer (Axis B) — implementation plan
+
+Status: **design agreed 2026-06-24, ready to implement.** This is the second notated
+TAB layer (`chord_tab_xml`) — the comping/rhythm staff alongside the melody staff,
+**within one version row**. It is NOT a second version (sibling row) and NOT a second
+song-library entry — it is invisible as a standalone leadsheet, switched by a sub-toggle
+inside the editor/viewer Tab view.
+
+### 8.0 Why a column, not a hidden version row (decision)
+A second TAB layer is the *same* arrangement viewed two ways (melody-tab vs comping-tab),
+sharing the version's key/form/progressions/voicing caches. Storing it as a hidden sibling
+`sbn_leadsheet_versions` row would create a phantom arrangement that leaks into
+`versions()` relations, the dropdown, `versions_count` badges, and spawns duplicate
+`sbn_voicing_usage` / `sbn_progression_occurrences` rows that double-count the same song's
+harmony. The `chord_tab_xml` column (already in the schema, §2.2) avoids all of that: one
+identity, one set of detection caches, two notation payloads.
+
+### 8.1 Already shipped — no work
+- `chord_tab_xml` column on `sbn_leadsheet_versions` (migration `…000002`).
+- `LeadsheetVersion::getHasChordTabAttribute()` — the authored-yet gate (mirrors `tabHasData`).
+- `LeadsheetVersion::getHasMelodyTabAttribute()`.
+- Version-aware `edit(?v=slug)` / `update(?v=slug)` in `LeadsheetController` (stage 6).
+- `update()` already dual-writes `melody_tab_xml` on the active version from the incoming
+  `tab_xml` (`LeadsheetController.php` ~:888) — the version-write plumbing exists; today it
+  only ever targets the melody column.
+
+### 8.2 Core architectural fact
+
+> **CORRECTION (2026-06-24, as-built).** The original §8.2 premise — "route a different
+> `tabXml` string through `_dispatchTabInit()` and the model reloads" — was **wrong**, and
+> that wrong premise was the data-loss bug. The Vue tab model does **not** build its staff
+> from the `tabXml` string. `useAlpineBridge.handleTabInit` sets `melody.value =
+> d.parsed.melody` and `useTabModel.buildModel()` reads `melody.value`; the `tabXml` string
+> is **only** the save-serializer's output (`modelToMusicXml(model.value)`), never an input
+> to the model. So swapping only the `tabXml` string left both layers rendering the **same
+> melody notes**, and a chord-layer save serialized those melody-derived notes back over
+> `chord_tab_xml`. Symptom the user hit: *"importing the melody overwrites the chords too."*
+
+**As-built mechanism.** The two layers share **one structure** (`parsed.sections` / chord
+grid / `chordVoicings` / key / TS / repeats / videoSync — the MuseScore-two-instruments model)
+and differ only in the **staff notes**. The staff notes live in `parsed.melody`. So a layer
+switch must put the **active layer's notes** into `parsed.melody` before reload:
+
+- `_graftLayerNotes(layerXml)` (`edit.blade.php`) parses the layer's XML → `melody` notes,
+  spreads them onto the shared `parsed` skeleton (`{ ...skeleton, melody: notes }`), and
+  warns (does not block) on a bar-count mismatch — first import defines the structure of
+  record. Reassigns `parsed` by reference so `$watch('parsed')` + the bridge fire as on a
+  fresh import. Then `_dispatchTabInit()` reloads (same route `sbn-rhythm-applied` uses).
+- `melodyTabXml` / `chordTabXml` remain the **persistence** strings (parse-in on import/load,
+  serialize-out on save) — they are not the model's data source on their own.
+
+**`json_data` is the melody-layer's data, full stop.** A chord-layer save must NOT pull
+`sections`/`melody`/shortcode from the live Vue model (it holds chord-staff events then).
+`save()` and `shortcodeOutput` gate the `window.__sbnTabModel` reads on `activeTabLayer !==
+'chord'`; `_melodyLayerJsonMelody` preserves the melody notes across a chord-layer edit so
+`json_data.melody` is never clobbered with chord notes.
+
+### 8.3 Steps
+
+**Step 1 — Editor Tab-layer sub-switch (Vue, `TabEditor.vue`)**
+- Add `tabLayer = ref('melody')` (`'melody' | 'chord'`). Render a Melody/Chord pill **only
+  when `viewMode === 'tab'`** so the top bar stays Chords | Tab | Analysis (per user: "opens
+  in the tab sub switch", not a 4th top-level tab).
+- `provide('tabLayer', …)` + a `setTabLayer()` setter. On switch, clear `inlineRenameTarget`
+  (same as `setViewMode` does) to avoid a stale open rename input.
+- The pill for "Chord" is always visible in the editor (authoring surface); the viewer hides
+  it until `hasChordTab` (Step 6).
+
+**Step 2 — Alpine shell holds both strings (`edit.blade.php`)**
+- Split `tabXml` into `melodyTabXml` + `chordTabXml`. Keep `tabXml` as a computed alias =
+  the active layer's string to minimise churn through the existing save/init code.
+- Add `activeTabLayer` (one-way mirror from Vue, same pattern as `alpineViewMode`).
+- Seed `chordTabXml` from `ls.chord_tab_xml` alongside the existing `ls.tab_xml` seed (~:2023).
+- `_dispatchTabInit()` (~:2120) sends the **active layer's** XML as `tabXml` (via the alias).
+
+**Step 3 — Layer switch = serialize-out-then-load-in (reuse rhythm-applied reload)**
+New event `sbn-tab-layer-changed` (Vue→Alpine). On switch, in order:
+1. Vue serializes current layer → round-trip via existing `sbn-tab-save-request` /
+   `sbn-tab-save-response` → Alpine stores result into the **outgoing** layer's string.
+2. Alpine sets the active layer to incoming, resets `_tabInitDone` / `_tabVueInitialized`
+   (exactly as the `sbn-rhythm-applied` handler ~:1636 does), calls `_dispatchTabInit()`.
+3. Vue rebuilds the model from the incoming layer's XML.
+The 3s `sbn-tab-save-response` timeout guard (~:2638) applies — if serialize times out,
+abort the switch and keep the current layer (do NOT load incoming over an unsaved outgoing).
+
+**Step 4 — Save writes both columns**
+- `save()` (~:2510): ensure the active layer is serialized (already happens); the inactive
+  layer keeps its last-known string. POST **both** `melody_tab_xml` and `chord_tab_xml`.
+- `LeadsheetController::update()` (~:888): write `melody_tab_xml` (as today) AND
+  `chord_tab_xml` from the new payload onto `$activeVersion`. Add `chord_tab_xml` to
+  validation (~:1539, mirror the `tab_xml` `nullable|string` rule). Keep the legacy
+  `tab_xml` dual-write on the leadsheet for **melody only** — chord-TAB has no legacy
+  column (new data), that's correct.
+- **Detection caveat (do not "fix" later):** `VoicingCrossref::processLeadsheet()` and
+  `ProgressionDetector` run off `json_data`, NOT tab XML. Authoring `chord_tab_xml` must
+  NOT touch voicing/progression caches. Confirm no detection pass keys off `chord_tab_xml`
+  and note it in the commit message.
+
+**Step 5 — Import / generate into the chord layer**
+- 5a (primary): the existing MusicXML file-drop import (~:1833) writes to the **active**
+  layer's string. Minimal change: target the active layer, not unconditionally
+  `melodyTabXml`. So: switch to Chord layer → drop MusicXML → parses into `chord_tab_xml`.
+- 5b (fast follow): a "Generate from voicings" button on the Chord layer that calls the
+  existing Apply Rhythm pipeline (`VoicingMaterializer` → materialized `tab_xml`) and routes
+  its output into `chord_tab_xml` instead of melody. Reuses `applyRhythm()` wholesale; only
+  the destination column changes. Build 5a first.
+
+**Step 6 — Viewer toggle (`LeadsheetViewer.vue` + `SongLibraryController`)**
+- `mode` toggle is `'no-chords' | 'chords' | 'tab'`. Add the Melody/Chord distinction
+  within the `'tab'` state, gated on the already-plumbed `hasChordTab` prop (hide Chord when
+  null). Reads `chord_tab_xml` off the active version.
+- `SongLibraryController` `viewer` / `apiViewerData`: pass `chord_tab_xml` + `hasChordTab`
+  for the active version (`?v=` resolution already exists). Can ship after Steps 1–5.
+
+### 8.4 Risks
+- **Highest: switch/save ordering (Steps 3–4).** Serialize-outgoing-BEFORE-load-incoming
+  must be airtight or edits are lost — this is the exact class of bug commit `17b5acf`
+  ("restore arrangement overwritten by stale-editor save") already hit. Abort-on-timeout
+  is mandatory, not optional.
+- **Scope split:** Steps 1–5 (editor + storage) are the core deliverable; Step 6 (viewer)
+  can ship separately. No schema, no migration — frontend + one controller method + one
+  validation rule.
+- **Test matrix:** author melody → switch to chord → import XML → switch back → save →
+  reload; both layers must survive independently. Verify `versions_count` / dropdown
+  unchanged (no phantom row) and detection caches unchanged when only `chord_tab_xml` edits.
+
+---
+
+## 9. Editor chrome + tab-data merge (SHIPPED 2026-06-24)
+
+- **Tab bar** (`TabEditor.vue`): layers promoted to top-level tabs —
+  **Grid | Chords | Melody | Analysis | 🎬 Video**. `Grid` = chord-cell grid
+  (`viewMode='chords'`); `Chords` = Tab-II (`chord_tab_xml`, `tabLayer='chord'`);
+  `Melody` = Tab-I (`melody_tab_xml`, `tabLayer='melody'`). `selectTabLayerView()` enters tab
+  view + runs the layer switch. Nested pills removed. External `sbn-tab-set-layer` event lets
+  Alpine drive the switch.
+- **Actions dropdown** (`edit.blade.php` `@section('actions')`): Import MusicXML → Melody /
+  → Chords (switches layer first via `sbn-import-into`, then opens the picker), Merge sheets…,
+  Save as Exercise. Loose import/exercise buttons removed.
+- **Merge — Phase 1 (tab-data into one version's two layers):**
+  `LeadsheetController::mergeVersions()` + `mergeSourceList()`; routes
+  `admin.leadsheets.merge-{versions,sources}`. Pick a **mother** version (target, this song) +
+  a **melody source** + a **chords source**; each source's single tab → the mother's
+  melody/chord layer. Mother's `json_data`/grid kept verbatim; **no detection run** (tab XML
+  doesn't drive caches). Source-list aliases are `tab_melody`/`tab_chord` — must stay
+  accessor-free (the model's `getHasMelody*Attribute` would otherwise shadow a `has_*` alias
+  with grid-melody logic; this was a real bug, fixed).
+
+### 9.1 NEXT SESSION — Axis-A leadsheet merge (different from §9 Phase 1)
+Merge two **separate leadsheets** (two song rows) into **one leadsheet with two versions** —
+song B becomes a sibling *arrangement* (dropdown) under song A, B's row removed. This is the
+arrangement axis, not the two-staff axis. Blast radius = the §1.1 FK graph: re-point B's
+`sbn_voicing_usage` / `sbn_voicing_drafts` / `sbn_progression_occurrences` (both `leadsheet_id`
+AND `version_id`) onto A; decide B's slug fate (delete vs redirect). UI feature version of the
+`faa4290` "merge duplicate song rows" SQL.

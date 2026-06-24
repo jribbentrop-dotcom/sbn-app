@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Leadsheet;
+use App\Models\LeadsheetVersion;
 use App\Models\RhythmPattern;
 use App\Models\SbnTag;
 use App\Models\JazzStandard;
@@ -886,6 +887,7 @@ class LeadsheetController extends Controller
             $versionUpdate = [
                 'json_data'         => $validated['json_data'] ?? $activeVersion->json_data,
                 'melody_tab_xml'    => $validated['tab_xml'] ?? $activeVersion->melody_tab_xml,
+                'chord_tab_xml'     => array_key_exists('chord_tab_xml', $validated) ? ($validated['chord_tab_xml'] ?? null) : $activeVersion->chord_tab_xml,
                 'shortcode_content' => $shortcode,
                 'song_key'          => ($validated['song_key'] ?? '') !== '' ? $validated['song_key'] : $activeVersion->song_key,
                 'rhythm'            => $validated['rhythm'] ?? $activeVersion->rhythm,
@@ -935,6 +937,100 @@ class LeadsheetController extends Controller
         $leadsheet->delete();
 
         return response()->json(['success' => true, 'message' => 'Leadsheet deleted.']);
+    }
+
+    // =========================================================================
+    // VERSION MERGE (Phase 1) — combine two single-tab arrangements into one
+    // version's two notation layers (melody_tab_xml + chord_tab_xml).
+    // =========================================================================
+
+    /**
+     * Flat list of all arrangements for the merge modal's selects.
+     * One row per version: which song, label, and which tab layers it has.
+     */
+    public function mergeSourceList()
+    {
+        $rows = LeadsheetVersion::query()
+            ->join('sbn_leadsheets as l', 'l.id', '=', 'sbn_leadsheet_versions.leadsheet_id')
+            ->orderBy('l.title')
+            ->orderBy('sbn_leadsheet_versions.difficulty')
+            ->orderBy('sbn_leadsheet_versions.sort_order')
+            ->get([
+                'sbn_leadsheet_versions.id',
+                'sbn_leadsheet_versions.leadsheet_id',
+                'sbn_leadsheet_versions.version_slug',
+                'sbn_leadsheet_versions.label',
+                'sbn_leadsheet_versions.performer',
+                'l.title as song_title',
+                'l.slug as song_slug',
+                // Aliases must NOT collide with the model's has*Attribute accessors
+                // (getHasMelody/HasMelodyTab/HasChordTab), which would shadow the SQL
+                // value. `tab_*` are accessor-free, so the raw 0/1 passes through.
+                DB::raw("CASE WHEN COALESCE(sbn_leadsheet_versions.melody_tab_xml, '') <> '' THEN 1 ELSE 0 END as tab_melody"),
+                DB::raw("CASE WHEN COALESCE(sbn_leadsheet_versions.chord_tab_xml,  '') <> '' THEN 1 ELSE 0 END as tab_chord"),
+            ]);
+
+        return response()->json(['versions' => $rows]);
+    }
+
+    /**
+     * Merge two source arrangements' tab data into a "mother" version's two layers.
+     *
+     * The mother version is the structure of record — its json_data/grid is kept
+     * verbatim. We only write the two tab XML strings: the melody source's single
+     * tab → mother.melody_tab_xml, the chords source's single tab → mother.chord_tab_xml.
+     * Each source's "single tab" is whichever of its two columns is populated.
+     *
+     * No detection runs: voicing/progression caches key off json_data (unchanged),
+     * not tab XML. So a merge never touches sbn_voicing_usage / occurrences.
+     */
+    public function mergeVersions(Request $request, Leadsheet $leadsheet)
+    {
+        $validated = $request->validate([
+            'mother_version_slug' => 'required|string',
+            'melody_version_id'   => 'required|integer|exists:sbn_leadsheet_versions,id',
+            'chord_version_id'    => 'required|integer|exists:sbn_leadsheet_versions,id',
+        ]);
+
+        $mother = $leadsheet->versions()
+            ->where('version_slug', $validated['mother_version_slug'])
+            ->first();
+        if (! $mother) {
+            return response()->json(['success' => false, 'message' => 'Mother arrangement not found on this song.'], 422);
+        }
+
+        $melodySrc = LeadsheetVersion::find($validated['melody_version_id']);
+        $chordSrc  = LeadsheetVersion::find($validated['chord_version_id']);
+
+        // Each source is a single-tab arrangement: take whichever tab column it has.
+        $melodyXml = $melodySrc->melody_tab_xml ?: $melodySrc->chord_tab_xml;
+        $chordXml  = $chordSrc->melody_tab_xml  ?: $chordSrc->chord_tab_xml;
+
+        if (! $melodyXml || ! $chordXml) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Both sources must contain tab notation to merge.',
+            ], 422);
+        }
+
+        $mother->update([
+            'melody_tab_xml' => $melodyXml,
+            'chord_tab_xml'  => $chordXml,
+        ]);
+
+        // Dual-write the legacy melody column on the work (read fallback), mirroring update().
+        if ($mother->id === $leadsheet->default_version_id) {
+            $leadsheet->update(['tab_xml' => $melodyXml]);
+        }
+
+        return response()->json([
+            'success'  => true,
+            'message'  => 'Merged into "' . ($mother->label ?: 'Basic') . '".',
+            'redirect' => route('admin.leadsheets.edit', [
+                'leadsheet' => $leadsheet,
+                'v'         => $mother->version_slug,
+            ]),
+        ]);
     }
 
     // =========================================================================
@@ -1103,6 +1199,7 @@ class LeadsheetController extends Controller
         if ($activeVersion) {
             $leadsheet->setAttribute('json_data',         $activeVersion->json_data ?? $leadsheet->json_data);
             $leadsheet->setAttribute('tab_xml',           $activeVersion->melody_tab_xml ?? $leadsheet->tab_xml);
+            $leadsheet->setAttribute('chord_tab_xml',     $activeVersion->chord_tab_xml);
             $leadsheet->setAttribute('shortcode_content', $activeVersion->shortcode_content ?? $leadsheet->shortcode_content);
             $leadsheet->setAttribute('song_key',          $activeVersion->song_key ?: $leadsheet->song_key);
             $leadsheet->setAttribute('rhythm',            $activeVersion->rhythm ?: $leadsheet->rhythm);
@@ -1537,6 +1634,7 @@ class LeadsheetController extends Controller
             'shortcode_content' => 'nullable|string',
             'json_data'         => 'nullable|string',
             'tab_xml'           => 'nullable|string',
+            'chord_tab_xml'     => 'nullable|string',
             'description'       => 'nullable|string|max:5000',
             'harmony_notes'     => 'nullable|string|max:5000',
             'form_notes'        => 'nullable|string|max:5000',
@@ -1663,6 +1761,7 @@ class LeadsheetController extends Controller
             'shortcode_content' => $leadsheet->shortcode_content,
             'json_data'         => $jsonData,
             'tab_xml'           => $leadsheet->tab_xml,
+            'chord_tab_xml'     => $leadsheet->chord_tab_xml ?? null,
             'description'       => $leadsheet->description,
             'harmony_notes'     => $leadsheet->harmony_notes,
             'form_notes'        => $leadsheet->form_notes,

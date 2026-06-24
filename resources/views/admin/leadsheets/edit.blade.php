@@ -36,12 +36,37 @@
     </label>
     @endif
     <a href="{{ route('library.songs.show', $leadsheet->slug) }}" target="_blank" class="sbn-btn sbn-btn-ghost">Preview ↗</a>
-    <form id="save-as-exercise-form" method="POST" action="{{ route('admin.exercises.from-leadsheet', $leadsheet) }}" style="display:inline;">
-        @csrf
-        <button type="button" class="sbn-btn sbn-btn-secondary"
-                onclick="window.dispatchEvent(new CustomEvent('sbn-save-as-exercise'))">
-            → Save as Exercise
+
+    {{-- Actions dropdown: import-into-layer, save-as-exercise, merge. Lives in the
+         layout header (outside x-data="leadsheetEditor()"), so it talks to the editor
+         via window CustomEvents (same pattern as Save as Exercise). --}}
+    <div class="sbn-actions-menu" x-data="{ open: false }" @click.outside="open = false">
+        <button type="button" class="sbn-btn sbn-btn-secondary" @click="open = !open">
+            Actions ▾
         </button>
+        <div class="sbn-actions-menu-panel" x-show="open" x-cloak @click="open = false">
+            <div class="sbn-actions-menu-section">Import MusicXML</div>
+            <button type="button" class="sbn-actions-menu-item"
+                    @click="window.dispatchEvent(new CustomEvent('sbn-import-into', { detail: { layer: 'melody' } }))">
+                → into Melody
+            </button>
+            <button type="button" class="sbn-actions-menu-item"
+                    @click="window.dispatchEvent(new CustomEvent('sbn-import-into', { detail: { layer: 'chord' } }))">
+                → into Chords
+            </button>
+            <hr>
+            <button type="button" class="sbn-actions-menu-item"
+                    @click="window.dispatchEvent(new CustomEvent('sbn-open-merge'))">
+                Merge sheets…
+            </button>
+            <button type="button" class="sbn-actions-menu-item"
+                    @click="window.dispatchEvent(new CustomEvent('sbn-save-as-exercise'))">
+                → Save as Exercise
+            </button>
+        </div>
+    </div>
+    <form id="save-as-exercise-form" method="POST" action="{{ route('admin.exercises.from-leadsheet', $leadsheet) }}" style="display:none;">
+        @csrf
     </form>
     @endif
 @endsection
@@ -73,11 +98,163 @@
         color: var(--clr-text, inherit);
         cursor: pointer;
     }
+    .sbn-actions-menu {
+        position: relative;
+        display: inline-block;
+    }
+    .sbn-actions-menu-panel {
+        position: absolute;
+        top: calc(100% + 4px);
+        right: 0;
+        z-index: 9999;
+        min-width: 200px;
+        background: var(--clr-bg-card, #fff);
+        border: 1px solid var(--clr-border, #e0e0e0);
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, .15), 0 2px 6px rgba(0, 0, 0, .08);
+        padding: 4px 0;
+        font-size: 0.85rem;
+    }
+    .sbn-actions-menu-section {
+        padding: 6px 12px 2px;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        opacity: 0.5;
+    }
+    .sbn-actions-menu-item {
+        display: block;
+        width: 100%;
+        padding: 7px 14px;
+        border: none;
+        background: none;
+        text-align: left;
+        font: inherit;
+        color: var(--clr-text, #1a1a1a);
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .sbn-actions-menu-item:hover {
+        background: var(--clr-bg-hover, #f0f0f0);
+    }
+    .sbn-actions-menu-panel hr {
+        border: none;
+        border-top: 1px solid var(--clr-border, #e0e0e0);
+        margin: 4px 0;
+    }
+    .sbn-merge-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        background: rgba(0, 0, 0, .45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+    .sbn-merge-modal {
+        width: 100%;
+        max-width: 480px;
+        background: var(--clr-bg-card, #fff);
+        color: var(--clr-text, #1a1a1a);
+        border-radius: 12px;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, .3);
+        padding: 22px 24px;
+    }
+    .sbn-merge-title { margin: 0 0 6px; font-size: 1.1rem; font-weight: 700; }
+    .sbn-merge-hint { margin: 0 0 16px; font-size: 0.85rem; opacity: 0.75; line-height: 1.4; }
+    .sbn-merge-loading { padding: 24px 0; text-align: center; opacity: 0.6; }
+    .sbn-merge-field { display: block; margin-bottom: 14px; }
+    .sbn-merge-field > span {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        opacity: 0.7;
+    }
+    .sbn-merge-field select {
+        width: 100%;
+        padding: 8px 10px;
+        font-size: 0.9rem;
+        border-radius: 6px;
+        border: 1px solid rgba(127, 127, 127, 0.35);
+        background: var(--clr-surface, #fff);
+        color: var(--clr-text, inherit);
+    }
+    .sbn-merge-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 8px;
+    }
 </style>
 @endpush
 
 @section('content')
 <div x-data="leadsheetEditor()" x-cloak class="sbn-vp-layout" style="flex-direction: column;">
+
+    {{-- ── Merge-sheets modal (Phase 1) ──────────────────────────────────
+         Pick a "mother" arrangement (target, on this song) + a melody source and
+         a chords source (any single-tab arrangement). Their tab data fills the
+         mother's two notation layers. --}}
+    <div x-show="mergeOpen" x-cloak class="sbn-merge-overlay" @click.self="mergeOpen = false">
+        <div class="sbn-merge-modal">
+            <h3 class="sbn-merge-title">Merge two sheets into one arrangement</h3>
+            <p class="sbn-merge-hint">
+                Pick the mother arrangement (kept as the structure of record), then the
+                source whose tab becomes the <strong>Melody</strong> layer and the source whose
+                tab becomes the <strong>Chords</strong> layer.
+            </p>
+
+            <template x-if="mergeLoading">
+                <div class="sbn-merge-loading">Loading arrangements…</div>
+            </template>
+
+            <template x-if="!mergeLoading">
+                <div>
+                    <label class="sbn-merge-field">
+                        <span>Mother arrangement (this song)</span>
+                        <select x-model="mergeMotherSlug">
+                            <option value="">— choose —</option>
+                            <template x-for="v in mergeMotherOptions" :key="v.id">
+                                <option :value="v.version_slug" x-text="(v.label || 'Basic')"></option>
+                            </template>
+                        </select>
+                    </label>
+
+                    <label class="sbn-merge-field">
+                        <span>Melody source → Melody layer</span>
+                        <select x-model="mergeMelodyId">
+                            <option value="">— choose —</option>
+                            <template x-for="v in mergeVersions" :key="'m'+v.id">
+                                <option :value="v.id"
+                                        x-text="v.song_title + ' — ' + (v.label || 'Basic') + ((v.tab_melody||v.tab_chord) ? '' : ' (no tab)')"></option>
+                            </template>
+                        </select>
+                    </label>
+
+                    <label class="sbn-merge-field">
+                        <span>Chords source → Chords layer</span>
+                        <select x-model="mergeChordId">
+                            <option value="">— choose —</option>
+                            <template x-for="v in mergeVersions" :key="'c'+v.id">
+                                <option :value="v.id"
+                                        x-text="v.song_title + ' — ' + (v.label || 'Basic') + ((v.tab_melody||v.tab_chord) ? '' : ' (no tab)')"></option>
+                            </template>
+                        </select>
+                    </label>
+                </div>
+            </template>
+
+            <div class="sbn-merge-actions">
+                <button type="button" class="sbn-btn sbn-btn-secondary" @click="mergeOpen = false" :disabled="mergeSaving">Cancel</button>
+                <button type="button" class="sbn-btn sbn-btn-primary" @click="applyMerge()"
+                        :disabled="mergeSaving || mergeLoading"
+                        x-text="mergeSaving ? 'Merging…' : 'Merge'"></button>
+            </div>
+        </div>
+    </div>
 
     @if(session('lookup_confidence') && in_array(session('lookup_confidence'), ['low', 'medium']))
         <div style="background-color: #fffbeb; color: #92400e; padding: 12px 16px; border-bottom: 1px solid #fde68a; font-size: 14px; font-weight: 500; text-align: center; width: 100%;">
@@ -110,6 +287,13 @@
         {{-- ── Visual editor (data loaded) ───────────────── --}}
         <template x-if="parsed">
         <div>
+
+            {{-- Re-import: file input lives here (always in DOM once data is loaded) so
+                 an existing song can import a tab into a chosen layer. Triggered from the
+                 Actions dropdown (sbn-import-into); the blank-state drop zone above has its
+                 own input (x-ref="fileInput") for new songs. --}}
+            <input type="file" x-ref="reimportInput" accept=".xml,.musicxml" style="display:none"
+                   @change="handleFileSelect($event)">
 
             {{-- ── Vue Mount Point (replaces Tab bar, Chords view, Tab view) ── --}}
             <div id="sbn-editor-content"></div>
@@ -1548,7 +1732,24 @@ function leadsheetEditor() {
 
         // Tab editor (Phase 7)
         bravuraReady: false,
-        tabXml: null,
+        melodyTabXml: null,
+        chordTabXml: null,
+        activeTabLayer: 'melody',  // 'melody' | 'chord' — one-way mirror from Vue
+        get tabXml() { return this.activeTabLayer === 'chord' ? this.chordTabXml : this.melodyTabXml; },
+        set tabXml(v) { if (this.activeTabLayer === 'chord') { this.chordTabXml = v; } else { this.melodyTabXml = v; } },
+        // Melody-layer notes, preserved while the CHORD layer is active so a
+        // chord-layer save never writes chord notes into json_data.melody. Captured
+        // on load + whenever we leave the melody layer.
+        _melodyLayerJsonMelody: null,
+
+        // ── Merge-sheets modal (Phase 1) ──────────────────────
+        mergeOpen: false,
+        mergeLoading: false,
+        mergeSaving: false,
+        mergeVersions: [],          // [{id, leadsheet_id, version_slug, label, song_title, tab_melody, tab_chord}]
+        mergeMotherSlug: '',        // version_slug of the mother (target) on THIS song
+        mergeMelodyId: '',          // source version id → melody layer
+        mergeChordId: '',           // source version id → chord layer
         _suppressTabInit: false,   // guards $watch('parsed') from re-dispatching sbn-tab-init
         _tabInitDone: false,       // ensures sbn-tab-init only fires once on first tab view switch
         _tabVueInitialized: false,  // set to true once Vue confirms receipt of sbn-tab-init
@@ -1583,18 +1784,24 @@ function leadsheetEditor() {
 
             // Build a temporary parsed-like object from the facade to ensure
             // the shortcode is generated from the absolute latest Vue state.
-            const model = window.__sbnTabModel;
+            // The shortcode describes the MELODY-layer arrangement (grid + melody);
+            // on the chord layer the live model holds chord-staff events, so don't
+            // pull structure/melody from it — use the stored melody-layer data.
+            const onMelodyLayer = this.activeTabLayer !== 'chord';
+            const model = onMelodyLayer ? window.__sbnTabModel : null;
             const sections      = model ? model.getSections()      : this.parsed.sections;
             const chordVoicings = model ? model.getChordVoicings() : (this.parsed.chordVoicings || {});
             const repeatMarkers = model ? model.getRepeatMarkers() : (this.parsed.repeatMarkers || null);
             const voltaEndings  = model ? model.getVoltaEndings()  : (this.parsed.voltaEndings || null);
+            const melody = onMelodyLayer ? this.parsed.melody : (this._melodyLayerJsonMelody ?? this.parsed.melody);
 
             const snapshot = {
                 ...this.parsed,
                 sections,
                 chordVoicings,
                 repeatMarkers,
-                voltaEndings
+                voltaEndings,
+                melody
             };
 
             return generateShortcode(snapshot, {
@@ -1660,7 +1867,97 @@ function leadsheetEditor() {
                 sbnToast(msg, 'success');
             });
 
+            // When Vue signals a tab-layer switch, serialize the outgoing layer then
+            // load the incoming one using the same reload path as sbn-rhythm-applied.
+            document.addEventListener('sbn-tab-layer-changed', async (e) => {
+                const incoming = e.detail?.layer;
+                if (!incoming || incoming === this.activeTabLayer) return;
+
+                // 1. Serialize current (outgoing) layer XML before switching.
+                //    _requestTabXml() resolves null ONLY on timeout/serialization error —
+                //    an empty model still serializes to a valid (non-null) XML string. So a
+                //    null here means we could not safely capture the outgoing layer's edits.
+                //    Abort the switch rather than load the incoming layer over unsaved work
+                //    (the cmd 17b5acf "stale-editor save" data-loss class). Tell Vue to
+                //    revert its pill to the layer that is actually still loaded.
+                const outgoingXml = await this._requestTabXml();
+                if (!outgoingXml) {
+                    sbnToast('Could not capture the current tab layer — staying put', 'error');
+                    document.dispatchEvent(new CustomEvent('sbn-tab-layer-revert', {
+                        detail: { layer: this.activeTabLayer }
+                    }));
+                    return;
+                }
+
+                // Store into the outgoing layer's string via the computed setter.
+                if (this.activeTabLayer === 'chord') {
+                    this.chordTabXml = outgoingXml;
+                } else {
+                    this.melodyTabXml = outgoingXml;
+                    // Leaving the melody layer: snapshot its notes from the freshly
+                    // serialized XML (which includes any unsaved edits — parsed.melody
+                    // may be stale) so a later chord-layer save preserves them.
+                    try {
+                        const reparsed = new MusicXMLParser(outgoingXml).parse();
+                        this._melodyLayerJsonMelody = reparsed?.melody ?? this._melodyLayerJsonMelody;
+                    } catch (err) {
+                        console.error('[SBN] melody snapshot re-parse failed:', err);
+                    }
+                }
+
+                // 2. Switch active layer so tabXml getter returns the incoming XML.
+                this.activeTabLayer = incoming;
+
+                // 3. Graft the incoming layer's NOTES onto the shared skeleton.
+                //    The model builds its staff from parsed.melody — not from the
+                //    XML string — so the active layer's notes must live in
+                //    parsed.melody before reload, or both layers render identically
+                //    (the original "switch shows melody on both layers" bug).
+                this._suppressTabInit = true;
+                this.parsed = this._graftLayerNotes(this.tabXml);
+                this._suppressTabInit = false;
+
+                // 4. Reload Vue tab model with the incoming layer's notes.
+                this._tabInitDone = false;
+                this._tabVueInitialized = false;
+                this._dispatchTabInit();
+            });
+
             window.addEventListener('sbn-save-as-exercise', () => this.saveAndCopyToExercise());
+
+            // Actions dropdown → import a MusicXML into a named layer. Switch to the
+            // target layer first (via Vue, so the serialize-out → graft-in round-trip
+            // runs and no edits are lost), then open the file picker once that layer is
+            // actually active. handleFileSelect → processFile already targets
+            // this.activeTabLayer, so the file lands in the chosen layer.
+            window.addEventListener('sbn-import-into', (e) => {
+                const layer = e.detail?.layer === 'chord' ? 'chord' : 'melody';
+                if (this.activeTabLayer === layer) {
+                    this.$refs.reimportInput?.click();
+                    return;
+                }
+                // Ask Vue to switch layers, then open the picker when it settles.
+                document.dispatchEvent(new CustomEvent('sbn-tab-set-layer', { detail: { layer } }));
+                let waited = 0;
+                const poll = setInterval(() => {
+                    waited += 100;
+                    if (this.activeTabLayer === layer) {
+                        clearInterval(poll);
+                        this.$refs.reimportInput?.click();
+                    } else if (waited >= 3500) {
+                        // Switch aborted (serialize timeout/revert) — don't import into
+                        // the wrong layer; tell the user.
+                        clearInterval(poll);
+                        sbnToast('Could not switch to the ' + layer + ' layer — import cancelled', 'error');
+                    }
+                }, 100);
+            });
+
+            // Actions dropdown → open the merge-sheets modal (load the source list once).
+            window.addEventListener('sbn-open-merge', () => {
+                this.mergeOpen = true;
+                if (!this.mergeVersions.length) this.loadMergeSources();
+            });
 
             if (this.leadsheetId) {
                 this.loadExistingData();
@@ -2020,7 +2317,11 @@ function leadsheetEditor() {
                         this.parsed.tempo         = (this.itemType === 'exercises' ? ls.bpm_default : ls.tempo) || this.parsed.tempo;
                         this.parsed.timeSignature = (this.itemType === 'exercises' ? ls.time_sig : ls.time_signature) || this.parsed.timeSignature;
                     }
-                    this.tabXml = ls.tab_xml || null;
+                    this.melodyTabXml = ls.tab_xml || null;
+                    this.chordTabXml  = ls.chord_tab_xml || null;
+                    // Snapshot the melody-layer notes so a chord-layer save can't
+                    // overwrite json_data.melody with chord-staff notes.
+                    this._melodyLayerJsonMelody = (this.parsed && this.parsed.melody) ? this.parsed.melody : null;
                     this.rhythmSlug = ls.rhythm || '';
                     this.description = ls.description || '';
                     this.markDirty();
@@ -2117,6 +2418,58 @@ function leadsheetEditor() {
         _wrapStructuralUndo(label, fn, hint = null) { fn(); },
 
         /**
+         * Graft a tab LAYER's notes onto the shared `parsed` skeleton.
+         *
+         * The Vue tab model builds its staff from `parsed.melody` (see
+         * useTabModel.buildModel → useAlpineBridge handleTabInit:
+         * `melody.value = d.parsed.melody`). The per-layer `*_tab_xml` strings
+         * are only the persistence format — they do NOT drive the model on their
+         * own. So switching tab layers means swapping the NOTES in `parsed.melody`
+         * to the active layer's content, while sections / chord grid / voicings /
+         * key / TS / repeats stay shared (one structure, two staves — the
+         * MuseScore-two-instruments model).
+         *
+         * `layerXml` may be null/empty (layer not authored yet) → empty staff on
+         * the shared skeleton. When the imported layer's bar count differs from
+         * the shared structure we keep the FIRST-imported structure (structure of
+         * record) and warn — trailing extra bars are harmless; a pickup/offset is
+         * the dangerous case the warning exists for.
+         *
+         * Returns a NEW parsed object (reassign by reference so the bridge fires).
+         */
+        _graftLayerNotes(layerXml) {
+            const skeleton = this.parsed;
+            let notes = [];
+            if (layerXml) {
+                try {
+                    const incoming = new MusicXMLParser(layerXml).parse();
+                    notes = incoming.melody || [];
+                    // Structure sanity: compare flattened bar counts. The melody
+                    // layer's grid is the structure of record; only warn.
+                    const skelBars = (skeleton.sections || [])
+                        .reduce((n, s) => n + (s.measures ? s.measures.length : 0), 0);
+                    const inBars = (incoming.sections || [])
+                        .reduce((n, s) => n + (s.measures ? s.measures.length : 0), 0);
+                    if (skelBars && inBars && inBars !== skelBars) {
+                        const diff = inBars - skelBars;
+                        const word = diff > 0 ? ('has ' + diff + ' more bar(s) than') : ('is ' + (-diff) + ' bar(s) short of');
+                        sbnToast('Imported layer ' + word + ' the shared structure — layers may not line up. Check for a pickup/offset.', 'error');
+                        this._importLog('⚠ Structure mismatch: imported ' + inBars + ' bars vs shared ' + skelBars + ' bars (kept shared structure)', 'warn');
+                    }
+                } catch (err) {
+                    console.error('[SBN] _graftLayerNotes parse failed:', err);
+                    sbnToast('Could not read that layer — keeping empty staff', 'error');
+                    notes = [];
+                }
+            }
+            // Clone the skeleton by reference-swap so $watch('parsed') + the bridge
+            // fire exactly as on a fresh import (property-only mutation does NOT
+            // reliably drive the Vue reload). Structure stays verbatim; only the
+            // staff notes (melody) change to the active layer's content.
+            return { ...skeleton, melody: notes };
+        },
+
+        /**
          * Single point of dispatch for sbn-tab-init.
          * Debounced with setTimeout(0) so multiple same-tick callers
          * ($watch parsed, $watch viewMode, loadExistingData, request-init)
@@ -2163,6 +2516,8 @@ function leadsheetEditor() {
         },
         handleFileSelect(e) {
             if (e.target.files && e.target.files.length) this.processFile(e.target.files[0]);
+            // Reset so selecting the same file again still fires @change (re-import).
+            e.target.value = '';
         },
         processFile(file) {
             const name = file.name.toLowerCase();
@@ -2174,39 +2529,110 @@ function leadsheetEditor() {
             reader.onload = async (e) => {
                 try {
                     const xmlString = e.target.result;
-                    const parser = new MusicXMLParser(xmlString);
 
                     // Fresh import — reset the persistent summary panel.
                     this.importSummary = null;
 
-                    // Suppress the $watch('parsed') auto-dispatch so Vue doesn't receive
-                    // Tab1/Tab2 placeholder names before identification renames them.
-                    this._suppressTabInit = true;
-                    this.parsed = parser.parse();
-                    this._suppressTabInit = false;
+                    if (this.activeTabLayer === 'chord') {
+                        // Chord-TAB layer: store the XML, then graft its NOTES onto the
+                        // SHARED skeleton (sections / chord grid / voicings / key stay the
+                        // melody layer's structure of record). The model renders from
+                        // parsed.melody, so the chord notes must land there or the chord
+                        // staff would just keep showing the melody. Structure mismatch is
+                        // warned (not blocked) inside _graftLayerNotes.
+                        this.chordTabXml = xmlString;
+                        this._suppressTabInit = true;
+                        this.parsed = this._graftLayerNotes(xmlString);
+                        this._suppressTabInit = false;
+                        this.markDirty();
+                        this._importLog('Chord TAB imported (' + xmlString.length + ' chars)', 'info');
+                        this._tabInitDone = false;
+                        this._tabVueInitialized = false;
+                        this._dispatchTabInit();
+                    } else if (this.parsed && Array.isArray(this.parsed.sections) && this.parsed.sections.length > 0) {
+                        // MELODY layer, song ALREADY has a chord grid: merge melody only.
+                        // The grid (sections / chordNames / chordVoicings) is the harmonic
+                        // truth and must NOT be touched — importing a melody staff into an
+                        // existing arrangement replaces only the melody/notation while the
+                        // grid is grafted back on verbatim (see below). We skip
+                        // inferKeyFromChords / identifyTabVoicings (both mutate the grid);
+                        // the chord names stay exactly as authored.
+                        const parser = new MusicXMLParser(xmlString);
+                        const incoming = parser.parse();
 
-                    this.tabXml = xmlString;
-                    this.markDirty();
-                    let msg = 'Parsed ' + this.parsed.measures.length + ' bars';
-                    if (this.parsed.melody && this.parsed.melody.length) msg += ', ' + this.parsed.melody.length + ' melody notes';
-                    this._importLog(msg, 'info');
+                        // Graft the new melody/notation onto the EXISTING grid. We take the
+                        // imported model as the base (so melody/measures render via the proven
+                        // full-import path) then overwrite the harmonic layer with the current
+                        // grid so chords/voicings/sections/key are preserved verbatim. Finally
+                        // reassign this.parsed BY REFERENCE so $watch('parsed') + the bridge
+                        // fire exactly as on a fresh import. A property-only mutation
+                        // (this.parsed.melody = …) does NOT reliably drive the Vue reload.
+                        const prev = this.parsed;
+                        const merged = incoming;
+                        merged.sections       = prev.sections;
+                        merged.chordVoicings  = prev.chordVoicings;
+                        merged.repeatMarkers  = prev.repeatMarkers;
+                        merged.voltaEndings   = prev.voltaEndings;
+                        merged.lineBreaks     = prev.lineBreaks;
+                        merged.key            = prev.key;
+                        merged.timeSignature  = prev.timeSignature;
+                        merged.tempo          = prev.tempo;
+                        merged.title          = prev.title;
+                        merged.composer       = prev.composer;
+                        merged.videoSync      = prev.videoSync;
 
-                    // Infer key from pitch-class content (MusicXML <key> is unreliable
-                    // for relative-key disambiguation), then surface identifier suggestions
-                    // for Tab* placeholders and harmony/notes mismatches.
-                    this.inferKeyFromChords();
-                    await this.identifyTabVoicings(this.parsed.key || null, true);
-                    await this.detectHarmonyMismatches();
+                        // Reassign by reference. Suppress the watch's auto-dispatch; we drive
+                        // the reload explicitly below after resetting the init gate.
+                        this._suppressTabInit = true;
+                        this.parsed = merged;
+                        this._suppressTabInit = false;
 
-                    // A file import fully replaces the model — reset the init gate so
-                    // Vue receives a fresh sbn-tab-init with the current chord data.
-                    // Without this, _tabInitDone=true from loadExistingData silently
-                    // swallows the dispatch and Tab1/Tab2 names persist.
-                    this._tabInitDone = false;
-                    this._tabVueInitialized = false;
+                        this.melodyTabXml = xmlString;
+                        this.markDirty();
+                        this._importLog(
+                            'Melody merged into existing arrangement (' +
+                            (incoming.melody ? incoming.melody.length : 0) + ' notes, grid preserved)',
+                            'info'
+                        );
 
-                    // Now dispatch to Vue with fully-named chords.
-                    this._dispatchTabInit();
+                        // Reload Vue from the merged model (grid unchanged, new melody staff).
+                        this._tabInitDone = false;
+                        this._tabVueInitialized = false;
+                        this._dispatchTabInit();
+                    } else {
+                        // MELODY layer, BLANK song: full import builds the whole model from
+                        // the file (chords re-derived from <harmony>, voicings identified).
+                        const parser = new MusicXMLParser(xmlString);
+
+                        // Suppress the $watch('parsed') auto-dispatch so Vue doesn't receive
+                        // Tab1/Tab2 placeholder names before identification renames them.
+                        this._suppressTabInit = true;
+                        this.parsed = parser.parse();
+                        this._suppressTabInit = false;
+
+                        this.melodyTabXml = xmlString;
+                        this.markDirty();
+                        let msg = 'Parsed ' + this.parsed.measures.length + ' bars';
+                        if (this.parsed.melody && this.parsed.melody.length) msg += ', ' + this.parsed.melody.length + ' melody notes';
+                        this._importLog(msg, 'info');
+
+                        // Infer key from pitch-class content (MusicXML <key> is unreliable
+                        // for relative-key disambiguation), then surface identifier suggestions
+                        // for Tab* placeholders and harmony/notes mismatches.
+                        this.inferKeyFromChords();
+                        await this.identifyTabVoicings(this.parsed.key || null, true);
+                        await this.detectHarmonyMismatches();
+
+                        // A file import fully replaces the model — reset the init gate so
+                        // Vue receives a fresh sbn-tab-init with the current chord data.
+                        // Without this, _tabInitDone=true from loadExistingData silently
+                        // swallows the dispatch and Tab1/Tab2 names persist.
+                        this._tabInitDone = false;
+                        this._tabVueInitialized = false;
+
+                        // Now dispatch to Vue with fully-named chords.
+                        this._dispatchTabInit();
+                    }
                 } catch (err) {
                     console.error('[SBN Editor] Parse error:', err);
                     sbnToast('Error: ' + err.message, 'error');
@@ -2491,18 +2917,20 @@ function leadsheetEditor() {
             if (this.alpineViewMode === 'tab' && document.getElementById('sbn-editor-content')) {
                 const xml = await this._requestTabXml();
                 if (xml) {
+                    // Store into the currently active layer via the setter.
                     this.tabXml = xml;
-                    // Re-parse the XML to get an updated melody for json_data persistence.
-                    // IMPORTANT: we store the result in a local variable and inject it
-                    // directly into the POST body — we never assign to this.parsed.melody.
-                    try {
-                        const parser = new MusicXMLParser(xml);
-                        const reparsed = parser.parse();
-                        if (reparsed && reparsed.melody) {
-                            this._savedMelody = reparsed.melody;
+                    // Re-parse to update parsed.melody — only for the melody layer.
+                    // IMPORTANT: store in a local variable, never assign to this.parsed.melody.
+                    if (this.activeTabLayer !== 'chord') {
+                        try {
+                            const parser = new MusicXMLParser(xml);
+                            const reparsed = parser.parse();
+                            if (reparsed && reparsed.melody) {
+                                this._savedMelody = reparsed.melody;
+                            }
+                        } catch (err) {
+                            console.error('[SBN] Re-parse of saved XML failed:', err);
                         }
-                    } catch (err) {
-                        console.error('[SBN] Re-parse of saved XML failed:', err);
                     }
                 }
             }
@@ -2510,8 +2938,16 @@ function leadsheetEditor() {
             // ── Suppress sbn-tab-init during save mutations ──
             this._suppressTabInit = true;
 
-            // Pull fresh structural data from the facade (Phase B Step 8)
-            const model = window.__sbnTabModel;
+            // json_data is the MELODY layer's data (structure + grid + melody notes).
+            // When the CHORD layer is active the live Vue model holds chord-staff
+            // events, so pulling sections/melody from it would overwrite json_data
+            // with chord notes. Only refresh json_data structure from the live model
+            // on the melody layer; on the chord layer keep the existing json_data
+            // verbatim (only chord_tab_xml changes this save).
+            const onMelodyLayer = this.activeTabLayer !== 'chord';
+            const model = onMelodyLayer ? window.__sbnTabModel : null;
+
+            // Pull fresh structural data from the facade (Phase B Step 8) — melody layer only.
             const sections      = model ? model.getSections()      : this.parsed.sections;
             const chordVoicings = model ? model.getChordVoicings() : (this.parsed.chordVoicings || {});
             const repeatMarkers = model ? model.getRepeatMarkers() : (this.parsed.repeatMarkers || null);
@@ -2523,7 +2959,12 @@ function leadsheetEditor() {
             // Phase D: pull videoSync from the facade; fall back to what's already in parsed
             const videoSyncData = (model ? model.getVideoSync() : null) ?? this.parsed.videoSync ?? null;
 
-            // Construct final json_data by merging Alpine meta fields with facade structural data
+            // Construct final json_data by merging Alpine meta fields with facade structural data.
+            // melody: _savedMelody is melody-layer-only (re-parse guarded above); on the chord
+            // layer parsed.melody currently holds chord notes, so NEVER fall back to it there.
+            const finalMelody = this._savedMelody
+                ? this._savedMelody
+                : (onMelodyLayer ? this.parsed.melody : (this._melodyLayerJsonMelody ?? this.parsed.melody));
             const finalJsonData = {
                 ...this.parsed,
                 sections,
@@ -2531,7 +2972,7 @@ function leadsheetEditor() {
                 chordVoicings,
                 repeatMarkers,
                 voltaEndings,
-                melody: this._savedMelody || this.parsed.melody,
+                melody: finalMelody,
             };
             if (videoSyncData) finalJsonData.videoSync = videoSyncData;
 
@@ -2576,7 +3017,8 @@ function leadsheetEditor() {
                         course_id: null,
                         shortcode_content: shortcode,
                         json_data: JSON.stringify(finalJsonData),
-                        tab_xml: this.tabXml,
+                        tab_xml: this.melodyTabXml,
+                        chord_tab_xml: this.chordTabXml,
                         description: this.description,
                         harmony_notes: '',
                         form_notes: '',
@@ -2601,6 +3043,9 @@ function leadsheetEditor() {
                 const data = await resp.json();
                 if (data.success || data.id) {
                     this.dirty = false;
+                    // Keep the melody-layer snapshot current with what we just saved,
+                    // so a subsequent chord-layer save still preserves these notes.
+                    this._melodyLayerJsonMelody = finalJsonData.melody;
                     this._savedMelody = null;
                     this._suppressTabInit = false;
                     sbnToast(this.typeLabel + ' saved!', 'success');
@@ -2658,6 +3103,63 @@ function leadsheetEditor() {
 
         copyShortcode() {
             navigator.clipboard.writeText(this.shortcodeOutput).then(() => sbnToast('Copied!', 'success'));
+        },
+
+        // ── Merge sheets (Phase 1) ─────────────────────────────
+        async loadMergeSources() {
+            this.mergeLoading = true;
+            try {
+                const resp = await fetch('{{ route('admin.leadsheets.merge-sources') }}', { headers: { 'Accept': 'application/json' } });
+                const data = await resp.json();
+                this.mergeVersions = data.versions || [];
+                // Default the mother to the version currently being edited.
+                this.mergeMotherSlug = this.activeVersionSlug
+                    || (this.mergeVersions.find(v => v.leadsheet_id === this.leadsheetId)?.version_slug ?? '');
+            } catch (e) {
+                console.error('[SBN] merge sources load failed:', e);
+                sbnToast('Could not load arrangements list', 'error');
+            } finally {
+                this.mergeLoading = false;
+            }
+        },
+        // Mother candidates are versions of THIS song only (the merge writes into one).
+        get mergeMotherOptions() {
+            return this.mergeVersions.filter(v => v.leadsheet_id === this.leadsheetId);
+        },
+        async applyMerge() {
+            if (!this.mergeMotherSlug || !this.mergeMelodyId || !this.mergeChordId) {
+                sbnToast('Pick a mother arrangement plus a melody and a chords source', 'error');
+                return;
+            }
+            this.mergeSaving = true;
+            try {
+                const url = '/admin/leadsheets/' + this.leadsheetId + '/merge-versions';
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        mother_version_slug: this.mergeMotherSlug,
+                        melody_version_id:   Number(this.mergeMelodyId),
+                        chord_version_id:    Number(this.mergeChordId),
+                    }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    sbnToast(data.message || 'Merged.', 'success');
+                    window.location.href = data.redirect;
+                } else {
+                    sbnToast(data.message || 'Merge failed', 'error');
+                }
+            } catch (e) {
+                console.error('[SBN] merge failed:', e);
+                sbnToast('Network error during merge', 'error');
+            } finally {
+                this.mergeSaving = false;
+            }
         },
 
         // ── Analysis (Phase 5d) ────────────────────────────────

@@ -9,11 +9,16 @@
     >
 
         <!-- New Vue-owned Tabs -->
+        <!-- The two notation layers (Melody = Tab I / melody_tab_xml, Chords = Tab II /
+             chord_tab_xml) are top-level tabs. Both run under viewMode 'tab'; the active
+             tabLayer selects which staff. Grid = the chord-cell grid (viewMode 'chords'). -->
         <div class="sbn-ve-tabs">
             <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'chords' }"
-                    @click="setViewMode('chords')">Chords</button>
-            <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'tab' }"
-                    @click="setViewMode('tab')">Tab</button>
+                    @click="setViewMode('chords')">Grid</button>
+            <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'tab' && tabLayer === 'chord' }"
+                    @click="selectTabLayerView('chord')">Chords</button>
+            <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'tab' && tabLayer === 'melody' }"
+                    @click="selectTabLayerView('melody')">Melody</button>
             <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'analysis' }"
                     @click="setViewMode('analysis')">Analysis</button>
             <button class="sbn-ve-tab" :class="{ 'is-active': videoSidebarOpen }"
@@ -314,6 +319,42 @@ const viewMode = ref(props.initialView);
 const collapsedSections = ref({});   // keyed by si, true = collapsed
 provide('viewMode', viewMode);
 
+// Tab layer: which notation layer is active within the Tab view
+const tabLayer = ref('melody'); // 'melody' | 'chord'
+provide('tabLayer', tabLayer);
+
+function setTabLayer(layer) {
+    if (layer === tabLayer.value) return;
+    // Optimistic: flip the pill, ask Alpine to serialize-out + load-in. If Alpine
+    // can't capture the outgoing layer it aborts and fires sbn-tab-layer-revert,
+    // which snaps the pill back so it never lies about the loaded layer.
+    tabLayer.value = layer;
+    inlineRenameTarget.value = null;
+    document.dispatchEvent(new CustomEvent('sbn-tab-layer-changed', {
+        detail: { layer }
+    }));
+}
+provide('setTabLayer', setTabLayer);
+
+// Alpine aborted a layer switch (serialize failed/timed out) — restore the pill
+// to the layer that is actually still loaded.
+function onTabLayerRevert(e) {
+    const loaded = e.detail?.layer;
+    if (loaded && loaded !== tabLayer.value) {
+        tabLayer.value = loaded;
+    }
+}
+
+// External request (Actions dropdown "Import into Melody/Chords") to select a
+// notation layer + enter the tab view. Routes through selectTabLayerView so the
+// serialize-out → graft-in round-trip runs exactly as a pill click would.
+function onExternalSetLayer(e) {
+    const layer = e.detail?.layer;
+    if (layer === 'melody' || layer === 'chord') {
+        selectTabLayerView(layer);
+    }
+}
+
 // Video sidebar open state — mirrors Alpine's videoSidebarOpen, driven via CustomEvent
 const videoSidebarOpen = ref(false);
 
@@ -324,6 +365,14 @@ function setViewMode(mode) {
     document.dispatchEvent(new CustomEvent('sbn-tab-view-changed', {
         detail: { viewMode: mode }
     }));
+}
+
+// Top-level Melody/Chords tabs: enter the tab view (if not already) and switch
+// to the requested layer. setTabLayer() is a no-op when already on that layer
+// and otherwise drives the serialize-out → graft-in round-trip (with abort/revert).
+function selectTabLayerView(layer) {
+    if (viewMode.value !== 'tab') setViewMode('tab');
+    setTabLayer(layer);
 }
 
 function toggleVideoSidebar() {
@@ -1442,6 +1491,8 @@ onMounted(() => {
     document.addEventListener('sbn-sidebar-copy',  handleCopy);
     document.addEventListener('sbn-sidebar-cut',   handleCut);
     document.addEventListener('sbn-sidebar-paste', handlePaste);
+    document.addEventListener('sbn-tab-layer-revert', onTabLayerRevert);
+    document.addEventListener('sbn-tab-set-layer', onExternalSetLayer);
 
     // Register the XML serializer so the bridge can respond to sbn-tab-save-request
     setSaveHandler(() => {
@@ -1519,6 +1570,8 @@ onUnmounted(() => {
     document.removeEventListener('sbn-sidebar-copy',  handleCopy);
     document.removeEventListener('sbn-sidebar-cut',   handleCut);
     document.removeEventListener('sbn-sidebar-paste', handlePaste);
+    document.removeEventListener('sbn-tab-layer-revert', onTabLayerRevert);
+    document.removeEventListener('sbn-tab-set-layer', onExternalSetLayer);
 });
 
 // ── Sync cursor + note state into shared sidebar store ─────
@@ -2955,5 +3008,34 @@ defineExpose({
     border-radius: 4px;
     pointer-events: none;
     user-select: none;
+}
+.sbn-ve-tab-layer-pills {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
+    gap: 2px;
+    background: rgba(0,0,0,0.08);
+    border-radius: 5px;
+    padding: 2px;
+}
+.sbn-ve-tab-layer-pill {
+    padding: 2px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 3px;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: background 0.12s, opacity 0.12s;
+}
+.sbn-ve-tab-layer-pill:hover {
+    opacity: 0.85;
+}
+.sbn-ve-tab-layer-pill.is-active {
+    background: #fff;
+    opacity: 1;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.12);
 }
 </style>
