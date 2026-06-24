@@ -134,6 +134,11 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
                     xPos:          tickInMeasure / tpm,
                     originalIdx:   idx,
                 };
+                // Grace notes live on the first (non-chord) note of a principal event.
+                if (note.graceNotes && note.graceNotes.length) {
+                    event.graceNotes = note.graceNotes.map(g => ({ ...g }));
+                }
+
                 eventsByKey.set(key, event);
                 allNotes.push(event);
             }

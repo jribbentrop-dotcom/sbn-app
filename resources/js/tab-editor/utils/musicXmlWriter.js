@@ -360,6 +360,65 @@ function serializeHarmony(chordName) {
     return lines.join('\n');
 }
 
+// ── Grace note serializer ────────────────────────────────────
+
+/**
+ * Serialize one grace note from event.graceNotes[].
+ * Grace notes have no <duration>; <grace/> is the first child of <note>.
+ * Schema order: <grace/> → <pitch> → <voice> → <type> → <stem> → <notations>
+ *
+ * @param {object} g      - { pitch, octave, string, fret, slash, slur }
+ * @param {object} opts   - { voice, tuning }
+ * @returns {string}
+ */
+function serializeGraceNote(g, opts = {}) {
+    const { voice = 1, tuning = 'standard' } = opts;
+    const lines = [];
+
+    lines.push('<note>');
+    lines.push(`  <grace${g.slash ? ' slash="yes"' : ''}/>`);
+
+    // Pitch: prefer stored pitch/octave, fall back to string+fret derivation
+    let step = null, alter = 0, octave = 4;
+    if (g.pitch) {
+        ({ step, alter } = parsePitch(g.pitch));
+        octave = g.octave ?? 4;
+    } else if (g.string != null && g.fret != null) {
+        const derived = pitchFromStringFret(g.string, g.fret, tuning);
+        if (derived) ({ step, alter, octave } = derived);
+    }
+    if (step) {
+        lines.push('  <pitch>');
+        lines.push(`    <step>${esc(step)}</step>`);
+        if (alter !== 0) lines.push(`    <alter>${alter}</alter>`);
+        lines.push(`    <octave>${octave}</octave>`);
+        lines.push('  </pitch>');
+    }
+
+    lines.push(`  <voice>${voice}</voice>`);
+    lines.push('  <type>eighth</type>');
+    lines.push('  <stem>up</stem>');
+
+    const notationParts = [];
+    if (g.slur)  notationParts.push('<slur type="start" number="1"/>');
+    if (g.string != null && g.fret != null) {
+        notationParts.push(
+            '<technical>',
+            `  <string>${g.string}</string>`,
+            `  <fret>${g.fret}</fret>`,
+            '</technical>',
+        );
+    }
+    if (notationParts.length) {
+        lines.push('  <notations>');
+        notationParts.forEach(p => lines.push('    ' + p));
+        lines.push('  </notations>');
+    }
+
+    lines.push('</note>');
+    return lines.join('\n');
+}
+
 // ── Note serializer ─────────────────────────────────────────
 
 /**
@@ -557,6 +616,13 @@ function serializeMeasure(measure, measureNumber, isFirst, timeSig, tuning = 'st
     for (const event of events) {
         const voice    = event.voice || 1;
         const stemDir  = event.stemDir || 'down';
+
+        // Grace notes must be emitted immediately before their principal note(s).
+        if (!event.isRest && event.graceNotes?.length) {
+            for (const g of event.graceNotes) {
+                parts.push(serializeGraceNote(g, { voice, tuning }));
+            }
+        }
 
         if (event.isRest) {
             // Single rest note — no chord notes

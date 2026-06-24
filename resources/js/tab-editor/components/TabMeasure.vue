@@ -112,7 +112,7 @@
 
 <script setup>
 import { computed, ref, inject, watch, nextTick } from 'vue';
-import { LAYOUT } from '../utils/constants.js';
+import { LAYOUT, SMUFL } from '../utils/constants.js';
 import {
     renderFlag, renderRest, renderBeams, renderTies,
     renderRepeatStart, renderRepeatEnd,
@@ -696,15 +696,87 @@ const svgContent = computed(() => {
 
         const vc = ev.voice === 2 ? ' voice-2' : '';
 
+        // If this event is the first in the measure and has grace notes, push it
+        // right so the grace group sits inside the bar rather than spilling left.
+        const GRACE_DX_CONST   = 8;   // spacing between grace note centres
+        const GRACE_PAD_CONST  = 7;   // gap between last grace centre and principal
+        const GRACE_GLYPH_W    = 4;   // half-width of one grace glyph from barline
+        const graceCount = ev.graceNotes?.length ?? 0;
+        const isFirstEvent = ev.tickInMeasure === 0;
+        // Shift = room for grace glyphs + gap to principal.
+        // Use glyph half-width for the first grace's clearance from the barline,
+        // then GRACE_DX for each additional grace, then the pad to the principal.
+        const graceShift = (graceCount > 0 && isFirstEvent)
+            ? GRACE_GLYPH_W + (graceCount - 1) * GRACE_DX_CONST + GRACE_PAD_CONST
+            : 0;
+
         ev.notes.forEach(note => {
             if (note.string === null || note.string === undefined || note.fret === null) return;
-            const x = getXm(ev.xPos);
+            const x = getXm(ev.xPos) + graceShift;
             const y = stringY(note.string);
             html += `<text x="${x}" y="${y}" dominant-baseline="central" text-anchor="middle" font-size="${LAYOUT.noteFontSize}" class="sbn-tab-note-text" data-measure="${m.index}" data-event-id="${ev.id}" data-string="${note.string}">${note.fret}</text>`;
         });
 
+        // Grace notes: rendered smaller, to the left of the principal beat position.
+        if (ev.graceNotes?.length) {
+            const principalX    = getXm(ev.xPos) + graceShift;
+            const GRACE_DX      = GRACE_DX_CONST;
+            const GRACE_PAD     = GRACE_PAD_CONST;
+            const graceFontSize = Math.round(LAYOUT.noteFontSize * 0.72);
+            const graceStemBot  = LAYOUT.topStringY - 1;
+            const graceStemTop  = graceStemBot - 8;
+            const graceFlagSize = 20;
+            const n = ev.graceNotes.length;
+            const isGroup = n > 1; // beam instead of individual flags
+
+            // Compute x positions for all grace notes (needed for beam)
+            const graceXs = ev.graceNotes.map((g, gi) => {
+                const slot = (n - 1 - gi); // 0 = nearest principal
+                return principalX - GRACE_PAD - slot * GRACE_DX;
+            });
+
+            ev.graceNotes.forEach((g, gi) => {
+                if (g.string == null || g.fret == null) return;
+                const x = graceXs[gi];
+                const y = stringY(g.string);
+
+                // Fret number
+                html += `<text x="${x}" y="${y}" dominant-baseline="central" text-anchor="middle" font-size="${graceFontSize}" class="sbn-tab-grace-note" data-measure="${m.index}" data-event-id="${ev.id}">${g.fret}</text>`;
+
+                // Stem
+                html += `<line x1="${x}" y1="${graceStemBot}" x2="${x}" y2="${graceStemTop}" stroke="#333" stroke-width="1" opacity="0.85"/>`;
+
+                // Flag only on solo grace notes; groups get a beam below
+                if (!isGroup) {
+                    html += `<text x="${x}" y="${graceStemTop}" font-family="Bravura" font-size="${graceFlagSize}" fill="#333" class="sbn-tab-flag smufl" opacity="0.85">${SMUFL.flag8thUp}</text>`;
+                }
+
+
+            });
+
+            // Beam across grouped grace notes (inset 0.5px so stem edges don't show)
+            if (isGroup) {
+                const x1 = graceXs[0] - 0.5;
+                const x2 = graceXs[n - 1] +  0.5;
+                html += `<line x1="${x1}" y1="${graceStemTop}" x2="${x2}" y2="${graceStemTop}" stroke="#333" stroke-width="${LAYOUT.beamThickness * 0.6}" stroke-linecap="butt" opacity="0.85"/>`;
+            }
+
+            // Slur: thin curve from last grace into the principal note.
+            // Fire if any grace in the group carries slur:true (MusicXML puts the
+            // slur start on the first grace in a group, not necessarily the last).
+            const lastG   = ev.graceNotes[n - 1];
+            const hasSlur = ev.graceNotes.some(g => g.slur);
+            if (hasSlur && lastG?.string != null) {
+                const x1 = graceXs[0];
+                const x2 = principalX + 1;
+                const sy  = stringY(lastG.string) - graceFontSize + 2;
+                const cy  = sy - 5;
+                html += `<path d="M${x1},${sy} Q${(x1+x2)/2},${cy} ${x2},${sy}" fill="none" stroke="#555" stroke-width="0.9" opacity="0.7"/>`;
+            }
+        }
+
         if (ev.stemDir) {
-            const x = getXm(ev.xPos);
+            const x = getXm(ev.xPos) + graceShift;
             let sY1, sY2;
             if (ev.stemDir === 'up') {
                 sY1 = LAYOUT.topStringY - LAYOUT.stemBaseOffset;

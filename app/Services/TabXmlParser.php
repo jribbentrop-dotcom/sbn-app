@@ -59,10 +59,46 @@ class TabXmlParser
             $eventCounter  = 0;
             $currentTick   = $globalTick;
             $pendingNotes  = null;   // current chord event being built
+            $pendingGrace  = [];     // grace notes waiting for next principal
             $repeatStart   = false;
             $repeatEnd     = false;
 
             foreach ($mNode->note as $noteNode) {
+                // Grace notes: no <duration>, consume no tick-space.
+                // Buffer and attach to the next principal note.
+                if (isset($noteNode->grace)) {
+                    if (isset($noteNode->notations->technical)) {
+                        $tech = $noteNode->notations->technical;
+                        $str  = isset($tech->string) ? (int) $tech->string : null;
+                        $fret = isset($tech->fret)   ? (int) $tech->fret   : null;
+                        if ($str !== null && $fret !== null) {
+                            $slashAttr = (string) ($noteNode->grace['slash'] ?? '');
+                            $hasSlur   = false;
+                            foreach ($noteNode->notations->slur ?? [] as $slurNode) {
+                                if ((string) ($slurNode['type'] ?? '') === 'start') { $hasSlur = true; break; }
+                            }
+                            $pitch = '';
+                            $oct   = 4;
+                            if (isset($noteNode->pitch)) {
+                                $pitch = (string) ($noteNode->pitch->step ?? '');
+                                $alter = (int) ($noteNode->pitch->alter ?? 0);
+                                if ($alter === 1)  $pitch .= '#';
+                                if ($alter === -1) $pitch .= 'b';
+                                $oct = (int) ($noteNode->pitch->octave ?? 4);
+                            }
+                            $pendingGrace[] = [
+                                'string' => $str,
+                                'fret'   => $fret,
+                                'pitch'  => $pitch,
+                                'octave' => $oct,
+                                'slash'  => $slashAttr === 'yes',
+                                'slur'   => $hasSlur,
+                            ];
+                        }
+                    }
+                    continue; // grace notes do NOT advance $currentTick
+                }
+
                 $isChord  = isset($noteNode->chord);
                 $durTicks = $this->durationTicks($noteNode, $tpm);
                 $isRest   = isset($noteNode->rest);
@@ -108,6 +144,14 @@ class TabXmlParser
                     }
 
                     $tickInMeasure = $currentTick - $globalTick;
+
+                    // Attach any buffered grace notes to this (first non-chord) principal note.
+                    $graceNotes = null;
+                    if (! $isChord && ! empty($pendingGrace)) {
+                        $graceNotes   = $pendingGrace;
+                        $pendingGrace = [];
+                    }
+
                     $pendingNotes = [
                         'id'            => 'te_' . $measureIdx . '_' . ($eventCounter++),
                         'tick'          => $currentTick,
@@ -119,6 +163,7 @@ class TabXmlParser
                         'stemDir'       => $voice === 2 ? 'up' : 'down',
                         'flagCount'     => $this->flagCount($durTicks),
                         'notes'         => $noteData ? [$noteData] : [],
+                        'graceNotes'    => $graceNotes,
                         'measureIdx'    => $measureIdx,
                         'beamWith'      => null,
                         'beamStart'     => false,
@@ -156,10 +201,10 @@ class TabXmlParser
                 if ($rpt === 'backward') $repeatEnd   = true;
             }
 
-            // Compute actual ticks used in this measure (sum of non-chord note durations)
+            // Compute actual ticks used in this measure (sum of non-chord, non-grace note durations)
             $actualTicks = 0;
             foreach ($mNode->note as $noteNode) {
-                if (!isset($noteNode->chord)) {
+                if (!isset($noteNode->chord) && !isset($noteNode->grace)) {
                     $actualTicks += $this->durationTicks($noteNode, $tpm);
                 }
             }

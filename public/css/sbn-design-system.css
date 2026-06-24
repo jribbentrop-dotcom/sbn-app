@@ -3439,6 +3439,18 @@
     cursor: pointer;
 }
 
+/* Grace note numbers (smaller, slightly dimmed vs principal) */
+.sbn-tab-grace-note {
+    font-family: 'Crimson Text', Georgia, serif;
+    fill: currentColor;
+    opacity: 0.85;
+    font-weight: 900;
+    paint-order: stroke fill;
+    stroke: #fff;
+    stroke-width: 2px;
+    stroke-linejoin: round;
+}
+
 /* Stems */
 .sbn-tab-stem {
     stroke: #333;

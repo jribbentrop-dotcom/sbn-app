@@ -694,6 +694,7 @@ class MusicXMLParser {
                 beam1: note.beam1 || null, beam2: note.beam2 || null,
                 tupletActual: note.tupletActual || null, tupletNormal: note.tupletNormal || null,
                 tupletType: note.tupletType || null, tupletBracket: note.tupletBracket || false,
+                graceNotes: note.graceNotes && note.graceNotes.length ? note.graceNotes : undefined,
             });
         }
 
@@ -840,12 +841,39 @@ class MusicXMLParser {
     parseNotes(measure) {
         const notes = [];
         let currentTick = 0, lastNoteTick = 0;
+        let pendingGrace = [];   // grace notes waiting for the next principal note
         const children = measure.children;
         for (let i = 0; i < children.length; i++) {
             const el = children[i], tag = el.tagName.toLowerCase();
             if (tag === 'backup') { const d = el.querySelector('duration'); if (d) { currentTick -= parseInt(d.textContent)/this.divisions; if (currentTick<0) currentTick=0; } continue; }
             if (tag === 'forward') { const d = el.querySelector('duration'); if (d) currentTick += parseInt(d.textContent)/this.divisions; continue; }
             if (tag !== 'note') continue;
+
+            // Grace notes: no <duration>, consume no tick-space — buffer and attach to next principal.
+            const graceEl = el.querySelector('grace');
+            if (graceEl) {
+                const gracePitch = el.querySelector('pitch');
+                if (gracePitch) {
+                    const graceStep   = gracePitch.querySelector('step');
+                    const graceOctave = gracePitch.querySelector('octave');
+                    const graceAlter  = gracePitch.querySelector('alter');
+                    const graceTech   = el.querySelector('notations technical');
+                    let graceName = graceStep ? graceStep.textContent : '';
+                    if (graceAlter) { const a = parseInt(graceAlter.textContent); if (a===1) graceName+='#'; else if (a===-1) graceName+='b'; }
+                    let graceString = null, graceFret = null;
+                    if (graceTech) { const s=graceTech.querySelector('string'),f=graceTech.querySelector('fret'); if(s)graceString=parseInt(s.textContent); if(f)graceFret=parseInt(f.textContent); }
+                    pendingGrace.push({
+                        pitch:  graceName,
+                        octave: graceOctave ? parseInt(graceOctave.textContent) : 4,
+                        string: graceString,
+                        fret:   graceFret,
+                        slash:  graceEl.getAttribute('slash') === 'yes',
+                        slur:   !!el.querySelector('notations slur[type="start"]'),
+                    });
+                }
+                continue; // grace notes do NOT advance currentTick
+            }
+
             const voiceEl = el.querySelector('voice'), voice = voiceEl ? parseInt(voiceEl.textContent) : 1;
             const duration = this.parseDuration(el), durationName = this.getDurationName(el);
             const isChordNote = !!el.querySelector('chord');
@@ -893,7 +921,16 @@ class MusicXMLParser {
             const tupletEl = el.querySelector('notations tuplet');
             const tupletType    = tupletEl ? tupletEl.getAttribute('type') : null; // 'start' | 'stop' | null
             const tupletBracket = tupletEl ? tupletEl.getAttribute('bracket') === 'yes' : false; // explicit bracket="yes" only; absence = no bracket
-            notes.push({ pitch: noteName, octave: parseInt(octave.textContent), duration, durationName, tieStart: !!tieStart, tieStop: !!tieStop, isRest: false, isChordNote, voice, measureTick: noteTick, string: tabString, fret: tabFret, beam1, beam2, tupletActual, tupletNormal, tupletType, tupletBracket });
+            // Attach any buffered grace notes to the first (non-chord) principal note.
+            let graceNotes = undefined;
+            if (!isChordNote && pendingGrace.length) {
+                graceNotes = pendingGrace;
+                pendingGrace = [];
+            }
+            notes.push({ pitch: noteName, octave: parseInt(octave.textContent), duration, durationName, tieStart: !!tieStart, tieStop: !!tieStop, isRest: false, isChordNote, voice, measureTick: noteTick, string: tabString, fret: tabFret, beam1, beam2, tupletActual, tupletNormal, tupletType, tupletBracket, graceNotes });
+        }
+        if (pendingGrace.length) {
+            console.warn('[parseNotes] grace note(s) at end of measure with no following principal — dropped:', pendingGrace);
         }
         return notes;
     }
@@ -1150,7 +1187,8 @@ class MusicXMLParser {
         return{measures:resultMeasures,chordVoicings:resultVoicings,shapeToName};
     }
 
-    _collectTabNotes(measure){const notes=[];let tick=0,lastTick=0;const ch=measure.children;for(let i=0;i<ch.length;i++){const el=ch[i],tag=el.tagName.toLowerCase();if(tag==='backup'){const d=el.querySelector('duration');if(d)tick-=parseInt(d.textContent);if(tick<0)tick=0;continue;}if(tag==='forward'){const d=el.querySelector('duration');if(d)tick+=parseInt(d.textContent);continue;}if(tag!=='note')continue;const isChord=!!el.querySelector('chord'),isRest=!!el.querySelector('rest');const dEl=el.querySelector('duration'),dur=dEl?parseInt(dEl.textContent):0;let ct;if(isChord){ct=lastTick;}else{ct=tick;lastTick=tick;tick+=dur;}if(isRest)continue;const tech=el.querySelector('notations technical');if(!tech)continue;const sEl=tech.querySelector('string'),fEl=tech.querySelector('fret');if(!sEl||!fEl)continue;const pitch=el.querySelector('pitch');let pn='',oc=0;if(pitch){const st=pitch.querySelector('step'),o=pitch.querySelector('octave'),al=pitch.querySelector('alter');pn=st?st.textContent:'';if(al){const a=parseInt(al.textContent);if(a===1)pn+='#';else if(a===-1)pn+='b';}oc=o?parseInt(o.textContent):0;}
+    _collectTabNotes(measure){const notes=[];let tick=0,lastTick=0;const ch=measure.children;for(let i=0;i<ch.length;i++){const el=ch[i],tag=el.tagName.toLowerCase();if(tag==='backup'){const d=el.querySelector('duration');if(d)tick-=parseInt(d.textContent);if(tick<0)tick=0;continue;}if(tag==='forward'){const d=el.querySelector('duration');if(d)tick+=parseInt(d.textContent);continue;}if(tag!=='note')continue;if(el.querySelector('grace'))continue; // grace notes are zero-duration; skip to avoid voicing corruption
+const isChord=!!el.querySelector('chord'),isRest=!!el.querySelector('rest');const dEl=el.querySelector('duration'),dur=dEl?parseInt(dEl.textContent):0;let ct;if(isChord){ct=lastTick;}else{ct=tick;lastTick=tick;tick+=dur;}if(isRest)continue;const tech=el.querySelector('notations technical');if(!tech)continue;const sEl=tech.querySelector('string'),fEl=tech.querySelector('fret');if(!sEl||!fEl)continue;const pitch=el.querySelector('pitch');let pn='',oc=0;if(pitch){const st=pitch.querySelector('step'),o=pitch.querySelector('octave'),al=pitch.querySelector('alter');pn=st?st.textContent:'';if(al){const a=parseInt(al.textContent);if(a===1)pn+='#';else if(a===-1)pn+='b';}oc=o?parseInt(o.textContent):0;}
         // Track ties: a note is tieStart if it has <tie type="start">, tieStop if <tie type="stop">
         const tieStart=!!el.querySelector('tie[type="start"]'),tieStop=!!el.querySelector('tie[type="stop"]');
         notes.push({tick:ct,string:parseInt(sEl.textContent),fret:parseInt(fEl.textContent),pitch:pn,octave:oc,duration:dur,tieStart,tieStop});}return notes;}

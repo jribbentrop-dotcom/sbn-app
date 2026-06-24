@@ -82,6 +82,26 @@ export function tabModelToEvents(model, ctx = {}) {
             const beatTime = measureStartBeat + tickInMeasure / TICKS_PER_BEAT;
             const beatDur  = (ev.ticks ?? 0) / TICKS_PER_BEAT;
 
+            // Grace notes: emit as very short events just before the principal beat.
+            if (ev.graceNotes?.length) {
+                const GRACE_BEATS = 0.0625; // ~64th note; steal perceptually before the beat
+                const n = ev.graceNotes.length;
+                ev.graceNotes.forEach((g, gi) => {
+                    const midi = noteToMidi(g, tuning);
+                    if (midi == null) return;
+                    const offset = (n - gi) * GRACE_BEATS; // earliest grace furthest before beat
+                    out.push({
+                        time:     Math.max(0, beatTime - offset),
+                        voice,
+                        pitch:    midi,
+                        duration: GRACE_BEATS,
+                        velocity: 0.7,
+                        tieNext:  false,
+                        sourceId: ev.id || null,
+                    });
+                });
+            }
+
             for (const note of ev.notes) {
                 // Skip tie-continuation notes — the original onset covers the
                 // full tied duration via tieNext chaining.
