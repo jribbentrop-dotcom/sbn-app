@@ -547,10 +547,13 @@ In rough priority order, once the taxonomy is curated:
    course ships.
 3. **Student-facing progress** — ✅ a first cut shipped 2026-06-23 (`/account/skills`, commit `309e555`):
    per-branch grid of self-report toggle cards backed by `sbn_user_skill_progress`, with `SkillIcon.vue`
-   (3-tier icon fallback) and account-nav links. Still to do: self-report toggles *on lesson/course pages*
-   (not just the dedicated page), then "recommended next nodes". *That* is when cycle detection /
-   topological traversal earns its place (see v1 gaps). ✅ `sbn_user_skill_progress` added to the `TABLES`
-   preserve list in `scripts/deploy_db.sh` 2026-06-25 (was the prerequisite for shipping this to prod).
+   (3-tier icon fallback) and account-nav links. ✅ 2026-06-25 (commit `1baeae4`): "Skills you'll build"
+   section on the course detail page (`/learn/{course}`, `CourseController::show()` → `Courses/Show.vue`)
+   with the same inline toggle for signed-in students (POSTs to `account.skills.toggle`, syncs with
+   `/account/skills`); guests see it read-only and clicking routes to `/register`. Still to do: the same
+   toggle *inside the lesson player* (`Courses/Player.vue`), then "recommended next nodes". *That* is when
+   cycle detection / topological traversal earns its place (see v1 gaps). ✅ `sbn_user_skill_progress`
+   added to the `TABLES` preserve list in `scripts/deploy_db.sh` 2026-06-25 (prerequisite for prod).
 4. **Style classes** — the deferred tables + auto-award logic. Treat thresholds as a tuning problem.
 5. **Repertoire nodes** — the deferred tables + acquisition types + affiliate links.
 6. **Graph visualization (student-facing skill tree)** — NOT a force-directed auto-layout.
