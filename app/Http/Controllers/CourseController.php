@@ -91,28 +91,9 @@ class CourseController extends Controller
             return $topic ? ['slug' => $topic->slug, 'title' => $topic->title] : null;
         })->filter()->values();
 
-        // Skills this course teaches (many-to-many via sbn_course_skill_node).
-        // For signed-in students, flag which they've already self-reported as done
-        // so the same toggle they get on /account/skills works here too. Guests see
-        // the list with no toggle state (the card links them to register on click).
-        $user = $request->user();
-        $completedSkillSlugs = $user
-            ? $user->skillNodes()->wherePivot('status', 'completed')
-                ->pluck('sbn_skill_nodes.slug')->flip()
-            : collect();
-
-        $skills = $course->skillNodes()
-            ->orderBy('branch')->orderBy('sort_order')
-            ->get(['sbn_skill_nodes.id', 'slug', 'title', 'branch', 'grade', 'icon_key', 'icon_path'])
-            ->map(fn ($n) => [
-                'slug'     => $n->slug,
-                'title'    => $n->title,
-                'branch'   => $n->branch,
-                'grade'    => $n->grade,
-                'iconKey'  => $n->icon_key,
-                'iconPath' => $n->icon_path,
-                'done'     => isset($completedSkillSlugs[$n->slug]),
-            ]);
+        // Skills this course teaches (many-to-many via sbn_course_skill_node),
+        // each flagged with the signed-in student's self-report status. See courseSkills().
+        $skills = $this->courseSkills($course, $request->user());
 
         return Inertia::render('Courses/Show', [
             'course'       => $this->serializeCourse($course),
@@ -416,7 +397,34 @@ class CourseController extends Controller
             'rhythms'        => $rhythms,
             'progressions'   => $progressions,
             'sheets'         => $sheets,
+            'skills'         => $this->courseSkills($course, $request->user()),
         ]);
+    }
+
+    /**
+     * The skill nodes a course teaches (sbn_course_skill_node pivot), each flagged
+     * with the given user's self-report completion status. Guests (null user) get
+     * all done=false. Shared by show() and player() so both surfaces stay in sync.
+     */
+    private function courseSkills(Course $course, ?\App\Models\User $user)
+    {
+        $completedSlugs = $user
+            ? $user->skillNodes()->wherePivot('status', 'completed')
+                ->pluck('sbn_skill_nodes.slug')->flip()
+            : collect();
+
+        return $course->skillNodes()
+            ->orderBy('branch')->orderBy('sort_order')
+            ->get(['sbn_skill_nodes.id', 'slug', 'title', 'branch', 'grade', 'icon_key', 'icon_path'])
+            ->map(fn ($n) => [
+                'slug'     => $n->slug,
+                'title'    => $n->title,
+                'branch'   => $n->branch,
+                'grade'    => $n->grade,
+                'iconKey'  => $n->icon_key,
+                'iconPath' => $n->icon_path,
+                'done'     => isset($completedSlugs[$n->slug]),
+            ]);
     }
 
     /**

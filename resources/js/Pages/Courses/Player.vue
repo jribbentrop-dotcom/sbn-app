@@ -5,6 +5,7 @@ import PublicLayout from '@/Layouts/PublicLayout.vue';
 import LessonSidebar from '@/Components/Course/LessonSidebar.vue';
 import LessonContent from '@/Components/Course/LessonContent.vue';
 import PracticePanel from '@/Components/Course/PracticePanel.vue';
+import CourseSkillTracker from '@/Components/Course/CourseSkillTracker.vue';
 import { getAudioEngine } from '@/audio/engine/AudioEngine.js';
 import { getCategoryColor } from '@/composables/useCategoryColors';
 
@@ -40,6 +41,7 @@ interface ProgressionOption {
   videoSnippet: VideoSnippet | null;
 }
 interface SheetVideo { slug: string; title: string; videoId: string; videoType: 'youtube' | 'hosted' }
+interface SkillRef { slug: string; title: string; branch: string; grade: number | null; iconKey: string | null; iconPath: string | null; done: boolean }
 
 const props = defineProps<{
   course: CourseData;
@@ -52,6 +54,7 @@ const props = defineProps<{
   rhythms?: RhythmOption[];
   progressions?: ProgressionOption[];
   sheets?: Record<string, SheetVideo>;
+  skills?: SkillRef[];
 }>();
 
 // snippet id → sync anchor, for the inline <sbn-progression> in the lesson
@@ -166,6 +169,8 @@ watch(() => props.lesson?.slug, () => {
           @subsection-change="activeSubsection = $event"
           @open-sidebar="mobileSidebarOpen = true"
         />
+
+        <CourseSkillTracker v-if="hasAccess && (props.skills?.length)" :skills="props.skills" />
       </main>
 
       <PracticePanel
