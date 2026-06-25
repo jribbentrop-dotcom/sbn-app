@@ -550,9 +550,11 @@ In rough priority order, once the taxonomy is curated:
    (3-tier icon fallback) and account-nav links. ✅ 2026-06-25 (commit `1baeae4`): "Skills you'll build"
    section on the course detail page (`/learn/{course}`, `CourseController::show()` → `Courses/Show.vue`)
    with the same inline toggle for signed-in students (POSTs to `account.skills.toggle`, syncs with
-   `/account/skills`); guests see it read-only and clicking routes to `/register`. Still to do: the same
-   toggle *inside the lesson player* (`Courses/Player.vue`), then "recommended next nodes". *That* is when
-   cycle detection / topological traversal earns its place (see v1 gaps). ✅ `sbn_user_skill_progress`
+   `/account/skills`); guests see it read-only and clicking routes to `/register`. ✅ 2026-06-25 (commit
+   `0da79c3`): `CourseSkillTracker.vue` — a collapsible self-report panel *inside the lesson player*
+   (`Courses/Player.vue`, gated to enrolled students), backed by a shared `CourseController::courseSkills()`
+   helper. **Self-report toggles on lesson/course pages = DONE.** Next: "recommended next nodes". *That* is
+   when cycle detection / topological traversal earns its place (see v1 gaps). ✅ `sbn_user_skill_progress`
    added to the `TABLES` preserve list in `scripts/deploy_db.sh` 2026-06-25 (prerequisite for prod).
 4. **Style classes** — the deferred tables + auto-award logic. Treat thresholds as a tuning problem.
 5. **Repertoire nodes** — the deferred tables + acquisition types + affiliate links.
