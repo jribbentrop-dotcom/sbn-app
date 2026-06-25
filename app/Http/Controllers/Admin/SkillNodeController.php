@@ -22,7 +22,14 @@ class SkillNodeController extends Controller
             ->get()
             ->groupBy('branch');
 
-        return view('admin.skill-nodes.index', compact('nodes'));
+        // Style tags for every node in one query (avoid N+1), as id => [style => weight].
+        $stylesByNode = \DB::table('sbn_skill_node_style')
+            ->orderByDesc('weight')
+            ->get()
+            ->groupBy('skill_node_id')
+            ->map(fn ($rows) => $rows->pluck('weight', 'style')->all());
+
+        return view('admin.skill-nodes.index', compact('nodes', 'stylesByNode'));
     }
 
     public function create()
@@ -87,6 +94,8 @@ class SkillNodeController extends Controller
             'allCourses'     => Course::orderBy('title')->get(['id', 'title']),
             'selectedPrereqs' => $isNew ? [] : $node->prerequisites()->pluck('sbn_skill_nodes.id')->all(),
             'selectedCourses' => $isNew ? [] : $node->courses()->pluck('sbn_courses.id')->all(),
+            'styles'          => SkillNode::STYLES,
+            'styleWeights'    => $isNew ? [] : $node->styleWeights(),
         ];
     }
 
@@ -102,11 +111,15 @@ class SkillNodeController extends Controller
             'sub_branch'       => 'nullable|string|max:120',
             'description'      => 'nullable|string|max:2000',
             'content_tag_slug' => 'nullable|string|max:120',
+            'grade'            => 'nullable|integer|min:1|max:5',
+            'icon_key'         => 'nullable|string|max:120',
             'sort_order'       => 'nullable|integer|min:0',
             'prereqs'          => 'nullable|array',
             'prereqs.*'        => 'integer|exists:sbn_skill_nodes,id',
             'courses'          => 'nullable|array',
             'courses.*'        => 'integer|exists:sbn_courses,id',
+            'styles'           => 'nullable|array',
+            'styles.*'         => 'integer|min:0|max:3', // keyed by style slug; 0 = not tagged
         ]);
 
         $attributes = [
@@ -116,9 +129,20 @@ class SkillNodeController extends Controller
             'sub_branch'       => $raw['sub_branch'] ?? null,
             'description'      => $raw['description'] ?? null,
             'content_tag_slug' => $raw['content_tag_slug'] ?: null,
+            'grade'            => $raw['grade'] ?? null,
+            'icon_key'         => $raw['icon_key'] ?: null,
             'completion_type'  => SkillNode::COMPLETION_SELF_REPORT, // v1: fixed
             'sort_order'       => $raw['sort_order'] ?? 0,
         ];
+
+        // Style weights come in as { style-slug => weight }; drop 0s (untagged)
+        // and anything outside the controlled vocabulary (syncStyles re-checks too).
+        $styleWeights = [];
+        foreach (($raw['styles'] ?? []) as $style => $weight) {
+            if ((int) $weight > 0 && in_array($style, SkillNode::STYLES, true)) {
+                $styleWeights[$style] = (int) $weight;
+            }
+        }
 
         // A node can never be its own prerequisite.
         $prereqs = array_values(array_filter(
@@ -130,6 +154,7 @@ class SkillNodeController extends Controller
             'attributes' => $attributes,
             'prereqs'    => $prereqs,
             'courses'    => $raw['courses'] ?? [],
+            'styles'     => $styleWeights,
         ];
     }
 
@@ -137,6 +162,7 @@ class SkillNodeController extends Controller
     {
         $node->prerequisites()->sync($data['prereqs']);
         $node->courses()->sync($data['courses']);
+        $node->syncStyles($data['styles']);
     }
 
     private function uniqueSlug(string $slug, ?int $exceptId): string

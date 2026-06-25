@@ -1,13 +1,16 @@
 # SBN Skill System — Planning & As-Built Reference
 
-> Status: **v1 SHIPPED + 2026-06-23 expansion seeded and verified.**
+> Status: **v1 SHIPPED + expansion + student UI (self-report on 3 surfaces).**
 > Data model, models, seeder, and admin table editor built — see "v1 Implementation (As-Built)".
-> Graph is now **53 nodes** across all six branches with **57 prerequisite edges** (no cycles, no
-> dangling refs — verified), and `sbn_course_skill_node` has **97 pivot rows** covering all 20
-> published courses (see "Course → Node Mapping"). Deferred work (style classes, repertoire, graph
-> viz, student UI, `fretboard-note-names` node) tracked in "Open Decisions" and "Post-v1 Roadmap".
-> Next step: close remaining curriculum gaps — Ear Training still has zero dedicated course coverage;
-> Technique nodes `barre-chords`, `position-shifting`, `tone-production` are open.
+> Graph is now **57 nodes** across all six branches with **60 prerequisite edges** (no cycles, no
+> dangling refs — verified), and `sbn_course_skill_node` has **98 pivot rows** covering all 20
+> published courses (see "Course → Node Mapping"). Self-report progress works end-to-end
+> (`/account/skills`, course-detail page, in-lesson `CourseSkillTracker`). `grade` is ~88% populated
+> (1–4; no grade-5 nodes yet) but **nothing reads it** (no grade-from-nodes logic). `icon_key` set on
+> 50 nodes; `icon_path` (custom SVG) on 0.
+> **The big unbuilt pieces vs the full vision** (see "Vision → Reality Reconciliation" next): no style
+> dimension on nodes (so no emergent player-class), no grade-threshold logic, no skill-tree viz, no
+> repertoire/style-class tables. Deferred work tracked in "Open Decisions" and "Post-v1 Roadmap".
 
 ---
 
@@ -16,6 +19,43 @@
 Replace large monolithic courses with **atomic skill nodes** that students accumulate like RPG character stats. Progress through the skill graph unlocks **style classes** (emergent musical identity). **Repertoire pieces** function as equipment — practical tools that increase real-world musical competence.
 
 The system is a **recommendation and visualization engine**, not a hard-lock gate. All content remains accessible; the skill tree guides without blocking.
+
+---
+
+## Vision → Reality Reconciliation (2026-06-25)
+
+The full RPG/FIFA-style vision has **six pillars**. This section is the honest map of what's
+load-bearing vs aspirational, so we sequence the remaining work against the real data model — not the
+brainstorm. (DB-verified 2026-06-25.)
+
+| # | Vision pillar (RPG/FIFA analogy) | Status | Notes |
+|---|---|---|---|
+| 1 | **5 difficulty grades** = character level | ⚠️ exists but **disconnected** | Courses carry a `level` string; nodes carry a `grade` int (1–4). Neither talks to the other. |
+| 2 | **Nodes = glue between grade leaps / keys to advance** | ❌ designed, not built | This is the "Option B" grade-threshold logic (below) — deferred as a tuning problem. The keystone of pillar 1. |
+| 3 | **Nodes interconnected + categorised** (rhythm/harmony/…) | ✅ **real** | 57 nodes, 60 prereq edges, 6 branches, 98 course mappings. The solid spine. |
+| 4 | **Nodes related to styles** (walking-bass→jazz, partido-alto→bossa) | ❌ **no data** | Nodes have `branch`/`sub_branch` = musical *category*, NOT style. No node↔style link, no genre on nodes. **Biggest mismatch with the vision.** |
+| 5 | **Character class / player style** (Jazz / Bossa / Classical / Pop player) | ❌ deferred | `style_classes` table never built. Cannot exist until pillar 4 gives it data. |
+| 6 | **Complex skill-tree visualisation** | ❌ not built | The gamification payoff. Flagged "take to Opus first" (SVG vs canvas, hand-laid x/y). |
+
+**The dependency order that falls out of this** (and the agreed build sequence):
+
+1. **Style dimension first** (closes pillar 4). ✅ **BUILT 2026-06-25.** `sbn_skill_node_style` pivot
+   (`skill_node_id`, `style`, `weight` 1–3), migration `2026_06_25_000001`. `SkillNode::STYLES` =
+   `[bossa-nova, jazz, classical, pop]` (same controlled vocab courses use in `genres` — **deliberately
+   NOT the freeform `sbn_tags` cloud**, which is vibe-flavoured and morphed to content, not nodes).
+   `SkillNode::styleWeights()` / `syncStyles()` accessors. `SkillNodeStyleSeeder` tags 34 of 57 nodes
+   (jazz 23, bossa 19, classical 13, pop 7); foundational nodes (intervals/triads/meter/scales/notation)
+   left untagged = neutral. Admin editor exposes a per-style weight selector + index shows Grade/Styles
+   columns. Weight semantics: 1=touches, 2=toolkit, 3=definitional. This drives pillars 5 + tree colour.
+2. **Grade-threshold logic** (closes pillar 2 → activates pillar 1). Turn the existing `grade` data into
+   a computed "your level." The "natural progression" pillar.
+3. **Skill-tree viz** (pillar 6) — only after 1+2, so it has edges + grade tiers + style clusters +
+   completion to show. Building it first means rebuilding it.
+4. **Style classes** (pillar 5) — rides on pillar 4's data once thresholds are a solved pattern from #2.
+
+**Honest caveat:** pillars 2 and 5 are *the same unsolved tuning problem* — "how many of which nodes =
+you've earned this grade / class?" The schema is mechanical; the threshold *design* is the genuinely
+hard part, which is exactly why both were deferred. Everything else here is plumbing.
 
 ---
 

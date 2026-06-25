@@ -32,6 +32,8 @@
                     <th title="Prerequisites">Req</th>
                     <th title="Nodes this unlocks">Unlocks</th>
                     <th title="Courses teaching this node">Courses</th>
+                    <th title="Difficulty grade 1–5">Grade</th>
+                    <th title="Style identity (weight)">Styles</th>
                     <th>Content tag</th>
                     <th style="width:120px;"></th>
                 </tr>
@@ -45,6 +47,17 @@
                     <td style="font-size:13px;color:var(--clr-text-dim);">{{ $node->prerequisites_count }}</td>
                     <td style="font-size:13px;color:var(--clr-text-dim);">{{ $node->unlocks_count }}</td>
                     <td style="font-size:13px;color:var(--clr-text-dim);">{{ $node->courses_count }}</td>
+                    <td style="font-size:13px;color:var(--clr-text-dim);">{{ $node->grade ?? '—' }}</td>
+                    <td>
+                        @php $ns = $stylesByNode[$node->id] ?? []; @endphp
+                        @if($ns)
+                            @foreach($ns as $style => $weight)
+                                <span class="sbn-badge" style="font-size:11px;" title="weight {{ $weight }}">{{ str_replace('-', ' ', $style) }} {{ $weight }}</span>
+                            @endforeach
+                        @else
+                            <span style="color:var(--clr-text-dim);">—</span>
+                        @endif
+                    </td>
                     <td>
                         @if($node->content_tag_slug)
                             <span class="sbn-badge sbn-badge-green">#{{ $node->content_tag_slug }}</span>

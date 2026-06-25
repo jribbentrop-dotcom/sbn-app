@@ -77,6 +77,53 @@
                 </div>
             </div>
 
+            <div class="sbn-form-row sbn-form-row-2">
+                <div class="sbn-form-group">
+                    <label for="grade">Grade <span style="font-weight:400;color:var(--clr-text-muted)">(difficulty placement, 1–5)</span></label>
+                    <select id="grade" name="grade" class="sbn-search-input" style="padding-left:14px;">
+                        <option value="" @selected(old('grade', $node->grade) === null)>— ungraded —</option>
+                        @foreach([1 => 'Basic', 2 => 'Early Intermediate', 3 => 'Intermediate', 4 => 'Late Intermediate', 5 => 'Advanced'] as $g => $label)
+                            <option value="{{ $g }}" @selected((string) old('grade', $node->grade) === (string) $g)>{{ $g }} — {{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <p class="sbn-form-hint">The grade this node belongs to. Grade level is later computed from node completion (vision pillar 1).</p>
+                </div>
+                <div class="sbn-form-group">
+                    <label for="icon_key">Icon key <span style="font-weight:400;color:var(--clr-text-muted)">(Heroicon placeholder)</span></label>
+                    <input type="text" id="icon_key" name="icon_key" class="sbn-search-input" style="padding-left:14px;"
+                           value="{{ old('icon_key', $node->icon_key) }}"
+                           placeholder="e.g. musical-note">
+                    <p class="sbn-form-hint">Heroicon name (see SkillIcon.vue). Blank = branch icon fallback. Custom SVGs (icon_path) override this.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="sbn-editor-card" style="margin-top:18px;">
+        <div class="sbn-editor-card-header">
+            <h2>Style identity</h2>
+        </div>
+        <div class="sbn-editor-card-body">
+            <p class="sbn-form-hint" style="margin-top:0;">
+                How characteristic this node is of each style — drives emergent player-class
+                (Jazz / Bossa / Classical / Pop player). Leave all at “none” for foundational
+                nodes every style needs equally (intervals, triads, meter…).
+            </p>
+            <div class="sbn-form-row sbn-form-row-2">
+                @foreach($styles as $style)
+                    <div class="sbn-form-group">
+                        <label for="style_{{ $style }}">{{ ucwords(str_replace('-', ' ', $style)) }}</label>
+                        <select id="style_{{ $style }}" name="styles[{{ $style }}]" class="sbn-search-input" style="padding-left:14px;">
+                            @php $cur = (string) old("styles.$style", $styleWeights[$style] ?? 0); @endphp
+                            <option value="0" @selected($cur === '0' || $cur === '')>— none —</option>
+                            <option value="1" @selected($cur === '1')>1 — touches the style</option>
+                            <option value="2" @selected($cur === '2')>2 — part of its toolkit</option>
+                            <option value="3" @selected($cur === '3')>3 — definitional</option>
+                        </select>
+                    </div>
+                @endforeach
+            </div>
         </div>
     </div>
 

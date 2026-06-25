@@ -29,6 +29,19 @@ class SkillNode extends Model
         'rhythm', 'harmony', 'melody', 'technique', 'ear-training', 'reading-theory',
     ];
 
+    /**
+     * Canonical style axis (vision pillar 4). Same controlled vocabulary courses
+     * use in their `genres` JSON — NOT the freeform sbn_tags cloud. A node relates
+     * to 0..N of these via sbn_skill_node_style, each with a weight (1–3). See
+     * docs/SBN-Skill-System-Plan.md "Vision → Reality Reconciliation".
+     */
+    public const STYLES = ['bossa-nova', 'jazz', 'classical', 'pop'];
+
+    /** Style weights: how characteristic the node is of a style. */
+    public const STYLE_WEIGHT_WEAK = 1;          // touches the style, not defining
+    public const STYLE_WEIGHT_MEDIUM = 2;        // clearly part of the style's toolkit
+    public const STYLE_WEIGHT_DEFINITIONAL = 3;  // you can't separate the node from the style
+
     public const COMPLETION_SELF_REPORT = 'self_report';
 
     // =========================================================================
@@ -69,6 +82,50 @@ class SkillNode extends Model
         return $this->belongsToMany(User::class, 'sbn_user_skill_progress', 'skill_node_id', 'user_id')
             ->withPivot(['status', 'completed_at'])
             ->withTimestamps();
+    }
+
+    // =========================================================================
+    // STYLE AXIS (vision pillar 4 — see docs plan)
+    // =========================================================================
+
+    /**
+     * Style weights for this node, e.g. ['jazz' => 3, 'bossa-nova' => 2].
+     * Empty array when the node carries no style tags (most foundational nodes).
+     *
+     * Kept as a query-backed accessor rather than a BelongsToMany because the
+     * style "table" is a fixed string vocabulary (STYLES), not a model.
+     *
+     * @return array<string,int>
+     */
+    public function styleWeights(): array
+    {
+        return \DB::table('sbn_skill_node_style')
+            ->where('skill_node_id', $this->id)
+            ->pluck('weight', 'style')
+            ->map(fn ($w) => (int) $w)
+            ->all();
+    }
+
+    /** Replace this node's style tags with the given [style => weight] map. */
+    public function syncStyles(array $weights): void
+    {
+        \DB::table('sbn_skill_node_style')->where('skill_node_id', $this->id)->delete();
+
+        $rows = [];
+        foreach ($weights as $style => $weight) {
+            if (! in_array($style, self::STYLES, true)) {
+                continue; // ignore anything outside the controlled vocabulary
+            }
+            $rows[] = [
+                'skill_node_id' => $this->id,
+                'style'         => $style,
+                'weight'        => max(1, min(3, (int) $weight)),
+            ];
+        }
+
+        if ($rows) {
+            \DB::table('sbn_skill_node_style')->insert($rows);
+        }
     }
 
     // =========================================================================
