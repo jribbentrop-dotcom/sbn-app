@@ -5,12 +5,14 @@
 > Graph is now **57 nodes** across all six branches with **60 prerequisite edges** (no cycles, no
 > dangling refs — verified), and `sbn_course_skill_node` has **98 pivot rows** covering all 20
 > published courses (see "Course → Node Mapping"). Self-report progress works end-to-end
-> (`/account/skills`, course-detail page, in-lesson `CourseSkillTracker`). `grade` is ~88% populated
-> (1–4; no grade-5 nodes yet) but **nothing reads it** (no grade-from-nodes logic). `icon_key` set on
-> 50 nodes; `icon_path` (custom SVG) on 0.
-> **The big unbuilt pieces vs the full vision** (see "Vision → Reality Reconciliation" next): no style
-> dimension on nodes (so no emergent player-class), no grade-threshold logic, no skill-tree viz, no
-> repertoire/style-class tables. Deferred work tracked in "Open Decisions" and "Post-v1 Roadmap".
+> (`/account/skills`, course-detail page, in-lesson `CourseSkillTracker`). **`grade` now 100% populated
+> across all 5 tiers** (G1=13, G2=19, G3=17, G4=3, G5=5) and READ by `SkillGradeService` (level computed
+> from node completion). **Style dimension built** (`sbn_skill_node_style`). Skill-tree (pillar 6):
+> positions schema + auto-layout + admin drag editor BUILT; student-facing render deferred (alpha) and
+> gated on a multi-style-tile design decision — see `SBN-Skill-Tree-Design-Brief.md` §8. `icon_key` set
+> on 50 nodes; `icon_path` (custom SVG) on 0.
+> **Remaining vs full vision** (see "Vision → Reality Reconciliation"): student skill-tree render,
+> player-class/style-class tables (pillar 5), repertoire tables. Tracked in "Open Decisions" / "Post-v1 Roadmap".
 
 ---
 
@@ -606,14 +608,14 @@ In rough priority order, once the taxonomy is curated:
 4. **Style classes** — the deferred tables + auto-award logic. Treat thresholds as a tuning problem.
 5. **Repertoire nodes** — the deferred tables + acquisition types + affiliate links.
 6. **Graph visualization (student-facing skill tree)** — **the visual core + main student motivation.**
-   NOT a force-directed auto-layout. Target: FC26-style node graph (hexagonal/diamond tiles, connector
-   edges, lock overlay on unmet prereqs, completed glow), hand-laid x/y positions. **Design direction is
-   being brainstormed in Cowork/design FIRST** (decided 2026-06-25) — see **`SBN-Skill-Tree-Design-Brief.md`**
-   for the constraints handed off (the 5 dimensions that must read at once, 4 layout metaphors to mock,
-   mobile + soft-gating + brand constraints). The *data is done* (graph, grades, style weights, completion
-   all queryable as of 2026-06-25) — this is now purely presentation. Engineering decisions DEFERRED until
-   a visual is locked: (a) SVG vs canvas vs CSS-grid, (b) `pos_x`/`pos_y` columns + admin layout editor,
-   (c) the Vue component. Bring back: chosen desktop layout, mobile approach, dimension→encoding mapping.
+   Layout **A (FC26 tile tree) WON** the Cowork comparison (2026-06-25). **Full status + open questions:
+   `SBN-Skill-Tree-Design-Brief.md` §8.** Built so far: `pos_x`/`pos_y` schema + auto-layout seed
+   (`4b8ad56`), admin drag-to-position editor (`441cc02`, confirmed working in-browser), grade scale
+   completed to all 5 tiers (`73fcdad`). **Two things still gate the student-facing render:** (a) an OPEN
+   design decision — *multi-style tiles* (color=style was locked, but ~half the styled nodes carry 2+
+   styles; a single fill can't show two — see brief §8); (b) mobile design pass. Student SVG render itself
+   is deprioritised (alpha). Note: admin editor colors tiles by **branch**, student tree by **style** — a
+   deliberate divergence (brief §8). Engineering still deferred: SVG-vs-canvas for the student render.
 
 ---
 

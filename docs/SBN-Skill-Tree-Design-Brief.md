@@ -161,12 +161,11 @@ flagging honestly rather than pretending B's chip styling alone closes it out.
 
 The mockups were comparative sketches, not a visual spec. Still open:
 
-- **Color values.** Mockup colors (purple/coral/teal/etc. per branch) were placeholders to prove
-  "branch gets a distinct color" as a concept — they are not tied to the real `--clr-style-*`
-  tokens (`--clr-style-bossa` orange, `--clr-style-jazz` blue, `--clr-style-classical` slate,
-  `--clr-style-pop` pink) or any actual per-branch palette decision. Whoever implements this should
-  choose real colors deliberately, reusing existing style tokens where they overlap rather than
-  inventing a parallel palette.
+- **Color values.** Mockup colors (purple/coral/teal/etc.) were placeholders. The real style tokens
+  (defined in `public/css/sbn-design-system.css`) are: `--clr-style-bossa` **orange** `#f39c12`,
+  `--clr-style-jazz` **blue** `#3b82f6`, `--clr-style-classical` **green** `#10b981` (NOT slate — an
+  earlier note in this doc was wrong), `--clr-style-pop` **pink** `#ec4899`. Reuse these; don't invent
+  a parallel palette.
 - **Spacing, tile size/shape, icon set, font sizes** — mockup used Tabler icons as a stand-in for
   the real Heroicon system and arbitrary diamond proportions. Not a constraint.
 - **Animations and the completion "glow"/celebration micro-moment** — explicitly called out in §4
@@ -183,5 +182,51 @@ the start so it isn't redone later.
 
 ### Still genuinely deferred to engineering (per §5, unchanged)
 
-SVG vs. Canvas vs. CSS-grid rendering, the exact `pos_x`/`pos_y` schema + admin layout editor, and
-the mobile design pass flagged above.
+SVG vs. Canvas vs. CSS-grid rendering for the *student* tree, and the mobile design pass flagged above.
+(The `pos_x`/`pos_y` schema + admin layout editor are now BUILT — see §8.)
+
+---
+
+## 8. As-built status (2026-06-25) + open questions
+
+### Built
+- **Positions schema** — `pos_x`/`pos_y` on `sbn_skill_nodes` (0..1000 design units), auto-seeded by
+  `SkillNodePositionSeeder` (grade-tier × branch-spread), commit `4b8ad56`.
+- **Admin drag-to-position editor** — `/admin/skill-nodes/layout`, vanilla-JS draggable tiles + live
+  SVG edge redraw + bulk save, commit `441cc02`. Verified rendering; drag/save confirmed working by
+  Lucas in-browser 2026-06-25.
+- **Grade scale completed** — all five tiers now populated (G1=13, G2=19, G3=17, G4=3, G5=5; zero
+  ungraded), commit `73fcdad`. The tree is structurally complete top-to-bottom.
+
+### Encoding as-built — note the editor vs student divergence
+- **Admin editor tile color = BRANCH** (deliberate — for *positioning*, "which branch" is the more
+  useful key, and a node can carry 0–4 styles so style-color would be ambiguous there).
+- **Student tree tile color = STYLE** (the §7 locked mapping). These diverge ON PURPOSE.
+
+### Icons — two layers, current state
+- **`icon_key`** (Heroicon name, per-node): **50 of 57 set** in the seeder (e.g. `chord-melody`→
+  `queue-list`). The 7 without fall back to their branch icon. So per-node icons ARE specced — as
+  Heroicon placeholders, not bespoke art.
+- **`icon_path`** (custom purpose-drawn SVG, per-node): **0 of 57 set.** This is the bespoke-art tier
+  (Phase B in the plan's Icon System). `SkillIcon.vue` already prefers icon_path → icon_key → branch
+  fallback, so dropping custom SVGs in later is a pure design/content task, no code change.
+
+### OPEN QUESTION (blocks the student tree) — multi-style tiles
+The §7 mapping locked "tile color = style," but **~half the styled nodes carry 2+ styles** (e.g.
+`shell-voicings` = jazz 3 + bossa 3; `secondary-dominants` = jazz 2 + classical 2 + bossa 1). A single
+fill can't show two/three colors. **Unresolved — needs a design decision before the student tree is
+built.** Candidate approaches:
+- **Dominant-weight wins** — one color (highest weight); ties broken by a fixed style priority. Simplest.
+- **Split/gradient tile** — 2-way split or conic gradient across the node's styles. Prettier, busier.
+- **One base color + small style "pips"** — dominant style fills the tile, tiny dots mark the others.
+- Foundational (0-style) nodes need a neutral default regardless (grey? branch color?).
+
+### OPEN — mobile
+Still TBD (see §7 "Mobile"). No mock built; placeholder direction is one-branch-at-a-time collapse.
+
+### Deferred (lower priority — alpha)
+- **Student-facing SVG tree render** — the read-only view students see. Mockup (`...-Mockup-A-Reference.html`)
+  is a near-literal spec for it, but it's gated on the multi-style-tile decision above. Deprioritised
+  while in alpha per Lucas 2026-06-25.
+- **Custom per-node SVG art** (`icon_path`) — design task, no code.
+- **Completion glow / "just leveled up" micro-moment** — §4; build with the student tree.
