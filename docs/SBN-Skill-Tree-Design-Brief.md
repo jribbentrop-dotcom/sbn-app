@@ -112,3 +112,76 @@ and build the Vue component — all the data it needs already exists.
 
 *Created 2026-06-25. Companion to `SBN-Skill-System-Plan.md` (Post-v1 Roadmap #6 + Icon System).*
 *Live data snapshot in §1 verified against `database/sbn.db` on 2026-06-25.*
+
+---
+
+## 7. Decision — locked direction (2026-06-25, Cowork design session)
+
+Three layouts from §3 were mocked side-by-side using the same 9-node sample subgraph (including
+the `triads` → `arpeggio-shapes` cross-branch edge): **A (FC26 tile tree)**, **B (grade lanes)**,
+**C (constellation)**. Findings:
+
+- **B** confirmed its own predicted risk — the cross-branch edge visibly cut through an unrelated
+  grade band. Demoted to a *mobile fallback pattern* only (see below), not a desktop contender.
+- **C** read as the most on-brand (sophisticated, not arcade-y) but cost the grade dimension —
+  grade was reduced to star-size, the weakest of the three encodings tested. Sparse style clusters
+  (Classical, Pop) also looked visually empty next to Jazz's 23 nodes.
+- **A won.** It was the only layout that didn't sacrifice a dimension to make another legible.
+
+### Chosen layout: A — FC26-style tile tree
+
+Hand-laid diamond/hex tiles (not auto-layout, not force-directed — confirmed per §5, this stays a
+hand-laid `pos_x`/`pos_y` scheme for the engineer to design).
+
+**Reference mockup:** `docs/SBN-Skill-Tree-Mockup-A-Reference.html` (open directly in a browser).
+Only layout A is saved as a reference file — B and C were comparison sketches only, shown live
+during the design session and not persisted, since they were demoted (see findings above). The
+saved file carries the same caveat inline: it's a comparative sketch, not a visual spec — see
+"Explicitly NOT specified" below for what's still open.
+
+### Dimension → encoding mapping (locked)
+
+| Dimension | Encoding |
+|---|---|
+| Grade (1–5) | Vertical position — tiles climb upward by tier, "you are here" as a horizontal line/region |
+| Branch (6 categories) | Icon (existing Heroicon system per `SBN-Skill-System-Plan.md`) |
+| Style (bossa/jazz/classical/pop) | Tile color |
+| Completion (done / available / locked) | Border + check badge / plain / dimmed + lock badge — soft lock, never hard-blocked |
+| Prerequisite edges | Connector lines; cross-branch edges get a visually distinct treatment (color/weight) so the "graph not tree" reality stays legible, not hidden |
+
+### Mobile — TBD, not locked
+
+No mobile mock was built. Placeholder direction only: collapse to **one branch at a time** (a
+vertical chip-list per branch, structurally similar to layout B's chip styling, which held up fine
+as a single column even though it failed as the desktop hero), with a branch switcher, gating the
+full tile-tree map to desktop/tablet. **This needs its own design pass before mobile is built** —
+flagging honestly rather than pretending B's chip styling alone closes it out.
+
+### Explicitly NOT specified — open for implementation
+
+The mockups were comparative sketches, not a visual spec. Still open:
+
+- **Color values.** Mockup colors (purple/coral/teal/etc. per branch) were placeholders to prove
+  "branch gets a distinct color" as a concept — they are not tied to the real `--clr-style-*`
+  tokens (`--clr-style-bossa` orange, `--clr-style-jazz` blue, `--clr-style-classical` slate,
+  `--clr-style-pop` pink) or any actual per-branch palette decision. Whoever implements this should
+  choose real colors deliberately, reusing existing style tokens where they overlap rather than
+  inventing a parallel palette.
+- **Spacing, tile size/shape, icon set, font sizes** — mockup used Tabler icons as a stand-in for
+  the real Heroicon system and arbitrary diamond proportions. Not a constraint.
+- **Animations and the completion "glow"/celebration micro-moment** — explicitly called out in §4
+  as worth designing properly (not just `box-shadow: glow`), and not attempted in the mockups.
+  Code can and should handle this.
+
+### One architectural constraint for whoever builds it
+
+Per `SBN-Design-Reference.md`: **card frame styling (borders, shadows, hover transitions, any
+completion glow) must live as global classes in `sbn-design-system.css`, not in the Vue component's
+scoped `<style>` block** — scoped styles get a `[data-v-hash]` attribute that `[data-theme]`
+selectors can't reach, breaking theme-switching. Put the tile/glow styling in the design system from
+the start so it isn't redone later.
+
+### Still genuinely deferred to engineering (per §5, unchanged)
+
+SVG vs. Canvas vs. CSS-grid rendering, the exact `pos_x`/`pos_y` schema + admin layout editor, and
+the mobile design pass flagged above.

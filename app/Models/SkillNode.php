@@ -22,6 +22,9 @@ class SkillNode extends Model
 
     protected $casts = [
         'sort_order' => 'integer',
+        'grade'      => 'integer',
+        'pos_x'      => 'integer',
+        'pos_y'      => 'integer',
     ];
 
     /** Canonical branches (see plan "Skill Taxonomy"). */
