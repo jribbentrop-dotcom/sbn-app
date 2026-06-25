@@ -32,7 +32,7 @@ class CourseController extends Controller
         ]);
     }
 
-    public function show(Course $course)
+    public function show(Request $request, Course $course)
     {
         $lessons = $course->lessons()
             ->published()
@@ -91,6 +91,29 @@ class CourseController extends Controller
             return $topic ? ['slug' => $topic->slug, 'title' => $topic->title] : null;
         })->filter()->values();
 
+        // Skills this course teaches (many-to-many via sbn_course_skill_node).
+        // For signed-in students, flag which they've already self-reported as done
+        // so the same toggle they get on /account/skills works here too. Guests see
+        // the list with no toggle state (the card links them to register on click).
+        $user = $request->user();
+        $completedSkillSlugs = $user
+            ? $user->skillNodes()->wherePivot('status', 'completed')
+                ->pluck('sbn_skill_nodes.slug')->flip()
+            : collect();
+
+        $skills = $course->skillNodes()
+            ->orderBy('branch')->orderBy('sort_order')
+            ->get(['sbn_skill_nodes.id', 'slug', 'title', 'branch', 'grade', 'icon_key', 'icon_path'])
+            ->map(fn ($n) => [
+                'slug'     => $n->slug,
+                'title'    => $n->title,
+                'branch'   => $n->branch,
+                'grade'    => $n->grade,
+                'iconKey'  => $n->icon_key,
+                'iconPath' => $n->icon_path,
+                'done'     => isset($completedSkillSlugs[$n->slug]),
+            ]);
+
         return Inertia::render('Courses/Show', [
             'course'       => $this->serializeCourse($course),
             'lessons'      => $lessons,
@@ -135,6 +158,7 @@ class CourseController extends Controller
                 'title'      => $w['title'],
                 'lessonSlug' => $widgetMap[$w['slug']] ?? null,
             ]),
+            'skills'       => $skills,
         ]);
     }
 
