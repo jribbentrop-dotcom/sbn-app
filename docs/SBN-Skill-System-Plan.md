@@ -605,14 +605,15 @@ In rough priority order, once the taxonomy is curated:
    added to the `TABLES` preserve list in `scripts/deploy_db.sh` 2026-06-25 (prerequisite for prod).
 4. **Style classes** — the deferred tables + auto-award logic. Treat thresholds as a tuning problem.
 5. **Repertoire nodes** — the deferred tables + acquisition types + affiliate links.
-6. **Graph visualization (student-facing skill tree)** — NOT a force-directed auto-layout.
-   Target design: FC26-style node graph — hexagonal/diamond tiles with icons, connector lines
-   showing prerequisite edges, lock overlay on unmet prerequisites, glow/highlight on completed
-   nodes. Fixed hand-laid x/y positions per node (designed, not computed). Probably SVG-based.
-   Requires: (a) x/y position columns on `sbn_skill_nodes`, (b) a layout design pass per branch
-   in the admin editor, (c) a Vue SVG component that draws edges + tiles. **Take to Opus before
-   building** — architecture decision (SVG vs canvas vs CSS grid with absolute positioning) and
-   layout strategy need to be settled first. See FC26 screenshot reference (2026-06-24).
+6. **Graph visualization (student-facing skill tree)** — **the visual core + main student motivation.**
+   NOT a force-directed auto-layout. Target: FC26-style node graph (hexagonal/diamond tiles, connector
+   edges, lock overlay on unmet prereqs, completed glow), hand-laid x/y positions. **Design direction is
+   being brainstormed in Cowork/design FIRST** (decided 2026-06-25) — see **`SBN-Skill-Tree-Design-Brief.md`**
+   for the constraints handed off (the 5 dimensions that must read at once, 4 layout metaphors to mock,
+   mobile + soft-gating + brand constraints). The *data is done* (graph, grades, style weights, completion
+   all queryable as of 2026-06-25) — this is now purely presentation. Engineering decisions DEFERRED until
+   a visual is locked: (a) SVG vs canvas vs CSS-grid, (b) `pos_x`/`pos_y` columns + admin layout editor,
+   (c) the Vue component. Bring back: chosen desktop layout, mobile approach, dimension→encoding mapping.
 
 ---
 
