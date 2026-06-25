@@ -29,6 +29,7 @@ TABLES = [
     'users', 'user_profiles', 'orders', 'order_items',
     'download_grants', 'course_user', 'sessions',
     'password_reset_tokens', 'jobs',
+    'sbn_user_skill_progress',
 ]
 
 db_path = sys.argv[1]

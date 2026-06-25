@@ -212,10 +212,12 @@ interval is a good Phase 2 addition once a clean candidate is identified per int
 - **Native multi-selects** — unglamorous but fine for admin-only v1; a tag-style picker is polish.
 - **Prod deploy** — handled by `scripts/deploy_db.sh`: it scp's the whole local `sbn.db` up (so the
   four `sbn_*` tables AND seeded nodes ride along — no manual table creation, no remote seeding),
-  preserving prod user tables via a dump/restore list. ⚠️ **`sbn_user_skill_progress` is NOT in that
-  script's preserve list.** Harmless now (empty on prod), but once students self-report progress on
-  prod, the next `deploy_db.sh` run will WIPE it. **Before shipping roadmap #3 (student progress), add
-  `sbn_user_skill_progress` to the `TABLES` array in `scripts/deploy_db.sh`.**
+  preserving prod user tables via a dump/restore list. ✅ **`sbn_user_skill_progress` was added to that
+  script's `TABLES` preserve list 2026-06-25** (it's per-student self-report data — without it the next
+  deploy would overwrite real progress with the empty local table). Caveat: the restore connection
+  doesn't enable SQLite FK enforcement, so deleting a node locally would leave preserved progress rows
+  orphaned (dangling, not erroring) — fine for the add-only seeding done so far, but worth knowing
+  before any node deletion.
 
 ---
 
@@ -543,10 +545,12 @@ In rough priority order, once the taxonomy is curated:
 2. **Map existing courses** to nodes through the pivot — ✅ done 2026-06-23 for 15/16 published courses,
    see "Course → Node Mapping". Revisit once branches above are content-verified, and whenever a new
    course ships.
-3. **Student-facing progress** — surface `sbn_user_skill_progress` (self-report toggle on lesson/course
-   pages), then "recommended next nodes". *This* is when cycle detection / topological traversal earns
-   its place (see v1 gaps). ⚠️ **First** add `sbn_user_skill_progress` to the `TABLES` preserve list in
-   `scripts/deploy_db.sh`, or the next content deploy will wipe real user progress.
+3. **Student-facing progress** — ✅ a first cut shipped 2026-06-23 (`/account/skills`, commit `309e555`):
+   per-branch grid of self-report toggle cards backed by `sbn_user_skill_progress`, with `SkillIcon.vue`
+   (3-tier icon fallback) and account-nav links. Still to do: self-report toggles *on lesson/course pages*
+   (not just the dedicated page), then "recommended next nodes". *That* is when cycle detection /
+   topological traversal earns its place (see v1 gaps). ✅ `sbn_user_skill_progress` added to the `TABLES`
+   preserve list in `scripts/deploy_db.sh` 2026-06-25 (was the prerequisite for shipping this to prod).
 4. **Style classes** — the deferred tables + auto-award logic. Treat thresholds as a tuning problem.
 5. **Repertoire nodes** — the deferred tables + acquisition types + affiliate links.
 6. **Graph visualization (student-facing skill tree)** — NOT a force-directed auto-layout.
