@@ -47,8 +47,15 @@ brainstorm. (DB-verified 2026-06-25.)
    (jazz 23, bossa 19, classical 13, pop 7); foundational nodes (intervals/triads/meter/scales/notation)
    left untagged = neutral. Admin editor exposes a per-style weight selector + index shows Grade/Styles
    columns. Weight semantics: 1=touches, 2=toolkit, 3=definitional. This drives pillars 5 + tree colour.
-2. **Grade-threshold logic** (closes pillar 2 → activates pillar 1). Turn the existing `grade` data into
-   a computed "your level." The "natural progression" pillar.
+2. **Grade-threshold logic** (closes pillar 2 → activates pillar 1). ✅ **BUILT 2026-06-25.**
+   `App\Services\SkillGradeService`: a grade is *cleared* at ≥70% of its nodes done (`THRESHOLD`, the
+   one tunable knob); *level* = highest grade G where every grade 1..G is cleared (no skipping), capped
+   at the highest grade that actually has nodes. Ungraded nodes count toward nothing (neutral). Empty
+   grades are vacuously cleared. Surfaced on `/account/skills` as a level badge + per-grade progress bars
+   with a threshold tick; the Vue page recomputes the level **live** as the student toggles (mirrors the
+   service; server payload supplies threshold + labels). Verified: empty→L0, all g1+g2→L2 (doesn't skip
+   to L3 despite g3 having nodes). Grade chosen as **% of each grade's nodes** rule (2026-06-25). Course
+   `level` string is NOT the source (only 5/20 set) — nodes are the only viable grade signal.
 3. **Skill-tree viz** (pillar 6) — only after 1+2, so it has edges + grade tiers + style clusters +
    completion to show. Building it first means rebuilding it.
 4. **Style classes** (pillar 5) — rides on pillar 4's data once thresholds are a solved pattern from #2.

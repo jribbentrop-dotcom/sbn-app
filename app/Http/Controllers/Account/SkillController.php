@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Account;
 
 use App\Http\Controllers\Controller;
 use App\Models\SkillNode;
+use App\Services\SkillGradeService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class SkillController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, SkillGradeService $grades)
     {
         $user = $request->user();
 
@@ -32,7 +33,8 @@ class SkillController extends Controller
             ]);
 
         return Inertia::render('Account/Skills', [
-            'nodes' => $nodes,
+            'nodes'      => $nodes,
+            'gradeStats' => $grades->forUser($user),
         ]);
     }
 

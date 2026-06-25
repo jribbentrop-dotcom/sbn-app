@@ -17,7 +17,15 @@ interface SkillNode {
     done: boolean;
 }
 
-const props = defineProps<{ nodes: SkillNode[] }>();
+interface GradeStat { grade: number; label: string; done: number; total: number; pct: number; cleared: boolean; current: boolean }
+interface GradeStats {
+    level: number;
+    levelLabel: string;
+    threshold: number;
+    grades: Record<number, GradeStat>;
+}
+
+const props = defineProps<{ nodes: SkillNode[]; gradeStats: GradeStats }>();
 
 // Plain reactive objects — Vue tracks property additions/deletions on these.
 const done = reactive<Record<string, true>>(
@@ -68,6 +76,54 @@ function branchProgress(branch: string) {
     const done = nodes.filter(n => isDone(n.slug)).length;
     return { done, total: nodes.length };
 }
+
+// ── Live grade computation ───────────────────────────────────────────────────
+// Mirrors App\Services\SkillGradeService so the level updates instantly as the
+// student ticks nodes (no server round-trip). Threshold + labels come from the
+// server payload (single source of truth); the math is duplicated by necessity
+// because the toggles are optimistic and we don't refetch on every click.
+const MAX_GRADE = 5;
+const threshold = computed(() => props.gradeStats.threshold ?? 0.7);
+
+const liveGrades = computed(() => {
+    // tally graded nodes only: grade => {total, done}
+    const tally: Record<number, { total: number; done: number }> = {};
+    for (const n of props.nodes) {
+        if (n.grade == null) continue;
+        (tally[n.grade] ??= { total: 0, done: 0 }).total++;
+        if (isDone(n.slug)) tally[n.grade].done++;
+    }
+    const maxDefined = Object.keys(tally).length ? Math.max(...Object.keys(tally).map(Number)) : 0;
+
+    const grades: GradeStat[] = [];
+    for (let g = 1; g <= MAX_GRADE; g++) {
+        const t = tally[g]?.total ?? 0;
+        const d = tally[g]?.done ?? 0;
+        const cleared = t === 0 ? true : d / t >= threshold.value;
+        grades.push({
+            grade: g,
+            label: props.gradeStats.grades[g]?.label ?? `Grade ${g}`,
+            done: d, total: t,
+            pct: t === 0 ? 0 : Math.round((d / t) * 100),
+            cleared, current: false,
+        });
+    }
+
+    let level = 0;
+    for (let g = 1; g <= MAX_GRADE; g++) {
+        if (grades[g - 1].cleared) level = g; else break;
+    }
+    level = Math.min(level, maxDefined);
+
+    for (let g = 1; g <= MAX_GRADE; g++) {
+        if (grades[g - 1].total > 0 && !grades[g - 1].cleared) { grades[g - 1].current = true; break; }
+    }
+
+    return { level, levelLabel: level === 0 ? 'Getting started' : (props.gradeStats.grades[level]?.label ?? `Grade ${level}`), grades };
+});
+
+// Only show grades that have nodes (hide an empty top grade until curated).
+const visibleGrades = computed(() => liveGrades.value.grades.filter(g => g.total > 0));
 </script>
 
 <template>
@@ -76,6 +132,34 @@ function branchProgress(branch: string) {
             <h1>My Skills</h1>
             <p class="sbn-account-subtle">Mark skills as you learn them. No pressure — just a map of where you are.</p>
         </header>
+
+        <!-- Grade / level panel -->
+        <section class="skill-grade-panel">
+            <div class="skill-grade-level">
+                <span class="skill-grade-level-num">{{ liveGrades.level || '–' }}</span>
+                <div class="skill-grade-level-meta">
+                    <span class="skill-grade-level-lbl">Your level</span>
+                    <strong class="skill-grade-level-name">{{ liveGrades.levelLabel }}</strong>
+                </div>
+            </div>
+            <div class="skill-grade-bars">
+                <div
+                    v-for="g in visibleGrades"
+                    :key="g.grade"
+                    class="skill-grade-bar"
+                    :class="{ 'is-cleared': g.cleared, 'is-current': g.current }"
+                >
+                    <div class="skill-grade-bar-head">
+                        <span class="skill-grade-bar-name">{{ g.grade }} · {{ g.label }}</span>
+                        <span class="skill-grade-bar-count">{{ g.done }}/{{ g.total }}</span>
+                    </div>
+                    <div class="skill-grade-bar-track">
+                        <div class="skill-grade-bar-fill" :style="{ width: g.pct + '%' }" />
+                        <div class="skill-grade-bar-threshold" :style="{ left: Math.round(threshold * 100) + '%' }" :title="`${Math.round(threshold * 100)}% to clear`" />
+                    </div>
+                </div>
+            </div>
+        </section>
 
         <div class="skill-branches">
             <section v-for="[branch, nodes] in byBranch" :key="branch" class="skill-branch">
@@ -116,6 +200,90 @@ function branchProgress(branch: string) {
 </template>
 
 <style scoped>
+/* ── Grade / level panel ─────────────────────────────────────────────────── */
+.skill-grade-panel {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 1.25rem 1.5rem;
+    margin-top: 1.25rem;
+    border: 1px solid var(--sbn-border, #e5e5e5);
+    border-radius: 12px;
+    background: var(--sbn-card-bg, #fff);
+}
+.skill-grade-level {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    flex-shrink: 0;
+}
+.skill-grade-level-num {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: var(--sbn-accent, #b8860b);
+    color: #fff;
+    font-size: 1.75rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.skill-grade-level-meta { display: flex; flex-direction: column; }
+.skill-grade-level-lbl {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--sbn-muted, #888);
+}
+.skill-grade-level-name { font-size: 1.05rem; font-weight: 600; }
+
+.skill-grade-bars {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.625rem 1rem;
+    flex: 1;
+    min-width: 240px;
+}
+.skill-grade-bar-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.3rem;
+    gap: 0.5rem;
+}
+.skill-grade-bar-name { font-size: 0.78rem; font-weight: 600; }
+.skill-grade-bar-count {
+    font-size: 0.72rem;
+    color: var(--sbn-muted, #888);
+    font-variant-numeric: tabular-nums;
+}
+.skill-grade-bar-track {
+    position: relative;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--sbn-track, #ececec);
+    overflow: hidden;
+}
+.skill-grade-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sbn-accent, #b8860b) 55%, #ccc);
+    transition: width 0.25s ease;
+}
+.skill-grade-bar.is-cleared .skill-grade-bar-fill { background: var(--sbn-accent, #b8860b); }
+.skill-grade-bar.is-current .skill-grade-bar-name { color: var(--sbn-accent, #b8860b); }
+/* threshold tick — the % needed to "clear" this grade */
+.skill-grade-bar-threshold {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--sbn-text, #1a1a1a);
+    opacity: 0.4;
+}
+
 .skill-branches {
     display: flex;
     flex-direction: column;
