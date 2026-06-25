@@ -32,6 +32,59 @@ class SkillNodeController extends Controller
         return view('admin.skill-nodes.index', compact('nodes', 'stylesByNode'));
     }
 
+    /**
+     * Visual drag-to-position layout editor for the skill tree (pillar 6).
+     * See docs/SBN-Skill-Tree-Design-Brief.md §7. Positions are 0..1000 design
+     * units; auto-seeded by SkillNodePositionSeeder, fine-tuned here.
+     */
+    public function layout()
+    {
+        $nodes = SkillNode::orderBy('branch')->orderBy('sort_order')
+            ->get(['id', 'slug', 'title', 'branch', 'grade', 'icon_key', 'pos_x', 'pos_y']);
+
+        // Edges as [from id (the node) => requires id (prereq)] for drawing lines.
+        $edges = \DB::table('sbn_skill_node_prerequisites')
+            ->get(['skill_node_id', 'requires_skill_node_id'])
+            ->map(fn ($e) => [
+                'from' => (int) $e->skill_node_id,        // dependent node
+                'to'   => (int) $e->requires_skill_node_id, // prerequisite
+            ]);
+
+        return view('admin.skill-nodes.layout', [
+            'nodes'      => $nodes,
+            'edges'      => $edges,
+            'styleColors' => [
+                'bossa-nova' => 'var(--clr-style-bossa)',
+                'jazz'       => 'var(--clr-style-jazz)',
+                'classical'  => 'var(--clr-style-classical)',
+                'pop'        => 'var(--clr-style-pop)',
+            ],
+        ]);
+    }
+
+    /**
+     * Bulk-save node positions from the layout editor. Accepts
+     * positions: [ { id, x, y }, ... ] and clamps to 0..1000.
+     */
+    public function saveLayout(Request $request)
+    {
+        $data = $request->validate([
+            'positions'     => 'required|array',
+            'positions.*.id' => 'required|integer|exists:sbn_skill_nodes,id',
+            'positions.*.x' => 'required|integer',
+            'positions.*.y' => 'required|integer',
+        ]);
+
+        foreach ($data['positions'] as $p) {
+            SkillNode::where('id', $p['id'])->update([
+                'pos_x' => max(0, min(1000, (int) $p['x'])),
+                'pos_y' => max(0, min(1000, (int) $p['y'])),
+            ]);
+        }
+
+        return response()->json(['saved' => count($data['positions'])]);
+    }
+
     public function create()
     {
         $node = new SkillNode([

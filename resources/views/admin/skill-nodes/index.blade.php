@@ -3,6 +3,7 @@
 @section('title', 'Skill Nodes')
 
 @section('actions')
+    <a href="{{ route('admin.skill-nodes.layout') }}" class="sbn-btn sbn-btn-secondary">🗺 Tree layout</a>
     <a href="{{ route('admin.skill-nodes.create') }}" class="sbn-btn sbn-btn-primary">+ New Skill Node</a>
 @endsection
 

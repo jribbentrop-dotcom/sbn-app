@@ -142,9 +142,11 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
     Route::post('/leadsheets/create-from-sequence', [LeadsheetController::class, 'createFromSequence'])->name('leadsheets.create-from-sequence');
     Route::post('/leadsheets/create-from-lookup', [LeadsheetController::class, 'createFromLookup'])->name('leadsheets.create-from-lookup');
 
-    // Version merge (Phase 1). Static path BEFORE {leadsheet} routes so it isn't captured.
+    // Version merge (Phase 1) + Song merge (§9.1). Static paths BEFORE {leadsheet} routes.
     Route::get('/leadsheets/merge-sources', [LeadsheetController::class, 'mergeSourceList'])->name('leadsheets.merge-sources');
     Route::post('/leadsheets/{leadsheet}/merge-versions', [LeadsheetController::class, 'mergeVersions'])->name('leadsheets.merge-versions');
+    Route::get('/leadsheets/{leadsheet}/merge-song-sources', [LeadsheetController::class, 'mergeSongSourceList'])->name('leadsheets.merge-song-sources');
+    Route::post('/leadsheets/{leadsheet}/merge-song', [LeadsheetController::class, 'mergeSong'])->name('leadsheets.merge-song');
 
     Route::get('/leadsheets/{leadsheet}/edit', [LeadsheetController::class, 'edit'])->name('leadsheets.edit');
     Route::put('/leadsheets/{leadsheet}', [LeadsheetController::class, 'update'])->name('leadsheets.update');
@@ -227,6 +229,8 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
 
     // Skill nodes (admin CRUD — v1 table editor)
     Route::get('/skill-nodes', [SkillNodeController::class, 'index'])->name('skill-nodes.index');
+    Route::get('/skill-nodes/layout', [SkillNodeController::class, 'layout'])->name('skill-nodes.layout');
+    Route::post('/skill-nodes/layout', [SkillNodeController::class, 'saveLayout'])->name('skill-nodes.saveLayout');
     Route::get('/skill-nodes/create', [SkillNodeController::class, 'create'])->name('skill-nodes.create');
     Route::post('/skill-nodes', [SkillNodeController::class, 'store'])->name('skill-nodes.store');
     Route::get('/skill-nodes/{skillNode}/edit', [SkillNodeController::class, 'edit'])->name('skill-nodes.edit');
