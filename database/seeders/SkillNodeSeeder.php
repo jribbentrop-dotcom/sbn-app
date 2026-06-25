@@ -103,7 +103,7 @@ class SkillNodeSeeder extends Seeder
         ],
         'chord-melody' => [
             'title' => 'Chord Melody', 'branch' => 'harmony', 'sub_branch' => 'Reharmonization',
-            'grade' => 4, 'icon_key' => 'queue-list',
+            'grade' => 5, 'icon_key' => 'queue-list',
             'prereqs' => ['drop2-voicings', 'ii-v-i-major'],
         ],
 
@@ -135,7 +135,7 @@ class SkillNodeSeeder extends Seeder
         ],
         'borrowed-chords' => [
             'title' => 'Borrowed Chords / Modal Interchange', 'branch' => 'harmony', 'sub_branch' => 'Reharmonization',
-            'grade' => 4, 'icon_key' => 'arrow-path-rounded-square',
+            'grade' => 5, 'icon_key' => 'arrow-path-rounded-square',
             'prereqs' => ['diatonic-harmony', 'cadences'],
         ],
         'voice-leading' => [
@@ -177,7 +177,7 @@ class SkillNodeSeeder extends Seeder
         ],
         'polyrhythm' => [
             'title' => 'Polyrhythm', 'branch' => 'rhythm', 'sub_branch' => 'Feels',
-            'grade' => 4, 'icon_key' => 'circle-stack',
+            'grade' => 5, 'icon_key' => 'circle-stack',
             'prereqs' => ['syncopation'],
         ],
         'comping-patterns' => [
@@ -214,12 +214,12 @@ class SkillNodeSeeder extends Seeder
         ],
         'motivic-development' => [
             'title' => 'Motivic Development', 'branch' => 'melody', 'sub_branch' => 'Application',
-            'grade' => 4, 'icon_key' => 'puzzle-piece',
+            'grade' => 5, 'icon_key' => 'puzzle-piece',
             'prereqs' => ['scale-patterns'],
         ],
         'improvisation-over-changes' => [
             'title' => 'Improvisation Over Changes', 'branch' => 'melody', 'sub_branch' => 'Application',
-            'grade' => 4, 'icon_key' => 'sparkles',
+            'grade' => 5, 'icon_key' => 'sparkles',
             'prereqs' => ['arpeggio-shapes', 'motivic-development', 'ii-v-i-major'],
         ],
 
