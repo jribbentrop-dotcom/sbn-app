@@ -61,5 +61,12 @@ return [
         ],
     ],
 
+    // MuseScore CLI — converts uploaded .mscz/.mscx to MusicXML on the local
+    // (Windows) dev machine. Override with MUSESCORE_BIN in .env if installed
+    // elsewhere. Used by LeadsheetController::convertMscz().
+    'musescore' => [
+        'bin' => env('MUSESCORE_BIN', 'C:\\Program Files\\MuseScore 4\\bin\\MuseScore4.exe'),
+    ],
+
 ];
 

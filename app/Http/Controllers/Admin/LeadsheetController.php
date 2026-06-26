@@ -21,12 +21,12 @@ use Illuminate\Http\Request;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use App\Services\VoicingMaterializer;
 use App\Services\SongLookup;
 use App\Services\AnalysisToLeadsheet;
 use App\Services\RhythmHintMapper;
 use App\Services\MidiTranscriptionService;
-use Illuminate\Support\Str;
 
 
 class LeadsheetController extends Controller
@@ -224,6 +224,73 @@ class LeadsheetController extends Controller
         }
 
         return redirect()->route('admin.leadsheets.edit', $leadsheet)->with('success', 'Leadsheet created successfully.');
+    }
+
+    /**
+     * Convert an uploaded MuseScore file (.mscz/.mscx) to MusicXML via the local
+     * MuseScore CLI, returning the XML as plain text. Used by the editor's file
+     * importer so a .mscz can be dropped straight into the app (local dev only —
+     * requires MuseScore installed on the server running this route).
+     */
+    public function convertMscz(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|max:51200', // 50 MB
+        ]);
+
+        $file = $request->file('file');
+        $ext  = strtolower($file->getClientOriginalExtension());
+        if (!in_array($ext, ['mscz', 'mscx'], true)) {
+            return response()->json(['message' => 'Expected a .mscz or .mscx file'], 422);
+        }
+
+        $bin = config('services.musescore.bin');
+        if (!$bin || !is_file($bin)) {
+            return response()->json([
+                'message' => 'MuseScore CLI not found. Set MUSESCORE_BIN in .env to MuseScore4.exe.',
+            ], 500);
+        }
+
+        // Stage input + output in a unique temp dir so concurrent imports don't collide.
+        $tmpDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sbn-mscz-' . Str::random(8);
+        @mkdir($tmpDir, 0777, true);
+        $inPath  = $tmpDir . DIRECTORY_SEPARATOR . 'in.' . $ext;
+        $outPath = $tmpDir . DIRECTORY_SEPARATOR . 'out.musicxml';
+        $file->move($tmpDir, 'in.' . $ext);
+
+        try {
+            $cmd = '"' . $bin . '" "' . $inPath . '" -o "' . $outPath . '"';
+            Log::info("[convertMscz] {$cmd}");
+
+            $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+            $proc = proc_open($cmd, $descriptors, $pipes);
+            if (!is_resource($proc)) {
+                return response()->json(['message' => 'Could not start MuseScore'], 500);
+            }
+            $stderr = stream_get_contents($pipes[2]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            $code = proc_close($proc);
+
+            if ($code !== 0 || !is_file($outPath)) {
+                Log::error("[convertMscz] MuseScore failed (code {$code}): {$stderr}");
+                return response()->json([
+                    'message' => 'MuseScore conversion failed (code ' . $code . ').',
+                ], 500);
+            }
+
+            $xml = file_get_contents($outPath);
+            if ($xml === false || strpos($xml, '<score-partwise') === false) {
+                return response()->json(['message' => 'Converter produced no MusicXML'], 500);
+            }
+
+            return response($xml, 200)->header('Content-Type', 'application/xml');
+        } finally {
+            // Best-effort cleanup of the temp staging dir.
+            @unlink($inPath);
+            @unlink($outPath);
+            @rmdir($tmpDir);
+        }
     }
 
     public function createBlank(Request $request, LeadsheetScaffolder $scaffolder)
@@ -1034,6 +1101,151 @@ class LeadsheetController extends Controller
     }
 
     // =========================================================================
+    // SONG MERGE (§9.1) — absorb another song's versions as new arrangements
+    // on this song, then delete the source song row.
+    // =========================================================================
+
+    /**
+     * Flat list of all songs (excluding the current one) for the source picker.
+     */
+    public function mergeSongSourceList(Leadsheet $leadsheet)
+    {
+        $songs = Leadsheet::where('id', '!=', $leadsheet->id)
+            ->orderBy('title')
+            ->get(['id', 'slug', 'title', 'status'])
+            ->map(fn($s) => [
+                'id'            => $s->id,
+                'slug'          => $s->slug,
+                'title'         => $s->title,
+                'status'        => $s->status,
+                'versions_count'=> $s->versions()->count(),
+                'is_legacy'     => $s->versions()->doesntExist(),
+            ]);
+
+        return response()->json(['songs' => $songs]);
+    }
+
+    /**
+     * Absorb all versions of source song B into this song (A), then delete B.
+     *
+     * Each of B's versions becomes a new LeadsheetVersion row on A (performer/
+     * difficulty/label/all tab+grid data copied verbatim; version_slug de-duped).
+     * Detection cache rows (voicing_usage, voicing_drafts, progression_occurrences)
+     * are re-pointed to A's id + the new version id — no re-detection pass.
+     * B's versions + leadsheet row are then deleted.
+     */
+    public function mergeSong(Request $request, Leadsheet $leadsheet)
+    {
+        $validated = $request->validate([
+            'source_leadsheet_id' => 'required|integer|exists:sbn_leadsheets,id',
+        ]);
+
+        if ((int) $validated['source_leadsheet_id'] === $leadsheet->id) {
+            return response()->json(['success' => false, 'message' => 'Source and target are the same song.'], 422);
+        }
+
+        $source = Leadsheet::with('versions')->find($validated['source_leadsheet_id']);
+        if (! $source) {
+            return response()->json(['success' => false, 'message' => 'Source song not found.'], 422);
+        }
+
+        // Pre-versions songs have no sbn_leadsheet_versions rows — their data lives
+        // directly on sbn_leadsheets. Synthesize a version collection from the row itself
+        // so the rest of the logic is uniform.
+        $versions = $source->versions->isNotEmpty()
+            ? $source->versions
+            : collect([(object) [
+                'id'               => null,
+                'label'            => '',
+                'performer'        => null,
+                'difficulty'       => 1,
+                'sort_order'       => 0,
+                'song_key'         => $source->song_key,
+                'rhythm'           => $source->rhythm,
+                'tempo'            => $source->tempo,
+                'measure_count'    => $source->measure_count,
+                'json_data'        => $source->json_data,
+                'melody_tab_xml'   => $source->tab_xml,
+                'chord_tab_xml'    => null,
+                'shortcode_content'=> $source->shortcode_content,
+                'status'           => $source->status,
+            ]]);
+
+        DB::transaction(function () use ($leadsheet, $source, $versions) {
+            foreach ($versions as $srcVersion) {
+                $slug = LeadsheetVersion::generateUniqueVersionSlug(
+                    $leadsheet->id,
+                    $srcVersion->label ?: ($srcVersion->performer ?: Str::slug($source->title) ?: 'version')
+                );
+
+                $newVersion = LeadsheetVersion::create([
+                    'leadsheet_id'      => $leadsheet->id,
+                    'version_slug'      => $slug,
+                    'label'             => ($srcVersion->label ?? '') ?: $source->title,
+                    'performer'         => $srcVersion->performer,
+                    'difficulty'        => $srcVersion->difficulty,
+                    'sort_order'        => $srcVersion->sort_order,
+                    'song_key'          => $srcVersion->song_key,
+                    'rhythm'            => $srcVersion->rhythm,
+                    'tempo'             => $srcVersion->tempo,
+                    'measure_count'     => $srcVersion->measure_count,
+                    'json_data'         => $srcVersion->json_data,
+                    'melody_tab_xml'    => $srcVersion->melody_tab_xml,
+                    'chord_tab_xml'     => $srcVersion->chord_tab_xml,
+                    'shortcode_content' => $srcVersion->shortcode_content,
+                    'status'            => $srcVersion->status,
+                ]);
+
+                // Re-point detection cache rows to this song + new version.
+                if ($srcVersion->id) {
+                    DB::table('sbn_voicing_usage')
+                        ->where('leadsheet_id', $source->id)
+                        ->where('version_id', $srcVersion->id)
+                        ->update(['leadsheet_id' => $leadsheet->id, 'version_id' => $newVersion->id]);
+
+                    DB::table('sbn_voicing_drafts')
+                        ->where('leadsheet_id', $source->id)
+                        ->where('version_id', $srcVersion->id)
+                        ->update(['leadsheet_id' => $leadsheet->id, 'version_id' => $newVersion->id]);
+
+                    DB::table('sbn_progression_occurrences')
+                        ->where('leadsheet_id', $source->id)
+                        ->where('version_id', $srcVersion->id)
+                        ->update(['leadsheet_id' => $leadsheet->id, 'version_id' => $newVersion->id]);
+                }
+            }
+
+            // Orphaned cache rows with no version_id (legacy / pre-versions source).
+            DB::table('sbn_voicing_usage')
+                ->where('leadsheet_id', $source->id)
+                ->whereNull('version_id')
+                ->update(['leadsheet_id' => $leadsheet->id]);
+
+            DB::table('sbn_voicing_drafts')
+                ->where('leadsheet_id', $source->id)
+                ->whereNull('version_id')
+                ->update(['leadsheet_id' => $leadsheet->id]);
+
+            DB::table('sbn_progression_occurrences')
+                ->where('leadsheet_id', $source->id)
+                ->whereNull('version_id')
+                ->update(['leadsheet_id' => $leadsheet->id]);
+
+            // Delete source versions (if any) then the source leadsheet row.
+            $source->versions()->delete();
+            $source->delete();
+        });
+
+        $count = $versions->count();
+
+        return response()->json([
+            'success'  => true,
+            'message'  => 'Absorbed "' . $source->title . '" (' . $count . ' ' . Str::plural('arrangement', $count) . ').',
+            'redirect' => route('admin.leadsheets.edit', ['leadsheet' => $leadsheet]),
+        ]);
+    }
+
+    // =========================================================================
     // API ENDPOINTS
     // =========================================================================
 
@@ -1544,23 +1756,22 @@ class LeadsheetController extends Controller
             $seenIds = array_values(array_filter(array_map(fn ($r) => $r['id'] ?? null, $results)));
         }
 
-        // For dom7(b9) queries: also surface all o7 shapes as rootless readings
-        // (generated — not hand-stored — so every dim7 shape in the library shows up).
-        // Respect the inversion filter: 'rootless' = only rootless, named inv slots =
-        // exclude the rootless dim results entirely (they come from the normal path).
+        // For dom7(b9) queries: surface all 4 inversion slots of every o7 shape as
+        // rootless / inverted dom7(b9) readings. Generated — not hand-stored — so
+        // every dim7 shape in the library shows up across all 4 positions.
+        // When an inversion filter is active, pass it through and post-filter by
+        // the inversion field rather than skipping the call entirely.
         if ($quality === 'dom7' && str_contains($extension, 'b9')) {
-            $invFilter = (!empty($inversion) && $inversion !== 'all') ? $inversion : '';
-            if ($invFilter !== 'inv1' && $invFilter !== 'inv2' && $invFilter !== 'inv3') {
-                $dimDomResults = $this->voicingSearch->findDiminishedDominantMatches($root, $quality, $extension);
-                if ($invFilter === 'rootless') {
-                    $dimDomResults = array_values(array_filter(
-                        $dimDomResults,
-                        fn ($r) => ($r['rootless'] ?? true) === true
-                    ));
-                }
-                $results = array_merge($results, $dimDomResults);
-                $seenIds = array_values(array_filter(array_map(fn ($r) => $r['id'] ?? null, $results)));
+            $invFilter     = (!empty($inversion) && $inversion !== 'all') ? $inversion : '';
+            $dimDomResults = $this->voicingSearch->findDiminishedDominantMatches($root, $quality, $extension);
+            if ($invFilter !== '') {
+                $dimDomResults = array_values(array_filter(
+                    $dimDomResults,
+                    fn ($r) => ($r['inversion'] ?? '') === $invFilter
+                ));
             }
+            $results = array_merge($results, $dimDomResults);
+            $seenIds = array_values(array_filter(array_map(fn ($r) => $r['id'] ?? null, $results)));
         }
 
         $aliasResults = $this->voicingSearch->findAliasMatches(

@@ -54,6 +54,14 @@
                     @click="window.dispatchEvent(new CustomEvent('sbn-import-into', { detail: { layer: 'chord' } }))">
                 → into Chords
             </button>
+            <button type="button" class="sbn-actions-menu-item"
+                    @click="window.dispatchEvent(new CustomEvent('sbn-generate-chord-tab'))">
+                → Generate Chords tab from voicings
+            </button>
+            <button type="button" class="sbn-actions-menu-item"
+                    @click="window.dispatchEvent(new CustomEvent('sbn-swap-tab-layers'))">
+                ⇄ Swap Melody / Chords
+            </button>
             <hr>
             <button type="button" class="sbn-actions-menu-item"
                     @click="window.dispatchEvent(new CustomEvent('sbn-open-merge'))">
@@ -188,6 +196,13 @@
         gap: 8px;
         margin-top: 8px;
     }
+    .sbn-btn-danger {
+        background: #dc2626;
+        color: #fff;
+        border: none;
+    }
+    .sbn-btn-danger:hover:not(:disabled) { background: #b91c1c; }
+    .sbn-btn-danger:disabled { opacity: 0.55; cursor: not-allowed; }
 </style>
 @endpush
 
@@ -256,6 +271,45 @@
         </div>
     </div>
 
+    {{-- ── Song-merge modal (§9.1) ──────────────────────────────────────────
+         Absorb all versions of another song as new arrangements on this song,
+         then delete the source song row. --}}
+    <div x-show="songMergeOpen" x-cloak class="sbn-merge-overlay" @click.self="songMergeOpen = false">
+        <div class="sbn-merge-modal">
+            <h3 class="sbn-merge-title">Absorb song as arrangement</h3>
+            <p class="sbn-merge-hint">
+                All arrangements of the source song will be copied onto <strong>this</strong> song,
+                then the source song row will be permanently deleted.
+            </p>
+
+            <template x-if="songMergeLoading">
+                <div class="sbn-merge-loading">Loading songs…</div>
+            </template>
+
+            <template x-if="!songMergeLoading">
+                <div>
+                    <label class="sbn-merge-field">
+                        <span>Source song (will be deleted after absorb)</span>
+                        <select x-model="songMergeSourceId">
+                            <option value="">— choose —</option>
+                            <template x-for="s in songMergeSources" :key="s.id">
+                                <option :value="s.id"
+                                        x-text="s.title + (s.status !== 'publish' ? ' [' + s.status + ']' : '') + (s.is_legacy ? ' (legacy — 1 arr.)' : ' (' + s.versions_count + ' arr.)')"></option>
+                            </template>
+                        </select>
+                    </label>
+                </div>
+            </template>
+
+            <div class="sbn-merge-actions">
+                <button type="button" class="sbn-btn sbn-btn-secondary" @click="songMergeOpen = false" :disabled="songMergeSaving">Cancel</button>
+                <button type="button" class="sbn-btn sbn-btn-danger" @click="applySongMerge()"
+                        :disabled="songMergeSaving || songMergeLoading || !songMergeSourceId"
+                        x-text="songMergeSaving ? 'Absorbing…' : 'Absorb & delete source'"></button>
+            </div>
+        </div>
+    </div>
+
     @if(session('lookup_confidence') && in_array(session('lookup_confidence'), ['low', 'medium']))
         <div style="background-color: #fffbeb; color: #92400e; padding: 12px 16px; border-bottom: 1px solid #fde68a; font-size: 14px; font-weight: 500; text-align: center; width: 100%;">
             ⚠️ AI Draft (Confidence: {{ session('lookup_confidence') }}). Please review chord changes carefully.
@@ -278,9 +332,9 @@
              @dragleave.prevent="$el.classList.remove('drag-over')"
              @drop.prevent="$el.classList.remove('drag-over'); handleFileDrop($event)">
             <div class="sbn-upload-icon">🎸</div>
-            <div class="sbn-upload-text">Import MusicXML file</div>
-            <div class="sbn-upload-hint">Drop a .xml or .musicxml file here, or click to browse</div>
-            <input type="file" x-ref="fileInput" accept=".xml,.musicxml" style="display:none"
+            <div class="sbn-upload-text">Import MusicXML or MuseScore file</div>
+            <div class="sbn-upload-hint">Drop a .xml, .musicxml, .mscz or .mscx file here, or click to browse</div>
+            <input type="file" x-ref="fileInput" accept=".xml,.musicxml,.mscz,.mscx" style="display:none"
                    @change="handleFileSelect($event)">
         </div>
 
@@ -292,7 +346,7 @@
                  an existing song can import a tab into a chosen layer. Triggered from the
                  Actions dropdown (sbn-import-into); the blank-state drop zone above has its
                  own input (x-ref="fileInput") for new songs. --}}
-            <input type="file" x-ref="reimportInput" accept=".xml,.musicxml" style="display:none"
+            <input type="file" x-ref="reimportInput" accept=".xml,.musicxml,.mscz,.mscx" style="display:none"
                    @change="handleFileSelect($event)">
 
             {{-- ── Vue Mount Point (replaces Tab bar, Chords view, Tab view) ── --}}
@@ -688,6 +742,351 @@ class MusicXMLParser {
         this.beatsPerMeasure = 4;
         this.beatType = 4;
         this.tuning = this.getTuning(); // set early so _openPC()/_stringFretToMidi() work during parse
+        // A guitar score often has a standard-notation staff AND a tab staff. Keep only
+        // the tab staff (the one carrying <string>/<fret>) so we read fret positions, not
+        // the pitch-only notation staff. Must run BEFORE flattenVoices/parse.
+        this.selectTabStaff();
+        // Collapse multi-voice measures (e.g. MuseScore bass + melody) to a single
+        // voice before any parsing runs, so every parse path sees clean single-voice XML.
+        this.flattenVoices();
+    }
+
+    // --- Tab-staff selection pre-pass --------------------------------------------
+    // MuseScore guitar scores commonly export two staves in one part: a standard
+    // notation staff (pitch only, no string/fret) and a tab staff (with
+    // <notations><technical><string>/<fret>). The notation staff usually comes
+    // FIRST, so the parser — which reads every note — would pick up pitch-only
+    // notes and produce an empty tab. Here we detect the tab staff by which
+    // <staff> number's notes actually carry <string>/<fret>, then remove every
+    // note belonging to other staves. If no staff has tab data, we leave the
+    // document untouched (pitch-only import still works as before).
+    selectTabStaff() {
+        const allNotes = Array.from(this.doc.querySelectorAll('note'));
+        if (allNotes.length === 0) return;
+
+        // Does the file even distinguish staves? If no <staff> tags at all, there's
+        // a single staff — nothing to select.
+        const hasStaffTags = allNotes.some(n => n.querySelector('staff'));
+        if (!hasStaffTags) return;
+
+        // Tally how many notes per staff carry tab (string/fret) data.
+        const tabCountByStaff = {};
+        const anyCountByStaff = {};
+        for (const n of allNotes) {
+            const sEl = n.querySelector('staff');
+            const staff = sEl ? sEl.textContent.trim() : '1';
+            anyCountByStaff[staff] = (anyCountByStaff[staff] || 0) + 1;
+            const tech = n.querySelector('notations technical');
+            if (tech && tech.querySelector('string') && tech.querySelector('fret')) {
+                tabCountByStaff[staff] = (tabCountByStaff[staff] || 0) + 1;
+            }
+        }
+
+        const tabStaves = Object.keys(tabCountByStaff);
+        if (tabStaves.length === 0) return; // no tab anywhere — keep everything
+
+        // Pick the staff with the most tab notes as THE tab staff.
+        let tabStaff = tabStaves[0];
+        for (const s of tabStaves) {
+            if (tabCountByStaff[s] > tabCountByStaff[tabStaff]) tabStaff = s;
+        }
+
+        // If every note already lives on the tab staff, nothing to strip.
+        if ((anyCountByStaff[tabStaff] || 0) === allNotes.length) return;
+
+        // Remove notes that belong to other staves. A <note> with <chord/> inherits
+        // the staff of the principal note before it, so default chord-members to the
+        // last seen staff. Also drop now-dangling <backup>/<forward> that only served
+        // to position the discarded staff (best-effort: remove a <backup> immediately
+        // followed by a removed-staff note region).
+        this.doc.querySelectorAll('measure').forEach((measure) => {
+            // First pass: tag each note with its resolved staff (chord-members inherit
+            // the previous principal's staff), WITHOUT removing anything yet — we need
+            // the structure intact to decide which <backup>/<forward> to drop.
+            let lastStaff = tabStaff;
+            const children = Array.from(measure.children);
+            const noteStaff = new Map(); // el → staff string
+            children.forEach((el) => {
+                if (el.tagName.toLowerCase() !== 'note') return;
+                const sEl = el.querySelector('staff');
+                const isChordMember = !!el.querySelector('chord');
+                let staff;
+                if (sEl) { staff = sEl.textContent.trim(); lastStaff = staff; }
+                else if (isChordMember) { staff = lastStaff; }
+                else { staff = '1'; lastStaff = '1'; }
+                noteStaff.set(el, staff);
+            });
+
+            // A <backup>/<forward> only exists to reposition the cursor between staff
+            // regions (or voices). Drop it ONLY when the run of notes it leads into
+            // belongs entirely to a discarded staff — that keeps the tab staff's own
+            // intra-staff backups (multi-voice tab) intact so flattenVoices can merge
+            // them. We look ahead from each backup to the next backup/forward and check
+            // the staff of the notes in between.
+            const toRemove = [];
+            for (let i = 0; i < children.length; i++) {
+                const el = children[i];
+                const tag = el.tagName.toLowerCase();
+                if (tag === 'backup' || tag === 'forward') {
+                    let sawNote = false, allDiscarded = true;
+                    for (let j = i + 1; j < children.length; j++) {
+                        const t2 = children[j].tagName.toLowerCase();
+                        if (t2 === 'backup' || t2 === 'forward') break;
+                        if (t2 !== 'note') continue;
+                        sawNote = true;
+                        if (noteStaff.get(children[j]) === tabStaff) { allDiscarded = false; break; }
+                    }
+                    // Drop the cursor move if the region it serves is entirely discarded.
+                    if (sawNote && allDiscarded) toRemove.push(el);
+                    continue;
+                }
+                if (tag === 'note' && noteStaff.get(el) !== tabStaff) toRemove.push(el);
+            }
+            toRemove.forEach(el => measure.removeChild(el));
+        });
+    }
+
+    // --- Multi-voice → single-voice pre-pass -------------------------------------
+    // MuseScore/Finale lead sheets often carry a bass/inner voice (voice 2) under a
+    // busy melody (voice 1), stored in MusicXML via a <backup> then voice-2 notes.
+    // The tab editor is single-voice, so we merge them here on import:
+    //   - every onset (from any voice) becomes one chord-event
+    //   - its duration = gap to the very next onset on any voice (clip-to-next-onset)
+    //   - all pitches sounding at that onset are stacked (principal + <chord/> notes)
+    //   - a held note's tail past the next onset is dropped (lossy on duration,
+    //     lossless on pitch/onset — matches the manual MuseScore merge workflow)
+    // Single-voice measures are left byte-for-byte untouched.
+    flattenVoices() {
+        const measures = this.doc.querySelectorAll('measure');
+        // Track divisions across measures (only restated when it changes).
+        let divisions = 1;
+        const dEl0 = this.doc.querySelector('divisions');
+        if (dEl0) divisions = parseInt(dEl0.textContent) || 1;
+
+        measures.forEach((measure) => {
+            const dEl = measure.querySelector('attributes > divisions');
+            if (dEl) divisions = parseInt(dEl.textContent) || divisions;
+
+            // Collect distinct voices among real (non-grace, non-chord-member) notes.
+            const noteEls = Array.from(measure.children).filter(c => c.tagName.toLowerCase() === 'note');
+            const voices = new Set();
+            noteEls.forEach(n => {
+                if (n.querySelector('grace')) return;
+                const v = n.querySelector('voice');
+                voices.add(v ? v.textContent.trim() : '1');
+            });
+            if (voices.size < 2) {
+                // Single voice — no merge needed, but normalize the voice number to 1.
+                // A tab staff may live on voice 5 (MuseScore mirrors staff-1 voice 1 as
+                // voice 5 on the tab staff). If we leave it as 5, the model's GLOBAL
+                // multi-voice check (`voices.size > 1` across the whole song) stays true
+                // wherever a merged measure produced voice 1, flipping every stem up.
+                noteEls.forEach(n => {
+                    const v = n.querySelector('voice');
+                    if (v && v.textContent.trim() !== '1') v.textContent = '1';
+                });
+                return;
+            }
+
+            this._flattenMeasure(measure, divisions);
+        });
+    }
+
+    // Rewrite one multi-voice measure in place as a single voice.
+    _flattenMeasure(measure, divisions) {
+        // 1. Walk children in document order, tracking the cursor in divisions and
+        //    honouring <backup>/<forward>, to give every note an absolute onset.
+        const items = [];        // { onset, durDivs, voice, noteEls:[principal, ...chordMembers] }
+        const passthrough = [];  // non-note children to keep (harmony, attributes, direction, barline…)
+        let cursor = 0;
+        let measureEnd = 0;
+        let lastOnset = 0;
+        const children = Array.from(measure.children);
+
+        for (const el of children) {
+            const tag = el.tagName.toLowerCase();
+            if (tag === 'backup') {
+                const d = el.querySelector('duration');
+                if (d) cursor = Math.max(0, cursor - (parseInt(d.textContent) || 0));
+                continue;
+            }
+            if (tag === 'forward') {
+                const d = el.querySelector('duration');
+                if (d) cursor += parseInt(d.textContent) || 0;
+                measureEnd = Math.max(measureEnd, cursor);
+                continue;
+            }
+            if (tag === 'note') {
+                if (el.querySelector('grace')) { passthrough.push({ el, onset: cursor }); continue; }
+                const isChordMember = !!el.querySelector('chord');
+                const durEl = el.querySelector('duration');
+                const durDivs = durEl ? (parseInt(durEl.textContent) || 0) : 0;
+                const isRest = !!el.querySelector('rest');
+                if (isChordMember && items.length) {
+                    // Attach to the most recent onset group (same onset).
+                    if (!isRest) items[items.length - 1].noteEls.push(el);
+                    continue;
+                }
+                const onset = cursor;
+                lastOnset = onset;
+                cursor += durDivs;
+                measureEnd = Math.max(measureEnd, cursor);
+                if (isRest) continue; // rests don't create sounding events; their space is reclaimed by neighbours
+                const v = el.querySelector('voice');
+                items.push({ onset, durDivs, voice: v ? v.textContent.trim() : '1', noteEls: [el] });
+                continue;
+            }
+            // Keep harmony/attributes/direction/barline/print etc. anchored at cursor.
+            passthrough.push({ el, onset: cursor });
+        }
+        if (measureEnd === 0) measureEnd = lastOnset; // degenerate guard
+
+        if (items.length === 0) return; // nothing sounding — leave as-is
+
+        // 2. Build the sorted set of distinct onsets; each becomes one merged event.
+        const onsets = Array.from(new Set(items.map(it => it.onset))).sort((a, b) => a - b);
+
+        const mergedEvents = [];
+        for (let i = 0; i < onsets.length; i++) {
+            const start = onsets[i];
+            const end = (i + 1 < onsets.length) ? onsets[i + 1] : measureEnd;
+            const gap = Math.max(1, end - start); // clip-to-next-onset duration
+            // Stack only notes that ATTACK at this onset. A note held over from an
+            // earlier onset is NOT re-struck — its first (clipped) emission already
+            // covered it, and the tail past the next onset is intentionally dropped.
+            // (Re-including still-ringing notes here re-articulated a long bass/inner
+            // note once per spanned onset — the "repeated note" bug.)
+            const sounding = [];
+            for (const it of items) {
+                if (it.onset === start) {
+                    for (const ne of it.noteEls) sounding.push(ne);
+                }
+            }
+            if (!sounding.length) continue;
+            // De-dup by pitch/tab so two voices on the same pitch don't double.
+            const seen = new Set();
+            const uniq = [];
+            for (const ne of sounding) {
+                const key = this._noteKey(ne);
+                if (seen.has(key)) continue;
+                seen.add(key);
+                uniq.push(ne);
+            }
+            mergedEvents.push({ start, durDivs: gap, noteEls: uniq });
+        }
+
+        // 3. Rebuild the measure: keep non-note passthrough children in place,
+        //    drop <backup>/<forward> and all original notes, and emit single-voice
+        //    chord-stacks. Re-anchor passthrough (harmony) at its onset.
+        const doc = this.doc;
+        // Snapshot harmony/direction anchors before we wipe note content.
+        const anchored = passthrough
+            .filter(p => ['harmony', 'direction'].includes(p.el.tagName.toLowerCase()))
+            .map(p => ({ el: p.el.cloneNode(true), onset: p.onset }));
+        const keepFirst = passthrough
+            .filter(p => ['attributes', 'print', 'barline'].includes(p.el.tagName.toLowerCase()))
+            .map(p => p.el.cloneNode(true));
+
+        // Remove every existing child except we'll re-add structural ones.
+        while (measure.firstChild) measure.removeChild(measure.firstChild);
+
+        // Re-add attributes/print first (barlines re-added at end).
+        const barlines = [];
+        keepFirst.forEach(el => {
+            if (el.tagName.toLowerCase() === 'barline') barlines.push(el);
+            else measure.appendChild(el);
+        });
+
+        // Interleave harmony anchors with merged note events by onset.
+        let ai = 0;
+        const emitHarmonyUpTo = (onset) => {
+            while (ai < anchored.length && anchored[ai].onset <= onset) {
+                measure.appendChild(anchored[ai].el);
+                ai++;
+            }
+        };
+        for (const ev of mergedEvents) {
+            emitHarmonyUpTo(ev.start);
+            ev.noteEls.forEach((srcNote, idx) => {
+                const note = this._buildSingleVoiceNote(srcNote, ev.durDivs, divisions, idx > 0);
+                measure.appendChild(note);
+            });
+        }
+        emitHarmonyUpTo(Infinity); // any trailing harmony
+        barlines.forEach(b => measure.appendChild(b));
+    }
+
+    // Stable identity for a note's pitch (or tab string) to de-dup across voices.
+    _noteKey(noteEl) {
+        const p = noteEl.querySelector('pitch');
+        if (p) {
+            const step = p.querySelector('step'), oct = p.querySelector('octave'), alt = p.querySelector('alter');
+            return 'p' + (step ? step.textContent : '') + (alt ? alt.textContent : '0') + (oct ? oct.textContent : '');
+        }
+        const tech = noteEl.querySelector('notations technical');
+        if (tech) {
+            const s = tech.querySelector('string'), f = tech.querySelector('fret');
+            return 't' + (s ? s.textContent : '') + '/' + (f ? f.textContent : '');
+        }
+        return 'x' + Math.random(); // unkeyable — never de-dup
+    }
+
+    // Clone a source note into a single-voice (voice 1) note with a clipped duration,
+    // snapped <type>, and (for stacked pitches) a <chord/> marker.
+    _buildSingleVoiceNote(srcNote, durDivs, divisions, isChordMember) {
+        const doc = this.doc;
+        const note = doc.createElement('note');
+        if (isChordMember) note.appendChild(doc.createElement('chord'));
+
+        // pitch (or unpitched/tab) — copy the source's pitch element verbatim.
+        const pitch = srcNote.querySelector('pitch');
+        if (pitch) note.appendChild(pitch.cloneNode(true));
+
+        const dur = doc.createElement('duration');
+        dur.textContent = String(Math.max(1, Math.round(durDivs)));
+        note.appendChild(dur);
+
+        // voice always 1
+        const v = doc.createElement('voice');
+        v.textContent = '1';
+        note.appendChild(v);
+
+        // type snapped from the clipped duration in quarter-beats.
+        const typeName = this._divsToType(durDivs, divisions);
+        if (typeName) {
+            const t = doc.createElement('type');
+            t.textContent = typeName.name;
+            note.appendChild(t);
+            if (typeName.dot) note.appendChild(doc.createElement('dot'));
+        }
+
+        // Carry tab string/fret notations through (lead sheets with tab staves).
+        const tech = srcNote.querySelector('notations technical');
+        if (tech) {
+            const notations = doc.createElement('notations');
+            notations.appendChild(tech.cloneNode(true));
+            note.appendChild(notations);
+        }
+        return note;
+    }
+
+    // Snap a duration (in divisions) to the nearest standard note type + dot.
+    _divsToType(durDivs, divisions) {
+        const q = durDivs / divisions; // length in quarter beats
+        // table: quarter-beats → {name, dot}
+        const table = [
+            [4, 'whole', false], [3, 'half', true], [2, 'half', false],
+            [1.5, 'quarter', true], [1, 'quarter', false],
+            [0.75, 'eighth', true], [0.5, 'eighth', false],
+            [0.375, '16th', true], [0.25, '16th', false],
+            [0.125, '32nd', false], [0.0625, '64th', false],
+        ];
+        let best = table[table.length - 1], bestErr = Infinity;
+        for (const [beats, name, dot] of table) {
+            const err = Math.abs(beats - q);
+            if (err < bestErr) { bestErr = err; best = [beats, name, dot]; }
+        }
+        return { name: best[1], dot: best[2] };
     }
 
     parse() {
@@ -1750,6 +2149,13 @@ function leadsheetEditor() {
         mergeMotherSlug: '',        // version_slug of the mother (target) on THIS song
         mergeMelodyId: '',          // source version id → melody layer
         mergeChordId: '',           // source version id → chord layer
+
+        // ── Song-merge modal (§9.1) ───────────────────────────
+        songMergeOpen: false,
+        songMergeLoading: false,
+        songMergeSaving: false,
+        songMergeSources: [],       // [{id, slug, title, status, versions_count}]
+        songMergeSourceId: '',      // id of the source song to absorb
         _suppressTabInit: false,   // guards $watch('parsed') from re-dispatching sbn-tab-init
         _tabInitDone: false,       // ensures sbn-tab-init only fires once on first tab view switch
         _tabVueInitialized: false,  // set to true once Vue confirms receipt of sbn-tab-init
@@ -1857,7 +2263,7 @@ function leadsheetEditor() {
                 // Reset the init gate so Vue receives a fresh sbn-tab-init.
                 this._tabInitDone = false;
                 this._tabVueInitialized = false;
-                this._dispatchTabInit();
+                this._dispatchTabInit(true);
 
                 this.markDirty();
 
@@ -1920,7 +2326,7 @@ function leadsheetEditor() {
                 // 4. Reload Vue tab model with the incoming layer's notes.
                 this._tabInitDone = false;
                 this._tabVueInitialized = false;
-                this._dispatchTabInit();
+                this._dispatchTabInit(true);
             });
 
             window.addEventListener('sbn-save-as-exercise', () => this.saveAndCopyToExercise());
@@ -1953,10 +2359,92 @@ function leadsheetEditor() {
                 }, 100);
             });
 
+            // Actions dropdown → swap melody_tab_xml ↔ chord_tab_xml.
+            window.addEventListener('sbn-swap-tab-layers', async () => {
+                if (!this.melodyTabXml && !this.chordTabXml) {
+                    sbnToast('Nothing to swap — both layers are empty', 'error');
+                    return;
+                }
+                // Capture the active layer before swapping so we know where to write back.
+                const outgoingLayer = this.activeTabLayer; // 'melody' | 'chord'
+
+                // Serialize the currently-active layer and capture the XML so unsaved
+                // edits land in the correct (outgoing) string before the swap.
+                const serializedXml = await new Promise((resolve) => {
+                    const timeout = setTimeout(() => resolve(null), 3000);
+                    const onResp = (e) => {
+                        clearTimeout(timeout);
+                        resolve(e.detail?.xml ?? null);
+                    };
+                    document.addEventListener('sbn-tab-save-response', onResp, { once: true });
+                    document.dispatchEvent(new CustomEvent('sbn-tab-save-request'));
+                });
+
+                // Write fresh XML back into the outgoing layer before swapping.
+                if (serializedXml) {
+                    if (outgoingLayer === 'melody') this.melodyTabXml = serializedXml;
+                    else                            this.chordTabXml  = serializedXml;
+                }
+
+                // Swap the two strings.
+                const tmp = this.melodyTabXml;
+                this.melodyTabXml = this.chordTabXml;
+                this.chordTabXml  = tmp;
+
+                // Graft the now-active layer's notes into parsed.melody before reload.
+                // Without this, Vue rebuilds from the stale parsed.melody (the old layer)
+                // and both tabs show the same notes — the original layer-switch bug.
+                this._suppressTabInit = true;
+                this.parsed = this._graftLayerNotes(this.tabXml);
+                this._suppressTabInit = false;
+
+                // Reload Vue tab model with the swapped layer's notes.
+                this._tabInitDone = false;
+                this._tabVueInitialized = false;
+                this._dispatchTabInit(true);
+                this.markDirty();
+                sbnToast('Melody and Chords layers swapped', 'success');
+            });
+
+            // Actions dropdown → generate a Chords tab from voicings.
+            // Switches to the chord layer first if needed, then fires generate.
+            window.addEventListener('sbn-generate-chord-tab', async () => {
+                if (this.chordTabXml) {
+                    sbnToast('Chords tab already has content — import or swap to replace it', 'error');
+                    return;
+                }
+                if (this.activeTabLayer !== 'chord') {
+                    // Switch to chord layer (serialize-out round-trip), then generate.
+                    const switched = await new Promise((resolve) => {
+                        const onAck = () => {
+                            document.removeEventListener('sbn-tab-init-ack', onAck);
+                            resolve(true);
+                        };
+                        const timeout = setTimeout(() => {
+                            document.removeEventListener('sbn-tab-init-ack', onAck);
+                            resolve(false);
+                        }, 4000);
+                        document.addEventListener('sbn-tab-init-ack', onAck, { once: true });
+                        document.dispatchEvent(new CustomEvent('sbn-tab-set-layer', { detail: { layer: 'chord' } }));
+                    });
+                    if (!switched) {
+                        sbnToast('Could not switch to Chords layer', 'error');
+                        return;
+                    }
+                }
+                document.dispatchEvent(new CustomEvent('sbn-tab-generate-from-chords'));
+            });
+
             // Actions dropdown → open the merge-sheets modal (load the source list once).
             window.addEventListener('sbn-open-merge', () => {
                 this.mergeOpen = true;
                 if (!this.mergeVersions.length) this.loadMergeSources();
+            });
+
+            // Actions dropdown → open the song-merge modal (§9.1).
+            window.addEventListener('sbn-open-song-merge', () => {
+                this.songMergeOpen = true;
+                if (!this.songMergeSources.length) this.loadSongMergeSources();
             });
 
             if (this.leadsheetId) {
@@ -2476,7 +2964,17 @@ function leadsheetEditor() {
          * collapse into exactly one dispatch. _tabInitDone blocks any
          * further calls after the first one fires.
          */
-        _dispatchTabInit() {
+        _dispatchTabInit(force = false) {
+            // `force` is used by the import-completion path: it must send the FINAL,
+            // fully-identified model even if an earlier (mid-await) request-init already
+            // dispatched a provisional payload. Without it, a Vue `sbn-tab-request-init`
+            // that fired while identifyTabVoicings was awaiting would latch _tabInitDone
+            // and swallow this authoritative dispatch — leaving the viewer empty until a
+            // second manual import reset the gate.
+            if (force) {
+                if (this._tabInitTimer) { clearTimeout(this._tabInitTimer); this._tabInitTimer = null; }
+                this._tabInitDone = false;
+            }
             if (this._tabInitDone) return;
             if (this._tabInitTimer) return; // already queued this tick
             this._tabInitTimer = setTimeout(() => {
@@ -2491,6 +2989,8 @@ function leadsheetEditor() {
                         videoSync: this.parsed.videoSync ? JSON.parse(JSON.stringify(this.parsed.videoSync)) : null,
                         openVideoSidebar: this.videoSidebarOpen,
                         tuning: this.parsed.tuning || 'standard',
+                        hasMelodyTab: !!(this.melodyTabXml),
+                        hasChordTab:  !!(this.chordTabXml),
                     }
                 }));
             }, 0);
@@ -2519,16 +3019,55 @@ function leadsheetEditor() {
             // Reset so selecting the same file again still fires @change (re-import).
             e.target.value = '';
         },
-        processFile(file) {
+        async processFile(file) {
             const name = file.name.toLowerCase();
-            if (!name.endsWith('.xml') && !name.endsWith('.musicxml')) {
-                sbnToast(name.endsWith('.mxl') ? 'Compressed .mxl not yet supported' : 'Please upload a .xml or .musicxml file', 'error');
+            const isMuseScore = name.endsWith('.mscz') || name.endsWith('.mscx');
+            if (!name.endsWith('.xml') && !name.endsWith('.musicxml') && !isMuseScore) {
+                sbnToast(name.endsWith('.mxl') ? 'Compressed .mxl not yet supported' : 'Please upload a .xml, .musicxml, .mscz or .mscx file', 'error');
                 return;
             }
-            const reader = new FileReader();
-            reader.onload = async (e) => {
+            if (isMuseScore) {
+                // MuseScore project files can't be parsed in the browser — convert to
+                // MusicXML server-side via the MuseScore CLI, then import the result.
+                let xmlString;
                 try {
-                    const xmlString = e.target.result;
+                    xmlString = await this._convertMuseScore(file);
+                } catch (err) {
+                    console.error('[SBN Editor] MuseScore convert error:', err);
+                    sbnToast('MuseScore conversion failed: ' + err.message, 'error');
+                    return;
+                }
+                return this._importXmlString(xmlString);
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => this._importXmlString(e.target.result);
+            reader.readAsText(file);
+        },
+
+        // POST a .mscz/.mscx to the server, which runs the MuseScore CLI and returns
+        // the converted MusicXML as text.
+        async _convertMuseScore(file) {
+            const fd = new FormData();
+            fd.append('file', file);
+            const resp = await fetch('/admin/leadsheets/convert-mscz', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+                body: fd,
+            });
+            if (!resp.ok) {
+                let msg = 'HTTP ' + resp.status;
+                try { const j = await resp.json(); if (j.message) msg = j.message; } catch (e) {}
+                throw new Error(msg);
+            }
+            const xml = await resp.text();
+            if (!xml || xml.indexOf('<score-partwise') === -1) {
+                throw new Error('Converter returned no MusicXML');
+            }
+            return xml;
+        },
+
+        async _importXmlString(xmlString) {
+                try {
 
                     // Fresh import — reset the persistent summary panel.
                     this.importSummary = null;
@@ -2548,7 +3087,7 @@ function leadsheetEditor() {
                         this._importLog('Chord TAB imported (' + xmlString.length + ' chars)', 'info');
                         this._tabInitDone = false;
                         this._tabVueInitialized = false;
-                        this._dispatchTabInit();
+                        this._dispatchTabInit(true);
                     } else if (this.parsed && Array.isArray(this.parsed.sections) && this.parsed.sections.length > 0) {
                         // MELODY layer, song ALREADY has a chord grid: merge melody only.
                         // The grid (sections / chordNames / chordVoicings) is the harmonic
@@ -2598,16 +3137,19 @@ function leadsheetEditor() {
                         // Reload Vue from the merged model (grid unchanged, new melody staff).
                         this._tabInitDone = false;
                         this._tabVueInitialized = false;
-                        this._dispatchTabInit();
+                        this._dispatchTabInit(true);
                     } else {
                         // MELODY layer, BLANK song: full import builds the whole model from
                         // the file (chords re-derived from <harmony>, voicings identified).
                         const parser = new MusicXMLParser(xmlString);
+                        const prevVideoSync = this.parsed?.videoSync ?? null;
 
                         // Suppress the $watch('parsed') auto-dispatch so Vue doesn't receive
                         // Tab1/Tab2 placeholder names before identification renames them.
                         this._suppressTabInit = true;
                         this.parsed = parser.parse();
+                        // Carry videoSync forward — a full melody import must not lose sync data.
+                        if (prevVideoSync) this.parsed.videoSync = prevVideoSync;
                         this._suppressTabInit = false;
 
                         this.melodyTabXml = xmlString;
@@ -2630,15 +3172,16 @@ function leadsheetEditor() {
                         this._tabInitDone = false;
                         this._tabVueInitialized = false;
 
-                        // Now dispatch to Vue with fully-named chords.
-                        this._dispatchTabInit();
+                        // Now dispatch to Vue with fully-named chords. force=true so this
+                        // authoritative, post-identify payload always wins over any
+                        // provisional dispatch triggered by Vue's request-init while the
+                        // identify round-trips above were awaiting.
+                        this._dispatchTabInit(true);
                     }
                 } catch (err) {
                     console.error('[SBN Editor] Parse error:', err);
                     sbnToast('Error: ' + err.message, 'error');
                 }
-            };
-            reader.readAsText(file);
         },
 
         /**
@@ -3159,6 +3702,56 @@ function leadsheetEditor() {
                 sbnToast('Network error during merge', 'error');
             } finally {
                 this.mergeSaving = false;
+            }
+        },
+
+        // ── Song-merge (§9.1) ─────────────────────────────────
+        async loadSongMergeSources() {
+            this.songMergeLoading = true;
+            try {
+                const resp = await fetch('/admin/leadsheets/' + this.leadsheetId + '/merge-song-sources', {
+                    headers: { 'Accept': 'application/json' },
+                });
+                const data = await resp.json();
+                this.songMergeSources = data.songs || [];
+            } catch (e) {
+                console.error('[SBN] song merge sources load failed:', e);
+                sbnToast('Could not load songs list', 'error');
+            } finally {
+                this.songMergeLoading = false;
+            }
+        },
+        async applySongMerge() {
+            if (!this.songMergeSourceId) {
+                sbnToast('Pick a source song to absorb', 'error');
+                return;
+            }
+            const src = this.songMergeSources.find(s => s.id === Number(this.songMergeSourceId));
+            const label = src ? '"' + src.title + '"' : 'this song';
+            if (!confirm('Absorb ' + label + ' into this song and permanently delete its row?')) return;
+            this.songMergeSaving = true;
+            try {
+                const resp = await fetch('/admin/leadsheets/' + this.leadsheetId + '/merge-song', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ source_leadsheet_id: Number(this.songMergeSourceId) }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    sbnToast(data.message || 'Absorbed.', 'success');
+                    window.location.href = data.redirect;
+                } else {
+                    sbnToast(data.message || 'Absorb failed', 'error');
+                }
+            } catch (e) {
+                console.error('[SBN] song merge failed:', e);
+                sbnToast('Network error during absorb', 'error');
+            } finally {
+                this.songMergeSaving = false;
             }
         },
 

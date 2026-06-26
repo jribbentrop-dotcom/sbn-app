@@ -50,7 +50,7 @@
       <!-- Beat-grid tick marks — one per quarter-note beat across the measure -->
       <div class="sbn-ve-beat-grid">
         <div
-          v-for="b in beatsPerMeasure"
+          v-for="b in beatTickCount"
           :key="b"
           class="sbn-ve-beat-tick"
           :class="{ 'beat-one': b === 1, 'beat-active': activeBeat === b }"
@@ -194,6 +194,12 @@ const globalBeatsPerMeasure = computed(() => beatsPerMeasureRef?.value ?? 4);
 const effectiveBeats = computed(() =>
     props.measure.pickupBeats ?? globalBeatsPerMeasure.value
 );
+
+// Tick-mark count for the beat grid. `v-for="b in N"` requires a positive
+// integer, but a sub-quarter pickup bar (e.g. an 8th-note anacrusis) has
+// effectiveBeats = 0.5 — Vue warns and renders nothing. Ceil to at least one
+// tick so the grid still draws. Layout math keeps the fractional value.
+const beatTickCount = computed(() => Math.max(1, Math.ceil(effectiveBeats.value)));
 
 function chordBeats(ci) {
   const total = chordNamesArray.value.length || 1;

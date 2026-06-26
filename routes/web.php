@@ -141,6 +141,7 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
     Route::post('/leadsheets/create-blank', [LeadsheetController::class, 'createBlank'])->name('leadsheets.create-blank');
     Route::post('/leadsheets/create-from-sequence', [LeadsheetController::class, 'createFromSequence'])->name('leadsheets.create-from-sequence');
     Route::post('/leadsheets/create-from-lookup', [LeadsheetController::class, 'createFromLookup'])->name('leadsheets.create-from-lookup');
+    Route::post('/leadsheets/convert-mscz', [LeadsheetController::class, 'convertMscz'])->name('leadsheets.convert-mscz');
 
     // Version merge (Phase 1) + Song merge (§9.1). Static paths BEFORE {leadsheet} routes.
     Route::get('/leadsheets/merge-sources', [LeadsheetController::class, 'mergeSourceList'])->name('leadsheets.merge-sources');
