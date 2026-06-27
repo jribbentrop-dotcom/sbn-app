@@ -262,6 +262,8 @@ The core audit corpus resides in `docs/*.musicxml` and their expectations are en
 - **Add `IIIm7b5 → VI7 → IIm` as Tier 1 fragment**: A common secondary ii-V to ii (used in *Wine and Roses*). Add it to `sbn_chord_progressions` and reseed fragments.
 - **Bass-as-third heuristic for `DiminishedAsDominantResolver`**: Pick the dominant root whose major third matches the original dim7 bass note.
 - **Dim7 disambiguation in isolated slots**: When a dim7 has no useful neighbors, prefer the spelling whose root matches the bass (e.g., `Adim7` over `Cdim7/A` when bass is A).
+
+> **Note — dim7 in `ProgressionDetector` vs. identifier:** The identifier's dim7 pipeline (resolvers above) renames dim7 chords *for display* (e.g. `Adim7 → F7(b9)`). `ProgressionDetector` runs its own independent `resolveDominantDim7s` pass for progression matching and deliberately keeps a **pre-resolution stream** so dim7-containing progression patterns still find their raw tokens. The two pipelines are parallel — a fix in the identifier's `DiminishedAsDominantResolver` does not automatically affect the detector. See `SBN-Progression-Library-Reference.md §8` for the detector's dim7 matching design (pre-resolution stream routing, enharmonic degree equivalence, quality-family matching).
 - **Tonicization detection**: Detect temporary tonicizations and lift the local key for fragment matching.
 - **Cross-pedal pattern matching**: Handle isolated pedal slots where `PedalDetector`'s N≥3 rule doesn't fire.
 

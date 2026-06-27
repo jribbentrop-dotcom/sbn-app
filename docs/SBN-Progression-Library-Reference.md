@@ -282,6 +282,28 @@ Detects which progressions occur in a leadsheet and writes to `sbn_progression_o
 
 When a pattern slot is marked as a tonic (`flexTonic=true`), the detector allows `major` ↔ `minor` quality matching (e.g. Im vs I). **Dominant (`dom`) is explicitly excluded** — I7 must only match I7, not a plain I or Im, so "Tonic Dominant" (I7→IV) is not triggered by a plain I→IV.
 
+### Dim7 pattern matching — pre-resolution stream
+
+Progressions whose stored numeral string contains `dim7`, `o7`, or `°7` are matched against the **pre-resolution** numeral stream (raw tokens before `resolveDominantDim7s` runs). All other patterns match against the post-resolution stream (where dim7 chords functioning as dominants have been renamed, e.g. `#Io7 → VI7`).
+
+This ensures a stored `I, #Idim7, IIm7, V7` pattern finds the actual `#Idim7` token in the song rather than the secondary-dominant substitution. Without this split, dim7 passing-chord progressions would never match because the token they look for no longer exists by the time pattern matching runs.
+
+**Routing gate:** `patternContainsDim7()` tests the raw stored string for `dim7|o7|°7` — it must match all three notations because stored progressions use `dim7` while `parseNumeralSequence` normalises to `o7` internally.
+
+### Enharmonic degree equivalence
+
+`tokenScore()` converts accidental + Roman numeral to a semitone offset before comparing degrees, so enharmonic spellings match: `#II` and `bIII` both map to semitone 3 and are treated as the same degree. This is critical because:
+
+- Songs spell chromatic degrees by the accidental of the actual note (e.g. `Ebdim` in key C → `bIIIdim`).
+- Stored progressions often use the enharmonically equivalent sharp spelling (`#IIdim7`).
+- Without semitone comparison, `bIII` ≠ `#II` as strings and the match fails.
+
+**Implementation:** `degreeToSemitone(accidental, numeral)` in `ProgressionDetector`. Diatonic base offsets (I=0, II=2, III=4, IV=5, V=7, VI=9, VII=11) adjusted by `+1` per `#` and `-1` per `b`, mod 12.
+
+### Quality family matching for dim7 vs dim
+
+A plain diminished triad (`dim` / `o`) and a diminished 7th (`dim7` / `o7`) are in the **same harmonic family** (`dim`). A pattern token `#Idim7` will match a song token `#Idim` (or `bIIIdim`) with confidence 0.85 (same-family, different suffix) — above the 0.75 threshold, so the match is recorded with slightly reduced confidence.
+
 ### Parser alignment
 
 `LeadsheetParser` preserves **empty bars** (e.g. pickup bars) so its measure indices match the `json_data` array that the frontend builds from the stored shortcode. Previously `array_filter` dropped whitespace-only segments, causing all occurrence indices to be off by one for songs with pickup bars. The fix: strip only the leading/trailing empty segment (artifact of leading/trailing `|` on a measure line), keep inner empty segments as `['chords' => []]`.

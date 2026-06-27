@@ -254,6 +254,7 @@ class ProgressionController extends Controller
         $data['featured']       = $data['featured'] ?? false;
         $data['tags']           = $data['tags'] ?? '';
         $data['video_snippets'] = $this->normalizeSnippets($data['video_snippets'] ?? []);
+        $data['alt_numerals']   = $data['alt_numerals'] ?? null;
 
         return $data;
     }

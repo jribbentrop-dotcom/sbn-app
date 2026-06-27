@@ -317,7 +317,7 @@
                      The snippet widget writes its JSON here via the
                      sbn:snippets-changed event (mirrors the tags pattern). --}}
                 <input type="hidden" name="video_snippets" x-ref="videoSnippetsInput"
-                       value="{{ old('video_snippets', json_encode($progression->video_snippets ?? [])) }}">
+                       value="{{ is_array($old = old('video_snippets', $progression->video_snippets ?? [])) ? json_encode($old) : $old }}">
 @php
     $numeralTokens = $progression
         ? array_values(array_filter(array_map('trim', explode(',', $progression->numerals ?? ''))))

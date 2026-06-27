@@ -404,11 +404,12 @@ class ProgressionDetector
 
     /**
      * Convert a leadsheet section into an array of numeral tokens.
-     * Includes dim7 → dom7b9 resolution post-processing.
+     * Returns both the raw stream (dim7 as-is) and the resolved stream
+     * (dim7 reinterpreted as rootless dom7b9 where context confirms it).
      *
      * @param  array  $section Section from parser (with 'measures')
      * @param  string $key     Song key
-     * @return array{numerals: string[], chordRoots: (int|null)[]}
+     * @return array{numerals: string[], rawNumerals: string[], chordRoots: (int|null)[]}
      */
     public function sectionToNumerals(array $section, string $key): array
     {
@@ -427,12 +428,15 @@ class ProgressionDetector
             }
         }
 
+        $rawNumerals = $numerals;
+
         // Post-process: resolve dim7 chords functioning as dominants
         $numerals = $this->resolveDominantDim7s($numerals, $chordRoots, $key);
 
         return [
-            'numerals'   => $numerals,
-            'chordRoots' => $chordRoots,
+            'numerals'    => $numerals,
+            'rawNumerals' => $rawNumerals,
+            'chordRoots'  => $chordRoots,
         ];
     }
 
@@ -632,8 +636,9 @@ class ProgressionDetector
             return 0.0;
         }
 
-        // Accidental + numeral must match
-        if (strtoupper($sm[1] . $sm[2]) !== strtoupper($pm[1] . $pm[2])) {
+        // Degree must match by pitch-class so enharmonic spellings compare equal
+        // (e.g. #II and bIII are the same degree — 3 semitones above I).
+        if ($this->degreeToSemitone($sm[1], $sm[2]) !== $this->degreeToSemitone($pm[1], $pm[2])) {
             return 0.0;
         }
 
@@ -671,6 +676,19 @@ class ProgressionDetector
     }
 
     /**
+     * Convert a Roman numeral degree (accidental + numeral string) to semitones
+     * above the tonic, so enharmonic spellings (#II vs bIII) compare equal.
+     */
+    private function degreeToSemitone(string $accidental, string $numeral): int
+    {
+        // Diatonic semitone values for I–VII in a major scale
+        $diatonic = ['I' => 0, 'II' => 2, 'III' => 4, 'IV' => 5, 'V' => 7, 'VI' => 9, 'VII' => 11];
+        $base = $diatonic[strtoupper($numeral)] ?? 0;
+        $offset = substr_count($accidental, '#') - substr_count($accidental, 'b');
+        return ($base + $offset + 12) % 12;
+    }
+
+    /**
      * Resolve a quality suffix to its harmonic family.
      */
     private function resolveFamily(string $suffix): string
@@ -691,41 +709,72 @@ class ProgressionDetector
     }
 
     /**
+     * Return true if a numeral sequence string contains a dim7 token (o7 suffix).
+     * Matches all notations: o7, °7, dim7.
+     * Used to route dim7-containing patterns to the pre-resolution numeral stream.
+     */
+    private function patternContainsDim7(string $numeralsStr): bool
+    {
+        return (bool) preg_match('/(?:o7|°7|dim7)\b/i', $numeralsStr);
+    }
+
+    /**
      * Sliding-window match of stored progressions against a section's numerals.
      *
-     * @param  array  $sectionNumerals Flat array of numeral tokens
+     * Dim7-containing patterns are matched against $rawNumerals (pre-resolution),
+     * so that a stored #Idim7 finds the actual dim7 in the song rather than the
+     * VI7 token that resolveDominantDim7s would have substituted. All other
+     * patterns match against $sectionNumerals (post-resolution).
+     *
+     * @param  array  $sectionNumerals Flat array of numeral tokens (resolved)
      * @param  array  $progressions    Rows from sbn_chord_progressions
      * @param  float  $minConfidence   Minimum confidence to store (0–1)
+     * @param  array  $rawNumerals     Pre-resolution numeral tokens (dim7 intact)
      * @return array  Array of match arrays
      */
-    private function detectMatches(array $sectionNumerals, array $progressions, float $minConfidence = 0.75): array
+    private function detectMatches(array $sectionNumerals, array $progressions, float $minConfidence = 0.75, array $rawNumerals = []): array
     {
         $matches = [];
 
-        // ── Deduplication ────────────────────────────────────────
-        // Collapse runs of the same numeral (e.g. IIm7, IIm7, V7 → IIm7, V7)
-        $deduped    = [];
-        $slotMap    = [];  // dedup idx → first original slot
-        $slotEndMap = []; // dedup idx → last original slot
-
-        foreach ($sectionNumerals as $origIdx => $numeral) {
-            $last = count($deduped) - 1;
-            if ($last >= 0 && $deduped[$last] === $numeral) {
-                $slotEndMap[$last] = $origIdx;
-            } else {
-                $deduped[]    = $numeral;
-                $slotMap[]    = $origIdx;
-                $slotEndMap[] = $origIdx;
+        // ── Deduplication helper ──────────────────────────────────
+        $buildDeduped = function (array $numerals): array {
+            $deduped    = [];
+            $slotMap    = [];
+            $slotEndMap = [];
+            foreach ($numerals as $origIdx => $numeral) {
+                $last = count($deduped) - 1;
+                if ($last >= 0 && $deduped[$last] === $numeral) {
+                    $slotEndMap[$last] = $origIdx;
+                } else {
+                    $deduped[]    = $numeral;
+                    $slotMap[]    = $origIdx;
+                    $slotEndMap[] = $origIdx;
+                }
             }
-        }
+            return [$deduped, $slotMap, $slotEndMap];
+        };
 
-        $dedupTotal = count($deduped);
+        // Pre-build both deduped streams
+        [$deduped,    $slotMap,    $slotEndMap]    = $buildDeduped($sectionNumerals);
+        [$dedupedRaw, $slotMapRaw, $slotEndMapRaw] = $buildDeduped($rawNumerals ?: $sectionNumerals);
+
+        $dedupTotal    = count($deduped);
+        $dedupTotalRaw = count($dedupedRaw);
 
         foreach ($progressions as $prog) {
             $pattern = $this->parseNumeralSequence($prog['numerals']);
 
             $degreeOnly = (($prog['match_mode'] ?? 'strict') === 'degree');
             $flexTonic  = (($prog['tonality'] ?? 'both') === 'both');
+
+            // Dim7-containing patterns match against the pre-resolution stream so
+            // that stored #Idim7 tokens find the actual dim7 in the song (not the
+            // VI7 that resolveDominantDim7s would have substituted).
+            $usesRaw = $this->patternContainsDim7($prog['numerals']);
+            $activeDeduped    = $usesRaw ? $dedupedRaw    : $deduped;
+            $activeSlotMap    = $usesRaw ? $slotMapRaw    : $slotMap;
+            $activeSlotEndMap = $usesRaw ? $slotEndMapRaw : $slotEndMap;
+            $activeDedupTotal = $usesRaw ? $dedupTotalRaw : $dedupTotal;
 
             // Deduplicate pattern too
             $patternDeduped = [];
@@ -737,7 +786,7 @@ class ProgressionDetector
             }
             $plen = count($patternDeduped);
 
-            if ($plen < 2 || $plen > $dedupTotal) {
+            if ($plen < 2 || $plen > $activeDedupTotal) {
                 continue;
             }
 
@@ -749,13 +798,13 @@ class ProgressionDetector
             }
 
             // Slide the window
-            for ($start = 0; $start <= $dedupTotal - $plen; $start++) {
+            for ($start = 0; $start <= $activeDedupTotal - $plen; $start++) {
                 $scoreSum = 0.0;
                 $valid    = true;
 
                 for ($j = 0; $j < $plen; $j++) {
                     $ts = $this->tokenScore(
-                        $deduped[$start + $j],
+                        $activeDeduped[$start + $j],
                         $patternDeduped[$j],
                         $degreeOnly,
                         $isTonic[$j]
@@ -774,8 +823,8 @@ class ProgressionDetector
                 $confidence = $scoreSum / $plen;
 
                 if ($confidence >= $minConfidence) {
-                    $origStart  = $slotEndMap[$start];           // last repeat of first pattern chord
-                    $origEnd    = $slotMap[$start + $plen - 1];  // first occurrence of last pattern chord
+                    $origStart  = $activeSlotEndMap[$start];           // last repeat of first pattern chord
+                    $origEnd    = $activeSlotMap[$start + $plen - 1];  // first occurrence of last pattern chord
                     $origLength = $origEnd - $origStart + 1;
 
                     $matches[] = [
@@ -996,8 +1045,9 @@ class ProgressionDetector
                     continue;
                 }
 
-                $result   = $this->sectionToNumerals($section, $secKey);
-                $numerals = $result['numerals'];
+                $result      = $this->sectionToNumerals($section, $secKey);
+                $numerals    = $result['numerals'];
+                $rawNumerals = $result['rawNumerals'];
 
                 // ── Cross-section cadence detection ──────────────────
                 $prependLen = 0;
@@ -1025,8 +1075,9 @@ class ProgressionDetector
                             $n = $this->chordToNumeral($cn, $secKey);
                             $tailNumerals[] = $n ?? '?';
                         }
-                        $numerals   = array_merge($tailNumerals, $numerals);
-                        $prependLen = $tailCount;
+                        $numerals    = array_merge($tailNumerals, $numerals);
+                        $rawNumerals = array_merge($tailNumerals, $rawNumerals);
+                        $prependLen  = $tailCount;
                     }
                 }
 
@@ -1051,8 +1102,9 @@ class ProgressionDetector
                             $n = $this->chordToNumeral($cn, $secKey);
                             $headNumerals[] = $n ?? '?';
                         }
-                        $numerals  = array_merge($numerals, $headNumerals);
-                        $appendLen = $headCount;
+                        $numerals    = array_merge($numerals, $headNumerals);
+                        $rawNumerals = array_merge($rawNumerals, $headNumerals);
+                        $appendLen   = $headCount;
                     }
                 }
 
@@ -1069,7 +1121,7 @@ class ProgressionDetector
                     return false;
                 });
 
-                $matches = $this->detectMatches($numerals, array_values($filteredFlat));
+                $matches = $this->detectMatches($numerals, array_values($filteredFlat), 0.75, $rawNumerals);
 
                 foreach ($matches as $m) {
                     // Adjust for prepended cross-section chords
@@ -1295,8 +1347,9 @@ class ProgressionDetector
                 return false;
             });
 
-            $result   = $this->sectionToNumerals($section, $secKey);
-            $numerals = $result['numerals'];
+            $result         = $this->sectionToNumerals($section, $secKey);
+            $numerals       = $result['numerals'];
+            $rawNumerals    = $result['rawNumerals'];
 
             // Build per-measure numeral mapping for the UI
             $measureNumerals = [];
@@ -1314,9 +1367,10 @@ class ProgressionDetector
             }
 
             // Cross-section prepend/append (same logic as processLeadsheet)
-            $detectNumerals = $numerals;
-            $prependLen     = 0;
-            $appendLen      = 0;
+            $detectNumerals    = $numerals;
+            $detectRawNumerals = $rawNumerals;
+            $prependLen        = 0;
+            $appendLen         = 0;
 
             if ($si > 0 && $sectionKeys[$si - 1] !== $secKey) {
                 $prevSection  = $song['sections'][$si - 1];
@@ -1335,8 +1389,9 @@ class ProgressionDetector
                         $n = $this->chordToNumeral($cn, $secKey);
                         $tailNumerals[] = $n ?? '?';
                     }
-                    $detectNumerals = array_merge($tailNumerals, $detectNumerals);
-                    $prependLen     = $tailCount;
+                    $detectNumerals    = array_merge($tailNumerals, $detectNumerals);
+                    $detectRawNumerals = array_merge($tailNumerals, $detectRawNumerals);
+                    $prependLen        = $tailCount;
                 }
             }
 
@@ -1357,15 +1412,16 @@ class ProgressionDetector
                         $n = $this->chordToNumeral($cn, $secKey);
                         $headNumerals[] = $n ?? '?';
                     }
-                    $detectNumerals = array_merge($detectNumerals, $headNumerals);
-                    $appendLen      = $headCount;
+                    $detectNumerals    = array_merge($detectNumerals, $headNumerals);
+                    $detectRawNumerals = array_merge($detectRawNumerals, $headNumerals);
+                    $appendLen         = $headCount;
                 }
             }
 
             // Detect matches
             $sectionMatches = [];
             if (count($detectNumerals) >= 2 && !empty($filteredFlat)) {
-                $rawMatches = $this->detectMatches($detectNumerals, array_values($filteredFlat));
+                $rawMatches = $this->detectMatches($detectNumerals, array_values($filteredFlat), 0.75, $detectRawNumerals);
 
                 foreach ($rawMatches as $m) {
                     $adjStart = $m['start_idx'] - $prependLen;

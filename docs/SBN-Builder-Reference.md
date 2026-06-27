@@ -1181,6 +1181,8 @@ they ship.
 
 ### 4.2 Numeral / parser coverage
 
+> **Dim7 enharmonic edge — ProgressionDetector:** `ProgressionDetector` (not the builder) is where dim7 chord symbols get matched to stored progression patterns. It has its own `resolveDominantDim7s` pass and now routes dim7-containing patterns to a **pre-resolution** numeral stream to prevent the secondary-dominant substitution from hiding them. It also implements semitone-based degree comparison so enharmonic spellings like `bIII` / `#II` match. These are detector concerns — the builder is unaffected — but worth knowing when debugging "why doesn't this dim7 progression show up on the song page." See `SBN-Progression-Library-Reference.md §8`.
+
 - ~~**`VIIo` / fully-spelled diminished symbols.** Crashes
   `HarmonicContext::buildFromNumerals`.~~ **Resolved (2026-05-19).** No
   longer crashes — `HarmonicContext::SUFFIX_TO_DISPLAY` maps `o → dim`
