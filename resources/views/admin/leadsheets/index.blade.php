@@ -109,6 +109,44 @@
             background: none;
         }
 
+        /* ── Song-merge modal ─────────────────────────────────────────────── */
+        .sbn-ls-merge-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            background: rgba(0,0,0,.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .sbn-ls-merge-modal {
+            width: 100%;
+            max-width: 460px;
+            background: var(--clr-bg-card, #fff);
+            color: var(--clr-text, #1a1a1a);
+            border-radius: 12px;
+            box-shadow: 0 16px 48px rgba(0,0,0,.3);
+            padding: 22px 24px;
+        }
+        .sbn-ls-merge-title { margin: 0 0 6px; font-size: 1.05rem; font-weight: 700; }
+        .sbn-ls-merge-hint  { margin: 0 0 16px; font-size: 0.85rem; opacity: 0.75; line-height: 1.4; }
+        .sbn-ls-merge-loading { padding: 24px 0; text-align: center; opacity: 0.6; }
+        .sbn-ls-merge-field { display: block; margin-bottom: 14px; }
+        .sbn-ls-merge-field > span {
+            display: block; margin-bottom: 5px;
+            font-size: 0.78rem; font-weight: 600; opacity: 0.7;
+        }
+        .sbn-ls-merge-field select {
+            width: 100%; padding: 8px 10px; font-size: 0.9rem;
+            border-radius: 6px; border: 1px solid rgba(127,127,127,.35);
+            background: var(--clr-surface, #fff); color: var(--clr-text, inherit);
+        }
+        .sbn-ls-merge-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+        .sbn-btn-danger { background: #dc2626; color: #fff; border: none; border-radius: 6px; padding: 7px 14px; font: inherit; cursor: pointer; }
+        .sbn-btn-danger:hover:not(:disabled) { background: #b91c1c; }
+        .sbn-btn-danger:disabled { opacity: .55; cursor: not-allowed; }
+
     </style>
 @endpush
 
@@ -341,6 +379,13 @@
                                 Preview ↗
                             </a>
                             @endif
+                            @if($currentTab === 'leadsheets')
+                            <button class="sbn-btn sbn-btn-xs sbn-btn-ghost"
+                                    title="Merge another song into this one as a new arrangement"
+                                    @click="openMerge({{ $ls->id }}, '{{ addslashes($ls->title) }}')">
+                                Merge…
+                            </button>
+                            @endif
                             <button class="sbn-btn-delete"
                                 @click="deleteItem({{ $ls->id }}, '{{ addslashes($ls->title) }}', '{{ $currentTab }}')"
                                 title="Delete">
@@ -375,6 +420,45 @@
     @include('admin.leadsheets._blank-modal')
     @include('admin.leadsheets._progression-modal')
     @include('admin.leadsheets._lookup-modal')
+
+    {{-- ── Song-merge modal ───────────────────────────────────────────────────
+         Pick a target song (the one you clicked Merge… on) + a source song to
+         absorb. All of source's arrangements move onto target; source row deleted. --}}
+    <div x-show="mergeOpen" x-cloak class="sbn-ls-merge-overlay" @click.self="mergeOpen = false">
+        <div class="sbn-ls-merge-modal">
+            <h3 class="sbn-ls-merge-title">Merge song into "<span x-text="mergeTargetTitle"></span>"</h3>
+            <p class="sbn-ls-merge-hint">
+                All arrangements of the source song will be copied onto the target song as new
+                arrangements, then the source row will be permanently deleted.
+            </p>
+
+            <template x-if="mergeLoading">
+                <div class="sbn-ls-merge-loading">Loading songs…</div>
+            </template>
+
+            <template x-if="!mergeLoading">
+                <div>
+                    <label class="sbn-ls-merge-field">
+                        <span>Source song (will be deleted after merge)</span>
+                        <select x-model="mergeSourceId">
+                            <option value="">— choose —</option>
+                            <template x-for="s in mergeSources" :key="s.id">
+                                <option :value="s.id"
+                                        x-text="s.title + (s.status !== 'publish' ? ' [' + s.status + ']' : '') + (s.is_legacy ? ' (legacy — 1 arr.)' : ' (' + s.versions_count + ' arr.)')"></option>
+                            </template>
+                        </select>
+                    </label>
+                </div>
+            </template>
+
+            <div class="sbn-ls-merge-actions">
+                <button type="button" class="sbn-btn sbn-btn-secondary" @click="mergeOpen = false" :disabled="mergeSaving">Cancel</button>
+                <button type="button" class="sbn-btn sbn-btn-danger" @click="applyMerge()"
+                        :disabled="mergeSaving || mergeLoading || !mergeSourceId"
+                        x-text="mergeSaving ? 'Merging…' : 'Merge & delete source'"></button>
+            </div>
+        </div>
+    </div>
 </div>
 
 @endsection
@@ -399,6 +483,77 @@ function sbnToast(message, type) {
 
 function leadsheetIndex() {
     return {
+        // ── Song merge ────────────────────────────────────────
+        mergeOpen: false,
+        mergeLoading: false,
+        mergeSaving: false,
+        mergeTargetId: null,
+        mergeTargetTitle: '',
+        mergeSources: [],
+        mergeSourceId: '',
+
+        openMerge(targetId, targetTitle) {
+            this.mergeTargetId    = targetId;
+            this.mergeTargetTitle = targetTitle;
+            this.mergeSourceId    = '';
+            this.mergeOpen        = true;
+            if (!this.mergeSources.length) this.loadMergeSources(targetId);
+        },
+
+        async loadMergeSources(targetId) {
+            this.mergeLoading = true;
+            try {
+                const resp = await fetch('/admin/leadsheets/' + targetId + '/merge-song-sources', {
+                    headers: { 'Accept': 'application/json' },
+                });
+                const data = await resp.json();
+                this.mergeSources = data.songs || [];
+            } catch (e) {
+                sbnToast('Could not load songs list', 'error');
+            } finally {
+                this.mergeLoading = false;
+            }
+        },
+
+        async applyMerge() {
+            if (!this.mergeSourceId) { sbnToast('Pick a source song', 'error'); return; }
+            const src = this.mergeSources.find(s => s.id === Number(this.mergeSourceId));
+            if (!confirm('Merge "' + (src?.title ?? 'this song') + '" into "' + this.mergeTargetTitle + '" and permanently delete the source row?')) return;
+            this.mergeSaving = true;
+            try {
+                const resp = await fetch('/admin/leadsheets/' + this.mergeTargetId + '/merge-song', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ source_leadsheet_id: Number(this.mergeSourceId) }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    sbnToast(data.message || 'Merged.', 'success');
+                    this.mergeOpen = false;
+                    // Remove the source row from the table if visible.
+                    const srcRow = this.$refs['row' + this.mergeSourceId];
+                    if (srcRow) {
+                        srcRow.style.transition = 'opacity 0.3s';
+                        srcRow.style.opacity = '0';
+                        setTimeout(() => srcRow.remove(), 300);
+                    }
+                    // Reload to reflect the updated version count on the target row.
+                    setTimeout(() => window.location.reload(), 600);
+                } else {
+                    sbnToast(data.message || 'Merge failed', 'error');
+                }
+            } catch (e) {
+                sbnToast('Network error during merge', 'error');
+            } finally {
+                this.mergeSaving = false;
+            }
+        },
+
+
         saveDescription(id, desc, tab) {
             const endpoint = tab === 'exercises' 
                 ? `/api/admin/exercises/${id}/description` 

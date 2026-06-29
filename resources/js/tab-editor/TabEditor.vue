@@ -15,9 +15,9 @@
         <div class="sbn-ve-tabs">
             <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'chords' }"
                     @click="setViewMode('chords')">Grid</button>
-            <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'tab' && tabLayer === 'chord' }"
+            <button v-show="hasChordTab" class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'tab' && tabLayer === 'chord' }"
                     @click="selectTabLayerView('chord')">Chords</button>
-            <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'tab' && tabLayer === 'melody' }"
+            <button v-show="hasMelodyTab" class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'tab' && tabLayer === 'melody' }"
                     @click="selectTabLayerView('melody')">Melody</button>
             <button class="sbn-ve-tab" :class="{ 'is-active': viewMode === 'analysis' }"
                     @click="setViewMode('analysis')">Analysis</button>
@@ -395,6 +395,7 @@ const {
     videoSync: bridgeVideoSync,
     openVideoSidebar: bridgeOpenVideoSidebar,
     tuning,
+    hasMelodyTab, hasChordTab,
     initialized, setSaveHandler,
     setStructureHandler,
 } = bridge;

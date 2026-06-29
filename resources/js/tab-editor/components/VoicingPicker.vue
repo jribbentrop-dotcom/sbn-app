@@ -267,10 +267,6 @@ const groupedResults = computed(() => {
             if (dimMap.has(key)) {
                 // Same physical shape already shown as a dim group — add as alternate reading
                 dimMap.get(key).alts.push(v);
-            } else if (v.rootless) {
-                // Dim-derived rootless dom7(b9) voicing: not a cross-quality alias,
-                // just a generated transposition — show as a normal primary card.
-                primaries.push({ type: 'primary', v });
             } else if (!aliasMap.has(key)) {
                 aliasMap.set(key, { type: 'alias-group', id: `alias-${key}`, face: v, alts: [] });
             } else {

@@ -47,6 +47,8 @@ export function useAlpineBridge() {
     const videoSync     = ref(null);   // Phase D: passed through from sbn-tab-init
     const openVideoSidebar = ref(false);
     const tuning        = ref('standard'); // 'standard' | 'drop-d'
+    const hasMelodyTab  = ref(false);  // whether melody_tab_xml is populated
+    const hasChordTab   = ref(false);  // whether chord_tab_xml is populated
     const initialized   = _globalInitialized; // shared singleton
 
     // ── Event handlers ─────────────────────────────────────
@@ -78,6 +80,8 @@ export function useAlpineBridge() {
         if (d.tuning) {
             tuning.value = d.tuning;
         }
+        if (d.hasMelodyTab !== undefined) hasMelodyTab.value = d.hasMelodyTab;
+        if (d.hasChordTab  !== undefined) hasChordTab.value  = d.hasChordTab;
         initialized.value = true;
         // Ack so Alpine knows Vue received the data and can stop retrying.
         document.dispatchEvent(new CustomEvent('sbn-tab-init-ack'));
@@ -217,5 +221,9 @@ export function useAlpineBridge() {
 
         // Tuning
         tuning,
+
+        // Layer presence (set from sbn-tab-init, used to hide empty tabs)
+        hasMelodyTab,
+        hasChordTab,
     };
 }
