@@ -83,6 +83,8 @@ Each entry in the `voicings` JSON array is one "frame" — a single fretboard st
   - `finger` — same codes as above
 - `frets` / `fingers` fields are ignored in scale mode.
 
+**Open strings (`f: 0`) do not render in scale mode.** `sbnRenderFretboard` reads `startFret = parseInt(opts.start_fret) || 1`, so a stored `start_fret: 0` is coalesced back to `1` by the JS `||` fallback — and even if it weren't, scale mode has no nut/open-string column at all (that's a chord/sequence-mode-only render path). A dot with `f: 0` simply has nowhere to draw. For an open-position scale shape, transpose the whole shape up an octave (e.g. frets 0–3 → 12–15) and set `start_fret` to a real fretted value instead.
+
 ---
 
 ## 4. JS renderer — `chords.js`
