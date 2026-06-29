@@ -226,6 +226,16 @@ class Leadsheet extends Model
     }
 
     /**
+     * Skill nodes this song helps build (reverse of SkillNode::leadsheets).
+     * The "songs as equipment" link — a song is repertoire that exercises nodes;
+     * a student is "ready" for it when its nodes' prerequisites are met.
+     */
+    public function skillNodes(): MorphToMany
+    {
+        return $this->morphToMany(SkillNode::class, 'content', 'sbn_skill_node_content', 'content_id', 'skill_node_id');
+    }
+
+    /**
      * Public URL for the cover image, or null when none is set.
      */
     public function getCoverImageUrlAttribute(): ?string

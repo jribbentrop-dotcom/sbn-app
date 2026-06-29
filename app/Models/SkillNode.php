@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 /**
  * A skill node — an atomic teachable concept in the skill graph.
@@ -21,10 +22,11 @@ class SkillNode extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
-        'sort_order' => 'integer',
-        'grade'      => 'integer',
-        'pos_x'      => 'integer',
-        'pos_y'      => 'integer',
+        'sort_order'         => 'integer',
+        'grade'              => 'integer',
+        'pos_x'              => 'integer',
+        'pos_y'              => 'integer',
+        'voicing_categories' => 'array',
     ];
 
     /** Canonical branches (see plan "Skill Taxonomy"). */
@@ -129,6 +131,67 @@ class SkillNode extends Model
         if ($rows) {
             \DB::table('sbn_skill_node_style')->insert($rows);
         }
+    }
+
+    // =========================================================================
+    // DIRECT CONTENT LINKS (sbn_skill_node_content)
+    // =========================================================================
+    //
+    // Precise node→content links (not the lossy tag bridge below). Each is a
+    // morphedByMany over the shared sbn_skill_node_content pivot. Exercises are
+    // intentionally absent — course-only content, see the migration docblock.
+
+    public function rhythmPatterns(): MorphToMany
+    {
+        return $this->morphedByMany(RhythmPattern::class, 'content', 'sbn_skill_node_content', 'skill_node_id', 'content_id')
+            ->withPivot('sort_order')->withTimestamps();
+    }
+
+    public function chordProgressions(): MorphToMany
+    {
+        return $this->morphedByMany(ChordProgression::class, 'content', 'sbn_skill_node_content', 'skill_node_id', 'content_id')
+            ->withPivot('sort_order')->withTimestamps();
+    }
+
+    public function leadsheets(): MorphToMany
+    {
+        return $this->morphedByMany(Leadsheet::class, 'content', 'sbn_skill_node_content', 'skill_node_id', 'content_id')
+            ->withPivot('sort_order')->withTimestamps();
+    }
+
+    /**
+     * Chord voicings this node teaches, resolved from voicing_categories — NOT a
+     * pivot. The node owns a category (e.g. "drop2"); this returns every diagram in
+     * those categories, so new voicings are covered automatically as the library
+     * grows. Empty collection when the node carries no categories.
+     */
+    public function chordDiagrams(): Collection
+    {
+        $cats = $this->voicing_categories ?: [];
+
+        if (! $cats) {
+            return new Collection;
+        }
+
+        return ChordDiagram::whereIn('voicing_category', $cats)
+            ->orderBy('voicing_category')->orderBy('sort_order')->get();
+    }
+
+    /**
+     * Directly-linked content grouped by type. Rhythms/progressions/songs are
+     * specific-item pivot links; chordDiagrams is category-resolved (see above).
+     * Leadsheets are the "songs as equipment" link — the repertoire a node unlocks.
+     *
+     * @return array{rhythmPatterns:Collection,chordProgressions:Collection,chordDiagrams:Collection,leadsheets:Collection}
+     */
+    public function linkedContent(): array
+    {
+        return [
+            'rhythmPatterns'    => $this->rhythmPatterns,
+            'chordProgressions' => $this->chordProgressions,
+            'chordDiagrams'     => $this->chordDiagrams(),
+            'leadsheets'        => $this->leadsheets,
+        ];
     }
 
     // =========================================================================

@@ -3,7 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ChordDiagram;
+use App\Models\ChordProgression;
 use App\Models\Course;
+use App\Models\Leadsheet;
+use App\Models\RhythmPattern;
 use App\Models\SkillNode;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -149,6 +153,18 @@ class SkillNodeController extends Controller
             'selectedCourses' => $isNew ? [] : $node->courses()->pluck('sbn_courses.id')->all(),
             'styles'          => SkillNode::STYLES,
             'styleWeights'    => $isNew ? [] : $node->styleWeights(),
+
+            // Direct content links (sbn_skill_node_content) — specific items.
+            'allRhythmPatterns'       => RhythmPattern::orderBy('name')->get(['id', 'name']),
+            'allChordProgressions'    => ChordProgression::orderBy('name')->get(['id', 'name']),
+            'allLeadsheets'           => Leadsheet::orderBy('title')->get(['id', 'title']),
+            'selectedRhythmPatterns'    => $isNew ? [] : $node->rhythmPatterns()->pluck('sbn_rhythm_patterns.id')->all(),
+            'selectedChordProgressions' => $isNew ? [] : $node->chordProgressions()->pluck('sbn_chord_progressions.id')->all(),
+            'selectedLeadsheets'        => $isNew ? [] : $node->leadsheets()->pluck('sbn_leadsheets.id')->all(),
+
+            // Chord voicings link by CATEGORY, not individual diagram.
+            'voicingCategories'         => ChordDiagram::VOICING_CATEGORIES,
+            'selectedVoicingCategories' => $isNew ? [] : ($node->voicing_categories ?: []),
         ];
     }
 
@@ -173,6 +189,14 @@ class SkillNodeController extends Controller
             'courses.*'        => 'integer|exists:sbn_courses,id',
             'styles'           => 'nullable|array',
             'styles.*'         => 'integer|min:0|max:3', // keyed by style slug; 0 = not tagged
+            'rhythm_patterns'    => 'nullable|array',
+            'rhythm_patterns.*'  => 'integer|exists:sbn_rhythm_patterns,id',
+            'chord_progressions'   => 'nullable|array',
+            'chord_progressions.*' => 'integer|exists:sbn_chord_progressions,id',
+            'voicing_categories'   => 'nullable|array',
+            'voicing_categories.*' => 'string|in:' . implode(',', array_keys(ChordDiagram::VOICING_CATEGORIES)),
+            'leadsheets'         => 'nullable|array',
+            'leadsheets.*'       => 'integer|exists:sbn_leadsheets,id',
         ]);
 
         $attributes = [
@@ -186,6 +210,8 @@ class SkillNodeController extends Controller
             'icon_key'         => $raw['icon_key'] ?: null,
             'completion_type'  => SkillNode::COMPLETION_SELF_REPORT, // v1: fixed
             'sort_order'       => $raw['sort_order'] ?? 0,
+            // Chord voicings link by category (stored on the node, not a pivot).
+            'voicing_categories' => array_values($raw['voicing_categories'] ?? []) ?: null,
         ];
 
         // Style weights come in as { style-slug => weight }; drop 0s (untagged)
@@ -208,6 +234,9 @@ class SkillNodeController extends Controller
             'prereqs'    => $prereqs,
             'courses'    => $raw['courses'] ?? [],
             'styles'     => $styleWeights,
+            'rhythmPatterns'    => $raw['rhythm_patterns'] ?? [],
+            'chordProgressions' => $raw['chord_progressions'] ?? [],
+            'leadsheets'        => $raw['leadsheets'] ?? [],
         ];
     }
 
@@ -216,6 +245,13 @@ class SkillNodeController extends Controller
         $node->prerequisites()->sync($data['prereqs']);
         $node->courses()->sync($data['courses']);
         $node->syncStyles($data['styles']);
+
+        // Direct content links — each morphedByMany over sbn_skill_node_content.
+        // (Chord voicings are NOT here — they're stored as voicing_categories on
+        // the node itself, set in $attributes.)
+        $node->rhythmPatterns()->sync($data['rhythmPatterns']);
+        $node->chordProgressions()->sync($data['chordProgressions']);
+        $node->leadsheets()->sync($data['leadsheets']);
     }
 
     private function uniqueSlug(string $slug, ?int $exceptId): string

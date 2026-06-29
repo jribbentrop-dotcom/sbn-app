@@ -159,6 +159,49 @@
                 </div>
             </div>
 
+            <h3 style="margin:24px 0 4px;font-size:15px;">Linked content <span style="font-weight:400;color:var(--clr-text-muted)">— the specific rhythms, progressions, voicings &amp; songs that build this skill</span></h3>
+            <p class="sbn-form-hint" style="margin-top:0">Direct links (not the tag bridge). These drive the future node landing page and the "skills this builds" panel on each content page. Songs are the repertoire a node unlocks.</p>
+
+            <div class="sbn-form-row sbn-form-row-2">
+                @include('admin._partials.content-picker', [
+                    'field' => 'rhythm_patterns', 'label' => 'Rhythm patterns',
+                    'options' => $allRhythmPatterns, 'labelKey' => 'name',
+                    'selected' => $selectedRhythmPatterns,
+                ])
+                @include('admin._partials.content-picker', [
+                    'field' => 'chord_progressions', 'label' => 'Chord progressions',
+                    'options' => $allChordProgressions, 'labelKey' => 'name',
+                    'selected' => $selectedChordProgressions,
+                ])
+            </div>
+            <div class="sbn-form-row sbn-form-row-2">
+                {{-- Chord voicings link by CATEGORY (drop2, shell…), not individual
+                     diagram — the node IS the category, and it auto-covers new
+                     voicings added to the library later. --}}
+                <div class="sbn-form-group"
+                     x-data='{ selected: @json(array_values(old("voicing_categories", $selectedVoicingCategories))) }'>
+                    <label>Chord voicing categories</label>
+                    <template x-for="cat in selected" :key="cat">
+                        <input type="hidden" name="voicing_categories[]" :value="cat">
+                    </template>
+                    <div class="sbn-tags-palette">
+                        @foreach($voicingCategories as $key => $label)
+                            <button type="button" class="sbn-tag-preset"
+                                    :class="selected.includes('{{ $key }}') && 'is-active'"
+                                    @click="selected.includes('{{ $key }}')
+                                        ? selected = selected.filter(c => c !== '{{ $key }}')
+                                        : selected.push('{{ $key }}')">{{ $label }}</button>
+                        @endforeach
+                    </div>
+                    <p class="sbn-form-hint">Click to toggle. Resolves to every diagram in the category — new voicings are covered automatically.</p>
+                </div>
+                @include('admin._partials.content-picker', [
+                    'field' => 'leadsheets', 'label' => 'Songs (repertoire)',
+                    'options' => $allLeadsheets, 'labelKey' => 'title',
+                    'selected' => $selectedLeadsheets,
+                ])
+            </div>
+
         </div>
     </div>
 

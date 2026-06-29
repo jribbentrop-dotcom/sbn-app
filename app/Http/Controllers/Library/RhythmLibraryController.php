@@ -49,7 +49,7 @@ class RhythmLibraryController extends Controller
 
     public function __construct(protected CourseRepository $courseRepo) {}
 
-    public function show(string $slug)
+    public function show(Request $request, string $slug)
     {
         $pattern = RhythmPattern::where('slug', $slug)->firstOrFail();
 
@@ -73,11 +73,29 @@ class RhythmLibraryController extends Controller
         // Related courses: tag match first, then category fallback
         $courses = $this->courseRepo->relatedTo($pattern, $pattern->category);
 
+        $completedSlugs = $request->user()
+            ? $request->user()->skillNodes()->wherePivot('status', 'completed')
+                ->pluck('sbn_skill_nodes.slug')->flip()
+            : collect();
+
+        $skills = $pattern->skillNodes
+            ->sortBy('grade')->sortBy('title')
+            ->map(fn ($n) => [
+                'slug'      => $n->slug,
+                'title'     => $n->title,
+                'branch'    => $n->branch,
+                'grade'     => $n->grade,
+                'icon_key'  => $n->icon_key,
+                'icon_path' => $n->icon_path,
+                'completed' => $completedSlugs->has($n->slug),
+            ])->values();
+
         return Inertia::render('Library/Rhythms/Show', [
             'pattern'  => $this->serializePattern($pattern),
             'siblings' => $siblings,
             'songs'    => $songs,
             'courses'  => $courses,
+            'skills'   => $skills,
         ]);
     }
 

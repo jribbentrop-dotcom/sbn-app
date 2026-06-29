@@ -13,6 +13,8 @@ import ProgressionLink from '@/Components/Library/ProgressionLink.vue';
 import MediaShelf from '@/Components/Library/MediaShelf.vue';
 import CourseShelfCard from '@/Components/Course/CourseShelfCard.vue';
 import type { CourseShelfCardData } from '@/Components/Course/CourseShelfCard.vue';
+import SkillsBuiltPanel from '@/Components/Skill/SkillsBuiltPanel.vue';
+import type { SkillRef } from '@/Components/Skill/SkillsBuiltPanel.vue';
 
 defineOptions({ layout: PublicLayout });
 
@@ -67,6 +69,7 @@ interface Props {
   chords: any[];
   progressions: ProgressionRef[];
   courses: CourseShelfCardData[];
+  skills: SkillRef[];
 }
 
 const props = defineProps<Props>();
@@ -282,6 +285,11 @@ const breadcrumbSegments = computed(() => {
         :show-meta="true"
         :color="categoryColor"
       />
+    </div>
+
+    <!-- ── Skills this builds ────────────────────────────────────────────── -->
+    <div v-if="skills && skills.length" class="sbn-ss-section">
+      <SkillsBuiltPanel :skills="skills" />
     </div>
 
     <!-- ── Related Courses ──────────────────────────────────────────────── -->

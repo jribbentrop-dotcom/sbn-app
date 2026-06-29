@@ -652,6 +652,23 @@ class ChordLibraryController extends Controller
 			? 'dominant'
 			: 'diminished';
 
+		$completedSlugs = $request->user()
+			? $request->user()->skillNodes()->wherePivot('status', 'completed')
+				->pluck('sbn_skill_nodes.slug')->flip()
+			: collect();
+
+		$skills = $chord->skillNodes()
+			->sortBy('grade')->sortBy('title')
+			->map(fn ($n) => [
+				'slug'      => $n->slug,
+				'title'     => $n->title,
+				'branch'    => $n->branch,
+				'grade'     => $n->grade,
+				'icon_key'  => $n->icon_key,
+				'icon_path' => $n->icon_path,
+				'completed' => $completedSlugs->has($n->slug),
+			])->values();
+
 		return Inertia::render('Library/Chords/Show', [
 			'chord' => $this->chordSerializer->serialize($chord, $displayRoot),
 			'aliases' => $aliases,
@@ -664,6 +681,7 @@ class ChordLibraryController extends Controller
 			'progressions' => $progressions,
 			'qualityTopic' => $qualityTopic?->toArray(),
 			'courses' => $courses,
+			'skills' => $skills,
 		]);
 	}
 

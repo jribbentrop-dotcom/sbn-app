@@ -16,6 +16,8 @@ import type { SongLinkData } from '@/Components/Library/SongLink.vue';
 import { getCategoryStyle, getCategoryColor } from '@/composables/useCategoryColors';
 import { difficultyBreadcrumbSegment } from '@/composables/useBreadcrumb';
 import { getAudioEngine } from '../../../audio/engine/AudioEngine.js';
+import SkillsBuiltPanel from '@/Components/Skill/SkillsBuiltPanel.vue';
+import type { SkillRef } from '@/Components/Skill/SkillsBuiltPanel.vue';
 
 defineOptions({ layout: PublicLayout });
 
@@ -24,6 +26,7 @@ interface Props {
   siblings: RhythmPatternWithMeta[];
   songs: SongLinkData[];
   courses: CourseShelfCardData[];
+  skills: SkillRef[];
 }
 
 const props = defineProps<Props>();
@@ -175,6 +178,7 @@ const breadcrumbSegments = computed(() => {
 
       <!-- Right: related patterns sidebar -->
       <aside class="sbn-show-sidebar">
+        <SkillsBuiltPanel v-if="skills && skills.length" :skills="skills" />
         <div class="sbn-show-sidebar-card">
           <h3 class="sbn-show-sidebar-heading">More {{ categoryLabel }} patterns</h3>
           <div v-if="siblings.length" class="sbn-siblings-list">

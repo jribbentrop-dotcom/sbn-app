@@ -30,6 +30,8 @@ import CourseShelfCard from '@/Components/Course/CourseShelfCard.vue';
 import type { CourseShelfCardData } from '@/Components/Course/CourseShelfCard.vue';
 import type { SongLinkData } from '@/Components/Library/SongLink.vue';
 import type { ChordDiagramData } from '@/Components/Library/ChordDiagram.vue';
+import SkillsBuiltPanel from '@/Components/Skill/SkillsBuiltPanel.vue';
+import type { SkillRef } from '@/Components/Skill/SkillsBuiltPanel.vue';
 
 
 interface ProgressionRef {
@@ -78,6 +80,7 @@ interface Props {
     progressions: ProgressionRef[];
     qualityTopic?: QualityTopic | null;
     courses: CourseShelfCardData[];
+    skills: SkillRef[];
 }
 
 const props = defineProps<Props>();
@@ -762,8 +765,12 @@ const formattedChordName = computed(() => {
 
         </div>
 
-        <!-- ════ SONGS + COURSES ════ -->
-        <div v-if="songs.length || (courses && courses.length)" class="sbn-chord-detail-lower">
+        <!-- ════ SKILLS + SONGS + COURSES ════ -->
+        <div v-if="(skills && skills.length) || songs.length || (courses && courses.length)" class="sbn-chord-detail-lower">
+
+            <div v-if="skills && skills.length" class="sbn-chord-detail-section">
+                <SkillsBuiltPanel :skills="skills" />
+            </div>
 
             <div v-if="songs.length" class="sbn-chord-detail-section">
                 <MediaShelf title="Songs" view-all-href="/library/songs">

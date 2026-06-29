@@ -311,6 +311,23 @@ class SongLibraryController extends Controller
         };
         $courses = $this->courseRepo->relatedTo($leadsheet, $songCourseCategory);
 
+        $completedSlugs = $request->user()
+            ? $request->user()->skillNodes()->wherePivot('status', 'completed')
+                ->pluck('sbn_skill_nodes.slug')->flip()
+            : collect();
+
+        $skills = $leadsheet->skillNodes
+            ->sortBy('grade')->sortBy('title')
+            ->map(fn ($n) => [
+                'slug'      => $n->slug,
+                'title'     => $n->title,
+                'branch'    => $n->branch,
+                'grade'     => $n->grade,
+                'icon_key'  => $n->icon_key,
+                'icon_path' => $n->icon_path,
+                'completed' => $completedSlugs->has($n->slug),
+            ])->values();
+
         return Inertia::render('Library/Songs/Show', [
             'song' => [
                 'id'            => $leadsheet->id,
@@ -341,6 +358,7 @@ class SongLibraryController extends Controller
             'chords'       => $topChords,
             'progressions' => $progressions,
             'courses'      => $courses,
+            'skills'       => $skills,
         ]);
     }
 

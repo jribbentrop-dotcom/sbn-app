@@ -87,6 +87,12 @@ class ChordProgression extends Model
         return $this->morphToMany(SbnTag::class, 'taggable', 'sbn_taggables', 'taggable_id', 'tag_id');
     }
 
+    /** Skill nodes this progression helps build (reverse of SkillNode::chordProgressions). */
+    public function skillNodes(): MorphToMany
+    {
+        return $this->morphToMany(SkillNode::class, 'content', 'sbn_skill_node_content', 'content_id', 'skill_node_id');
+    }
+
     /* ── Scopes ─────────────────────────────────────────────── */
 
     public function scopeCategory($query, $category)

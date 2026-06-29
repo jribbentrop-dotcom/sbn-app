@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="{{ asset('css/sbn-design-system.css') }}">
     <link rel="stylesheet" href="{{ asset('css/admin2.css') }}?v={{ filemtime(public_path('css/admin2.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/chord-symbols.css') }}">
+    <style>[x-cloak]{display:none!important;}</style>
 @stack('styles')
 </head>
 <body class="sbn-admin-body">

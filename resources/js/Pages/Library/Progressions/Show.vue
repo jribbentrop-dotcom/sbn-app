@@ -12,6 +12,8 @@ import type { CourseShelfCardData } from '@/Components/Course/CourseShelfCard.vu
 import type { ProgressionChord, StyleVariant } from '@/Components/Library/ChordProgressionViewer.vue';
 import { getCategoryColor } from '@/composables/useCategoryColors';
 import { difficultyBreadcrumbSegment } from '@/composables/useBreadcrumb';
+import SkillsBuiltPanel from '@/Components/Skill/SkillsBuiltPanel.vue';
+import type { SkillRef } from '@/Components/Skill/SkillsBuiltPanel.vue';
 
 interface ProgressionTile {
     chordName: string;
@@ -55,6 +57,7 @@ interface Props {
     tiles: ProgressionTile[];
     courses: CourseShelfCardData[];
     progressionKey?: string;
+    skills: SkillRef[];
 }
 
 const props = defineProps<Props>();
@@ -193,8 +196,9 @@ const breadcrumbSegments = computed(() => {
             </div>
 
             <!-- Right: related progressions sidebar -->
-            <aside v-if="hasSiblings" class="sbn-show-sidebar">
-                <div class="sbn-show-sidebar-card">
+            <aside class="sbn-show-sidebar">
+                <SkillsBuiltPanel v-if="skills && skills.length" :skills="skills" />
+                <div v-if="hasSiblings" class="sbn-show-sidebar-card">
                     <h3 class="sbn-show-sidebar-heading">More {{ categoryLabel }} progressions</h3>
                     <div class="sbn-prog-related-list">
                         <ProgressionLink

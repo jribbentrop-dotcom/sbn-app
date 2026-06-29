@@ -11,6 +11,10 @@
 > positions schema + auto-layout + admin drag editor BUILT; student-facing render deferred (alpha) and
 > gated on a multi-style-tile design decision — see `SBN-Skill-Tree-Design-Brief.md` §8. `icon_key` set
 > on 50 nodes; `icon_path` (custom SVG) on 0.
+> **Node ↔ content links BUILT 2026-06-29** (Step A): rhythms/progressions/songs via polymorphic pivot
+> `sbn_skill_node_content`; chord voicings via a `voicing_categories` column (category, not per-diagram);
+> exercises excluded (course-only). Reverse relations on each content model power "skills this builds".
+> Admin search+chips picker. See "Node ↔ Content Links".
 > **Remaining vs full vision** (see "Vision → Reality Reconciliation"): student skill-tree render,
 > player-class/style-class tables (pillar 5), repertoire tables. Tracked in "Open Decisions" / "Post-v1 Roadmap".
 
@@ -570,7 +574,60 @@ cloud** already attached to progressions, rhythms, and leadsheets. Two separate 
 **Caveat:** tag granularity ("samba", a vibe) rarely matches skill granularity ("Drop 2 voicings", a
 technique). Many nodes will have no matching tag. So `content_tag_slug` is a *fast-start convenience*
 where a tag aligns, **not** the universal content-linking mechanism — a direct content-link pivot is
-still expected post-v1.
+still expected post-v1. ✅ **Built 2026-06-29 — see "Node ↔ Content Links" below.**
+
+---
+
+## Node ↔ Content Links (Step A — BUILT 2026-06-29)
+
+The precise content link the tag bridge above always said would follow. Replaces the lossy
+`content_tag_slug` path as the primary mechanism (tag bridge kept as fallback). Powers two
+directions: **forward** = a (future) node landing page lists "content that builds this skill";
+**reverse** = a rhythm/progression/chord/song detail page shows "skills this builds" (`$model->skillNodes`).
+
+**Two storage shapes, by content type — a deliberate split:**
+
+1. **Rhythms, progressions, songs → polymorphic pivot `sbn_skill_node_content`.**
+   Migration `2026_06_29_000001`. Columns: `skill_node_id` (FK cascade), `morphs('content')`
+   (`content_type` = FQCN, parallel to `sbn_taggables`; NO morphMap enforced app-wide, so full class
+   names are stored), `sort_order`, timestamps; `unique(skill_node_id, content_type, content_id)`.
+   - `SkillNode`: `rhythmPatterns()` / `chordProgressions()` / `leadsheets()` (`morphedByMany`),
+     plus `linkedContent()` grouper.
+   - Reverse `skillNodes()` (`morphToMany`) on `RhythmPattern`, `ChordProgression`, `Leadsheet`.
+   - **Songs are the "equipment" link** (vision pillar = repertoire). A song maps to the nodes it
+     exercises; "ready vs stretch" can later be computed from those nodes' prereq completion — WITHOUT
+     building the deferred `repertoire_nodes` table. That table (prestige tiers, acquisition type,
+     affiliate links) is still post-v1; this pivot delivers the collectible feel now.
+   - **Exercises deliberately EXCLUDED** — they surface only inside courses, not on public detail
+     pages, so they don't belong on this public-facing link. Course-internal teaching is already
+     covered by `sbn_course_skill_node`.
+
+2. **Chord voicings → category column `voicing_categories` (JSON) on `sbn_skill_nodes`.**
+   Migration `2026_06_29_000002`. NOT the pivot. Rationale: a node like `drop2-voicings` **IS** the
+   category — listing 47 individual diagrams is wrong-grained and goes stale as the library grows.
+   The node stores the `voicing_category` keys it teaches (e.g. `["drop2"]`); `SkillNode::chordDiagrams()`
+   resolves them via `ChordDiagram::whereIn('voicing_category', …)` so **new voicings are covered
+   automatically**. Categories come from the existing `ChordDiagram::VOICING_CATEGORIES` constant
+   (~10: archetype, drop2, drop3, shell, rootless, closed, closed_triads, spread_triads, slash, custom).
+   Reverse `ChordDiagram::skillNodes()` uses `whereJsonContains('voicing_categories', $this->voicing_category)`
+   (needs SQLite JSON1 — standard; first thing to check if a reverse panel ever misbehaves on prod).
+   *Why no category equivalent for rhythms/progressions/songs:* there's no "category = the skill"
+   relationship there — a song is a specific song.
+
+**Admin editor** (`SkillNodeController` + `skill-nodes/edit.blade.php`): rhythms/progressions/songs use
+a reusable **search + chips** picker (`admin/_partials/content-picker.blade.php`) — Alpine-based to
+match the house pattern (`courses/_form.blade.php` chips, `sbn-tag-chip` CSS, Alpine already loaded in
+`layouts/admin.blade.php`); data rendered into a `<script type="application/json">` (NOT inline in
+`x-data`) so apostrophes in titles can't break the attribute; results capped at 50. Voicings use a
+category toggle palette (`sbn-tag-preset`). Picker chosen over the Vue `tab-editor/ChordPicker` (which
+stays tab-editor-only) and over native `<select multiple>` (unusable at 265 rows).
+
+**Seeded starter links (2026-06-29, illustrative):** `two-four-feel`→{gilberto, clave rhythms, Ipanema},
+`syncopation`→{samba, partido-alto}, `ii-v-i-major`→{a ii-V progression, Ipanema}, plus voicing
+categories `shell-voicings`→`["shell"]` (33 diagrams), `drop2-voicings`→`["drop2"]` (47).
+
+**Deploy:** both migrations + the data ride along via `scripts/deploy_db.sh` (whole-DB scp). Worth
+folding into the schema-as-migrations housekeeping follow-up so prod isn't dependent on the scp'd file.
 
 ---
 
@@ -579,7 +636,9 @@ still expected post-v1.
 - **Tag system** — used as a node's optional content-discovery bridge via `content_tag_slug`
   (see "Tag System Integration"). Nodes are NOT themselves tags.
 - **Course/lesson structure** — existing courses get mapped to skill nodes over time
-- **Chord/tab database** — skill nodes can link directly to relevant leadsheets and exercises
+- **Chord/tab database** — skill nodes link directly to rhythms / progressions / songs (pivot) and
+  chord-voicing categories (node column) — see "Node ↔ Content Links". Exercises are NOT linked
+  (course-only content).
 - **PDF pipeline** — skill node completion could trigger downloadable reference sheets
 
 ---

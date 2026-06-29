@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 
 class ChordDiagram extends Model
@@ -9,6 +10,20 @@ class ChordDiagram extends Model
     protected $table = 'sbn_chord_diagrams';
 
     protected $guarded = ['id'];
+
+    /**
+     * Skill nodes this voicing helps build — resolved by CATEGORY, not a pivot
+     * (reverse of SkillNode::chordDiagrams). A node teaches a voicing_category;
+     * this diagram belongs to one, so it surfaces every node listing that category.
+     */
+    public function skillNodes(): Collection
+    {
+        if (! $this->voicing_category) {
+            return new Collection;
+        }
+
+        return SkillNode::whereJsonContains('voicing_categories', $this->voicing_category)->get();
+    }
 
     protected $casts = [
         'is_default'        => 'boolean',

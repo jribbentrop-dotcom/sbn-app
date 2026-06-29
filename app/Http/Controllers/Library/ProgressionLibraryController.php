@@ -165,6 +165,23 @@ class ProgressionLibraryController extends Controller
 
         $courses = $this->courseRepo->relatedTo($progression, $progression->category);
 
+        $completedSlugs = $request->user()
+            ? $request->user()->skillNodes()->wherePivot('status', 'completed')
+                ->pluck('sbn_skill_nodes.slug')->flip()
+            : collect();
+
+        $skills = $progression->skillNodes
+            ->sortBy('grade')->sortBy('title')
+            ->map(fn ($n) => [
+                'slug'      => $n->slug,
+                'title'     => $n->title,
+                'branch'    => $n->branch,
+                'grade'     => $n->grade,
+                'icon_key'  => $n->icon_key,
+                'icon_path' => $n->icon_path,
+                'completed' => $completedSlugs->has($n->slug),
+            ])->values();
+
         return Inertia::render('Library/Progressions/Show', [
             'progression'    => $this->serializeProgression($progression),
             'songs'          => $songs,
@@ -172,6 +189,7 @@ class ProgressionLibraryController extends Controller
             'tiles'          => $tiles,
             'courses'        => $courses,
             'progressionKey' => $progressionKey,
+            'skills'         => $skills,
         ]);
     }
 
