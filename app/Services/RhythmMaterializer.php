@@ -7,13 +7,17 @@ use App\Models\RhythmPattern;
 class RhythmMaterializer
 {
     /**
-     * Expand a single bar of one chord into stroke events.
+     * Expand a rhythm pattern across one or more bars into stroke events.
      *
-     * @param array $voicing            ['frets' => 'x35453', 'position' => 5]
-     * @param array $prevFingerStrings  Finger strings from previous chord for soft voice leading.
+     * For single-bar patterns pass a single-element array: [0 => $voicing].
+     * For multi-bar patterns pass one voicing per bar keyed by bar offset (0-based).
+     * Strokes automatically pick up the correct voicing as they cross bar boundaries.
+     *
+     * @param array<int,array> $voicingsByBar  bar-offset => ['frets' => '...', 'position' => n]
+     * @param array            $prevFingerStrings  finger strings from previous chord for voice leading
      */
     public function expand(
-        array $voicing,
+        array $voicingsByBar,
         RhythmPattern $pattern,
         int $divisions,
         int $beatsPerMeasure,
@@ -26,40 +30,65 @@ class RhythmMaterializer
         if ($gridType === 'sixteenth') $stepBeats = 0.25;
         if ($gridType === 'triplet') $stepBeats = 1.0 / 3.0;
 
-        $totalBarTicks = $beatsPerMeasure * $divisions;
+        $tpm = $beatsPerMeasure * $divisions; // ticks per measure
 
         $patternTimeSig = $pattern->time_signature ?? '4/4';
         [$patBeats, $patBeatType] = array_map('intval', explode('/', $patternTimeSig) + [4, 4]);
         $patternBarTicks = (int) round($patBeats * $divisions * (4 / $patBeatType));
-        $timeScale = ($patternBarTicks > 0) ? ($totalBarTicks / $patternBarTicks) : 1.0;
+        $timeScale = ($patternBarTicks > 0) ? ($tpm / $patternBarTicks) : 1.0;
         $stepTicks = (int) round($stepBeats * $divisions * $timeScale);
 
         $fingersStr = $pattern->rhythm_pattern ?? '';
         $thumbStr   = $pattern->thumb_pattern ?? '';
         $isStrum    = str_contains(strtolower($pattern->category ?? ''), 'strum');
 
-        $frets = $voicing['frets'] ?? 'xxxxxx';
+        // Total tick span covered by this expand call
+        $patternBars    = count($voicingsByBar);
+        $totalSpanTicks = $tpm * $patternBars;
 
-        $availableBass = [];
-        $availableAll  = [];
+        // Pre-resolve per-bar string assignments once (avoid re-deriving inside the loop)
+        $barKeys      = array_keys($voicingsByBar);
+        $barVoicings  = []; // barOffset => resolved voicing info
+        $prev         = $prevFingerStrings;
+        foreach ($barKeys as $barOffset) {
+            $v    = $voicingsByBar[$barOffset];
+            $frets = $v['frets'] ?? 'xxxxxx';
 
-        for ($i = 0; $i < 6; $i++) {
-            $char = strtolower($frets[$i] ?? 'x');
-            if ($char !== 'x') {
-                $stringNum = 6 - $i;
-                if ($i < 3) $availableBass[] = $stringNum; // strings 4-6
-                $availableAll[] = $stringNum;
+            $availableBass = [];
+            $availableAll  = [];
+            for ($i = 0; $i < 6; $i++) {
+                $char = strtolower($frets[$i] ?? 'x');
+                if ($char !== 'x') {
+                    $stringNum = 6 - $i;
+                    if ($i < 3) $availableBass[] = $stringNum;
+                    $availableAll[] = $stringNum;
+                }
             }
+            $availableSorted = $availableAll;
+            rsort($availableSorted);
+
+            $fingerStrings = $this->_resolveFingerStrings(
+                $availableAll, $availableBass, $availableSorted, $prev
+            );
+            $prev = $fingerStrings;
+
+            $barVoicings[$barOffset] = [
+                'frets'         => $frets,
+                'position'      => (int) ($v['position'] ?? 1),
+                'availableBass' => $availableBass,
+                'availableAll'  => $availableAll,
+                'fingerStrings' => $fingerStrings,
+            ];
         }
 
-        // ── Finger string assignment ──────────────────────────────────────────
-        // available sorted descending by string number = ascending by pitch
-        $availableSorted = $availableAll; // already collected low-to-high string# descending
-        rsort($availableSorted);          // highest string# first = lowest pitch first
-
-        $fingerStrings = $this->_resolveFingerStrings(
-            $availableAll, $availableBass, $availableSorted, $prevFingerStrings
-        );
+        // Helper: resolve voicing info for a given tick offset within the span
+        $voicingAtTick = function (int $tick) use ($tpm, $barKeys, $barVoicings): array {
+            $barIdx = (int) floor($tick / $tpm);
+            // Clamp to the last bar if tick lands exactly on the boundary
+            $barIdx = min($barIdx, count($barKeys) - 1);
+            $barOffset = $barKeys[$barIdx];
+            return $barVoicings[$barOffset];
+        };
 
         $strokes = [];
 
@@ -70,12 +99,12 @@ class RhythmMaterializer
             if ($char === '.') continue;
 
             $tickOffset = $i * $stepTicks;
-            if ($tickOffset >= $totalBarTicks) break;
+            if ($tickOffset >= $totalSpanTicks) break;
 
-            $accent   = ($char === 'X');
-            $velocity = $accent ? 1.0 : 0.85;
-
-            $stringsToHit = $isStrum ? $availableAll : $fingerStrings;
+            $bv           = $voicingAtTick($tickOffset);
+            $accent       = ($char === 'X');
+            $velocity     = $accent ? 1.0 : 0.85;
+            $stringsToHit = $isStrum ? $bv['availableAll'] : $bv['fingerStrings'];
 
             if (!empty($stringsToHit)) {
                 $strokes[$tickOffset . '-fingers'] = [
@@ -83,8 +112,9 @@ class RhythmMaterializer
                     'accent'         => $accent,
                     'velocity'       => $velocity,
                     'strings'        => $stringsToHit,
+                    'frets'          => $bv['frets'],
                     'is_thumb'       => false,
-                    'finger_strings' => $fingerStrings, // returned so caller can chain voice leading
+                    'finger_strings' => $bv['fingerStrings'],
                 ];
             }
         }
@@ -97,18 +127,19 @@ class RhythmMaterializer
                 if ($char === '.') continue;
 
                 $tickOffset = $i * $stepTicks;
-                if ($tickOffset >= $totalBarTicks) break;
+                if ($tickOffset >= $totalSpanTicks) break;
 
+                $bv     = $voicingAtTick($tickOffset);
                 $accent = ($char === 'X');
                 $velocity = $accent ? 1.0 : 0.85;
 
-                if (!empty($availableBass)) {
+                if (!empty($bv['availableBass'])) {
                     $strokes[$tickOffset . '-thumb'] = [
                         'tickOffset' => $tickOffset,
                         'accent'     => $accent,
                         'velocity'   => $velocity,
-                        'strings'    => empty($availableBass) ? [] : [max($availableBass)],
-
+                        'strings'    => [max($bv['availableBass'])],
+                        'frets'      => $bv['frets'],
                         'is_thumb'   => true,
                     ];
                 }
@@ -132,7 +163,7 @@ class RhythmMaterializer
             $currentTick = $sortedStrokes[$i]['tickOffset'];
             
             if ($i + 1 < $strokeCount && $sortedStrokes[$i + 1]['tickOffset'] === $currentTick) {
-                $nextDistinctTick = $totalBarTicks;
+                $nextDistinctTick = $totalSpanTicks;
                 for ($j = $i + 2; $j < $strokeCount; $j++) {
                     if ($sortedStrokes[$j]['tickOffset'] > $currentTick) {
                         $nextDistinctTick = $sortedStrokes[$j]['tickOffset'];
@@ -141,7 +172,7 @@ class RhythmMaterializer
                 }
                 $durTicks = $nextDistinctTick - $currentTick;
             } else {
-                $nextTick = ($i + 1 < $strokeCount) ? $sortedStrokes[$i + 1]['tickOffset'] : $totalBarTicks;
+                $nextTick = ($i + 1 < $strokeCount) ? $sortedStrokes[$i + 1]['tickOffset'] : $totalSpanTicks;
                 $durTicks = $nextTick - $currentTick;
             }
 
@@ -160,9 +191,13 @@ class RhythmMaterializer
             unset($sortedStrokes[$i]['is_thumb']);
         }
 
-        // Expose which finger strings were used so the caller can pass them to the next chord.
+        // Expose which finger strings were used so the caller can pass them to the next window.
+        // Each stroke already carries finger_strings from its bar; fill in thumb strokes from their bar's data.
         foreach ($sortedStrokes as &$s) {
-            if (!isset($s['finger_strings'])) $s['finger_strings'] = $fingerStrings;
+            if (!isset($s['finger_strings'])) {
+                $bv = $voicingAtTick($s['tickOffset']);
+                $s['finger_strings'] = $bv['fingerStrings'];
+            }
         }
         unset($s);
 

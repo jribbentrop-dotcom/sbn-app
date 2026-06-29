@@ -584,76 +584,79 @@ class ChordVoicingSearch
         // Base tones for the rootless voicing (3, 5, b7, b9).
         $tones = $this->dimSymmetry->spellDom7b9($root);
 
+        // All 4 dominant readings for this dom root, indexed by slot (0–3).
+        // Slot 0: b9 in bass (root-position dim = most rootless reading).
+        // Slots 1–3: 3rd, 5th, b7 in bass (1st, 2nd, 3rd inversion of the dim).
+        $domReadings = $this->dimSymmetry->dominantReadings($reqRootSemi);
+
+        // Bass-function interval → inversion label (interval from dom root to bass note)
+        $bassFunctionSlot = [1 => 'rootless', 4 => 'inv1', 7 => 'inv2', 10 => 'inv3'];
+
         $results = [];
-        $seenFretPos = [];
+        $seenKeys = [];
         foreach ($shapes as $shape) {
-            $calculated = $this->calculator->calculateFrets($shape, $targetNote);
+            $dimExt = (string) ($shape->extensions ?? '');
+            $hasExt = $dimExt !== '' && isset(DiminishedSymmetry::DIM_EXTENSION_SEMITONES[$dimExt]);
 
-            if (empty($calculated['diagram_data']) ||
-                (empty($calculated['diagram_data']['positions']) && empty($calculated['diagram_data']['open']))) {
-                continue;
-            }
+            // Emit one result per dom reading (4 inversions / rootless positions).
+            foreach ($domReadings as $slotIdx => $reading) {
+                // Each slot transposes the shape to the dim root for that reading
+                // (b9 of the dom root is at slot 0, then +3, +6, +9 semitones).
+                $slotDimRootPc  = ($dimRootPc + $slotIdx * 3) % 12;
+                $slotDimRoot    = $this->dimSymmetry->spellRoot($slotDimRootPc);
 
-            $dedupeKey = $shape->id . ':' . ($calculated['start_fret'] ?? '?');
-            if (isset($seenFretPos[$dedupeKey])) continue;
-            $seenFretPos[$dedupeKey] = true;
-
-            // Determine the dim shape's extension and what it maps to from this
-            // dom root. dominantReadings() returns four slots in dim-root order
-            // (+0,+3,+6,+9 semitones); find the slot whose domRootPc matches the
-            // searched root so we compute the extension label from the right frame.
-            $dimExt      = (string) ($shape->extensions ?? '');
-            $aliasSlotIdx = 0;
-            if ($dimExt !== '' && isset(DiminishedSymmetry::DIM_EXTENSION_SEMITONES[$dimExt])) {
-                foreach ($this->dimSymmetry->dominantReadings($dimRootPc) as $k => $r) {
-                    if ($r['domRootPc'] === $reqRootSemi) {
-                        $aliasSlotIdx = $k;
-                        break;
-                    }
+                $calculated = $this->calculator->calculateFrets($shape, $slotDimRoot);
+                if (empty($calculated['diagram_data']) ||
+                    (empty($calculated['diagram_data']['positions']) && empty($calculated['diagram_data']['open']))) {
+                    continue;
                 }
+
+                $key = $shape->id . ':' . $slotIdx;
+                if (isset($seenKeys[$key])) continue;
+                $seenKeys[$key] = true;
+
+                // Extension label from the dim shape's perspective for this dom slot.
+                $domExtLabel   = $hasExt
+                    ? $this->dimSymmetry->extensionLabelForReading($dimExt, $slotIdx, true)
+                    : null;
+                $isRootless    = !($hasExt && $domExtLabel === null);
+                $domExtensions = 'b9' . ($domExtLabel ? ',' . $domExtLabel : '');
+                $chordName     = $root . '7(' . $domExtensions . ')';
+
+                // Inversion slot: derive from the interval between dom root and the
+                // dim root we transposed to (b9=1, 3rd=4, 5th=7, b7=10 semitones).
+                $bassIntervalFromDom = ($slotDimRootPc - $reqRootSemi + 12) % 12;
+                $invSlot = $bassFunctionSlot[$bassIntervalFromDom] ?? 'rootless';
+
+                $notes = implode(',', [$tones['3'], $tones['5'], $tones['b7'], $tones['b9']]);
+
+                $results[] = [
+                    'id'               => $shape->id,
+                    'slug'             => $shape->slug ?? '',
+                    'name'             => $chordName,
+                    'root_note'        => $root,
+                    'original_root'    => $shape->root_note,
+                    'quality'          => 'dom7',
+                    'extensions'       => $domExtensions,
+                    'voicing_category' => $shape->voicing_category,
+                    'root_string'      => $shape->root_string,
+                    'inversion'        => $invSlot,
+                    'start_fret'       => $calculated['start_fret'],
+                    'diagram_data'     => $calculated['diagram_data'],
+                    'interval_labels'  => $calculated['interval_labels'] ?? ($shape->interval_labels ?? ''),
+                    'notes'            => $notes,
+                    'bass_note'        => '',
+                    'popularity'       => $shape->popularity ?? 0,
+                    'difficulty'       => $shape->difficulty ?? null,
+                    'alias_match'      => true,
+                    'rootless'         => $isRootless,
+                    'display_root'     => $slotDimRoot,
+                    'alias_root'       => $root,
+                    'alias_quality'    => 'dom7',
+                    'alias_extensions' => $domExtensions,
+                    'alias_bass'       => '',
+                ];
             }
-            $domExtLabel  = ($dimExt !== '' && isset(DiminishedSymmetry::DIM_EXTENSION_SEMITONES[$dimExt]))
-                ? $this->dimSymmetry->extensionLabelForReading($dimExt, $aliasSlotIdx, true)
-                : null;
-
-            // When the extension lands on the dom root (label=null), the voicing
-            // contains the root — include it but mark as not purely rootless.
-            $isRootless    = !($dimExt !== '' && $domExtLabel === null);
-            $domExtensions = 'b9' . ($domExtLabel ? ',' . $domExtLabel : '');
-            $chordName     = $root . '7(' . $domExtensions . ')';
-
-            // Deep-link alias_extensions must match what buildDiminishedReadings()
-            // generates on the dim7 detail page for this alias slot.
-            $aliasExtensions = $domExtensions;
-
-            $notes = implode(',', [$tones['3'], $tones['5'], $tones['b7'], $tones['b9']]);
-
-            $results[] = [
-                'id'               => $shape->id,
-                'slug'             => $shape->slug ?? '',
-                'name'             => $chordName,
-                'root_note'        => $root,
-                'original_root'    => $shape->root_note,
-                'quality'          => 'dom7',
-                'extensions'       => $domExtensions,
-                'voicing_category' => $shape->voicing_category,
-                'root_string'      => $shape->root_string,
-                'inversion'        => 'root',
-                'start_fret'       => $calculated['start_fret'],
-                'diagram_data'     => $calculated['diagram_data'],
-                'interval_labels'  => $calculated['interval_labels'] ?? ($shape->interval_labels ?? ''),
-                'notes'            => $notes,
-                'bass_note'        => '',
-                'popularity'       => $shape->popularity ?? 0,
-                'difficulty'       => $shape->difficulty ?? null,
-                'alias_match'      => true,
-                'rootless'         => $isRootless,
-                'display_root'     => $targetNote,
-                'alias_root'       => $root,
-                'alias_quality'    => 'dom7',
-                'alias_extensions' => $aliasExtensions,
-                'alias_bass'       => '',
-            ];
         }
 
         return $results;

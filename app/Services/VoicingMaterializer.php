@@ -61,111 +61,158 @@ class VoicingMaterializer
             }
         }
 
-        $prevFingerStrings = []; // voice-leading state: finger strings from previous chord
+        // ── Pattern bar length ────────────────────────────────────────────────
+        // Derive how many bars the rhythm pattern spans so we can group measures
+        // into windows and call expand() once per window.
+        $patternBars = 1;
+        if ($rhythm) {
+            $gridType  = $rhythm->grid_type ?? 'sixteenth';
+            $stepBeats = match ($gridType) {
+                'eighth'   => 0.5,
+                'triplet'  => 1.0 / 3.0,
+                default    => 0.25,
+            };
+            $patTimeSig = $rhythm->time_signature ?? '4/4';
+            [$patB, $patBT] = array_map('intval', explode('/', $patTimeSig) + [4, 4]);
+            $stepsPerBar = (int) round(($patB * (4 / $patBT)) / $stepBeats);
+            $patternLen  = max(strlen($rhythm->rhythm_pattern ?? ''), strlen($rhythm->thumb_pattern ?? ''));
+            if ($stepsPerBar > 0 && $patternLen > $stepsPerBar) {
+                $patternBars = (int) ceil($patternLen / $stepsPerBar);
+            }
+        }
 
-        foreach ($grouped as $mIdx => $mChords) {
-            $measureNum = $mIdx + 1;
-            $globalTick = $mIdx * $tpm;
-            $measureCount++;
+        $prevFingerStrings = [];
+        $groupedKeys       = array_keys($grouped);
+        $totalMeasures     = count($groupedKeys);
+        $windowStart       = 0;
 
-            $attrs = ($measureNum === 1)
-                ? '<attributes>'
-                    . '<divisions>' . $divisions . '</divisions>'
-                    . '<key><fifths>0</fifths><mode>major</mode></key>'
-                    . '<time><beats>' . $beats . '</beats><beat-type>' . $beatType . '</beat-type></time>'
-                    . '<staves>1</staves><clef><sign>TAB</sign></clef>'
-                    . '</attributes>'
-                : '';
+        while ($windowStart < $totalMeasures) {
+            // Collect up to $patternBars measures into this window
+            $windowSize   = min($patternBars, $totalMeasures - $windowStart);
+            $windowMIdxs  = array_slice($groupedKeys, $windowStart, $windowSize);
 
-            $notesXml = '';
-            $harmonyXml = '';
-            
-            $chordCount = count($mChords);
-            $ticksPerChord = (int) ($tpm / $chordCount);
-
-            foreach ($mChords as $cIdx => $sel) {
-                $chordName   = $sel['chord_name']  ?? '';
-                $frets       = $sel['frets']       ?? null;
-                $position    = (int) ($sel['position'] ?? 1);
-                $diagramData = $sel['diagram_data'] ?? null;
-                $chordTick   = $globalTick + ($cIdx * $ticksPerChord);
-
-                // Derive fingers string from diagram_data positions
-                $fingers = null;
-                if ($diagramData && !empty($diagramData['positions'])) {
-                    $f = ['0','0','0','0','0','0'];
-                    foreach ($diagramData['positions'] as $pos) {
-                        $s = ($pos['string'] ?? 0) - 1;
-                        if ($s >= 0 && $s < 6 && !empty($pos['finger']) && $pos['finger'] !== '0') {
-                            $f[$s] = (string) $pos['finger'];
-                        }
-                    }
-                    $fingersStr = implode('', $f);
-                    if (!preg_match('/^0+$/', $fingersStr)) {
-                        $fingers = $fingersStr;
-                    }
-                }
-
-                // Use unique key for the Chord Editor if indices are available
-                $voicingKey = ($hasExplicitMeasures)
-                    ? "{$chordName}@{$mIdx}.{$cIdx}"
-                    : $chordName;
-
-                if ($frets && strlen($frets) === 6) {
-                    $entry = [
-                        'frets'      => $frets,
-                        'position'   => $position,
-                        'start_fret' => $position,
+            // ── Build voicingsByBar for expand() ─────────────────────────────
+            // Each bar in the window contributes its first (or only) chord's voicing.
+            // Multiple chords within a single bar still share one voicing slot for the
+            // rhythm pattern; their tick windows are filtered when emitting notes below.
+            $voicingsByBar = [];
+            foreach ($windowMIdxs as $barPos => $mIdx) {
+                $firstSel = $grouped[$mIdx][0] ?? null;
+                if ($firstSel && !empty($firstSel['frets']) && strlen($firstSel['frets']) === 6) {
+                    $voicingsByBar[$barPos] = [
+                        'frets'    => $firstSel['frets'],
+                        'position' => (int) ($firstSel['position'] ?? 1),
                     ];
-                    if ($fingers && strlen($fingers) === 6 && !preg_match('/^0+$/', $fingers)) {
-                        $entry['fingers'] = $fingers;
-                    }
+                }
+            }
 
-                    $chordVoicings[$voicingKey] = $entry;
-
-                    // Fallback: also store under the generic chord name
-                    if (!isset($chordVoicings[$chordName])) {
-                        $chordVoicings[$chordName] = $entry;
+            // Expand the full window in one call (empty voicingsByBar = no rhythm for this window)
+            $windowStrokes = [];
+            if ($rhythm && !empty($voicingsByBar)) {
+                $windowStrokes = $this->rhythmMaterializer->expand(
+                    $voicingsByBar,
+                    $rhythm,
+                    $divisions,
+                    (int) ($tpm / $divisions),
+                    $prevFingerStrings
+                );
+                // Carry voice-leading state to the next window
+                foreach ($windowStrokes as $stroke) {
+                    if (!empty($stroke['finger_strings'])) {
+                        $prevFingerStrings = $stroke['finger_strings'];
+                        break;
                     }
                 }
+            }
 
-                $harmonyXml .= '<harmony>'
-                    . '<root><root-step>' . htmlspecialchars(substr($chordName, 0, 1)) . '</root-step></root>'
-                    . '<kind text="' . htmlspecialchars($chordName) . '">other</kind>'
-                    . '</harmony>';
+            // ── Emit one XML measure per bar in the window ───────────────────
+            foreach ($windowMIdxs as $barPos => $mIdx) {
+                $mChords    = $grouped[$mIdx];
+                $measureNum = $mIdx + 1;
+                $globalTick = $mIdx * $tpm;
+                $measureCount++;
 
-                if ($rhythm && $frets && strlen($frets) === 6) {
-                    // Note: Rhythm expander currently assumes full bar. 
-                    // For multiple chords per bar, we either need to scale or just use the first chord's rhythm.
-                    // For now, we'll split the bar's rhythm pulses among the chords.
-                    $strokes = $this->rhythmMaterializer->expand(
-                        ['frets' => $frets, 'position' => $position],
-                        $rhythm,
-                        $divisions,
-                        (int) ($tpm / $divisions), // quarter-beat bar length, not raw numerator
-                        $prevFingerStrings
-                    );
+                $attrs = ($measureNum === 1)
+                    ? '<attributes>'
+                        . '<divisions>' . $divisions . '</divisions>'
+                        . '<key><fifths>0</fifths><mode>major</mode></key>'
+                        . '<time><beats>' . $beats . '</beats><beat-type>' . $beatType . '</beat-type></time>'
+                        . '<staves>1</staves><clef><sign>TAB</sign></clef>'
+                        . '</attributes>'
+                    : '';
 
-                    // Capture finger strings for next chord's voice leading
-                    foreach ($strokes as $stroke) {
-                        if (!empty($stroke['finger_strings'])) {
-                            $prevFingerStrings = $stroke['finger_strings'];
-                            break;
+                $notesXml   = '';
+                $harmonyXml = '';
+
+                $chordCount    = count($mChords);
+                $ticksPerChord = (int) ($tpm / $chordCount);
+
+                // Tick offset of this bar within the window (for stroke filtering)
+                $barTickStart = $barPos * $tpm;
+
+                foreach ($mChords as $cIdx => $sel) {
+                    $chordName   = $sel['chord_name']  ?? '';
+                    $frets       = $sel['frets']       ?? null;
+                    $position    = (int) ($sel['position'] ?? 1);
+                    $diagramData = $sel['diagram_data'] ?? null;
+                    $chordTick   = $globalTick + ($cIdx * $ticksPerChord);
+
+                    // Derive fingers string from diagram_data positions
+                    $fingers = null;
+                    if ($diagramData && !empty($diagramData['positions'])) {
+                        $f = ['0','0','0','0','0','0'];
+                        foreach ($diagramData['positions'] as $pos) {
+                            $s = ($pos['string'] ?? 0) - 1;
+                            if ($s >= 0 && $s < 6 && !empty($pos['finger']) && $pos['finger'] !== '0') {
+                                $f[$s] = (string) $pos['finger'];
+                            }
+                        }
+                        $fStr = implode('', $f);
+                        if (!preg_match('/^0+$/', $fStr)) {
+                            $fingers = $fStr;
                         }
                     }
 
-                    if (!empty($strokes)) {
-                        // Filter strokes to fit in this chord's window within the measure
-                        $startOffset = $cIdx * $ticksPerChord;
-                        $endOffset   = ($cIdx + 1) * $ticksPerChord;
+                    // Use unique key for the Chord Editor if indices are available
+                    $voicingKey = $hasExplicitMeasures
+                        ? "{$chordName}@{$mIdx}.{$cIdx}"
+                        : $chordName;
 
-                        foreach ($strokes as $stroke) {
-                            if ($stroke['tickOffset'] < $startOffset || $stroke['tickOffset'] >= $endOffset) continue;
+                    if ($frets && strlen($frets) === 6) {
+                        $entry = [
+                            'frets'      => $frets,
+                            'position'   => $position,
+                            'start_fret' => $position,
+                        ];
+                        if ($fingers && strlen($fingers) === 6 && !preg_match('/^0+$/', $fingers)) {
+                            $entry['fingers'] = $fingers;
+                        }
+                        $chordVoicings[$voicingKey] = $entry;
+                        if (!isset($chordVoicings[$chordName])) {
+                            $chordVoicings[$chordName] = $entry;
+                        }
+                    }
 
-                            $strokeTick = $globalTick + $stroke['tickOffset'];
+                    $harmonyXml .= '<harmony>'
+                        . '<root><root-step>' . htmlspecialchars(substr($chordName, 0, 1)) . '</root-step></root>'
+                        . '<kind text="' . htmlspecialchars($chordName) . '">other</kind>'
+                        . '</harmony>';
+
+                    if ($rhythm && $frets && strlen($frets) === 6 && !empty($windowStrokes)) {
+                        // Chord's window within this bar (for multi-chord bars)
+                        $chordOffsetStart = $barTickStart + ($cIdx * $ticksPerChord);
+                        $chordOffsetEnd   = $chordOffsetStart + $ticksPerChord;
+
+                        foreach ($windowStrokes as $stroke) {
+                            $to = $stroke['tickOffset'];
+                            if ($to < $chordOffsetStart || $to >= $chordOffsetEnd) continue;
+
+                            // Use the frets baked into the stroke (correct chord for this tick)
+                            $strokeFrets    = $stroke['frets'] ?? $frets;
+                            $strokeTick     = $globalTick + ($to - $barTickStart);
                             $durTicksStroke = $stroke['durTicks'];
-                            $durNameStroke = $stroke['durName'];
-                            
+                            $durNameStroke  = $stroke['durName'];
+
                             $durTypeStroke = 'sixteenth';
                             if ($durNameStroke === 'w') $durTypeStroke = 'whole';
                             elseif ($durNameStroke === 'h') $durTypeStroke = 'half';
@@ -174,8 +221,8 @@ class VoicingMaterializer
 
                             $first = true;
                             foreach ($stroke['strings'] as $tabString) {
-                                $di = 6 - $tabString;
-                                $ch = $frets[$di] ?? '0';
+                                $di   = 6 - $tabString;
+                                $ch   = $strokeFrets[$di] ?? '0';
                                 $fret = ctype_digit($ch) ? (int) $ch : hexdec($ch);
                                 $chordEl = $first ? '' : '<chord/>';
                                 $first = false;
@@ -210,67 +257,69 @@ class VoicingMaterializer
                                 ];
                             }
                         }
-                    }
-                } else {
-                    // Simple whole-note/half-note per chord (Pass 1)
-                    if ($frets && strlen($frets) === 6) {
-                        $first = true;
-                        for ($di = 0; $di < 6; $di++) {
-                            $ch = $frets[$di];
-                            if ($ch === 'x' || $ch === 'X') continue;
-                            $fret      = ctype_digit($ch) ? (int) $ch : hexdec($ch);
-                            $tabString = 6 - $di;
-                            $chordEl   = $first ? '' : '<chord/>';
-                            
-                            $notesXml .= '<note>'
-                                . $chordEl
-                                . '<pitch><step>E</step><octave>4</octave></pitch>'
-                                . '<duration>' . $ticksPerChord . '</duration>'
-                                . '<type>' . ($chordCount === 1 ? 'whole' : 'half') . '</type>'
-                                . '<voice>1</voice><staff>1</staff>'
-                                . '<notations><technical>'
-                                . '<string>' . $tabString . '</string>'
-                                . '<fret>' . $fret . '</fret>'
-                                . '</technical></notations>'
-                                . '</note>';
+                    } elseif (!$rhythm || empty($windowStrokes)) {
+                        // Simple whole-note/half-note per chord (no rhythm)
+                        if ($frets && strlen($frets) === 6) {
+                            $first = true;
+                            for ($di = 0; $di < 6; $di++) {
+                                $ch = $frets[$di];
+                                if ($ch === 'x' || $ch === 'X') continue;
+                                $fret      = ctype_digit($ch) ? (int) $ch : hexdec($ch);
+                                $tabString = 6 - $di;
+                                $chordEl   = $first ? '' : '<chord/>';
 
-                            $melody[] = [
-                                'tick'        => $chordTick,
-                                'pitch'       => null,
-                                'octave'      => null,
-                                'duration'    => $chordCount === 1 ? 'w' : 'h',
-                                'ticks'       => $ticksPerChord,
-                                'tieStart'    => false,
-                                'tieStop'     => false,
-                                'voice'       => 1,
-                                'string'      => $tabString,
-                                'fret'        => $fret,
-                                'isChordNote' => !$first,
-                                'isRest'      => false,
-                                'beam1'       => null,
-                                'beam2'       => null,
-                            ];
-                            $first = false;
+                                $notesXml .= '<note>'
+                                    . $chordEl
+                                    . '<pitch><step>E</step><octave>4</octave></pitch>'
+                                    . '<duration>' . $ticksPerChord . '</duration>'
+                                    . '<type>' . ($chordCount === 1 ? 'whole' : 'half') . '</type>'
+                                    . '<voice>1</voice><staff>1</staff>'
+                                    . '<notations><technical>'
+                                    . '<string>' . $tabString . '</string>'
+                                    . '<fret>' . $fret . '</fret>'
+                                    . '</technical></notations>'
+                                    . '</note>';
+
+                                $melody[] = [
+                                    'tick'        => $chordTick,
+                                    'pitch'       => null,
+                                    'octave'      => null,
+                                    'duration'    => $chordCount === 1 ? 'w' : 'h',
+                                    'ticks'       => $ticksPerChord,
+                                    'tieStart'    => false,
+                                    'tieStop'     => false,
+                                    'voice'       => 1,
+                                    'string'      => $tabString,
+                                    'fret'        => $fret,
+                                    'isChordNote' => !$first,
+                                    'isRest'      => false,
+                                    'beam1'       => null,
+                                    'beam2'       => null,
+                                ];
+                                $first = false;
+                            }
                         }
                     }
                 }
+
+                if (empty($notesXml)) {
+                    $notesXml = '<note><rest/><duration>' . $tpm . '</duration>'
+                        . '<type>whole</type><voice>1</voice><staff>1</staff></note>';
+                    $melody[] = [
+                        'tick'     => $globalTick,
+                        'duration' => 'w',
+                        'ticks'    => $tpm,
+                        'voice'    => 1,
+                        'isRest'   => true,
+                    ];
+                }
+
+                $measuresXml .= '<measure number="' . $measureNum . '">'
+                    . $attrs . $harmonyXml . $notesXml
+                    . '</measure>';
             }
 
-            if (empty($notesXml)) {
-                $notesXml = '<note><rest/><duration>' . $tpm . '</duration>'
-                    . '<type>whole</type><voice>1</voice><staff>1</staff></note>';
-                $melody[] = [
-                    'tick'     => $globalTick,
-                    'duration' => 'w',
-                    'ticks'    => $tpm,
-                    'voice'    => 1,
-                    'isRest'   => true,
-                ];
-            }
-
-            $measuresXml .= '<measure number="' . $measureNum . '">'
-                . $attrs . $harmonyXml . $notesXml
-                . '</measure>';
+            $windowStart += $windowSize;
         }
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>'

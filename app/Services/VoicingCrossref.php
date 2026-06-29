@@ -2928,6 +2928,6 @@ class VoicingCrossref
         // Use unique pitch class count (analogous to fretted string count).
         $noteCount = count($pcSet);
 
-        return $this->identifyFromPcSetFull($pcSet, $bassPc, $noteCount, null, 1, null, $tuning);
+        return $this->identifyFromPcSetFull($pcSet, $bassPc, $noteCount, null, 1, null, 'standard');
     }
 }
