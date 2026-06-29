@@ -22,9 +22,10 @@
         Back
     </a>
     @if($leadsheet)
-    @if(isset($versionList) && $versionList->count() > 1)
+    @if(isset($versionList) && $versionList->count() > 0)
     <label class="sbn-version-switch" title="Arrangement being edited">
         <span class="sbn-version-switch-label">Arrangement</span>
+        @if($versionList->count() > 1)
         <select onchange="window.location.href = this.value">
             @foreach($versionList as $vrow)
             <option value="{{ route('admin.leadsheets.edit', ['leadsheet' => $leadsheet, 'v' => $vrow->version_slug]) }}"
@@ -33,6 +34,9 @@
             </option>
             @endforeach
         </select>
+        @else
+        <span class="sbn-version-switch-single">{{ $activeVersion->label ?: 'Basic' }}</span>
+        @endif
     </label>
     @endif
     <a href="{{ route('library.songs.show', $leadsheet->slug) }}" target="_blank" class="sbn-btn sbn-btn-ghost">Preview ↗</a>
@@ -71,11 +75,31 @@
                     @click="window.dispatchEvent(new CustomEvent('sbn-save-as-exercise'))">
                 → Save as Exercise
             </button>
+            <hr>
+            <button type="button" class="sbn-actions-menu-item"
+                    @click="document.getElementById('clone-version-form').submit()">
+                Clone arrangement
+            </button>
+            @if(isset($activeVersion) && isset($versionList) && $versionList->count() > 1 && $leadsheet->default_version_id !== $activeVersion->id)
+            <button type="button" class="sbn-actions-menu-item sbn-actions-menu-item--danger"
+                    @click="if(confirm('Delete arrangement \'{{ addslashes($activeVersion->label ?: 'Basic') }}\'? This cannot be undone.')) document.getElementById('delete-version-form').submit()">
+                Delete arrangement
+            </button>
+            @endif
         </div>
     </div>
     <form id="save-as-exercise-form" method="POST" action="{{ route('admin.exercises.from-leadsheet', $leadsheet) }}" style="display:none;">
         @csrf
     </form>
+    <form id="clone-version-form" method="POST" action="{{ route('admin.leadsheets.clone-version', $leadsheet) }}{{ isset($activeVersion) && $activeVersion->version_slug ? '?v=' . $activeVersion->version_slug : '' }}" style="display:none;">
+        @csrf
+    </form>
+    @if(isset($activeVersion) && isset($versionList) && $versionList->count() > 1 && $leadsheet->default_version_id !== $activeVersion->id)
+    <form id="delete-version-form" method="POST" action="{{ route('admin.leadsheets.delete-version', ['leadsheet' => $leadsheet, 'version' => $activeVersion->id]) }}" style="display:none;">
+        @csrf
+        @method('DELETE')
+    </form>
+    @endif
     @endif
 @endsection
 
@@ -95,6 +119,12 @@
         letter-spacing: 0.04em;
         text-transform: uppercase;
         opacity: 0.6;
+    }
+    .sbn-version-switch-single {
+        padding: 5px 10px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        opacity: 0.8;
     }
     .sbn-version-switch select {
         padding: 5px 10px;
@@ -146,6 +176,8 @@
     .sbn-actions-menu-item:hover {
         background: var(--clr-bg-hover, #f0f0f0);
     }
+    .sbn-actions-menu-item--danger { color: #dc2626; }
+    .sbn-actions-menu-item--danger:hover { background: #fef2f2; }
     .sbn-actions-menu-panel hr {
         border: none;
         border-top: 1px solid var(--clr-border, #e0e0e0);

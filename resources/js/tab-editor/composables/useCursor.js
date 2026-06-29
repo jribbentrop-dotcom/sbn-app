@@ -322,15 +322,6 @@ export function useCursor(model) {
                     moveDown();
                     return true;
 
-                case 'Tab':
-                    e.preventDefault();
-                    if (e.shiftKey) {
-                        movePrevMeasure();
-                    } else {
-                        moveNextMeasure();
-                    }
-                    return true;
-
                 case 'Home':
                     e.preventDefault();
                     moveHome();

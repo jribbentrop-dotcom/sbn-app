@@ -461,10 +461,20 @@ abort the switch and keep the current layer (do NOT load incoming over an unsave
   accessor-free (the model's `getHasMelody*Attribute` would otherwise shadow a `has_*` alias
   with grid-melody logic; this was a real bug, fixed).
 
-### 9.1 NEXT SESSION — Axis-A leadsheet merge (different from §9 Phase 1)
-Merge two **separate leadsheets** (two song rows) into **one leadsheet with two versions** —
-song B becomes a sibling *arrangement* (dropdown) under song A, B's row removed. This is the
-arrangement axis, not the two-staff axis. Blast radius = the §1.1 FK graph: re-point B's
-`sbn_voicing_usage` / `sbn_voicing_drafts` / `sbn_progression_occurrences` (both `leadsheet_id`
-AND `version_id`) onto A; decide B's slug fate (delete vs redirect). UI feature version of the
-`faa4290` "merge duplicate song rows" SQL.
+### 9.1 Axis-A leadsheet merge — SHIPPED (2026-06-29)
+`LeadsheetController::mergeSong()` + `mergeSongSourceList()`; routes
+`admin.leadsheets.merge-song` + `admin.leadsheets.merge-song-sources`. Song B becomes a sibling
+arrangement under song A; B's `sbn_voicing_usage` / `sbn_voicing_drafts` /
+`sbn_progression_occurrences` re-pointed to A's id + new version id; B's row deleted.
+
+---
+
+## 10. Open items (as of 2026-06-29)
+
+1. **Version create/clone/delete UI** — new arrangements still require SQL; no admin UI yet.
+2. **Viewer chord-TAB toggle (Step 6)** — `melodyTabXml`/`chordTabXml` now passed in props
+   (shipped 2026-06-29) but `LeadsheetViewer.vue` doesn't yet expose a Melody/Chord sub-toggle.
+   Add only when chord-tab data exists on at least one song (`hasChordTab` gate).
+3. **`<sbn-song layer="chord">` slug access** — `apiSheet?layer=chord` shipped 2026-06-29;
+   parses `chord_tab_xml` server-side → same tick-based melody shape. `PdfController` also
+   accepts `layer` in song/chord-card config.

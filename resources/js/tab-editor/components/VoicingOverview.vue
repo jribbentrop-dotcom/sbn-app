@@ -122,8 +122,9 @@ function closeMenuAnd(fn) {
     fn();
 }
 
-const model  = inject('model');
-const picker = inject('voicingPicker');
+const model     = inject('model');
+const picker    = inject('voicingPicker');
+const tabLayer  = inject('tabLayer', ref('melody'));
 
 const hasModel = computed(() => !!model?.value);
 
@@ -243,7 +244,8 @@ function toggleRhythmPanel() {
 
 async function runApplyRhythm() {
     if (!rhythmPatternId.value) return;
-    if (!confirm('This will replace the existing tablature with a freshly generated rhythm pattern. Any hand-edited tab notes will be lost. Continue?')) return;
+    const layerLabel = tabLayer.value === 'chord' ? 'chord' : 'melody';
+    if (!confirm(`This will replace the ${layerLabel} tablature with a freshly generated rhythm pattern. Any hand-edited notes on that layer will be lost. Continue?`)) return;
 
     const leadsheetId = window._sbnLeadsheetId;
     if (!leadsheetId) {

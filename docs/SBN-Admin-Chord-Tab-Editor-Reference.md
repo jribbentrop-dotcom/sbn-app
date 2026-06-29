@@ -1,7 +1,7 @@
   j# SBN Admin — Chord / Tab Editor Reference
 
 > **Purpose:** Complete reference for the admin leadsheet editor: architecture, Vue component tree, chord grid, voicing picker, tab notation, audio playback, video sync, keyboard shortcuts, design system, and all creation flows (blank, from progression, exercises, transcription).
-> **Last updated:** 2026-06-16
+> **Last updated:** 2026-06-29
 
 ---
 
@@ -58,8 +58,13 @@ ALPINE (edit.blade.php — thin page shell)
 
 `resources/views/admin/leadsheets/edit.blade.php` (~1,980 lines) — the central admin component.
 
+### Header bar
+- **Arrangement switcher** — dropdown when >1 version, plain label when only one. Navigates to `?v={slug}`.
+- **Actions menu** — Import MusicXML → Melody / Chords, Generate Chords tab from voicings, Swap layers, Merge sheets…, Save as Exercise, **Clone arrangement** (copies current version as a new draft), **Delete arrangement** (hidden when only one version or when it is the default).
+- Routes: `POST /leadsheets/{ls}/clone-version?v={slug}` → `cloneVersion()`; `DELETE /leadsheets/{ls}/versions/{version}` → `deleteVersion()`. Delete nulls out detection cache `version_id` rows rather than orphaning them; refuses if the version is the default or the only one.
+
 ### View modes
-Three tabs owned by Vue: **Chords** | **Tab** | **Analysis**. Vue's `viewMode` ref dispatches `sbn-tab-view-changed` → Alpine's `alpineViewMode` mirrors it one-way.
+Five tabs owned by Vue: **Grid** | **Chords** | **Melody** | **Analysis** | **🎬 Video**. Vue's `viewMode` ref dispatches `sbn-tab-view-changed` → Alpine's `alpineViewMode` mirrors it one-way.
 
 ### Content area (Vue)
 `TabEditor.vue` renders all three views:
@@ -378,7 +383,9 @@ Gap-filled voicings are written back into `chordVoicings` so they persist.
 - **Strum patterns:** all non-muted strings on every stroke
 - **Soft voice leading:** if the previous chord's finger strings are all available in the current voicing, reuse them unchanged; `VoicingMaterializer` threads `$prevFingerStrings` through the chord loop
 
-**Frontend reload path** (critical): on success `VoicingOverview.vue` dispatches `sbn-rhythm-applied` → Alpine replaces `parsed` + `tabXml`, resets `_tabInitDone` / `_tabVueInitialized`, calls `_dispatchTabInit()` for a full Vue reload.
+**Layer routing:** Apply Rhythm writes to whichever tab layer is currently active (`activeTabLayer`). On the Chord layer it replaces `chord_tab_xml`; on the Melody layer it replaces `melody_tab_xml`. The confirm dialog names the layer. `tabXml` in Alpine is a computed alias that reads/writes the active layer, so the reload path is unchanged.
+
+**Frontend reload path** (critical): on success `VoicingOverview.vue` dispatches `sbn-rhythm-applied` → Alpine replaces `parsed` + `tabXml` (active-layer alias), resets `_tabInitDone` / `_tabVueInitialized`, calls `_dispatchTabInit()` for a full Vue reload.
 
 **Exercise vs leadsheet differences:**
 - Exercise: reads `content_json` (array-cast), `time_sig`; writes to `sbn_exercises`
@@ -452,7 +459,7 @@ Both chord and tab views support multi-bar selection for clipboard and structura
 |-----|--------|
 | ← → | Navigate events |
 | ↑ ↓ | Navigate strings |
-| Tab / Shift+Tab | Navigate measures |
+| Tab | Cycle view tabs: Grid → Chords → Melody (skips absent layers) |
 | Home / End | First/last event in measure |
 | 0–9 | Enter fret number (two-digit with 600ms timeout) |
 | Delete / Backspace | Remove note on cursor string (single bar); structural delete of selected bars (multi-bar) |
@@ -469,6 +476,7 @@ Both chord and tab views support multi-bar selection for clipboard and structura
 | Ctrl+C/X/V | Copy/cut/paste (note-level, single bar, or multi-bar depending on selection) |
 | Ctrl+Z / Ctrl+Shift+Z | Undo/redo (unified — covers chord grid + tab + voicings) |
 | Space | Play/pause toggle (global — works in all contexts) |
+| V | Toggle video sidebar |
 | M | Create video sync point at current measure (global) |
 | ? | Keyboard shortcut reference overlay |
 | Escape | Clear selection / return to navigate |

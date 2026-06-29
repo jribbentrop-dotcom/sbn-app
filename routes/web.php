@@ -148,6 +148,8 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
     Route::post('/leadsheets/{leadsheet}/merge-versions', [LeadsheetController::class, 'mergeVersions'])->name('leadsheets.merge-versions');
     Route::get('/leadsheets/{leadsheet}/merge-song-sources', [LeadsheetController::class, 'mergeSongSourceList'])->name('leadsheets.merge-song-sources');
     Route::post('/leadsheets/{leadsheet}/merge-song', [LeadsheetController::class, 'mergeSong'])->name('leadsheets.merge-song');
+    Route::post('/leadsheets/{leadsheet}/clone-version', [LeadsheetController::class, 'cloneVersion'])->name('leadsheets.clone-version');
+    Route::delete('/leadsheets/{leadsheet}/versions/{version}', [LeadsheetController::class, 'deleteVersion'])->name('leadsheets.delete-version');
 
     Route::get('/leadsheets/{leadsheet}/edit', [LeadsheetController::class, 'edit'])->name('leadsheets.edit');
     Route::put('/leadsheets/{leadsheet}', [LeadsheetController::class, 'update'])->name('leadsheets.update');

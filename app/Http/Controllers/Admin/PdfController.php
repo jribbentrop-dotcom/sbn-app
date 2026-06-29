@@ -146,10 +146,11 @@ class PdfController extends Controller
             $ls = Leadsheet::where('slug', $lsSlug)->first();
             if (! $ls) continue;
 
-            // Notated melody lives on the default arrangement (melody_tab_xml), with a
-            // legacy-column fallback during the dual-read window.
+            // 'layer' in the song config selects melody (default) or chord-comping TAB.
             $version = $ls->defaultVersion ?? $ls->versions()->first();
-            $tabXml  = $version?->melody_tab_xml ?: $ls->tab_xml;
+            $tabXml  = ($songCfg['layer'] ?? 'melody') === 'chord'
+                ? ($version?->chord_tab_xml)
+                : ($version?->melody_tab_xml ?: $ls->tab_xml);
             if (! $tabXml) continue;
 
             $parser  = new TabXmlParser();
@@ -401,7 +402,9 @@ class PdfController extends Controller
             $ls = Leadsheet::where('slug', $tabSlug)->first();
             if ($ls) {
                 $version = $ls->defaultVersion ?? $ls->versions()->first();
-                $tabXml  = $version?->melody_tab_xml ?: $ls->tab_xml;
+                $tabXml  = ($item['tab_layer'] ?? 'melody') === 'chord'
+                    ? ($version?->chord_tab_xml)
+                    : ($version?->melody_tab_xml ?: $ls->tab_xml);
                 if ($tabXml) {
                     $parser         = new TabXmlParser();
                     $chordNamesMap  = self::chordNamesMapFromLeadsheet($ls);
@@ -452,7 +455,9 @@ class PdfController extends Controller
             if (!$ls) continue;
 
             $version = $ls->defaultVersion ?? $ls->versions()->first();
-            $tabXml  = $version?->melody_tab_xml ?: $ls->tab_xml;
+            $tabXml  = ($songCfg['layer'] ?? 'melody') === 'chord'
+                ? ($version?->chord_tab_xml)
+                : ($version?->melody_tab_xml ?: $ls->tab_xml);
             if (!$tabXml) continue;
 
             $parser        = new TabXmlParser();

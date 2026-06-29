@@ -1245,6 +1245,73 @@ class LeadsheetController extends Controller
         ]);
     }
 
+    /**
+     * Clone an arrangement (version) of this leadsheet.
+     * Creates a new version row copying all data; labels it "Copy of {label}".
+     * Redirects to the edit page on the new version.
+     */
+    public function cloneVersion(Request $request, Leadsheet $leadsheet)
+    {
+        $versionSlug = $request->query('v');
+        $source = $versionSlug
+            ? $leadsheet->versions()->where('version_slug', $versionSlug)->firstOrFail()
+            : ($leadsheet->defaultVersion ?? $leadsheet->versions()->firstOrFail());
+
+        $newLabel = 'Copy of ' . ($source->label ?: 'Basic');
+        $newSlug  = LeadsheetVersion::generateUniqueVersionSlug($leadsheet->id, $newLabel);
+        $maxSort  = $leadsheet->versions()->max('sort_order') ?? 0;
+
+        $clone = LeadsheetVersion::create([
+            'leadsheet_id'      => $leadsheet->id,
+            'version_slug'      => $newSlug,
+            'label'             => $newLabel,
+            'performer'         => $source->performer,
+            'difficulty'        => $source->difficulty,
+            'sort_order'        => $maxSort + 1,
+            'song_key'          => $source->song_key,
+            'rhythm'            => $source->rhythm,
+            'tempo'             => $source->tempo,
+            'measure_count'     => $source->measure_count,
+            'json_data'         => $source->json_data,
+            'melody_tab_xml'    => $source->melody_tab_xml,
+            'chord_tab_xml'     => $source->chord_tab_xml,
+            'shortcode_content' => $source->shortcode_content,
+            'status'            => 'draft',
+        ]);
+
+        return redirect()->route('admin.leadsheets.edit', [
+            'leadsheet' => $leadsheet,
+            'v'         => $clone->version_slug,
+        ])->with('success', 'Cloned arrangement "' . $source->label . '" → "' . $newLabel . '".');
+    }
+
+    /**
+     * Delete an arrangement (version). Refuses if it is the only version
+     * or the leadsheet's default. On success redirects to the default version.
+     */
+    public function deleteVersion(Request $request, Leadsheet $leadsheet, LeadsheetVersion $version)
+    {
+        abort_if($version->leadsheet_id !== $leadsheet->id, 404);
+
+        $total = $leadsheet->versions()->count();
+        if ($total <= 1) {
+            return back()->withErrors(['version' => 'Cannot delete the only arrangement.']);
+        }
+        if ($leadsheet->default_version_id === $version->id) {
+            return back()->withErrors(['version' => 'Cannot delete the default arrangement. Set a different default first.']);
+        }
+
+        // Detach detection cache rows (null out version_id so they stay song-level).
+        DB::table('sbn_voicing_usage')->where('version_id', $version->id)->update(['version_id' => null]);
+        DB::table('sbn_voicing_drafts')->where('version_id', $version->id)->update(['version_id' => null]);
+        DB::table('sbn_progression_occurrences')->where('version_id', $version->id)->update(['version_id' => null]);
+
+        $version->delete();
+
+        return redirect()->route('admin.leadsheets.edit', ['leadsheet' => $leadsheet])
+            ->with('success', 'Arrangement deleted.');
+    }
+
     // =========================================================================
     // API ENDPOINTS
     // =========================================================================

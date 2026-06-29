@@ -204,8 +204,8 @@
                             <div class="sbn-tab-shortcut-group-title">Navigation</div>
                             <div class="sbn-tab-shortcut-row"><kbd>← →</kbd><span>Previous / next event</span></div>
                             <div class="sbn-tab-shortcut-row"><kbd>↑ ↓</kbd><span>Move between strings</span></div>
-                            <div class="sbn-tab-shortcut-row"><kbd>Tab</kbd><span>Next measure</span></div>
-                            <div class="sbn-tab-shortcut-row"><kbd>Shift+Tab</kbd><span>Previous measure</span></div>
+                            <div class="sbn-tab-shortcut-row"><kbd>Tab</kbd><span>Cycle tabs (Grid / Chords / Melody)</span></div>
+                            <div class="sbn-tab-shortcut-row"><kbd>V</kbd><span>Toggle video sidebar</span></div>
                             <div class="sbn-tab-shortcut-row"><kbd>Home / End</kbd><span>First / last event</span></div>
                             <div class="sbn-tab-shortcut-row"><kbd>Esc</kbd><span>Cancel / back to navigate</span></div>
                         </div>
@@ -1694,6 +1694,32 @@ function onKeydown(e) {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z') || (e.shiftKey && e.key === 'Z'))) {
         e.preventDefault();
         if (canRedo.value) redo();
+        return;
+    }
+
+    // Tab: cycle tabs (Grid → Chords → Melody → Grid, skipping absent layers)
+    if (e.key === 'Tab' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const tabs = [
+            { mode: 'chords',   layer: null    },
+            ...(hasChordTab.value   ? [{ mode: 'tab', layer: 'chord'   }] : []),
+            ...(hasMelodyTab.value  ? [{ mode: 'tab', layer: 'melody'  }] : []),
+        ];
+        const current = tabs.findIndex(t =>
+            t.mode !== 'tab'
+                ? viewMode.value === t.mode
+                : viewMode.value === 'tab' && tabLayer.value === t.layer
+        );
+        const next = tabs[(current + 1) % tabs.length];
+        if (next.mode === 'tab') selectTabLayerView(next.layer);
+        else setViewMode(next.mode);
+        return;
+    }
+
+    // V: toggle video sidebar
+    if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        toggleVideoSidebar();
         return;
     }
 

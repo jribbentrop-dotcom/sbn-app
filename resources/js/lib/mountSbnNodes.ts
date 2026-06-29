@@ -234,13 +234,16 @@ export async function mountSbnNodes(
     const slug = el.getAttribute('slug') ?? '';
     if (!slug) return;
 
-    const bars = el.getAttribute('bars') ?? '';
+    const bars  = el.getAttribute('bars')  ?? '';
+    const layer = el.getAttribute('layer') ?? '';
     if (options.onChordSelect) {
       (el as any).__onChordSelect = options.onChordSelect;
     }
-    const url = bars
-      ? `/api/sbn/songs/${slug}/sheet?bars=${encodeURIComponent(bars)}`
-      : `/api/sbn/songs/${slug}/sheet`;
+    const params = new URLSearchParams();
+    if (bars)              params.set('bars',  bars);
+    if (layer === 'chord') params.set('layer', 'chord');
+    const qs  = params.toString();
+    const url = `/api/sbn/songs/${slug}/sheet${qs ? '?' + qs : ''}`;
     const task = fetch(url, { headers: { Accept: 'application/json' } })
       .then((r) => {
         if (!r.ok) throw new Error(`song-sheet fetch failed: ${r.status}`);

@@ -40,7 +40,7 @@ Stored in `content` as plain HTML. Always require explicit closing tags (`<sbn-f
 | `<sbn-rhythm>` | yes | `slug` (required) | [`RhythmStrip.vue`](../resources/js/Components/Library/RhythmStrip.vue) — TODO: migrate embed in `mountSbnNodes.ts` from `RhythmCard` (see `SBN-Rhythm-Reference.md §11`) |
 | `<sbn-progression>` | yes | `slug` (required), `key` (optional, default `C`) | [`ChordProgressionViewer.vue`](../resources/js/Components/Library/ChordProgressionViewer.vue) |
 | `<sbn-sheet>` | yes | `slug` (required), `key` (optional, default `C`) | [`SheetMiniPlayer.vue`](../resources/js/Components/Course/SheetMiniPlayer.vue) — see §9 |
-| `<sbn-song>` | yes | `slug` (required), `bars` (optional, e.g. `"5-8"`) | [`SheetMiniPlayer.vue`](../resources/js/Components/Course/SheetMiniPlayer.vue) — see §7.4 |
+| `<sbn-song>` | yes | `slug` (required), `bars` (optional, e.g. `"5-8"`), `layer` (optional, `"chord"`) | [`SheetMiniPlayer.vue`](../resources/js/Components/Course/SheetMiniPlayer.vue) — see §7.4 |
 | `<sbn-youtube>` | yes (no fetch) | `id` (required), `start` (optional, seconds) | inline `<iframe>` to `youtube-nocookie.com` |
 | `<sbn-fretboard>` | yes (vanilla JS, no Vue) | `slug` (required) | `sbnHydrateFretboard()` in `public/js/chords.js` — see [SBN-Fretboard-Reference.md](SBN-Fretboard-Reference.md) |
 | `<sbn-info>` | no — pure DOM | `heading` (required), `items` (pipe-separated list) | animated conic-gradient card — see §11 |
@@ -50,7 +50,8 @@ Stored in `content` as plain HTML. Always require explicit closing tags (`<sbn-f
 - `<sbn-chord root="F">` — server-side fret-shifts the stored shape to the requested root. See §7.2.
 - `<sbn-progression key="Bb">` — runs the progression builder in that key, returns voiced tiles.
 - `<sbn-sheet key="G">` — fetches from `/api/sbn/exercises/{slug}?key=G`; key is advisory (transposition). See §9.
-- `<sbn-song bars="5-8">` — render only bars 5–8 (1-indexed inclusive). Omit for the full song.
+- `<sbn-song bars="5-8">` — render only bars 5–8 (1-indexed inclusive). Omit for the full song (is_pro only).
+- `<sbn-song layer="chord">` — render the chord/comping TAB staff instead of the melody staff. 404 if no `chord_tab_xml` has been authored for that song. Both `bars` and `layer` can be combined.
 - `<sbn-fretboard slug="…">` — no extra attrs; all display options (mode, theme, guide tones, RH fingers) are baked into the stored record.
 
 ---
@@ -122,7 +123,7 @@ Public, no auth. Defined in [`routes/web.php`](../routes/web.php) under `Route::
 | GET | `/api/sbn/chords/{slug}?root=F` | Mount payload for `<sbn-chord>` | `ChordSerializer::serialize()` shape, with `root_note` / `diagram_data` / `start_fret` / `interval_labels` / `notes` shifted when `root` is given |
 | GET | `/api/sbn/rhythms/{slug}` | Mount payload for `<sbn-rhythm>` | Pattern object — `RhythmCard`'s `pattern` prop |
 | GET | `/api/sbn/progressions/{slug}?key=Bb&pass2=1` | Mount payload for `<sbn-progression>` | `{ progression, key, chords: [{chordName, diagramData, beats, slug}] }` |
-| GET | `/api/sbn/songs/{slug}/sheet?bars=5-8` | Mount payload for `<sbn-song>` | LeadsheetJson-shaped payload: sections (with lineBreaks), melody (re-offset to bar 0), timeSignature, repeatMarkers, voltaEndings, chordVoicings, meta. `bars` omit = full song. |
+| GET | `/api/sbn/songs/{slug}/sheet?bars=5-8&layer=chord` | Mount payload for `<sbn-song>` | LeadsheetJson-shaped payload: sections (with lineBreaks), melody (tick-based notes, re-offset to bar 0), timeSignature, repeatMarkers, voltaEndings, chordVoicings, meta. `bars` omit = full song (is_pro only). `layer=chord` parses `chord_tab_xml` server-side → same melody-notes shape; 404 if no chord-tab data. `meta.layer` indicates which staff was returned. |
 | GET | `/api/sbn/songs/{slug}/viewer-data` | Full leadsheet viewer page | Full leadsheet viewer payload via `LeadsheetViewerService` |
 | GET | `/api/sbn/fretboards/{slug}` | Mount payload for `<sbn-fretboard>` | Full fretboard record — see [SBN-Fretboard-Reference.md §6](SBN-Fretboard-Reference.md#6-course-tag--sbn-fretboard) |
 | GET | `/api/sbn/{type}` | Palette search (admin) | `{ results: […] }` |
@@ -244,7 +245,9 @@ When `<sbn-chord root="F">` is mounted, transposition happens in `ChordLibraryCo
 
 ### 7.4 `<sbn-song>` — leadsheet embed
 
-`<sbn-song slug="the-girl-from-ipanema" bars="5-8">` fetches `/api/sbn/songs/{slug}/sheet?bars=5-8` and mounts `SheetMiniPlayer` with the excerpt. Omitting `bars` loads the full song.
+`<sbn-song slug="the-girl-from-ipanema" bars="5-8">` fetches `/api/sbn/songs/{slug}/sheet?bars=5-8` and mounts `SheetMiniPlayer` with the excerpt. Omitting `bars` loads the full song (is_pro only).
+
+Add `layer="chord"` to render the chord/comping TAB staff instead of the melody staff: `<sbn-song slug="…" bars="1-4" layer="chord">`. The server parses `chord_tab_xml` through `TabXmlParser` and returns the same tick-based melody-notes shape — the client path (`SheetMiniPlayer` / `useTabModel`) is unchanged. Returns 404 if no chord-tab data has been authored for that version.
 
 The `apiSheet` controller (`SongLibraryController::apiSheet`) returns a LeadsheetJson-shaped payload:
 - **sections** — original section structure with `lineBreaks` preserved; for excerpts each section is sliced and its `lineBreaks` recomputed for just the included rows.

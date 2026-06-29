@@ -390,6 +390,8 @@ class SongLibraryController extends Controller
                 'voicingNotes'  => $leadsheet->voicing_notes,
                 'hasMelodyTab'  => $version->has_melody_tab,
                 'hasChordTab'   => $version->has_chord_tab,
+                'melodyTabXml'  => $version->melody_tab_xml ?: $leadsheet->tab_xml,
+                'chordTabXml'   => $version->chord_tab_xml,
             ],
             'versions'      => $this->versionList($leadsheet, $version),
             'activeVersion' => $version->version_slug,
@@ -415,13 +417,27 @@ class SongLibraryController extends Controller
         $version = $this->resolveVersion($leadsheet, $request->query('v'));
         $data = $version->parsed_data ?? [];
 
+        // ?layer=chord requests the chord-comping TAB staff instead of the melody staff.
+        // The chord_tab_xml is parsed server-side into the same tick-based events shape
+        // that SheetMiniPlayer / useTabModel expects, so the client path is unchanged.
+        $layer = $request->query('layer', 'melody');
+        if ($layer === 'chord') {
+            $chordTabXml = $version->chord_tab_xml;
+            abort_if(!$chordTabXml, 404);
+            $parser   = new \App\Services\TabXmlParser();
+            $tabData  = $parser->parse($chordTabXml);
+            $melody   = array_merge(...array_map(fn ($m) => $m['events'] ?? [], $tabData['measures'] ?? [])) ?: null;
+            $timeSig  = $tabData['timeSig'] ?? $leadsheet->time_signature ?? '4/4';
+        } else {
+            $melody  = $data['melody'] ?? null;
+            $timeSig = $data['timeSignature'] ?? $leadsheet->time_signature ?? '4/4';
+        }
+
         // Ticks per measure — same formula as calcTicksPerMeasure() in useTabModel.js.
-        $timeSig = $data['timeSignature'] ?? $leadsheet->time_signature ?? '4/4';
         [$num, $den] = array_map('intval', explode('/', $timeSig . '/4'));
         $tpm = $den > 0 ? (int) round($num * 1920 / $den) : 1920;
 
         $barsParam = trim((string) $request->query('bars', ''));
-        $melody    = $data['melody'] ?? null;
 
         // Lesson content embeds a few bars of a song via <sbn-song slug="…" bars="5-8">
         // (mountSbnNodes.ts) — that excerpt use is fine even for non-pro/copyrighted
@@ -557,6 +573,7 @@ class SongLibraryController extends Controller
                 'time_sig'    => $leadsheet->time_signature ?? '4/4',
                 'bpm_default' => $leadsheet->tempo ?? 120,
                 'type'        => 'leadsheet-excerpt',
+                'layer'       => $layer,
             ],
         ]);
     }
@@ -613,6 +630,8 @@ class SongLibraryController extends Controller
                 'voicingNotes'  => $leadsheet->voicing_notes,
                 'hasMelodyTab'  => $version->has_melody_tab,
                 'hasChordTab'   => $version->has_chord_tab,
+                'melodyTabXml'  => $version->melody_tab_xml ?: $leadsheet->tab_xml,
+                'chordTabXml'   => $version->chord_tab_xml,
             ],
             'versions'      => $this->versionList($leadsheet, $version),
             'activeVersion' => $version->version_slug,
