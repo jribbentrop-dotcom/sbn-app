@@ -12,16 +12,26 @@ The app is live at https://www.soulbossanova.com. Local DB path: `C:\Users\info\
 
 **Never write directly to the mounted DB.** The SQLite file on the Windows mount causes disk I/O errors and leaves journal files that block further access.
 
-Always use this pattern:
+**The "database disk image is malformed" error is almost always mount flakiness, not a corrupt file.** Reads through the Windows mount intermittently return half-written pages, so SQLite reports the image as malformed even when the file on disk is perfectly intact. The fix is to never open the mounted file directly — work against a native local copy and sync back explicitly.
+
+**Always use `scripts/db_checkout.py` — do not hand-roll `cp`.** It does the copy with retries, distinguishes a flaky read (retry → succeeds) from a genuinely truncated file (header check → bail), and verifies integrity on both ends so a single bad read never gets misread as "the DB is corrupt."
+
 ```bash
-cp /sessions/.../mnt/sbn-app/database/sbn.db /tmp/sbn_work.db
-# do all reads and writes against /tmp/sbn_work.db
-cp /tmp/sbn_work.db /sessions/.../mnt/sbn-app/database/sbn.db
+# 1. checkout — copies mount DB to a native local path, retrying past mount flakiness.
+#    Prints the local work path; use it for ALL reads and writes.
+WORK=$(python3 scripts/db_checkout.py checkout) || exit 1
+
+# 2. do all sqlite work against "$WORK" (e.g. sqlite3.connect(WORK) in Python)
+
+# 3. commit — only when the task actually mutates data and you intend to persist it.
+python3 scripts/db_checkout.py commit
 ```
 
-In Python use `sqlite3.connect('/tmp/sbn_work.db')`. PHP / artisan is not available in the sandbox.
+`python3 scripts/db_checkout.py status` diagnoses without copying (size vs. header, integrity, truncation). PHP / artisan is not available in the sandbox; use Python `sqlite3` against the work path.
 
-**Note:** `/tmp` is not reliably writable in every sandbox instance — it can reject writes outright, and any path under a mounted folder (e.g. `mnt/outputs/...`) hits the same disk I/O error as the main DB mount, even though it looks local. If `/tmp/sbn_work.db` fails, fall back to a plain folder under `$HOME` (e.g. `$HOME/work/sbn_work.db`) — anywhere that isn't itself a mounted/Windows-backed path works.
+**If you hit a malformed/IO error:** it is NOT a signal to give up. Re-run `checkout` — the script already retries internally, and a `status` showing `integrity: ok` confirms the file is fine and the earlier read was a glitch. Only when `db_checkout.py status` reports `truncated: True` (header expects more bytes than the file actually has) is the file genuinely damaged on the Windows host — that cannot be fixed in-sandbox. In that single case, stop, and ask the user to restore `sbn.db` from a backup (or proceed without DB access if the task allows). Do not burn turns re-attempting copies or recovery tricks for a `truncated: False` file.
+
+The local work path (`$HOME/sbn_work/sbn.db`) lives on the container's native disk, never under a mount — anything under `/sessions/.../mnt/...` (including `mnt/outputs/...`) hits the same IO error, so keep working files out of mounted paths.
 
 ---
 
