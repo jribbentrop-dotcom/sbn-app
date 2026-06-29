@@ -345,6 +345,64 @@ code { font-family: var(--font-mono); }
 .sbn-phase.active .sbn-phase-num { background: var(--clr-gradient); color: #fff; }
 .sbn-phase.active .sbn-phase-label { color: var(--clr-accent-dim); }
 
+/* Dashboard lower zone (recently-edited + content health) */
+.sbn-dash-lower {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 20px;
+}
+.sbn-dash-card {
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.sbn-dash-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--clr-border);
+}
+.sbn-dash-card-header h3 {
+    font-size: 14px; font-weight: 600; color: var(--clr-text); margin: 0;
+}
+.sbn-dash-card-link {
+    font-size: 13px; color: var(--clr-accent-dim); text-decoration: none;
+}
+.sbn-dash-card-link:hover { text-decoration: underline; }
+.sbn-dash-card-body { padding: 0; overflow-x: auto; }
+.sbn-dash-empty { padding: 16px 20px; color: var(--clr-text-dim); font-size: 13px; }
+.sbn-dash-link { color: var(--clr-text); text-decoration: none; font-size: 13px; }
+.sbn-dash-link:hover { text-decoration: underline; }
+
+/* compact table variant for dashboard cards */
+.sbn-table.sbn-table-compact td,
+.sbn-table.sbn-table-compact th { padding: 9px 16px; }
+
+/* type badge in recently-edited feed */
+.sbn-badge-type {
+    font-size: 11px; font-weight: 500;
+    background: var(--clr-surface-2); color: var(--clr-text-dim);
+    border: 1px solid var(--clr-border);
+    border-radius: 4px; padding: 2px 6px;
+}
+
+/* content health count badges */
+.sbn-health-count {
+    display: inline-block;
+    min-width: 32px; text-align: center;
+    font-size: 13px; font-weight: 600;
+    border-radius: 4px; padding: 2px 6px;
+    text-decoration: none;
+}
+.sbn-health-count--warn { background: var(--clr-warning-bg, #fef3c7); color: var(--clr-warning-text, #92400e); }
+.sbn-health-count--ok   { background: var(--clr-success-bg, #d1fae5); color: var(--clr-success-text, #065f46); }
+.sbn-health-count:hover { opacity: 0.8; }
+
+@media (max-width: 900px) {
+    .sbn-dash-lower { grid-template-columns: 1fr; }
+}
+
 
 /* -- SHARED: Tables, Buttons, Filters -------------------- */
 

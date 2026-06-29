@@ -9,6 +9,7 @@ use App\Models\Course;
 use App\Models\Leadsheet;
 use App\Models\RhythmPattern;
 use App\Models\SkillNode;
+use App\Services\ContentHealthService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -268,5 +269,11 @@ class SkillNodeController extends Controller
         }
 
         return $candidate;
+    }
+
+    public function coverage(ContentHealthService $health)
+    {
+        $details = $health->details();
+        return view('admin.skill-nodes.coverage', compact('details'));
     }
 }

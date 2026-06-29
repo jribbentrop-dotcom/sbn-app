@@ -1,6 +1,6 @@
 # SBN Skill System — Planning & As-Built Reference
 
-> Status: **v1 SHIPPED + expansion + student UI (self-report on 3 surfaces).**
+> Status: **v1 SHIPPED + expansion + student UI + admin dashboard rebuild.**
 > Data model, models, seeder, and admin table editor built — see "v1 Implementation (As-Built)".
 > Graph is now **57 nodes** across all six branches with **60 prerequisite edges** (no cycles, no
 > dangling refs — verified), and `sbn_course_skill_node` has **98 pivot rows** covering all 20
@@ -15,8 +15,27 @@
 > `sbn_skill_node_content`; chord voicings via a `voicing_categories` column (category, not per-diagram);
 > exercises excluded (course-only). Reverse relations on each content model power "skills this builds".
 > Admin search+chips picker. See "Node ↔ Content Links".
+> **Bossa/samba rhythm ladder added 2026-06-29** (from cross-referencing `Skill Nodes.docx` brainstorm —
+> see `SBN-Skill-Nodes-Brainstorm-Crossref.md`): 3 new rhythm nodes (`bossa-syncopated-push`,
+> `alternating-bass-patterns`, `partido-alto-groove`) wired between `two-four-feel` and
+> `brazilian-rhythm-styles`/`clave-systems`. Graph is now **61 nodes** / **69 prerequisite edges**.
+> Draft courses 77/78/79 (previously zero-mapped) and courses 1/4 mapped to relevant nodes —
+> `sbn_course_skill_node` now has **118 pivot rows** covering **all 24 courses**. `the-basic-8` and
+> `foundational-scales` descriptions clarified to make explicit they cover open chords / open scale
+> shapes (no new beginner-tier nodes needed — confirmed existing nodes already serve that role).
+> Drop Chord System granularity reviewed and left as-is (one node per voicing type; decision confirmed,
+> not revisited).
+> **Admin dashboard rebuilt 2026-06-29** (`SBN-Admin-Dashboard-Spec.md`): stale migration-progress card
+> removed; `/admin` now shows Totals (9 tiles incl. courses/lessons/skill-nodes), Recently Edited feed
+> (last 12 across 7 content types), and a Content Health card (10 gap counts, each linking to the new
+> `/admin/skill-nodes/coverage` drill-down). `ContentHealthService` owns all gap queries; coverage page
+> lists offending rows per section with collapsible `<details>` panels. `sbn_chord_progressions` gains
+> `updated_at` (migration 2026_06_29_000003, backfilled from `created_at`). Orphan `dashboard.blade.php`
+> deleted.
 > **Remaining vs full vision** (see "Vision → Reality Reconciliation"): student skill-tree render,
-> player-class/style-class tables (pillar 5), repertoire tables. Tracked in "Open Decisions" / "Post-v1 Roadmap".
+> player-class/style-class tables (pillar 5), repertoire tables, technique sub-curriculum (PIMA,
+> rest/free stroke, posture, etc. — pending course 9 rewrite, see brainstorm crossref recommendation #1).
+> Tracked in "Open Decisions" / "Post-v1 Roadmap".
 
 ---
 

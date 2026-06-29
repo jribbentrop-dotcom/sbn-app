@@ -234,6 +234,7 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
     Route::get('/skill-nodes', [SkillNodeController::class, 'index'])->name('skill-nodes.index');
     Route::get('/skill-nodes/layout', [SkillNodeController::class, 'layout'])->name('skill-nodes.layout');
     Route::post('/skill-nodes/layout', [SkillNodeController::class, 'saveLayout'])->name('skill-nodes.saveLayout');
+    Route::get('/skill-nodes/coverage', [SkillNodeController::class, 'coverage'])->name('skill-nodes.coverage');
     Route::get('/skill-nodes/create', [SkillNodeController::class, 'create'])->name('skill-nodes.create');
     Route::post('/skill-nodes', [SkillNodeController::class, 'store'])->name('skill-nodes.store');
     Route::get('/skill-nodes/{skillNode}/edit', [SkillNodeController::class, 'edit'])->name('skill-nodes.edit');
