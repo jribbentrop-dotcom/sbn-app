@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SBN Skill Tree — Layout A Reference Mockup (FC26 tile tree)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/tabler-icons.min.css">
+<style>
+  :root{
+    --color-background-secondary:#f7fafc;
+    --color-text-secondary:#5f6b7a;
+    --color-text-tertiary:#8896a4;
+    --border-radius-lg:16px;
+  }
+  body{
+    font-family:"DM Sans", system-ui, sans-serif;
+    background:#fff;
+    margin:0;
+    padding:40px 24px;
+  }
+  .wrap{ max-width:720px; margin:0 auto; }
+  .note{
+    font-size:13px;
+    color:var(--color-text-secondary);
+    background:#fff8e6;
+    border:1px solid #f0deab;
+    border-radius:8px;
+    padding:12px 16px;
+    margin-bottom:24px;
+    line-height:1.5;
+  }
+  .note b{ color:#7a5c12; }
+  .skt-node{position:absolute;width:54px;height:54px}
+  .skt-diamond{width:54px;height:54px;transform:rotate(45deg);border-radius:8px;display:flex;align-items:center;justify-content:center}
+  .skt-diamond i{transform:rotate(-45deg);font-size:18px}
+  .skt-label{position:absolute;width:104px;text-align:center;font-size:11px;color:var(--color-text-secondary)}
+  .skt-badge{position:absolute;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+  .skt-row-lbl{position:absolute;font-size:11px;color:var(--color-text-tertiary)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="note">
+    <b>Reference mockup only — not a visual spec.</b> This is layout A ("FC26-style tile tree"),
+    the chosen direction from the 2026-06-25 design session. Colors, spacing, tile shape, and the
+    icon set (Tabler, standing in for the real Heroicon system) are all placeholders used to compare
+    layout metaphors — see <code>SBN-Skill-Tree-Design-Brief.md</code> §7 for what's locked
+    (the layout choice + the dimension→encoding mapping) vs. what's still open for implementation
+    (real colors from <code>--clr-style-*</code> tokens, spacing, animations, the completion glow).
+    Mobile is not covered here — still TBD per the brief.
+  </div>
+
+<div style="position:relative;width:100%;height:490px;background:var(--color-background-secondary);border-radius:var(--border-radius-lg);overflow:hidden">
+<svg width="100%" height="100%" viewBox="0 0 680 490" style="position:absolute;top:0;left:0">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<line x1="270" y1="328" x2="270" y2="287" stroke="#7F77DD" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="270" y1="233" x2="200" y2="192" stroke="#7F77DD" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="270" y1="233" x2="270" y2="97" stroke="#7F77DD" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="580" y1="328" x2="580" y2="287" stroke="#D85A30" stroke-width="1.5" marker-end="url(#ar)"/>
+<line x1="289" y1="336" x2="411" y2="184" stroke="#BA7517" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+</svg>
+<div class="skt-row-lbl" style="left:14px;top:64px">G4</div>
+<div class="skt-row-lbl" style="left:14px;top:159px">G3</div>
+<div class="skt-row-lbl" style="left:14px;top:254px">G2</div>
+<div class="skt-row-lbl" style="left:14px;top:349px">G1</div>
+<div style="position:absolute;left:10px;right:10px;top:212px;border-top:1px dashed var(--color-text-tertiary)"></div>
+<div style="position:absolute;left:420px;top:196px;font-size:11px;color:var(--color-text-tertiary)">You are here — Level 2</div>
+<div class="skt-node" style="left:83px;top:328px"><div class="skt-diamond" style="background:#E6F1FB;border:2px solid #042C53"><i class="ti ti-book-2" style="color:#042C53"></i></div><div class="skt-badge" style="right:-4px;bottom:-4px;background:#412402"><i class="ti ti-check" style="font-size:11px;color:#FAEEDA"></i></div></div>
+<div class="skt-label" style="left:58px;top:387px">Intervals</div>
+<div class="skt-node" style="left:243px;top:328px"><div class="skt-diamond" style="background:#EEEDFE;border:2px solid #3C3489"><i class="ti ti-music" style="color:#3C3489"></i></div><div class="skt-badge" style="right:-4px;bottom:-4px;background:#412402"><i class="ti ti-check" style="font-size:11px;color:#FAEEDA"></i></div></div>
+<div class="skt-label" style="left:218px;top:387px">Triads</div>
+<div class="skt-node" style="left:403px;top:328px"><div class="skt-diamond" style="background:#E6F1FB;border:1px solid #042C53"><i class="ti ti-book-2" style="color:#0C447C"></i></div></div>
+<div class="skt-label" style="left:378px;top:387px">Major scale</div>
+<div class="skt-node" style="left:553px;top:328px"><div class="skt-diamond" style="background:#FAECE7;border:1px solid #4A1B0C"><i class="ti ti-clock" style="color:#993C1D"></i></div></div>
+<div class="skt-label" style="left:528px;top:387px">Meter &amp; clave</div>
+<div class="skt-node" style="left:243px;top:233px"><div class="skt-diamond" style="background:#EEEDFE;border:1px solid #3C3489"><i class="ti ti-music" style="color:#3C3489"></i></div></div>
+<div class="skt-label" style="left:218px;top:292px">Shell voicings</div>
+<div class="skt-node" style="left:553px;top:233px"><div class="skt-diamond" style="background:#F1EFE8;border:1px solid #B4B2A9;opacity:.6"><i class="ti ti-clock" style="color:#888780"></i></div><div class="skt-badge" style="right:-4px;bottom:-4px;background:#5F5E5A"><i class="ti ti-lock" style="font-size:11px;color:#F1EFE8"></i></div></div>
+<div class="skt-label" style="left:528px;top:292px">Bossa clave</div>
+<div class="skt-node" style="left:173px;top:138px"><div class="skt-diamond" style="background:#F1EFE8;border:1px solid #B4B2A9;opacity:.6"><i class="ti ti-music" style="color:#888780"></i></div><div class="skt-badge" style="right:-4px;bottom:-4px;background:#5F5E5A"><i class="ti ti-lock" style="font-size:11px;color:#F1EFE8"></i></div></div>
+<div class="skt-label" style="left:148px;top:197px">Drop 2 voicings</div>
+<div class="skt-node" style="left:403px;top:138px"><div class="skt-diamond" style="background:#F1EFE8;border:1px solid #B4B2A9;opacity:.6"><i class="ti ti-microphone" style="color:#888780"></i></div><div class="skt-badge" style="right:-4px;bottom:-4px;background:#5F5E5A"><i class="ti ti-lock" style="font-size:11px;color:#F1EFE8"></i></div></div>
+<div class="skt-label" style="left:378px;top:197px">Arpeggio shapes</div>
+<div class="skt-node" style="left:243px;top:43px"><div class="skt-diamond" style="background:#F1EFE8;border:1px solid #B4B2A9;opacity:.6"><i class="ti ti-music" style="color:#888780"></i></div><div class="skt-badge" style="right:-4px;bottom:-4px;background:#5F5E5A"><i class="ti ti-lock" style="font-size:11px;color:#F1EFE8"></i></div></div>
+<div class="skt-label" style="left:218px;top:102px">Tritone sub.</div>
+<div style="position:absolute;left:16px;bottom:10px;right:16px;display:flex;flex-wrap:wrap;gap:14px;font-size:11px;color:var(--color-text-secondary)">
+<span><i class="ti ti-music" style="color:#3C3489"></i> Harmony</span>
+<span><i class="ti ti-clock" style="color:#993C1D"></i> Rhythm</span>
+<span><i class="ti ti-microphone" style="color:#1D9E75"></i> Melody</span>
+<span><i class="ti ti-book-2" style="color:#0C447C"></i> Reading</span>
+<span><i class="ti ti-check" style="color:#412402"></i> Done</span>
+<span><i class="ti ti-lock" style="color:#888780"></i> Locked</span>
+<span style="color:#BA7517">- - → cross-branch edge</span>
+</div>
+</div>
+</div>
+</body>
+</html>
