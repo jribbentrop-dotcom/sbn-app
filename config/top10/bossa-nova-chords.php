@@ -19,6 +19,7 @@ return [
         'progressionCaption' => "<strong>Tom Jobim</strong> borrowed the idea of the chord progression to the first part of <em>Garota</em> from <strong>Duke Ellington's</strong> <em>Take the A-Train</em>. <strong>João Gilberto's</strong> chord voicings give the progression its distinctive <strong>Bossa Nova</strong> flavor.",
         'citation' => "<strong>Stan Getz & João Gilberto</strong>, <em>Getz/Gilberto</em>, 1964",
         // Live leadsheet bars — same as Bossa Nova Songs Girl from Ipanema
+        'rhythmSlug' => 'gilberto-rhythm',
         'syncedPlayer' => ['slug' => 'the-girl-from-ipanema', 'start' => 5, 'end' => 12],
         'relatedProducts' => [
             [
@@ -42,6 +43,7 @@ return [
         ],
     ],
     'm7-shell-roota-9' => [
+        'rhythmSlug' => 'jazz-bossa-nova',
         'title' => 'Minor Seventh with 9',
         'shortTitle' => 'm7(9)',
         'chordName' => 'Cm7(9)',
@@ -81,6 +83,7 @@ return [
         ],
     ],
     'm6-drop3-roote' => [
+        'rhythmSlug' => 'extended-gilberto-rhythm',
         'title' => 'The Minor Sixth Chord',
         'shortTitle' => 'm6',
         'chordName' => 'Am6',
@@ -120,6 +123,7 @@ return [
         ],
     ],
     'dom7-drop3-roote-13' => [
+        'rhythmSlug' => 'jazz-bossa-nova',
         'title' => 'Dominant Seventh with 13',
         'shortTitle' => '7(13)',
         'chordName' => 'G7(13)',
@@ -160,6 +164,7 @@ return [
         ],
     ],
     'm7b5-drop2-roota' => [
+        'rhythmSlug' => 'choro',
         'title' => 'The Half Diminished Chord',
         'shortTitle' => 'm7b5',
         'chordName' => 'Bm7b5',
@@ -200,6 +205,7 @@ return [
         ],
     ],
     'dom7-shell-roota-9' => [
+        'rhythmSlug' => 'cross-rhythm-i',
         'title' => 'Dominant Seventh with 9',
         'shortTitle' => '7(9)',
         'chordName' => 'D7(9)',
@@ -240,6 +246,7 @@ return [
         ],
     ],
     'dom7-shell-roota-b9' => [
+        'rhythmSlug' => 'desafinado',
         'title' => 'Dominant Seventh with b9',
         'shortTitle' => '7(b9)',
         'chordName' => 'E7(b9)',
@@ -274,6 +281,7 @@ return [
         ],
     ],
     'o7-drop2-roota' => [
+        'rhythmSlug' => 'desafinado',
         'title' => 'The Diminished Seventh Chord',
         'shortTitle' => 'dim7',
         'chordName' => 'C#dim7',
@@ -314,6 +322,7 @@ return [
         ],
     ],
     'o7-drop3-roote-b13' => [
+        'rhythmSlug' => 'insensatez',
         'title' => 'Diminished with Flat 13',
         'shortTitle' => 'o7(b13)',
         'chordName' => 'G#dim7(b13)',
@@ -354,6 +363,7 @@ return [
         ],
     ],
     'dom7-drop3-roote-b13' => [
+        'rhythmSlug' => 'extended-gilberto-rhythm',
         'title' => 'Dominant Seventh with b13',
         'shortTitle' => '7(b13)',
         'chordName' => 'G7(b13)',

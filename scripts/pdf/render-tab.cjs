@@ -1,4 +1,4 @@
-/**
+﻿/**
  * render-tab.cjs
  *
  * Standalone Node renderer for a single TAB measure or a sequence of measures.
@@ -79,7 +79,7 @@ const LAYOUT = {
     stemLength:     15,
     beamThickness:  3.2,
     interBeamGap:   2,
-    noteFontSize:   12,
+    noteFontSize:   13,
 };
 LAYOUT.tabHeight     = LAYOUT.topPadding + LAYOUT.stringSpacing * (LAYOUT.stringCount - 1) + LAYOUT.bottomPadding;
 LAYOUT.topStringY    = LAYOUT.stringAreaTop;
@@ -87,7 +87,50 @@ LAYOUT.bottomStringY = LAYOUT.stringAreaTop + 5 * LAYOUT.stringSpacing;
 LAYOUT.xRange        = LAYOUT.measureWidth - 2 * LAYOUT.xPadding;
 
 // Chord-name strip height above the SVG
-const CHORD_BAR_H = 16;
+const CHORD_BAR_H = 20;
+
+// ── Chord name rendering ──────────────────────────────────────────────────────
+
+function escapeXml(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function parseChordName(name) {
+    let bass = '', core = name;
+    const slashIdx = name.lastIndexOf('/');
+    if (slashIdx > 0) { bass = name.slice(slashIdx + 1); core = name.slice(0, slashIdx); }
+    const rootMatch = core.match(/^([A-G])([#b♯♭]?)/);
+    if (!rootMatch) return { root: name, accidental: '', quality: '', ext: '', bass };
+    const root = rootMatch[1];
+    const acc  = rootMatch[2].replace('#', '♯').replace('b', '♭');
+    const rest = core.slice(rootMatch[0].length);
+    const qualityMatch = rest.match(/^(m(?:aj)?|dim|aug|sus[24]?|add)?/i);
+    const quality = qualityMatch ? qualityMatch[0] : '';
+    const ext = rest.slice(quality.length);
+    return { root, accidental: acc, quality, ext, bass };
+}
+
+function formatChordSvg(name, x, y) {
+    const BASE  = 14;
+    const FILL  = '#2c3e50';
+    const SERIF = 'Crimson Text,Georgia,serif';
+    const SANS  = 'DM Sans,system-ui,sans-serif';
+    const { root, accidental, quality, ext, bass } = parseChordName(name);
+    let bassRoot = bass, bassAcc = '';
+    if (bass) {
+        const bm = bass.match(/^([A-G])([♯♭#b]?)(.*)$/);
+        if (bm) { bassRoot = bm[1] + (bm[3] || ''); bassAcc = bm[2].replace('#','♯').replace('b','♭'); }
+    }
+    let inner = `<tspan font-size="${(BASE*1.1).toFixed(1)}" font-weight="700">${escapeXml(root)}</tspan>`;
+    if (accidental) inner += `<tspan font-family="${SANS}" font-size="${(BASE*0.82).toFixed(1)}" dy="-1">${escapeXml(accidental)}</tspan><tspan dy="1"></tspan>`;
+    if (quality)    inner += `<tspan font-weight="400">${escapeXml(quality)}</tspan>`;
+    if (ext)        inner += `<tspan font-size="${(BASE*0.72).toFixed(1)}" font-weight="600" dy="-5">${escapeXml(ext)}</tspan><tspan dy="5"></tspan>`;
+    if (bass) {
+        inner += `<tspan font-size="${(BASE*0.9).toFixed(1)}" font-weight="400">/${escapeXml(bassRoot)}</tspan>`;
+        if (bassAcc) inner += `<tspan font-family="${SANS}" font-size="${(BASE*0.9*0.85).toFixed(1)}" dy="-0.5">${escapeXml(bassAcc)}</tspan><tspan dy="0.5"></tspan>`;
+    }
+    return `<text x="${x}" y="${y}" font-family="${SERIF}" font-size="${BASE}" font-weight="600" fill="${FILL}" text-anchor="middle">${inner}</text>`;
+}
 
 function baseDuration(ticks) {
     if (ticks === 1440) return 960;
@@ -406,7 +449,7 @@ function renderMeasureSvg(m, opts) {
             if (note.string == null || note.fret == null) return;
             const x = getXm(ev.xPos);
             const y = stringY(note.string);
-            inner += `<text x="${x}" y="${y}" dominant-baseline="central" text-anchor="middle" font-size="${LAYOUT.noteFontSize}" fill="#1a1a2e" data-event-id="${ev.id}">${note.fret}</text>`;
+            inner += `<text x="${x}" y="${y}" dominant-baseline="central" text-anchor="middle" font-family="Crimson Text,Georgia,serif" font-size="${LAYOUT.noteFontSize}" font-weight="900" letter-spacing="0.5" fill="#222" stroke="#fff" stroke-width="4" stroke-linejoin="round" paint-order="stroke fill" data-event-id="${ev.id}">${note.fret}</text>`;
         });
 
         if (ev.stemDir) {
@@ -492,7 +535,7 @@ function renderTabRow(input) {
             m.chordNames.forEach((name, ci) => {
                 const xFrac = ci / total;
                 const xPx   = xOffset + (isFirst ? LAYOUT.xPaddingFirst : LAYOUT.xPadding) + xFrac * (mw - (isFirst ? LAYOUT.xPaddingFirst : LAYOUT.xPadding) - LAYOUT.xPadding);
-                svgBody += `<text x="${xPx.toFixed(1)}" y="${chordBarH - 3}" font-family="Crimson Text,Georgia,serif" font-style="italic" font-size="11" fill="#2c3e50">${escapeXml(name)}</text>`;
+                svgBody += formatChordSvg(name, xPx.toFixed(1), chordBarH - 3);
             });
         }
 
@@ -506,13 +549,6 @@ function renderTabRow(input) {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth.toFixed(1)} ${totalHeight}" width="${totalWidth.toFixed(1)}" height="${totalHeight}" style="overflow:visible">${svgBody}</svg>`;
 }
 
-function escapeXml(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 // Accepts either:

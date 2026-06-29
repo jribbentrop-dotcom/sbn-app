@@ -43,7 +43,7 @@ const LAYOUT = {
     stemLength:     15,
     beamThickness:  3.2,
     interBeamGap:   2,
-    noteFontSize:   12,
+    noteFontSize:   13,
 };
 LAYOUT.tabHeight     = LAYOUT.topPadding + LAYOUT.stringSpacing * (LAYOUT.stringCount - 1) + LAYOUT.bottomPadding;
 LAYOUT.topStringY    = LAYOUT.stringAreaTop;
@@ -381,7 +381,7 @@ function renderMeasureSvg(m, opts) {
             if (note.string == null || note.fret == null) return;
             const x = getXm(ev.xPos);
             const y = stringY(note.string);
-            html += `<text x="${x}" y="${y}" dominant-baseline="central" text-anchor="middle" font-family="Crimson Text,Georgia,serif" font-size="13" font-weight="900" fill="#222" stroke="#fff" stroke-width="3" stroke-linejoin="round" paint-order="stroke fill" data-event-id="${ev.id}">${note.fret}</text>`;
+            html += `<text x="${x}" y="${y}" dominant-baseline="central" text-anchor="middle" font-family="Crimson Text,Georgia,serif" font-size="${LAYOUT.noteFontSize}" font-weight="900" letter-spacing="0.5" fill="#222" stroke="#fff" stroke-width="4" stroke-linejoin="round" paint-order="stroke fill" data-event-id="${ev.id}">${note.fret}</text>`;
         });
 
         if (ev.stemDir) {
@@ -548,36 +548,48 @@ function parseChordName(name) {
     return { root, accidental: acc, quality, ext, bass };
 }
 
-// Render a chord name as an SVG <text> with <tspan> children matching sbnFormatChord.
-// root: bold, 1.1× size; quality: weight 400; ext: 0.75× size, dy shift for superscript; bass: 0.9× size.
+// Render a chord name as an SVG <text> with <tspan> children matching chord-symbols.css.
+// Mirrors: root 1.1em bold, accidental 0.82em sans-serif +0.08em, quality 0.4em,
+//          ext 0.72em superscript, bass 0.9em, bass accidental 0.85em sans-serif.
 function formatChordSvg(name, x, y) {
-    const BASE   = 14;   // base font-size in px
+    const BASE   = 14;   // base font-size in px (matches CHORD_BAR_H area)
     const FILL   = '#2c3e50';
-    const FONT   = 'Crimson Text,Georgia,serif';
+    const SERIF  = 'Crimson Text,Georgia,serif';
+    const SANS   = 'DM Sans,system-ui,sans-serif';  // for accidentals (♭/♯)
 
     const { root, accidental, quality, ext, bass } = parseChordName(name);
 
-    let inner = '';
-    // Root
-    inner += `<tspan font-size="${(BASE * 1.1).toFixed(1)}" font-weight="700">${escapeXml(root)}</tspan>`;
-    // Accidental
-    if (accidental) {
-        inner += `<tspan font-size="${(BASE * 0.95).toFixed(1)}" dy="-0.6" baseline-shift="0">${escapeXml(accidental)}</tspan><tspan dy="0.6"></tspan>`;
+    // Parse bass for its own accidental
+    let bassRoot = bass, bassAcc = '';
+    if (bass) {
+        const bm = bass.match(/^([A-G])([♯♭#b]?)(.*)$/);
+        if (bm) { bassRoot = bm[1] + (bm[3] || ''); bassAcc = bm[2].replace('#','♯').replace('b','♭'); }
     }
-    // Quality
+
+    let inner = '';
+    // Root — 1.1× bold serif
+    inner += `<tspan font-size="${(BASE * 1.1).toFixed(1)}" font-weight="700">${escapeXml(root)}</tspan>`;
+    // Accidental — 0.82× sans, slight rise (dy -1 / +1 to approximate vertical-align:0.08em)
+    if (accidental) {
+        inner += `<tspan font-family="${SANS}" font-size="${(BASE * 0.82).toFixed(1)}" dy="-1">${escapeXml(accidental)}</tspan><tspan dy="1"></tspan>`;
+    }
+    // Quality — weight 400 serif
     if (quality) {
         inner += `<tspan font-weight="400">${escapeXml(quality)}</tspan>`;
     }
-    // Extension (superscript)
+    // Extension — 0.72× superscript (dy -5 up, +5 back)
     if (ext) {
-        inner += `<tspan font-size="${(BASE * 0.75).toFixed(1)}" font-weight="600" dy="-4">${escapeXml(ext)}</tspan><tspan dy="4"></tspan>`;
+        inner += `<tspan font-size="${(BASE * 0.72).toFixed(1)}" font-weight="600" dy="-5">${escapeXml(ext)}</tspan><tspan dy="5"></tspan>`;
     }
-    // Bass
+    // Bass note — /Root 0.9× serif
     if (bass) {
-        inner += `<tspan font-size="${(BASE * 0.9).toFixed(1)}" font-weight="400">/${escapeXml(bass)}</tspan>`;
+        inner += `<tspan font-size="${(BASE * 0.9).toFixed(1)}" font-weight="400">/${escapeXml(bassRoot)}</tspan>`;
+        if (bassAcc) {
+            inner += `<tspan font-family="${SANS}" font-size="${(BASE * 0.9 * 0.85).toFixed(1)}" dy="-0.5">${escapeXml(bassAcc)}</tspan><tspan dy="0.5"></tspan>`;
+        }
     }
 
-    return `<text x="${x}" y="${y}" font-family="${FONT}" font-size="${BASE}" font-weight="600" fill="${FILL}" text-anchor="middle">${inner}</text>`;
+    return `<text x="${x}" y="${y}" font-family="${SERIF}" font-size="${BASE}" font-weight="600" fill="${FILL}" text-anchor="middle">${inner}</text>`;
 }
 
 function escapeXml(str) {
