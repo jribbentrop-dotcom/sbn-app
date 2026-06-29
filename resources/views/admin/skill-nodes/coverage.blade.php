@@ -82,7 +82,7 @@
             @if(!$n)
                 <p class="sbn-coverage-empty">✓ All nodes have linked content.</p>
             @else
-            <div class="sbn-list-table-wrap">
+            <div class="sbn-table-wrap">
                 <table class="sbn-table">
                     <thead><tr><th>Branch</th><th>Title</th><th>Slug</th><th style="width:80px;"></th></tr></thead>
                     <tbody>
@@ -113,7 +113,7 @@
             @if(!$n)
                 <p class="sbn-coverage-empty">✓ All nodes are linked to at least one course.</p>
             @else
-            <div class="sbn-list-table-wrap">
+            <div class="sbn-table-wrap">
                 <table class="sbn-table">
                     <thead><tr><th>Branch</th><th>Title</th><th>Slug</th><th style="width:80px;"></th></tr></thead>
                     <tbody>
@@ -145,7 +145,7 @@
             @if(!$n)
                 <p class="sbn-coverage-empty">✓ All nodes have at least one style tag.</p>
             @else
-            <div class="sbn-list-table-wrap">
+            <div class="sbn-table-wrap">
                 <table class="sbn-table">
                     <thead><tr><th>Branch</th><th>Title</th><th>Slug</th><th style="width:80px;"></th></tr></thead>
                     <tbody>
@@ -176,7 +176,7 @@
             @if(!$n)
                 <p class="sbn-coverage-empty">✓ All nodes have an icon.</p>
             @else
-            <div class="sbn-list-table-wrap">
+            <div class="sbn-table-wrap">
                 <table class="sbn-table">
                     <thead><tr><th>Branch</th><th>Title</th><th>Slug</th><th style="width:80px;"></th></tr></thead>
                     <tbody>
@@ -212,7 +212,7 @@
             @if(!$n)
                 <p class="sbn-coverage-empty">✓ All songs are linked.</p>
             @else
-            <div class="sbn-list-table-wrap">
+            <div class="sbn-table-wrap">
                 <table class="sbn-table">
                     <thead><tr><th>Title</th><th>Slug</th><th style="width:80px;"></th></tr></thead>
                     <tbody>
@@ -242,7 +242,7 @@
             @if(!$n)
                 <p class="sbn-coverage-empty">✓ All rhythms are linked.</p>
             @else
-            <div class="sbn-list-table-wrap">
+            <div class="sbn-table-wrap">
                 <table class="sbn-table">
                     <thead><tr><th>Name</th><th>Slug</th><th style="width:80px;"></th></tr></thead>
                     <tbody>
@@ -272,7 +272,7 @@
             @if(!$n)
                 <p class="sbn-coverage-empty">✓ All progressions are linked.</p>
             @else
-            <div class="sbn-list-table-wrap">
+            <div class="sbn-table-wrap">
                 <table class="sbn-table">
                     <thead><tr><th>Name</th><th>Slug</th><th style="width:80px;"></th></tr></thead>
                     <tbody>
@@ -327,7 +327,7 @@
             @if(!$n)
                 <p class="sbn-coverage-empty">✓ All courses are linked to a node.</p>
             @else
-            <div class="sbn-list-table-wrap">
+            <div class="sbn-table-wrap">
                 <table class="sbn-table">
                     <thead><tr><th>Title</th><th>Slug</th><th style="width:80px;"></th></tr></thead>
                     <tbody>
@@ -361,7 +361,7 @@
             @if(!$n)
                 <p class="sbn-coverage-empty">✓ No pending drafts.</p>
             @else
-            <div class="sbn-list-table-wrap">
+            <div class="sbn-table-wrap">
                 <table class="sbn-table">
                     <thead><tr><th>Leadsheet</th><th>Chord</th><th>Root</th><th>Created</th></tr></thead>
                     <tbody>

@@ -1,3 +1,6 @@
+> ⚠️ **ARCHIVED / SHIPPED 2026-06-29.** Built; as-built folded into
+> `docs/SBN-Skill-System-Plan.md` → "Admin content-health dashboard". Kept for history only.
+
 # Admin Dashboard Rebuild — Spec (for Sonnet)
 
 > **For:** Sonnet (implementer). **Status:** ready to build. Self-contained — read the named files

@@ -193,7 +193,28 @@ class SkillNodeSeeder extends Seeder
         'brazilian-rhythm-styles' => [
             'title' => 'Brazilian & Afro-Latin Rhythm Styles', 'branch' => 'rhythm', 'sub_branch' => 'Latin Rhythm',
             'grade' => 3, 'icon_key' => 'globe-alt',
-            'prereqs' => ['clave-systems', 'two-four-feel'],
+            'prereqs' => ['clave-systems', 'two-four-feel', 'partido-alto-groove'],
+        ],
+
+        // ── Rhythm (2026-06-29 addition — bossa/samba progression ladder, from
+        //    cross-referencing the "Skill Nodes.docx" brainstorm against this
+        //    seeder. Evidence: course 1 "The Joao Gilberto Rhythm" lesson, course 4
+        //    "Partido Alto" lesson, course 78 lessons (Gilberto's Rhythm, Samba,
+        //    Partido Alto) — see docs/SBN-Skill-Nodes-Brainstorm-Crossref.md. ────
+        'bossa-syncopated-push' => [
+            'title' => 'Bossa Syncopated Push', 'branch' => 'rhythm', 'sub_branch' => 'Feels',
+            'grade' => 2, 'icon_key' => 'bolt',
+            'prereqs' => ['two-four-feel', 'syncopation'],
+        ],
+        'alternating-bass-patterns' => [
+            'title' => 'Alternating Bass Patterns', 'branch' => 'rhythm', 'sub_branch' => 'Feels',
+            'grade' => 2, 'icon_key' => 'arrows-up-down',
+            'prereqs' => ['two-four-feel'],
+        ],
+        'partido-alto-groove' => [
+            'title' => 'Partido Alto Groove', 'branch' => 'rhythm', 'sub_branch' => 'Latin Rhythm',
+            'grade' => 3, 'icon_key' => 'globe-alt',
+            'prereqs' => ['bossa-syncopated-push', 'alternating-bass-patterns', 'clave-systems'],
         ],
 
         // ── Melody ───────────────────────────────────────────────────────────
@@ -263,6 +284,36 @@ class SkillNodeSeeder extends Seeder
             'title' => 'Tone Production', 'branch' => 'technique', 'sub_branch' => 'Articulation',
             'grade' => 2, 'icon_key' => 'speaker-wave',
             'prereqs' => ['fingerpicking-basics'],
+        ],
+
+        // ── Technique (2026-06-29 addition — foundational technique sub-curriculum
+        //    for the Course 9 rewrite, from cross-referencing the "Skill Nodes.docx"
+        //    brainstorm's Right Hand Mechanics / Left Hand Mechanics / Postures &
+        //    Setup categories. See docs/SBN-Skill-Nodes-Brainstorm-Crossref.md
+        //    recommendation #1 and docs/Course-9-Technique-Rewrite-Full-Draft-2026-06-29.md.
+        //    Deliberately scoped to foundational mechanics only — the brainstorm's
+        //    "Advanced Performance" tier (harmonics, campanella, rasgueado, Travis
+        //    picking, classical tremolo, counterpoint) stays an open scope question,
+        //    not addressed here. ──────────────────────────────────────────────────
+        'guitar-posture-setup' => [
+            'title' => 'Posture & Setup', 'branch' => 'technique', 'sub_branch' => 'Foundations',
+            'grade' => 1, 'icon_key' => 'user',
+            'prereqs' => [],
+        ],
+        'pima-finger-assignment' => [
+            'title' => 'The PIMA Finger System', 'branch' => 'technique', 'sub_branch' => 'Fingerstyle',
+            'grade' => 1, 'icon_key' => 'hand-raised',
+            'prereqs' => ['guitar-posture-setup'],
+        ],
+        'rest-stroke-free-stroke' => [
+            'title' => 'Rest Stroke & Free Stroke', 'branch' => 'technique', 'sub_branch' => 'Fingerstyle',
+            'grade' => 1, 'icon_key' => 'arrows-right-left',
+            'prereqs' => ['pima-finger-assignment'],
+        ],
+        'hand-damping-control' => [
+            'title' => 'Hand Damping & Muting', 'branch' => 'technique', 'sub_branch' => 'Articulation',
+            'grade' => 2, 'icon_key' => 'speaker-x-mark',
+            'prereqs' => ['right-hand-independence', 'thumb-independence'],
         ],
 
         // ── Ear Training ─────────────────────────────────────────────────────

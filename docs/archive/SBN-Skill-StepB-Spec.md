@@ -1,3 +1,7 @@
+> ⚠️ **ARCHIVED / SHIPPED 2026-06-29.** Built; as-built folded into
+> `docs/SBN-Skill-System-Plan.md` → "Step B — student-facing 'Skills this builds' panel".
+> Kept for history only; the Plan is the source of truth.
+
 # Skill System — Step B Spec: "Skills this builds" on detail pages
 
 > **For:** Sonnet (implementer). **Status:** ready to build. **Prereq:** Step A is shipped

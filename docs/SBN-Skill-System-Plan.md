@@ -16,7 +16,7 @@
 > exercises excluded (course-only). Reverse relations on each content model power "skills this builds".
 > Admin search+chips picker. See "Node ↔ Content Links".
 > **Bossa/samba rhythm ladder added 2026-06-29** (from cross-referencing `Skill Nodes.docx` brainstorm —
-> see `SBN-Skill-Nodes-Brainstorm-Crossref.md`): 3 new rhythm nodes (`bossa-syncopated-push`,
+> see `docs/archive/SBN-Skill-Nodes-Brainstorm-Crossref.md`): 3 new rhythm nodes (`bossa-syncopated-push`,
 > `alternating-bass-patterns`, `partido-alto-groove`) wired between `two-four-feel` and
 > `brazilian-rhythm-styles`/`clave-systems`. Graph is now **61 nodes** / **69 prerequisite edges**.
 > Draft courses 77/78/79 (previously zero-mapped) and courses 1/4 mapped to relevant nodes —
@@ -25,7 +25,7 @@
 > shapes (no new beginner-tier nodes needed — confirmed existing nodes already serve that role).
 > Drop Chord System granularity reviewed and left as-is (one node per voicing type; decision confirmed,
 > not revisited).
-> **Admin dashboard rebuilt 2026-06-29** (`SBN-Admin-Dashboard-Spec.md`): stale migration-progress card
+> **Admin dashboard rebuilt 2026-06-29** (spec now `docs/archive/SBN-Admin-Dashboard-Spec.md`): stale migration-progress card
 > removed; `/admin` now shows Totals (9 tiles incl. courses/lessons/skill-nodes), Recently Edited feed
 > (last 12 across 7 content types), and a Content Health card (10 gap counts, each linking to the new
 > `/admin/skill-nodes/coverage` drill-down). `ContentHealthService` owns all gap queries; coverage page
@@ -36,6 +36,18 @@
 > player-class/style-class tables (pillar 5), repertoire tables, technique sub-curriculum (PIMA,
 > rest/free stroke, posture, etc. — pending course 9 rewrite, see brainstorm crossref recommendation #1).
 > Tracked in "Open Decisions" / "Post-v1 Roadmap".
+> **Course 9 technique rewrite APPLIED 2026-06-29** (recommendation #1): 9 new foundational lessons
+> (posture/setup/tuning, PIMA naming, rest vs. free stroke, nail/flesh tone, right-hand arpeggio
+> patterns, thumb independence/bass lines, damping, hammer-ons/pull-offs, slides/vibrato) + 4 new
+> technique nodes (`guitar-posture-setup`, `pima-finger-assignment`, `rest-stroke-free-stroke`,
+> `hand-damping-control`, ids 65–68, grades 1/1/1/2) with prereq edges (posture→pima→rest/free;
+> damping requires right-hand- + thumb-independence). All 4 mapped to course 9 (now 13 node mappings).
+> The 3 existing repertoire-study lessons (Villa-Lobos étude, Tárrega/Sor, João Gilberto batida)
+> resequenced to the end (sort_order 9–11), content/title/slug untouched. Course 9 now has 12 lessons;
+> graph is **65 nodes**. Applied via `scripts/apply_course9_rewrite.py` against a healthy `sbn.db`
+> (the truncation noted earlier was resolved/restored before this run — verified `integrity_check: ok`,
+> 54,210,560 bytes). Full draft: `docs/Course-9-Technique-Rewrite-Full-Draft-2026-06-29.md`. The script
+> is idempotent and also lives in `SkillNodeSeeder.php` for fresh-seed parity.
 
 ---
 
@@ -211,7 +223,7 @@ Mapping by course (id → node slugs):
 | 6 Gilberto plays Jobim | two-four-feel, syncopation, tritone-substitution |
 | 7 Latin Side of Pat Metheny | chord-inversions, drop2-voicings, drop3-voicings, triads, syncopation, pulse-subdivision |
 | 8 Latin Side of Wes Montgomery | tritone-substitution, comping-patterns, ii-v-i-major, syncopation, pulse-subdivision, two-four-feel |
-| 9 Right Hand Technique for Nylon Guitar | pulse-subdivision, syncopation, two-four-feel, fingerpicking-basics, right-hand-independence, thumb-independence, arpeggio-shapes |
+| 9 Right Hand Technique for Nylon Guitar | *(rewrite drafted 2026-06-29, not yet applied — see status block above)*: guitar-posture-setup, pima-finger-assignment, rest-stroke-free-stroke, tone-production, right-hand-independence, thumb-independence, hand-damping-control, legato-slurs, fingerpicking-basics, pulse-subdivision, syncopation, two-four-feel, arpeggio-shapes |
 | 10 The Clave: Latin Rhythm 101 | pulse-subdivision, syncopation, two-four-feel |
 | 11 Melody Playing on Nylon Guitar | scale-patterns, legato-slurs, intervals |
 | 12 Music Theory Basics | intervals, triads, pulse-subdivision, syncopation, two-four-feel, scale-patterns, standard-notation-basics, rhythm-notation |
@@ -648,6 +660,31 @@ categories `shell-voicings`→`["shell"]` (33 diagrams), `drop2-voicings`→`["d
 **Deploy:** both migrations + the data ride along via `scripts/deploy_db.sh` (whole-DB scp). Worth
 folding into the schema-as-migrations housekeeping follow-up so prod isn't dependent on the scp'd file.
 
+### Step B — student-facing "Skills this builds" panel (BUILT 2026-06-29)
+
+The first *student-facing* surface for the content links (was `SBN-Skill-StepB-Spec.md` → `docs/archive/`, now folded
+here). Shared **`resources/js/Components/Skill/SkillsBuiltPanel.vue`** on all four library detail
+pages (`Library/{Songs,Rhythms,Progressions,Chords}/Show.vue`); each `show()` controller passes a
+`skills` array via the reverse relations. Per-node completion ✓ for the logged-in student (the
+`flip()`-into-lookup pattern copied from `CourseController::courseSkills()`). Empty → panel renders
+nothing (`v-if`). **Gotchas Sonnet got right:** chord uses `$chord->skillNodes()` (METHOD —
+category-resolved Collection) while song/rhythm/progression use `$model->skillNodes` (relation
+property); the panel has **no scoped `<style>`** — all `sbn-skills-built-*` classes live in
+`sbn-design-system.css` (theme-switch safe, per `SBN-Design-Reference.md`). Nodes render as
+non-links for now (node landing page = Phase 2, not built). Audited 2026-06-29: counts/relations
+verified, `.sbn-table-wrap` class fix + skill-nodes-index "Coverage" link added during audit.
+
+### Admin content-health dashboard (BUILT 2026-06-29)
+
+Was `SBN-Admin-Dashboard-Spec.md` (→ `docs/archive/`), now folded here. `/admin` rebuilt: stale migration-progress card
+removed, orphan `dashboard.blade.php` deleted. Three zones — Totals (9 tiles), Recently Edited (last
+12 across 7 content types, `updated_at`-sorted; progressions gained `updated_at` via migration
+`2026_06_29_000003` backfilled from `created_at`), Content Health (10 gap counts). All gap queries
+live in **`App\Services\ContentHealthService`** (`summary()` for counts, `details()` for lists),
+reused by the new **`/admin/skill-nodes/coverage`** drill-down (`SkillNodeController@coverage` +
+`coverage.blade.php`, collapsible `<details>` per gap, `:target` highlight from dashboard anchor
+links). Coverage reachable from the skill-nodes index ("📊 Coverage" action) + the dashboard.
+
 ---
 
 ## Existing SBN Integration Points
@@ -716,3 +753,9 @@ Reading & Theory +2: scale-degrees, tab-reading-basics). 3 existing nodes update
 *Continue: content-evidence pass on Melody/Technique/Ear Training/Reading & Theory nodes; close the
 curriculum gaps the mapping surfaced (Ear Training has no course coverage at all); build the skill-node
 landing page when ready to go student-facing.*
+*2026-06-29 (later): Course 9 ("Right Hand Technique for Nylon Guitar") foundational rewrite drafted in
+full per brainstorm crossref recommendation #1 — 9 new lessons + 4 new technique skill nodes
+(`guitar-posture-setup`, `pima-finger-assignment`, `rest-stroke-free-stroke`, `hand-damping-control`),
+seeder updated. Blocked from applying to the DB this session by genuine file truncation on
+`database/sbn.db` (host-side, confirmed via `db_checkout.py status`, not a mount-flakiness retry case).
+Draft + idempotent apply script left ready for the next session once the file is restored.*
