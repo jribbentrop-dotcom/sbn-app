@@ -1,0 +1,129 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\ChordDiagram;
+use App\Models\Leadsheet;
+use App\Models\PdfDocument;
+use App\Models\RhythmPattern;
+use Illuminate\Http\Request;
+
+class PdfDocumentController extends Controller
+{
+    public function index()
+    {
+        $documents = PdfDocument::orderBy('title')->get();
+
+        $templateLabels = [];
+        foreach (PdfDocument::templateKeys() as $key) {
+            $schema = require config_path("pdf/templates/{$key}.php");
+            $templateLabels[$key] = $schema['label'] ?? $key;
+        }
+
+        return view('admin.pdf.index', compact('documents', 'templateLabels'));
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'title'   => ['required', 'string', 'max:255'],
+            'slug'    => ['required', 'string', 'max:255', 'unique:sbn_pdf_documents,slug'],
+            'pages'   => ['required', 'string'],
+        ]);
+
+        $pages = json_decode($request->input('pages'), true) ?? [];
+        if (empty($pages)) {
+            return back()->withInput()->withErrors(['pages' => 'Select at least one page type.']);
+        }
+
+        $doc = PdfDocument::create([
+            'template_key' => 'composed',
+            'title'        => $request->input('title'),
+            'slug'         => $request->input('slug'),
+            'pages'        => $pages,
+            'status'       => 'draft',
+            'content'      => [],
+        ]);
+
+        return redirect()->route('admin.pdf.edit', $doc->slug)
+            ->with('success', 'Document created.');
+    }
+
+    public function edit(PdfDocument $document)
+    {
+        $schema = $document->editorSchema();
+        return view('admin.pdf.edit', compact('document', 'schema'));
+    }
+
+    public function update(Request $request, PdfDocument $document)
+    {
+        $content = $request->input('content');
+
+        // Ensure we have an array (comes in as JSON string from the Alpine form)
+        if (is_string($content)) {
+            $content = json_decode($content, true) ?? [];
+        }
+
+        $document->update([
+            'title'   => $request->input('title', $document->title),
+            'status'  => $request->input('status', $document->status),
+            'content' => $content,
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
+        return redirect()->route('admin.pdf.edit', $document->slug)
+            ->with('success', 'Document saved.');
+    }
+
+    public function destroy(PdfDocument $document)
+    {
+        $document->delete();
+
+        return redirect()->route('admin.pdf.index')->with('success', "Deleted \"{$document->title}\".");
+    }
+
+    // ── Autocomplete endpoints ─────────────────────────────────────────────────
+
+    public function searchChords(Request $request)
+    {
+        $q = $request->input('q', '');
+
+        $rows = ChordDiagram::where('slug', 'like', "%{$q}%")
+            ->orWhere('name', 'like', "%{$q}%")
+            ->orderBy('slug')
+            ->limit(20)
+            ->get(['slug', 'name']);
+
+        return response()->json($rows->map(fn ($r) => ['slug' => $r->slug, 'label' => $r->name]));
+    }
+
+    public function searchRhythms(Request $request)
+    {
+        $q = $request->input('q', '');
+
+        $rows = RhythmPattern::where('slug', 'like', "%{$q}%")
+            ->orWhere('name', 'like', "%{$q}%")
+            ->orderBy('slug')
+            ->limit(20)
+            ->get(['slug', 'name']);
+
+        return response()->json($rows->map(fn ($r) => ['slug' => $r->slug, 'label' => $r->name]));
+    }
+
+    public function searchSongs(Request $request)
+    {
+        $q = $request->input('q', '');
+
+        $rows = Leadsheet::where('slug', 'like', "%{$q}%")
+            ->orWhere('title', 'like', "%{$q}%")
+            ->orderBy('slug')
+            ->limit(20)
+            ->get(['slug', 'title']);
+
+        return response()->json($rows->map(fn ($r) => ['slug' => $r->slug, 'label' => $r->title]));
+    }
+}

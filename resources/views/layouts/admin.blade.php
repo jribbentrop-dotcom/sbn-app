@@ -45,6 +45,7 @@
                 <x-admin.nav-item route="admin.fretboards.index" icon="chord" label="Fretboards" />
                 <x-admin.nav-item route="admin.courses.index" icon="leadsheet" label="Courses" />
                 <x-admin.nav-item route="admin.skill-nodes.index" icon="chord" label="Skill Nodes" />
+                <x-admin.nav-item route="admin.pdf.index" icon="leadsheet" label="PDF Products" />
             </div>
             <div class="sbn-nav-section">
                 <span class="sbn-nav-label" x-show="!sidebarCollapsed" x-transition.opacity>Shop</span>

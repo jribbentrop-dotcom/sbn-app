@@ -243,9 +243,16 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
     // AI Assistant
     Route::post('/ai/process', [\App\Http\Controllers\Admin\AIController::class, 'process'])->name('ai.process');
 
-    // PDF pipeline
+    // PDF pipeline — static routes BEFORE the {document} wildcard
     Route::get('/pdf/preview/{slug}',  [\App\Http\Controllers\Admin\PdfController::class, 'preview'])->name('pdf.preview');
     Route::get('/pdf/download/{slug}', [\App\Http\Controllers\Admin\PdfController::class, 'download'])->name('pdf.download');
+
+    // PDF document editor
+    Route::get('/pdf',                  [\App\Http\Controllers\Admin\PdfDocumentController::class, 'index'])->name('pdf.index');
+    Route::post('/pdf',                 [\App\Http\Controllers\Admin\PdfDocumentController::class, 'store'])->name('pdf.store');
+    Route::get('/pdf/{document}/edit',  [\App\Http\Controllers\Admin\PdfDocumentController::class, 'edit'])->name('pdf.edit');
+    Route::put('/pdf/{document}',       [\App\Http\Controllers\Admin\PdfDocumentController::class, 'update'])->name('pdf.update');
+    Route::delete('/pdf/{document}',    [\App\Http\Controllers\Admin\PdfDocumentController::class, 'destroy'])->name('pdf.destroy');
 });
 
 /*
@@ -326,6 +333,11 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
 
     // AI Assistant API
     Route::post('/ai/process', [\App\Http\Controllers\Admin\AIController::class, 'process'])->name('ai.process');
+
+    // PDF editor autocomplete
+    Route::get('/pdf/search-chords',  [\App\Http\Controllers\Admin\PdfDocumentController::class, 'searchChords'])->name('pdf.search-chords');
+    Route::get('/pdf/search-rhythms', [\App\Http\Controllers\Admin\PdfDocumentController::class, 'searchRhythms'])->name('pdf.search-rhythms');
+    Route::get('/pdf/search-songs',   [\App\Http\Controllers\Admin\PdfDocumentController::class, 'searchSongs'])->name('pdf.search-songs');
 });
 
 /*

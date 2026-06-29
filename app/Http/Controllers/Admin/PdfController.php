@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ChordDiagram;
 use App\Models\Leadsheet;
+use App\Models\PdfDocument;
 use App\Models\RhythmPattern;
+use App\Models\VoicingUsage;
 use App\Services\TabXmlParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Process;
@@ -19,8 +21,10 @@ class PdfController extends Controller
      */
     public function preview(string $slug)
     {
-        $data = $this->buildChordBookData($slug);
-        return view('admin.pdf.chord-book', $data);
+        $doc   = PdfDocument::where('slug', $slug)->firstOrFail();
+        $data  = $this->buildData($doc);
+        $blade = $this->resolveBlade($doc);
+        return view($blade, $data);
     }
 
     /**
@@ -29,8 +33,10 @@ class PdfController extends Controller
      */
     public function download(string $slug)
     {
-        $data  = $this->buildChordBookData($slug);
-        $html  = view('admin.pdf.chord-book', $data)->render();
+        $doc   = PdfDocument::where('slug', $slug)->firstOrFail();
+        $data  = $this->buildData($doc);
+        $blade = $this->resolveBlade($doc);
+        $html  = view($blade, $data)->render();
         $title = $data['title'] ?? $slug;
 
         $pdf = Browsershot::html($html)
@@ -48,40 +54,39 @@ class PdfController extends Controller
 
     // -------------------------------------------------------------------------
 
-    /**
-     * Build the view-data array for a chord-book PDF.
-     *
-     * For v1: a "slug" maps to a group of chords via config.
-     * The config file (config/pdf/{slug}.php) returns an array of
-     * sbn_chord_diagrams slugs in display order.
-     *
-     * Falls back to rendering a single chord if no config exists.
-     */
-    private function buildChordBookData(string $slug): array
+    private function resolveBlade(PdfDocument $doc): string
     {
-        $configFile = config_path("pdf/{$slug}.php");
+        // Composed documents (pages stored in DB) use the shared layout
+        if (!empty($doc->pages)) {
+            return 'admin.pdf.composed';
+        }
+        // Legacy: blade defined in the template PHP config
+        return $doc->editorSchema()['blade'] ?? 'admin.pdf.composed';
+    }
 
-        if (file_exists($configFile)) {
-            $config      = require $configFile;
-            $chordSlugs  = $config['chords'] ?? [];
-            $title       = $config['title']  ?? $slug;
-            $subtitle    = $config['subtitle'] ?? null;
-            $series      = $config['series']   ?? 'SBN Teaching Hub · Top 10';
-            $coverDescription = $config['description'] ?? null;
-            $introHtml   = $config['intro_html'] ?? null;
-        } else {
-            // Single-chord fallback
-            $config      = [];
-            $chordSlugs  = [$slug];
-            $title       = $slug;
-            $subtitle    = null;
-            $series      = 'SBN Teaching Hub';
-            $coverDescription = null;
-            $introHtml   = null;
+    /**
+     * Build the view-data array for a PDF document sourced from the DB.
+     */
+    private function buildData(PdfDocument $doc): array
+    {
+        if (!empty($doc->pages)) {
+            return $this->buildComposedData($doc);
+        }
+        if ($doc->template_key === 'top10') {
+            return $this->buildTop10Data($doc);
         }
 
+        $content = $doc->content ?? [];
+
+        $title            = $content['title']       ?? $doc->slug;
+        $subtitle         = $content['subtitle']    ?? null;
+        $series           = $content['series']      ?? 'SBN Teaching Hub';
+        $coverDescription = $content['description'] ?? null;
+        $introHtml        = $content['intro_html']  ?? null;
+
         // Optional rhythm slugs
-        $rhythmSlugs = $config['rhythms'] ?? [];
+        $rhythmSlugs = $content['rhythms'] ?? [];
+        $config      = [];  // kept for Blade compat (chord_descriptions key not needed)
         $rhythms = [];
         foreach ($rhythmSlugs as $rSlug) {
             $rRow = RhythmPattern::where('slug', $rSlug)->first();
@@ -100,26 +105,19 @@ class PdfController extends Controller
             ];
         }
 
-        // notation_svg config: keyed by chord slug OR positional (0-based index).
-        // Each entry: ['file' => 'svgexport/foo-2.svg', 'system' => 1]
-        $notationMap = $config['notation_svg'] ?? [];
-
         $chords = [];
-        foreach ($chordSlugs as $idx => $chordSlug) {
+        foreach ($content['chords'] ?? [] as $idx => $chordItem) {
+            $chordSlug = is_array($chordItem) ? ($chordItem['slug'] ?? null) : $chordItem;
+            if (! $chordSlug) continue;
+
             $row = ChordDiagram::where('slug', $chordSlug)->first();
             if (! $row) continue;
 
             $svg = $this->renderDiagramSvg($chordSlug);
 
-            // Resolve notation SVG: try slug key first, then positional index
-            $notationCfg = $notationMap[$chordSlug] ?? $notationMap[$idx] ?? null;
-            $notationSvg = null;
-            if ($notationCfg && ! empty($notationCfg['file'])) {
-                $notationSvg = self::extractTabSvg(
-                    $notationCfg['file'],
-                    $notationCfg['system'] ?? 1
-                );
-            }
+            // Content description overrides DB description (falls back to DB if empty)
+            $contentDesc = is_array($chordItem) ? ($chordItem['description'] ?? '') : '';
+            $description = (strlen(trim($contentDesc)) > 0) ? $contentDesc : $row->description;
 
             $chords[] = [
                 'slug'             => $row->slug,
@@ -133,16 +131,15 @@ class PdfController extends Controller
                 'shape_family'     => $row->shape_family,
                 'interval_labels'  => $row->interval_labels,
                 'notes'            => $row->notes,
-                'description'      => $row->description,
+                'description'      => $description,
                 'svg'              => $svg,
-                'notation_svg'     => $notationSvg,
+                'notation_svg'     => null,
             ];
         }
 
-        // Optional song examples (leadsheet slugs with optional measure range)
-        // Config entry: ['slug' => 'night-and-day', 'measures' => [0, 7], 'label' => 'Night and Day']
+        // Optional song examples
         $songExamples = [];
-        foreach ($config['songs'] ?? [] as $songCfg) {
+        foreach ($content['songs'] ?? [] as $songCfg) {
             $lsSlug = $songCfg['slug'] ?? null;
             if (! $lsSlug) continue;
 
@@ -358,6 +355,232 @@ class PdfController extends Controller
 
         $err = trim($result->errorOutput());
         return '<svg viewBox="0 0 560 80" width="560" height="80"><rect x="0" y="0" width="560" height="80" fill="none" stroke="#e2e8f0" stroke-width="1"/><text x="280" y="43" text-anchor="middle" font-size="9" fill="#8896a4">TAB extract failed: ' . e($err) . '</text></svg>';
+    }
+
+    /**
+     * Build view-data for a composed document (pages stored in DB).
+     * Reuses buildTop10Data and just injects the $pages array.
+     */
+    private function buildComposedData(PdfDocument $doc): array
+    {
+        $data          = $this->buildTop10Data($doc);
+        $data['pages'] = $doc->pages ?? [];
+        return $data;
+    }
+
+    /**
+     * Build view-data for the top10 rich template.
+     */
+    private function buildTop10Data(PdfDocument $doc): array
+    {
+        $content = $doc->content ?? [];
+
+        // ── Top-level authored fields ──────────────────────────────────────
+        $title        = $content['title']        ?? 'TOP10 Bossa Nova Chords';
+        $subtitle     = $content['subtitle']     ?? '';
+        $eyebrow      = $content['eyebrow']      ?? '';
+        $hook         = $content['hook']         ?? '';
+        $facts        = $content['facts']        ?? '';
+        $theory_title = $content['theory_title'] ?? 'Chord Theory in a Nutshell';
+        $theory_html  = $content['theory_html']  ?? '';
+
+        // ── Chord item pages ───────────────────────────────────────────────
+        $chords = [];
+        foreach ($content['chords'] ?? [] as $item) {
+            if (empty($item['slug'])) continue;
+
+            // Chord diagram SVG (color — no --bw flag)
+            $diagramSvg = $this->renderDiagramSvg($item['slug']);
+
+            // Practice TAB — slice from the item's own leadsheet (defaults to top10)
+            $tabSvg  = '';
+            $tabSlug = $item['practice_tab_slug'] ?? 'top10';
+            $tabBars = $item['tab_bars'] ?? [0, 3];
+            $barsPerRow = (int)($item['tab_bars_per_row'] ?? 4);
+
+            $ls = Leadsheet::where('slug', $tabSlug)->first();
+            if ($ls) {
+                $version = $ls->defaultVersion ?? $ls->versions()->first();
+                $tabXml  = $version?->melody_tab_xml ?: $ls->tab_xml;
+                if ($tabXml) {
+                    $parser         = new TabXmlParser();
+                    $chordNamesMap  = self::chordNamesMapFromLeadsheet($ls);
+                    $tabData        = $parser->parse($tabXml, $chordNamesMap);
+                    $allMeasures    = $tabData['measures'] ?? [];
+                    // tab_bars are 1-indexed (bar 1 = first bar); convert to 0-indexed array offset
+                    [$from, $to] = [intval($tabBars[0] ?? 1) - 1, intval($tabBars[1] ?? 4) - 1];
+                    $sliced = array_slice($allMeasures, $from, $to - $from + 1);
+                    foreach ($sliced as $k => &$m) { $m['index'] = $k; }
+                    unset($m);
+                    $tabSvg = self::renderTabSvg($sliced, $tabData['timeSig'] ?? '4/4', $barsPerRow);
+                }
+            }
+
+            // Rhythm grid — fetch pattern strings for Blade
+            $rhythmPattern = '';
+            $rhythmThumb   = '';
+            $rhythmLabels  = [];
+            $rhythmSlug    = $item['rhythm_slug'] ?? '';
+            if ($rhythmSlug) {
+                $rRow = RhythmPattern::where('slug', $rhythmSlug)->first();
+                if ($rRow) {
+                    $rhythmPattern = $rRow->rhythm_pattern ?? '';
+                    $rhythmThumb   = $rRow->thumb_pattern  ?? '';
+                    // Build beat labels from time signature
+                    $timeSig = $rRow->time_signature ?? '2/4';
+                    $beats   = max(strlen($rhythmPattern), strlen($rhythmThumb), 1);
+                    $rhythmLabels = self::buildRhythmLabels($timeSig, $beats);
+                }
+            }
+
+            $chords[] = array_merge($item, [
+                '_diagram_svg'    => $diagramSvg,
+                '_tab_svg'        => $tabSvg,
+                '_rhythm_pattern' => $rhythmPattern,
+                '_rhythm_thumb'   => $rhythmThumb,
+                '_rhythm_labels'  => $rhythmLabels,
+            ]);
+        }
+
+        // ── Song example pages ─────────────────────────────────────────────
+        $songs = [];
+        foreach ($content['songs'] ?? [] as $songCfg) {
+            $lsSlug = $songCfg['slug'] ?? null;
+            if (!$lsSlug) continue;
+
+            $ls = Leadsheet::where('slug', $lsSlug)->first();
+            if (!$ls) continue;
+
+            $version = $ls->defaultVersion ?? $ls->versions()->first();
+            $tabXml  = $version?->melody_tab_xml ?: $ls->tab_xml;
+            if (!$tabXml) continue;
+
+            $parser        = new TabXmlParser();
+            $chordNamesMap = self::chordNamesMapFromLeadsheet($ls);
+            $tabData       = $parser->parse($tabXml, $chordNamesMap);
+            $allMeasures   = $tabData['measures'] ?? [];
+            // bars are 1-indexed; convert to 0-indexed array offset
+            $bars        = $songCfg['bars'] ?? [1, count($allMeasures)];
+            [$from, $to] = [intval($bars[0] ?? 1) - 1, intval($bars[1] ?? count($allMeasures)) - 1];
+            $sliced      = array_slice($allMeasures, $from, $to - $from + 1);
+            foreach ($sliced as $k => &$m) { $m['index'] = $k; }
+            unset($m);
+
+            // Build voicings map: chordName => inner SVG markup for diagrams above the staff
+            $voicings = self::buildVoicingsMap($ls->id, $sliced);
+
+            $barsPerRow = (int)($songCfg['bars_per_row'] ?? 4);
+            $rows       = array_chunk($sliced, $barsPerRow);
+            $tabSvgs    = [];
+            foreach ($rows as $rowMeasures) {
+                $tabSvgs[] = self::renderTabSvgWithDiagrams($rowMeasures, $tabData['timeSig'] ?? '4/4', $barsPerRow, true, $voicings);
+            }
+
+            $songs[] = array_merge($songCfg, ['_tab_svgs' => $tabSvgs]);
+        }
+
+        return compact('title', 'subtitle', 'eyebrow', 'hook', 'facts', 'theory_title', 'theory_html', 'chords', 'songs');
+    }
+
+    /**
+     * Build beat-label strings for the rhythm grid from a time signature + beat count.
+     * Returns an array of labels matching each cell in the pattern string.
+     *
+     * 2/4 sixteenth (8 cells):  1 e + a 2 e + a
+     * 4/4 eighth (8 cells):     1 + 2 + 3 + 4 +
+     * 4/4 sixteenth (16 cells): 1 e + a 2 e + a 3 e + a 4 e + a
+     */
+    private static function buildRhythmLabels(string $timeSig, int $beats): array
+    {
+        $parts = explode('/', $timeSig);
+        $num   = (int)($parts[0] ?? 4);
+
+        if ($beats === $num) {
+            // Quarter-note grid
+            return array_map(fn($i) => (string)($i + 1), range(0, $beats - 1));
+        }
+        if ($beats === $num * 2) {
+            // Eighth-note grid: 1 + 2 + …
+            $labels = [];
+            for ($i = 0; $i < $num; $i++) {
+                $labels[] = (string)($i + 1);
+                $labels[] = '+';
+            }
+            return $labels;
+        }
+        if ($beats === $num * 4) {
+            // Sixteenth-note grid: 1 e + a 2 e + a …
+            $labels = [];
+            for ($i = 0; $i < $num; $i++) {
+                $labels[] = (string)($i + 1);
+                $labels[] = 'e';
+                $labels[] = '+';
+                $labels[] = 'a';
+            }
+            return $labels;
+        }
+        // Fallback: just number each cell
+        return array_map(fn($i) => (string)($i + 1), range(0, $beats - 1));
+    }
+
+    /**
+     * Extract chord-names-by-measure-index from a leadsheet's json_data column.
+     * Returns e.g. [0 => ['Dm7'], 1 => ['G7', 'Cmaj7']]
+     */
+    private static function chordNamesMapFromLeadsheet(\App\Models\Leadsheet $ls): array
+    {
+        $map = [];
+        if (!empty($ls->json_data)) {
+            $json = json_decode($ls->json_data, true);
+            foreach ($json['measures'] ?? [] as $i => $m) {
+                $names = array_values(array_filter(
+                    array_map(fn($c) => $c['name'] ?? '', $m['chords'] ?? [])
+                ));
+                if ($names) $map[$i] = $names;
+            }
+        }
+        return $map;
+    }
+
+    /**
+     * Build a voicings map { chordName => innerSvgMarkup } for chord names
+     * that appear in $measures, looking up the best diagram via sbn_voicing_usage.
+     */
+    private static function buildVoicingsMap(int $leadsheetId, array $measures): array
+    {
+        // Collect unique chord names from the measures
+        $names = [];
+        foreach ($measures as $m) {
+            foreach ($m['chordNames'] ?? [] as $name) {
+                $names[$name] = true;
+            }
+        }
+        if (empty($names)) return [];
+
+        // Look up diagram slugs via voicing_usage for this leadsheet
+        $usages = VoicingUsage::where('leadsheet_id', $leadsheetId)
+            ->whereIn('chord_name', array_keys($names))
+            ->with('diagram')
+            ->get()
+            ->groupBy('chord_name');
+
+        $voicings = [];
+        foreach ($usages as $chordName => $group) {
+            // Pick the most popular diagram in the group
+            $best = $group->sortByDesc(fn($u) => $u->diagram?->popularity ?? 0)->first();
+            if (!$best?->diagram) continue;
+
+            $slug       = $best->diagram->slug;
+            $scriptPath = base_path('scripts/pdf/render-diagram.cjs');
+            $result     = Process::run("node \"{$scriptPath}\" \"{$slug}\" --bw");
+            if (!$result->successful()) continue;
+            $fullSvg = $result->output();
+            // Strip outer <svg ...> wrapper — keep only inner content
+            $inner = preg_replace('/<svg[^>]*>(.*)<\/svg>/s', '$1', $fullSvg);
+            if ($inner) $voicings[$chordName] = $inner;
+        }
+
+        return $voicings;
     }
 
     /**
