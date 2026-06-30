@@ -8,7 +8,11 @@
     <title>@yield('title', 'Dashboard') — SBN Teaching Hub</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=JetBrains+Mono:wght@400;500&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    {{-- Crimson Text is self-hosted (see sbn-design-system.css @font-face) and
+         preloaded here so chord symbols paint in the right serif with no swap
+         flash. Preload the SemiBold weight — chord symbols are font-weight:600. --}}
+    <link rel="preload" href="{{ asset('fonts/crimson-text/CrimsonText-SemiBold.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="{{ asset('css/sbn-design-system.css') }}">

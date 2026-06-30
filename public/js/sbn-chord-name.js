@@ -67,6 +67,10 @@
             remaining = remaining.slice(0, slashIdx);
         }
 
+        // Internal "dom" quality → conventional dominant spelling:
+        //   dom7 → 7, dom7(9) → 7(9), dom9 → 9, dom13 → 13, bare dom → 7.
+        remaining = remaining.replace(/^dom7/i, '7').replace(/^dom(\d)/i, '$1').replace(/^dom(?=\(|$)/i, '7');
+
         // 4. Quality
         const remainingLower = remaining.toLowerCase();
         let qualityLen = 0;

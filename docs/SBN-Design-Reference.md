@@ -78,7 +78,7 @@ Loaded via Google Fonts CDN in `admin.blade.php`:
 |---|---|---|
 | `--font-body` | DM Sans | All UI text, labels, buttons |
 | `--font-mono` | JetBrains Mono | Fret strings, code, slug values |
-| `--font-chord` | Crimson Text | **All chord names** — see Chord Name Styling below |
+| `--font-chord` | Crimson Text (self-hosted) | **All chord names** — see Chord Name Styling below. Fallback is `var(--font-body)` (DM Sans), **not** a serif |
 
 ---
 
@@ -164,6 +164,8 @@ Do not use `--radius-md` — it was removed. The mid-size token is `--radius`.
 ### How chord names are rendered
 
 Chord names use **Crimson Text** (`--font-chord`) with superscripted extensions and styled accidentals. Never render chord names as plain text — always use the helper.
+
+**Font loading (why the fallback matters):** Crimson Text is **self-hosted** — `@font-face` blocks in `sbn-design-system.css` point at `/public/fonts/crimson-text/CrimsonText-{Regular,SemiBold,Bold}.woff2` (the 3 roman weights chords use: 400/600/700), with the SemiBold weight `<link rel="preload">`ed in the admin layout head. `--font-chord`'s fallback is `var(--font-body)` (DM Sans), **deliberately not Georgia/serif**: while the font loads, a serif fallback rendered `♭`/`♯` with tall, wide glyphs that inflated the symbol on mobile (worst with Google-Fonts CDN `swap` flash). A compact sans fallback fixes every accidental — root **and** extension — at the font level, so no per-glyph CSS override is needed. `font-display: swap` is safe given the compact fallback + self-host + preload. To refresh the font files, re-run `scripts/fetch-crimson.sh`. (Self-hosting is admin-side; the student `app.blade.php` still loads Crimson from the CDN.)
 
 ```blade
 {{-- Blade (PHP) --}}

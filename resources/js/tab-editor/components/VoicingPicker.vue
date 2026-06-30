@@ -144,6 +144,7 @@
                 <div class="sbn-vp-card-name" v-html="formatChordHtml(item.face.dim_name || item.face.name || picker.pickerDisplayName())"></div>
                 <span v-html="renderDiagramSVG({ frets: item.face.frets, position: item.face.position })"></span>
                 <button
+                  v-if="item.alts.length > 0"
                   class="sbn-vp-alias-badge"
                   :title="`${item.alts.length} alternate reading${item.alts.length !== 1 ? 's' : ''}`"
                   @click.stop="toggleAliasPopover(item.id, $event)"
@@ -279,7 +280,11 @@ const groupedResults = computed(() => {
     }
 
     const dimGroups   = [...dimMap.values()].filter(g => g.face);
-    const aliasGroups = [...aliasMap.values()].filter(g => g.alts.length > 0);
+    // Keep every alias group with a face. The backend already excludes primary-result
+    // ids from the alias query ($seenIds → excludeIds), so an aliasMap face never
+    // duplicates a primary — even a standalone alias (alts.length === 0, e.g. a lone
+    // m6↔m7b5 cross-quality reading) is a legitimate voicing to surface.
+    const aliasGroups = [...aliasMap.values()].filter(g => g.face);
 
     return [...primaries, ...dimGroups, ...aliasGroups];
 });

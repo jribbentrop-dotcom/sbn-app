@@ -16,6 +16,9 @@ export function formatChordHtml(name) {
     if (qual.toLowerCase() === 'maj') qual = '';
     // Replace "min" → "m"
     if (qual.toLowerCase() === 'min') qual = 'm';
+    // Internal "dom" quality → conventional dominant spelling:
+    //   dom7 → 7, dom7(9) → 7(9), dom9 → 9, dom13 → 13, bare dom → 7.
+    qual = qual.replace(/^dom7/i, '7').replace(/^dom(\d)/i, '$1').replace(/^dom(?=\(|$)/i, '7');
     // Unicode accidentals in extensions
     let ext = qual.replace(/#/g,'♯').replace(/b(?=[0-9])/g,'♭');
     return root + (ext ? '<sup>' + ext + '</sup>' : '') + bass;

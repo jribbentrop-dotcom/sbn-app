@@ -278,6 +278,10 @@ function sbnFormatChordHtml(name) {
         rest = rest.slice(1);
     }
 
+    // Internal "dom" quality → conventional dominant spelling:
+    //   dom7 → 7, dom7(9) → 7(9), dom9 → 9, dom13 → 13, bare dom → 7.
+    rest = rest.replace(/^dom7/i, '7').replace(/^dom(\d)/i, '$1').replace(/^dom(?=\(|$)/i, '7');
+
     var html = '<span class="sbn-chord-symbol">';
     html += '<span class="sbn-chord-root">'        + esc(root)       + '</span>';
     if (accidental) html += '<span class="sbn-chord-accidental">' + esc(accidental) + '</span>';

@@ -44,12 +44,10 @@
 }
 
 /* -- Accidental (♯, ♭) ----------------------------------- */
-/* ♭/♯ glyphs vary wildly between serif fonts — Georgia and system fallbacks
-   render them with a tall ascender that inflates line-box height.
-   Force the body sans-serif stack (DM Sans / system-ui) which has compact,
-   consistent accidental glyphs; line-height:0 removes it from flow. */
+/* No font-family override needed: --font-chord now falls back to the body sans
+   (not Georgia/serif) and Crimson Text is self-hosted + preloaded, so the
+   accidental is always a compact glyph. line-height:0 keeps it out of flow. */
 .sbn-chord-accidental {
-    font-family: var(--font-body, 'DM Sans', system-ui, sans-serif);
     font-size: 0.82em;
     line-height: 0;
     vertical-align: 0.08em;

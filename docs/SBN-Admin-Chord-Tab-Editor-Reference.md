@@ -228,6 +228,8 @@ The PHP primitive is `HarmonicContext::reSpellChordName(string $name, string $ke
 
 **Gotcha — re-spelling is NOT applied in `sbnFormatChord` / `sbnFormatChordHtml`:** these are pure presentational formatters with no key context. Re-spelling must happen upstream (at model load or data layer), not in the display function.
 
+**Internal `dom7` quality → display `7`:** the backend names dominant voicings with the internal quality `dom7` (e.g. `findAliasMatches` / `transposeShapes` in `ChordVoicingSearch.php` emit `Cdom7`, `Cdom9`). All three chord-name formatters normalize this at the display layer so it renders conventionally: `dom7`→`7`, `dom7(9)`→`7(9)`, `dom9`→`9`, `dom13`→`13`, bare `dom`→`7` (`dim`/`dim7`/`domino` untouched). Fixed in **all three** so every name source is covered: `sbnFormatChordHtml` (`public/js/chords.js`, the active editor formatter), `sbnFormatChord` (`public/js/sbn-chord-name.js`), and the Vue fallback (`tab-editor/utils/chordFormat.js`). The stored/internal quality stays canonical `dom7` — only display changes.
+
 ### Key conventions
 - Model uses **`ref()`** (deep reactive), NOT `shallowRef`
 - Tick constants: whole=1920, half=960, quarter=480, eighth=240, sixteenth=120, thirty-second=60
@@ -444,9 +446,9 @@ Both chord and tab views support multi-bar selection for clipboard and structura
 2. Pass 2 — `alias_match: true` results:
    - If `id` is already in `dimMap` (same physical shape) → folded into that group's `alts[]` (dom7(b9) readings appear alongside the 3 dim inversions in the popover).
    - If `rootless: true` and NOT in `dimMap` → rendered as a normal primary card (dim-derived dom7(b9) voicings in a dom7(b9) search are legitimate primaries, not cross-quality aliases).
-   - Otherwise → grouped by `id` into `aliasMap`; only shown when `alts.length > 0` (m6/m7b5 cross-quality aliases).
+   - Otherwise → grouped by `id` into `aliasMap` (m6/m7b5 cross-quality aliases). Rendered whenever the group has a `face` — **including standalone aliases with `alts.length === 0`** (e.g. a lone m6↔m7b5 reading like `Dm6` ⇒ `m7b5-drop3-roote-inv2`). The backend already excludes primary-result ids from the alias query (`$seenIds` → `excludeIds` in `findAliasMatches`), so an aliasMap face never duplicates a primary; the earlier `alts.length > 0` filter wrongly dropped these solitary cross-quality voicings.
 
-**Face card badge** — blue circle showing the alt count. Clicking opens an inline popover that spans all 3 grid columns and overlays following cards (`z-index: 20; margin-bottom: -200px`). The popover shows each alt as a mini card (72 px wide, 56 px SVG) with its chord name. Selecting a popover card calls `picker.applyVoicing(alt)` normally.
+**Face card badge** — blue circle showing the alt count, **only rendered when `alts.length > 0`** (a standalone alias face has no badge/popover). Clicking opens an inline popover that spans all 3 grid columns and overlays following cards (`z-index: 20; margin-bottom: -200px`). The popover shows each alt as a mini card (72 px wide, 56 px SVG) with its chord name. Selecting a popover card calls `picker.applyVoicing(alt)` normally.
 
 **Key fields used** (all passed through from API → store → grouping):
 - `dim_inversion` — set by `findDiminishedPickerResults` on the 4 inversion slots
