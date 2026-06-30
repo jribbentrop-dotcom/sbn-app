@@ -131,9 +131,9 @@
                                     <div v-for="f in emptySlots(row)" :key="'empty-' + f"
                                          class="sbn-tab-measure" :style="{ flex: `0 0 ${row._graceEmptyPct != null ? row._graceEmptyPct : (100 / row._intendedCount)}%`, visibility: 'hidden' }">
                                     </div>
+
                                 </div>
 
-                                <!-- Row resize controls (like chord editor) - outside measures so not cut off -->
                                 <div class="sbn-tab-row-resize">
                                     <button
                                         class="sbn-tab-row-btn"
@@ -2287,7 +2287,9 @@ function onEditorFocus() {
     // Intentionally left minimal — cursor activates on click or first keypress
 }
 
-function onEditorClick() {
+function onEditorClick(e) {
+    const tag = e.target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
     editorRoot.value?.focus({ preventScroll: true });
 }
 
@@ -3074,5 +3076,109 @@ defineExpose({
     background: #fff;
     opacity: 1;
     box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+}
+
+/* Tab row layout — flex row, buttons vertically centered on the SVG staff.
+   The chord bar is 38px tall above the SVG; shifting the resize group down
+   by half that (19px) moves it from "centre of full row" to "centre of SVG". */
+.sbn-tab-row {
+    display: flex;
+    align-items: center;
+}
+.sbn-tab-measures {
+    flex: 1;
+    display: flex;
+}
+
+/* Row resize controls */
+.sbn-tab-row-resize {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding-left: 8px;
+    margin-top: -15px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+.sbn-tab-row:hover .sbn-tab-row-resize {
+    opacity: 1;
+}
+.sbn-tab-row-btn {
+    width: 17px;
+    height: 17px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: var(--clr-gradient);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0;
+    transition: opacity 0.15s ease, background 0.15s ease;
+    line-height: 1;
+}
+.sbn-tab-row-btn:hover:not(:disabled) {
+    background: var(--clr-gradient-hover);
+    opacity: 1;
+}
+.sbn-tab-row-btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+}
+.sbn-ve-row-btn-section {
+    background: transparent;
+    border: 1.5px dashed var(--clr-accent);
+    color: var(--clr-accent);
+    font-size: 9px;
+}
+.sbn-ve-row-btn-section:hover:not(:disabled) {
+    background: var(--clr-gradient);
+    border-color: transparent;
+    color: #fff;
+}
+
+/* Section header action buttons — override leadsheets.css defaults */
+.sbn-ve-section-btn {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: var(--clr-gradient);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: opacity 0.15s ease, background 0.15s ease;
+}
+.sbn-ve-section-btn:hover {
+    background: var(--clr-gradient-hover);
+}
+.sbn-ve-section-delete {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid var(--clr-red);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--clr-red);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.sbn-ve-section-delete:hover {
+    background: var(--clr-red);
+    color: #fff;
 }
 </style>
