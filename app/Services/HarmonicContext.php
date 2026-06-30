@@ -273,6 +273,12 @@ class HarmonicContext
     // style (jazz/bossa lean flat) and avoids spurious sharps in neutral keys.
     private const SHARP_KEYS = ['G','D','A','E','B','F#','C#','Em','Bm','F#m','C#m','G#m','D#m','A#m'];
 
+    // Slash-bass intervals above the root that are always spelled flat, regardless
+    // of key: b9(1), b3(3), b5(6), b13(8), b7(10). These are altered/minor chord
+    // tones (e.g. the b7 of a dom7 in C7/Bb) and must stay flat even in a sharp
+    // key. Mirror of _FLAT_BASS_INTERVALS in public/js/sbn-chord-name.js.
+    private const FLAT_BASS_INTERVALS = [1, 3, 6, 8, 10];
+
     private const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
 
     private const ROMAN_TO_DEGREE = [
@@ -410,9 +416,20 @@ class HarmonicContext
 
         $result = $rootNote . $rootQuality;
         if ($bass !== null) {
-            // Bass is just a note (e.g. "F#", "Gb")
+            // Bass is just a note (e.g. "F#", "Gb"). Spell it relative to the
+            // re-spelled root: an altered/minor chord tone (b3/b5/b7/b9/b13) is
+            // forced flat regardless of key (e.g. C7/Bb stays Bb in a sharp key),
+            // otherwise it follows the chord's key/root family.
             if (preg_match('/^([A-G][#b]?)(.*)$/', $bass, $bm)) {
-                $result .= '/' . $reSpellNote($bm[1]) . $bm[2];
+                $bassPc = $semi[$bm[1]] ?? null;
+                $rootPc = $semi[$rootNote] ?? null;
+                if ($bassPc !== null && $rootPc !== null) {
+                    $interval     = ($bassPc - $rootPc + 12) % 12;
+                    $bassUseFlats = in_array($interval, self::FLAT_BASS_INTERVALS, true) ? true : $useFlats;
+                    $result .= '/' . ($bassUseFlats ? $flat[$bassPc] : $sharp[$bassPc]) . $bm[2];
+                } else {
+                    $result .= '/' . $reSpellNote($bm[1]) . $bm[2];
+                }
             } else {
                 $result .= '/' . $bass;
             }

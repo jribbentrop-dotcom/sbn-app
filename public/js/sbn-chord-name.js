@@ -191,11 +191,31 @@
         return (useFlats ? _FLAT[s] : _SHARP[s]) + m[2];
     }
 
+    // Bass intervals above the root that are always spelled flat, regardless of
+    // key: b9(1), b3(3), b5(6), b13(8), b7(10). A slash bass landing on one of
+    // these is an altered/minor chord tone (e.g. the b7 of a dom7 in C7/Bb) and
+    // must stay flat even in a sharp key. Mirror of FLAT_BASS_INTERVALS in PHP.
+    const _FLAT_BASS_INTERVALS = [1, 3, 6, 8, 10];
+
+    // Spell a slash bass note. If its interval above the chord root is a flat-side
+    // alteration/chord tone it is forced flat; otherwise it follows the chord's
+    // key/root family (keyUseFlats).
+    function _spellBass(bassNote, rootNote, keyUseFlats) {
+        const bm = bassNote.match(/^([A-G][#b]?)(.*)$/);
+        if (!bm) return bassNote;
+        const bassPc = _SEMI[bm[1]], rootPc = _SEMI[rootNote];
+        if (bassPc === undefined || rootPc === undefined) return _reSpellNote(bassNote, keyUseFlats);
+        const interval = (bassPc - rootPc + 12) % 12;
+        const useFlats = _FLAT_BASS_INTERVALS.includes(interval) ? true : keyUseFlats;
+        return (useFlats ? _FLAT[bassPc] : _SHARP[bassPc]) + bm[2];
+    }
+
     /**
      * Re-spell a chord name's root + bass to the app's accidental rules.
      * `key` optional: when given the song key drives the family; when omitted
-     * the chord's own root+quality lean decides.  Mirrors
-     * HarmonicContext::reSpellChordName().
+     * the chord's own root+quality lean decides. The slash bass additionally
+     * forces flat for altered/minor chord tones (b3/b5/b7/b9/b13) regardless of
+     * key. Mirrors HarmonicContext::reSpellChordName().
      */
     window.sbnSpellChordName = function (chord, key) {
         chord = (chord || '').trim();
@@ -205,10 +225,12 @@
         const hm    = head.match(/^([A-G][#b]?)(.*)$/);
         if (!hm) return chord;
         const useFlats = _useFlatsFor(hm[1], _normalizeQualityToken(hm[2]), key);
+        const newRoot  = _reSpellNote(hm[1], useFlats);
         if (slash !== -1) {
-            return _reSpellNote(hm[1], useFlats) + hm[2] + '/' + _reSpellNote(chord.slice(slash + 1), useFlats);
+            // Bass spelled relative to the RE-SPELLED root so the interval is correct.
+            return newRoot + hm[2] + '/' + _spellBass(chord.slice(slash + 1), newRoot, useFlats);
         }
-        return _reSpellNote(hm[1], useFlats) + hm[2];
+        return newRoot + hm[2];
     };
 
     // Back-compat alias: the original key-only entry point. Now routes through

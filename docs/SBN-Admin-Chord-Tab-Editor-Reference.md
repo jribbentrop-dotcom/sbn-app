@@ -221,6 +221,7 @@ The app derives every chord's flat/sharp spelling from **one** decision function
 
 1. **Key-related accidentals (dominant).** When a key is known, the whole chart follows the key's flat/sharp family. House style is **flats by default**: only the genuine sharp keys (G, D, A, E, B, F#, C# and their relative minors) spell with sharps. The flat keys *and* the neutral keys **C major / A minor** all use flats — so a `Bb` chord in a C-major song stays `Bb`, never `A#`.
 2. **Chord-related accidentals (fallback).** When no key is known, the chord's own root + quality decides (minor/dominant qualities lean flat), via the root+quality lean. A sharp root the author explicitly typed (`F#m7`) is preserved.
+3. **Slash-bass override.** A slash bass whose interval above the root is a flat-side alteration/minor chord tone — b9(1), b3(3), b5(6), b13(8), b7(10) — is **always spelled flat, regardless of key**. So `C7/Bb` stays `Bb` even in a sharp key like D (it's the dominant's ♭7, not an A♯). Major/perfect-interval basses (e.g. the major 3rd in `D7/F#`) still follow the key. Encoded as `FLAT_BASS_INTERVALS` (PHP) / `_FLAT_BASS_INTERVALS` (JS); the bass is spelled relative to the *re-spelled* root.
 
 | Primitive | PHP | JS twin |
 |-----------|-----|---------|
