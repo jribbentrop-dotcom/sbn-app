@@ -371,7 +371,17 @@ function setViewMode(mode) {
 // to the requested layer. setTabLayer() is a no-op when already on that layer
 // and otherwise drives the serialize-out → graft-in round-trip (with abort/revert).
 function selectTabLayerView(layer) {
-    if (viewMode.value !== 'tab') setViewMode('tab');
+    if (viewMode.value !== 'tab') {
+        // Entering tab view from Grid/Analysis: the tab model for the current
+        // (default melody) layer has NOT been built yet this tick. Switching the
+        // layer immediately makes Alpine serialize an unbuilt/empty melody staff
+        // (sbn-tab-layer-changed → _requestTabXml), which then snapshots an empty
+        // melody and can drop real notation on the next save (the Acapulco loss).
+        // Let the tab view mount and build the melody model first, THEN switch.
+        setViewMode('tab');
+        nextTick(() => setTabLayer(layer));
+        return;
+    }
     setTabLayer(layer);
 }
 

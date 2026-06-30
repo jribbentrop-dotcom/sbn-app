@@ -3537,9 +3537,27 @@ function leadsheetEditor() {
             // Construct final json_data by merging Alpine meta fields with facade structural data.
             // melody: _savedMelody is melody-layer-only (re-parse guarded above); on the chord
             // layer parsed.melody currently holds chord notes, so NEVER fall back to it there.
-            const finalMelody = this._savedMelody
+            let finalMelody = this._savedMelody
                 ? this._savedMelody
                 : (onMelodyLayer ? this.parsed.melody : (this._melodyLayerJsonMelody ?? this.parsed.melody));
+
+            // Defense-in-depth anti-shrink guard (the Acapulco data-loss class):
+            // a chord-layer save must NEVER persist a json_data.melody that is empty
+            // or shorter than the melody we know is already saved. If any layer-switch
+            // path left a stale/empty melody in scope, fall back to the last known-good
+            // snapshot rather than overwriting real notation with nothing. Only guards
+            // the chord layer — a genuine melody edit (delete notes) must stay free to
+            // shrink the melody on the melody layer.
+            if (!onMelodyLayer) {
+                const known = this._melodyLayerJsonMelody;
+                const knownLen   = Array.isArray(known)       ? known.length       : 0;
+                const candidate  = Array.isArray(finalMelody) ? finalMelody.length : 0;
+                if (knownLen > 0 && candidate < knownLen) {
+                    console.warn('[SBN] chord-layer save would shrink melody (' +
+                        candidate + ' < ' + knownLen + ') — keeping known-good melody');
+                    finalMelody = known;
+                }
+            }
             const finalJsonData = {
                 ...this.parsed,
                 sections,
