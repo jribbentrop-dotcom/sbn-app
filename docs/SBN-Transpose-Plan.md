@@ -62,6 +62,15 @@ export function keyUsesFlats(keyName) {
 }
 ```
 
+> ⚠️ **Superseded by the enharmonic spelling core (2026-06-30).** Do **not** hand-roll
+> `keyUsesFlats` / `FLAT_KEYS` here — the app now has one authority. When implementing
+> transpose, re-spell each transposed chord name with `window.sbnSpellChordName(name, newKey)`
+> (JS) — it already encodes the house style: **flats by default**, only the genuine sharp keys
+> (G D A E B F# C# + relative minors) spell sharp, and neutral C/Am spell flat. The sketch
+> above predates that and would wrongly treat C major as sharp-side. See
+> **SBN-Admin-Chord-Tab-Editor-Reference.md → "The enharmonic spelling core"** and
+> [[project_enharmonic_core]].
+
 ---
 
 ## Step 2 — `transposeSheet()` in `useTabModel.js`

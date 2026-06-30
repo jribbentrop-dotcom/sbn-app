@@ -265,8 +265,13 @@ class HarmonicContext
     private const SEMI_TO_NOTE_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
     // Keys whose natural spelling uses flats (circle of fifths, flat side).
-    // Everything else (C, sharp keys, their relative minors) uses sharps.
     private const FLAT_KEYS = ['F','Bb','Eb','Ab','Db','Gb','Dm','Gm','Cm','Fm','Bbm','Ebm'];
+
+    // Keys whose natural spelling uses sharps (circle of fifths, sharp side, +
+    // their relative minors). Everything NOT in this list — the flat keys AND the
+    // neutral keys C major / A minor — defaults to flats. This is the app's house
+    // style (jazz/bossa lean flat) and avoids spurious sharps in neutral keys.
+    private const SHARP_KEYS = ['G','D','A','E','B','F#','C#','Em','Bm','F#m','C#m','G#m','D#m','A#m'];
 
     private const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
 
@@ -305,15 +310,75 @@ class HarmonicContext
     ];
 
     /**
-     * Re-spell a chord name's root and bass note to match the flat/sharp family
-     * of the given key.  Handles natural notes, enharmonic pairs, and slash chords.
-     * Examples: reSpellChordName('D/Gb', 'D') → 'D/F#'
-     *           reSpellChordName('Db7',  'G') → 'C#7'
+     * Map a chord-name quality suffix (as written, e.g. '7', 'maj7', 'min7',
+     * 'm7b5', 'dim7') to the internal quality token used by
+     * ChordShapeCalculator::QUALITY_FLAT_INTERVALS ('dom7', 'maj7', 'm7', …).
+     * Only the qualities that carry a flat-lean need exact mapping; anything
+     * unrecognised returns '' and the chord rule treats it as neutral.
+     */
+    private static function normalizeQualityToken(string $suffix): string
+    {
+        $s = strtolower(trim($suffix));
+        // Strip a slash-bass if it sneaked in, and any parenthesised extension.
+        $s = preg_replace('#/.*$#', '', $s);
+        $s = preg_replace('/\(.*$/', '', $s);
+        if ($s === '' || $s === 'maj') return '';                 // major triad: neutral
+        if (preg_match('/^(maj|ma|M)(7|9|11|13)/', $suffix)) return 'maj7';
+        if (preg_match('/^(m|min|-)(7b5|7\(b5\))/', $s))     return 'm7b5';
+        if (preg_match('/^(o|dim|°)7/', $s))                 return 'm7b5'; // dim7 ~ flat lean
+        if (preg_match('/^(m|min|-)maj7/', $s))              return 'mMaj7';
+        if (preg_match('/^(m|min|-)6/', $s))                 return 'm6';
+        if (preg_match('/^(m|min|-)/', $s))                  return 'm7';   // any minor ⇒ flat-lean
+        if (preg_match('/^aug7|^\+7/', $s))                  return 'aug7';
+        if (preg_match('/^(7|9|11|13)/', $s))                return 'dom7'; // dominant
+        return '';
+    }
+
+    /**
+     * Decide flat vs sharp spelling for one chord, combining the app's two
+     * accidental rules in priority order:
+     *
+     *   1. Key-related accidentals — when a key is known, the whole chart follows
+     *      the key's flat/sharp family (flat keys → flats, sharp keys → sharps).
+     *      This is dominant: a leadsheet should not contradict its key signature.
+     *   2. Chord-related accidentals — when no key is known, the chord's own
+     *      root + quality decides (minor/dominant qualities lean flat, etc.),
+     *      via ChordShapeCalculator::useFlatsForQuality().
+     *
+     * This is the single source of truth both PHP and the JS twin
+     * (window.sbnSpellChordName) draw from.
+     *
+     * @param string $rootNote  e.g. 'C', 'F#', 'Bb'
+     * @param string $quality   internal quality token e.g. 'm7', 'dom7', 'maj7'
+     * @param string $key        song key (''/unknown ⇒ fall back to chord rule)
+     */
+    public static function useFlatsFor(string $rootNote, string $quality, string $key = ''): bool
+    {
+        if (trim($key) !== '') {
+            return self::spellingUsesFlats($key);
+        }
+        return ChordShapeCalculator::useFlatsForQuality($rootNote, $quality);
+    }
+
+    /**
+     * Re-spell a chord name's root and bass note to match the app's accidental
+     * rules (see useFlatsFor()): key family when a key is given, else the chord's
+     * own root+quality lean.  Handles naturals, enharmonic pairs, and slash chords.
+     * Examples: reSpellChordName('D/Gb', 'D')  → 'D/F#'   (key D ⇒ sharps)
+     *           reSpellChordName('Db7',  'G')  → 'C#7'    (key G ⇒ sharps)
+     *           reSpellChordName('A#7',  'C')  → 'Bb7'    (neutral key ⇒ flats)
+     *           reSpellChordName('F#m7', '')   → 'F#m7'   (no key; sharp root kept)
      * Notes that are unambiguous (naturals, or already correct) are returned as-is.
      */
-    public static function reSpellChordName(string $name, string $key): string
+    public static function reSpellChordName(string $name, string $key = ''): string
     {
-        $useFlats = self::spellingUsesFlats($key);
+        // Parse root note + quality up front so the chord-rule fallback has context.
+        $head = strpos($name, '/') !== false ? substr($name, 0, strpos($name, '/')) : $name;
+        preg_match('/^([A-G][#b]?)(.*)$/s', $head, $hm);
+        $rootForRule    = $hm[1] ?? $name;
+        $qualityForRule = self::normalizeQualityToken($hm[2] ?? '');
+
+        $useFlats = self::useFlatsFor($rootForRule, $qualityForRule, $key);
         $sharp    = self::SEMI_TO_NOTE_SHARP;
         $flat     = self::SEMI_TO_NOTE_FLAT;
         $semi     = self::NOTE_TO_SEMI;
@@ -357,22 +422,31 @@ class HarmonicContext
 
     /**
      * Whether a key should be spelled with flats (true) or sharps (false).
-     * C major / A minor are treated as neutral — flats (fewer chord name accidents).
+     *
+     * House style: flats are the default. Only the genuine sharp keys (G, D, A,
+     * E, B, F#, C# and their relative minors) spell with sharps. The flat keys
+     * AND the neutral keys C major / A minor all use flats — this kills spurious
+     * sharps in neutral keys (a Bb chord in C major stays Bb, not A#).
      */
     public static function spellingUsesFlats(string $key): bool
     {
-        $keyRoot = preg_replace('/[mM].*$/', '', trim($key));
+        $key     = trim($key);
+        $keyRoot = preg_replace('/[mM].*$/', '', $key);
         $isMinor = (bool) preg_match('/[mM]/', $key);
-        // Normalise the key root to its canonical sharp/flat spelling first.
-        // C major → false (sharp side), A minor → false.
+
         if ($isMinor) {
-            // Relative major: minor root + 3 semitones
-            $semi = self::NOTE_TO_SEMI[$keyRoot] ?? 0;
-            $relMajorRoot = self::SEMI_TO_NOTE_FLAT[($semi + 3) % 12];
-            return in_array($relMajorRoot, self::FLAT_KEYS, true);
+            // Normalise the minor key (root may be written sharp or flat) to a
+            // canonical minor token, then test against the sharp-minor list.
+            $semi = self::NOTE_TO_SEMI[$keyRoot] ?? null;
+            if ($semi === null) return true; // unknown ⇒ flats
+            $sharpMinor = self::SEMI_TO_NOTE_SHARP[$semi] . 'm';
+            return !in_array($sharpMinor, self::SHARP_KEYS, true);
         }
-        return in_array($key, self::FLAT_KEYS, true)
-            || in_array($keyRoot, self::FLAT_KEYS, true);
+
+        $semi = self::NOTE_TO_SEMI[$keyRoot] ?? null;
+        if ($semi === null) return true;     // unknown ⇒ flats
+        $sharpMajor = self::SEMI_TO_NOTE_SHARP[$semi];
+        return !in_array($sharpMajor, self::SHARP_KEYS, true);
     }
 
     /**

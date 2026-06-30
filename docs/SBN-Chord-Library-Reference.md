@@ -113,6 +113,13 @@ Migration `2026_05_31_000001_remove_generated_dim7_aliases` deletes the now-redu
 
 All note names (chord tones displayed in the detail page circles, inversion bass labels, search result names) flow through one decision point: `ChordShapeCalculator::useFlatsForQuality(string $rootNote, string $quality): bool`.
 
+> **This is the *chord-related* layer of the app-wide enharmonic core.** The library pages
+> spell each chord on its own (there's no song key), so the chord rule is the whole story here.
+> Where a **key** is in play (leadsheet editor, viewer, progressions), the *key-related* layer
+> dominates instead — flats by default, sharps only for genuine sharp keys — via
+> `HarmonicContext::useFlatsFor($root, $quality, $key)`, which falls back to `useFlatsForQuality`
+> when no key is given. See **SBN-Admin-Chord-Tab-Editor-Reference.md → "The enharmonic spelling core"**.
+
 **Rules (in priority order):**
 1. Flat-accidental root (`Bb`, `Eb`, `Ab`, `Db`, `Gb`, `F`) → always flats
 2. Sharp-accidental root (`C#`, `F#`, `G#`, `A#`, `D#`) → always sharps

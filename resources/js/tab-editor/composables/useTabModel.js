@@ -379,6 +379,9 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
             ticksPerMeasure: tpm,
             sections: sectionModels,
             chordVoicings: cloneChordVoicings(chordVoicings?.value),
+            // Song key drives enharmonic spelling for chords entered/edited later
+            // (the voicing picker re-spells via window.sbnSpellChordName).
+            songKey: songKey?.value || null,
         };
     }
 
@@ -1029,6 +1032,7 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
             timeSignature:   snapshot.timeSignature,
             ticksPerMeasure: snapshot.ticksPerMeasure,
             chordVoicings:   cloneChordVoicings(snapshot.chordVoicings),
+            songKey:         snapshot.songKey ?? (model.value && model.value.songKey) ?? null,
             sections: snapshot.sections.map(sec => ({
                 id:   sec.id,
                 name: sec.name,

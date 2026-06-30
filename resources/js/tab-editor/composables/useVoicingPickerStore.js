@@ -324,7 +324,9 @@ function pickerDisplayName() {
     const inv = store.activeFilters.inversion;
     if (inv && inv !== 'all' && inv !== 'root') {
         const semi       = { 'C':0,'C#':1,'Db':1,'D':2,'D#':3,'Eb':3,'E':4,'F':5,'F#':6,'Gb':6,'G':7,'G#':8,'Ab':8,'A':9,'A#':10,'Bb':10,'B':11 };
-        const semiToNote = ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+        // Inversion bass is spelled by the unified enharmonic core (key-aware) at
+        // the end of this function — emit a neutral sharp here and let it re-spell.
+        const semiToNote = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
         const invIntervals = {
             'maj7':{'inv1':4,'inv2':7,'inv3':11},'dom7':{'inv1':4,'inv2':7,'inv3':10},
             'm7':{'inv1':3,'inv2':7,'inv3':10},'m6':{'inv1':3,'inv2':7,'inv3':9},
@@ -343,7 +345,20 @@ function pickerDisplayName() {
     } else if (store.bassNote) {
         name += '/' + store.bassNote;
     }
-    return name;
+    return spellName(name);
+}
+
+/**
+ * Re-spell a chord name's root + bass through the app's unified enharmonic core.
+ * Key-aware: the song key (when known) drives flats vs sharps; otherwise the
+ * chord's own root+quality lean decides. Mirrors HarmonicContext::reSpellChordName.
+ */
+function spellName(name) {
+    if (!name || typeof window === 'undefined' || typeof window.sbnSpellChordName !== 'function') {
+        return name;
+    }
+    const key = _model?.value?.songKey || '';
+    return window.sbnSpellChordName(name, key);
 }
 
 function isVoicingSelected(v) {
@@ -365,7 +380,7 @@ function applyVoicing(v) {
     // Use the result's own name for dim inversions / dom alias readings (they each
     // carry a distinct chord name in v.dim_name). Fall back to pickerDisplayName()
     // for regular voicings where the name tracks the active filter state.
-    const newName   = v.dim_name || pickerDisplayName();
+    const newName   = v.dim_name ? spellName(v.dim_name) : pickerDisplayName();
     const assignKey = store.voicingKey || oldName;
     const keyMatch  = (store.voicingKey || '').match(/^.+@(\d+)\.(\d+)$/);
 

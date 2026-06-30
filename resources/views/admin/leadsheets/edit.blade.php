@@ -1564,7 +1564,6 @@ class MusicXMLParser {
         const kind = harmony.querySelector('kind'), bassStep = harmony.querySelector('bass-step'), bassAlter = harmony.querySelector('bass-alter');
         let chordName = rootStep ? rootStep.textContent : 'C';
         if (rootAlter) { const a = parseInt(rootAlter.textContent); if(a===1)chordName+='#'; else if(a===-1)chordName+='b'; }
-        chordName = this._reSpellNote(chordName);
         if (kind) {
             const kindValue = kind.textContent || '';
             const kindValueMap = {'major':'','minor':'m','augmented':'aug','diminished':'dim','dominant':'7','major-seventh':'Maj7','minor-seventh':'m7','diminished-seventh':'dim7','augmented-seventh':'aug7','half-diminished':'m7b5','major-minor':'mMaj7','major-sixth':'6','minor-sixth':'m6','dominant-ninth':'9','major-ninth':'Maj9','minor-ninth':'m9','dominant-11th':'11','major-11th':'Maj11','minor-11th':'m11','dominant-13th':'13','major-13th':'Maj13','minor-13th':'m13','suspended-second':'sus2','suspended-fourth':'sus4','power':'5'};
@@ -1581,35 +1580,16 @@ class MusicXMLParser {
             });
             if (extensions.length > 0) { const useP = kind && kind.getAttribute('parentheses-degrees')==='yes'; chordName += useP ? '('+extensions.join(',')+')' : extensions.join(''); }
         }
-        if (bassStep) { let bass=bassStep.textContent; if(bassAlter){const a=parseInt(bassAlter.textContent);if(a===1)bass+='#';else if(a===-1)bass+='b';} chordName+='/'+this._reSpellNote(bass); }
+        if (bassStep) { let bass=bassStep.textContent; if(bassAlter){const a=parseInt(bassAlter.textContent);if(a===1)bass+='#';else if(a===-1)bass+='b';} chordName+='/'+bass; }
+        // Re-spell the whole name (root + slash bass) through the unified enharmonic
+        // core, key-aware. Mirror of HarmonicContext::reSpellChordName().
+        if (typeof window.sbnSpellChordName === 'function') {
+            chordName = window.sbnSpellChordName(chordName, this.getKey() || '');
+        }
         const frame = harmony.querySelector('frame');
         let voicing = null;
         if (frame) voicing = this.parseFrame(frame);
         return { name: chordName, voicing };
-    }
-
-    // Re-spell a single note letter+accidental to match the song key's flat/sharp family.
-    _reSpellNote(note) {
-        const semi = {'C':0,'B#':0,'C#':1,'Db':1,'D':2,'D#':3,'Eb':3,'E':4,'Fb':4,'F':5,'E#':5,'F#':6,'Gb':6,'G':7,'G#':8,'Ab':8,'A':9,'A#':10,'Bb':10,'B':11,'Cb':11};
-        const sharp = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-        const flat  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
-        const s = semi[note];
-        if (s === undefined) return note;
-        return this._keyUsesFlats() ? flat[s] : sharp[s];
-    }
-
-    _keyUsesFlats() {
-        const flatKeys = ['F','Bb','Eb','Ab','Db','Gb','Dm','Gm','Cm','Fm','Bbm','Ebm'];
-        const key = this.getKey();
-        const isMinor = /[mM]/.test(key);
-        if (isMinor) {
-            const semi = {'C':0,'C#':1,'Db':1,'D':2,'D#':3,'Eb':3,'E':4,'F':5,'F#':6,'Gb':6,'G':7,'G#':8,'Ab':8,'A':9,'A#':10,'Bb':10,'B':11};
-            const flat = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
-            const root = key.replace(/[mM].*$/, '');
-            const relMajor = flat[((semi[root] ?? 0) + 3) % 12];
-            return flatKeys.includes(relMajor);
-        }
-        return flatKeys.includes(key) || flatKeys.includes(key.replace(/[mM].*$/, ''));
     }
 
     parseFrame(frame) {

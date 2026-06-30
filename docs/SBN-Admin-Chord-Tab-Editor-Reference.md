@@ -215,16 +215,33 @@ On save, `exportAlpineSections()` serializes `beatInMeasure`/`beats` back onto e
 
 ### Enharmonic chord name spelling (shipped 2026-06-14)
 
-Chord names travel through four layers; each one now applies key-aware re-spelling:
+### The enharmonic spelling core (two rules, one authority)
+
+The app derives every chord's flat/sharp spelling from **one** decision function, which combines two accidental rules in priority order:
+
+1. **Key-related accidentals (dominant).** When a key is known, the whole chart follows the key's flat/sharp family. House style is **flats by default**: only the genuine sharp keys (G, D, A, E, B, F#, C# and their relative minors) spell with sharps. The flat keys *and* the neutral keys **C major / A minor** all use flats — so a `Bb` chord in a C-major song stays `Bb`, never `A#`.
+2. **Chord-related accidentals (fallback).** When no key is known, the chord's own root + quality decides (minor/dominant qualities lean flat), via the root+quality lean. A sharp root the author explicitly typed (`F#m7`) is preserved.
+
+| Primitive | PHP | JS twin |
+|-----------|-----|---------|
+| Combined decision | `HarmonicContext::useFlatsFor($root, $quality, $key='')` | `_useFlatsFor()` (private) in `public/js/sbn-chord-name.js` |
+| Key rule | `HarmonicContext::spellingUsesFlats($key)` (sharp-key allowlist) | `_keyUsesFlats()` |
+| Chord rule | `ChordShapeCalculator::useFlatsForQuality($root, $quality)` | `_useFlatsForQuality()` |
+| Re-spell a name | `HarmonicContext::reSpellChordName($name, $key='')` | `window.sbnSpellChordName(name, key)` |
+
+`window.sbnReSpellChord(name, key)` is kept as a back-compat alias (it no-ops when `key` is empty, preserving its old contract); new code should call `window.sbnSpellChordName`.
+
+Chord names travel through these layers; each applies the core:
 
 | Layer | Where | What it does |
 |-------|-------|--------------|
 | MusicXML import | `MusicXMLParser._reSpellNote()` in `edit.blade.php` | Re-spells root + bass immediately after parsing `root-alter`/`bass-alter` — new imports produce `D/F#` not `D/Gb` in a D-major song |
-| Model load | `useTabModel.js` chord-name extraction | Calls `window.sbnReSpellChord(name, key)` on every chord name when building the Vue model — fixes stale names already in `json_data` on the fly |
+| Model load | `useTabModel.js` chord-name extraction | Calls `window.sbnReSpellChord(name, key)` on every chord name when building the Vue model — fixes stale names already in `json_data` on the fly. The song key is stashed on `model.value.songKey` for later edits. |
+| **Chord entry (voicing picker)** | `useVoicingPickerStore.js` `spellName()` | Re-spells every newly-picked/inverted chord name through `window.sbnSpellChordName(name, model.songKey)` before it is written — stops new sharps from being introduced as you edit, and spells inversion bass notes key-aware |
 | Viewer voicing lookup | `LeadsheetViewerService::buildChordCards()` | Calls `HarmonicContext::reSpellChordName()` before `searchByName()` — ensures the DB query finds the right chord diagram even if the stored name is misspelled |
-| Display (JS) | `window.sbnReSpellChord(name, key)` in `public/js/sbn-chord-name.js` | Shared client-side helper; mirrors `HarmonicContext::reSpellChordName()`. Used by `useTabModel`; also available globally for any future use |
+| Display (JS) | `window.sbnSpellChordName(name, key)` in `public/js/sbn-chord-name.js` | Shared client-side helper; mirrors `HarmonicContext::reSpellChordName()` |
 
-The PHP primitive is `HarmonicContext::reSpellChordName(string $name, string $key): string`. The JS primitive is `window.sbnReSpellChord(name, key)`. Both use the same flat-key list as `spellingUsesFlats()`. Natural notes (no accidental) pass through unchanged. The re-spelling only touches the root letter and slash-bass note — quality suffixes and extensions (`m7`, `b5`, etc.) are left intact.
+Natural notes (no accidental) pass through unchanged. Re-spelling only touches the root letter and slash-bass note — quality suffixes and extensions (`m7`, `b5`, etc.) are left intact.
 
 **Gotcha — re-spelling is NOT applied in `sbnFormatChord` / `sbnFormatChordHtml`:** these are pure presentational formatters with no key context. Re-spelling must happen upstream (at model load or data layer), not in the display function.
 
