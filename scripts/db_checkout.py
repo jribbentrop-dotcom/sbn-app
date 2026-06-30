@@ -111,12 +111,54 @@ def cmd_checkout():
     robust_copy(src, dst, "checkout")
     print(dst)  # stdout = the path to use for ALL reads/writes
 
+BACKUP_KEEP = 10  # how many pre-commit snapshots to retain
+
+def backup_dir():
+    d = os.path.join(os.path.expanduser("~"), "sbn_work", "backups")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+def snapshot_before_commit(mount_src):
+    """Copy the CURRENT mount DB (about to be overwritten) into a rotated
+    backup dir on native disk, before commit clobbers it.
+
+    Snapshots the mount (the pre-change state we'd want to recover), not the
+    work copy. Best-effort: a backup failure must NOT block the commit, so we
+    catch everything and only warn. Skips a truncated/unreadable mount.
+    """
+    try:
+        if not os.path.exists(mount_src) or truncated(mount_src):
+            print("  (skip backup: mount DB missing/truncated)", file=sys.stderr)
+            return
+        bdir = backup_dir()
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        snap = os.path.join(bdir, f"sbn-{stamp}.db")
+        shutil.copy2(mount_src, snap)
+        if truncated(snap) or not integrity_ok(snap):
+            print(f"  (backup {snap} failed verify; removing)", file=sys.stderr)
+            try: os.remove(snap)
+            except OSError: pass
+            return
+        # Rotate: keep the newest BACKUP_KEEP, prune older.
+        snaps = sorted(
+            (os.path.join(bdir, f) for f in os.listdir(bdir)
+             if f.startswith("sbn-") and f.endswith(".db")),
+            key=os.path.getmtime, reverse=True,
+        )
+        for old in snaps[BACKUP_KEEP:]:
+            try: os.remove(old)
+            except OSError: pass
+        print(f"  backed up pre-commit state -> {snap}", file=sys.stderr)
+    except Exception as e:  # never let a backup error abort the commit
+        print(f"  (backup skipped: {e})", file=sys.stderr)
+
 def cmd_commit():
     src, dst = work_path(), find_mount_db()
     if not os.path.exists(src):
         sys.exit(f"ERROR: no local work DB at {src}; run checkout first")
     if not integrity_ok(src):
         sys.exit(f"ERROR: local work DB {src} fails integrity check; refusing to commit")
+    snapshot_before_commit(dst)  # snapshot the mount's current state before overwriting
     robust_copy(src, dst, "commit")
     # verify round-trip
     if md5(src) == md5(dst):
