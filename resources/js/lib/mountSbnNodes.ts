@@ -45,6 +45,7 @@ const components = {
   rhythm:      () => import('../Components/Library/RhythmStrip.vue'),
   progression: () => import('../Components/Library/ChordProgressionViewer.vue'),
   sheet:       () => import('../Components/Course/SheetMiniPlayer.vue'),
+  fretboard:   () => import('../Components/Library/fretboard/SbnFretboard.vue'),
 } as const;
 
 type NodeType = keyof typeof components;
@@ -59,6 +60,7 @@ function apiUrl(type: NodeType, slug: string, qs: string): string {
     rhythm:      `/api/sbn/rhythms/${slug}`,
     progression: `/api/sbn/progressions/${slug}`,
     sheet:       `/api/sbn/exercises/${slug}`,
+    fretboard:   `/api/sbn/fretboards/${slug}`,
   };
   return qs ? `${paths[type]}?${qs}` : paths[type];
 }
@@ -91,6 +93,7 @@ const propsFor: Record<NodeType, (data: any, el: HTMLElement) => Record<string, 
     interactive:  true,
   }),
   sheet:       (d, el) => ({ exercise: d, onChordSelect: (el as any).__onChordSelect ?? null, videoSync: d.videoSync ?? null }),
+  fretboard:   (d) => ({ data: d }),
 };
 
 // ── Per-type query string from element attrs ────────────────────────────────
@@ -337,34 +340,7 @@ export async function mountSbnNodes(
     tasks.push(task);
   });
 
-  // ── <sbn-fretboard> — fetch then hydrate via vanilla JS (chords.js) ────────
-  container.querySelectorAll<HTMLElement>('sbn-fretboard').forEach((el) => {
-    const slug = el.getAttribute('slug') ?? '';
-    if (!slug) return;
-
-    const task = fetch(`/api/sbn/fretboards/${slug}`, { headers: { Accept: 'application/json' } })
-      .then((r) => {
-        if (!r.ok) throw new Error(`fretboard fetch failed: ${r.status}`);
-        return r.json();
-      })
-      .then((data: any) => {
-        // sbnHydrateFretboard is a global from public/js/chords.js
-        if (typeof (window as any).sbnHydrateFretboard === 'function') {
-          (window as any).sbnHydrateFretboard(el, data);
-        } else {
-          console.warn('[mountSbnNodes] sbnHydrateFretboard not found — is chords.js loaded?');
-          el.innerHTML = `<span class="sbn-node-error">fretboard: ${slug} (renderer unavailable)</span>`;
-        }
-      })
-      .catch((err) => {
-        console.warn(`[mountSbnNodes] Failed to load <sbn-fretboard slug="${slug}">:`, err);
-        el.innerHTML = `<span class="sbn-node-error">fretboard: ${slug}</span>`;
-      });
-
-    tasks.push(task);
-  });
-
-  // ── <sbn-chord|rhythm|progression|sheet> — fetch then mount ───────────────
+  // ── <sbn-chord|rhythm|progression|sheet|fretboard> — fetch then mount ───────────────
   for (const type of Object.keys(components) as NodeType[]) {
     container.querySelectorAll<HTMLElement>(`sbn-${type}`).forEach((el) => {
       const slug = el.getAttribute('slug') ?? '';

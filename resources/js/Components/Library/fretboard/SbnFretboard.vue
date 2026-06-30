@@ -1,0 +1,365 @@
+<script setup lang="ts">
+/**
+ * SbnFretboard.vue — Vue wrapper for the <sbn-fretboard> course tag.
+ *
+ * Takes the full fretboard record (fetched by mountSbnNodes from
+ * /api/sbn/fretboards/{slug}) and renders it via FretboardNeck.vue,
+ * replacing the old vanilla-JS sbnHydrateFretboard renderer.
+ *
+ * String orientation: SBN convention — string 1 = Low E, 6 = High e.
+ * FretboardNeck renders Low E at BOTTOM (stringY(1) > stringY(6)) because
+ * that's the SVG convention used throughout. The frets string ("x32010") is
+ * indexed [0..5] = low E→high e, so frets[0] maps to string 1, frets[5] to
+ * string 6. The old flexbox renderer listed string labels top→bottom
+ * (e,B,G,D,A,E), which is HIGH→LOW. We now match the prog-viewer convention
+ * (LOW→HIGH bottom-to-top in SVG), which is the standard notation orientation.
+ *
+ * Guide-tone color palette matches chords.js GT_COLORS:
+ *   b7/7/maj7 → amber (#d97706)
+ *   3/b3      → blue  (#2563eb)
+ *   R         → green (#16a34a)
+ *   9/b9/#9/2/11/#11/13/b13/6 → purple (#7c3aed)
+ *   5/b5/#5   → gray  (#6b7280)
+ */
+import { ref, computed } from 'vue';
+import FretboardNeck, {
+    type FretboardNeckDot,
+    type FretboardNeckOpenMarker,
+} from './FretboardNeck.vue';
+import { stringY, makeGeometry, FRET_FROM } from './fretboardGeometry';
+
+// ── Data model ──────────────────────────────────────────────────────────────
+
+interface ScaleDot {
+    s: number;   // 0-indexed: 0 = low E, 5 = high e
+    f: number;   // fret number; 0 = open (not rendered in scale mode)
+    finger?: string | number;
+}
+
+interface FretboardVoicing {
+    label?: string;
+    frets?: string;       // chord/sequence mode: "x32010"
+    fingers?: string;     // chord/sequence mode: finger per string
+    interval_labels?: string; // comma-separated, one per string 1..6
+    dots?: ScaleDot[];    // scale mode
+}
+
+interface FretboardRecord {
+    slug: string;
+    title?: string;
+    display_mode: 'chord' | 'scale' | 'sequence';
+    fret_count: number;
+    start_fret: number;
+    show_guide_tones: boolean;
+    show_rh_fingers: boolean;
+    voicings: FretboardVoicing[];
+}
+
+const props = defineProps<{ data: FretboardRecord }>();
+
+// ── State ────────────────────────────────────────────────────────────────────
+
+const activeFrame = ref(0);
+const guideTonesActive = ref(false);
+
+const voicings = computed(() => {
+    const vs = props.data.voicings ?? [];
+    if (!vs.length) return [{ label: '', frets: 'xxxxxx', fingers: '000000', interval_labels: '' }];
+    return vs;
+});
+
+const currentVoicing = computed(() => voicings.value[activeFrame.value] ?? voicings.value[0]);
+const isMultiFrame = computed(() => voicings.value.length > 1);
+
+// start_fret: coalesce 0 → 1 (reference §3 / JS || 1 behaviour)
+const startFret = computed(() => (props.data.start_fret || 1));
+const fretCount = computed(() => props.data.fret_count || 12);
+const isScale = computed(() => props.data.display_mode === 'scale');
+
+// ── Guide-tone color ─────────────────────────────────────────────────────────
+
+function gtColor(label: string | undefined): string | null {
+    if (!label || label === 'x' || label === 'X') return null;
+    const l = label.trim();
+    if (l === 'R') return '#16a34a';
+    if (l === '5' || l === 'b5' || l === '#5') return '#6b7280';
+    if (l === 'b7' || l === '7' || l === 'maj7' || l === 'bb7') return '#d97706';
+    if (l === '3' || l === 'b3') return '#2563eb';
+    // 9ths/extensions/6 → purple
+    if (/^(b?9|#9|2|11|#11|4|13|b13|6)$/.test(l)) return '#7c3aed';
+    return null;
+}
+
+// ── Parse frets string ("x32010", low-E→high-e, idx 0=str1) ─────────────────
+
+function parseFretString(fretStr: string, _startFret: number): Array<'x' | number> {
+    if (!fretStr) return ['x', 'x', 'x', 'x', 'x', 'x'];
+    if (fretStr.length <= 6) {
+        const result: Array<'x' | number> = [];
+        for (let i = 0; i < 6; i++) {
+            const c = fretStr[i] ?? 'x';
+            result.push((c === 'x' || c === 'X') ? 'x' : parseInt(c, 16));
+        }
+        return result;
+    }
+    // Multi-digit: simple best-effort 6-char slice (same fallback as chords.js)
+    return parseFretString(fretStr.substring(0, 6), _startFret);
+}
+
+// ── Geometry (for computing cx/cy of dots) ───────────────────────────────────
+
+const geom = computed(() => makeGeometry(startFret.value, fretCount.value));
+
+// ── Map voicing → FretboardNeck props ────────────────────────────────────────
+
+const neckDots = computed((): FretboardNeckDot[] => {
+    const v = currentVoicing.value;
+    const ivLabels = (v.interval_labels ?? '').split(',').map(s => s.trim());
+    const showGT = props.data.show_guide_tones && guideTonesActive.value;
+    const g = geom.value;
+
+    if (isScale.value) {
+        // Scale mode: expand dots[] — multiple per string allowed, f:0 skipped
+        const rawDots = v.dots ?? [];
+        return rawDots
+            .filter(d => d.f >= startFret.value) // f:0 and f < startFret don't render
+            .map((d, i): FretboardNeckDot => {
+                // Scale dots: s is 0-indexed (0=low E=string 1, 5=high e=string 6)
+                const str = d.s + 1; // convert to 1-indexed SBN string
+                const fret = d.f;
+                const cx = g.fretCenterX(fret);
+                const cy = stringY(str);
+                const finger = d.finger != null ? String(d.finger) : '';
+                // interval_labels for scale mode is a single comma-separated string
+                // that covers all dots in order — or may be empty. Use position i.
+                const label = showGT
+                    ? (ivLabels[i] ?? '')
+                    : (finger && finger !== '0' ? finger : '');
+                const intervalLabel = ivLabels[i] ?? '';
+                const color = showGT ? gtColor(intervalLabel) : null;
+                return {
+                    string: str,
+                    fret,
+                    cx,
+                    cy,
+                    visible: true,
+                    label,
+                    isRoot: intervalLabel === 'R',
+                    vlColor: color,
+                };
+            });
+    } else {
+        // Chord / sequence mode: parse frets string, one dot per string
+        const fretStr = v.frets ?? 'xxxxxx';
+        const fingerStr = v.fingers ?? '000000';
+        const frets = parseFretString(fretStr, startFret.value);
+        const out: FretboardNeckDot[] = [];
+        for (let si = 0; si < 6; si++) {
+            const str = si + 1; // 1-indexed
+            const fv = frets[si];
+            if (fv === 'x' || fv === 0) continue; // muted or open → handled by openStrings
+            const fret = fv as number;
+            if (fret < startFret.value || fret > startFret.value + fretCount.value - 1) continue;
+            const cx = g.fretCenterX(fret);
+            const cy = stringY(str);
+            const finger = fingerStr[si] !== '0' ? fingerStr[si] : '';
+            const intervalLabel = ivLabels[si] ?? '';
+            const color = showGT ? gtColor(intervalLabel) : null;
+            const label = showGT && intervalLabel
+                ? intervalLabel
+                : (finger && finger !== '0' ? finger : '');
+            out.push({
+                string: str,
+                fret,
+                cx,
+                cy,
+                visible: true,
+                label,
+                isRoot: intervalLabel === 'R',
+                vlColor: color,
+            });
+        }
+        return out;
+    }
+});
+
+const openStringMarkers = computed((): FretboardNeckOpenMarker[] => {
+    if (isScale.value) return []; // scale mode: no nut/open column
+    const v = currentVoicing.value;
+    const fretStr = v.frets ?? 'xxxxxx';
+    const frets = parseFretString(fretStr, startFret.value);
+    const ivLabels = (v.interval_labels ?? '').split(',').map(s => s.trim());
+    const showGT = props.data.show_guide_tones && guideTonesActive.value;
+    const markers: FretboardNeckOpenMarker[] = [];
+    for (let si = 0; si < 6; si++) {
+        const fv = frets[si];
+        const str = si + 1;
+        if (fv === 'x') {
+            markers.push({ string: str, kind: 'muted' });
+        } else if (fv === 0) {
+            const intervalLabel = ivLabels[si] ?? '';
+            markers.push({
+                string: str,
+                kind: 'open',
+                color: showGT ? gtColor(intervalLabel) : null,
+                label: intervalLabel,
+            });
+        }
+    }
+    return markers;
+});
+
+// Show nut when chord/sequence mode AND startFret === 1
+const showNut = computed(() => !isScale.value && startFret.value === 1);
+
+// RH fingers: auto-assign p/i/m/a when show_rh_fingers is set
+// Low string that plays gets 'p'; up to 3 higher strings get i/m/a.
+const rhFingers = computed((): string[] => {
+    if (!props.data.show_rh_fingers || isScale.value) return [];
+    const v = currentVoicing.value;
+    const fretStr = v.frets ?? 'xxxxxx';
+    const frets = parseFretString(fretStr, startFret.value);
+    const played: number[] = [];
+    frets.forEach((fv, si) => { if (fv !== 'x') played.push(si); });
+    played.sort((a, b) => a - b);
+    const out: string[] = ['', '', '', '', '', ''];
+    if (!played.length) return out;
+    out[played[0]] = 'p';
+    const upper = played.slice(1).slice(-3);
+    ['i', 'm', 'a'].forEach((name, i) => {
+        if (upper[i] !== undefined) out[upper[i]] = name;
+    });
+    return out;
+});
+
+// ── Frame navigation ─────────────────────────────────────────────────────────
+
+function stepFrame(dir: -1 | 1) {
+    const next = activeFrame.value + dir;
+    if (next >= 0 && next < voicings.value.length) {
+        activeFrame.value = next;
+    }
+}
+</script>
+
+<template>
+    <div class="sbn-fretboard-vue-wrap">
+        <!-- Header -->
+        <div class="sbn-fv-header">
+            <span class="sbn-fv-label">{{ currentVoicing.label ?? data.title ?? '' }}</span>
+            <!-- Step controls for multi-frame voicings -->
+            <template v-if="isMultiFrame">
+                <div class="sbn-fv-steps">
+                    <button
+                        type="button"
+                        class="sbn-fv-step-btn"
+                        :disabled="activeFrame === 0"
+                        @click="stepFrame(-1)"
+                    >&#x2039;</button>
+                    <span class="sbn-fv-counter">{{ activeFrame + 1 }}/{{ voicings.length }}</span>
+                    <button
+                        type="button"
+                        class="sbn-fv-step-btn"
+                        :disabled="activeFrame === voicings.length - 1"
+                        @click="stepFrame(1)"
+                    >&#x203a;</button>
+                </div>
+            </template>
+            <!-- Guide-tone toggle -->
+            <button
+                v-if="data.show_guide_tones"
+                type="button"
+                class="sbn-fv-gt-btn"
+                :class="{ 'is-active': guideTonesActive }"
+                @click="guideTonesActive = !guideTonesActive"
+            >GT</button>
+        </div>
+        <!-- SVG neck via FretboardNeck -->
+        <div class="sbn-fv-board">
+            <FretboardNeck
+                :dots="neckDots"
+                :start-fret="startFret"
+                :fret-count="fretCount"
+                :show-nut="showNut"
+                :open-strings="openStringMarkers"
+                :rh-fingers="rhFingers"
+            />
+        </div>
+    </div>
+</template>
+
+<style scoped>
+.sbn-fretboard-vue-wrap {
+    display: flex;
+    flex-direction: column;
+}
+.sbn-fv-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 2px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--clr-text-dim);
+}
+.sbn-fv-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.sbn-fv-steps {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.sbn-fv-step-btn {
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--clr-border);
+    background: var(--clr-bg);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--clr-text);
+    transition: background 0.12s;
+}
+.sbn-fv-step-btn:hover:not(:disabled) { background: var(--clr-border); }
+.sbn-fv-step-btn:disabled { opacity: 0.35; cursor: default; }
+.sbn-fv-counter {
+    font-size: 11px;
+    color: var(--clr-text-dim);
+    min-width: 32px;
+    text-align: center;
+}
+.sbn-fv-gt-btn {
+    background: none;
+    border: 1.5px solid var(--clr-border);
+    border-radius: 4px;
+    color: var(--clr-text-dim);
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 6px;
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+}
+.sbn-fv-gt-btn:hover {
+    border-color: var(--clr-text-dim);
+    color: var(--clr-text);
+}
+.sbn-fv-gt-btn.is-active {
+    background: rgba(var(--clr-accent-rgb, 232,93,59), 0.1);
+    border-color: var(--clr-accent);
+    color: var(--clr-accent);
+}
+.sbn-fv-board {
+    min-width: 0;
+}
+</style>

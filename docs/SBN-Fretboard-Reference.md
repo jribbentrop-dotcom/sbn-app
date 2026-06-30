@@ -1,13 +1,13 @@
 # SBN Fretboard Reference
 
-> **Purpose:** Single source of truth for the interactive fretboard system — admin CRUD, storage format, JS renderer, course tag, and TipTap editor integration. Load at the start of any session touching fretboards.
-> **Last updated:** 2026-05-27 (initial implementation)
+> **Purpose:** Single source of truth for the interactive fretboard system — admin CRUD, storage format, Vue SVG renderer, course tag, and TipTap editor integration. Load at the start of any session touching fretboards.
+> **Last updated:** 2026-06-30 (Phase 3 fretboard-svg-unification: replaced vanilla JS renderer with Vue SVG component)
 
 ---
 
 ## 1. Overview
 
-The fretboard system provides slug-addressable, interactive fretboard diagrams that can be embedded anywhere in lesson content via an `<sbn-fretboard>` tag. Diagrams are created and edited in the admin, stored in a `fretboards` DB table, served via a public JSON API, and rendered via a vanilla-JS hydration function from `public/js/chords.js`.
+The fretboard system provides slug-addressable, interactive fretboard diagrams that can be embedded anywhere in lesson content via an `<sbn-fretboard>` tag. Diagrams are created and edited in the admin, stored in a `fretboards` DB table, served via a public JSON API, and rendered by **`SbnFretboard.vue`** (a Vue component using the same light/flat SVG neck as the `ChordProgressionViewer`).
 
 Three display modes are supported:
 
@@ -87,71 +87,45 @@ Each entry in the `voicings` JSON array is one "frame" — a single fretboard st
 
 ---
 
-## 4. JS renderer — `chords.js`
+## 4. Vue SVG renderer — `SbnFretboard.vue`
 
-The renderer lives in [`public/js/chords.js`](../public/js/chords.js). It is loaded globally in [`resources/views/app.blade.php`](../resources/views/app.blade.php) for all frontend pages, and in admin fretboard pages via `@push('scripts')`.
+**Replaced the old vanilla-JS renderer in Phase 3 (2026-06-30).** The renderer is now a Vue component pair:
 
-### `sbnRenderFretboard(voicing, opts)`
-
-Builds and returns an HTML string for a single frame.
-
-```js
-sbnRenderFretboard(
-  voicing,   // one frame object (§3)
-  opts       // { display_mode, theme, fret_count, start_fret,
-             //   show_guide_tones, show_rh_fingers }
-)
-```
+| File | Role |
+|---|---|
+| [`resources/js/Components/Library/fretboard/SbnFretboard.vue`](../resources/js/Components/Library/fretboard/SbnFretboard.vue) | Wrapper: holds frame state, parses frets string / expands scale dots, maps to FretboardNeck props, wires ‹›/GT toggle. |
+| [`resources/js/Components/Library/fretboard/FretboardNeck.vue`](../resources/js/Components/Library/fretboard/FretboardNeck.vue) | Presentational SVG neck: shared with ChordProgressionViewer. Light/flat aesthetic. |
+| [`resources/js/Components/Library/fretboard/fretboardGeometry.ts`](../resources/js/Components/Library/fretboard/fretboardGeometry.ts) | Pure geometry math: `makeGeometry(startFret, fretCount)` factory, plus default 1..15 consts for the prog viewer. |
 
 **Render paths:**
-- **scale mode** (`display_mode === 'scale'`): reads from `voicing.dots[]`. No open column, no nut. Each dot is placed at `(string, fret)` in the fret grid.
-- **chord/sequence mode**: parses `voicing.frets` string. Renders open/muted column (first col), nut, then fret columns.
+- **chord/sequence mode**: parses `voicing.frets` string (low E→high e, `x`=muted, `0`=open, `1-9`=fret). Open/muted strings appear as ○/× markers at the nut when `startFret === 1`. SVG dots for fretted strings. Guide-tone colors when `show_guide_tones` active.
+- **scale mode**: expands `voicing.dots[]` (multiple per string). `f:0` and `f < startFret` dots are skipped (same behavior as the old renderer). No nut/open column in scale mode.
 
-Both paths: fret marker dots at positions `[3, 5, 7, 9, 12]`, guide-tone CSS classes when enabled, RH finger labels when enabled.
+**String orientation:** SBN convention — string 1 = Low E, string 6 = high e. Low E renders at the BOTTOM of the SVG (`stringY(1) > stringY(6)`), matching `ChordProgressionViewer`. The `frets` string index 0 = string 1 (low E), index 5 = string 6 (high e).
 
-### `sbnHydrateFretboard(container, data)`
+**Guide-tone colors** (same palette as the old `GT_COLORS`): b7/7/maj7 → amber `#d97706`; 3/b3 → blue `#2563eb`; R → green `#16a34a`; 9/b9/#9/2/11/#11/13/b13/6 → purple `#7c3aed`; 5/b5/#5 → gray `#6b7280`.
 
-Hydrates a container element using a full fretboard data object (§2 shape). Called by `mountSbnNodes.ts` after fetching from the API.
+**Dead code removed from `chords.js`:** `sbnRenderFretboard`, `sbnHydrateFretboard`, `sbnHydrateAll`, `_sbnRhFingers`, `_sbnGtClass`, `SBN_FRET_MARKERS` (2026-06-30). Grep confirmed zero callers outside chords.js itself.
 
-```js
-sbnHydrateFretboard(el, data)
-// data = { display_mode, theme, fret_count, start_fret,
-//          show_guide_tones, show_rh_fingers, voicings: [...] }
-```
+**Note on `§6` "no Vue" rationale:** The original decision to keep this vanilla-JS was justified for a static diagram. It is superseded now that morphing/animation between frames is planned (requires Vue's reactive machinery). The new Vue renderer is the foundation for Phase 4 animation.
 
-- Adds class `sbn-fretboard-wrap theme-{dark|light}` to container.
-- Renders all frames; shows first frame, hides others.
-- Wires ‹ › step buttons for multi-frame sequences.
-- Wires guide-tone toggle button.
-- Guard: sets `data-sbn-rendered="1"` to prevent double hydration.
+**Layout / viewBox:** `FretboardNeck` accepts an optional `viewBox` prop. `ChordProgressionViewer` passes its camera-panned excerpt string. `<sbn-fretboard>` passes nothing, so the neck computes a **tight viewBox** around the actual fret span (`NECK_L`→`NECK_R`) — not the fixed 800-wide board — with padding for the open/muted column, RH-finger labels, and the fret-number row. (Reusing the full 800px board made the shorter `<sbn-fretboard>` neck shrink to a thin strip via `preserveAspectRatio="meet"`.) The wrapper (`SbnFretboard.vue`) is frame-free: no outer border, header is a plain caption row.
+
+> **CSS not yet fine-tuned (2026-06-30):** the migration landed structurally correct and frame-free, but spacing/header polish is deliberately deferred to a follow-up session. Don't treat the current padding/header values as final.
 
 ---
 
 ## 5. CSS — `fretboard.css`
 
-[`public/css/fretboard.css`](../public/css/fretboard.css) — ported from the WP legacy `leadsheet.css` fretboard section, re-scoped to SBN design tokens.
+[`public/css/fretboard.css`](../public/css/fretboard.css) — loaded globally in `app.blade.php`.
 
-**Key selectors:**
+**Phase 3 update:** All `.sbn-fretboard-*` published-view selectors were removed (2026-06-30). The published `<sbn-fretboard>` visual is now handled by scoped styles inside `SbnFretboard.vue` and `FretboardNeck.vue`.
 
-| Selector | Purpose |
-|---|---|
-| `.sbn-fretboard-wrap` | Outer wrapper; `theme-dark` / `theme-light` for colour |
-| `.sbn-fretboard` | The rendered diagram HTML |
-| `.sbn-fretboard-string-labels` | Low-E … high-e labels column |
-| `.sbn-fretboard-open-col` | × / ○ column (chord mode only) |
-| `.sbn-fretboard-nut` | Nut divider (chord mode only) |
-| `.sbn-fretboard-fret-col` | One fret column; `data-fret` attr for marker dots |
-| `.sbn-fretboard-dot` | A placed dot; `.gt-seventh` / `.gt-third` / `.gt-root` / `.gt-ninth` / `.gt-fifth` for guide-tone colours |
-| `.sbn-fretboard-rh-col` | RH finger label column |
-| `.sbn-fb-frame-list` | Admin editor frame list |
+**Only remaining selectors:**
 
-**Token mapping (WP → SBN):**
-- `--sbn-primary` → `var(--clr-accent)`
-- `--sbn-border` → `var(--clr-border)`
-- `--sbn-bg` → `var(--clr-bg-card)`
-- `--sbn-text` → `var(--clr-text)`
-
-Loaded in `app.blade.php` for all pages; also pushed in admin fretboard views.
+| Selector | Purpose | Status |
+|---|---|---|
+| `.sbn-fb-frame-list` / `.sbn-fb-frame-item` / etc. | Admin editor frame list sidebar | **KEPT** — still used by `admin/fretboards/edit.blade.php` |
 
 ---
 
@@ -169,13 +143,13 @@ Always use explicit closing tags — HTML parsers do not honor self-closing on c
 
 ### Runtime
 
-**`mountSbnNodes.ts`** handles `<sbn-fretboard>` in [`resources/js/lib/mountSbnNodes.ts`](../resources/js/lib/mountSbnNodes.ts):
+**`mountSbnNodes.ts`** handles `<sbn-fretboard>` via the standard Vue mount path (same as `<sbn-chord>`, `<sbn-rhythm>`, etc.):
 
 1. Fetches `GET /api/sbn/fretboards/{slug}`.
-2. Calls `window.sbnHydrateFretboard(el, data)` (global from `chords.js`).
+2. Dynamically imports `SbnFretboard.vue` and mounts it with `{ data: fullRecord }` prop.
 3. On error: renders an `.sbn-node-error` span with the slug.
 
-Unlike the other `<sbn-*>` types, fretboard uses **no Vue component** — the hydration is pure DOM/vanilla JS. This avoids a second render cycle and keeps the fretboard self-contained.
+**Phase 3 change:** the bespoke vanilla-JS `sbnHydrateFretboard` block was deleted from `mountSbnNodes.ts`. Fretboard is now a first-class member of the `components` registry in that file.
 
 ### JSON API
 

@@ -42,7 +42,7 @@ Stored in `content` as plain HTML. Always require explicit closing tags (`<sbn-f
 | `<sbn-sheet>` | yes | `slug` (required), `key` (optional, default `C`) | [`SheetMiniPlayer.vue`](../resources/js/Components/Course/SheetMiniPlayer.vue) — see §9 |
 | `<sbn-song>` | yes | `slug` (required), `bars` (optional, e.g. `"5-8"`), `layer` (optional, `"chord"`) | [`SheetMiniPlayer.vue`](../resources/js/Components/Course/SheetMiniPlayer.vue) — see §7.4 |
 | `<sbn-youtube>` | yes (no fetch) | `id` (required), `start` (optional, seconds) | inline `<iframe>` to `youtube-nocookie.com` |
-| `<sbn-fretboard>` | yes (vanilla JS, no Vue) | `slug` (required) | `sbnHydrateFretboard()` in `public/js/chords.js` — see [SBN-Fretboard-Reference.md](SBN-Fretboard-Reference.md) |
+| `<sbn-fretboard>` | yes (Vue SVG) | `slug` (required) | `SbnFretboard.vue` → `FretboardNeck.vue` (shared with the progression viewer) — see [SBN-Fretboard-Reference.md](SBN-Fretboard-Reference.md) |
 | `<sbn-info>` | no — pure DOM | `heading` (required), `items` (pipe-separated list) | animated conic-gradient card — see §11 |
 
 **Attr semantics:**

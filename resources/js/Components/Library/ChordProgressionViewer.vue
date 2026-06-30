@@ -2,9 +2,16 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import type { ChordDiagramData } from './ChordDiagram.vue';
 import ChordDiagram from './ChordDiagram.vue';
+import FretboardNeck from './fretboard/FretboardNeck.vue';
 import { getAudioEngine } from '../../audio/engine/AudioEngine.js';
 import { chordDiagramToEvents } from '../../audio/adapters/chordDiagramToEvents.js';
 import { buildPitchMap, findResolutionPairs, findResolutionPairsFromFired, arrowColor } from './guideToneResolution.js';
+import {
+    VB_H,
+    FRET_FROM, FRET_TO, FRET_WINDOW,
+    fretEdgeX, fretCenterX, stringY,
+    EXCERPT_VW, MAX_SMOOTH_X,
+} from './fretboard/fretboardGeometry';
 
 const QUALITY_MAP: Record<string, [string, string]> = {
     'maj':   ['', ''],
@@ -158,71 +165,10 @@ onBeforeUnmount(() => {
 });
 
 // ---------- Fretboard geometry ----------
-const VB_W = 800;
-const VB_H = 130;
-const PAD_L = 20;
-const PAD_R = 10;
-const PAD_T = 14;
-const PAD_B = 20;
-const FRET_FROM = 1;
-const FRET_TO = 15;
-const FRET_WINDOW = 7; // always show exactly this many frets
-const stringH = (VB_H - PAD_T - PAD_B) / 5;
-
-// Real fretboard spacing: each fret's width = previous × 2^(-1/12).
-// fretEdgeX[i] is the x position of the left edge of fret (FRET_FROM + i).
-// fretEdgeX[FRET_COUNT] is the right edge of the last fret.
-// Real fret widths: width of fret f ∝ 2^(-f/12), scaled to fit USABLE_W.
-const USABLE_W = VB_W - PAD_L - PAD_R;
-const fretEdgeX: number[] = (() => {
-    const rawWidths: number[] = [];
-    for (let f = FRET_FROM; f <= FRET_TO; f++) rawWidths.push(Math.pow(2, -f / 12));
-    const scale = USABLE_W / rawWidths.reduce((a, b) => a + b, 0);
-    const edges = [PAD_L];
-    for (const w of rawWidths) edges.push(edges[edges.length - 1] + w * scale);
-    return edges;
-})();
-
-function fretCenterX(f: number) { return (fretEdgeX[f - FRET_FROM] + fretEdgeX[f - FRET_FROM + 1]) / 2; }
-// SBN convention: string 1 = Low E, 6 = High E. Render Low E at BOTTOM.
-function stringY(s: number) { return PAD_T + (6 - s) * stringH; }
-
-// Full-neck extents — must be declared before the IIFEs below that reference them.
-const NECK_L = fretEdgeX[0];
-const NECK_R = fretEdgeX[FRET_TO - FRET_FROM + 1];
-
-// Full-neck static geometry — drawn once across whole neck; camera pan via excerptViewBox.
-const fretLines = (() => {
-    const out: Array<{ x: number; isNut: boolean }> = [];
-    out.push({ x: PAD_L, isNut: true });
-    for (let f = FRET_FROM; f <= FRET_TO; f++) {
-        out.push({ x: fretEdgeX[f - FRET_FROM + 1], isNut: false });
-    }
-    return out;
-})();
-
-const stringLines = (() => {
-    const out: Array<{ y: number; s: number; x1: number; x2: number }> = [];
-    for (let s = 1; s <= 6; s++) out.push({ y: stringY(s), s, x1: NECK_L, x2: NECK_R });
-    return out;
-})();
-
-const singleInlays = [3, 5, 7, 9, 15].map(f => ({
-    cx: fretCenterX(f), cy: PAD_T + stringH * 2.5,
-}));
-const doubleInlays = [12].flatMap(f => [
-    { cx: fretCenterX(f), cy: PAD_T + stringH * 1.5 },
-    { cx: fretCenterX(f), cy: PAD_T + stringH * 3.5 },
-]);
-const fretNumbers = (() => {
-    const labeled = new Set([3, 5, 7, 9, 12, 15]);
-    const out: Array<{ x: number; y: number; n: number }> = [];
-    for (let f = FRET_FROM; f <= FRET_TO; f++) {
-        if (!labeled.has(f)) continue;
-        out.push({ x: fretCenterX(f), y: VB_H - PAD_B + 18, n: f });
-    }
-    return out;
-})();
+// Pure geometry (VB_H, FRET_FROM/TO/WINDOW, fretEdgeX, fretCenterX, stringY,
+// EXCERPT_VW, MAX_SMOOTH_X) now lives in ./fretboard/fretboardGeometry.ts and
+// is imported above. NECK_L/NECK_R/fretLines/stringLines/inlays/fretNumbers
+// moved into FretboardNeck.vue, which owns drawing the static neck.
 
 // ---------- Video-sync time map ----------
 // Cumulative beat spans per chord, built from each chord's `beats` (default 0.5).
@@ -654,84 +600,12 @@ function onFocusOut(e: FocusEvent) {
         <!-- Stage: fretboard + chord diagram card -->
         <div class="stage">
             <div class="board-wrap">
-                <svg class="board" :viewBox="excerptViewBox" preserveAspectRatio="xMidYMid meet" style="overflow: hidden">
-                    <!-- Neck surface panel — drawn first so it sits behind everything -->
-                    <rect
-                        class="neck-surface"
-                        :x="NECK_L"
-                        :y="PAD_T - 6"
-                        :width="NECK_R - NECK_L"
-                        :height="(stringY(1) - stringY(6)) + 12"
-                        rx="9"
-                    />
-                    <!-- Fret lines -->
-                    <line
-                        v-for="(fl, i) in fretLines"
-                        :key="`f${i}`"
-                        :class="['fret-line', { nut: fl.isNut }]"
-                        :x1="fl.x" :x2="fl.x"
-                        :y1="PAD_T" :y2="VB_H - PAD_B"
-                    />
-                    <!-- Strings (graded weight: low E 1.5 → high E 0.54) -->
-                    <line
-                        v-for="sl in stringLines"
-                        :key="`s${sl.s}`"
-                        class="string-line"
-                        :x1="sl.x1" :x2="sl.x2"
-                        :y1="sl.y" :y2="sl.y"
-                        :stroke-width="1.5 - (sl.s - 1) * 0.16"
-                    />
-                    <!-- Inlay dots -->
-                    <circle v-for="(d, i) in singleInlays" :key="`si${i}`" class="inlay" :cx="d.cx" :cy="d.cy" r="3.5" />
-                    <circle v-for="(d, i) in doubleInlays" :key="`di${i}`" class="inlay" :cx="d.cx" :cy="d.cy" r="3.5" />
-                    <!-- Fret numbers -->
-                    <text
-                        v-for="(t, i) in fretNumbers"
-                        :key="`fn${i}`"
-                        class="fret-num"
-                        :x="t.x" :y="t.y"
-                        text-anchor="middle"
-                    >{{ t.n }}</text>
-                    <!-- Finger dots: 6 persistent <g> elements keyed by string.
-                         Translating the <g> lets the label ride with the dot. -->
-                    <g
-                        v-for="d in dots"
-                        :key="`dot-${d.string}`"
-                        class="dot-group"
-                        :class="{
-                            'is-hidden': !d.visible,
-                            'is-pulsing': d.visible && pulsingDotKeys.has(`${d.string},${d.fret}`),
-                        }"
-                        :style="`transform: translate(${d.cx}px, ${d.cy}px); --vl-color: ${d.vlColor ?? 'transparent'}`"
-                    >
-                        <circle v-if="d.isRoot" class="root-ring" r="12.5" cx="0" cy="0" />
-                        <circle class="dot" r="9" cx="0" cy="0" :style="d.vlColor ? `fill: ${d.vlColor}` : ''" />
-                        <circle class="dot-sheen" r="9" cx="0" cy="0" />
-                        <text
-                            v-if="d.label"
-                            class="dot-finger"
-                            x="0" y="0"
-                            text-anchor="middle"
-                            dominant-baseline="central"
-                        >{{ d.label }}</text>
-                    </g>
-                    <!-- Ghost dots: next chord's VL targets, hollow dashed outline -->
-                    <g
-                        v-for="g in ghostDots"
-                        :key="`ghost-${g.string}`"
-                        class="ghost-dot-group"
-                        :style="`transform: translate(${g.cx}px, ${g.cy}px)`"
-                    >
-                        <circle class="ghost-dot" r="9" cx="0" cy="0" />
-                        <text
-                            v-if="g.label"
-                            class="dot-finger"
-                            x="0" y="0"
-                            text-anchor="middle"
-                            dominant-baseline="central"
-                        >{{ g.label }}</text>
-                    </g>
-                </svg>
+                <FretboardNeck
+                    :dots="dots"
+                    :ghost-dots="ghostDots"
+                    :view-box="excerptViewBox"
+                    :pulsing-dot-keys="pulsingDotKeys"
+                />
             </div>
             <!-- Chord diagram card (current chord) -->
             <div v-if="activeChordDiagramData" class="chord-card-aside">
@@ -872,11 +746,7 @@ function onFocusOut(e: FocusEvent) {
     background: var(--clr-white);
     padding: 4px 0;
 }
-.board {
-    width: 100%;
-    display: block;
-    transition: all 0.55s var(--ease);
-}
+/* .board / neck visuals now live in fretboard/FretboardNeck.vue (scoped there) */
 
 .chord-card-aside {
     flex: 0 0 25%;
@@ -907,77 +777,6 @@ function onFocusOut(e: FocusEvent) {
 .aside-chord-name :deep(.sbn-chord-ext)       { font-size: 0.72em; font-weight: 600; vertical-align: super; line-height: 0; }
 .aside-chord-name :deep(.sbn-chord-ext--extra){ font-weight: 400; opacity: 0.75; }
 .aside-chord-name :deep(.sbn-chord-bass)      { font-size: 0.85em; }
-
-.board .neck-surface {
-    fill: var(--clr-surface-2);
-    stroke: var(--clr-border);
-    stroke-width: 1;
-}
-.board .string-line { stroke: var(--str-graded, var(--clr-text)); }
-.board .fret-line { stroke: var(--clr-border); stroke-width: 1; }
-.board .fret-line.nut { stroke: var(--clr-text); stroke-width: 3; }
-.board .fret-num {
-    font-size: 10px;
-    font-weight: 600;
-    fill: var(--clr-text-dim);
-    letter-spacing: 0.02em;
-}
-.board .inlay { fill: var(--clr-border); }
-.board .active-window {
-    fill: color-mix(in srgb, var(--clr-red) 14%, transparent);
-    transition: x 0.55s var(--ease), width 0.55s var(--ease);
-}
-.board .dot-group {
-    transition: transform 1.1s var(--ease), opacity 0.35s ease;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.16));
-}
-.board .dot-sheen {
-    fill: none;
-    stroke: rgba(255, 255, 255, 0.30);
-    stroke-width: 1;
-}
-.board .root-ring {
-    fill: none;
-    stroke: var(--prog-color);
-    stroke-width: 1.4;
-    opacity: 0.85;
-}
-.board .dot-group.is-hidden {
-    opacity: 0;
-    pointer-events: none;
-}
-.board .dot-group.is-pulsing .dot {
-    animation: vl-glow 1.6s ease-in-out infinite;
-}
-@keyframes vl-glow {
-    0%, 100% { filter: drop-shadow(0 0 1px transparent); }
-    50%       { filter: drop-shadow(0 0 4px var(--vl-color)); }
-}
-.board .dot {
-    fill: var(--clr-text);
-}
-.board .ghost-dot-group {
-    opacity: 0.9;
-    pointer-events: none;
-    transition: transform 1.1s var(--ease);
-}
-.board .ghost-dot {
-    fill: var(--clr-white);
-    stroke: var(--clr-text-muted);
-    stroke-width: 1.4;
-    stroke-dasharray: 2.2 2.2;
-}
-.board .ghost-dot-group .dot-finger {
-    fill: var(--clr-text-muted);
-}
-.board .dot-finger {
-    fill: var(--clr-white);
-    font-size: 8px;
-    font-weight: 700;
-    font-family: 'Inter', system-ui, sans-serif;
-    pointer-events: none;
-    letter-spacing: -0.02em;
-}
 
 /* VL guide tone table */
 .vl-table-wrap {
