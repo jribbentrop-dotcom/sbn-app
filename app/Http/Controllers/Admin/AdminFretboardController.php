@@ -112,6 +112,7 @@ class AdminFretboardController extends Controller
             'show_guide_tones' => $fb->show_guide_tones,
             'show_rh_fingers'  => $fb->show_rh_fingers,
             'voicings'         => $fb->voicings ?? [],
+            'windows'          => $fb->windows ?? [],
         ]);
     }
 
@@ -123,13 +124,14 @@ class AdminFretboardController extends Controller
             'title'            => 'required|string|max:255',
             'slug'             => 'nullable|string|max:120',
             'description'      => 'nullable|string|max:1000',
-            'display_mode'     => 'required|in:chord,scale,sequence',
+            'display_mode'     => 'required|in:chord,scale,sequence,positions',
             'theme'            => 'required|in:dark,light',
             'fret_count'       => 'required|integer|min:4|max:24',
             'start_fret'       => 'required|integer|min:1|max:20',
             'show_guide_tones' => 'nullable|boolean',
             'show_rh_fingers'  => 'nullable|boolean',
             'voicings'         => 'nullable|string', // JSON string from hidden field
+            'windows'          => 'nullable|string', // JSON string from hidden field (positions mode)
         ]);
 
         // Checkboxes arrive as '1' or absent; cast to bool
@@ -139,6 +141,11 @@ class AdminFretboardController extends Controller
         // Decode voicings JSON → array
         $raw['voicings'] = $raw['voicings']
             ? json_decode($raw['voicings'], true) ?? []
+            : [];
+
+        // Decode windows JSON → array (positions mode; null when unused)
+        $raw['windows'] = ($raw['windows'] ?? null)
+            ? json_decode($raw['windows'], true) ?? []
             : [];
 
         // Default slug from title if blank

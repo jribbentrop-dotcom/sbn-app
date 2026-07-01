@@ -183,6 +183,16 @@
 }
 .sbn-fb-frame-del:hover { color: var(--clr-error); background: rgba(239,68,68,.08); }
 
+/* Window rows (positions mode) */
+.sbn-fb-window-item {
+    display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+    background: var(--clr-bg); border: 1px solid var(--clr-border); border-radius: 6px;
+}
+.sbn-fb-win-label { flex: 1; min-width: 0; font-size: 12px; padding: 4px 6px; }
+.sbn-fb-win-num { display: flex; align-items: center; gap: 3px; font-size: 10px; color: var(--clr-text-dim); }
+.sbn-fb-win-num input { width: 42px; font-size: 12px; padding: 3px 4px; }
+[x-cloak] { display: none !important; }
+
 /* Tag hint */
 .sbn-fb-tag-hint {
     display: flex; align-items: center; gap: 8px; padding: 10px 12px;
@@ -235,6 +245,7 @@
     @csrf
     @unless($isNew) @method('PUT') @endunless
     <input type="hidden" name="voicings" :value="JSON.stringify(voicings)">
+    <input type="hidden" name="windows" :value="JSON.stringify(windows)">
 
     <div class="sbn-fb-edit-layout">
 
@@ -270,6 +281,7 @@
                             <option value="chord">Chord</option>
                             <option value="scale">Scale</option>
                             <option value="sequence">Sequence</option>
+                            <option value="positions">Positions (sliding)</option>
                         </select>
                     </div>
                 </div>
@@ -357,6 +369,46 @@
                            @input="currentFrame.label = $event.target.value; syncFrame()"
                            placeholder="e.g. Cmaj7 root pos.">
                 </div>
+            </div>
+
+            {{-- Windows (positions mode only) --}}
+            <div class="sbn-edit-section" x-show="isPositionsMode()" x-cloak>
+                <div class="sbn-edit-section-header">
+                    <h2>Position Windows</h2>
+                    <p>Place all scale notes in one frame, then define the fret windows the camera slides between.</p>
+                </div>
+
+                <div class="sbn-fb-frame-list" style="margin-bottom:10px;">
+                    <template x-for="(win, idx) in windows" :key="idx">
+                        <div class="sbn-fb-window-item">
+                            <input type="text" class="sbn-fb-win-label"
+                                   :value="win.label"
+                                   @input="win.label = $event.target.value"
+                                   placeholder="Position name">
+                            <label class="sbn-fb-win-num">from
+                                <input type="number" min="1" max="24"
+                                       :value="win.from"
+                                       @input="win.from = parseInt($event.target.value) || 1">
+                            </label>
+                            <label class="sbn-fb-win-num">to
+                                <input type="number" min="1" max="24"
+                                       :value="win.to"
+                                       @input="win.to = parseInt($event.target.value) || 1">
+                            </label>
+                            <button type="button" class="sbn-fb-frame-del" @click="moveWindow(idx,-1)"
+                                    x-show="idx > 0" title="Move up">↑</button>
+                            <button type="button" class="sbn-fb-frame-del" @click="moveWindow(idx,1)"
+                                    x-show="idx < windows.length - 1" title="Move down">↓</button>
+                            <button type="button" class="sbn-fb-frame-del" @click="deleteWindow(idx)" title="Remove">×</button>
+                        </div>
+                    </template>
+                </div>
+                <button type="button" class="sbn-btn sbn-btn-secondary" @click="addWindow()" style="width:100%;">
+                    + Add Window
+                </button>
+                <p class="sbn-edit-hint" style="margin-top:8px;">
+                    Optional per-dot interval colors: add an <code>iv</code> field (R, 3, b3, 5, b7…) to dots in the JSON to color guide tones. The live grid here shows all notes; the sliding camera is visible in the published <code>&lt;sbn-fretboard&gt;</code>.
+                </p>
             </div>
 
             {{-- Tag hint --}}
@@ -472,6 +524,9 @@
     $initialVoicings = old('voicings')
         ? (json_decode(old('voicings'), true) ?: $defaultVoicings)
         : ($fretboard->voicings ?? $defaultVoicings);
+    $initialWindows = old('windows')
+        ? (json_decode(old('windows'), true) ?: [])
+        : ($fretboard->windows ?? []);
 @endphp
 <script>
 const FBE_FRET_MARKERS = [3,5,7,9,12,15,17,19,21,24];
@@ -496,6 +551,7 @@ function fretboardEditor() {
         },
 
         voicings: @json($initialVoicings),
+        windows: @json($initialWindows),
         activeFrame: 0,
 
         // Per-string state for the active frame (parallel arrays, index 0=low E)
@@ -546,7 +602,29 @@ function fretboardEditor() {
         // Scale mode uses frame.dots = [{s, f, finger}] to allow multiple dots per string.
         // Chord/sequence mode uses the classic frets string (one dot per string).
         isScaleMode() {
-            return this.meta.display_mode === 'scale';
+            // Positions mode uses the same multi-dot-per-string grid as scale mode.
+            return this.meta.display_mode === 'scale' || this.meta.display_mode === 'positions';
+        },
+
+        isPositionsMode() {
+            return this.meta.display_mode === 'positions';
+        },
+
+        // ── windows (positions mode) ───────────────────────────────
+        addWindow() {
+            const last = this.windows[this.windows.length - 1];
+            const from = last ? Math.min(last.from + 2, 20) : (this.meta.start_fret || 1);
+            this.windows.push({ label: 'Position ' + (this.windows.length + 1), from, to: from + 3 });
+        },
+        deleteWindow(idx) {
+            this.windows.splice(idx, 1);
+        },
+        moveWindow(idx, dir) {
+            const j = idx + dir;
+            if (j < 0 || j >= this.windows.length) return;
+            const tmp = this.windows[idx];
+            this.windows[idx] = this.windows[j];
+            this.windows[j] = tmp;
         },
 
         loadFrame(idx) {

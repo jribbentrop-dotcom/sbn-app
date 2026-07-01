@@ -17,10 +17,12 @@ class Fretboard extends Model
         'show_guide_tones',
         'show_rh_fingers',
         'voicings',
+        'windows',
     ];
 
     protected $casts = [
         'voicings'        => 'array',
+        'windows'         => 'array',
         'show_guide_tones' => 'boolean',
         'show_rh_fingers'  => 'boolean',
         'fret_count'      => 'integer',

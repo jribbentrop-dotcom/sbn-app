@@ -1,7 +1,7 @@
 # SBN Fretboard Reference
 
 > **Purpose:** Single source of truth for the interactive fretboard system — admin CRUD, storage format, Vue SVG renderer, course tag, and TipTap editor integration. Load at the start of any session touching fretboards.
-> **Last updated:** 2026-06-30 (Phase 3 fretboard-svg-unification: replaced vanilla JS renderer with Vue SVG component)
+> **Last updated:** 2026-07-01 (Phase 4a: `positions` display mode — sliding camera between named fret windows, autoplay/loop, per-dot `iv` guide-tone colors)
 
 ---
 
@@ -16,6 +16,7 @@ Three display modes are supported:
 | `chord` | One or more chord shapes (voice-leading sequence) | fret string `x32010` per frame |
 | `scale` | Scale positions with multiple dots per string | `dots: [{s,f,finger}]` array per frame |
 | `sequence` | Identical to `chord` — alias for author intent | fret string per frame |
+| `positions` | **One** neck-wide dot set; camera **slides** between named fret windows (e.g. 5 pentatonic positions in one record). Autoplay/loop. | `voicings[0].dots: [{s,f,finger,iv}]` + top-level `windows: [{label,from,to}]` |
 
 ---
 
@@ -29,17 +30,20 @@ Three display modes are supported:
 | `slug` | varchar(120) unique | URL-safe identifier, auto-derived from `title` |
 | `title` | varchar(255) | Display name |
 | `description` | text nullable | Optional admin note |
-| `display_mode` | enum `chord\|scale\|sequence` | Controls render path |
+| `display_mode` | string `chord\|scale\|sequence\|positions` | Controls render path. **Was an enum; relaxed to a plain string in the 2026-07-01 migration** so `positions` is accepted (the old CHECK constraint was dropped). |
 | `theme` | enum `dark\|light` | CSS theme scope |
 | `fret_count` | tinyint (4–24, default 12) | Number of fret columns shown |
 | `start_fret` | tinyint (1–20, default 1) | First fret column shown |
 | `show_guide_tones` | boolean (default false) | Colours b7/3/R/9/5 dots |
 | `show_rh_fingers` | boolean (default false) | Shows p/i/m/a labels |
 | `voicings` | JSON | Array of frame objects (see §3) |
+| `windows` | JSON nullable | **Positions mode only:** array of `{label, from, to}` camera windows (added 2026-07-01) |
+
+> **Deploy note (2026-07-01):** migration `2026_07_01_000000_add_windows_to_fretboards.php` adds `windows` and drops the `display_mode` CHECK constraint (SQLite rebuilds the table). Prod DB is scp'd and does **not** run create/alter migrations automatically — apply the same change to prod: `ALTER TABLE fretboards ADD COLUMN windows text;` plus a table rebuild to drop the old `CHECK (display_mode IN ('chord','scale','sequence'))`, otherwise inserting a `positions` row fails. The local `sbn.db` already has both applied.
 | `created_at` / `updated_at` | timestamps | |
 
 **Model:** [`app/Models/Fretboard.php`](../app/Models/Fretboard.php)
-- Casts: `voicings` → array, `show_guide_tones`/`show_rh_fingers` → bool, `fret_count`/`start_fret` → int
+- Casts: `voicings` → array, `windows` → array, `show_guide_tones`/`show_rh_fingers` → bool, `fret_count`/`start_fret` → int
 - Helper: `firstVoicing()` — returns first frame or empty default
 
 ---
@@ -85,6 +89,28 @@ Each entry in the `voicings` JSON array is one "frame" — a single fretboard st
 
 **Open strings (`f: 0`) do not render in scale mode.** `sbnRenderFretboard` reads `startFret = parseInt(opts.start_fret) || 1`, so a stored `start_fret: 0` is coalesced back to `1` by the JS `||` fallback — and even if it weren't, scale mode has no nut/open-string column at all (that's a chord/sequence-mode-only render path). A dot with `f: 0` simply has nowhere to draw. For an open-position scale shape, transpose the whole shape up an octave (e.g. frets 0–3 → 12–15) and set `start_fret` to a real fretted value instead.
 
+### Positions mode (sliding camera)
+
+```json
+{
+  "display_mode": "positions",
+  "voicings": [
+    { "label": "E minor pentatonic",
+      "dots": [ {"s":0,"f":12,"finger":1,"iv":"R"}, {"s":0,"f":15,"finger":1,"iv":"b3"}, … ] }
+  ],
+  "windows": [
+    {"label":"Position 1","from":12,"to":15},
+    {"label":"Position 2","from":14,"to":17},
+    …
+  ]
+}
+```
+
+- **The entire scale lives in `voicings[0].dots[]`** — one coherent neck-wide dot set (same `{s,f,finger}` shape as scale mode, plus optional `iv`). Only `voicings[0]` is used; extra frames are ignored in positions mode.
+- **`windows[]`** are named fret ranges the camera pans between (1-indexed frets, inclusive `from`/`to`). The student steps/slides/auto-plays through them; **dots don't move — the camera does.** Dots inside the active window render solid; dots outside fade out (`.is-hidden` opacity) but stay in place.
+- **`dots[].iv`** (optional interval token — `R,b3,3,4,5,b7,…`) drives per-dot guide-tone color when `show_guide_tones` is set. This is independent of the comma-indexed `interval_labels` (which can't cleanly address N dots). `iv` is authored in the JSON; there's no per-dot `iv` UI in the admin grid yet (see §7).
+- `f:0` open-string dots are skipped (fretted-neck view, like scale mode). `start_fret`/`fret_count` are ignored — positions mode computes a full-neck geometry from fret 1 to `max(15, highest dot/window fret)` (capped at 24).
+
 ---
 
 ## 4. Vue SVG renderer — `SbnFretboard.vue`
@@ -100,6 +126,10 @@ Each entry in the `voicings` JSON array is one "frame" — a single fretboard st
 **Render paths:**
 - **chord/sequence mode**: parses `voicing.frets` string (low E→high e, `x`=muted, `0`=open, `1-9`=fret). Open/muted strings appear as ○/× markers at the nut when `startFret === 1`. SVG dots for fretted strings. Guide-tone colors when `show_guide_tones` active.
 - **scale mode**: expands `voicing.dots[]` (multiple per string). `f:0` and `f < startFret` dots are skipped (same behavior as the old renderer). No nut/open column in scale mode.
+- **positions mode** (Phase 4a): expands `voicings[0].dots[]` across a **full-neck geometry** (`makeGeometry(1, fullFretCount)`), computing cx/cy for every dot. A dot's `visible` flag = "is its fret inside the active window." The camera pans via a `smoothX` rAF-lerp (ported verbatim from `ChordProgressionViewer.vue:278-296`) → `posViewBox` computed → `FretboardNeck :view-box`. Because the neck honors a parent-supplied `viewBox`, it skips its own tight-frame path and just crops. Leaving/entering dots cross-fade in place via the neck's existing `.is-hidden` opacity + `transition: transform`.
+  - **Controls** (header, only when `windows.length > 1`): a circular play/pause button (mirrors `SyncedPlayer.vue`), ‹/› prev-next window buttons, and a `<input type=range>` slider bound to `activeWindowIdx`. **Autoplay** is a bare `setInterval` (`STEP_MS = 1600`, visual-only — no AudioEngine) that advances `activeWindowIdx` and **loops** back to 0; `onBeforeUnmount` clears both the interval and any pending rAF.
+  - **Excerpt width** is measured at the *median dot fret* (not fret 1) because fret spacing is logarithmic — measuring low would make the up-neck excerpt far too wide. Widest window's span drives the frame count. This framing is functional but **spacing polish is still a deferred follow-up** (consistent with the CSS note below).
+  - Guide tones auto-apply from `dots[].iv` when `show_guide_tones` is set — positions mode has **no GT toggle button** (unlike chord/scale). `start_fret`/`fret_count`/nut/open-column/RH-fingers are all suppressed in this mode.
 
 **String orientation:** SBN convention — string 1 = Low E, string 6 = high e. Low E renders at the BOTTOM of the SVG (`stringY(1) > stringY(6)`), matching `ChordProgressionViewer`. The `frets` string index 0 = string 1 (low E), index 5 = string 6 (high e).
 
@@ -194,6 +224,11 @@ The editor is an **Alpine component** (`fretboardEditor()`). State:
 
 On save the Alpine state is serialised to a hidden `<input name="voicings">` as JSON; the controller decodes it.
 
+**Positions mode authoring (Phase 4a):** selecting mode **Positions (sliding)** does two things:
+- The click-to-place grid switches to scale-mode behavior (`isScaleMode()` returns true for `positions` too) — multi-dot-per-string, any fret. Author the whole scale in the single frame.
+- A **Position Windows** section appears (`x-show="isPositionsMode()"`): add/remove/reorder rows of `{label, from, to}`. Serialised to a second hidden `<input name="windows">` as JSON (decoded server-side alongside `voicings`).
+- **Not yet in the admin grid:** per-dot `iv` interval editing and a camera-accurate live preview. The admin grid shows all dots statically; the real sliding view is the published `<sbn-fretboard>`. Add `iv` tokens by hand in the JSON for now (deferred to a later round).
+
 ---
 
 ## 8. TipTap editor integration
@@ -210,12 +245,16 @@ Slash command: typing `/fretboard` (or `/f…`) in the editor body triggers the 
 
 ## 9. Deferred / not implemented
 
-The following capabilities from the WP legacy fretboard were deliberately not ported in this phase:
+**Done in Phase 4a (2026-07-01):** the sliding/morphing camera between positions (see §3 positions mode, §4 positions render path). Dots cross-fade as the camera pans; autoplay/loop shipped.
+
+Still deferred:
 
 | Feature | Reason deferred |
 |---|---|
+| **Interactive click-to-place quiz mode** (student inserts dots; check/reveal answer) | Phase 4b — the published component is display-only today |
+| Per-dot `iv` editing + camera-accurate live preview in admin | Phase 4b — author `iv` by hand in JSON for now (§7) |
 | Rhythm-sync dot highlights (flash on beat) | Needs playback engine integration; no course rhythm sync yet |
 | Voice-leading ghost dots + SVG arrows | Playback-only visual; requires frame-change animation loop |
-| Animated dot slide between frames | Same — playback concern |
+| Excerpt-width / header spacing polish for positions mode | Cosmetic follow-up (§4 note) |
 
-These are addable without schema changes — the frame data already supports multi-dot and sequencing. The deferral boundary is: *static display = done; playback animation = deferred*.
+The deferral boundary is now: *display + camera animation = done; interactive input (quiz) = Phase 4b*.

@@ -21,12 +21,12 @@
  *   9/b9/#9/2/11/#11/13/b13/6 → purple (#7c3aed)
  *   5/b5/#5   → gray  (#6b7280)
  */
-import { ref, computed } from 'vue';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import FretboardNeck, {
     type FretboardNeckDot,
     type FretboardNeckOpenMarker,
 } from './FretboardNeck.vue';
-import { stringY, makeGeometry, FRET_FROM } from './fretboardGeometry';
+import { stringY, makeGeometry, VB_H, PAD_T, PAD_B } from './fretboardGeometry';
 
 // ── Data model ──────────────────────────────────────────────────────────────
 
@@ -34,6 +34,14 @@ interface ScaleDot {
     s: number;   // 0-indexed: 0 = low E, 5 = high e
     f: number;   // fret number; 0 = open (not rendered in scale mode)
     finger?: string | number;
+    iv?: string; // optional interval token (R,3,b3,5,b7…) — positions mode guide-tone color
+}
+
+/** Named camera window for positions mode. */
+interface FretWindow {
+    label?: string;
+    from: number; // first fret shown (inclusive)
+    to: number;   // last fret shown (inclusive)
 }
 
 interface FretboardVoicing {
@@ -47,12 +55,13 @@ interface FretboardVoicing {
 interface FretboardRecord {
     slug: string;
     title?: string;
-    display_mode: 'chord' | 'scale' | 'sequence';
+    display_mode: 'chord' | 'scale' | 'sequence' | 'positions';
     fret_count: number;
     start_fret: number;
     show_guide_tones: boolean;
     show_rh_fingers: boolean;
     voicings: FretboardVoicing[];
+    windows?: FretWindow[];
 }
 
 const props = defineProps<{ data: FretboardRecord }>();
@@ -75,6 +84,122 @@ const isMultiFrame = computed(() => voicings.value.length > 1);
 const startFret = computed(() => (props.data.start_fret || 1));
 const fretCount = computed(() => props.data.fret_count || 12);
 const isScale = computed(() => props.data.display_mode === 'scale');
+const isPositions = computed(() => props.data.display_mode === 'positions');
+
+// ── Positions mode: full-neck dots + named camera windows ─────────────────────
+// The whole scale lives in voicings[0].dots[]; the camera pans between windows.
+
+const posDots = computed((): ScaleDot[] => {
+    if (!isPositions.value) return [];
+    return props.data.voicings?.[0]?.dots ?? [];
+});
+
+const windows = computed((): FretWindow[] => {
+    if (!isPositions.value) return [];
+    const ws = props.data.windows ?? [];
+    return ws.filter(w => w && Number.isFinite(w.from) && Number.isFinite(w.to));
+});
+
+const activeWindowIdx = ref(0);
+const activeWindow = computed((): FretWindow | null =>
+    windows.value[activeWindowIdx.value] ?? windows.value[0] ?? null);
+
+// Full-neck geometry: default span 1..15, widened if any dot/window reaches higher.
+const posFullFretCount = computed(() => {
+    let maxF = 15;
+    for (const d of posDots.value) if (d.f > maxF) maxF = d.f;
+    for (const w of windows.value) if (w.to > maxF) maxF = w.to;
+    return Math.min(maxF, 24); // neck cap
+});
+const posGeom = computed(() => makeGeometry(1, posFullFretCount.value));
+
+// ── Fixed on-screen size, independent of content ──────────────────────────────
+// The rendered SVG height = containerWidth × (viewBoxHeight / viewBoxWidth). To
+// keep the board a STATIC size regardless of how many dots/frets exist, the
+// excerpt viewBox must have a FIXED aspect ratio. We crop tightly to the neck's
+// vertical extent (POS_VB_Y..POS_VB_H) and derive the excerpt width from a fixed
+// target aspect — never from content. `posExcerptVW` is therefore constant.
+//
+// POS_ASPECT is the width:height ratio of the visible excerpt. Higher = wider &
+// shorter (closer to a single-position chord neck); lower = taller. ~2.6 is the
+// middle-ground between the small single-position look and the previous huge one.
+const POS_ASPECT = 2.6;
+const POS_VB_Y = PAD_T - 6;                       // top of neck surface
+const POS_VB_H = (VB_H - PAD_B + 22) - POS_VB_Y;  // strings + fret-number row
+const posExcerptVW = computed(() => POS_VB_H * POS_ASPECT);
+
+// Max left-edge so the excerpt never pans past the last fret wire.
+const posMaxSmoothX = computed(() => {
+    const g = posGeom.value;
+    return Math.max(g.fretEdgeX[0], g.fretEdgeX[posFullFretCount.value] - posExcerptVW.value);
+});
+
+// Target left-edge x for the active window: pan so the window is roughly centered
+// within the excerpt, then clamp to [NECK_L, posMaxSmoothX].
+function windowTargetX(w: FretWindow | null): number {
+    const g = posGeom.value;
+    if (!w) return g.fretEdgeX[0];
+    const winLeft = g.fretEdgeX[Math.max(0, w.from - 1)];
+    const winWidth = g.fretEdgeX[w.to] - winLeft;
+    const centered = winLeft - (posExcerptVW.value - winWidth) / 2;
+    return Math.max(g.fretEdgeX[0], Math.min(centered, posMaxSmoothX.value));
+}
+
+// rAF lerp camera pan (ported from ChordProgressionViewer.vue:278-296).
+const smoothX = ref(0);
+let rafId: number | null = null;
+function animateX(target: number) {
+    if (rafId !== null) cancelAnimationFrame(rafId);
+    const SPEED = 0.035;
+    function step() {
+        const delta = target - smoothX.value;
+        if (Math.abs(delta) < 0.1) { smoothX.value = target; rafId = null; return; }
+        smoothX.value += delta * SPEED;
+        rafId = requestAnimationFrame(step);
+    }
+    rafId = requestAnimationFrame(step);
+}
+
+// Initialise camera on window 0 (no slide-in on mount).
+smoothX.value = windowTargetX(activeWindow.value);
+
+watch(activeWindow, (w) => animateX(windowTargetX(w)));
+
+const posViewBox = computed(() =>
+    `${smoothX.value} ${POS_VB_Y} ${posExcerptVW.value} ${POS_VB_H}`);
+
+// ── Autoplay stepper (visual-only setInterval — no audio engine) ──────────────
+const isPlaying = ref(false);
+let playTimer: ReturnType<typeof setInterval> | null = null;
+const STEP_MS = 1600;
+
+function stopPlay() {
+    isPlaying.value = false;
+    if (playTimer !== null) { clearInterval(playTimer); playTimer = null; }
+}
+function startPlay() {
+    if (windows.value.length < 2) return;
+    isPlaying.value = true;
+    playTimer = setInterval(() => {
+        activeWindowIdx.value = (activeWindowIdx.value + 1) % windows.value.length;
+    }, STEP_MS);
+}
+function togglePlay() { isPlaying.value ? stopPlay() : startPlay(); }
+
+function goToWindow(idx: number) {
+    if (idx < 0 || idx >= windows.value.length) return;
+    activeWindowIdx.value = idx;
+}
+function stepWindow(dir: -1 | 1) {
+    stopPlay();
+    const next = activeWindowIdx.value + dir;
+    if (next >= 0 && next < windows.value.length) activeWindowIdx.value = next;
+}
+
+onBeforeUnmount(() => {
+    if (rafId !== null) cancelAnimationFrame(rafId);
+    stopPlay();
+});
 
 // ── Guide-tone color ─────────────────────────────────────────────────────────
 
@@ -117,6 +242,38 @@ const neckDots = computed((): FretboardNeckDot[] => {
     const ivLabels = (v.interval_labels ?? '').split(',').map(s => s.trim());
     const showGT = props.data.show_guide_tones && guideTonesActive.value;
     const g = geom.value;
+
+    if (isPositions.value) {
+        // Full-neck dots; visibility gated by the active camera window so dots
+        // fade in/out as the camera pans (via FretboardNeck's .is-hidden).
+        const pg = posGeom.value;
+        const w = activeWindow.value;
+        // Guide tones auto-on in positions mode when show_guide_tones is set —
+        // there's no per-string GT toggle button in this mode (dots carry `iv`).
+        const gtOn = props.data.show_guide_tones;
+        return posDots.value
+            .filter(d => d.f > 0) // f:0 open strings don't render on a fretted neck view
+            .map((d): FretboardNeckDot => {
+                const str = d.s + 1;               // 0-indexed s → 1-indexed SBN string
+                const iv = (d.iv ?? '').trim();
+                const color = gtOn ? gtColor(iv) : null;
+                const inWindow = !!w && d.f >= w.from && d.f <= w.to;
+                const finger = d.finger != null ? String(d.finger) : '';
+                const label = gtOn && iv
+                    ? iv
+                    : (finger && finger !== '0' ? finger : '');
+                return {
+                    string: str,
+                    fret: d.f,
+                    cx: pg.fretCenterX(d.f),
+                    cy: stringY(str),
+                    visible: inWindow,
+                    label,
+                    isRoot: iv === 'R',
+                    vlColor: color,
+                };
+            });
+    }
 
     if (isScale.value) {
         // Scale mode: expand dots[] — multiple per string allowed, f:0 skipped
@@ -184,7 +341,7 @@ const neckDots = computed((): FretboardNeckDot[] => {
 });
 
 const openStringMarkers = computed((): FretboardNeckOpenMarker[] => {
-    if (isScale.value) return []; // scale mode: no nut/open column
+    if (isScale.value || isPositions.value) return []; // no nut/open column
     const v = currentVoicing.value;
     const fretStr = v.frets ?? 'xxxxxx';
     const frets = parseFretString(fretStr, startFret.value);
@@ -210,12 +367,12 @@ const openStringMarkers = computed((): FretboardNeckOpenMarker[] => {
 });
 
 // Show nut when chord/sequence mode AND startFret === 1
-const showNut = computed(() => !isScale.value && startFret.value === 1);
+const showNut = computed(() => !isScale.value && !isPositions.value && startFret.value === 1);
 
 // RH fingers: auto-assign p/i/m/a when show_rh_fingers is set
 // Low string that plays gets 'p'; up to 3 higher strings get i/m/a.
 const rhFingers = computed((): string[] => {
-    if (!props.data.show_rh_fingers || isScale.value) return [];
+    if (!props.data.show_rh_fingers || isScale.value || isPositions.value) return [];
     const v = currentVoicing.value;
     const fretStr = v.frets ?? 'xxxxxx';
     const frets = parseFretString(fretStr, startFret.value);
@@ -240,12 +397,73 @@ function stepFrame(dir: -1 | 1) {
         activeFrame.value = next;
     }
 }
+
+// ── Neck prop resolution (positions mode overrides the range + view-box) ──────
+
+const neckStartFret = computed(() => isPositions.value ? 1 : startFret.value);
+const neckFretCount = computed(() => isPositions.value ? posFullFretCount.value : fretCount.value);
+const neckViewBox = computed(() => isPositions.value ? posViewBox.value : null);
+
+// Positions header shows its own controls; only render them when there are ≥2 windows.
+const showPositionControls = computed(() => isPositions.value && windows.value.length > 1);
+const activeWindowLabel = computed(() =>
+    activeWindow.value?.label ?? (activeWindow.value ? `Frets ${activeWindow.value.from}–${activeWindow.value.to}` : ''));
 </script>
 
 <template>
     <div class="sbn-fretboard-vue-wrap">
-        <!-- Header -->
-        <div class="sbn-fv-header">
+        <!-- ── Positions mode header: label + play/pause + prev/next ── -->
+        <template v-if="isPositions">
+            <div class="sbn-fv-header">
+                <button
+                    v-if="showPositionControls"
+                    type="button"
+                    class="sbn-fv-play-btn"
+                    :class="{ 'is-playing': isPlaying }"
+                    :aria-label="isPlaying ? 'Pause' : 'Play'"
+                    @click="togglePlay"
+                >
+                    <svg v-if="!isPlaying" viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
+                        <path d="M3 2l7 4-7 4z" fill="currentColor" />
+                    </svg>
+                    <svg v-else viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
+                        <rect x="3" y="2.5" width="2.4" height="7" fill="currentColor" />
+                        <rect x="6.8" y="2.5" width="2.4" height="7" fill="currentColor" />
+                    </svg>
+                </button>
+                <span class="sbn-fv-label">{{ activeWindowLabel }}</span>
+                <template v-if="showPositionControls">
+                    <div class="sbn-fv-steps">
+                        <button
+                            type="button"
+                            class="sbn-fv-step-btn"
+                            :disabled="activeWindowIdx === 0"
+                            @click="stepWindow(-1)"
+                        >&#x2039;</button>
+                        <span class="sbn-fv-counter">{{ activeWindowIdx + 1 }}/{{ windows.length }}</span>
+                        <button
+                            type="button"
+                            class="sbn-fv-step-btn"
+                            :disabled="activeWindowIdx === windows.length - 1"
+                            @click="stepWindow(1)"
+                        >&#x203a;</button>
+                    </div>
+                </template>
+            </div>
+            <div v-if="showPositionControls" class="sbn-fv-slider-row">
+                <input
+                    type="range"
+                    class="sbn-fv-slider"
+                    min="0"
+                    :max="windows.length - 1"
+                    step="1"
+                    :value="activeWindowIdx"
+                    @input="stopPlay(); goToWindow(Number(($event.target as HTMLInputElement).value))"
+                />
+            </div>
+        </template>
+        <!-- ── Chord / scale / sequence header (unchanged) ── -->
+        <div v-else class="sbn-fv-header">
             <span class="sbn-fv-label">{{ currentVoicing.label ?? data.title ?? '' }}</span>
             <!-- Step controls for multi-frame voicings -->
             <template v-if="isMultiFrame">
@@ -278,8 +496,9 @@ function stepFrame(dir: -1 | 1) {
         <div class="sbn-fv-board">
             <FretboardNeck
                 :dots="neckDots"
-                :start-fret="startFret"
-                :fret-count="fretCount"
+                :start-fret="neckStartFret"
+                :fret-count="neckFretCount"
+                :view-box="neckViewBox"
                 :show-nut="showNut"
                 :open-strings="openStringMarkers"
                 :rh-fingers="rhFingers"
@@ -361,5 +580,56 @@ function stepFrame(dir: -1 | 1) {
 }
 .sbn-fv-board {
     min-width: 0;
+}
+
+/* ── Positions-mode controls ── */
+.sbn-fv-play-btn {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+    border: none;
+    border-radius: 50%;
+    background: var(--clr-accent, #e85d3b);
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: filter 0.15s, transform 0.1s;
+}
+.sbn-fv-play-btn:hover { filter: brightness(1.08); }
+.sbn-fv-play-btn:active { transform: scale(0.94); }
+.sbn-fv-play-btn.is-playing { background: var(--clr-text-dim, #6b7280); }
+.sbn-fv-slider-row {
+    padding: 2px 2px 4px;
+}
+.sbn-fv-slider {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--clr-border, #d4d4d8);
+    border-radius: 3px;
+    cursor: pointer;
+    outline: none;
+}
+.sbn-fv-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--clr-accent, #e85d3b);
+    border: 2px solid var(--clr-bg, #fff);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.sbn-fv-slider::-moz-range-thumb {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--clr-accent, #e85d3b);
+    border: 2px solid var(--clr-bg, #fff);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 </style>
