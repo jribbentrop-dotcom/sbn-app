@@ -232,7 +232,12 @@ const breadcrumbSegments = computed(() => {
             Open in viewer →
           </Link>
         </div>
+
+        <div v-if="skills && skills.length" class="sbn-ss-hero-skills">
+          <SkillsBuiltPanel :skills="skills" :compact="true" />
+        </div>
       </div>
+
     </header>
 
     <!-- ── Description ───────────────────────────────────────────────────── -->
@@ -241,19 +246,37 @@ const breadcrumbSegments = computed(() => {
       <div class="sbn-ss-description sbn-prose" v-html="song.description"></div>
     </div>
 
-    <!-- ── Chords + Progressions side by side ───────────────────────────── -->
-    <div v-if="(chords && chords.length) || progressions.length" class="sbn-ss-two-col">
+    <!-- ── Chords + Rhythm | Progressions ──────────────────────────────── -->
+    <div v-if="(chords && chords.length) || song.rhythmData || progressions.length" class="sbn-ss-two-col">
 
-      <div v-if="chords && chords.length" class="sbn-ss-section sbn-ss-col">
-        <h2 class="sbn-ss-section-title">Chords</h2>
-        <div class="sbn-card-scroll-wrap">
-          <div ref="chordsScrollEl" class="sbn-card-scroll">
-            <Link v-for="chord in chords" :key="chord.id" :href="chordShowUrl(chord)" class="sbn-card-scroll-item">
-              <ChordCard :chord="chord" mini :show-root="true" :no-nav="true" />
-            </Link>
+      <div v-if="(chords && chords.length) || song.rhythmData" class="sbn-ss-col">
+        <div v-if="chords && chords.length" class="sbn-ss-section">
+          <h2 class="sbn-ss-section-title">Chords</h2>
+          <div class="sbn-card-scroll-wrap">
+            <div ref="chordsScrollEl" class="sbn-card-scroll">
+              <Link v-for="chord in chords" :key="chord.id" :href="chordShowUrl(chord)" class="sbn-card-scroll-item">
+                <ChordCard :chord="chord" mini :show-root="true" :no-nav="true" />
+              </Link>
+            </div>
+            <button v-show="chordsCanLeft"  class="sbn-card-scroll-btn sbn-card-scroll-btn--prev" @click="scrollChords(-1)" aria-label="Scroll left">‹</button>
+            <button v-show="chordsCanRight" class="sbn-card-scroll-btn sbn-card-scroll-btn--next" @click="scrollChords(1)"  aria-label="Scroll right">›</button>
           </div>
-          <button v-show="chordsCanLeft"  class="sbn-card-scroll-btn sbn-card-scroll-btn--prev" @click="scrollChords(-1)" aria-label="Scroll left">‹</button>
-          <button v-show="chordsCanRight" class="sbn-card-scroll-btn sbn-card-scroll-btn--next" @click="scrollChords(1)"  aria-label="Scroll right">›</button>
+        </div>
+
+        <div v-if="song.rhythmData" class="sbn-ss-section">
+          <h2 class="sbn-ss-section-title">
+            Rhythm
+            <Link v-if="song.rhythm" :href="`/library/rhythms/${song.rhythm}`" class="sbn-ss-rhythm-link">
+              {{ song.rhythmName || song.rhythm }} →
+            </Link>
+          </h2>
+          <RhythmStrip
+            :pattern="song.rhythmData"
+            :tempo="song.tempo ?? undefined"
+            :playable="true"
+            :show-meta="true"
+            :color="categoryColor"
+          />
         </div>
       </div>
 
@@ -268,28 +291,6 @@ const breadcrumbSegments = computed(() => {
         </div>
       </div>
 
-    </div>
-
-    <!-- ── Rhythm ─────────────────────────────────────────────────────────── -->
-    <div v-if="song.rhythmData" class="sbn-ss-section">
-      <h2 class="sbn-ss-section-title">
-        Rhythm
-        <Link v-if="song.rhythm" :href="`/library/rhythms/${song.rhythm}`" class="sbn-ss-rhythm-link">
-          {{ song.rhythmName || song.rhythm }} →
-        </Link>
-      </h2>
-      <RhythmStrip
-        :pattern="song.rhythmData"
-        :tempo="song.tempo ?? undefined"
-        :playable="true"
-        :show-meta="true"
-        :color="categoryColor"
-      />
-    </div>
-
-    <!-- ── Skills this builds ────────────────────────────────────────────── -->
-    <div v-if="skills && skills.length" class="sbn-ss-section">
-      <SkillsBuiltPanel :skills="skills" />
     </div>
 
     <!-- ── Related Courses ──────────────────────────────────────────────── -->

@@ -3938,11 +3938,19 @@
     margin-bottom: 12px;
 }
 
+.sbn-show-hero-title-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+
 .sbn-show-hero-title {
     font-size: 2em;
     font-weight: 800;
     color: var(--clr-text);
-    margin: 0 0 6px;
+    margin: 0;
     letter-spacing: -0.02em;
     line-height: 1.15;
 }
@@ -4775,6 +4783,14 @@
 
 /* ── Skills Built Panel ────────────────────────────────────────────────────── */
 
+/* Branch color tokens — used by the skills panel icon bubbles */
+.sbn-skills-built-card[data-branch="harmony"]        { --_branch-clr: #f39c12; }
+.sbn-skills-built-card[data-branch="rhythm"]         { --_branch-clr: #3b82f6; }
+.sbn-skills-built-card[data-branch="melody"]         { --_branch-clr: #ec4899; }
+.sbn-skills-built-card[data-branch="technique"]      { --_branch-clr: #10b981; }
+.sbn-skills-built-card[data-branch="ear-training"]   { --_branch-clr: #8b5cf6; }
+.sbn-skills-built-card[data-branch="reading-theory"] { --_branch-clr: #64748b; }
+
 .sbn-skills-built-panel {
     margin-bottom: 32px;
 }
@@ -4785,13 +4801,13 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--clr-text-muted);
-    margin: 0 0 8px;
+    margin: 0 0 12px;
 }
 
 .sbn-skills-built-progress {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--clr-text-muted);
-    margin: 0 0 10px;
+    margin: -6px 0 12px;
 }
 
 .sbn-skills-built-list {
@@ -4799,53 +4815,194 @@
     margin: 0;
     padding: 0;
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    flex-wrap: wrap;
+    gap: 10px;
 }
 
+/* Each skill = a compact tile: icon bubble + label */
 .sbn-skills-built-card {
+    --_branch-clr: var(--clr-accent);
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    border-radius: 8px;
+    gap: 6px;
+    padding: 12px 14px 10px;
+    border-radius: 12px;
     border: 1px solid var(--clr-border);
     background: var(--clr-surface);
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+    cursor: default;
+    min-width: 76px;
+    max-width: 110px;
+    text-align: center;
+    position: relative;
 }
 
 .sbn-skills-built-card:hover {
-    border-color: var(--clr-accent);
+    border-color: color-mix(in srgb, var(--_branch-clr) 60%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--_branch-clr) 12%, transparent);
+    transform: translateY(-1px);
 }
 
+/* Completed state: subtle filled bg */
+.sbn-skills-built-card.is-done {
+    background: color-mix(in srgb, var(--_branch-clr) 8%, var(--clr-surface));
+    border-color: color-mix(in srgb, var(--_branch-clr) 30%, transparent);
+}
+
+/* Icon circle */
 .sbn-skills-built-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--_branch-clr) 14%, transparent);
+    color: var(--_branch-clr);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
-    color: var(--clr-text-muted);
+    transition: background 0.15s;
+}
+
+.sbn-skills-built-card:hover .sbn-skills-built-icon,
+.sbn-skills-built-card.is-done .sbn-skills-built-icon {
+    background: color-mix(in srgb, var(--_branch-clr) 22%, transparent);
+}
+
+.sbn-skills-built-title {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--clr-text);
+    line-height: 1.3;
+    /* keep it to 2 lines max */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.sbn-skills-built-grade {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--_branch-clr);
+    background: color-mix(in srgb, var(--_branch-clr) 12%, transparent);
+    padding: 1px 6px;
+    border-radius: 999px;
+    letter-spacing: 0.03em;
+}
+
+/* Checkmark badge — top-right corner of the card */
+.sbn-skills-built-done {
+    position: absolute;
+    top: 6px;
+    right: 7px;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--_branch-clr);
+    line-height: 1;
+}
+
+/* Songs: skills strip below meta row, inside hero-text */
+.sbn-ss-hero-skills {
+    margin-top: 16px;
+}
+
+/* ── Skills hero icons (compact variant — right-side hero placement) ─────── */
+
+.sbn-skills-hero-strip {
     display: flex;
     align-items: center;
 }
 
-.sbn-skills-built-title {
-    flex: 1;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--clr-text);
-    line-height: 1.3;
+.sbn-skills-hero-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    align-items: center;
 }
 
-.sbn-skills-built-grade {
-    flex-shrink: 0;
-    font-size: 11px;
+/* Per-icon branch colors */
+.sbn-skills-hero-icon[data-branch="harmony"]        { --_branch-clr: #f39c12; }
+.sbn-skills-hero-icon[data-branch="rhythm"]         { --_branch-clr: #3b82f6; }
+.sbn-skills-hero-icon[data-branch="melody"]         { --_branch-clr: #ec4899; }
+.sbn-skills-hero-icon[data-branch="technique"]      { --_branch-clr: #10b981; }
+.sbn-skills-hero-icon[data-branch="ear-training"]   { --_branch-clr: #8b5cf6; }
+.sbn-skills-hero-icon[data-branch="reading-theory"] { --_branch-clr: #94a3b8; }
+
+.sbn-skills-hero-icon {
+    --_branch-clr: var(--clr-accent);
+    position: relative;
+    color: var(--_branch-clr);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s;
+    opacity: 0.85;
+}
+
+/* completed: full opacity */
+.sbn-skills-hero-icon.is-done {
+    opacity: 1;
+}
+
+.sbn-skills-hero-icon:hover {
+    transform: scale(1.35);
+    opacity: 1;
+}
+
+/* Tooltip — hidden by default, fades in on hover, appears to the right */
+.sbn-skills-hero-tooltip {
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%);
+    white-space: nowrap;
+    font-size: 9px;
     font-weight: 600;
+    letter-spacing: 0.02em;
     color: var(--clr-text-muted);
-    background: var(--clr-bg-subtle, var(--clr-border));
-    padding: 1px 6px;
-    border-radius: 999px;
+    background: var(--clr-surface);
+    border: 1px solid var(--clr-border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 10;
 }
 
-.sbn-skills-built-done {
-    flex-shrink: 0;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--clr-success, #22c55e);
+/* On the dark Songs image hero: tooltip inverted */
+.sbn-ss-hero .sbn-skills-hero-tooltip {
+    background: rgba(0,0,0,0.75);
+    border-color: rgba(255,255,255,0.15);
+    color: #fff;
+    backdrop-filter: blur(6px);
+}
+
+.sbn-skills-hero-icon:hover .sbn-skills-hero-tooltip {
+    opacity: 1;
+}
+
+/* On the dark Songs image hero: icons slightly lighter base */
+.sbn-ss-hero .sbn-skills-hero-icon {
+    opacity: 0.75;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4));
+}
+
+.sbn-ss-hero .sbn-skills-hero-icon:hover {
+    opacity: 1;
+}
+
+/* Mobile: switch to horizontal row, tooltip goes above */
+@media (max-width: 700px) {
+    .sbn-hero-split { flex-direction: column; align-items: flex-start; }
+    .sbn-hero-split-right { width: 100%; justify-content: flex-start; padding-top: 4px; }
+    .sbn-skills-hero-list { flex-wrap: wrap; gap: 16px; }
+    .sbn-skills-hero-tooltip { bottom: calc(100% + 8px); top: auto; left: 50%;
+        transform: translateX(-50%); }
+    .sbn-ss-hero-skills { position: static; transform: none; padding: 12px 20px 20px; }
 }

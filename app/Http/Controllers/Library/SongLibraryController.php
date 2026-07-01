@@ -262,14 +262,37 @@ class SongLibraryController extends Controller
             $topChords[] = $card;
         }
 
-        // Progressions detected in this arrangement (version-scoped)
-        $progressions = ChordProgression::query()
-            ->join('sbn_progression_occurrences as o', 'sbn_chord_progressions.id', '=', 'o.progression_id')
-            ->where('o.version_id', $version->id)
-            ->select('sbn_chord_progressions.id', 'sbn_chord_progressions.slug', 'sbn_chord_progressions.name', 'sbn_chord_progressions.category', 'sbn_chord_progressions.numerals')
-            ->distinct()
-            ->orderBy('sbn_chord_progressions.name')
-            ->get()
+        // Progressions detected in this arrangement (version-scoped).
+        // Guard: synthetic fallback versions have no real id — skip rather than
+        // matching all NULL-version_id rows from unrelated songs.
+        $rawProgressions = $version->id
+            ? ChordProgression::query()
+                ->join('sbn_progression_occurrences as o', 'sbn_chord_progressions.id', '=', 'o.progression_id')
+                ->where('o.version_id', $version->id)
+                ->select('sbn_chord_progressions.id', 'sbn_chord_progressions.slug', 'sbn_chord_progressions.name', 'sbn_chord_progressions.category', 'sbn_chord_progressions.numerals')
+                ->distinct()
+                ->orderBy('sbn_chord_progressions.name')
+                ->get()
+            : collect();
+
+        // Suppress progressions whose numeral sequence is a contiguous subsequence
+        // of a longer progression already in the set (e.g. "IIm7,V7" when
+        // "IIm7,V7,Imaj7" is also present).
+        $normalise  = fn(string $s) => implode(',', array_map('trim', explode(',', strtolower($s))));
+        $allNormals = $rawProgressions->map(fn($p) => $normalise($p->numerals))->all();
+
+        $progressions = $rawProgressions
+            ->filter(function ($p) use ($allNormals, $normalise) {
+                $needle = $normalise($p->numerals);
+                foreach ($allNormals as $hay) {
+                    if ($hay === $needle) continue;
+                    // Is needle a contiguous subsequence somewhere in hay?
+                    if (str_contains(',' . $hay . ',', ',' . $needle . ',')) {
+                        return false;
+                    }
+                }
+                return true;
+            })
             ->map(function ($p) use ($songKey) {
                 // Resolve chord diagram tiles via the proper voice-leading path
                 $root    = $songKey ?? 'C';
@@ -297,7 +320,8 @@ class SongLibraryController extends Controller
                     'numeralsDisplay'=> $p->numerals_display,
                     'tiles'          => $tiles,
                 ];
-            });
+            })
+            ->values();
 
         $chordNames = $version->getChordNames();
 

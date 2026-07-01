@@ -530,9 +530,12 @@ const formattedChordName = computed(() => {
 
                 <!-- Description: "About" text + stacked note names -->
                 <div class="sbn-chord-identity-about-block">
-                    <h2 class="sbn-chord-identity-about">
-                        About the <span v-html="formattedActiveName" /> chord
-                    </h2>
+                    <div class="sbn-chord-identity-about-row-title">
+                        <h2 class="sbn-chord-identity-about">
+                            About the <span v-html="formattedActiveName" /> chord
+                        </h2>
+                        <SkillsBuiltPanel v-if="skills && skills.length" :skills="skills" :compact="true" />
+                    </div>
                     <div class="sbn-chord-identity-about-row">
                         <div class="sbn-chord-identity-about-text">
                             <!-- Voicing-specific description from admin -->
@@ -765,12 +768,8 @@ const formattedChordName = computed(() => {
 
         </div>
 
-        <!-- ════ SKILLS + SONGS + COURSES ════ -->
-        <div v-if="(skills && skills.length) || songs.length || (courses && courses.length)" class="sbn-chord-detail-lower">
-
-            <div v-if="skills && skills.length" class="sbn-chord-detail-section">
-                <SkillsBuiltPanel :skills="skills" />
-            </div>
+        <!-- ════ SONGS + COURSES ════ -->
+        <div v-if="songs.length || (courses && courses.length)" class="sbn-chord-detail-lower">
 
             <div v-if="songs.length" class="sbn-chord-detail-section">
                 <MediaShelf title="Songs" view-all-href="/library/songs">
@@ -952,11 +951,20 @@ const formattedChordName = computed(() => {
     margin-bottom: 12px;
 }
 
+.sbn-chord-identity-about-row-title {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 14px;
+    width: fit-content;
+}
+
 .sbn-chord-identity-about {
     font-size: 1.35em;
     font-weight: 700;
     color: var(--clr-text);
-    margin: 0 0 14px;
+    margin: 0;
+    white-space: nowrap;
 }
 
 .sbn-chord-identity-description {

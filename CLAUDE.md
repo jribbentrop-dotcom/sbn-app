@@ -8,6 +8,14 @@ The app is live at https://www.soulbossanova.com. Local DB path: `C:\Users\info\
 
 ---
 
+## Content voice (critical)
+
+**`docs/SBN-Content-Style-Guide.md` is a living style guide — always consult it before writing or editing `description`, `harmony_notes`, `form_notes`, or `voicing_notes` on leadsheets, exercises, or skill nodes.** It holds the site's voice principles, core themes (nylon-string, fingerstyle, bossa nova, João Gilberto, Tom Jobim, Wes Montgomery), a rotating vocabulary bank, and per-field length/structure rules.
+
+**It is meant to grow.** When the user shares a description they like (something they wrote, found, or heard), pull its essence — phrasing, structure, a new reference point — into the guide rather than only using it once. When working on any content-writing task, actively look for good phrasing worth saving back into the guide, and mention it if you add something. Keep additions short (a sentence or two per entry); if a phrase starts feeling overused, note it for retirement rather than letting it go stale silently.
+
+---
+
 ## Database workflow (critical)
 
 **Never write directly to the mounted DB.** The SQLite file on the Windows mount causes disk I/O errors and leaves journal files that block further access.
