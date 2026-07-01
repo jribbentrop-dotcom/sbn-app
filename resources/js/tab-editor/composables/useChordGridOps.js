@@ -908,3 +908,26 @@ export function useChordGridOps(model, undo, tabModel) {
         _findMeasureByGi,
     };
 }
+
+/**
+ * Standalone export for use outside useChordGridOps (e.g. transposeSheet in useTabModel).
+ * Renames voicing keys after a chord name change; `model` is the reactive ref.
+ */
+export function renameVoicingKey(model, cv, oldName, newName, gi, ci) {
+    if (!cv || !oldName || !newName || oldName === newName) return;
+    const oldKey = `${oldName}@${gi}.${ci}`;
+    const newKey = `${newName}@${gi}.${ci}`;
+    if (cv[oldKey] !== undefined) {
+        cv[newKey] = cv[oldKey];
+        delete cv[oldKey];
+    }
+    if (cv[oldName] !== undefined) {
+        const stillUsed = model.value?.sections?.some(sec =>
+            sec.measures.some(m => (m.chordNames || []).includes(oldName))
+        );
+        if (!stillUsed) {
+            cv[newName] = cv[oldName];
+            delete cv[oldName];
+        }
+    }
+}

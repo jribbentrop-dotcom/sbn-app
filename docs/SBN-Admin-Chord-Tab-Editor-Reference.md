@@ -272,6 +272,67 @@ undo.wrapCommand('Insert bar', [], () => { tabModel.insertMeasureAfter(si, mi); 
 });
 ```
 
+### Transpose sheet (backend, whole-arrangement — shipped 2026-07-01)
+
+Transpose shifts an entire arrangement by a signed semitone interval. It runs
+**server-side** (not through the Vue undo stack) because a leadsheet stores its two
+notation layers as separate MusicXML strings on a `LeadsheetVersion`, and only one
+layer is loaded into Vue at a time — a client-only transpose could reach just the
+active layer (the original "only one tab gets transposed" bug).
+
+**Trigger:** Actions menu → "Transpose sheet…" dispatches `sbn-transpose`; the Vue
+modal (`TabEditor.vue`, `onConfirmTranspose`) collects semitones and POSTs to
+`/admin/leadsheets/{leadsheet}/transpose` (route `leadsheets.transpose`), then
+`window.location.reload()`s. `Shift+T` opens the same modal.
+
+**Endpoint** `LeadsheetController::transpose()` — resolves the **active version**
+(`?v=slug`, else default) exactly like `update()`; runs everything in a DB
+transaction; dual-writes to the leadsheet legacy columns only when the active
+version *is* the default. Scope = active version only; other versions untouched.
+
+**What gets transposed (all via `App\Services\TabXmlTransposer`):**
+- `melody_tab_xml` + `chord_tab_xml` (if present) — each fretted `<note>`: `<fret>`
+  shifted + clamped 0–24; `<pitch>` step/alter/octave shifted via
+  `transposePitchStep()` and re-spelled for the target key. DOMDocument write path
+  (lossless — beams/ties/durations/divisions preserved).
+- `json_data.melody[]` — **the melody staff renders from this, not from the XML**, so
+  it MUST be transposed too (missing this was the "melody tab unchanged" bug). Frets
+  clamped, pitch/octave shifted via the same `transposePitchStep()` helper. json_data
+  pitch is a single string (`"C#"`, `"Bb"`), not step/alter.
+- `json_data` chord names — `sections[].measures[].chords[].name` **and** top-level
+  `measures[].chords[].name` (both exist). Written with **indexed `for` loops**, not
+  nested `foreach ... as &$ref` — PHP by-ref foreach does NOT write back through
+  multiple levels of nested array access (this was the "chord grid names unchanged"
+  bug). Spelling via `HarmonicContext::reSpellChordName($name, $targetKey)`.
+- `json_data.chordVoicings` — each `frets` hex string via `transposeVoicingFrets`
+  (octave-folds the whole voicing ±12 to stay in 0–24, preserving chord shape — do
+  NOT per-string clamp voicings); `position` recomputed via `fretsToPosition`.
+- `json_data.key`, version `song_key` (+ leadsheet `song_key` if default) via
+  `transposeKey`.
+
+**Gotcha:** the leadsheet legacy table (`sbn_leadsheets`) has **only `tab_xml`**, no
+`chord_tab_xml` column — that layer is version-only. Do not dual-write chord XML to
+the leadsheet (it throws + rolls back the whole transaction).
+
+**Enharmonic spelling** always flows through the PHP authority
+(`HarmonicContext::reSpellChordName` / `spellingUsesFlats`), the twin of JS
+`window.sbnSpellChordName` — flats by default; genuine sharp keys spell sharp. See
+"The enharmonic spelling core" above. The JS `transpose.js` helpers
+(`transposeChordName`, `transposeVoicingFrets`, `fretsToPosition`, `transposeKey`)
+still exist and drive the **exercise** transpose path (no leadsheet id → client-side
+`transposeSheet` + Pattern B undo).
+
+**Undo (inverse transpose):** backend transpose is not on the Ctrl+Z stack (the
+reload wipes it). On success the client stashes a one-shot `sbn_transpose_undo`
+marker in `sessionStorage` (leadsheetId, versionSlug, forward semitones, newKey, ts)
+before reloading; after reload `edit.blade.php` reads+**clears** the marker (guards
+`ts < 60s`) and shows `sbnConfirmToast("Transposed to <key>.", "Undo", …)` whose
+callback POSTs `semitones: -N` and reloads **without** re-stashing (prevents an
+undo/redo loop). Marker is cleared on first read so a plain refresh never shows a
+phantom undo. Caveats (accepted): 8s toast window (no durable Actions-menu entry);
+not bit-exact for notes that hit the 0/24 fret clamp on the way out (rare, silent —
+the controller clamps melody frets without counting).
+
 ### Pickup bar ops (Pattern A)
 - `togglePickup(gi)` — flips `m.pickup`; clears `pickupBeats` when unmarking
 - `setPickupBeats(gi, beats)` — sets exact quarter-beat count; marks `pickup:true`. Pass `null` to unmark. UI: right-click → beat-count row (1…N buttons matching time sig + ✕ clear)

@@ -66,6 +66,10 @@
                     @click="window.dispatchEvent(new CustomEvent('sbn-swap-tab-layers'))">
                 ⇄ Swap Melody / Chords
             </button>
+            <button type="button" class="sbn-actions-menu-item"
+                    @click="window.dispatchEvent(new CustomEvent('sbn-transpose'))">
+                ⇅ Transpose sheet…
+            </button>
             <hr>
             <button type="button" class="sbn-actions-menu-item"
                     @click="window.dispatchEvent(new CustomEvent('sbn-open-merge'))">
@@ -746,6 +750,8 @@
     // transcription so the Vue "Set downbeat" panel can re-shift the grid.
     window.__sbnLeadsheet = {
         id: @json($leadsheet->id ?? $exercise->id ?? null),
+        // Active arrangement version slug — used by the server-side transpose endpoint.
+        versionSlug: @json($activeVersion->version_slug ?? null),
         // transcriptionRaw only exists on audio-transcribed leadsheets.
         transcriptionRaw: @json(isset($leadsheet) ? ($leadsheet->parsed_data['transcriptionRaw'] ?? null) : null),
     };
@@ -3940,6 +3946,60 @@ function sbnConfirmToast(htmlMessage, confirmLabel, onConfirm) {
 
     autoTimer = setTimeout(dismiss, 8000);
 }
+
+// ── Transpose undo affordance ────────────────────────────────────────────────
+// After a successful backend transpose the Vue code stashes a marker in
+// sessionStorage and reloads. Here, after the page is ready, we read + CLEAR
+// that marker (so manual refreshes never show a phantom undo) and show a
+// sbnConfirmToast with an Undo button that POSTs the inverse semitones.
+// The inverse POST deliberately does NOT re-stash the marker — one level only.
+(function initTransposeUndo() {
+    const raw = sessionStorage.getItem('sbn_transpose_undo');
+    // Clear immediately so any subsequent refresh sees nothing.
+    sessionStorage.removeItem('sbn_transpose_undo');
+
+    if (!raw) return;
+
+    let marker;
+    try { marker = JSON.parse(raw); } catch (_) { return; }
+
+    // Ignore stale markers (> 60 s old — e.g. a user opened another tab later).
+    if (!marker || typeof marker.ts !== 'number' || Date.now() - marker.ts > 60000) return;
+
+    const { leadsheetId, versionSlug, semitones, newKey } = marker;
+    if (!leadsheetId || !semitones) return;
+
+    sbnConfirmToast(
+        `Transposed to <strong>${newKey}</strong>.`,
+        'Undo',
+        async function onUndoTranspose() {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+            const body = { semitones: -semitones };
+            if (versionSlug) body.v = versionSlug;
+
+            try {
+                const resp = await fetch(`/admin/leadsheets/${leadsheetId}/transpose`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrf,
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify(body),
+                });
+                const data = await resp.json();
+                if (!resp.ok || !data.ok) {
+                    sbnToast('Undo failed: ' + (data.message ?? 'server error'), 'error');
+                    return;
+                }
+                // Do NOT stash a new undo marker — one level of undo only.
+                window.location.reload();
+            } catch (err) {
+                sbnToast('Undo request failed: ' + (err instanceof Error ? err.message : String(err)), 'error');
+            }
+        }
+    );
+})();
 </script>
 
 

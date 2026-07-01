@@ -17,6 +17,8 @@ import {
     durationToTicks, flagCount, baseDuration,
     generateId, ticksPerMeasure as calcTicksPerMeasure,
 } from '../utils/constants.js';
+import { transposeChordName, transposeFret, transposePitch, transposeKey, transposeVoicingFrets, fretsToPosition } from '../utils/transpose.js';
+import { renameVoicingKey } from './useChordGridOps.js';
 
 function cloneChordVoicings(src) {
     if (Array.isArray(src) || !src || typeof src !== 'object') {
@@ -1028,11 +1030,14 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
 
         _restoringSnapshot = true;
 
+        const restoredKey = snapshot.songKey ?? (model.value && model.value.songKey) ?? null;
+        if (songKey && restoredKey != null) songKey.value = restoredKey;
+
         model.value = {
             timeSignature:   snapshot.timeSignature,
             ticksPerMeasure: snapshot.ticksPerMeasure,
             chordVoicings:   cloneChordVoicings(snapshot.chordVoicings),
-            songKey:         snapshot.songKey ?? (model.value && model.value.songKey) ?? null,
+            songKey:         restoredKey,
             sections: snapshot.sections.map(sec => ({
                 id:   sec.id,
                 name: sec.name,
@@ -1535,5 +1540,70 @@ export function useTabModel(melody, sections, timeSignature, repeatMarkers, volt
         cloneChordVoicings,
         patchChordVoicings,
         applyChordVoicingOps,
+        transposeSheet,
     };
+
+    /**
+     * Transpose the entire sheet by `semitones`.
+     * Returns the count of notes that were clamped (fret < 0 or > 24).
+     * Caller wraps this in wrapCommand with structuralUndoOptions.
+     */
+    function transposeSheet(semitones) {
+        if (!model.value || semitones === 0) return 0;
+
+        const newKey = transposeKey(songKey?.value, semitones);
+        const cv = model.value.chordVoicings;
+        const spell = (n) =>
+            (n && typeof window !== 'undefined' && typeof window.sbnSpellChordName === 'function')
+                ? window.sbnSpellChordName(n, newKey) : n;
+
+        if (songKey) songKey.value = newKey;
+
+        let overflowCount = 0;
+        // Track which voicing keys have already been transposed so a shared global
+        // voicing referenced by many chord positions is transposed exactly once.
+        const touchedVoicingKeys = new Set();
+
+        for (const section of model.value.sections) {
+            for (const measure of section.measures) {
+                measure.chordNames = (measure.chordNames || []).map((name, ci) => {
+                    const shifted  = transposeChordName(name, semitones);
+                    const newName  = spell(shifted);
+                    if (cv && newName !== name) {
+                        renameVoicingKey(model, cv, name, newName, measure.index, ci);
+                    }
+
+                    // Transpose frets for the positional key and the bare global key.
+                    // renameVoicingKey already moved the entry to newName/@gi.ci; read
+                    // from there.  Both keys may point to the same object — the Set
+                    // dedup prevents double-shifting if the global key was also renamed.
+                    const vKey = `${newName}@${measure.index}.${ci}`;
+                    for (const k of [vKey, newName]) {
+                        if (cv?.[k]?.frets && !touchedVoicingKeys.has(k)) {
+                            touchedVoicingKeys.add(k);
+                            const r = transposeVoicingFrets(cv[k].frets, semitones);
+                            cv[k].frets    = r.frets;
+                            cv[k].position = fretsToPosition(r.frets);
+                            if (r.overflow) overflowCount++;
+                        }
+                    }
+
+                    return newName;
+                });
+
+                for (const event of (measure.events || [])) {
+                    if (event.isRest) continue;
+                    for (const note of (event.notes || [])) {
+                        const { fret, overflow } = transposeFret(note.fret, semitones);
+                        note.fret = fret;
+                        if (overflow) overflowCount++;
+                        const p = transposePitch(note.pitch, note.octave, semitones);
+                        note.pitch  = p.pitch;
+                        note.octave = p.octave;
+                    }
+                }
+            }
+        }
+        return overflowCount;
+    }
 }

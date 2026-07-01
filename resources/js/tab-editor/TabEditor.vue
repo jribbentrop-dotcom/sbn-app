@@ -244,6 +244,41 @@
             </div>
         </transition>
 
+        <!-- Transpose modal (Shift+T / Actions menu) -->
+        <transition name="sbn-tab-overlay-fade">
+            <div v-if="showTranspose" class="sbn-tab-shortcut-overlay" @mousedown.self="showTranspose = false">
+                <div class="sbn-tab-shortcut-panel sbn-transpose-panel">
+                    <div class="sbn-tab-shortcut-header">
+                        <span>Transpose Sheet</span>
+                        <button class="sbn-tab-shortcut-close" @click="showTranspose = false">✕</button>
+                    </div>
+                    <div class="sbn-transpose-body">
+                        <div class="sbn-transpose-row">
+                            <label class="sbn-transpose-label">From key</label>
+                            <span class="sbn-transpose-from">{{ songKey || '—' }}</span>
+                        </div>
+                        <div class="sbn-transpose-row">
+                            <label class="sbn-transpose-label">To key</label>
+                            <select class="sbn-transpose-select" v-model="transposeTargetKey" @change="onTransposeKeySelect">
+                                <option value="">— pick a key —</option>
+                                <option v-for="k in transposeKeyOptions" :key="k.key" :value="k.key">{{ k.label }}</option>
+                            </select>
+                        </div>
+                        <div class="sbn-transpose-row">
+                            <label class="sbn-transpose-label">Semitones</label>
+                            <input class="sbn-transpose-semitones" type="number" min="-11" max="11"
+                                   v-model.number="transposeSemitones" />
+                        </div>
+                        <div class="sbn-transpose-actions">
+                            <button class="sbn-btn sbn-btn-secondary" @click="showTranspose = false">Cancel</button>
+                            <button class="sbn-btn sbn-btn-primary" :disabled="transposeSemitones === 0"
+                                    @click="onConfirmTranspose">Transpose</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
         <!-- Transport bar — visible in tab and chord views when there's data -->
         <TransportBar
             v-if="(viewMode === 'tab' && hasData) || (viewMode === 'chords' && hasChordsData)"
@@ -418,7 +453,7 @@ const tabModel = useTabModel(
 const {
     model, hasData, buildModel, serializeModel, deserializeModel,
     insertMeasureAfter, insertMeasureBefore, deleteMeasure, deleteMeasuresByGlobalIndices,
-    exportAlpineSections, cloneChordVoicings, applyChordVoicingOps,
+    exportAlpineSections, cloneChordVoicings, applyChordVoicingOps, transposeSheet,
 } = tabModel;
 
 // Placeholder for videoSync — populated after useUndo + useVideoSync below.
@@ -1494,6 +1529,7 @@ function _onStructuralSync() {
 
 onMounted(() => {
     window.addEventListener('sbn-tab-sections-sync', _onStructuralSync);
+    window.addEventListener('sbn-transpose', openTransposeModal);
     document.addEventListener('sbn-sidebar-set-duration', onSidebarSetDuration);
     document.addEventListener('sbn-sidebar-toggle-tie', onSidebarToggleTie);
     document.addEventListener('sbn-sidebar-toggle-dotted', onSidebarToggleDotted);
@@ -1572,6 +1608,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     window.removeEventListener('sbn-tab-sections-sync', _onStructuralSync);
+    window.removeEventListener('sbn-transpose', openTransposeModal);
     disposeNoteInput();
     document.removeEventListener('sbn-sidebar-set-duration', onSidebarSetDuration);
     document.removeEventListener('sbn-sidebar-toggle-tie', onSidebarToggleTie);
@@ -1640,6 +1677,108 @@ const videoSyncEditorRef = ref(null);
 // ── Keyboard shortcut overlay (Phase 7g) ───────────────────
 
 const showShortcuts = ref(false);
+
+// ── Transpose modal ─────────────────────────────────────────
+
+const showTranspose      = ref(false);
+const transposeSemitones = ref(0);
+const transposeTargetKey = ref('');
+
+// 12 keys in the enharmonic core's preferred spelling
+// (flat side uses flats, genuine sharp keys use sharps; C is neutral/first)
+const transposeKeyOptions = [
+    { key: 'C',  label: 'C'  }, { key: 'Db', label: 'Db/C#' },
+    { key: 'D',  label: 'D'  }, { key: 'Eb', label: 'Eb/D#' },
+    { key: 'E',  label: 'E'  }, { key: 'F',  label: 'F'  },
+    { key: 'F#', label: 'F#/Gb' }, { key: 'G', label: 'G'  },
+    { key: 'Ab', label: 'Ab/G#' }, { key: 'A', label: 'A'  },
+    { key: 'Bb', label: 'Bb/A#' }, { key: 'B', label: 'B'  },
+];
+
+const NOTE_SEMI = { C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11 };
+
+function onTransposeKeySelect() {
+    if (!transposeTargetKey.value) { transposeSemitones.value = 0; return; }
+    const fromKey = songKey?.value || 'C';
+    const fromTonic = fromKey.replace(/m$/, '').split(' ')[0];
+    const toTonic   = transposeTargetKey.value.replace(/m$/, '').split(' ')[0];
+    const from = NOTE_SEMI[fromTonic] ?? 0;
+    const to   = NOTE_SEMI[toTonic]   ?? 0;
+    let diff = ((to - from) % 12 + 12) % 12;
+    if (diff > 6) diff -= 12;  // prefer shortest interval (e.g. +5 over -7)
+    transposeSemitones.value = diff;
+}
+
+function openTransposeModal() {
+    transposeSemitones.value = 0;
+    transposeTargetKey.value = '';
+    showTranspose.value = true;
+}
+
+async function onConfirmTranspose() {
+    if (transposeSemitones.value === 0) return;
+
+    const leadsheetId   = window.__sbnLeadsheet?.id;
+    const versionSlug   = window.__sbnLeadsheet?.versionSlug ?? null;
+    const csrf          = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
+    if (!leadsheetId) {
+        // Fallback: client-side transpose (exercises, etc. with no server id)
+        let overflowCount = 0;
+        wrapCommand(
+            `Transpose ${transposeSemitones.value > 0 ? '+' : ''}${transposeSemitones.value} semitones`,
+            [],
+            () => { overflowCount = transposeSheet(transposeSemitones.value); },
+            structuralUndoOptions,
+        );
+        syncTabSectionsToAlpine();
+        showTranspose.value = false;
+        if (overflowCount > 0) {
+            window.sbnToast?.(`${overflowCount} note(s) were clamped to fret range (0–24)`, 'warning');
+        }
+        return;
+    }
+
+    showTranspose.value = false;
+
+    try {
+        const body = { semitones: transposeSemitones.value };
+        if (versionSlug) body.v = versionSlug;
+
+        const resp = await fetch(`/admin/leadsheets/${leadsheetId}/transpose`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+            window.sbnToast?.('Transpose failed: ' + (data.message ?? 'server error'), 'error');
+            return;
+        }
+
+        // Stash a one-shot undo marker so the page can offer an Undo toast after reload.
+        // The inverse POST will NOT re-stash this marker (one level of undo only).
+        sessionStorage.setItem('sbn_transpose_undo', JSON.stringify({
+            leadsheetId,
+            versionSlug,
+            semitones: transposeSemitones.value,
+            newKey: data.song_key,
+            ts: Date.now(),
+        }));
+
+        // Reload page so both layers and the chord grid reflect the server-stored transposed data.
+        // A full reload is the safe path here — the backend is now the source of truth.
+        window.location.reload();
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        window.sbnToast?.('Transpose request failed: ' + msg, 'error');
+    }
+}
 
 // ── Empty state helpers (Phase 7g) ─────────────────────────
 
@@ -1723,6 +1862,13 @@ function onKeydown(e) {
         const next = tabs[(current + 1) % tabs.length];
         if (next.mode === 'tab') selectTabLayerView(next.layer);
         else setViewMode(next.mode);
+        return;
+    }
+
+    // Shift+T: open transpose modal
+    if (e.shiftKey && (e.key === 't' || e.key === 'T') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        openTransposeModal();
         return;
     }
 
@@ -2289,7 +2435,7 @@ function onEditorFocus() {
 
 function onEditorClick(e) {
     const tag = e.target?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || e.target?.isContentEditable) return;
     editorRoot.value?.focus({ preventScroll: true });
 }
 
@@ -3180,5 +3326,50 @@ defineExpose({
 .sbn-ve-section-delete:hover {
     background: var(--clr-red);
     color: #fff;
+}
+.sbn-transpose-panel {
+    max-width: 340px;
+    width: 100%;
+}
+.sbn-transpose-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.sbn-transpose-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.sbn-transpose-label {
+    width: 80px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+.sbn-transpose-from {
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+.sbn-transpose-select,
+.sbn-transpose-semitones {
+    flex: 1;
+    padding: 5px 8px;
+    border: 1px solid var(--clr-border, #d1d5db);
+    border-radius: 5px;
+    background: var(--clr-surface, #fff);
+    font-size: 0.9rem;
+}
+.sbn-transpose-semitones {
+    width: 70px;
+    flex: none;
+    text-align: center;
+}
+.sbn-transpose-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
 }
 </style>

@@ -27,6 +27,7 @@ use App\Services\SongLookup;
 use App\Services\AnalysisToLeadsheet;
 use App\Services\RhythmHintMapper;
 use App\Services\MidiTranscriptionService;
+use App\Services\TabXmlTransposer;
 
 
 class LeadsheetController extends Controller
@@ -993,6 +994,214 @@ class LeadsheetController extends Controller
             $editParams['v'] = $activeVersion->version_slug;
         }
         return redirect()->route('admin.leadsheets.edit', $editParams)->with('success', 'Leadsheet updated successfully.');
+    }
+
+    // =========================================================================
+    // TRANSPOSE ARRANGEMENT (server-side, both tab layers)
+    // =========================================================================
+
+    /**
+     * Atomically transpose the active arrangement version by $semitones semitones.
+     *
+     * Shifts:
+     *   - melody_tab_xml  (frets + pitch)
+     *   - chord_tab_xml   (frets + pitch, if non-empty)
+     *   - json_data  chords[], chordVoicings frets, top-level key
+     *   - version song_key (and leadsheet fallback columns if this is the default version)
+     *
+     * POST /admin/leadsheets/{leadsheet}/transpose
+     * Body: { semitones: int, v?: string }
+     * Response: { ok: true, song_key: string }
+     */
+    public function transpose(Request $request, Leadsheet $leadsheet)
+    {
+        $validated = $request->validate([
+            'semitones' => ['required', 'integer', 'between:-11,11'],
+            'v'         => ['nullable', 'string'],
+        ]);
+
+        $semitones = (int) $validated['semitones'];
+        $vSlug     = $validated['v'] ?? $request->query('v');
+
+        // Resolve active version exactly like update() does.
+        $activeVersion = $vSlug
+            ? $leadsheet->versions()->where('version_slug', $vSlug)->first()
+            : null;
+        $activeVersion ??= $leadsheet->defaultVersion ?? $leadsheet->versions()->first();
+
+        if (!$activeVersion) {
+            return response()->json(['ok' => false, 'message' => 'No arrangement version found.'], 422);
+        }
+
+        // Determine whether this is the default version (triggers dual-write).
+        $isDefault = ($leadsheet->default_version_id === $activeVersion->id);
+
+        // Compute the new key BEFORE the transaction so we can return it on error.
+        $oldKey    = $activeVersion->song_key ?? 'C';
+        $newKey    = TabXmlTransposer::transposeKey($oldKey, $semitones);
+
+        DB::beginTransaction();
+        try {
+            // ── 1. Transpose both tab XML layers ────────────────────────────
+            $newMelodyXml = TabXmlTransposer::transpose(
+                $activeVersion->melody_tab_xml,
+                $semitones,
+                $newKey
+            );
+
+            $newChordXml = null;
+            if (!empty($activeVersion->chord_tab_xml)) {
+                $newChordXml = TabXmlTransposer::transpose(
+                    $activeVersion->chord_tab_xml,
+                    $semitones,
+                    $newKey
+                );
+            }
+
+            // ── 2. Transpose json_data (chords + voicings + key + melody) ─
+            $jsonData = $activeVersion->parsed_data ?? [];
+            if (!empty($jsonData)) {
+                // Walk sections[].measures[].chords[] — use indexed loops because
+                // PHP nested by-ref foreach does NOT reliably write back into nested
+                // array values; indexed access writes directly to the source array.
+                if (isset($jsonData['sections']) && is_array($jsonData['sections'])) {
+                    for ($si = 0; $si < count($jsonData['sections']); $si++) {
+                        $measures = $jsonData['sections'][$si]['measures'] ?? [];
+                        for ($mi = 0; $mi < count($measures); $mi++) {
+                            $chords = $jsonData['sections'][$si]['measures'][$mi]['chords'] ?? [];
+                            for ($ci = 0; $ci < count($chords); $ci++) {
+                                $chord = $jsonData['sections'][$si]['measures'][$mi]['chords'][$ci];
+                                if (is_array($chord) && isset($chord['name'])) {
+                                    $jsonData['sections'][$si]['measures'][$mi]['chords'][$ci]['name'] =
+                                        TabXmlTransposer::transposeChordName($chord['name'], $semitones, $newKey);
+                                } elseif (is_string($chord)) {
+                                    $jsonData['sections'][$si]['measures'][$mi]['chords'][$ci] =
+                                        TabXmlTransposer::transposeChordName($chord, $semitones, $newKey);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Flat measures[] (legacy shape without sections, or duplicate top-level)
+                if (isset($jsonData['measures']) && is_array($jsonData['measures'])) {
+                    for ($mi = 0; $mi < count($jsonData['measures']); $mi++) {
+                        $chords = $jsonData['measures'][$mi]['chords'] ?? [];
+                        for ($ci = 0; $ci < count($chords); $ci++) {
+                            $chord = $jsonData['measures'][$mi]['chords'][$ci];
+                            if (is_array($chord) && isset($chord['name'])) {
+                                $jsonData['measures'][$mi]['chords'][$ci]['name'] =
+                                    TabXmlTransposer::transposeChordName($chord['name'], $semitones, $newKey);
+                            } elseif (is_string($chord)) {
+                                $jsonData['measures'][$mi]['chords'][$ci] =
+                                    TabXmlTransposer::transposeChordName($chord, $semitones, $newKey);
+                            }
+                        }
+                    }
+                }
+
+                // melody[] — transpose pitch + fret for each non-rest note
+                if (isset($jsonData['melody']) && is_array($jsonData['melody'])) {
+                    for ($ni = 0; $ni < count($jsonData['melody']); $ni++) {
+                        $note = $jsonData['melody'][$ni];
+                        if (!is_array($note) || !empty($note['isRest'])) {
+                            continue;
+                        }
+
+                        // Transpose fret (clamp 0–24, no octave folding for melody)
+                        if (isset($note['fret']) && is_numeric($note['fret'])) {
+                            $jsonData['melody'][$ni]['fret'] = max(0, min(24, (int)$note['fret'] + $semitones));
+                        }
+
+                        // Transpose pitch + octave using the shared helper.
+                        // json_data pitch format: "G", "C#", "Bb" (letter + optional #/b).
+                        if (isset($note['pitch']) && is_string($note['pitch']) && isset($note['octave'])) {
+                            $result = TabXmlTransposer::transposePitchStep(
+                                $note['pitch'],
+                                (int)$note['octave'],
+                                $semitones,
+                                $newKey
+                            );
+                            if ($result !== null) {
+                                [$newPitch, $newOctave] = $result;
+                                $jsonData['melody'][$ni]['pitch']  = $newPitch;
+                                $jsonData['melody'][$ni]['octave'] = $newOctave;
+                            }
+                        }
+                    }
+                }
+
+                // chordVoicings map: { "Cmaj7": { frets: "x32000", position: 0 }, ... }
+                if (!empty($jsonData['chordVoicings']) && is_array($jsonData['chordVoicings'])) {
+                    $remapped = [];
+                    foreach ($jsonData['chordVoicings'] as $voicingKey => $voicing) {
+                        // Key may be "Cmaj7" or "Cmaj7@2" (measure-override) — transpose only the chord part.
+                        $atPos   = strpos($voicingKey, '@');
+                        $chordPart = $atPos !== false ? substr($voicingKey, 0, $atPos) : $voicingKey;
+                        $atSuffix  = $atPos !== false ? substr($voicingKey, $atPos)    : '';
+
+                        $newChordPart = TabXmlTransposer::transposeChordName($chordPart, $semitones, $newKey);
+                        $newKey_str   = $newChordPart . $atSuffix;
+
+                        // Transpose frets
+                        if (is_array($voicing) && isset($voicing['frets']) && is_string($voicing['frets'])) {
+                            $newFrets = TabXmlTransposer::transposeVoicingFrets($voicing['frets'], $semitones);
+                            $voicing['frets']    = $newFrets;
+                            $voicing['position'] = TabXmlTransposer::fretsToPosition($newFrets);
+                        }
+
+                        $remapped[$newKey_str] = $voicing;
+                    }
+                    $jsonData['chordVoicings'] = $remapped;
+                }
+
+                // Top-level key field inside json_data
+                if (isset($jsonData['key'])) {
+                    $jsonData['key'] = $newKey;
+                }
+            }
+
+            $newJsonData = !empty($jsonData)
+                ? json_encode($jsonData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                : $activeVersion->json_data;
+
+            // ── 3. Save version ──────────────────────────────────────────────
+            $versionUpdate = [
+                'melody_tab_xml' => $newMelodyXml ?? $activeVersion->melody_tab_xml,
+                'song_key'       => $newKey,
+                'json_data'      => $newJsonData,
+            ];
+            if ($newChordXml !== null) {
+                $versionUpdate['chord_tab_xml'] = $newChordXml;
+            }
+            $activeVersion->update($versionUpdate);
+
+            // ── 4. Dual-write to leadsheet fallback columns (default only) ───
+            // NOTE: sbn_leadsheets has NO chord_tab_xml column — that column lives
+            // only on sbn_leadsheet_versions.  Only write the columns that exist.
+            if ($isDefault) {
+                $leadsheet->update([
+                    'song_key' => $newKey,
+                    'json_data' => $newJsonData,
+                    'tab_xml'   => $newMelodyXml ?? $leadsheet->tab_xml,
+                ]);
+            }
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('[LeadsheetController::transpose] failed', [
+                'leadsheet_id' => $leadsheet->id,
+                'semitones'    => $semitones,
+                'error'        => $e->getMessage(),
+            ]);
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Transpose failed: ' . $e->getMessage(),
+            ], 422);
+        }
+
+        return response()->json(['ok' => true, 'song_key' => $newKey]);
     }
 
     public function destroy(Leadsheet $leadsheet)
