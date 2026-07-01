@@ -184,5 +184,9 @@ button[type="submit"]:disabled {
     margin: 0 0 0.9em;
     font-style: italic;
 }
-.sbn-prose strong { font-weight: 700; }
-.sbn-prose em     { font-style: italic; }
+.sbn-prose strong,
+.sbn-prose b      { font-weight: 700 !important; }
+.sbn-prose em,
+.sbn-prose i      { font-style: italic !important; }
+.sbn-prose ul     { list-style-type: disc !important; }
+.sbn-prose ol     { list-style-type: decimal !important; }

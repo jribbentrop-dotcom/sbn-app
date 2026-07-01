@@ -84,13 +84,23 @@
                     </div>
                 </div>
 
-                {{-- Description --}}
+                {{-- Intro (above component) --}}
                 <div class="sbn-form-group">
-                    <label>Description</label>
-                    <div class="sbn-desc-preview" x-html="form.description || '<span style=\'color:var(--clr-text-muted);font-style:italic\'>No description yet…</span>'"></div>
+                    <label>Introduction <small style="font-weight:normal;color:var(--clr-text-muted)">— shown above the pattern (history, name, context)</small></label>
+                    <div class="sbn-desc-preview" x-html="form.intro || '<span style=\'color:var(--clr-text-muted);font-style:italic\'>No intro yet…</span>'"></div>
                     <button type="button" class="sbn-btn sbn-btn-secondary" style="margin-top:8px;font-size:12px;"
-                            @click="window.__descEditor.open({ initial: form.description, eventName: 'desc-editor:save:rhythm', placeholder: 'Describe this rhythm pattern…', entityType: 'rhythm', entityMeta: { name: form.name, category: form.category, timeSignature: form.time_signature, tempo: form.default_bpm } })">
-                        Edit Description
+                            @click="window.__descEditor.open({ initial: form.intro, eventName: 'desc-editor:save:rhythm-intro', placeholder: 'Overview: history, origin, feel…', entityType: 'rhythm', entityMeta: { name: form.name, category: form.category, timeSignature: form.time_signature, tempo: form.default_bpm } })">
+                        Edit Introduction
+                    </button>
+                </div>
+
+                {{-- Details (below component) --}}
+                <div class="sbn-form-group">
+                    <label>Details <small style="font-weight:normal;color:var(--clr-text-muted)">— shown below the pattern (accents, technique, variations)</small></label>
+                    <div class="sbn-desc-preview" x-html="form.details || '<span style=\'color:var(--clr-text-muted);font-style:italic\'>No details yet…</span>'"></div>
+                    <button type="button" class="sbn-btn sbn-btn-secondary" style="margin-top:8px;font-size:12px;"
+                            @click="window.__descEditor.open({ initial: form.details, eventName: 'desc-editor:save:rhythm-details', placeholder: 'Technical detail: accent placement, subdivision, variations…', entityType: 'rhythm', entityMeta: { name: form.name, category: form.category, timeSignature: form.time_signature, tempo: form.default_bpm } })">
+                        Edit Details
                     </button>
                 </div>
 
@@ -554,6 +564,8 @@
                 name:           @json($pattern->name ?? ''),
                 slug:           @json($pattern->slug ?? ''),
                 description:    @json($pattern->description ?? ''),
+                intro:          @json($pattern->intro ?? ''),
+                details:        @json($pattern->details ?? ''),
                 category:       @json($pattern->category ?? 'bossa-nova'),
                 time_signature: @json($pattern->time_signature ?? '4/4'),
                 default_bpm:    {{ $pattern->default_bpm ?? 120 }},
@@ -587,6 +599,12 @@
             init() {
                 document.addEventListener('desc-editor:save:rhythm', (e) => {
                     this.form.description = e.detail;
+                });
+                document.addEventListener('desc-editor:save:rhythm-intro', (e) => {
+                    this.form.intro = e.detail;
+                });
+                document.addEventListener('desc-editor:save:rhythm-details', (e) => {
+                    this.form.details = e.detail;
                 });
 
                 @if(!$isNew)

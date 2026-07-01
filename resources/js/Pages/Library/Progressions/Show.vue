@@ -45,6 +45,8 @@ interface ProgressionData {
     tonality?: string;
     tags: string[];
     description?: string;
+    intro?: string | null;
+    details?: string | null;
     chordCount: number;
     songCount: number;
     difficulty?: number | null;
@@ -87,7 +89,6 @@ const popularityTier = computed(() => {
 
 const hasSongs      = computed(() => props.songs.length > 0);
 const hasSiblings   = computed(() => props.siblings.length > 0);
-const hasDescription = computed(() => props.progression.description && props.progression.description.trim());
 
 const chords = computed((): ProgressionChord[] =>
     props.tiles.map((tile) => ({
@@ -148,7 +149,10 @@ const breadcrumbSegments = computed(() => {
                 <span v-if="popularityTier" class="sbn-card-pop" :class="`sbn-pop-${popularityTier.tier}`">{{ popularityTier.label }}</span>
                 <span v-for="tag in progression.tags.slice(0, 5)" :key="tag" class="sbn-hashtag">#{{ tag }}</span>
             </div>
-            <h1 class="sbn-show-hero-title">{{ progression.name }}</h1>
+            <div class="sbn-show-hero-title-row">
+                <h1 class="sbn-show-hero-title">{{ progression.name }}</h1>
+                <SkillsBuiltPanel v-if="skills && skills.length" :skills="skills" :compact="true" />
+            </div>
             <div class="sbn-show-hero-meta">
                 <span v-if="tonalityLabel" class="sbn-meta-chip"><strong>Tonality</strong> {{ tonalityLabel }}</span>
                 <span v-if="progression.chordCount" class="sbn-meta-chip"><strong>Chords</strong> {{ progression.chordCount }}</span>
@@ -159,6 +163,10 @@ const breadcrumbSegments = computed(() => {
 
             <!-- Left: main content -->
             <div class="sbn-show-main">
+
+                <section v-if="progression.intro" class="sbn-prog-detail-section">
+                    <div class="sbn-prog-detail-description sbn-prose" v-html="progression.intro"></div>
+                </section>
 
                 <section v-if="tiles.length" class="sbn-prog-detail-section">
                     <ChordProgressionViewer
@@ -176,9 +184,8 @@ const breadcrumbSegments = computed(() => {
                     />
                 </section>
 
-                <section v-if="hasDescription" class="sbn-prog-detail-section">
-                    <h2 class="sbn-section-heading">Description</h2>
-                    <div class="sbn-prog-detail-description sbn-prose" v-html="progression.description"></div>
+                <section v-if="progression.details" class="sbn-prog-detail-section">
+                    <div class="sbn-prog-detail-description sbn-prose" v-html="progression.details"></div>
                 </section>
 
                 <section v-if="hasSongs" class="sbn-prog-detail-section">
@@ -197,7 +204,6 @@ const breadcrumbSegments = computed(() => {
 
             <!-- Right: related progressions sidebar -->
             <aside class="sbn-show-sidebar">
-                <SkillsBuiltPanel v-if="skills && skills.length" :skills="skills" />
                 <div v-if="hasSiblings" class="sbn-show-sidebar-card">
                     <h3 class="sbn-show-sidebar-heading">More {{ categoryLabel }} progressions</h3>
                     <div class="sbn-prog-related-list">
@@ -231,7 +237,7 @@ const breadcrumbSegments = computed(() => {
 .sbn-prog-detail-description {
     font-size: 16px;
     line-height: 1.7;
-    color: var(--clr-text-muted);
+    color: var(--clr-text);
     margin-bottom: 32px;
 }
 

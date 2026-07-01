@@ -222,13 +222,13 @@
                 </button>
             </div>
 
-            {{-- ── Description ───────────────────────────────────── --}}
+            {{-- ── Introduction (above component) ────────────────── --}}
             <div class="sbn-field"
-                 x-data="{ descHtml: {{ Js::from(old('description', $progression->description ?? '')) }} }"
-                 x-init="document.addEventListener('desc-editor:save:prog', (e) => { descHtml = e.detail; })">
-                <label class="sbn-label">Description</label>
-                <input type="hidden" name="description" :value="descHtml">
-                <div class="sbn-desc-preview" x-html="descHtml || '<span style=\'color:var(--clr-text-muted);font-style:italic\'>No description yet…</span>'"></div>
+                 x-data="{ introHtml: {{ Js::from(old('intro', $progression->intro ?? '')) }} }"
+                 x-init="document.addEventListener('desc-editor:save:prog-intro', (e) => { introHtml = e.detail; })">
+                <label class="sbn-label">Introduction <small style="font-weight:normal;color:var(--clr-text-muted)">— shown above the viewer (history, name, context)</small></label>
+                <input type="hidden" name="intro" :value="introHtml">
+                <div class="sbn-desc-preview" x-html="introHtml || '<span style=\'color:var(--clr-text-muted);font-style:italic\'>No intro yet…</span>'"></div>
                 <button type="button" class="sbn-btn sbn-btn-secondary" style="margin-top:8px;font-size:12px;"
                         data-prog-meta='{!! htmlspecialchars(json_encode([
                             'name'     => $progression->name     ?? '',
@@ -236,8 +236,27 @@
                             'category' => $progression->category ?? '',
                             'tonality' => $progression->tonality ?? '',
                         ]), ENT_QUOTES) !!}'
-                        @click="window.__descEditor.open({ initial: descHtml, eventName: 'desc-editor:save:prog', placeholder: 'Educational explanation: what this progression sounds like…', entityType: 'progression', entityMeta: JSON.parse($el.dataset.progMeta) })">
-                    Edit Description
+                        @click="window.__descEditor.open({ initial: introHtml, eventName: 'desc-editor:save:prog-intro', placeholder: 'Overview: history, origin, harmonic character…', entityType: 'progression', entityMeta: JSON.parse($el.dataset.progMeta) })">
+                    Edit Introduction
+                </button>
+            </div>
+
+            {{-- ── Details (below component) ─────────────────────── --}}
+            <div class="sbn-field"
+                 x-data="{ detailsHtml: {{ Js::from(old('details', $progression->details ?? '')) }} }"
+                 x-init="document.addEventListener('desc-editor:save:prog-details', (e) => { detailsHtml = e.detail; })">
+                <label class="sbn-label">Details <small style="font-weight:normal;color:var(--clr-text-muted)">— shown below the viewer (voice leading, substitutions, variations)</small></label>
+                <input type="hidden" name="details" :value="detailsHtml">
+                <div class="sbn-desc-preview" x-html="detailsHtml || '<span style=\'color:var(--clr-text-muted);font-style:italic\'>No details yet…</span>'"></div>
+                <button type="button" class="sbn-btn sbn-btn-secondary" style="margin-top:8px;font-size:12px;"
+                        data-prog-meta='{!! htmlspecialchars(json_encode([
+                            'name'     => $progression->name     ?? '',
+                            'numerals' => $progression->numerals ?? '',
+                            'category' => $progression->category ?? '',
+                            'tonality' => $progression->tonality ?? '',
+                        ]), ENT_QUOTES) !!}'
+                        @click="window.__descEditor.open({ initial: detailsHtml, eventName: 'desc-editor:save:prog-details', placeholder: 'Technical detail: voice leading, substitutions, variations…', entityType: 'progression', entityMeta: JSON.parse($el.dataset.progMeta) })">
+                    Edit Details
                 </button>
             </div>
 

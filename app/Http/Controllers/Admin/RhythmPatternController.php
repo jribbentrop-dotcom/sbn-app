@@ -99,9 +99,15 @@ class RhythmPatternController extends Controller
      */
     public function updateDescription(Request $request, RhythmPattern $rhythm)
     {
-        $validated = $request->validate(['description' => 'nullable|string|max:10000']);
-        $rhythm->update(['description' => $validated['description'] ?? '']);
-        return response()->json(['success' => true, 'description' => $rhythm->description]);
+        $validated = $request->validate([
+            'intro'   => 'nullable|string|max:10000',
+            'details' => 'nullable|string|max:10000',
+        ]);
+        $rhythm->update([
+            'intro'   => $validated['intro']   ?? null,
+            'details' => $validated['details'] ?? null,
+        ]);
+        return response()->json(['success' => true, 'intro' => $rhythm->intro, 'details' => $rhythm->details]);
     }
 
     public function destroy(RhythmPattern $rhythm)
@@ -162,6 +168,8 @@ class RhythmPatternController extends Controller
                 Rule::unique('sbn_rhythm_patterns', 'slug')->ignore($excludeId),
             ],
             'description'    => 'nullable|string|max:10000',
+            'intro'          => 'nullable|string|max:10000',
+            'details'        => 'nullable|string|max:10000',
             'category'       => ['nullable', 'string', Rule::in(RhythmPattern::CATEGORIES)],
             'tags'           => 'nullable|string|max:500',
             'time_signature' => 'nullable|string|in:2/4,3/4,4/4,6/8',

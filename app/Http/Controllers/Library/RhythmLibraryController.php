@@ -107,6 +107,8 @@ class RhythmLibraryController extends Controller
             'id'            => $pattern->id,
             'slug'          => $pattern->slug,
             'name'          => $pattern->name,
+            'intro'              => $pattern->intro,
+            'details'            => $pattern->details,
             'description'        => $pattern->description,
             'descriptionExcerpt' => $pattern->description
                 ? Str::limit(strip_tags($pattern->description), 120)

@@ -127,9 +127,15 @@ class ProgressionController extends Controller
      */
     public function updateDescription(Request $request, ChordProgression $progression)
     {
-        $validated = $request->validate(['description' => 'nullable|string|max:10000']);
-        $progression->update(['description' => $validated['description'] ?? '']);
-        return response()->json(['success' => true, 'description' => $progression->description]);
+        $validated = $request->validate([
+            'intro'   => 'nullable|string|max:10000',
+            'details' => 'nullable|string|max:10000',
+        ]);
+        $progression->update([
+            'intro'   => $validated['intro']   ?? null,
+            'details' => $validated['details'] ?? null,
+        ]);
+        return response()->json(['success' => true, 'intro' => $progression->intro, 'details' => $progression->details]);
     }
 
     public function destroy(ChordProgression $progression)
@@ -224,6 +230,8 @@ class ProgressionController extends Controller
             'category'       => 'required|string|in:' . implode(',', ChordProgression::CATEGORIES),
             'numerals'       => 'required|string|max:255',
             'description'    => 'nullable|string',
+            'intro'          => 'nullable|string',
+            'details'        => 'nullable|string',
             'tags'           => 'nullable|string|max:255',
             'tonality'       => 'required|string|in:both,major,minor',
             'match_mode'     => 'required|string|in:strict,degree',

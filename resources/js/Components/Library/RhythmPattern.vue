@@ -58,6 +58,8 @@ export interface RhythmPatternWithMeta extends RhythmPatternData {
   slug: string;
   description: string | null;
   descriptionExcerpt?: string | null;
+  intro?: string | null;
+  details?: string | null;
   difficulty?: number | null;
   category: string;
   styleSlug: string;

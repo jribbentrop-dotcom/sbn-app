@@ -99,7 +99,10 @@ const breadcrumbSegments = computed(() => {
         <span class="sbn-cat-badge sbn-cat-badge-filled" :style="{ '--cat-clr': categoryColor }">{{ categoryLabel }}</span>
         <span v-for="tag in (pattern.tags ?? [])" :key="tag" class="sbn-hashtag">#{{ tag }}</span>
       </div>
-      <h1 class="sbn-show-hero-title">{{ pattern.name }}</h1>
+      <div class="sbn-show-hero-title-row">
+        <h1 class="sbn-show-hero-title">{{ pattern.name }}</h1>
+        <SkillsBuiltPanel v-if="skills && skills.length" :skills="skills" :compact="true" />
+      </div>
       <div class="sbn-show-hero-meta">
         <span class="sbn-meta-chip"><strong>Time</strong> {{ pattern.timeSignature }}</span>
         <span class="sbn-meta-chip"><strong>Tempo</strong> {{ pattern.bpm }} bpm</span>
@@ -110,6 +113,10 @@ const breadcrumbSegments = computed(() => {
 
       <!-- Left: main content -->
       <div class="sbn-show-main">
+
+        <div v-if="pattern.intro" class="sbn-rhythm-section">
+          <div class="sbn-rhythm-section-body sbn-prose" v-html="pattern.intro"></div>
+        </div>
 
         <div class="sbn-rhythm-pattern-section sbn-card">
           <!-- Picking mode: expanded 4-row p/i/m/a grid -->
@@ -157,9 +164,8 @@ const breadcrumbSegments = computed(() => {
           </RhythmPattern>
         </div>
 
-        <div v-if="pattern.description" class="sbn-rhythm-section">
-          <h2 class="sbn-section-heading">Description</h2>
-          <div class="sbn-rhythm-section-body sbn-prose" v-html="pattern.description"></div>
+        <div v-if="pattern.details" class="sbn-rhythm-section">
+          <div class="sbn-rhythm-section-body sbn-prose" v-html="pattern.details"></div>
         </div>
 
         <div v-if="songs.length" class="sbn-rhythm-section">
@@ -178,7 +184,6 @@ const breadcrumbSegments = computed(() => {
 
       <!-- Right: related patterns sidebar -->
       <aside class="sbn-show-sidebar">
-        <SkillsBuiltPanel v-if="skills && skills.length" :skills="skills" />
         <div class="sbn-show-sidebar-card">
           <h3 class="sbn-show-sidebar-heading">More {{ categoryLabel }} patterns</h3>
           <div v-if="siblings.length" class="sbn-siblings-list">

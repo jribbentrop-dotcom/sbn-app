@@ -236,6 +236,8 @@ class ProgressionLibraryController extends Controller
             'numeralsDisplay'=> $progression->numerals_display,
             'tonality'       => $progression->tonality,
             'tags'           => $progression->tags_array,
+            'intro'          => $progression->intro,
+            'details'        => $progression->details,
             'description'    => $progression->description,
             'chordCount'     => count(explode(',', $progression->numerals)),
             'songCount'      => $progression->song_count ?? 0,

@@ -19,6 +19,8 @@ class ChordProgression extends Model
         'numerals',
         'alt_numerals',
         'description',
+        'intro',
+        'details',
         'tags',
         'tonality',
         'match_mode',

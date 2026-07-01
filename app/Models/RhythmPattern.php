@@ -20,6 +20,8 @@ class RhythmPattern extends Model
         'slug',
         'name',
         'description',
+        'intro',
+        'details',
         'category',
         'time_signature',
         'beats',
