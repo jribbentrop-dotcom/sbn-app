@@ -30,9 +30,18 @@ class ProgressionLibraryController extends Controller
         $category = $request->get('category');
         $search = $request->get('search');
         $sort = $request->get('sort', 'popularity');
+        // ?slugs= is a comma-separated allow-list used by "View all" links from a
+        // chord show page, scoping the catalogue to the progressions actually
+        // related to that chord (a computation that can't be expressed as a
+        // simple column filter).
+        $slugs = array_filter(array_map('trim', explode(',', (string) $request->get('slugs', ''))));
 
         $progressions = ChordProgression::withSongCounts($category, $search)
             ->map(fn ($p) => $this->serializeProgression($p));
+
+        if (!empty($slugs)) {
+            $progressions = $progressions->whereIn('slug', $slugs)->values();
+        }
 
         // Apply sorting
         if ($sort === 'name') {
@@ -53,6 +62,7 @@ class ProgressionLibraryController extends Controller
                 'category' => $category,
                 'search' => $search,
                 'sort' => $sort,
+                'slugs' => $slugs,
             ],
         ]);
     }
@@ -165,6 +175,12 @@ class ProgressionLibraryController extends Controller
 
         $courses = $this->courseRepo->relatedTo($progression, $progression->category);
 
+        // "View all" hrefs scope the library index pages down to what's actually
+        // related to this progression, rather than the whole catalogue.
+        $songsViewAllHref = '/library/songs?slugs=' . urlencode($songs->pluck('slug')->implode(','));
+        $courseSlugs = $this->courseRepo->relatedTo($progression, $progression->category, limit: null)->pluck('slug');
+        $coursesViewAllHref = '/learn?slugs=' . urlencode($courseSlugs->implode(','));
+
         $completedSlugs = $request->user()
             ? $request->user()->skillNodes()->wherePivot('status', 'completed')
                 ->pluck('sbn_skill_nodes.slug')->flip()
@@ -188,6 +204,8 @@ class ProgressionLibraryController extends Controller
             'siblings'       => $siblings,
             'tiles'          => $tiles,
             'courses'        => $courses,
+            'songsViewAllHref'   => $songsViewAllHref,
+            'coursesViewAllHref' => $coursesViewAllHref,
             'progressionKey' => $progressionKey,
             'skills'         => $skills,
         ]);

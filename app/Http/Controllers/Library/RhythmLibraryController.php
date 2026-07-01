@@ -73,6 +73,12 @@ class RhythmLibraryController extends Controller
         // Related courses: tag match first, then category fallback
         $courses = $this->courseRepo->relatedTo($pattern, $pattern->category);
 
+        // "View all" hrefs scope the library index pages down to what's actually
+        // related to this pattern, rather than the whole catalogue.
+        $songsViewAllHref = '/library/songs?rhythm=' . urlencode($pattern->slug);
+        $courseSlugs = $this->courseRepo->relatedTo($pattern, $pattern->category, limit: null)->pluck('slug');
+        $coursesViewAllHref = '/learn?slugs=' . urlencode($courseSlugs->implode(','));
+
         $completedSlugs = $request->user()
             ? $request->user()->skillNodes()->wherePivot('status', 'completed')
                 ->pluck('sbn_skill_nodes.slug')->flip()
@@ -95,6 +101,8 @@ class RhythmLibraryController extends Controller
             'siblings' => $siblings,
             'songs'    => $songs,
             'courses'  => $courses,
+            'songsViewAllHref'   => $songsViewAllHref,
+            'coursesViewAllHref' => $coursesViewAllHref,
             'skills'   => $skills,
         ]);
     }

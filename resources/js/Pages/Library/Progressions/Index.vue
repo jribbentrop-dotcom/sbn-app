@@ -32,6 +32,7 @@ interface Props {
         category?: string;
         search?: string;
         sort?: string;
+        slugs?: string[];
     };
 }
 

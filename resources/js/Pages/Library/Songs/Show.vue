@@ -69,6 +69,7 @@ interface Props {
   chords: any[];
   progressions: ProgressionRef[];
   courses: CourseShelfCardData[];
+  coursesViewAllHref: string;
   skills: SkillRef[];
 }
 
@@ -295,7 +296,7 @@ const breadcrumbSegments = computed(() => {
 
     <!-- ── Related Courses ──────────────────────────────────────────────── -->
     <div v-if="courses && courses.length" class="sbn-ss-section">
-      <MediaShelf title="Related Courses" view-all-href="/learn">
+      <MediaShelf title="Related Courses" :view-all-href="coursesViewAllHref">
         <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
       </MediaShelf>
     </div>

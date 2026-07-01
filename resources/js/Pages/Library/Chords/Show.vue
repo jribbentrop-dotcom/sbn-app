@@ -77,9 +77,11 @@ interface Props {
     siblings: ChordDiagramData[];
     inversions: ChordDiagramData[];
     songs: SongLinkData[];
+    songsViewAllHref: string;
     progressions: ProgressionRef[];
     qualityTopic?: QualityTopic | null;
     courses: CourseShelfCardData[];
+    coursesViewAllHref: string;
     skills: SkillRef[];
 }
 
@@ -757,7 +759,7 @@ const formattedChordName = computed(() => {
             <div v-if="progressions.length" class="sbn-chord-detail-section">
                 <div class="sbn-section-heading-row">
                     <h2 class="sbn-section-heading">Progressions with <span v-html="formattedChordName" class="sbn-chord-detail-heading-chord" /></h2>
-                    <Link href="/library/progressions" class="sbn-section-link">View all →</Link>
+                    <Link :href="progressionsViewAllHref" class="sbn-section-link">View all →</Link>
                 </div>
                 <ul class="sbn-chord-detail-progressions">
                     <li v-for="prog in progressions.slice(0, 2)" :key="prog.id">
@@ -772,13 +774,13 @@ const formattedChordName = computed(() => {
         <div v-if="songs.length || (courses && courses.length)" class="sbn-chord-detail-lower">
 
             <div v-if="songs.length" class="sbn-chord-detail-section">
-                <MediaShelf title="Songs" view-all-href="/library/songs">
+                <MediaShelf title="Songs" :view-all-href="songsViewAllHref">
                     <SongShelfCard v-for="song in songs" :key="song.id" :song="song" />
                 </MediaShelf>
             </div>
 
             <div v-if="courses && courses.length" class="sbn-chord-detail-section">
-                <MediaShelf title="Related Courses" view-all-href="/learn">
+                <MediaShelf title="Related Courses" :view-all-href="coursesViewAllHref">
                     <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
                 </MediaShelf>
             </div>

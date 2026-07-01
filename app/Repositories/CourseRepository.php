@@ -33,7 +33,7 @@ class CourseRepository
      * @param  int      $limit
      * @return Collection<int, array>     Each item is Course::toShelfArray()
      */
-    public function relatedTo(Model $entity, string $entityCategory, int $limit = 6): Collection
+    public function relatedTo(Model $entity, string $entityCategory, ?int $limit = 6): Collection
     {
         // --- Tier 1: tag match ---
         $tagIds = $entity->tags()->pluck('sbn_tags.id');
@@ -42,7 +42,7 @@ class CourseRepository
             $byTags = Course::published()
                 ->whereHas('tags', fn ($q) => $q->whereIn('sbn_tags.id', $tagIds))
                 ->orderBy('sort_order')
-                ->limit($limit)
+                ->when($limit !== null, fn ($q) => $q->limit($limit))
                 ->get();
 
             if ($byTags->isNotEmpty()) {
@@ -54,7 +54,7 @@ class CourseRepository
         return Course::published()
             ->where('category', $entityCategory)
             ->orderBy('sort_order')
-            ->limit($limit)
+            ->when($limit !== null, fn ($q) => $q->limit($limit))
             ->get()
             ->map(fn ($c) => $c->toShelfArray());
     }
@@ -64,12 +64,12 @@ class CourseRepository
      * (e.g. ChordDiagram — no category, just use a raw category string directly).
      * Falls straight through to the category query.
      */
-    public function relatedByCategory(string $category, int $limit = 6): Collection
+    public function relatedByCategory(string $category, ?int $limit = 6): Collection
     {
         return Course::published()
             ->where('category', $category)
             ->orderBy('sort_order')
-            ->limit($limit)
+            ->when($limit !== null, fn ($q) => $q->limit($limit))
             ->get()
             ->map(fn ($c) => $c->toShelfArray());
     }

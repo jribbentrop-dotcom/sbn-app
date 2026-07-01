@@ -31,14 +31,20 @@ const initialQuery = typeof window !== 'undefined'
   : new URLSearchParams();
 const queryGenre = initialQuery.get('genre') ?? '';
 const queryLevel = initialQuery.get('level') ?? '';
+// ?slugs= is a comma-separated allow-list used by "View all" links from a
+// chord/rhythm/progression/song show page, scoping the catalogue down to the
+// exact related-courses set that page computed (tag match + category fallback).
+const querySlugs = (initialQuery.get('slugs') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 
 const search      = ref('');
 const filterGenre = ref(props.categories.includes(queryGenre) ? queryGenre : '');
 const filterLevel = ref(props.levels.includes(queryLevel) ? queryLevel : '');
+const filterSlugs = ref<string[]>(querySlugs);
 
 const filtered = computed(() => props.courses.filter((course) => {
   if (filterGenre.value && course.primaryGenre !== filterGenre.value) return false;
   if (filterLevel.value && course.primaryLevel !== filterLevel.value) return false;
+  if (filterSlugs.value.length && !filterSlugs.value.includes(course.slug)) return false;
   if (search.value.trim()) {
     const q = search.value.toLowerCase();
     const hay = [course.title, course.excerpt, course.primaryGenre].filter(Boolean).join(' ').toLowerCase();
@@ -47,7 +53,7 @@ const filtered = computed(() => props.courses.filter((course) => {
   return true;
 }));
 
-const hasFilters = computed(() => !!(search.value || filterGenre.value || filterLevel.value));
+const hasFilters = computed(() => !!(search.value || filterGenre.value || filterLevel.value || filterSlugs.value.length));
 
 const grouped = computed(() => {
   const groups: Record<string, CourseData[]> = {};
@@ -63,6 +69,7 @@ function clearFilters() {
   search.value      = '';
   filterGenre.value = '';
   filterLevel.value = '';
+  filterSlugs.value = [];
 }
 </script>
 

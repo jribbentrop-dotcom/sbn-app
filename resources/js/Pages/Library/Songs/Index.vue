@@ -24,6 +24,11 @@ const initialQuery = typeof window !== 'undefined'
   ? new URLSearchParams(window.location.search)
   : new URLSearchParams();
 const queryStyle = initialQuery.get('style') ?? '';
+const queryRhythm = initialQuery.get('rhythm') ?? '';
+// ?slugs= is a comma-separated allow-list used by "View all" links from a
+// chord/progression show page, whose related songs aren't a single-column
+// match and so can't be expressed as one of the filters below.
+const querySlugs = (initialQuery.get('slugs') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 
 // ── Filter state ─────────────────────────────────────────────
 const search     = ref('');
@@ -31,8 +36,9 @@ const fStyle     = ref(CANONICAL_STYLES.includes(queryStyle as typeof CANONICAL_
 const fDifficulty = ref(readDifficultyQueryParam());
 const fKey       = ref('');
 const fComposer  = ref('');
-const fRhythm    = ref('');
+const fRhythm    = ref(props.rhythms.includes(queryRhythm) ? queryRhythm : '');
 const fTempo     = ref('');  // 'slow' | 'medium' | 'fast'
+const fSlugs     = ref<string[]>(querySlugs);
 
 // ── Client-side filtering ─────────────────────────────────────
 function tempoRange(bpm: number | null): string {
@@ -55,13 +61,14 @@ function matchesFilters(s: SongCardData): boolean {
   if (fComposer.value && s.composer !== fComposer.value)   return false;
   if (fRhythm.value   && s.rhythm !== fRhythm.value)       return false;
   if (fTempo.value    && tempoRange(s.tempo) !== fTempo.value) return false;
+  if (fSlugs.value.length && !fSlugs.value.includes(s.slug)) return false;
   return true;
 }
 
 const filtered = computed(() => props.songs.filter(matchesFilters));
 
 const hasFilters = computed(() =>
-  !!(search.value || fStyle.value || fDifficulty.value || fKey.value || fComposer.value || fRhythm.value || fTempo.value)
+  !!(search.value || fStyle.value || fDifficulty.value || fKey.value || fComposer.value || fRhythm.value || fTempo.value || fSlugs.value.length)
 );
 
 function clearFilters() {
@@ -72,6 +79,7 @@ function clearFilters() {
   fComposer.value = '';
   fRhythm.value   = '';
   fTempo.value    = '';
+  fSlugs.value    = [];
 }
 
 // ── Example search chips ──────────────────────────────────────

@@ -101,27 +101,15 @@ const levelLabel = computed(() => difficultyLabel(stars.value));
     padding: 3px 8px;
     border-radius: var(--radius-sm);
     letter-spacing: 0.02em;
-    transition: background 0.2s var(--ease), color 0.2s var(--ease);
-}
-
-.sbn-course-shelf-card:hover .sbn-course-shelf-card__badge {
-    background: var(--clr-white);
-    color: var(--clr-text);
 }
 
 .sbn-course-shelf-card__title {
     position: absolute;
-    inset: 0;
+    inset: auto 0 0 0;
     z-index: 9;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 12px;
-    margin: 0;
+    padding: 20px 10px 8px;
     text-align: center;
-    background: var(--category-gradient);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent);
     opacity: 0;
     transition: opacity 0.25s var(--ease);
 }
@@ -131,23 +119,10 @@ const levelLabel = computed(() => difficultyLabel(stars.value));
 }
 
 .sbn-course-shelf-card__title-text {
-    font-size: 1.1em;
+    font-size: 0.85em;
     font-weight: 700;
     color: #fff;
     line-height: 1.3;
 }
 
-.sbn-course-shelf-card__level {
-    gap: 4px;
-    font-size: 0.8em;
-}
-
-.sbn-course-shelf-card__stars {
-    display: inline-flex;
-    gap: 1px;
-    margin-right: 2px;
-}
-
-.sbn-course-shelf-card__stars .star-filled { color: var(--clr-star); }
-.sbn-course-shelf-card__stars .star-empty  { color: var(--clr-border); }
 </style>

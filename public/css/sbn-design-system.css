@@ -1011,8 +1011,7 @@
     border-color: var(--cat-border);
 }
 
-.sbn-page-detail.sbn-has-category-gradient .sbn-ss-section-title,
-.sbn-page-detail.sbn-has-category-gradient .sbn-section-heading {
+.sbn-page-detail.sbn-has-category-gradient .sbn-ss-section-title {
     border-bottom: 2px solid var(--cat-border);
 }
 

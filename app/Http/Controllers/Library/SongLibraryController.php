@@ -335,6 +335,11 @@ class SongLibraryController extends Controller
         };
         $courses = $this->courseRepo->relatedTo($leadsheet, $songCourseCategory);
 
+        // "View all" href scopes the courses index down to what's actually
+        // related to this song, rather than the whole catalogue.
+        $courseSlugs = $this->courseRepo->relatedTo($leadsheet, $songCourseCategory, limit: null)->pluck('slug');
+        $coursesViewAllHref = '/learn?slugs=' . urlencode($courseSlugs->implode(','));
+
         $completedSlugs = $request->user()
             ? $request->user()->skillNodes()->wherePivot('status', 'completed')
                 ->pluck('sbn_skill_nodes.slug')->flip()
@@ -382,6 +387,7 @@ class SongLibraryController extends Controller
             'chords'       => $topChords,
             'progressions' => $progressions,
             'courses'      => $courses,
+            'coursesViewAllHref' => $coursesViewAllHref,
             'skills'       => $skills,
         ]);
     }

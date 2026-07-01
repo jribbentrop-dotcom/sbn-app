@@ -440,15 +440,16 @@ class ChordLibraryController extends Controller
 		);
 
 		// Leadsheets that use this chord (via sbn_voicing_usage)
-		$songs = Leadsheet::published()
+		$allSongs = Leadsheet::published()
 			->join('sbn_voicing_usage as vu', 'sbn_leadsheets.id', '=', 'vu.leadsheet_id')
 			->where('vu.chord_diagram_id', $chord->id)
 			->select('sbn_leadsheets.id', 'sbn_leadsheets.slug', 'sbn_leadsheets.title', 'sbn_leadsheets.genre', 'sbn_leadsheets.rhythm', 'sbn_leadsheets.popularity', 'sbn_leadsheets.cover_image_path')
 			->distinct()
 			->orderByDesc('sbn_leadsheets.popularity')
-			->limit(4)
 			->get()
 			->map(fn ($s) => $s->toLinkArray());
+		$songs = $allSongs->take(4)->values();
+		$songsViewAllHref = '/library/songs?slugs=' . urlencode($allSongs->pluck('slug')->implode(','));
 
 		// Find progressions that contain a chord with this quality.
 		// We can't do this in SQL via LIKE because numerals like "I7" / "Im7" / "Imaj7"
@@ -459,7 +460,7 @@ class ChordLibraryController extends Controller
 
 		// Find progressions containing this quality and record which slot (0-based,
 		// C-key) matches — that index becomes the ?highlight= param on the link.
-		$progressions = ChordProgression::orderBy('sort_order')
+		$allProgressions = ChordProgression::orderBy('sort_order')
 			->get()
 			->map(function ($p) use ($chordQuality) {
 				$context = $this->harmonicContext->buildFromNumerals('C', $p->numerals);
@@ -483,8 +484,9 @@ class ChordLibraryController extends Controller
 				];
 			})
 			->filter()
-			->take(8)
 			->values();
+		$progressions = $allProgressions->take(8)->values();
+		$progressionsViewAllHref = '/library/progressions?slugs=' . urlencode($allProgressions->pluck('slug')->implode(','));
 
 		// Aliases: same fret shape, different musical reinterpretation.
 		// Aliases are stored relative to the chord's stored root (C). If the page
@@ -605,6 +607,11 @@ class ChordLibraryController extends Controller
 		};
 		$courses = $this->courseRepo->relatedByCategory($chordCourseCategory, limit: 4);
 
+		// "View all" hrefs scope the library index pages down to what's actually
+		// related to this chord, rather than the whole catalogue.
+		$courseSlugs = $this->courseRepo->relatedByCategory($chordCourseCategory, limit: null)->pluck('slug');
+		$coursesViewAllHref = '/learn?slugs=' . urlencode($courseSlugs->implode(','));
+
 		// Search-result deep-link: when ?aliasQuality= is present, find an alias
 		// in the panel matching that identity so the page opens with it active.
 		//
@@ -678,9 +685,12 @@ class ChordLibraryController extends Controller
 			'siblings' => $siblings,
 			'inversions' => $inversions,
 			'songs' => $songs,
+			'songsViewAllHref' => $songsViewAllHref,
 			'progressions' => $progressions,
+			'progressionsViewAllHref' => $progressionsViewAllHref,
 			'qualityTopic' => $qualityTopic?->toArray(),
 			'courses' => $courses,
+			'coursesViewAllHref' => $coursesViewAllHref,
 			'skills' => $skills,
 		]);
 	}
