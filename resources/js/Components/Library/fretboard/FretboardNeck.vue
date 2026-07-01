@@ -103,21 +103,36 @@ const singleInlays = computed(() => geometry.value ? geometry.value.singleInlays
 const doubleInlays = computed(() => geometry.value ? geometry.value.doubleInlays : defaultDoubleInlays);
 const fretNumbers = computed(() => geometry.value ? geometry.value.fretNumbers : defaultFretNumbers);
 
-// When no camera viewBox is supplied (the <sbn-fretboard> case), tightly frame
-// the actual neck extent instead of the fixed 800-wide board. The default board
-// is 800px wide but a typical fretboard only spans ~12 frets, so NECK_R is far
-// short of 800 — using the full VB_W would leave dead space on the right and
-// shrink the neck (via preserveAspectRatio meet) into a thin strip. We pad left
-// for the open/muted column, right for RH-finger labels, and bottom for the
-// fret-number row so nothing clips.
+// Crop around the dot cluster with fixed SVG padding on each side.
+// The width grows with the actual dot span so no dots are cut off at any
+// neck position, but the SVG is constrained in CSS to the same display
+// width as the positions board (see .sbn-fv-board max-width in SbnFretboard).
+const SCALE_PAD_X = 35; // SVG units of breathing room left+right of the dot cluster
 const resolvedViewBox = computed(() => {
     if (props.viewBox) return props.viewBox;
-    const padL = props.showNut ? 26 : 8;          // room for ○/× column
-    const padR = props.rhFingers.some(f => f) ? 22 : 8; // room for p/i/m/a labels
-    const x = NECK_L.value - padL;
-    const w = (NECK_R.value - NECK_L.value) + padL + padR;
-    const y = PAD_T - 8;
-    const h = (VB_H - PAD_B + 22) - y;             // clear the fret-number row
+    const y = PAD_T - 14;
+    const h = (VB_H - PAD_B + 22) - y;
+
+    const g = geometry.value;
+    const edgeX = g ? g.fretEdgeX : defaultGeometry.fretEdgeX;
+    const sf = props.startFret;
+    const fc = props.fretCount;
+
+    const frettedDots = props.dots.filter(d => d.visible !== false);
+    let minCx: number, maxCx: number;
+    if (frettedDots.length > 0) {
+        minCx = Math.min(...frettedDots.map(d => d.cx));
+        maxCx = Math.max(...frettedDots.map(d => d.cx));
+    } else {
+        minCx = edgeX[0];
+        maxCx = edgeX[fc];
+    }
+
+    const neckL = edgeX[0];
+    const neckR = edgeX[fc];
+    const x = Math.max(neckL - SCALE_PAD_X, minCx - SCALE_PAD_X);
+    const xRight = Math.min(neckR + SCALE_PAD_X, maxCx + SCALE_PAD_X);
+    const w = xRight - x;
     return `${x} ${y} ${w} ${h}`;
 });
 
@@ -137,13 +152,26 @@ function openMarkerFor(s: number): FretboardNeckOpenMarker | undefined {
             :height="(stringY(1) - stringY(6)) + 12"
             rx="9"
         />
-        <!-- Fret lines -->
+        <!-- Fret lines (non-nut) -->
         <line
-            v-for="(fl, i) in fretLines"
+            v-for="(fl, i) in fretLines.filter(fl => !fl.isNut)"
             :key="`f${i}`"
-            :class="['fret-line', { nut: fl.isNut }]"
+            class="fret-line"
             :x1="fl.x" :x2="fl.x"
             :y1="PAD_T" :y2="VB_H - PAD_B"
+        />
+        <!-- Nut: left-edge cap drawn with explicit rx=9 arcs matching the neck surface
+             corners exactly. Right side is straight (flush against the neck). -->
+        <path
+            v-if="fretLines.some(fl => fl.isNut)"
+            class="nut-block"
+            :d="`M${NECK_L + 5},${PAD_T - 6}
+                 L${NECK_L + 9},${PAD_T - 6}
+                 A9,9 0 0 0 ${NECK_L},${PAD_T - 6 + 9}
+                 L${NECK_L},${PAD_T - 6 + (stringY(1) - stringY(6)) + 12 - 9}
+                 A9,9 0 0 0 ${NECK_L + 9},${PAD_T - 6 + (stringY(1) - stringY(6)) + 12}
+                 L${NECK_L + 5},${PAD_T - 6 + (stringY(1) - stringY(6)) + 12}
+                 Z`"
         />
         <!-- Strings (graded weight: low E 1.5 → high E 0.54) -->
         <line
@@ -208,11 +236,11 @@ function openMarkerFor(s: number): FretboardNeckOpenMarker | undefined {
              String 6 (high e) is at TOP of SVG (smallest y), string 1 (low E) at BOTTOM.
              Drawn to the LEFT of the neck surface (x = NECK_L - 28 offset). -->
         <g v-if="showNut" class="nut-group">
-            <!-- Nut bar (bold vertical line at x=NECK_L, same y-span as neck) -->
+            <!-- Thick grey line at the left edge of the neck surface, signals the nut -->
             <line
                 class="nut-bar"
                 :x1="NECK_L" :x2="NECK_L"
-                :y1="PAD_T" :y2="VB_H - PAD_B"
+                :y1="PAD_T - 6" :y2="(PAD_T - 6) + (stringY(1) - stringY(6)) + 12"
             />
             <!-- Open (○) and muted (×) markers for each string -->
             <g
@@ -267,7 +295,7 @@ function openMarkerFor(s: number): FretboardNeckOpenMarker | undefined {
 }
 .board .string-line { stroke: var(--str-graded, var(--clr-text)); }
 .board .fret-line { stroke: var(--clr-border); stroke-width: 1; }
-.board .fret-line.nut { stroke: var(--clr-text); stroke-width: 3; }
+.board .nut-block { fill: var(--clr-border); stroke: none; }
 .board .fret-num {
     font-size: 10px;
     font-weight: 600;
@@ -275,7 +303,6 @@ function openMarkerFor(s: number): FretboardNeckOpenMarker | undefined {
     letter-spacing: 0.02em;
 }
 .board .inlay { fill: var(--clr-border); }
-.board .nut-bar { stroke: var(--clr-text); stroke-width: 3; }
 .board .open-string-dot {
     fill: none;
     stroke: var(--clr-text-dim);

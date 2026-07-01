@@ -113,20 +113,18 @@ const posFullFretCount = computed(() => {
 });
 const posGeom = computed(() => makeGeometry(1, posFullFretCount.value));
 
-// ── Fixed on-screen size, independent of content ──────────────────────────────
-// The rendered SVG height = containerWidth × (viewBoxHeight / viewBoxWidth). To
-// keep the board a STATIC size regardless of how many dots/frets exist, the
-// excerpt viewBox must have a FIXED aspect ratio. We crop tightly to the neck's
-// vertical extent (POS_VB_Y..POS_VB_H) and derive the excerpt width from a fixed
-// target aspect — never from content. `posExcerptVW` is therefore constant.
-//
-// POS_ASPECT is the width:height ratio of the visible excerpt. Higher = wider &
-// shorter (closer to a single-position chord neck); lower = taller. ~2.6 is the
-// middle-ground between the small single-position look and the previous huge one.
-const POS_ASPECT = 2.6;
-const POS_VB_Y = PAD_T - 6;                       // top of neck surface
-const POS_VB_H = (VB_H - PAD_B + 22) - POS_VB_Y;  // strings + fret-number row
-const posExcerptVW = computed(() => POS_VB_H * POS_ASPECT);
+// ── Shared viewBox vertical dimensions (both modes) ─────────────────────────
+const POS_VB_Y = PAD_T - 14;
+const POS_VB_H = (VB_H - PAD_B + 22) - POS_VB_Y;
+
+// ── Positions-mode excerpt width: fret-count-based, same logic as FretboardNeck ──
+// Use a 5-fret window (VIEWPORT_FRETS) centred on each named window so the
+// apparent zoom matches scale/chord mode at any neck position.
+// Fixed excerpt width in SVG units — equivalent to a 5-fret window at fret 7
+// (mid-neck reference). Constant so the board renders the same physical size
+// regardless of which position is active.
+const POS_EXCERPT_VW = 236;
+const posExcerptVW = computed(() => POS_EXCERPT_VW);
 
 // Max left-edge so the excerpt never pans past the last fret wire.
 const posMaxSmoothX = computed(() => {
@@ -134,13 +132,14 @@ const posMaxSmoothX = computed(() => {
     return Math.max(g.fretEdgeX[0], g.fretEdgeX[posFullFretCount.value] - posExcerptVW.value);
 });
 
-// Target left-edge x for the active window: pan so the window is roughly centered
+// Target left-edge x for the active window: pan so the window is centered
 // within the excerpt, then clamp to [NECK_L, posMaxSmoothX].
 function windowTargetX(w: FretWindow | null): number {
     const g = posGeom.value;
     if (!w) return g.fretEdgeX[0];
     const winLeft = g.fretEdgeX[Math.max(0, w.from - 1)];
     const winWidth = g.fretEdgeX[w.to] - winLeft;
+    // Subtract POS_PAD_X so the window centers within the visible (non-padded) portion.
     const centered = winLeft - (posExcerptVW.value - winWidth) / 2;
     return Math.max(g.fretEdgeX[0], Math.min(centered, posMaxSmoothX.value));
 }
@@ -163,42 +162,63 @@ function animateX(target: number) {
 // Initialise camera on window 0 (no slide-in on mount).
 smoothX.value = windowTargetX(activeWindow.value);
 
-watch(activeWindow, (w) => animateX(windowTargetX(w)));
+watch([activeWindow, posExcerptVW], ([w]) => animateX(windowTargetX(w as FretWindow | null)));
 
 const posViewBox = computed(() =>
     `${smoothX.value} ${POS_VB_Y} ${posExcerptVW.value} ${POS_VB_H}`);
-
-// ── Autoplay stepper (visual-only setInterval — no audio engine) ──────────────
-const isPlaying = ref(false);
-let playTimer: ReturnType<typeof setInterval> | null = null;
-const STEP_MS = 1600;
-
-function stopPlay() {
-    isPlaying.value = false;
-    if (playTimer !== null) { clearInterval(playTimer); playTimer = null; }
-}
-function startPlay() {
-    if (windows.value.length < 2) return;
-    isPlaying.value = true;
-    playTimer = setInterval(() => {
-        activeWindowIdx.value = (activeWindowIdx.value + 1) % windows.value.length;
-    }, STEP_MS);
-}
-function togglePlay() { isPlaying.value ? stopPlay() : startPlay(); }
 
 function goToWindow(idx: number) {
     if (idx < 0 || idx >= windows.value.length) return;
     activeWindowIdx.value = idx;
 }
 function stepWindow(dir: -1 | 1) {
-    stopPlay();
     const next = activeWindowIdx.value + dir;
     if (next >= 0 && next < windows.value.length) activeWindowIdx.value = next;
 }
 
+// ── Drag / swipe on the board to change position ──────────────────────────
+// DRAG_THRESHOLD: px of drag before a step fires.
+// STEP_COOLDOWN_MS: min time between steps — prevents skipping positions when
+// fret windows are close together and the camera hasn't finished panning yet.
+const DRAG_THRESHOLD = 40;
+const STEP_COOLDOWN_MS = 400;
+let dragStartX = 0;
+let dragOriginX = 0;
+let isDragging = false;
+let lastStepTime = 0;
+
+function onBoardPointerDown(e: PointerEvent) {
+    if (windows.value.length < 2) return;
+    if (e.button !== 0) return;
+    dragStartX = e.clientX;
+    dragOriginX = e.clientX;
+    isDragging = false;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+}
+function onBoardPointerMove(e: PointerEvent) {
+    if (!e.buttons) return;
+    const dx = e.clientX - dragOriginX;
+    if (Math.abs(dx) >= DRAG_THRESHOLD) {
+        const now = Date.now();
+        if (now - lastStepTime >= STEP_COOLDOWN_MS) {
+            isDragging = true;
+            stepWindow(dx < 0 ? 1 : -1);
+            lastStepTime = now;
+        }
+        dragOriginX = e.clientX;
+    }
+}
+function onBoardPointerUp(e: PointerEvent) {
+    if (e.button !== 0) return;
+    const totalDx = e.clientX - dragStartX;
+    if (!isDragging && Math.abs(totalDx) < 8) {
+        goToWindow((activeWindowIdx.value + 1) % windows.value.length);
+    }
+    isDragging = false;
+}
+
 onBeforeUnmount(() => {
     if (rafId !== null) cancelAnimationFrame(rafId);
-    stopPlay();
 });
 
 // ── Guide-tone color ─────────────────────────────────────────────────────────
@@ -406,60 +426,49 @@ const neckViewBox = computed(() => isPositions.value ? posViewBox.value : null);
 
 // Positions header shows its own controls; only render them when there are ≥2 windows.
 const showPositionControls = computed(() => isPositions.value && windows.value.length > 1);
-const activeWindowLabel = computed(() =>
-    activeWindow.value?.label ?? (activeWindow.value ? `Frets ${activeWindow.value.from}–${activeWindow.value.to}` : ''));
 </script>
 
 <template>
     <div class="sbn-fretboard-vue-wrap">
-        <!-- ── Positions mode header: label + play/pause + prev/next ── -->
+        <!-- ── Positions mode ── -->
         <template v-if="isPositions">
-            <div class="sbn-fv-header">
+            <!-- "Position X" centered above the board -->
+            <div class="sbn-fv-pos-label">Position {{ activeWindowIdx + 1 }}</div>
+            <!-- Arrow left | board | arrow right -->
+            <div class="sbn-fv-pos-row">
                 <button
                     v-if="showPositionControls"
                     type="button"
-                    class="sbn-fv-play-btn"
-                    :class="{ 'is-playing': isPlaying }"
-                    :aria-label="isPlaying ? 'Pause' : 'Play'"
-                    @click="togglePlay"
+                    class="sbn-fv-arrow-btn"
+                    :disabled="activeWindowIdx === 0"
+                    @click="stepWindow(-1)"
+                    aria-label="Previous position"
+                >&#x2039;</button>
+                <div
+                    class="sbn-fv-board sbn-fv-board--positions"
+                    style="cursor: pointer; touch-action: pan-y; user-select: none;"
+                    @pointerdown="onBoardPointerDown"
+                    @pointermove="onBoardPointerMove"
+                    @pointerup="onBoardPointerUp"
                 >
-                    <svg v-if="!isPlaying" viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
-                        <path d="M3 2l7 4-7 4z" fill="currentColor" />
-                    </svg>
-                    <svg v-else viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
-                        <rect x="3" y="2.5" width="2.4" height="7" fill="currentColor" />
-                        <rect x="6.8" y="2.5" width="2.4" height="7" fill="currentColor" />
-                    </svg>
-                </button>
-                <span class="sbn-fv-label">{{ activeWindowLabel }}</span>
-                <template v-if="showPositionControls">
-                    <div class="sbn-fv-steps">
-                        <button
-                            type="button"
-                            class="sbn-fv-step-btn"
-                            :disabled="activeWindowIdx === 0"
-                            @click="stepWindow(-1)"
-                        >&#x2039;</button>
-                        <span class="sbn-fv-counter">{{ activeWindowIdx + 1 }}/{{ windows.length }}</span>
-                        <button
-                            type="button"
-                            class="sbn-fv-step-btn"
-                            :disabled="activeWindowIdx === windows.length - 1"
-                            @click="stepWindow(1)"
-                        >&#x203a;</button>
-                    </div>
-                </template>
-            </div>
-            <div v-if="showPositionControls" class="sbn-fv-slider-row">
-                <input
-                    type="range"
-                    class="sbn-fv-slider"
-                    min="0"
-                    :max="windows.length - 1"
-                    step="1"
-                    :value="activeWindowIdx"
-                    @input="stopPlay(); goToWindow(Number(($event.target as HTMLInputElement).value))"
-                />
+                    <FretboardNeck
+                        :dots="neckDots"
+                        :start-fret="neckStartFret"
+                        :fret-count="neckFretCount"
+                        :view-box="neckViewBox"
+                        :show-nut="showNut"
+                        :open-strings="openStringMarkers"
+                        :rh-fingers="rhFingers"
+                    />
+                </div>
+                <button
+                    v-if="showPositionControls"
+                    type="button"
+                    class="sbn-fv-arrow-btn"
+                    :disabled="activeWindowIdx === windows.length - 1"
+                    @click="stepWindow(1)"
+                    aria-label="Next position"
+                >&#x203a;</button>
             </div>
         </template>
         <!-- ── Chord / scale / sequence header (unchanged) ── -->
@@ -492,8 +501,8 @@ const activeWindowLabel = computed(() =>
                 @click="guideTonesActive = !guideTonesActive"
             >GT</button>
         </div>
-        <!-- SVG neck via FretboardNeck -->
-        <div class="sbn-fv-board">
+        <!-- SVG neck for chord / scale / sequence modes -->
+        <div v-if="!isPositions" class="sbn-fv-board">
             <FretboardNeck
                 :dots="neckDots"
                 :start-fret="neckStartFret"
@@ -511,17 +520,15 @@ const activeWindowLabel = computed(() =>
 .sbn-fretboard-vue-wrap {
     display: flex;
     flex-direction: column;
+    padding: 8px 8%;
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius, 8px);
 }
 .sbn-fv-header {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 4px 2px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--clr-text-dim);
 }
 .sbn-fv-label {
     flex: 1;
@@ -580,56 +587,52 @@ const activeWindowLabel = computed(() =>
 }
 .sbn-fv-board {
     min-width: 0;
+    /* Match the display width of the positions board (full width minus 2×arrow+gap).
+       This keeps scale/chord diagrams the same physical size as positions mode. */
+    max-width: calc(100% - 2 * (28px + 4px));
+    margin: 0 auto;
+}
+.sbn-fv-board--positions {
+    transform: scale(0.72);
+    transform-origin: top center;
+    margin-bottom: -13%;
 }
 
-/* ── Positions-mode controls ── */
-.sbn-fv-play-btn {
-    width: 22px;
-    height: 22px;
+/* ── Positions-mode layout ── */
+.sbn-fv-pos-label {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--clr-text-dim);
+    padding: 2px 0 4px;
+}
+.sbn-fv-pos-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.sbn-fv-pos-row .sbn-fv-board--positions {
+    flex: 1;
+    min-width: 0;
+}
+.sbn-fv-arrow-btn {
     flex: 0 0 auto;
-    border: none;
-    border-radius: 50%;
-    background: var(--clr-accent, #e85d3b);
-    color: #fff;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--clr-border);
+    background: var(--clr-bg);
+    border-radius: 6px;
     cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0;
-    transition: filter 0.15s, transform 0.1s;
+    color: var(--clr-text);
+    transition: background 0.12s;
 }
-.sbn-fv-play-btn:hover { filter: brightness(1.08); }
-.sbn-fv-play-btn:active { transform: scale(0.94); }
-.sbn-fv-play-btn.is-playing { background: var(--clr-text-dim, #6b7280); }
-.sbn-fv-slider-row {
-    padding: 2px 2px 4px;
-}
-.sbn-fv-slider {
-    width: 100%;
-    height: 4px;
-    -webkit-appearance: none;
-    appearance: none;
-    background: var(--clr-border, #d4d4d8);
-    border-radius: 3px;
-    cursor: pointer;
-    outline: none;
-}
-.sbn-fv-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 13px;
-    height: 13px;
-    border-radius: 50%;
-    background: var(--clr-accent, #e85d3b);
-    border: 2px solid var(--clr-bg, #fff);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-.sbn-fv-slider::-moz-range-thumb {
-    width: 13px;
-    height: 13px;
-    border-radius: 50%;
-    background: var(--clr-accent, #e85d3b);
-    border: 2px solid var(--clr-bg, #fff);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
+.sbn-fv-arrow-btn:hover:not(:disabled) { background: var(--clr-border); }
+.sbn-fv-arrow-btn:disabled { opacity: 0.3; cursor: default; }
 </style>

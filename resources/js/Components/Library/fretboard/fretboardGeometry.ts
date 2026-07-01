@@ -130,3 +130,4 @@ export const fretNumbers = defaultGeometry.fretNumbers;
 export const EXCERPT_VW = fretEdgeX[FRET_WINDOW] - fretEdgeX[0];
 // Max left-edge so the right side of the viewBox never goes past the last fret wire.
 export const MAX_SMOOTH_X = fretEdgeX[FRET_TO - FRET_FROM + 1] - EXCERPT_VW;
+
