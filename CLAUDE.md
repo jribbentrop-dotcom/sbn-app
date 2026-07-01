@@ -78,6 +78,13 @@ General widget embed. Only use when you know the slug exists and is appropriate 
 <sbn-widget slug="drop2"></sbn-widget>
 ```
 
+### `<sbn-fretboard>`
+Interactive fretboard diagram from the `fretboards` table. Only attr is `slug` (all display options are baked into the stored record). Always use an explicit closing tag.
+```html
+<sbn-fretboard slug="dm7-drop2-voice-leading"></sbn-fretboard>
+```
+Display modes: `chord`/`sequence` (fret-string voicings), `scale` (multi-dot positions), and `positions` — **one neck-wide scale that slides between named fret windows** (e.g. 5 pentatonic positions in one record) with autoplay/loop. Don't invent slugs; verify against the DB. Full reference: `docs/SBN-Fretboard-Reference.md`.
+
 ### `<sbn-synced-player>`
 Synced video/audio player. Requires specific setup — don't add without confirmation.
 
