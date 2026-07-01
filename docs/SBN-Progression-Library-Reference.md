@@ -32,7 +32,9 @@ Audience: developers working on `/library/progressions` or `<sbn-progression>` l
 | `numerals` | Comma-separated Roman numerals e.g. `"IIm7,V7,Imaj7"` |
 | `tonality` | `major` / `minor` / `modal` |
 | `tags` | Comma-separated tag string |
-| `description` | Rich text / HTML |
+| `description` | Rich text / HTML — legacy field, kept for backwards compat |
+| `intro` | Rich text / HTML — rendered **above** the `ChordProgressionViewer` (history, name, context) |
+| `details` | Rich text / HTML — rendered **below** the viewer (voice leading, substitutions, variations). Seeded from `description` on migration. |
 | `sort_order` | Manual ordering within category |
 | `video_snippets` | JSON array — real-world YouTube examples (same shape as rhythm snippets) |
 
@@ -51,7 +53,9 @@ Audience: developers working on `/library/progressions` or `<sbn-progression>` l
     'numerals',         // raw comma-separated string
     'numeralsDisplay',  // en-dash separated
     'tonality', 'tags', // tags is array
-    'description',
+    'description',      // legacy — still present for backwards compat
+    'intro',            // above-component prose
+    'details',          // below-component prose (seeded from description)
     'chordCount',       // count of comma-separated numerals
     'songCount',        // 0 unless loaded via withSongCounts scope
     'videoSnippets',    // array from video_snippets JSON column
@@ -94,6 +98,14 @@ Props:
 | `songs` | `SongLink[]` | Leadsheets featuring this progression via `sbn_progression_occurrences` |
 | `siblings` | serialized progressions | Other progressions in same category |
 | `courses` | course stubs | Related courses via `CourseRepository::relatedTo` |
+
+### Page layout (top → bottom)
+
+1. `progression.intro` — general description (history, name, harmonic character); hidden when null
+2. `ChordProgressionViewer` — interactive chord visualization
+3. `progression.details` — technical description (voice leading, substitutions, variations); hidden when null
+4. Songs shelf
+5. Courses shelf
 
 ### Key resolution priority
 

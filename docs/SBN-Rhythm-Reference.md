@@ -297,7 +297,10 @@ via the `#transport-extra` slot.
 **File:** `app/Models/RhythmPattern.php`  
 Key method: `toPlayerData()` — serialises DB columns to `RhythmPatternData` shape.  
 Columns: `name`, `slug`, `beats`, `grid_type`, `thumb`, `fingers`, `bpm`, `time_signature`,
-`perc_top`, `perc_bass`, `description`, `category`, `style_slug`, `demo_url`.
+`perc_top`, `perc_bass`, `description`, `intro`, `details`, `category`, `style_slug`, `demo_url`.
+
+`intro` — rich text rendered **above** the pattern component (history, origin, feel).  
+`details` — rich text rendered **below** the component (accent placement, technique, variations). Seeded from `description` on migration. `description` is kept for backwards compat.
 
 `video_snippets` — JSON column (cast `array`), the pattern's library of
 real-world YouTube examples. See §12.
