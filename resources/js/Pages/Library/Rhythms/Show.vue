@@ -18,6 +18,7 @@ import { difficultyBreadcrumbSegment } from '@/composables/useBreadcrumb';
 import { getAudioEngine } from '../../../audio/engine/AudioEngine.js';
 import SkillsBuiltPanel from '@/Components/Skill/SkillsBuiltPanel.vue';
 import type { SkillRef } from '@/Components/Skill/SkillsBuiltPanel.vue';
+import { badgeSbnProse } from '@/lib/formatProgressionProse';
 
 defineOptions({ layout: PublicLayout });
 
@@ -26,6 +27,8 @@ interface Props {
   siblings: RhythmPatternWithMeta[];
   songs: SongLinkData[];
   courses: CourseShelfCardData[];
+  songsViewAllHref: string;
+  coursesViewAllHref: string;
   skills: SkillRef[];
 }
 
@@ -79,6 +82,9 @@ const breadcrumbSegments = computed(() => {
   segs.push({ label: props.pattern.name });
   return segs;
 });
+
+const introHtml   = computed(() => badgeSbnProse(props.pattern.intro ?? ''));
+const detailsHtml = computed(() => badgeSbnProse(props.pattern.details ?? ''));
 </script>
 
 <template>
@@ -115,7 +121,7 @@ const breadcrumbSegments = computed(() => {
       <div class="sbn-show-main">
 
         <div v-if="pattern.intro" class="sbn-rhythm-section">
-          <div class="sbn-rhythm-section-body sbn-prose" v-html="pattern.intro"></div>
+          <div class="sbn-rhythm-section-body sbn-prose" v-html="introHtml"></div>
         </div>
 
         <div class="sbn-rhythm-pattern-section sbn-card">
@@ -165,17 +171,17 @@ const breadcrumbSegments = computed(() => {
         </div>
 
         <div v-if="pattern.details" class="sbn-rhythm-section">
-          <div class="sbn-rhythm-section-body sbn-prose" v-html="pattern.details"></div>
+          <div class="sbn-rhythm-section-body sbn-prose" v-html="detailsHtml"></div>
         </div>
 
         <div v-if="songs.length" class="sbn-rhythm-section">
-          <MediaShelf title="Used in songs" view-all-href="/library/songs">
+          <MediaShelf title="Used in songs" :view-all-href="songsViewAllHref">
             <SongShelfCard v-for="song in songs" :key="song.id" :song="song" />
           </MediaShelf>
         </div>
 
         <div v-if="courses && courses.length" class="sbn-rhythm-section">
-          <MediaShelf title="Related Courses" view-all-href="/learn">
+          <MediaShelf title="Related Courses" :view-all-href="coursesViewAllHref">
             <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
           </MediaShelf>
         </div>
@@ -220,11 +226,6 @@ const breadcrumbSegments = computed(() => {
   margin-bottom: 32px;
 }
 
-.sbn-rhythm-show :deep(.sbn-section-heading) {
-  margin: 0 0 14px;
-  padding-bottom: 8px;
-}
-
 .sbn-rhythm-show :deep(.sbn-rhythm-link:hover) {
   background: var(--cat-bg);
   border-color: var(--cat-border);
@@ -239,6 +240,36 @@ const breadcrumbSegments = computed(() => {
   font-size: 15px;
   line-height: 1.7;
   color: var(--clr-text);
+}
+
+.sbn-rhythm-section-body :deep(.sbn-numeral-chip) {
+  margin: 0 1px;
+  vertical-align: 0.05em;
+}
+
+.sbn-rhythm-section-body :deep(.sbn-prose-tone-dot),
+.sbn-rhythm-section-body :deep(.sbn-prose-count-dot) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6em;
+  height: 1.6em;
+  padding: 0 0.35em;
+  margin: 0 1px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.75em;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: 0.05em;
+}
+
+.sbn-rhythm-section-body :deep(.sbn-prose-tone-dot) {
+  background: var(--tone-clr);
+}
+
+.sbn-rhythm-section-body :deep(.sbn-prose-count-dot) {
+  background: var(--category-color);
 }
 
 /* Siblings list */

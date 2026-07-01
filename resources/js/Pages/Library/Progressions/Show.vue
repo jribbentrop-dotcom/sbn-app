@@ -14,6 +14,7 @@ import { getCategoryColor } from '@/composables/useCategoryColors';
 import { difficultyBreadcrumbSegment } from '@/composables/useBreadcrumb';
 import SkillsBuiltPanel from '@/Components/Skill/SkillsBuiltPanel.vue';
 import type { SkillRef } from '@/Components/Skill/SkillsBuiltPanel.vue';
+import { badgeSbnProse } from '@/lib/formatProgressionProse';
 
 interface ProgressionTile {
     chordName: string;
@@ -58,6 +59,8 @@ interface Props {
     siblings: ProgressionData[];
     tiles: ProgressionTile[];
     courses: CourseShelfCardData[];
+    songsViewAllHref: string;
+    coursesViewAllHref: string;
     progressionKey?: string;
     skills: SkillRef[];
 }
@@ -89,6 +92,9 @@ const popularityTier = computed(() => {
 
 const hasSongs      = computed(() => props.songs.length > 0);
 const hasSiblings   = computed(() => props.siblings.length > 0);
+
+const introHtml   = computed(() => badgeSbnProse(props.progression.intro ?? ''));
+const detailsHtml = computed(() => badgeSbnProse(props.progression.details ?? ''));
 
 const chords = computed((): ProgressionChord[] =>
     props.tiles.map((tile) => ({
@@ -165,7 +171,7 @@ const breadcrumbSegments = computed(() => {
             <div class="sbn-show-main">
 
                 <section v-if="progression.intro" class="sbn-prog-detail-section">
-                    <div class="sbn-prog-detail-description sbn-prose" v-html="progression.intro"></div>
+                    <div class="sbn-prog-detail-description sbn-prose" v-html="introHtml"></div>
                 </section>
 
                 <section v-if="tiles.length" class="sbn-prog-detail-section">
@@ -185,17 +191,17 @@ const breadcrumbSegments = computed(() => {
                 </section>
 
                 <section v-if="progression.details" class="sbn-prog-detail-section">
-                    <div class="sbn-prog-detail-description sbn-prose" v-html="progression.details"></div>
+                    <div class="sbn-prog-detail-description sbn-prose" v-html="detailsHtml"></div>
                 </section>
 
                 <section v-if="hasSongs" class="sbn-prog-detail-section">
-                    <MediaShelf title="Songs" view-all-href="/library/songs">
+                    <MediaShelf title="Songs" :view-all-href="songsViewAllHref">
                         <SongShelfCard v-for="song in songs" :key="song.id" :song="song" />
                     </MediaShelf>
                 </section>
 
                 <section v-if="courses && courses.length" class="sbn-prog-detail-section">
-                    <MediaShelf title="Related Courses" view-all-href="/learn">
+                    <MediaShelf title="Related Courses" :view-all-href="coursesViewAllHref">
                         <CourseShelfCard v-for="course in courses" :key="course.id" :course="course" />
                     </MediaShelf>
                 </section>
@@ -239,6 +245,28 @@ const breadcrumbSegments = computed(() => {
     line-height: 1.7;
     color: var(--clr-text);
     margin-bottom: 32px;
+}
+
+.sbn-prog-detail-description :deep(.sbn-numeral-chip) {
+    margin: 0 1px;
+    vertical-align: 0.05em;
+}
+
+.sbn-prog-detail-description :deep(.sbn-prose-tone-dot) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.6em;
+    height: 1.6em;
+    padding: 0 0.35em;
+    margin: 0 1px;
+    border-radius: 999px;
+    background: var(--tone-clr);
+    color: #fff;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    vertical-align: 0.05em;
 }
 
 .sbn-prog-related-list {

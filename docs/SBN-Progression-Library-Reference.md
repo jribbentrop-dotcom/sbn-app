@@ -107,6 +107,23 @@ Props:
 4. Songs shelf
 5. Courses shelf
 
+### Prose symbol badging (`intro` / `details`)
+
+`resources/js/lib/formatProgressionProse.ts` exports `badgeSbnProse()`, run over `intro`/`details`
+before `v-html`. Authors opt in per-occurrence by **parenthesising** a token in the raw HTML —
+anything not parenthesised is left as plain text, so this never touches ordinary prose:
+
+| Written as | Renders as |
+|---|---|
+| `(ii7)`, `(V7)`, `(bVII)`, `(Imaj7)` | `.sbn-numeral-chip` pill (same chip used in `ChordProgressionViewer`'s chord-selector strip) |
+| `(b9)`, `(5)`, `(root)`, `(3rd)`, `(flat 9th)` | `.sbn-prose-tone-dot` — colour-coded circle, palette matches `GT_COLORS` in `public/js/chords.js` (root=green, 3rd=blue, 5th=gray, 7th=amber, 9th/11th/13th=purple) |
+
+Bare `(1)`–`(4)` resolve as chord-tone dots on this page (rhythm-count tokens need a subdivision
+letter to disambiguate — see `SBN-Rhythm-Reference.md`).
+
+Do not redefine `.sbn-numeral-chip` or the badging regexes per-page — extend
+`formatProgressionProse.ts` so progression and rhythm show pages stay in sync.
+
 ### Key resolution priority
 
 The `show()` action resolves the playing key in this order:

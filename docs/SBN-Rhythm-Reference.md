@@ -302,6 +302,14 @@ Columns: `name`, `slug`, `beats`, `grid_type`, `thumb`, `fingers`, `bpm`, `time_
 `intro` — rich text rendered **above** the pattern component (history, origin, feel).  
 `details` — rich text rendered **below** the component (accent placement, technique, variations). Seeded from `description` on migration. `description` is kept for backwards compat.
 
+**Prose symbol badging:** `Rhythms/Show.vue` runs `intro`/`details` through
+`badgeSbnProse()` (`resources/js/lib/formatProgressionProse.ts`) before `v-html`, same as the
+progression Show page — see `SBN-Progression-Library-Reference.md` for the full token table.
+Parenthesised counts with a subdivision letter — `(1e)`, `(2+a)`, `(4-e-+-a)` — render as
+`.sbn-prose-count-dot`, a solid circle coloured with the pattern's own `--category-color`
+(bossa/jazz/classical/pop), styled in `Rhythms/Show.vue`'s scoped CSS. Bare `(1)`–`(4)` do **not**
+match — a subdivision letter is required so counts don't collide with chord-tone tokens.
+
 `video_snippets` — JSON column (cast `array`), the pattern's library of
 real-world YouTube examples. See §12.
 
