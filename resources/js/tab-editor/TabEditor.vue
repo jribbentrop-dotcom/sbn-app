@@ -340,7 +340,7 @@ import { useVideoSync }           from './composables/useVideoSync.js';
 import { getAudioEngine }         from '../audio/engine/AudioEngine.js';
 import { tabModelToEvents }       from '../audio/adapters/tabMeasureToEvents.js';
 import { chordVoicingsToEvents }  from '../audio/adapters/chordVoicingsToEvents.js';
-import { expandMeasureSequence, giAtPosition, firstPositionForGi } from '../audio/adapters/expandMeasureSequence.js';
+import { expandModelSequence, giAtPosition, firstPositionForGi } from '../audio/adapters/expandMeasureSequence.js';
 import TransportBar               from './components/TransportBar.vue';
 
 const props = defineProps({
@@ -860,8 +860,7 @@ const { canUndo, canRedo, wrapCommand, undo, redo, reset: resetUndo } = useUndo(
 // the single source of truth for converting between the two.
 const _expandedChordSequence = computed(() => {
     if (!model.value) return [];
-    const flat = model.value.sections.flatMap(s => s.measures ?? []);
-    return expandMeasureSequence(flat);
+    return expandModelSequence(model.value);
 });
 
 // ── Video Sync (Phase D) ──────────────────────────────────────

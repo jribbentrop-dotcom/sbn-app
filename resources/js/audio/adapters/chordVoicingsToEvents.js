@@ -25,23 +25,11 @@
  * @typedef {import('../types.js').Beats} Beats
  */
 
-import { expandMeasureSequence } from './expandMeasureSequence.js';
+import { expandMeasureSequence, flattenModelMeasures } from './expandMeasureSequence.js';
+import { parseFretChar } from '@/utils/fretString.ts';
 
 const OPEN_STRING_MIDI = [null, 40, 45, 50, 55, 59, 64]; // 1-indexed
 const TICKS_PER_BEAT = 480;
-
-/**
- * Parse one character from a fret string.
- * Returns the fret number, or null if the string is muted/invalid.
- * Mirrors WP sbn-audio.js fretToNote() + sbn-chord-card.js parseFretString().
- * @param {string} ch
- * @returns {number|null}
- */
-function parseFretChar(ch) {
-    if (!ch || ch === 'x' || ch === 'X') return null;
-    const n = parseInt(ch, 16); // handles '0'-'9' and 'a'-'f'
-    return Number.isFinite(n) && n >= 0 ? n : null;
-}
 
 /**
  * @param {Object} model     The reactive tab model from useTabModel.
@@ -57,14 +45,7 @@ export function chordVoicingsToEvents(model, ctx = {}) {
     const beatsPerMeasure = (model.ticksPerMeasure ?? 1920) / TICKS_PER_BEAT;
 
     // Build flat measure list and a gi → measure lookup
-    const flatMeasures = [];
-    const measureByGi  = new Map();
-    for (const section of model.sections) {
-        for (const measure of section.measures) {
-            flatMeasures.push(measure);
-            measureByGi.set(measure.index ?? flatMeasures.length - 1, measure);
-        }
-    }
+    const { flatMeasures, measureByGi } = flattenModelMeasures(model);
 
     // Expand the sequence respecting repeats and voltas
     const sequence = expandMeasureSequence(flatMeasures);

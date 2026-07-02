@@ -19,7 +19,7 @@
  */
 
 import { noteToMidi } from './pitchToMidi.js';
-import { expandMeasureSequence } from './expandMeasureSequence.js';
+import { expandMeasureSequence, flattenModelMeasures } from './expandMeasureSequence.js';
 
 const TICKS_PER_BEAT = 480; // matches tab-editor/utils/constants.js TICKS.perBeat
 
@@ -40,14 +40,7 @@ export function tabModelToEvents(model, ctx = {}) {
     const beatsPerMeasure = (model.ticksPerMeasure ?? 1920) / TICKS_PER_BEAT;
 
     // Flat measure list + gi → measure lookup.
-    const flatMeasures = [];
-    const measureByGi  = new Map();
-    for (const section of model.sections) {
-        for (const measure of section.measures) {
-            flatMeasures.push(measure);
-            measureByGi.set(measure.index ?? flatMeasures.length - 1, measure);
-        }
-    }
+    const { flatMeasures, measureByGi } = flattenModelMeasures(model);
 
     const sequence = expandMeasureSequence(flatMeasures);
 

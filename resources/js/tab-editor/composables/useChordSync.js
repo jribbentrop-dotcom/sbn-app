@@ -13,7 +13,12 @@
  * Conversion:
  *   diagIdx  = 6 - tabString   (tab 6 → diag 0, tab 1 → diag 5)
  *   tabString = 6 - diagIdx    (diag 0 → tab 6, diag 5 → tab 1)
+ *
+ * The per-character fret codec (`parseFretChar`/`fretToChar`) is shared from
+ * `@/utils/fretString.ts`; only the tab↔diagram string-index mapping is local.
  */
+
+import { parseFretChar, fretToChar } from '@/utils/fretString.ts';
 
 /**
  * Extract a fret string from the first chordal event (≥3 notes) under a chord position.
@@ -55,7 +60,7 @@ export function extractFretsAtChord(measure, chordIndex, ticksPerMeasure) {
     for (const note of chordEvent.notes) {
         const diagIdx = 6 - note.string;
         if (diagIdx < 0 || diagIdx > 5) continue;
-        result[diagIdx] = note.fret <= 9 ? String(note.fret) : note.fret.toString(16);
+        result[diagIdx] = fretToChar(note.fret);
         if (note.fret > 0) nonZeroFrets.push(note.fret);
     }
 
@@ -93,9 +98,8 @@ export function applyVoicingToChord(measure, chordIndex, ticksPerMeasure, frets)
     // Diagram index → tab string: tabString = 6 - diagIdx
     const voicingNotes = [];
     frets.split('').forEach((ch, diagIdx) => {
-        if (ch === 'x') return;
-        const fret = parseInt(ch, 16);
-        if (isNaN(fret)) return;
+        const fret = parseFretChar(ch);
+        if (fret === null) return;
         const tabString = 6 - diagIdx;
         voicingNotes.push({ string: tabString, fret, pitch: null, octave: null });
     });

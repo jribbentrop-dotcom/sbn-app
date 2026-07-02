@@ -421,16 +421,37 @@ This drives which chord is shown in the hero and which `ChordCard` is highlighte
 
 ## 10. Fret-string ↔ `diagram_data` conversion
 
-Known tech debt: conversion exists in four places. Do not add a fifth.
+✅ **Consolidated (2026-07-02).** The conversion now lives in **one authority per
+language**, kept in sync by hand:
 
-| Location | Direction | Notes |
-|----------|-----------|-------|
-| `LeadsheetViewerService::fretStringToDiagramData()` | string → object | PHP, used in `synthesizeMinimalCard` |
-| `Components/Library/ChordDiagram.vue::diagramDataToFretString()` | object → string | TS, used for matching |
-| `audio/adapters/chordVoicingsToEvents.js::parseFretChar()` | per-character | JS audio adapter |
-| `ChordShapeCalculator` / `ChordVoicingSearch` | internal | PHP, positional math |
+- **JS/TS:** [`resources/js/utils/fretString.ts`](../resources/js/utils/fretString.ts) —
+  `parseFretChar` / `fretToChar` (per-char hex codec), `diagramDataToFretString`,
+  `fretStringToDiagramData`. Tested in `resources/js/utils/__tests__/fretString.test.ts`.
+- **PHP:** [`app/Services/ChordFretString.php`](../app/Services/ChordFretString.php) —
+  the same four functions, mirroring the TS module.
 
-Planned consolidation: `app/Services/ChordFretString.php` + `resources/js/utils/fretString.ts`. Not yet done.
+**The fret-string contract** (documented in both files): 6 chars, one per diagram
+string 1→6 (low E → high e), `x`=muted, `0`=open, `1`–`9`/`a`–`f` = fret in **hex**
+(so frets 10–15 stay single-char).
+
+Sites now routed through the shared code:
+
+| Location | Uses | Notes |
+|----------|------|-------|
+| `LeadsheetViewerService::fretStringToDiagramData()` | PHP `ChordFretString` | private method delegates |
+| `Components/Library/ChordDiagram.vue` | TS `diagramDataToFretString` | |
+| `audio/adapters/chordVoicingsToEvents.js` | JS `parseFretChar` | |
+| `tab-editor/composables/useChordSync.js` | JS `parseFretChar`/`fretToChar` | char codec only; tab↔diagram string-index mapping stays local |
+| `tab-editor/utils/transpose.js` | JS `parseFretChar`/`fretToChar` | codec only; octave-fold arithmetic stays local |
+
+**Deliberately NOT folded in** (behaviour differs — would change output):
+
+- `ChordShapeCalculator` / `ChordVoicingSearch` (PHP) — internal positional math, not the string↔object conversion.
+- `useVoicingPickerStore.js::_diagramDataToFrets()` and the identical helper in
+  `Components/Course/PracticePanel.vue` — these **expand barres** across strings, which
+  the shared `diagramDataToFretString` does not. Folding them in requires adding barre
+  support to the shared function first; left as a known follow-up rather than a silent
+  behaviour change.
 
 ---
 
@@ -561,7 +582,7 @@ Rule: whenever you add a new `inject()` to a component that is also used in the 
 
 - **Density rework (compact mode):** `sbn-ve-measure-content` `min-height` in compact mode still keeps measures tall. Real fix: shrink min-height, ignore `lineBreaks`, tighten measure padding. Deferred.
 - **Cinema video controls:** YouTube title overlay fades naturally but cannot be suppressed via API.
-- **Fret-string consolidation:** four locations (§10). Planned as `ChordFretString.php` + `fretString.ts` but not yet done.
+- **Fret-string consolidation:** ✅ DONE (2026-07-02) — `ChordFretString.php` + `fretString.ts` are the shared authorities; five sites routed through them. See §10 for the two barre-aware helpers deliberately left as a follow-up.
 - **Tab reflow on resize:** tab view uses static row layout; does not reflow on viewport resize. Acceptable; revisit if flagged.
 - **`edu_topics` DB table:** `EduContentService` is config-backed. DB migration deferred.
 - **Cinema fallback clock is not repeat-aware (§8.2):** the silent fallback (no video) walks gi linearly. Fix by counting in play positions and looking up the gi via `giAtPosition(expandedSequence.value, pos)` per beat; small change but currently low-priority since the practical use of Cinema is video-master.

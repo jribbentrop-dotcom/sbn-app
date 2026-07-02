@@ -148,6 +148,7 @@ const globalIndexOf       = inject('globalIndexOf', null);
 const playingMeasureIndex = inject('playingMeasureIndex', null);
 const transportBeat       = inject('transportBeat', null);
 const tapCursor           = inject('tapCursor', null);
+/** @type {import('vue').Ref<Map<number, import('../composables/useVideoSync.js').VideoSyncMark[]>>|null} */
 const videoSyncMap        = inject('videoSyncMap', null);
 const chordGridOps        = inject('chordGridOps', null);
 
@@ -156,7 +157,7 @@ const chordGridOps        = inject('chordGridOps', null);
 const progressionHighlights = inject('progressionHighlights', null);
 const hoveredProgressionId  = inject('hoveredProgressionId', null);
 
-// videoSyncMap.value is Map<gi, Array<{ videoTime, pass, pos, mappingIdx }>>.
+// videoSyncMap.value is Map<gi, VideoSyncMark[]> (typedef in useVideoSync.js).
 // The badge takes the FIRST mark (pass 1) as its representative and an array
 // of all marks so it can show a "·N" count for repeated bars.
 const syncMarks = computed(() => videoSyncMap?.value?.get(globalIdx.value) ?? null);

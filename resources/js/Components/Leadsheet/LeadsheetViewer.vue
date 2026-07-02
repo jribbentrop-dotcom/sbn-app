@@ -169,7 +169,7 @@ import { useAudioEngine } from '@/tab-editor/composables/useAudioEngine.js';
 import { getAudioEngine } from '@/audio/engine/AudioEngine.js';
 import { tabModelToEvents } from '@/audio/adapters/tabMeasureToEvents.js';
 import { chordVoicingsToEvents } from '@/audio/adapters/chordVoicingsToEvents.js';
-import { expandMeasureSequence } from '@/audio/adapters/expandMeasureSequence.js';
+import { expandModelSequence } from '@/audio/adapters/expandMeasureSequence.js';
 
 const props = defineProps({
   /** Leadsheet payload from controller — see resources/js/types/leadsheet.ts */
@@ -577,8 +577,7 @@ async function seekToMeasure(gi, ci = 0) {
 // Used to derive which bar is highlighted during playback and where to seek.
 const expandedSequence = computed(() => {
   if (!model.value) return [];
-  const flat = model.value.sections.flatMap(s => s.measures ?? []);
-  return expandMeasureSequence(flat);
+  return expandModelSequence(model.value);
 });
 
 // Inverse map: globalIndex → first play-position beat (for seek).

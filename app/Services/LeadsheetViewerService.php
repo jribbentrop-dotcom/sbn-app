@@ -6,6 +6,7 @@ use App\Models\ChordDiagram;
 use App\Models\ChordProgression;
 use App\Models\Leadsheet;
 use App\Models\LeadsheetVersion;
+use App\Services\ChordFretString;
 use App\Services\HarmonicContext;
 
 /**
@@ -310,29 +311,7 @@ class LeadsheetViewerService
 
     private function fretStringToDiagramData(string $frets): array
     {
-        $positions = [];
-        $open      = [];
-        $muted     = [];
-
-        for ($i = 0; $i < 6; $i++) {
-            $char      = $frets[$i] ?? 'x';
-            $stringNum = $i + 1;
-
-            if ($char === 'x') {
-                $muted[] = $stringNum;
-            } elseif ($char === '0') {
-                $open[] = $stringNum;
-            } else {
-                $positions[] = ['string' => $stringNum, 'fret' => intval($char, 16)];
-            }
-        }
-
-        return [
-            'positions' => $positions,
-            'barres'    => [],
-            'muted'     => $muted,
-            'open'      => $open,
-        ];
+        return ChordFretString::fretStringToDiagramData($frets);
     }
 
     private function diagramDataMatches(array $a, array $b, array $ignoreStrings = []): bool

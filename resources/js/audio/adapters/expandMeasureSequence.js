@@ -50,6 +50,42 @@ export function expandMeasureSequenceWithPass(measures) {
     return _expand(measures);
 }
 
+/**
+ * Flatten a nested `{ sections: [{ measures: [...] }] }` model into the flat
+ * bar array that expandMeasureSequence expects, plus a gi → measure lookup.
+ *
+ * Every caller used to inline `model.sections.flatMap(s => s.measures ?? [])`
+ * (and some also rebuilt the gi Map). Centralising it means the repeat/volta
+ * flags on each bar are carried through one code path — a site can't silently
+ * flatten in a way that drops them and produce a linear timeline.
+ *
+ * @param {{ sections?: Array<{ measures?: any[] }> }} model
+ * @returns {{ flatMeasures: any[], measureByGi: Map<number, any> }}
+ */
+export function flattenModelMeasures(model) {
+    const flatMeasures = [];
+    const measureByGi = new Map();
+    for (const section of model?.sections ?? []) {
+        for (const measure of section.measures ?? []) {
+            flatMeasures.push(measure);
+            measureByGi.set(measure.index ?? flatMeasures.length - 1, measure);
+        }
+    }
+    return { flatMeasures, measureByGi };
+}
+
+/**
+ * Repeat + volta-aware playback sequence for a nested model — the flatten +
+ * expand pair that view/adapter sites need. Use this instead of hand-rolling
+ * the flatten before calling expandMeasureSequence.
+ *
+ * @param {{ sections?: Array<{ measures?: any[] }> }} model
+ * @returns {number[]}
+ */
+export function expandModelSequence(model) {
+    return expandMeasureSequence(flattenModelMeasures(model).flatMeasures);
+}
+
 function _expand(measures) {
     if (!measures?.length) return { sequence: [], passAtPosition: [] };
 

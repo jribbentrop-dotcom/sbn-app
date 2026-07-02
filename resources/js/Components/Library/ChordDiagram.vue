@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { watchEffect, ref } from 'vue';
+import { diagramDataToFretString } from '@/utils/fretString.ts';
 
 export interface ChordDiagramData {
     id: number;
@@ -45,19 +46,6 @@ const props = withDefaults(defineProps<Props>(), {
 });
 const svgHtml = ref('');
 
-function diagramDataToFretString(data: ChordDiagramData['diagram_data']): string {
-    const frets: (number | 'x')[] = ['x', 'x', 'x', 'x', 'x', 'x'];
-    for (const s of data.open ?? []) {
-        if (s >= 1 && s <= 6) frets[s - 1] = 0;
-    }
-    for (const pos of data.positions ?? []) {
-        if (pos.string >= 1 && pos.string <= 6) frets[pos.string - 1] = pos.fret;
-    }
-    for (const s of data.muted ?? []) {
-        if (s >= 1 && s <= 6) frets[s - 1] = 'x';
-    }
-    return frets.map(f => f === 'x' ? 'x' : (f as number).toString(16)).join('');
-}
 
 function diagramDataToFingerString(data: ChordDiagramData['diagram_data']): string {
     if (!data) return '000000';

@@ -1,3 +1,5 @@
+import { parseFretChar, fretToChar } from '@/utils/fretString.ts';
+
 const CHROMA = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const FLATS  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
 
@@ -46,9 +48,8 @@ export function transposePitch(pitch, octave, semitones) {
 // could not be placed in 0..24 even after folding (impossible for real shapes).
 export function transposeVoicingFrets(frets, semitones) {
     if (!frets || typeof frets !== 'string') return { frets, overflow: false };
-    const decoded = frets.split('').map(ch =>
-        (ch === 'x' || ch === 'X') ? null : parseInt(ch, 16));
-    const shifted = decoded.map(f => (f === null || isNaN(f)) ? null : f + semitones);
+    const decoded = frets.split('').map(parseFretChar);
+    const shifted = decoded.map(f => f === null ? null : f + semitones);
 
     const fretted = () => shifted.filter(f => f !== null);
     let guard = 0;
@@ -64,7 +65,7 @@ export function transposeVoicingFrets(frets, semitones) {
     const out = shifted.map(f => {
         if (f === null) return 'x';
         if (f < 0 || f > 24) { overflow = true; f = Math.max(0, Math.min(24, f)); }
-        return f.toString(16);
+        return fretToChar(f);
     });
     return { frets: out.join(''), overflow };
 }

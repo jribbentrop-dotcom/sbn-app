@@ -100,7 +100,11 @@ export function chordDiagramToEvents(model, ctx = {}) {
     // Stagger: 120 ms per string. At 120 BPM, 1 beat = 500ms → 0.24 beats per string.
     // Can be overridden via ctx.staggerBeats for faster playback (e.g., progression viewer).
     const STAGGER_BEATS = ctx.staggerBeats ?? 0.36;
-    out.forEach((ev, i) => { ev.time = startBeat + i * STAGGER_BEATS; });
+    // Round to kill float drift (5 * 0.36 = 1.7999999999999998) so scheduled
+    // beat offsets stay clean.
+    out.forEach((ev, i) => {
+        ev.time = Math.round((startBeat + i * STAGGER_BEATS) * 1e6) / 1e6;
+    });
 
     return out;
 }

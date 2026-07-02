@@ -90,11 +90,21 @@ export function useVideoSync(model, { wrapCommand, playingMeasureIndex, transpor
     );
 
     /**
+     * A single video-sync mark, per-pass, as exposed to the badge UI.
+     * @typedef {object} VideoSyncMark
+     * @property {number} videoTime  seconds into the video this bar sounds
+     * @property {number} pass       1-based pass within the gi (earliest videoTime = pass 1)
+     * @property {number} pos        play position in the expanded sequence this mark maps to
+     * @property {number} mappingIdx index into the live `mappings.value` array — a stable
+     *                               handle for edit/remove of this specific mapping
+     */
+
+    /**
      * Per-gi grouped view of mappings for the badge UI.
-     * Map<gi, Array<{ videoTime, pass, pos, mappingIdx }>> — `pass` is 1-based
-     * within the gi (earliest videoTime = pass 1). `mappingIdx` indexes into
-     * the live `mappings.value` array so callers can edit/remove a specific
-     * mapping without ambiguity.
+     * `pass` is 1-based within the gi (earliest videoTime = pass 1). `mappingIdx`
+     * indexes into the live `mappings.value` array so callers can edit/remove a
+     * specific mapping without ambiguity.
+     * @type {import('vue').ComputedRef<Map<number, VideoSyncMark[]>>}
      */
     const mappingsByGi = computed(() => {
         const seq = _sequence();

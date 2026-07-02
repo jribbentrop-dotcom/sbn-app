@@ -3,7 +3,7 @@ import { ref, computed, provide, watch, onMounted, onBeforeUnmount } from 'vue';
 import { getAudioEngine } from '@/audio/engine/AudioEngine.js';
 import { getSharedNylon } from '@/audio/engine/voices/sharedNylon.js';
 import { tabModelToEvents } from '@/audio/adapters/tabMeasureToEvents.js';
-import { expandMeasureSequence, firstPositionForGi } from '@/audio/adapters/expandMeasureSequence.js';
+import { expandModelSequence, firstPositionForGi } from '@/audio/adapters/expandMeasureSequence.js';
 import { useTabModel } from '@/tab-editor/composables/useTabModel.js';
 import TabMeasure from '@/tab-editor/components/TabMeasure.vue';
 
@@ -74,8 +74,7 @@ const transportBeat = ref(0);
 // Expanded playback sequence (repeat + volta aware) — cached per model build.
 const expandedSequence = computed(() => {
   if (!model.value) return [];
-  const flat = model.value.sections.flatMap((s: any) => s.measures ?? []);
-  return expandMeasureSequence(flat);
+  return expandModelSequence(model.value);
 });
 
 const beatsPerMeasure = computed(() => {

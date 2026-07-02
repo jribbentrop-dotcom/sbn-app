@@ -330,6 +330,7 @@ const beatsPerMeasureRef   = inject('beatsPerMeasureRef',  null);
 const measureBeatStartMap  = inject('measureBeatStartMap', null);
 const transportPlaying     = inject('transportPlaying',    null);
 const tapCursor            = inject('tapCursor', null);
+/** @type {import('vue').Ref<Map<number, import('../composables/useVideoSync.js').VideoSyncMark[]>>|null} */
 const videoSyncMap         = inject('videoSyncMap', null);
 const inlineRenameTarget   = inject('inlineRenameTarget', null);
 const triggerInlineRename  = inject('triggerInlineRename', null);
