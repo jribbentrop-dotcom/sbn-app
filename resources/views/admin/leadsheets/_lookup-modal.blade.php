@@ -175,6 +175,16 @@
                         </div>
                     </div>
 
+                    <div class="sbn-form-group" style="margin-top: 15px;">
+                        <label class="sbn-checkbox">
+                            <input type="checkbox" name="separate_stem" value="1" x-model="separateStem" :disabled="loading">
+                            <div>
+                                <div style="font-weight: 600;">Separate guitar from vocals first</div>
+                                <div style="font-size: 11px; color: #6b7280;">Isolates the guitar with AI (Demucs) before transcribing &mdash; best for recordings with vocals. ~adds a few seconds.</div>
+                            </div>
+                        </label>
+                    </div>
+
                     <!-- ── Note Detection Tuning (basic-pitch) ──────────────── -->
                     <div class="sbn-form-group" style="margin-top: 15px;">
                         <label for="detection_preset">Note Detection Sensitivity</label>
@@ -331,6 +341,9 @@
             extensionMode: 'basic',
             loading: false,
 
+            // Isolate the guitar stem (Demucs) before transcription — default ON.
+            separateStem: true,
+
             // Audio-transcription detection tuning (basic-pitch knobs)
             detectionPreset: 'balanced',
             showDetectionAdvanced: false,
@@ -381,6 +394,8 @@
                 this.buildVoicings = true;
                 this.voicingStyle = 'popular';
                 this.loading = false;
+
+                this.separateStem = true;
 
                 this.detectionPreset = 'balanced';
                 this.showDetectionAdvanced = false;

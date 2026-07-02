@@ -557,3 +557,103 @@ Lower priority — bass-snap covers the common case.
 inside T1; revisit only if more material shows T1 is insufficient) → **T3
 next** (wire the context-aware identifier into the audio path — plumbing of an
 existing engine) → T5 → T6. The 90 s cap can be lifted any time.
+
+---
+
+## 11. Stem Separation (Session 2026-07-02)
+
+### What it does
+Recordings with vocals or a full band badly confuse `basic-pitch` — it's a
+polyphonic *pitch* detector, not a source separator, so a lead vocal or piano
+comping over the guitar shows up as spurious notes. **Demucs** (`htdemucs_6s`,
+already installed in `python_env` alongside torch 2.5.1+cu121) runs a 6-stem
+separation and isolates a clean `guitar.wav` before transcription. On the dev
+GPU (GTX 1070, CUDA) a ~152s recording separates in **~7s** — cheap enough to
+leave on by default.
+
+### Where it sits in the pipeline
+Separation runs **between** `convertToWav()` and `runPythonTranscription()` —
+strictly *before* the 22050Hz/mono downsample basic-pitch expects, not after:
+
+```
+download/upload → convertToWav() (22050Hz mono)
+                → separateStem() (Demucs, 44.1kHz stereo guitar.wav out)
+                → convertToWav() again (re-downconvert the stem to 22050Hz mono)
+                → runPythonTranscription()
+```
+
+The re-downconvert is necessary because Demucs's stem output is full-length
+44.1kHz **stereo** — reusing `convertToWav()` for the second pass (rather than
+writing a bespoke downsampler) keeps exactly one code path responsible for
+"whatever basic-pitch receives is 22050Hz mono."
+
+### The modal toggle
+`_lookup-modal.blade.php` (audio mode) has a **"Separate guitar from vocals
+first"** checkbox, default **checked**, right above the Note Detection
+Sensitivity preset. Caption: *"Isolates the guitar with AI (Demucs) before
+transcribing — best for recordings with vocals. ~adds a few seconds."*
+
+### Flag threading
+`separate_stem` is a **control flag**, not a basic-pitch detection param, but
+it rides in the same `$detectionParams` array so neither `transcribe()` nor
+`transcribeLocalFile()` needed a new parameter:
+
+```
+modal checkbox (separate_stem, default checked)
+  → createFromLookup() validation ('separate_stem' => 'nullable|boolean')
+  → resolveDetectionParams() folds it into $detectionParams,
+    defaulting to TRUE when absent from the request (the modal always
+    submits the checkbox; only an explicit false turns it off)
+  → MidiTranscriptionService::transcribe() / transcribeLocalFile()
+    checks $detectionParams['separate_stem'] and calls separateStem()
+  → stripped back out before the *.params.json written for transcribe.py —
+    that file must stay basic-pitch keyword args only (onset/frame/minLen/
+    frequency). transcribe.py never sees separate_stem.
+```
+
+### `MidiTranscriptionService::separateStem()`
+Shells to `python_env/python.exe scripts/separate_stem.py <in.wav> <out.wav>
+--device cuda`, mirroring the `proc_open` + `PATH`/`TEMP`/`TF_CPP_MIN_LOG_LEVEL`
+env-injection pattern used by `runPythonTranscription()` and `downloadAudio()`,
+and the same `JSON_START` handshake. **Graceful fallback on any failure** —
+non-zero exit code, a `{"success": false}` payload, invalid JSON, or a missing
+output file all log a warning and return the **original `$wavPath` unchanged**;
+a bad separation must never block an import.
+
+`scripts/separate_stem.py` contract:
+```
+separate_stem.py <input.wav> <output.wav> [--device cuda|cpu]
+```
+Falls back to CPU internally if `torch.cuda.is_available()` is False. Invokes
+`demucs.separate.main([...])` in-process (no nested `-m demucs` subprocess),
+writes Demucs's full 6-stem output tree to `<input>.demucs_out/` (a scratch dir
+next to the input, so cleanup is one `shutil.rmtree`), copies
+`htdemucs_6s/<basename>/guitar.wav` to the requested output path, then deletes
+the scratch tree. Same handshake as `transcribe.py`: warnings suppressed,
+`JSON_START` then one line of JSON — `{"success": true, "stem_path": "..."}` or
+`{"success": false, "error": "...", "traceback": "..."}`.
+
+### Cleanup
+Every intermediate file is tracked and unlinked in the caller
+(`transcribe()`'s step 4 / `transcribeLocalFile()`'s `finally` block): the raw
+download, the first-pass wav, the guitar-stem wav, and the re-downconverted
+stem wav. The Demucs output tree itself is deleted by `separate_stem.py`
+before it returns, so nothing accumulates under `storage/app/temp_audio`.
+
+### `transcriptionRaw.separateStem` caching
+Whether separation ran is cached in `transcriptionRaw.separateStem` alongside
+`bassSnap` / `tabPositionStyle`, so a later `reshiftDownbeat` re-assembly (which
+never re-runs Python) can record what actually produced the transcription
+rather than silently defaulting. Reshift doesn't accept a `separate_stem`
+override — there's nothing to re-run — it just carries the cached value
+through.
+
+### Caveat — `htdemucs_6s` also strips bass
+The 6-stem model separates guitar from bass, vocals, drums, piano, and other.
+If a recording's **low guitar notes** get clipped because Demucs attributed
+them to the `bass` stem rather than `guitar`, the documented (not yet built)
+fix is to **sum the `guitar.wav` and `bass.wav` stems** before the
+re-downconvert step, rather than using `guitar.wav` alone. Left as a knob on
+`separate_stem.py` for a future session if this shows up on real material —
+not implemented now since it wasn't observed as a problem on the verification
+pass.

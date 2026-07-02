@@ -3007,7 +3007,14 @@ function leadsheetEditor() {
                         videoSync: this.parsed.videoSync ? JSON.parse(JSON.stringify(this.parsed.videoSync)) : null,
                         openVideoSidebar: this.videoSidebarOpen,
                         tuning: this.parsed.tuning || 'standard',
-                        hasMelodyTab: !!(this.melodyTabXml),
+                        // Melody staff is present if the serialized XML exists OR
+                        // the parsed model carries real melody notes. Audio imports
+                        // populate parsed.melody but leave melodyTabXml null (the XML
+                        // is regenerated on save), so gating on the XML alone hid the
+                        // freshly-transcribed staff in the editor.
+                        hasMelodyTab: !!(this.melodyTabXml) ||
+                            (Array.isArray(this.parsed?.melody) &&
+                             this.parsed.melody.some(n => n && !n.isRest)),
                         hasChordTab:  !!(this.chordTabXml),
                     }
                 }));

@@ -661,6 +661,7 @@ class LeadsheetController extends Controller
             'frame_threshold'      => 'nullable|numeric|min:0.05|max:0.95',
             'minimum_note_length'  => 'nullable|numeric|min:10|max:500',
             'restrict_guitar_range'=> 'nullable|boolean',
+            'separate_stem'        => 'nullable|boolean',
         ]);
 
         if (($validated['mode'] ?? '') === 'audio') {
@@ -722,6 +723,10 @@ class LeadsheetController extends Controller
                 // default) keeps a bar in one neck position; 'open' favours
                 // open strings (classical / fingerstyle).
                 'tab_position_style' => $validated['tab_position_style'] ?? 'fretted',
+                // Record whether Demucs guitar-stem separation ran, so the
+                // cached transcriptionRaw reflects what actually produced
+                // this transcription (see resolveDetectionParams()).
+                'separate_stem' => $detectionParams['separate_stem'] ?? true,
             ], 0, $crossref);
 
             // ── Optional: AI Refinement (Structuralisation Pass) ─────────────
@@ -1615,6 +1620,9 @@ class LeadsheetController extends Controller
         // `offset` is the downbeat shift in ticks (480 ticks = 1 quarter, one
         // 4/4 bar = 1920). Sub-beat values let the chosen "1" land exactly on
         // a note quantized to an 8th/16th, not just on a whole beat.
+        // Note: reshiftDownbeat does NOT re-run Python, so it never re-runs
+        // separation — separate_stem isn't accepted here; transcriptionRaw's
+        // cached 'separateStem' flag is simply carried through untouched.
         $validated = $request->validate([
             'offset'    => 'required|integer|min:0|max:1919',
             'bass_snap' => 'nullable|boolean',
@@ -1648,6 +1656,9 @@ class LeadsheetController extends Controller
             'youtube_id' => $raw['videoId'] ?? ($parsed['videoSync']['videoId'] ?? ''),
             'bass_snap'  => $bassSnap,
             'tab_position_style' => $tabStyle,
+            // reshiftDownbeat never re-runs Python (no re-separation) — just
+            // preserve whatever produced the current assembly for the record.
+            'separate_stem' => $raw['separateStem'] ?? true,
         ], (int)$validated['offset'], $crossref);
 
         $scaffold      = $converter->convert($analysis);
@@ -3055,8 +3066,16 @@ class LeadsheetController extends Controller
      * the preset baseline. restrict_guitar_range clamps detection to the
      * 6-string range (~E2..~E6), trimming sub-bass rumble and cymbal noise.
      *
+     * Also folds in `separate_stem` — a control flag (not a basic-pitch
+     * param) telling MidiTranscriptionService to run the audio through
+     * Demucs and isolate the guitar stem before transcription. Defaults to
+     * TRUE when absent from the request, since the modal always submits the
+     * checkbox and ships it default-checked; only an explicit `false` (e.g.
+     * a programmatic caller) turns it off.
+     *
      * Returns only the keys the user actually changed from basic-pitch's own
-     * defaults, so an untouched modal yields [] and Python uses its defaults.
+     * defaults (plus separate_stem), so an untouched modal yields
+     * ['separate_stem' => true] and Python uses its defaults otherwise.
      */
     protected function resolveDetectionParams(array $validated): array
     {
@@ -3091,6 +3110,12 @@ class LeadsheetController extends Controller
                 unset($base[$k]);
             }
         }
+
+        // Stem separation control flag — default TRUE when absent from the
+        // request (see doc comment above).
+        $base['separate_stem'] = array_key_exists('separate_stem', $validated)
+            ? !empty($validated['separate_stem'])
+            : true;
 
         return $base;
     }
@@ -3163,6 +3188,11 @@ class LeadsheetController extends Controller
                 'downbeatOffset' => $downbeatOffset,
                 'bassSnap'       => $bassSnapped,
                 'tabPositionStyle' => $opts['tab_position_style'] ?? 'fretted',
+                // Whether Demucs guitar-stem separation ran before this
+                // transcription. reshiftDownbeat never re-runs Python, so it
+                // just carries this flag through for the record — it doesn't
+                // re-separate.
+                'separateStem' => $opts['separate_stem'] ?? true,
                 // The basic-pitch knobs that produced this note set. Recorded
                 // for the editor (so the user can see what was used and
                 // re-import with different values if detection was off).
