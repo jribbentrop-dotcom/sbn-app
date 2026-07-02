@@ -9,6 +9,7 @@ defineOptions({ layout: PublicLayout });
 
 const props = defineProps<{
     panels: Record<number, {
+        skills: any[];
         chords: any[];
         rhythms: any[];
         progressions: any[];
@@ -255,7 +256,7 @@ onUnmounted(() => {
 .panel-slide-leave-active {
     transition: max-height .35s ease, opacity .25s ease;
     overflow: hidden;
-    max-height: 600px;
+    max-height: 1000px;
 }
 .panel-slide-enter-from,
 .panel-slide-leave-to {

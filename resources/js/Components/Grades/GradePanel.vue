@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { Link } from '@inertiajs/vue3';
+import SkillIcon from '@/Components/Skill/SkillIcon.vue';
+
 interface LibraryItem {
     id: number;
     slug: string;
@@ -12,7 +15,18 @@ interface LibraryItem {
     image?: string | null;
 }
 
+interface SkillItem {
+    id: number;
+    slug: string;
+    title: string;
+    branch: string;
+    iconKey: string | null;
+    iconPath: string | null;
+    url: string;
+}
+
 interface GradePanelData {
+    skills: SkillItem[];
     chords: LibraryItem[];
     rhythms: LibraryItem[];
     progressions: LibraryItem[];
@@ -50,6 +64,29 @@ function itemSub(item: LibraryItem, key: string): string | null {
 
 <template>
     <div class="grade-panel" :style="`--panel-clr: ${gradeClr}`">
+        <!-- Skills at this grade — the actual abilities you build here -->
+        <div v-if="data.skills && data.skills.length" class="grade-panel-skills">
+            <div class="gps-header">
+                <span class="gps-icon">◆</span>
+                <span class="gps-label">Skills you build at this grade</span>
+            </div>
+            <ul class="gp-skill-list">
+                <li v-for="skill in data.skills" :key="skill.id">
+                    <Link :href="skill.url" class="gp-skill" :data-branch="skill.branch">
+                        <span class="gp-skill-icon">
+                            <SkillIcon
+                                :icon-path="skill.iconPath"
+                                :icon-key="skill.iconKey"
+                                :branch="skill.branch"
+                                :size="22"
+                            />
+                        </span>
+                        <span class="gp-skill-title">{{ skill.title }}</span>
+                    </Link>
+                </li>
+            </ul>
+        </div>
+
         <div class="grade-panel-inner">
             <div
                 v-for="sec in sections"
@@ -86,6 +123,51 @@ function itemSub(item: LibraryItem, key: string): string | null {
     overflow: hidden;
     background: var(--clr-surface-1, #fff);
 }
+
+/* ── Skills strip (full-width, above the library grid) ─────────────── */
+.grade-panel-skills {
+    padding: 20px 20px 4px;
+}
+.gp-skill-list {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.gp-skill {
+    --_branch-clr: var(--panel-clr);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 6px 8px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--_branch-clr) 40%, transparent);
+    background: var(--clr-surface-1, #fff);
+    text-decoration: none;
+    transition: background .12s, border-color .12s;
+}
+.gp-skill:hover {
+    background: color-mix(in srgb, var(--_branch-clr) 10%, transparent);
+    border-color: color-mix(in srgb, var(--_branch-clr) 65%, transparent);
+}
+.gp-skill-icon {
+    display: flex;
+    color: var(--_branch-clr);
+}
+.gp-skill-title {
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--clr-text, #1d2127);
+    line-height: 1.25;
+}
+.gp-skill[data-branch="harmony"]        { --_branch-clr: #f39c12; }
+.gp-skill[data-branch="rhythm"]         { --_branch-clr: #3b82f6; }
+.gp-skill[data-branch="melody"]         { --_branch-clr: #ec4899; }
+.gp-skill[data-branch="technique"]      { --_branch-clr: #10b981; }
+.gp-skill[data-branch="ear-training"]   { --_branch-clr: #8b5cf6; }
+.gp-skill[data-branch="reading-theory"] { --_branch-clr: #64748b; }
 
 .grade-panel-inner {
     display: grid;

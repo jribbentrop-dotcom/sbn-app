@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Link } from '@inertiajs/vue3';
 import SkillIcon from '@/Components/Skill/SkillIcon.vue';
 
 export interface SkillRef {
@@ -28,20 +29,21 @@ const completedCount = props.skills.filter(s => s.completed).length;
     <!-- ── Compact: right-side hero icons ─────────────────────────────── -->
     <div v-if="skills.length && compact" class="sbn-skills-hero-strip">
         <ul class="sbn-skills-hero-list">
-            <li
-                v-for="skill in skills"
-                :key="skill.slug"
-                class="sbn-skills-hero-icon"
-                :class="{ 'is-done': skill.completed }"
-                :data-branch="skill.branch"
-            >
-                <SkillIcon
-                    :icon-path="skill.icon_path"
-                    :icon-key="skill.icon_key"
-                    :branch="skill.branch"
-                    :size="44"
-                />
-                <span class="sbn-skills-hero-tooltip">{{ skill.title }}</span>
+            <li v-for="skill in skills" :key="skill.slug">
+                <Link
+                    :href="`/skills#${skill.slug}`"
+                    class="sbn-skills-hero-icon"
+                    :class="{ 'is-done': skill.completed }"
+                    :data-branch="skill.branch"
+                >
+                    <SkillIcon
+                        :icon-path="skill.icon_path"
+                        :icon-key="skill.icon_key"
+                        :branch="skill.branch"
+                        :size="44"
+                    />
+                    <span class="sbn-skills-hero-tooltip">{{ skill.title }}</span>
+                </Link>
             </li>
         </ul>
     </div>
@@ -56,21 +58,25 @@ const completedCount = props.skills.filter(s => s.completed).length;
             <li
                 v-for="skill in skills"
                 :key="skill.slug"
-                class="sbn-skills-built-card"
-                :class="{ 'is-done': skill.completed }"
-                :data-branch="skill.branch"
             >
-                <span v-if="skill.completed" class="sbn-skills-built-done" title="You've built this skill">✓</span>
-                <span class="sbn-skills-built-icon">
-                    <SkillIcon
-                        :icon-path="skill.icon_path"
-                        :icon-key="skill.icon_key"
-                        :branch="skill.branch"
-                        :size="22"
-                    />
-                </span>
-                <span class="sbn-skills-built-title">{{ skill.title }}</span>
-                <span v-if="skill.grade" class="sbn-skills-built-grade">G{{ skill.grade }}</span>
+                <Link
+                    :href="`/skills#${skill.slug}`"
+                    class="sbn-skills-built-card"
+                    :class="{ 'is-done': skill.completed }"
+                    :data-branch="skill.branch"
+                >
+                    <span v-if="skill.completed" class="sbn-skills-built-done" title="You've built this skill">✓</span>
+                    <span class="sbn-skills-built-icon">
+                        <SkillIcon
+                            :icon-path="skill.icon_path"
+                            :icon-key="skill.icon_key"
+                            :branch="skill.branch"
+                            :size="22"
+                        />
+                    </span>
+                    <span class="sbn-skills-built-title">{{ skill.title }}</span>
+                    <span v-if="skill.grade" class="sbn-skills-built-grade">G{{ skill.grade }}</span>
+                </Link>
             </li>
         </ul>
     </div>

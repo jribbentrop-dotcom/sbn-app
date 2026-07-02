@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { Link } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import AccountLayout from '@/Layouts/AccountLayout.vue';
 import SkillTile from '@/Components/Skill/SkillTile.vue';
@@ -272,6 +273,9 @@ function onMobileToggle(node: SkillTreeNode) {
                 <button type="button" class="sbn-btn sbn-btn-secondary" @click="toggle(openNode)">
                     {{ openNode.state === 'done' ? 'Mark incomplete' : 'Mark complete' }}
                 </button>
+                <Link :href="`/skills#${openNode.slug}`" class="skt-popover-details">
+                    Full details →
+                </Link>
             </div>
         </div>
     </div>

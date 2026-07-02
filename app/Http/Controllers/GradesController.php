@@ -7,6 +7,7 @@ use App\Models\ChordProgression;
 use App\Models\Course;
 use App\Models\Leadsheet;
 use App\Models\RhythmPattern;
+use App\Models\SkillNode;
 use Inertia\Inertia;
 
 class GradesController extends Controller
@@ -27,6 +28,7 @@ class GradesController extends Controller
 
         foreach (self::LEVEL_SLUGS as $grade => $slug) {
             $panels[$grade] = [
+                'skills'       => $this->skills($grade),
                 'chords'       => $this->chords($grade),
                 'rhythms'      => $this->rhythms($grade),
                 'progressions' => $this->progressions($grade),
@@ -36,6 +38,30 @@ class GradesController extends Controller
         }
 
         return Inertia::render('Grades/Index', compact('panels'));
+    }
+
+    /**
+     * Skill nodes that belong to this grade — the actual skills a student works
+     * toward at this level. Surfaced as icons on the grade panel (not capped like
+     * the library sections; a grade has ≤~23 nodes and they're the defining thing).
+     */
+    private function skills(int $grade): array
+    {
+        return SkillNode::where('grade', $grade)
+            ->orderBy('branch')
+            ->orderBy('sort_order')
+            ->get(['id', 'slug', 'title', 'branch', 'icon_key', 'icon_path'])
+            ->map(fn (SkillNode $n) => [
+                'id'       => $n->id,
+                'slug'     => $n->slug,
+                'title'    => $n->title,
+                'branch'   => $n->branch,
+                'iconKey'  => $n->icon_key,
+                'iconPath' => $n->icon_path,
+                'url'      => route('skills.glossary') . '#' . $n->slug,
+            ])
+            ->values()
+            ->all();
     }
 
     private function chords(int $grade): array

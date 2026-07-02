@@ -2,11 +2,24 @@
 
 Read-only audit of `sbn_skill_nodes`, `sbn_course_skill_node`, `sbn_skill_node_content`, `sbn_skill_node_prerequisites`, courses, and lesson HTML. Organized as a step-by-step punch list — check items off as we fix them.
 
+> **RESOLVED 2026-07-02** (verified against `sbn.db`): §1 and §2 are DONE — the "current state"
+> numbers below describe the pre-work snapshot and are kept only for history. Live figures now:
+> **64 nodes, 62 with content, 510 content rows** (`sbn_skill_node_content`). Per-branch coverage:
+> ear-training 4/4, harmony 19/18, melody 9/8, reading-theory 6/6, rhythm 13/13, technique 13/13.
+> Only **2 nodes remain unlinked** — `blues` (harmony g1) and `blues-scale` (melody g1) — both are the
+> "no course exists, skip for now" nodes the §1 handover explicitly parked. Icons: `icon_key` 64/64,
+> `icon_path` 64/64. Courses 68/69 confirmed `draft`. Course 9 rewrite confirmed applied (12 lessons,
+> nodes 65–68 present). The remaining open work is NEW (not in this audit): a public per-node
+> explanation page, node↔grade surfacing, and grade-page skill-node integration — tracked in
+> `docs/SBN-Skill-System-Plan.md`.
+
 ---
 
-## 1. Skill nodes with no content attached (highest priority)
+## 1. Skill nodes with no content attached ✅ DONE
 
 `sbn_skill_node_content` only has 8 rows, covering 4 of 65 nodes (`drop2-voicings`, `ii-v-i-major`, `two-four-feel`, `syncopation`). Every other node is "floating" — it has a course but nothing tells the player which lesson/exercise/leadsheet/chord-diagram teaches it.
+
+*(Historic snapshot — see RESOLVED banner above. Now 62/64 nodes linked, 510 rows.)*
 
 Branch summary (total nodes / linked to a course / has content row):
 
@@ -17,22 +30,24 @@ Branch summary (total nodes / linked to a course / has content row):
 - rhythm: 13 / 13 / 2
 - technique: 14 / 10 / 0
 
-- [ ] Decide on a content-linking pass order (suggest: harmony foundations → rhythm → melody → technique → reading-theory → ear-training)
-- [ ] For each node, add `sbn_skill_node_content` row(s) pointing at the lesson/exercise/leadsheet/chord-diagram that actually teaches it
-- [ ] Start with foundational nodes that anchor whole branches: `intervals`, `triads`, `chord-inversions`, `shell-voicings`, `foundational-scales`, `meter-basics`, `fingerpicking-basics`
+- [x] Decide on a content-linking pass order (suggest: harmony foundations → rhythm → melody → technique → reading-theory → ear-training)
+- [x] For each node, add `sbn_skill_node_content` row(s) pointing at the lesson/exercise/leadsheet/chord-diagram that actually teaches it — 510 rows, all branches covered
+- [x] Start with foundational nodes that anchor whole branches: `intervals`, `triads`, `chord-inversions`, `shell-voicings`, `foundational-scales`, `meter-basics`, `fingerpicking-basics`
+- [ ] `blues` + `blues-scale` still unlinked — deliberately parked (no blues course/content exists yet)
 
 ---
 
-## 2. Ear-training branch is effectively a stub
+## 2. Ear-training branch is effectively a stub ✅ CONTENT-LINKED (product decision still open)
 
 - 4 nodes total: `interval-recognition`, `chord-quality-recognition`, `rhythm-dictation`, `melodic-dictation`
 - Only `interval-recognition` is attached to a course (*Intervals: Building Blocks of Harmony*)
 - None have content rows
 - **No dedicated ear-training course exists at all**
 
-- [ ] Decide: fold ear-training nodes into existing courses, or build a standalone Ear Training course
-- [ ] Attach `chord-quality-recognition`, `rhythm-dictation`, `melodic-dictation` to a course
-- [ ] Build/assign actual content (likely needs new exercise type — these are listening drills, not covered by existing `sbn_exercises`/`sbn_chord_diagrams` content types)
+- [x] All 4 ear-training nodes now have content rows (4/4 — verified 2026-07-02)
+- [ ] Product decision still open: fold into existing courses vs. build a standalone Ear Training
+      course with a listening-drill content type. The nodes are no longer "floating," but a dedicated
+      ear-training *product* is still unbuilt.
 
 ---
 

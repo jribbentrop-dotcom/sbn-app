@@ -4830,11 +4830,13 @@
     border: 1px solid var(--clr-border);
     background: var(--clr-surface);
     transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
-    cursor: default;
+    cursor: pointer;
     min-width: 76px;
     max-width: 110px;
     text-align: center;
     position: relative;
+    text-decoration: none;
+    color: inherit;
 }
 
 .sbn-skills-built-card:hover {
@@ -4938,7 +4940,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: default;
+    cursor: pointer;
+    text-decoration: none;
     transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s;
     opacity: 0.85;
 }
@@ -5357,3 +5360,93 @@
     .skt-desktop-only { display: none; }
     .skt-mobile-only { display: block; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Skill node explanation page (/account/skills/{slug}) — Account/SkillNode.vue
+   Global (not scoped) so [data-theme] can reach it, per SBN-Design-Reference.md.
+   ══════════════════════════════════════════════════════════════════════════ */
+.sbn-node-page { max-width: 760px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+
+.sbn-node-hero { display: flex; gap: 1.25rem; align-items: flex-start; margin-bottom: 1.5rem; }
+.sbn-node-hero-icon {
+    flex: 0 0 auto; width: 92px; height: 92px; border-radius: 18px;
+    display: grid; place-items: center;
+    color: var(--_tile-clr, var(--clr-text-muted));
+    background: color-mix(in srgb, var(--_tile-clr, var(--clr-text-muted)) 10%, transparent);
+}
+.sbn-node-hero-icon svg { width: 72px; height: 72px; stroke-width: 1.4; }
+.sbn-node-hero-body { flex: 1 1 auto; min-width: 0; }
+
+.sbn-node-eyebrow {
+    margin: 0 0 0.15rem; font-size: 0.8rem; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--clr-text-muted);
+}
+.sbn-node-title { margin: 0 0 0.5rem; font-size: 1.9rem; line-height: 1.15; }
+
+.sbn-node-grade-line {
+    margin: 0 0 0.9rem; display: flex; flex-wrap: wrap; gap: 0.4rem 0.6rem;
+    align-items: center; font-size: 0.9rem;
+}
+.sbn-node-grade-badge {
+    font-weight: 600; padding: 0.15rem 0.6rem; border-radius: 999px;
+    background: color-mix(in srgb, var(--clr-accent) 14%, transparent);
+    color: var(--clr-accent);
+}
+.sbn-node-opens { color: var(--clr-text-muted); }
+
+.sbn-node-toggle.is-done { color: var(--clr-style-classical); border-color: var(--clr-style-classical); }
+
+.sbn-node-section { margin: 1.75rem 0; }
+.sbn-node-desc { font-size: 1.05rem; line-height: 1.6; color: var(--clr-text); margin: 0; }
+.sbn-node-h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
+.sbn-node-h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--clr-text-muted); margin: 0 0 0.4rem; }
+
+.sbn-node-nodelist { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.sbn-node-chip {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.35rem 0.7rem; border-radius: 999px; text-decoration: none;
+    border: 1px solid color-mix(in srgb, var(--_branch-clr, var(--clr-border)) 45%, transparent);
+    color: var(--clr-text); background: var(--clr-surface); font-size: 0.9rem;
+    transition: background 0.15s, border-color 0.15s;
+}
+.sbn-node-chip:hover { background: color-mix(in srgb, var(--_branch-clr, var(--clr-accent)) 10%, transparent); }
+.sbn-node-chip svg { color: var(--_branch-clr, var(--clr-text-muted)); }
+.sbn-node-chip.is-done { border-color: var(--clr-style-classical); }
+.sbn-node-chip-grade { font-size: 0.72rem; color: var(--clr-text-muted); }
+.sbn-node-chip-done { color: var(--clr-style-classical); font-weight: 700; }
+.sbn-node-chip[data-branch="harmony"]        { --_branch-clr: #f39c12; }
+.sbn-node-chip[data-branch="rhythm"]         { --_branch-clr: #3b82f6; }
+.sbn-node-chip[data-branch="melody"]         { --_branch-clr: #ec4899; }
+.sbn-node-chip[data-branch="technique"]      { --_branch-clr: #10b981; }
+.sbn-node-chip[data-branch="ear-training"]   { --_branch-clr: #8b5cf6; }
+.sbn-node-chip[data-branch="reading-theory"] { --_branch-clr: #64748b; }
+
+.sbn-node-courselist { list-style: none; margin: 0; padding: 0; display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem; }
+.sbn-node-course { display: flex; align-items: center; gap: 0.6rem; text-decoration: none;
+    padding: 0.5rem; border-radius: 10px; border: 1px solid var(--clr-border);
+    color: var(--clr-text); background: var(--clr-surface); transition: border-color 0.15s; }
+.sbn-node-course:hover { border-color: var(--clr-accent); }
+.sbn-node-course-img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; flex: 0 0 auto; }
+.sbn-node-course-title { font-size: 0.9rem; line-height: 1.25; }
+
+.sbn-node-contentgroup { margin-bottom: 1rem; }
+.sbn-node-linklist { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; }
+.sbn-node-linklist a { color: var(--clr-accent); text-decoration: none; }
+.sbn-node-linklist a:hover { text-decoration: underline; }
+
+.sbn-node-back { margin-top: 2rem; }
+.sbn-node-back a { color: var(--clr-text-muted); text-decoration: none; }
+.sbn-node-back a:hover { color: var(--clr-accent); }
+
+/* "Full details →" link in the skill-tree node popover → node explanation page */
+.skt-popover-details {
+    display: inline-block;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--clr-accent);
+    text-decoration: none;
+}
+.skt-popover-details:hover { text-decoration: underline; }

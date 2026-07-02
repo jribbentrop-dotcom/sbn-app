@@ -456,6 +456,7 @@ if (! app()->environment('production')) {
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/grades', [GradesController::class, 'index'])->name('grades.index');
+Route::get('/skills', [\App\Http\Controllers\SkillGlossaryController::class, 'index'])->name('skills.glossary');
 
 Route::get('/hello', function () {
     return \Inertia\Inertia::render('Hello');

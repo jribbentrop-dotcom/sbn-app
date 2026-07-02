@@ -729,6 +729,43 @@ In rough priority order, once the taxonomy is curated:
 
 ---
 
+## Public Skill Glossary (Shipped 2026-07-02)
+
+A **single public one-pager** at **`/skills`** (`SkillGlossaryController@index` → `Skills/Glossary.vue`)
+— every skill node listed **alphabetically** as a glossary: icon + name + a one-sentence blurb, with a
+small grade badge + branch tag. Not gated (reference/marketing surface, no per-student data). Each entry
+has an `id="{slug}"` anchor + an A–Z sticky quick-jump, so links elsewhere deep-link to a specific
+skill via `/skills#{slug}`. **No schema change** — `title`/`description`/`grade`/icon are existing
+columns; sorted server-side `orderByRaw('LOWER(title)')`.
+
+> **Design pivot (2026-07-02):** an earlier build this session made a *per-node deep-dive page* at the
+> auth'd `/account/skills/{slug}` (prereqs / courses / practice content / toggle). That was **replaced**
+> by this public glossary at the user's request ("public, one-pager, alphabetical, glossary-style").
+> The deep-dive route + `SkillController@show` + `Account/SkillNode.vue` were removed; the `sbn-node-*`
+> CSS in `sbn-design-system.css` is now unused (left in place, harmless — can be swept later).
+
+**Skill links point here** everywhere nodes render: `SkillsBuiltPanel.vue` cards (library detail
+pages), `Account/Skills.vue` grid ⓘ link, the `SkillTree.vue` popover "Full details →", and the grade
+page skill strip — all now target `/skills#{slug}`.
+
+**Not done (content, for co-work):** the actual one-sentence blurbs on `sbn_skill_nodes.description`
+(most are still terse one-liners — the glossary is only as good as those sentences).
+
+### Grade page ↔ skill-node integration (Shipped 2026-07-02)
+
+`/grades` now surfaces the skill nodes for each grade. `GradesController::skills($grade)` adds a
+`skills` array to each `$panels[$grade]` (all nodes at that grade — not capped like the library
+sections, since a grade has ≤~23 nodes and they're the defining thing; ordered by branch/sort_order,
+with icon + node-page url). `GradePanel.vue` renders them as a full-width **"Skills you build at this
+grade"** strip of branch-colored icon chips above the existing 5-column content grid (chords/rhythms/
+progressions/songs/courses), each chip a `<Link>` to the node explanation page. Guests clicking one
+hit the normal `auth` gate → `/register` (grades page is public; the node page is not — consistent
+with the rest of the beta gate). Grade→node counts: g1=15, g2=23, g3=18, g4=3, g5=5. Panel-slide
+`max-height` raised 600→1000px to fit the taller panels. CSS is scoped in `GradePanel.vue` (branch
+colors only, not theme-dependent — matches the component's existing pattern).
+
+---
+
 ## Student Skill Tree (Shipped 2026-07-02)
 
 The student-facing render at `/account/skills/tree`, resolving the two items that had gated it

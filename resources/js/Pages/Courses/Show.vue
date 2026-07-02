@@ -337,26 +337,27 @@ function toggleSidebar(key: SidebarSection) {
             <template v-else>The atomic skills this course develops. <Link href="/register">Sign in</Link> to track your progress.</template>
           </p>
           <div class="sbn-cs-skills-grid">
-            <button
-              v-for="skill in skills"
-              :key="skill.slug"
-              type="button"
-              class="sbn-cs-skill"
-              :class="{ 'is-done': !!skillDone[skill.slug], 'is-pending': !!skillPending[skill.slug] }"
-              :aria-pressed="!!skillDone[skill.slug]"
-              :aria-label="(skillDone[skill.slug] ? 'Mark incomplete: ' : 'Mark complete: ') + skill.title"
-              @click="toggleSkill(skill)"
-            >
-              <span class="sbn-cs-skill-icon">
-                <SkillIcon :icon-path="skill.iconPath" :icon-key="skill.iconKey" :branch="skill.branch" :size="18" />
-              </span>
-              <span class="sbn-cs-skill-title">{{ skill.title }}</span>
-              <span class="sbn-cs-skill-check" aria-hidden="true">
-                <svg v-if="skillDone[skill.slug]" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20 6 9 17l-5-5"/>
-                </svg>
-              </span>
-            </button>
+            <div v-for="skill in skills" :key="skill.slug" class="sbn-cs-skill-cell">
+              <button
+                type="button"
+                class="sbn-cs-skill"
+                :class="{ 'is-done': !!skillDone[skill.slug], 'is-pending': !!skillPending[skill.slug] }"
+                :aria-pressed="!!skillDone[skill.slug]"
+                :aria-label="(skillDone[skill.slug] ? 'Mark incomplete: ' : 'Mark complete: ') + skill.title"
+                @click="toggleSkill(skill)"
+              >
+                <span class="sbn-cs-skill-icon">
+                  <SkillIcon :icon-path="skill.iconPath" :icon-key="skill.iconKey" :branch="skill.branch" :size="18" />
+                </span>
+                <span class="sbn-cs-skill-title">{{ skill.title }}</span>
+                <span class="sbn-cs-skill-check" aria-hidden="true">
+                  <svg v-if="skillDone[skill.slug]" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 6 9 17l-5-5"/>
+                  </svg>
+                </span>
+              </button>
+              <Link :href="`/skills#${skill.slug}`" class="sbn-cs-skill-info" :aria-label="'About ' + skill.title" title="What is this skill?">ⓘ</Link>
+            </div>
           </div>
         </section>
 
@@ -747,9 +748,11 @@ function toggleSidebar(key: SidebarSection) {
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 8px;
 }
+.sbn-cs-skill-cell { position: relative; display: flex; }
 .sbn-cs-skill {
+  flex: 1;
   display: flex; align-items: center; gap: 10px;
-  padding: 9px 12px;
+  padding: 9px 30px 9px 12px;
   border: 1px solid var(--clr-border);
   border-radius: var(--radius);
   background: var(--clr-white);
@@ -757,6 +760,13 @@ function toggleSidebar(key: SidebarSection) {
   color: var(--clr-text);
   transition: border-color 0.15s, background 0.15s, opacity 0.1s;
 }
+.sbn-cs-skill-info {
+  position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+  width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-size: 13px; line-height: 1; text-decoration: none;
+  color: var(--clr-text-muted);
+}
+.sbn-cs-skill-info:hover { color: var(--cat-text); background: color-mix(in srgb, var(--cat-text) 12%, transparent); }
 .sbn-cs-skill:hover { border-color: var(--cat-border); }
 .sbn-cs-skill.is-done {
   background: color-mix(in srgb, var(--cat-text) 8%, transparent);

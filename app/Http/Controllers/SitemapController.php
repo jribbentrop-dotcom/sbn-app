@@ -36,6 +36,8 @@ class SitemapController extends Controller
             ['loc' => $base . '/library/progressions','priority' => '0.8', 'changefreq' => 'weekly'],
             ['loc' => $base . '/library/rhythms',     'priority' => '0.8', 'changefreq' => 'weekly'],
             ['loc' => $base . '/theory',              'priority' => '0.8', 'changefreq' => 'monthly'],
+            ['loc' => $base . '/skills',              'priority' => '0.7', 'changefreq' => 'monthly'],
+            ['loc' => $base . '/grades',              'priority' => '0.7', 'changefreq' => 'monthly'],
             ['loc' => $base . '/courses',             'priority' => '0.9', 'changefreq' => 'weekly'],
             ['loc' => $base . '/shop',                'priority' => '0.8', 'changefreq' => 'weekly'],
             ['loc' => $base . '/top10/bossa-nova-songs',   'priority' => '0.9', 'changefreq' => 'monthly'],

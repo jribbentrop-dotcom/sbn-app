@@ -63,26 +63,27 @@ function toggle(skill: SkillRef) {
     <div v-show="open" class="vC-skills-body">
       <p class="vC-skills-hint">Tick a skill as you get it — it syncs to <Link href="/account/skills">My Skills</Link>.</p>
       <div class="vC-skills-grid">
-        <button
-          v-for="skill in skills"
-          :key="skill.slug"
-          type="button"
-          class="vC-skill"
-          :class="{ 'is-done': !!done[skill.slug], 'is-pending': !!pending[skill.slug] }"
-          :aria-pressed="!!done[skill.slug]"
-          :aria-label="(done[skill.slug] ? 'Mark incomplete: ' : 'Mark complete: ') + skill.title"
-          @click="toggle(skill)"
-        >
-          <span class="vC-skill-icon">
-            <SkillIcon :icon-path="skill.iconPath" :icon-key="skill.iconKey" :branch="skill.branch" :size="17" />
-          </span>
-          <span class="vC-skill-title">{{ skill.title }}</span>
-          <span class="vC-skill-check" aria-hidden="true">
-            <svg v-if="done[skill.slug]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 6 9 17l-5-5"/>
-            </svg>
-          </span>
-        </button>
+        <div v-for="skill in skills" :key="skill.slug" class="vC-skill-cell">
+          <button
+            type="button"
+            class="vC-skill"
+            :class="{ 'is-done': !!done[skill.slug], 'is-pending': !!pending[skill.slug] }"
+            :aria-pressed="!!done[skill.slug]"
+            :aria-label="(done[skill.slug] ? 'Mark incomplete: ' : 'Mark complete: ') + skill.title"
+            @click="toggle(skill)"
+          >
+            <span class="vC-skill-icon">
+              <SkillIcon :icon-path="skill.iconPath" :icon-key="skill.iconKey" :branch="skill.branch" :size="17" />
+            </span>
+            <span class="vC-skill-title">{{ skill.title }}</span>
+            <span class="vC-skill-check" aria-hidden="true">
+              <svg v-if="done[skill.slug]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 6 9 17l-5-5"/>
+              </svg>
+            </span>
+          </button>
+          <Link :href="`/skills#${skill.slug}`" class="vC-skill-info" :aria-label="'About ' + skill.title" title="What is this skill?">ⓘ</Link>
+        </div>
       </div>
     </div>
   </section>
@@ -122,9 +123,11 @@ function toggle(skill: SkillRef) {
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 6px;
 }
+.vC-skill-cell { position: relative; display: flex; }
 .vC-skill {
+  flex: 1;
   display: flex; align-items: center; gap: 9px;
-  padding: 8px 10px;
+  padding: 8px 28px 8px 10px;
   border: 1px solid var(--clr-border, #e5e5e5);
   border-radius: 7px;
   background: var(--clr-white, #fff);
@@ -132,6 +135,13 @@ function toggle(skill: SkillRef) {
   color: var(--clr-text, #1a1a1a);
   transition: border-color 0.15s, background 0.15s, opacity 0.1s;
 }
+.vC-skill-info {
+  position: absolute; top: 50%; right: 5px; transform: translateY(-50%);
+  width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-size: 12px; line-height: 1; text-decoration: none;
+  color: var(--clr-text-muted, #888);
+}
+.vC-skill-info:hover { color: var(--cat-text, #b8860b); background: color-mix(in srgb, var(--cat-text, #b8860b) 12%, transparent); }
 .vC-skill:hover { border-color: var(--cat-border, #b8860b); }
 .vC-skill.is-done {
   background: color-mix(in srgb, var(--cat-text, #b8860b) 8%, transparent);

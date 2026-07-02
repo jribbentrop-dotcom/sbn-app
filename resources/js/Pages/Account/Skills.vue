@@ -167,25 +167,31 @@ const visibleGrades = computed(() => liveGrades.value.grades.filter(g => g.total
                 </div>
 
                 <div class="skill-node-grid">
-                    <button
-                        v-for="node in nodes"
-                        :key="node.slug"
-                        class="skill-node-card"
-                        :class="{ 'is-done': isDone(node.slug), 'is-pending': !!pending[node.slug] }"
-                        @click="toggle(node)"
-                        :aria-pressed="isDone(node.slug)"
-                        :aria-label="(isDone(node.slug) ? 'Mark incomplete: ' : 'Mark complete: ') + node.title"
-                    >
-                        <div class="skill-node-icon">
-                            <SkillIcon :icon-path="node.iconPath" :icon-key="node.iconKey" :branch="node.branch" :size="20" />
-                        </div>
-                        <span class="skill-node-title">{{ node.title }}</span>
-                        <div class="skill-node-check" aria-hidden="true">
-                            <svg v-if="isDone(node.slug)" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M20 6 9 17l-5-5"/>
-                            </svg>
-                        </div>
-                    </button>
+                    <div v-for="node in nodes" :key="node.slug" class="skill-node-cell">
+                        <button
+                            class="skill-node-card"
+                            :class="{ 'is-done': isDone(node.slug), 'is-pending': !!pending[node.slug] }"
+                            @click="toggle(node)"
+                            :aria-pressed="isDone(node.slug)"
+                            :aria-label="(isDone(node.slug) ? 'Mark incomplete: ' : 'Mark complete: ') + node.title"
+                        >
+                            <div class="skill-node-icon">
+                                <SkillIcon :icon-path="node.iconPath" :icon-key="node.iconKey" :branch="node.branch" :size="20" />
+                            </div>
+                            <span class="skill-node-title">{{ node.title }}</span>
+                            <div class="skill-node-check" aria-hidden="true">
+                                <svg v-if="isDone(node.slug)" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M20 6 9 17l-5-5"/>
+                                </svg>
+                            </div>
+                        </button>
+                        <Link
+                            :href="`/skills#${node.slug}`"
+                            class="skill-node-details"
+                            :aria-label="'About ' + node.title"
+                            title="What is this skill?"
+                        >ⓘ</Link>
+                    </div>
                 </div>
             </section>
         </div>
@@ -326,11 +332,17 @@ const visibleGrades = computed(() => liveGrades.value.grades.filter(g => g.total
     gap: 0.5rem;
 }
 
+.skill-node-cell {
+    position: relative;
+    display: flex;
+}
+
 .skill-node-card {
+    flex: 1;
     display: flex;
     align-items: center;
     gap: 0.625rem;
-    padding: 0.625rem 0.75rem;
+    padding: 0.625rem 1.9rem 0.625rem 0.75rem; /* room for the info link */
     border: 1px solid var(--sbn-border, #e5e5e5);
     border-radius: 8px;
     background: var(--sbn-card-bg, #fff);
@@ -338,6 +350,27 @@ const visibleGrades = computed(() => liveGrades.value.grades.filter(g => g.total
     text-align: left;
     transition: border-color 0.15s, background 0.15s, opacity 0.1s;
     color: var(--sbn-text, #1a1a1a);
+}
+
+.skill-node-details {
+    position: absolute;
+    top: 50%;
+    right: 0.4rem;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    line-height: 1;
+    color: var(--sbn-muted, #888);
+    text-decoration: none;
+}
+.skill-node-details:hover {
+    color: var(--sbn-accent, #b8860b);
+    background: color-mix(in srgb, var(--sbn-accent, #b8860b) 12%, transparent);
 }
 
 .skill-node-card:hover {

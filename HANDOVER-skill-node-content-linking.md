@@ -1,5 +1,11 @@
 # Handover: §1 — Skill Node Content Linking
 
+> **✅ COMPLETE 2026-07-02** (verified against `sbn.db`). This handover is now history. The pass
+> described below was carried out: **62 of 64 nodes now have content** (510 `sbn_skill_node_content`
+> rows) across all six branches. The only two still unlinked are `blues` and `blues-scale` — the
+> "no course exists, skip for now" nodes this doc itself parked. The "Current state = 4 nodes" section
+> below is the pre-work snapshot, kept for context only.
+
 ## What you're doing
 
 Wiring up `sbn_skill_node_content` rows so the skill-tree player knows which actual lesson/exercise/leadsheet/chord-diagram teaches each skill node. Right now only 4 of 64 nodes have any content linked — everything else is floating.
