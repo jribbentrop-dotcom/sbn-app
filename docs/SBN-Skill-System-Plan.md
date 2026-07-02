@@ -8,9 +8,10 @@
 > (`/account/skills`, course-detail page, in-lesson `CourseSkillTracker`). **`grade` now 100% populated
 > across all 5 tiers** (G1=13, G2=19, G3=17, G4=3, G5=5) and READ by `SkillGradeService` (level computed
 > from node completion). **Style dimension built** (`sbn_skill_node_style`). Skill-tree (pillar 6):
-> positions schema + auto-layout + admin drag editor BUILT; student-facing render deferred (alpha) and
-> gated on a multi-style-tile design decision — see `SBN-Skill-Tree-Design-Brief.md` §8. `icon_key` set
-> on 50 nodes; `icon_path` (custom SVG) on 0.
+> positions schema + auto-layout + admin drag editor BUILT; **student-facing render SHIPPED 2026-07-02**
+> at `/account/skills/tree` — see "Student Skill Tree (Shipped 2026-07-02)" below and
+> `SBN-Skill-Tree-Design-Brief.md` §8/§9 for the as-built design. `icon_key` set on 50 nodes; `icon_path`
+> (custom SVG) on 0.
 > **Node ↔ content links BUILT 2026-06-29** (Step A): rhythms/progressions/songs via polymorphic pivot
 > `sbn_skill_node_content`; chord voicings via a `voicing_categories` column (category, not per-diagram);
 > exercises excluded (course-only). Reverse relations on each content model power "skills this builds".
@@ -722,15 +723,58 @@ In rough priority order, once the taxonomy is curated:
    added to the `TABLES` preserve list in `scripts/deploy_db.sh` 2026-06-25 (prerequisite for prod).
 4. **Style classes** — the deferred tables + auto-award logic. Treat thresholds as a tuning problem.
 5. **Repertoire nodes** — the deferred tables + acquisition types + affiliate links.
-6. **Graph visualization (student-facing skill tree)** — **the visual core + main student motivation.**
-   Layout **A (FC26 tile tree) WON** the Cowork comparison (2026-06-25). **Full status + open questions:
-   `SBN-Skill-Tree-Design-Brief.md` §8.** Built so far: `pos_x`/`pos_y` schema + auto-layout seed
-   (`4b8ad56`), admin drag-to-position editor (`441cc02`, confirmed working in-browser), grade scale
-   completed to all 5 tiers (`73fcdad`). **Two things still gate the student-facing render:** (a) an OPEN
-   design decision — *multi-style tiles* (color=style was locked, but ~half the styled nodes carry 2+
-   styles; a single fill can't show two — see brief §8); (b) mobile design pass. Student SVG render itself
-   is deprioritised (alpha). Note: admin editor colors tiles by **branch**, student tree by **style** — a
-   deliberate divergence (brief §8). Engineering still deferred: SVG-vs-canvas for the student render.
+6. **Graph visualization (student-facing skill tree)** — ✅ **SHIPPED 2026-07-02** at
+   `/account/skills/tree` — see "Student Skill Tree (Shipped 2026-07-02)" below for the as-built
+   design, including how the multi-style-tile question actually resolved.
+
+---
+
+## Student Skill Tree (Shipped 2026-07-02)
+
+The student-facing render at `/account/skills/tree`, resolving the two items that had gated it
+(design brief's open multi-style-tile question, and the missing mobile pass).
+
+**Multi-style resolution — split into tabs, not multi-color tiles.** Mid-build, a full ~64-node
+single tree read as too dense/intense to a real student trying it. Rather than solve "how does one
+tile show 2+ style colors," the tree was split into **5 tabs**: **Foundations** (nodes with no style
+tag — the neutral grade-1 base) plus one tab each for **Bossa Nova / Jazz / Classical / Pop**. Each
+style tab shows Foundations nodes (the shared base every style climbs from) plus that style's tagged
+nodes. A node's tile color is still resolved by `SkillNode::styleColor()` — dominant weight wins, tie
+priority `bossa-nova > jazz > classical > pop` — but that only matters for a node's own tab coloring
+now, not for representing multiple styles on one tile. Real counts: Foundations 27, Bossa Nova 49
+(27+22), Jazz 53 (27+26), Classical 43 (27+16), Pop 37 (27+10).
+
+**Tile density fix.** The seeded `pos_x`/`pos_y` grid was hand-laid assuming all ~64 nodes shared one
+canvas (grade 3 alone had 18 nodes across 1000 design units — some 1 unit apart, effectively stacked).
+Filtering to a tab's subset doesn't fix this alone, since the original crowded x-coordinates are still
+crowded. `SkillTree.vue` re-packs each visible tier's x-positions client-side per active tab (even
+spacing with a minimum gap, falling back to a full-width spread when a tier is dense), preserving
+left-to-right order from the seeded data as a stable tiebreak.
+
+**Visual design** (iterated against real project design tokens, not the design brief's placeholder
+mockup colors): white canvas background; tiles are frameless — no border/box/shadow, the icon itself
+(colored via the style token, `currentColor`) is the only visible element, sized up (40px) so it reads
+as a standalone mark; completion state is a colored `drop-shadow` glow + small check/lock badge rather
+than a box treatment. Style tabs reuse the existing library filter-pill idiom
+(`.sbn-lib-sidebar-option`/`.sbn-filter-active` — quiet outline pill at rest, `--cat-clr`-driven fill
+only when active) instead of inventing new per-style buttons, plus an active-tab banner matching
+`.sbn-lib-category-header--{style}`'s two-tone gradient treatment. The node-detail popover shows a
+large hero icon (96px box) of the clicked node above its title, a `.sbn-btn-secondary` (plain, not
+the orange gradient CTA) for the complete/incomplete toggle, and prerequisites rendered as an
+icon+title+checkmark list (each prereq's own icon/style color) instead of plain bullet text. All new
+classes live in `sbn-design-system.css` (not Vue scoped styles), per the existing `[data-theme]`
+constraint.
+
+**Files:** `SkillController::tree()` + `/account/skills/tree` route; `SkillTree.vue` (page),
+`SkillTile.vue`, `SkillTreeEdges.vue`, `SkillTreeMobile.vue` (one-branch-at-a-time collapse below
+768px, cross-branch prereqs shown as text notes); `SkillNode::styleColor()` accessor;
+`resources/js/Constants/skillBranches.ts` (branch order/labels, extracted from `Skills.vue` for
+reuse). Mobile: one branch at a time within the active style tab, matching `Skills.vue`'s existing
+card visual language rather than a new mobile-only design.
+
+**Not done:** custom per-node SVG art (`icon_path`, still Heroicon fallbacks for all nodes);
+"recommended next nodes" / topological traversal; automated tests (manual QA only, matching how the
+rest of this feature area has shipped).
 
 ---
 
@@ -759,3 +803,6 @@ full per brainstorm crossref recommendation #1 — 9 new lessons + 4 new techniq
 seeder updated. Blocked from applying to the DB this session by genuine file truncation on
 `database/sbn.db` (host-side, confirmed via `db_checkout.py status`, not a mount-flakiness retry case).
 Draft + idempotent apply script left ready for the next session once the file is restored.*
+*2026-07-02: Student-facing skill tree shipped at `/account/skills/tree` — see "Student Skill Tree
+(Shipped 2026-07-02)" above. Resolves Post-v1 Roadmap #6 and the design brief's open multi-style-tile
+and mobile-pass items.*

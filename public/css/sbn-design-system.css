@@ -5005,3 +5005,355 @@
         transform: translateX(-50%); }
     .sbn-ss-hero-skills { position: static; transform: none; padding: 12px 20px 20px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Student skill tree (/account/skills/tree) — FC26-style tile tree.
+   Card-frame styling lives here (not in Vue scoped styles) so [data-theme]
+   selectors can reach it. See docs/SBN-Skill-Tree-Design-Brief.md §7.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Style tabs — one tree per style + a shared Foundations base ────────────
+   Mirrors the library filter-pill idiom (.sbn-lib-sidebar-option +
+   .sbn-filter-active, see §"Shared layout for hitlist-style library index
+   pages"): quiet outlined pill at rest, --cat-clr-driven fill only when
+   active, brand-accent hover — not a per-style flat-fill button. */
+.skt-style-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 1.25rem;
+}
+.skt-style-tab {
+    padding: 7px 14px;
+    border: 1px solid var(--clr-border);
+    border-radius: 999px;
+    background: var(--clr-white);
+    color: var(--clr-text-dim);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.12s;
+}
+.skt-style-tab:hover {
+    border-color: #e85d3b;
+    color: #e85d3b;
+    background: #fff8f5;
+}
+.skt-style-tab.is-active {
+    background: var(--cat-clr, var(--clr-text));
+    border-color: var(--cat-clr, var(--clr-text));
+    color: #fff;
+}
+.skt-style-tab.is-active:hover {
+    background: color-mix(in srgb, var(--cat-clr, var(--clr-text)) 80%, #000);
+    border-color: color-mix(in srgb, var(--cat-clr, var(--clr-text)) 80%, #000);
+}
+.skt-style-tab--foundations { --cat-clr: var(--clr-text-muted); }
+.skt-style-tab--bossa-nova  { --cat-clr: var(--clr-style-bossa); }
+.skt-style-tab--jazz        { --cat-clr: var(--clr-style-jazz); }
+.skt-style-tab--classical   { --cat-clr: var(--clr-style-classical); }
+.skt-style-tab--pop         { --cat-clr: var(--clr-style-pop); }
+
+/* Active-tab banner — same two-tone gradient treatment as
+   .sbn-lib-category-header--{style}, so "you're in the Jazz tree" reads the
+   same way "you're in the Jazz section" does on the course/library pages. */
+.skt-active-tab-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #fff;
+    margin: 14px 0 0;
+    padding: 10px 16px;
+    border-radius: var(--radius);
+    background: var(--banner-clr, var(--clr-text-muted));
+}
+.skt-active-tab-banner--foundations { --banner-clr: var(--clr-text-muted); }
+.skt-active-tab-banner--bossa-nova  { --banner-clr: linear-gradient(100deg, var(--clr-style-bossa), color-mix(in srgb, var(--clr-style-bossa) 40%, white)); }
+.skt-active-tab-banner--jazz        { --banner-clr: linear-gradient(100deg, var(--clr-style-jazz), color-mix(in srgb, var(--clr-style-jazz) 40%, white)); }
+.skt-active-tab-banner--classical   { --banner-clr: linear-gradient(100deg, var(--clr-style-classical), color-mix(in srgb, var(--clr-style-classical) 40%, white)); }
+.skt-active-tab-banner--pop         { --banner-clr: linear-gradient(100deg, var(--clr-style-pop), color-mix(in srgb, var(--clr-style-pop) 40%, white)); }
+.skt-active-tab-banner-count {
+    font-weight: 500;
+    font-size: 12px;
+    opacity: 0.85;
+    background: rgba(255,255,255,0.2);
+    padding: 1px 8px;
+    border-radius: 999px;
+    margin-left: auto;
+}
+
+.skt-tree-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    max-height: 78vh;
+    margin-top: 1.5rem;
+    background: #fff;
+    border: 1px solid var(--clr-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.skt-edges {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+.skt-edge { stroke: #9a9a95; stroke-width: 1.4; }
+.skt-edge--cross { stroke: var(--clr-style-bossa, #BA7517); stroke-width: 2; stroke-dasharray: 6 5; }
+
+.skt-you-are-here-line {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    border-top: 1px dashed var(--clr-accent);
+    pointer-events: none;
+}
+.skt-you-are-here-line span {
+    position: absolute;
+    right: 0;
+    top: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--clr-accent);
+    background: var(--clr-surface-2);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.skt-tile {
+    position: absolute;
+    width: 64px;
+    height: 64px;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
+
+/* Icons are self-contained — no frame/background/border. The icon itself
+   (color + weight + size) carries all the state signalling. */
+.skt-tile-shape {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--_tile-clr, var(--clr-text-muted));
+    transition: transform 0.15s, opacity 0.15s;
+}
+.skt-tile-shape svg { width: 100%; height: 100%; stroke-width: 1.75; }
+.skt-tile:hover .skt-tile-shape { transform: scale(1.12); }
+
+.skt-style-bossa-nova { --_tile-clr: var(--clr-style-bossa); }
+.skt-style-jazz       { --_tile-clr: var(--clr-style-jazz); }
+.skt-style-classical  { --_tile-clr: var(--clr-style-classical); }
+.skt-style-pop        { --_tile-clr: var(--clr-style-pop); }
+.skt-style-neutral    { --_tile-clr: var(--clr-text-muted); }
+
+.skt-tile--done .skt-tile-shape {
+    filter: drop-shadow(0 0 4px color-mix(in srgb, var(--_tile-clr) 55%, transparent));
+}
+
+.skt-tile--locked .skt-tile-shape {
+    opacity: 0.4;
+    filter: grayscale(0.6);
+}
+
+.skt-tile-badge {
+    position: absolute;
+    right: 2px;
+    bottom: 18px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    box-shadow: 0 0 0 2px #fff;
+}
+.skt-tile-badge--done { background: var(--_tile-clr, var(--clr-accent)); }
+.skt-tile-badge--locked { background: var(--clr-text-muted); }
+
+.skt-tile-label {
+    margin-top: 2px;
+    font-size: 10px;
+    color: var(--clr-text-dim, #555);
+    white-space: nowrap;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Completion micro-moment — triggered only on a live toggle, not page load */
+@keyframes skt-just-completed-pulse {
+    0%   { transform: scale(1); filter: drop-shadow(0 0 4px color-mix(in srgb, var(--_tile-clr) 55%, transparent)); }
+    40%  { transform: scale(1.35); filter: drop-shadow(0 0 14px color-mix(in srgb, var(--_tile-clr) 75%, transparent)); }
+    100% { transform: scale(1); filter: drop-shadow(0 0 4px color-mix(in srgb, var(--_tile-clr) 55%, transparent)); }
+}
+.skt-tile--just-completed .skt-tile-shape {
+    animation: skt-just-completed-pulse 1.1s ease-out;
+}
+
+/* ── Node detail popover ─────────────────────────────────────────────── */
+.skt-popover-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+.skt-popover {
+    position: relative;
+    background: #fff;
+    border-radius: 16px;
+    padding: 2rem;
+    max-width: 440px;
+    width: 90%;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+    text-align: center;
+}
+.skt-popover-close {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--clr-text-muted);
+}
+.skt-popover-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    margin-bottom: 1.25rem;
+}
+.skt-popover-header h3 { margin: 0; font-size: 1.4rem; }
+.skt-popover-icon {
+    flex-shrink: 0;
+    width: 96px;
+    height: 96px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--_tile-clr, var(--clr-text-muted));
+}
+.skt-popover-icon svg { width: 100%; height: 100%; stroke-width: 1.3; }
+.skt-popover-meta {
+    color: var(--clr-text-muted);
+    font-size: 0.95rem;
+    text-transform: capitalize;
+    margin: 0;
+}
+.skt-popover-prereqs { margin-bottom: 1.5rem; font-size: 0.9rem; }
+.skt-popover-prereqs-label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--clr-text-muted);
+    margin-bottom: 0.6rem;
+}
+.skt-popover-prereqs ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.skt-popover-prereqs li {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-radius: 10px;
+    background: var(--clr-surface-2);
+}
+.skt-popover-prereqs li.is-done { background: color-mix(in srgb, var(--clr-success) 10%, var(--clr-surface-2)); }
+.skt-popover-prereq-icon {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--_tile-clr, var(--clr-text-muted));
+}
+.skt-popover-prereq-icon svg { width: 100%; height: 100%; stroke-width: 1.6; }
+.skt-popover-prereq-title { flex: 1; font-size: 0.92rem; }
+.skt-popover-prereq-check { flex-shrink: 0; color: var(--clr-success); }
+
+/* ── Mobile: one-branch-at-a-time collapse ───────────────────────────── */
+.skt-mobile-only { display: none; }
+
+.skt-branch-switcher {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    margin-top: 1.25rem;
+}
+.skt-branch-tab {
+    flex-shrink: 0;
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--clr-border);
+    border-radius: 999px;
+    background: #fff;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--clr-text-dim, #555);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.skt-branch-tab.is-active {
+    background: var(--clr-accent);
+    border-color: var(--clr-accent);
+    color: #fff;
+}
+
+.skt-branch-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+.skt-branch-list-item.skill-node-card {
+    width: 100%;
+    align-items: flex-start;
+}
+.skt-branch-list-item.is-locked { opacity: 0.7; }
+.skt-branch-list-item-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    flex: 1;
+}
+.skt-branch-list-prereq-note {
+    font-size: 0.72rem;
+    color: var(--clr-text-muted);
+}
+
+@media (max-width: 768px) {
+    .skt-desktop-only { display: none; }
+    .skt-mobile-only { display: block; }
+}

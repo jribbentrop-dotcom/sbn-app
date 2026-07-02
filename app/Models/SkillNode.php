@@ -133,6 +133,29 @@ class SkillNode extends Model
         }
     }
 
+    /** Tie-break order when 2+ styles share the top weight — see styleColor(). */
+    private const STYLE_PRIORITY = ['bossa-nova', 'jazz', 'classical', 'pop'];
+
+    /**
+     * The dominant style for this node, for single-fill tile coloring on the
+     * student skill tree. Highest weight wins; ties broken by STYLE_PRIORITY.
+     * Returns null for nodes with no style tags (foundational/neutral).
+     */
+    public function styleColor(): ?string
+    {
+        $weights = $this->styleWeights();
+
+        if (! $weights) {
+            return null;
+        }
+
+        $maxWeight = max($weights);
+        $tied = array_keys(array_filter($weights, fn ($w) => $w === $maxWeight));
+        usort($tied, fn ($a, $b) => array_search($a, self::STYLE_PRIORITY, true) <=> array_search($b, self::STYLE_PRIORITY, true));
+
+        return $tied[0];
+    }
+
     // =========================================================================
     // DIRECT CONTENT LINKS (sbn_skill_node_content)
     // =========================================================================

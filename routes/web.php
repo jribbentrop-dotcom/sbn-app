@@ -87,6 +87,7 @@ Route::middleware('auth')->prefix('account')->name('account.')->group(function (
     Route::post('/profile/avatar', [AccountController::class, 'uploadAvatar'])->name('profile.avatar');
 
     Route::get('/skills', [SkillController::class, 'index'])->name('skills');
+    Route::get('/skills/tree', [SkillController::class, 'tree'])->name('skills.tree');
     Route::post('/skills/{skillNode:slug}/toggle', [SkillController::class, 'toggle'])->name('skills.toggle');
 
     Route::get('/messages', [MessageController::class, 'index'])->name('messages');

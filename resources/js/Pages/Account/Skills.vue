@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { reactive, computed } from 'vue';
+import { Link } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import AccountLayout from '@/Layouts/AccountLayout.vue';
 import SkillIcon from '@/Components/Skill/SkillIcon.vue';
+import { BRANCH_ORDER, BRANCH_LABELS } from '@/Constants/skillBranches';
 
 defineOptions({ layout: [PublicLayout, AccountLayout] });
 
@@ -51,16 +53,6 @@ function toggle(node: SkillNode) {
         delete pending[node.slug];
     });
 }
-
-const BRANCH_ORDER = ['harmony', 'rhythm', 'melody', 'technique', 'ear-training', 'reading-theory'];
-const BRANCH_LABELS: Record<string, string> = {
-    harmony: 'Harmony',
-    rhythm: 'Rhythm',
-    melody: 'Melody',
-    technique: 'Technique',
-    'ear-training': 'Ear Training',
-    'reading-theory': 'Reading & Theory',
-};
 
 const byBranch = computed(() => {
     const map = new Map<string, SkillNode[]>();
@@ -131,6 +123,7 @@ const visibleGrades = computed(() => liveGrades.value.grades.filter(g => g.total
         <header class="sbn-account-pageheader">
             <h1>My Skills</h1>
             <p class="sbn-account-subtle">Mark skills as you learn them. No pressure — just a map of where you are.</p>
+            <Link href="/account/skills/tree" class="sbn-account-subtle skill-tree-link">View skill tree →</Link>
         </header>
 
         <!-- Grade / level panel -->
@@ -200,6 +193,15 @@ const visibleGrades = computed(() => liveGrades.value.grades.filter(g => g.total
 </template>
 
 <style scoped>
+.skill-tree-link {
+    display: inline-block;
+    margin-top: 0.5rem;
+    color: var(--sbn-accent, #b8860b);
+    font-weight: 600;
+    text-decoration: none;
+}
+.skill-tree-link:hover { text-decoration: underline; }
+
 /* ── Grade / level panel ─────────────────────────────────────────────────── */
 .skill-grade-panel {
     display: flex;
