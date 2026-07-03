@@ -7,6 +7,7 @@ import StageHeroNow from '@/Components/Cinema/StageHeroNow.vue';
 import StageTransportDeck from '@/Components/Cinema/StageTransportDeck.vue';
 import StageSectionsGrid from '@/Components/Cinema/StageSectionsGrid.vue';
 import { useTabModel } from '@/tab-editor/composables/useTabModel.js';
+import { useBackingTrack } from '@/composables/useBackingTrack.js';
 import {
   expandMeasureSequenceWithPass,
   giAtPosition,
@@ -167,6 +168,15 @@ const videoId   = computed(() => videoSync.value?.videoId ?? '');
 const videoType = computed(() => videoSync.value?.videoType ?? 'youtube');
 const hasVideo  = computed(() => !!videoId.value);
 
+// ── Backing-track toggle (with/without guitar) ───────────────────────────
+// Video stays the sync master and is muted while a backing track is active;
+// two audio buffers (backing-only, with-guitar) play in lockstep with it —
+// see docs/SBN-Leadsheet-Reference.md §8.2 "Backing-track toggle".
+const backingTrackData = computed(() => jsonData.value.backingTrack ?? null);
+const hasBackingTrack  = computed(() => !!(backingTrackData.value?.enabled
+  && backingTrackData.value?.backingUrl && backingTrackData.value?.guitarUrl));
+const backingTrack = useBackingTrack();
+
 // Raw sync mappings: [{ measureIndex, videoTime }] — gi-keyed, may contain
 // multiple entries per gi when a repeated bar has per-pass timestamps.
 const mappings = computed(() => videoSync.value?.mappings ?? []);
@@ -247,6 +257,7 @@ function videoTimeToPlayPosition(time) {
 
 function onVideoTimeUpdate(time) {
   videoTime.value = time;
+  if (hasBackingTrack.value && playing.value) backingTrack.resyncTo(time);
   if (!hasVideo.value || !playing.value) return;
 
   const pos = videoTimeToPlayPosition(time);
@@ -269,7 +280,26 @@ function onVideoTimeUpdate(time) {
 }
 
 function onVideoPlayState(playing_) {
+  const wasPlaying = playing.value;
   playing.value = playing_;
+  if (!hasBackingTrack.value) return;
+  // Only PAUSE here. YouTube's BUFFERING state also reports "playing" (see
+  // VideoEmbed's onYTStateChange — needed so a looping snippet doesn't read
+  // as paused), but the video isn't actually advancing yet during buffering.
+  // Starting the backing track on that signal left it running ahead of the
+  // video by however long buffering took. video-genuinely-playing (YT state
+  // === 1 only) is what starts it instead — see onVideoGenuinelyPlaying.
+  if (!playing_ && wasPlaying) {
+    backingTrack.pause();
+  }
+}
+
+function onVideoGenuinelyPlaying() {
+  if (!hasBackingTrack.value || backingTrack.playing.value) return;
+  // Pass a live getter, not a snapshot — ctx.resume() inside play() can take
+  // real time, during which the video keeps advancing. Reading videoTime.value
+  // only at start()-time (not when play() was called) keeps the two aligned.
+  backingTrack.play(() => videoTime.value);
 }
 
 // ── Fallback interval clock (when no video / no mappings) ────────────────
@@ -283,27 +313,30 @@ function startFallbackClock() {
   const ms = (60 / ((tempo.value || 120) * (playbackRate.value || 1))) * 1000;
   _intervalId = setInterval(() => {
     if (!playing.value) return;
+    // Count in play-position space so repeats/voltas replay correctly; the
+    // highlighted bar (gi) is derived from the play position via giAtPosition,
+    // never advanced linearly. See SBN-Leadsheet §8.2.
+    const seq   = expandedSequence.value;
+    const seqLen = seq.length || totalBars.value;
     let beat = currentBeat.value + 1;
     let pos  = currentPlayPosition.value;
-    let bar  = currentBarIndex.value;
     if (beat >= beatsPerMeasure.value) {
       beat = 0;
       pos  = pos + 1;
-      bar  = bar + 1;
-      if (bar >= totalBars.value) {
+      if (pos >= seqLen) {
         if (loopOn.value) {
-          bar = 0;
           pos = 0;
         } else {
-          bar = totalBars.value - 1;
+          pos = seqLen - 1;
           stopFallbackClock();
           playing.value = false;
           return;
         }
       }
     }
+    const bar = seq.length ? giAtPosition(seq, pos) : pos;
     currentBeat.value            = beat;
-    currentBarIndex.value        = bar;
+    currentBarIndex.value        = Math.max(0, Math.min(totalBars.value - 1, bar));
     currentPlayPosition.value    = pos;
     fractionalPlayPosition.value = pos + beat / beatsPerMeasure.value;
   }, ms);
@@ -317,14 +350,19 @@ function stopFallbackClock() {
 }
 
 function onTransportToggle() {
+  console.log('[Cinema] onTransportToggle', { playingBefore: playing.value, hasVideo: hasVideo.value });
   if (hasVideo.value) {
-    // Video is master — call play/pause on the actual YT player
+    // Video is master — call play/pause on the actual YT player. The backing
+    // track is NOT started here: onVideoPlayState is the single source of
+    // truth for "is the video actually playing" (playVideo()/pauseVideo() are
+    // fire-and-forget and may not take effect immediately), so it drives the
+    // backing-track buffers reactively instead — that also covers play/pause
+    // triggered by YouTube's own native iframe controls, not just this button.
     if (playing.value) {
       heroRef.value?.pause();
     } else {
       heroRef.value?.play();
     }
-    // playing state will update reactively via onVideoPlayState
   } else {
     playing.value = !playing.value;
     if (playing.value) {
@@ -377,8 +415,17 @@ function onSeekBar(bar) {
   currentBeat.value = 0;
   if (hasVideo.value) {
     const t = measureIndexToVideoTime(clampedBar);
-    if (t !== null) heroRef.value?.seekTo(t);
+    if (t !== null) {
+      heroRef.value?.seekTo(t);
+      if (hasBackingTrack.value) backingTrack.seekTo(t);
+    }
   } else {
+    // Keep the play position in sync so the repeat-aware fallback clock resumes
+    // from the seeked bar (first pass) rather than a stale position.
+    const seq = expandedSequence.value;
+    const pos = seq.length ? firstPositionForGi(seq, clampedBar) : clampedBar;
+    currentPlayPosition.value = pos >= 0 ? pos : clampedBar;
+    fractionalPlayPosition.value = currentPlayPosition.value;
     stopFallbackClock();
     if (playing.value) startFallbackClock();
   }
@@ -397,10 +444,16 @@ function onKeyDown(e) {
   if (e.code === 'ArrowRight') onNext();
 }
 
-onMounted(() => window.addEventListener('keydown', onKeyDown));
+onMounted(() => {
+  window.addEventListener('keydown', onKeyDown);
+  if (hasBackingTrack.value) {
+    backingTrack.load(backingTrackData.value.backingUrl, backingTrackData.value.guitarUrl);
+  }
+});
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown);
   stopFallbackClock();
+  backingTrack.destroy();
 });
 
 // ── Derived "Now Playing" data ────────────────────────────────────────────
@@ -485,7 +538,15 @@ buildModel();
 provide('model', tabModel);
 provide('beatsPerMeasureRef', beatsPerMeasure);
 provide('playingMeasureIndex', currentBarIndex);
-provide('transportBeat', computed(() => currentBeat.value + currentBarIndex.value * beatsPerMeasure.value));
+// Fractional beat within the current bar — from the raw play position, not the
+// floored currentBeat. This gives the tab playhead sub-quarter-note resolution
+// so 8th (and finer) notes highlight, not just downbeats. The hero's pulse row
+// and multi-chord split still use the integer currentBeat.
+const transportBeatFractional = computed(() => {
+  const frac = fractionalPlayPosition.value - Math.floor(fractionalPlayPosition.value);
+  return frac * beatsPerMeasure.value;
+});
+provide('transportBeat', computed(() => transportBeatFractional.value + currentBarIndex.value * beatsPerMeasure.value));
 provide('transportPlaying', playing);
 provide('readOnly', true);
 provide('seekToMeasure', (gi) => onSeekBar(gi));
@@ -508,7 +569,7 @@ provide('tapCursor',      ref(null));
   <Head :title="`${leadsheet.title} — Cinema | SBN`" />
 
   <!-- Full-page stage wrapper -->
-  <div class="leadsheet-stage">
+  <div class="leadsheet-stage" :data-style="leadsheet.styleSlug || 'bossa-nova'">
     <div class="stage-content">
       <!-- Top bar -->
       <StageTopBar
@@ -518,6 +579,7 @@ provide('tapCursor',      ref(null));
         :time-signature="leadsheet.timeSignature ?? '4/4'"
         :bar-count="totalBars"
         :classic-url="classicUrl"
+        :style-slug="leadsheet.styleSlug ?? ''"
       />
 
       <!-- Hero: video + Now Playing -->
@@ -526,6 +588,7 @@ provide('tapCursor',      ref(null));
         :has-video="hasVideo"
         :video-id="videoId"
         :video-type="videoType"
+        :muted="hasBackingTrack"
         :current-chord-name="currentChordName"
         :current-chord-card="currentChordCard"
         :next-chord-name="nextChordName"
@@ -537,6 +600,7 @@ provide('tapCursor',      ref(null));
         :beats-per-measure="beatsPerMeasure"
         @video-timeupdate="onVideoTimeUpdate"
         @video-play-state="onVideoPlayState"
+        @video-genuinely-playing="onVideoGenuinelyPlaying"
       />
 
       <!-- Transport deck -->
@@ -550,12 +614,15 @@ provide('tapCursor',      ref(null));
         :loop-on="loopOn"
         :playback-rate="playbackRate"
         :rate-steps="RATE_STEPS"
+        :has-backing-track="hasBackingTrack"
+        :guitar-on="backingTrack.guitarOn.value"
         @toggle="onTransportToggle"
         @prev="onPrev"
         @next="onNext"
         @seek-bar="onSeekBar"
         @toggle-loop="loopOn = !loopOn"
         @set-rate="setRate"
+        @toggle-guitar="backingTrack.toggleGuitar()"
       />
 
       <!-- Sections grid -->
@@ -615,6 +682,43 @@ provide('tapCursor',      ref(null));
   font-family: var(--stage-font-body);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+}
+
+/* ── Per-style accent — recolours the whole stage from the song's style ──
+   Every descendant reads --stage-accent / --stage-accent-rgb / --stage-gradient,
+   so overriding them here re-tints the hero glow, transport, section tabs,
+   play buttons, chord focus rings, and header band in one place.
+   RGB triplets mirror the --clr-style-* hex values (rgba() needs channels). */
+.leadsheet-stage[data-style="bossa-nova"],
+.leadsheet-stage[data-style="bossa"] {
+  --stage-accent:     var(--clr-style-bossa);   /* #f39c12 */
+  --stage-accent-2:   var(--clr-style-bossa);
+  --stage-accent-rgb: 243, 156, 18;
+}
+.leadsheet-stage[data-style="jazz"] {
+  --stage-accent:     var(--clr-style-jazz);    /* #3b82f6 */
+  --stage-accent-2:   var(--clr-style-jazz);
+  --stage-accent-rgb: 59, 130, 246;
+}
+.leadsheet-stage[data-style="classical"] {
+  --stage-accent:     var(--clr-style-classical); /* #10b981 */
+  --stage-accent-2:   var(--clr-style-classical);
+  --stage-accent-rgb: 16, 185, 129;
+}
+.leadsheet-stage[data-style="pop"] {
+  --stage-accent:     var(--clr-style-pop);     /* #ec4899 */
+  --stage-accent-2:   var(--clr-style-pop);
+  --stage-accent-rgb: 236, 72, 153;
+}
+/* Filled "gradient" elements (play button, primary CTA) — a soft same-hue
+   gradient keyed to the active accent, so they follow the style too. */
+.leadsheet-stage[data-style] {
+  --stage-gradient: linear-gradient(120deg,
+    rgb(var(--stage-accent-rgb)),
+    color-mix(in srgb, rgb(var(--stage-accent-rgb)) 72%, white));
+  --stage-gradient-hover: linear-gradient(120deg,
+    color-mix(in srgb, rgb(var(--stage-accent-rgb)) 88%, black),
+    rgb(var(--stage-accent-rgb)));
 }
 
 .stage-content {

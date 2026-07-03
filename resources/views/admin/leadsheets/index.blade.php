@@ -248,6 +248,7 @@
                         <th class="col-style" style="width:110px;">Style</th>
                         @if($currentTab === 'leadsheets')
                             <th class="col-status">Status</th>
+                            <th class="col-is-pro" title="Full Viewer/Cinema arrangement — only valid on public-domain songs">Pro</th>
                         @endif
                         <th class="col-cover">Cover image</th>
                         <th class="col-actions"></th>
@@ -325,6 +326,14 @@
                                 :title="status === 'publish' ? 'Published — click to unpublish' : 'Draft — click to publish'">
                                 <span x-text="status === 'publish' ? 'Published' : 'Draft'"></span>
                             </button>
+                        </td>
+                        <td class="col-is-pro">
+                            <input type="checkbox"
+                                x-data="{ isPro: {{ $ls->is_pro ? 'true' : 'false' }} }"
+                                :checked="isPro"
+                                @change="toggleIsPro({{ $ls->id }}, $event.target.checked, '{{ $ls->license_status }}', $event.target).then(v => { if (v !== null) isPro = v; })"
+                                title="{{ $ls->license_status === 'public_domain' ? 'Full Viewer/Cinema arrangement' : 'License status is \''.$ls->license_status.'\' — is_pro should only be true on public-domain songs' }}"
+                            >
                         </td>
                         @endif
                         <td class="col-cover">
@@ -635,6 +644,42 @@ function leadsheetIndex() {
                 return null;
             })
             .catch(() => { sbnToast('Failed to update status', 'error'); return null; });
+        },
+
+        // Flips is_pro. Warns before enabling on a non-public-domain song since
+        // is_pro should only ever be true on public_domain rows (admin-checklist
+        // rule, not DB-enforced — see SBN-Leadsheet-Reference.md). Resolves to
+        // the new is_pro value, or null on failure/cancel (checkbox reverts).
+        toggleIsPro(id, checked, licenseStatus, checkboxEl) {
+            if (checked && licenseStatus !== 'public_domain') {
+                const ok = confirm(
+                    `This song's license status is "${licenseStatus}", not public domain.\n\n` +
+                    `is_pro should only be enabled on public-domain songs. Enable anyway?`
+                );
+                if (!ok) {
+                    checkboxEl.checked = false;
+                    return Promise.resolve(null);
+                }
+            }
+            return fetch(`/api/admin/leadsheets/${id}/is-pro`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                },
+                body: JSON.stringify({ is_pro: checked }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    sbnToast(data.is_pro ? 'Marked as Pro' : 'Pro removed', 'success');
+                    return data.is_pro;
+                }
+                sbnToast('Failed to update', 'error');
+                checkboxEl.checked = !checked;
+                return null;
+            })
+            .catch(() => { sbnToast('Failed to update', 'error'); checkboxEl.checked = !checked; return null; });
         },
 
         deleteItem(id, title, tab) {

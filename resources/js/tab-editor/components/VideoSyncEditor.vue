@@ -18,6 +18,28 @@
             <button class="sbn-vsync-clear-btn" @click="clearVideo" title="Remove video">✕</button>
         </div>
 
+        <!-- Cinema with/without-guitar backing-track toggle -->
+        <div v-if="_leadsheetId" class="sbn-backing-track-tool">
+            <label class="sbn-backing-track-checkbox">
+                <input type="checkbox" v-model="backingTrackEnabled" @change="onBackingTrackToggle" />
+                <span>This song has a backing-track performance (Cinema guitar on/off toggle)</span>
+            </label>
+            <div v-if="backingTrackEnabled" class="sbn-backing-track-uploads">
+                <div class="sbn-backing-track-row">
+                    <span class="sbn-vsync-label">Backing track (no guitar)</span>
+                    <input type="file" accept="audio/*" @change="e => uploadTrack(e, 'backing')" :disabled="backingTrackBusy" />
+                    <span v-if="backingTrackUrls.backingUrl" class="sbn-backing-track-ok">✓ uploaded</span>
+                </div>
+                <div class="sbn-backing-track-row">
+                    <span class="sbn-vsync-label">With guitar</span>
+                    <input type="file" accept="audio/*" @change="e => uploadTrack(e, 'guitar')" :disabled="backingTrackBusy" />
+                    <span v-if="backingTrackUrls.guitarUrl" class="sbn-backing-track-ok">✓ uploaded</span>
+                </div>
+                <div v-if="backingTrackBusy" class="sbn-backing-track-status">Uploading…</div>
+                <div v-if="backingTrackError" class="sbn-downbeat-error">{{ backingTrackError }}</div>
+            </div>
+        </div>
+
         <!-- Set downbeat — only for audio-transcribed leadsheets -->
         <div v-if="canReshift" class="sbn-downbeat-tool">
             <div class="sbn-downbeat-header">
@@ -212,6 +234,64 @@ const _leadsheetId = _lsGlobal.id || null;
 
 const reshiftBusy  = ref(false);
 const reshiftError = ref('');
+
+// ── Backing-track toggle (Cinema with/without-guitar) ──────────
+const _seedBackingTrack = _lsGlobal.backingTrack || null;
+const backingTrackEnabled = ref(!!_seedBackingTrack?.enabled);
+const backingTrackUrls = ref({
+    backingUrl: _seedBackingTrack?.backingUrl || '',
+    guitarUrl:  _seedBackingTrack?.guitarUrl  || '',
+});
+const backingTrackBusy  = ref(false);
+const backingTrackError = ref('');
+
+function emitBackingTrackChange() {
+    document.dispatchEvent(new CustomEvent('sbn-backing-track-changed', {
+        detail: backingTrackEnabled.value
+            ? { enabled: true, ...backingTrackUrls.value }
+            : null,
+    }));
+}
+
+function onBackingTrackToggle() {
+    emitBackingTrackChange();
+}
+
+async function uploadTrack(event, kind) {
+    const file = event.target.files?.[0];
+    if (!file || !_leadsheetId) return;
+    backingTrackBusy.value = true;
+    backingTrackError.value = '';
+    try {
+        const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const formData = new FormData();
+        formData.append('track', file);
+        formData.append('kind', kind);
+        const resp = await fetch(`/api/admin/leadsheets/${_leadsheetId}/backing-track`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': token,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: formData,
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.success) {
+            backingTrackError.value = data.error || `Upload failed (${resp.status}).`;
+            return;
+        }
+        backingTrackUrls.value = {
+            ...backingTrackUrls.value,
+            [kind === 'backing' ? 'backingUrl' : 'guitarUrl']: data.url,
+        };
+        emitBackingTrackChange();
+    } catch (e) {
+        backingTrackError.value = 'Could not reach the server.';
+    } finally {
+        backingTrackBusy.value = false;
+    }
+}
 
 // Only audio-transcribed leadsheets carry the cached raw beats needed to
 // re-shift; the tool hides itself for hand-built sheets.
@@ -641,5 +721,53 @@ onUnmounted(() => { document.removeEventListener('keydown', onKeydown); });
     font-size: 10px;
     color: var(--clr-text-muted);
     line-height: 1.4;
+}
+
+/* ── Backing-track toggle (Cinema with/without-guitar) ──────── */
+.sbn-backing-track-tool {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid var(--clr-border);
+    border-radius: 6px;
+    background: var(--clr-surface-alt, #f9fafb);
+}
+
+.sbn-backing-track-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.sbn-backing-track-uploads {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sbn-backing-track-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+}
+
+.sbn-backing-track-row input[type="file"] {
+    font-size: 11px;
+    max-width: 180px;
+}
+
+.sbn-backing-track-ok {
+    color: #16a34a;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.sbn-backing-track-status {
+    font-size: 11px;
+    color: var(--clr-text-muted);
 }
 </style>

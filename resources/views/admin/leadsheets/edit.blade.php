@@ -754,6 +754,9 @@
         versionSlug: @json($activeVersion->version_slug ?? null),
         // transcriptionRaw only exists on audio-transcribed leadsheets.
         transcriptionRaw: @json(isset($leadsheet) ? ($leadsheet->parsed_data['transcriptionRaw'] ?? null) : null),
+        // Cinema "with/without guitar" backing-track toggle — seeds the Vue
+        // panel in VideoSyncEditor; saved back into json_data.backingTrack.
+        backingTrack: @json(isset($leadsheet) ? ($leadsheet->parsed_data['backingTrack'] ?? null) : null),
     };
 </script>
 {{-- Chord diagram renderer --}}
@@ -2545,6 +2548,14 @@ function leadsheetEditor() {
                 this.videoSidebarOpen = e.detail.open;
             });
 
+            // Cinema with/without-guitar backing-track toggle: Vue panel owns the
+            // checkbox + file uploads, Alpine just stores the resulting object onto
+            // parsed.backingTrack so it rides along in json_data on next save.
+            document.addEventListener('sbn-backing-track-changed', (e) => {
+                this.parsed.backingTrack = e.detail || null;
+                this.markDirty();
+            });
+
             // Listen for tab edits from Vue
             document.addEventListener('sbn-tab-edited', (e) => {
                 const { sectionIndex, measureIndex, chordName, tabEvent } = e.detail || {};
@@ -3561,6 +3572,8 @@ function leadsheetEditor() {
                 melody: finalMelody,
             };
             if (videoSyncData) finalJsonData.videoSync = videoSyncData;
+            // Cinema backing-track toggle data (independent of video sync timing).
+            if (this.parsed.backingTrack) finalJsonData.backingTrack = this.parsed.backingTrack;
 
             const shortcode = this.shortcodeOutput;
             let url = this.itemType === 'exercises'

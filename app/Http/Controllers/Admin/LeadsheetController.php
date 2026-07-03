@@ -1587,6 +1587,49 @@ class LeadsheetController extends Controller
     }
 
     /**
+     * Upload a backing-track or guitar-track audio file for the Cinema
+     * with/without-guitar toggle (json_data.backingTrack). Returns the public
+     * URL; the frontend writes it into json_data itself on the next save via
+     * the normal update() endpoint — this route only handles the binary.
+     */
+    public function uploadBackingTrack(Request $request, Leadsheet $leadsheet)
+    {
+        $request->validate([
+            'track' => ['required', 'file', 'mimes:mp3,wav,m4a,aac,ogg', 'max:20480'],
+            'kind'  => ['required', 'string', 'in:backing,guitar'],
+        ]);
+
+        $file = $request->file('track');
+        $uuid = (string) Str::uuid();
+        $ext  = $file->getClientOriginalExtension();
+        $kind = $request->input('kind');
+        $dir  = "audio/backing-tracks/{$leadsheet->id}";
+        $name = "{$kind}-{$uuid}.{$ext}";
+
+        $file->move(public_path($dir), $name);
+
+        return response()->json(['success' => true, 'url' => asset("{$dir}/{$name}")]);
+    }
+
+    /**
+     * Toggle is_pro — the editorial/monetization switch that gates the full
+     * Viewer/Cinema arrangement (see SongLibraryController::abortIfNotPro()
+     * and SBN-Leadsheet-Reference.md "Content access model"). is_pro must
+     * only ever be true on public_domain rows — not DB-enforced, so this is
+     * the one place that nudges the admin rather than silently allowing it.
+     */
+    public function updateIsPro(Request $request, Leadsheet $leadsheet)
+    {
+        $validated = $request->validate(['is_pro' => 'required|boolean']);
+        $leadsheet->update(['is_pro' => $validated['is_pro']]);
+        return response()->json([
+            'success' => true,
+            'is_pro' => $leadsheet->is_pro,
+            'license_status' => $leadsheet->license_status,
+        ]);
+    }
+
+    /**
      * Toggle a leadsheet between 'draft' and 'publish'. Drafts are hidden
      * from the public song library (see SongLibraryController).
      */

@@ -47,6 +47,15 @@
         :class="{ 'stage-d-toggle--on': loopOn }"
         @click="$emit('toggle-loop')"
       >Loop</button>
+      <template v-if="hasBackingTrack">
+        <div class="stage-deck-toggle-divider"></div>
+        <button
+          class="stage-d-toggle"
+          :class="{ 'stage-d-toggle--on': guitarOn }"
+          :title="guitarOn ? 'Mute my guitar — practice along' : 'Unmute my guitar'"
+          @click="$emit('toggle-guitar')"
+        >🎸 Guitar</button>
+      </template>
     </div>
   </section>
 </template>
@@ -64,9 +73,11 @@ const props = defineProps({
   loopOn:        { type: Boolean, default: false },
   playbackRate:  { type: Number,  default: 1 },
   rateSteps:     { type: Array,   default: () => [0.5, 0.75, 1, 1.25] },
+  hasBackingTrack: { type: Boolean, default: false },
+  guitarOn:        { type: Boolean, default: true },
 });
 
-const emit = defineEmits(['toggle', 'prev', 'next', 'seek-bar', 'toggle-loop', 'set-rate']);
+const emit = defineEmits(['toggle', 'prev', 'next', 'seek-bar', 'toggle-loop', 'set-rate', 'toggle-guitar']);
 
 const fillPct = computed(() => {
   const total = props.totalBars || 1;

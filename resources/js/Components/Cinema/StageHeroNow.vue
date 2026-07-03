@@ -8,10 +8,12 @@
         v-if="hasVideo"
         :video-id="videoId"
         :video-type="videoType"
+        :muted="muted"
         ref="playerRef"
         @timeupdate="$emit('video-timeupdate', $event)"
         @play-state-change="$emit('video-play-state', $event)"
         @ready="$emit('video-ready')"
+        @genuinely-playing="$emit('video-genuinely-playing')"
       />
       <div v-else class="stage-video-placeholder">
         <div class="stage-video-placeholder-icon">▶</div>
@@ -55,6 +57,7 @@
             v-if="currentChordCard"
             :chord="currentChordCard"
             :show-root="true"
+            dot-color="#000"
           />
         </div>
       </div>
@@ -84,6 +87,7 @@ const props = defineProps({
   hasVideo:      { type: Boolean, default: false },
   videoId:       { type: String, default: '' },
   videoType:     { type: String, default: 'youtube' },
+  muted:         { type: Boolean, default: false },
   // Now playing
   currentChordName: { type: String, default: '' },
   nextChordName:    { type: String, default: '' },
@@ -99,7 +103,7 @@ const props = defineProps({
   beatsPerMeasure:  { type: Number, default: 4 },
 });
 
-defineEmits(['video-timeupdate', 'video-play-state', 'video-ready']);
+defineEmits(['video-timeupdate', 'video-play-state', 'video-ready', 'video-genuinely-playing']);
 
 defineExpose({
   play:            () => playerRef.value?.play(),

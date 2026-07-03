@@ -42,6 +42,7 @@
                 ref="videoEl"
                 class="sbn-video-hosted"
                 :src="videoId"
+                :muted="muted"
                 @timeupdate="onTimeUpdate"
                 @play="onPlay"
                 @pause="onPause"
@@ -70,9 +71,15 @@ const props = defineProps({
      * clicked — the snippet anchor. Keeps the first frame on the loop.
      */
     startSec: { type: Number, default: 0 },
+    /**
+     * Mute the video's own audio — used when a Cinema backing-track pair is
+     * driving playback instead (see useBackingTrack.js). Applied on both the
+     * hosted <video> element and, once ready, the YouTube player.
+     */
+    muted: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['timeupdate', 'play-state-change', 'ready']);
+const emit = defineEmits(['timeupdate', 'play-state-change', 'ready', 'genuinely-playing']);
 
 // ── Refs ─────────────────────────────────────────────────────
 const ytContainer = ref(null);
@@ -158,6 +165,12 @@ async function initYTPlayer() {
 function onYTReady() {
     playerReady.value = true;
     playerStarted.value = true;
+    console.log('[VideoEmbed] onYTReady', { muted: props.muted, isMutedNow: _ytPlayer?.isMuted?.() });
+    if (props.muted) applyMuted(true);
+    console.log('[VideoEmbed] after mute() call (sync check)', { isMutedNow: _ytPlayer?.isMuted?.() });
+    setTimeout(() => {
+        console.log('[VideoEmbed] mute() check +500ms', { isMutedNow: _ytPlayer?.isMuted?.(), volume: _ytPlayer?.getVolume?.() });
+    }, 500);
     // Iframe sizing is handled by the scoped <style> block — no JS layout here.
     emit('ready');
     startPolling();
@@ -192,6 +205,13 @@ function onYTStateChange(event) {
     if (s === YT_PLAYING || s === YT_BUFFERING) {
         // Treat buffering as "still playing" — keep polling, report playing.
         emit('play-state-change', true);
+        // Buffering-as-playing is right for the transport/UI state, but wrong
+        // for anything that starts a clock keyed to "the video is genuinely
+        // advancing" — e.g. Cinema's backing-track buffers, which otherwise
+        // start during a BUFFERING event (video not yet moving) and end up
+        // running ahead of the video once the real PLAYING event lands a
+        // moment later. Only state === 1 (true playing) fires this one.
+        if (s === YT_PLAYING) emit('genuinely-playing');
         startPolling();
     } else if (s === YT_PAUSED) {
         emit('play-state-change', false);
@@ -325,6 +345,29 @@ watch(() => props.videoType, () => {
     destroyPlayer();
     if (props.videoId && props.videoType === 'youtube') initYTPlayer();
 });
+
+watch(() => props.muted, (m) => {
+    if (props.videoType === 'youtube') {
+        applyMuted(m);
+    } else if (videoEl.value) {
+        videoEl.value.muted = m;
+    }
+});
+
+/**
+ * mute()/unMute() go over postMessage to the iframe — isMuted() can briefly
+ * still report the old state right after the call returns (not a real
+ * failure, just async catch-up), but occasionally the call is dropped
+ * entirely if it lands before the player's internal init has finished. A
+ * couple of retries over the next second makes this reliable either way.
+ */
+function applyMuted(m) {
+    const apply = () => { if (m) _ytPlayer?.mute?.(); else _ytPlayer?.unMute?.(); };
+    apply();
+    [150, 400, 900].forEach(delay => setTimeout(() => {
+        if (_ytPlayer?.isMuted?.() !== m) apply();
+    }, delay));
+}
 
 // ── Expose for parent (useVideoSync playerRef) ────────────────
 defineExpose({ seekTo, getCurrentTime, play, pause, setPlaybackRate });
