@@ -366,16 +366,24 @@ Exposes via `defineExpose`: `play()`, `pause()`, `seekTo(seconds)` — proxied t
 
 ### 8.4 `StageSectionsGrid`
 
-Props: `sections`, `currentBarIndex`, `playing`, `chordVoicings`, `activeVoltaPass`, `tabModel`, `tabHasData`.
+Props: `sections`, `currentBarIndex`, `fractionalPlayPosition`, `playing`, `chordVoicings`, `activeVoltaPass`, `tabModel`, `tabHasData`, `timeSignature`.
 
 **View toggle** (top-right): `'chords'` (default) | `'tab'`. Tab button only shown when `tabHasData` is true (song has note data with string+fret). Persists in local `view` ref.
 
-**Chords view** — one `ClassicChordCard` per chord slot per measure bar, horizontal scroll.
+Each view is `container (.stage-{sec,tab}-scroll, overflow-x:auto) > track (.stage-strip-track, position:relative) > measures`. The track being `position:relative` is load-bearing: it makes each measure's `offsetLeft` track-relative (= the container's scroll-content origin), which is what the follow-cam reads.
 
-**Tab view** — `TabMeasure` components for the active section, `barsPerRow=4` (standard width), horizontal scroll. `TabMeasure` wrapped in `.stage-tab-measure-wrap` for click-to-seek and active highlight. Chord names scaled to 26px via scoped `:deep()` override.
+**Chords view** — one `ClassicChordCard` per chord slot per measure bar.
+
+**Tab view** — `TabMeasure` components for the active section, `barsPerRow=4` (standard width). `TabMeasure` wrapped in `.stage-tab-measure-wrap` for click-to-seek and active highlight. Chord names scaled to 26px via scoped `:deep()` override.
+
+**Follow-cam (rigid scrollLeft driver — rearchitected 2026-07-03, commit 708cb20).** The camera does NOT chase with a lerp (that trailed a moving playhead and drifted notation off-screen on longer songs). Instead:
+- `rebuildLayout()` caches per-**visible**-bar `{offset, width}` from the active track (filters out `.stage-sec-measure--hidden` so the index aligns with `playheadX()`'s visible-only walk — otherwise every bar after a collapsed volta maps to the wrong card).
+- `playheadX()` = `bar.offset + frac × bar.width`, where the bar is picked by `currentBarIndex` (gi, repeat/volta-aware) and `frac` is the sub-bar remainder of `fractionalPlayPosition`.
+- Each `requestAnimationFrame` tick, `applyFollow()` sets `container.scrollLeft = anchorScrollLeft()` **directly** (no smoothing). Direct assignment is rigid — no feedback loop, so it can't drift or lag — while staying native scroll. `PLAYHEAD_ANCHOR = 0.4` puts the active bar left-of-center (lookahead to the right); clamped to `[0, scrollWidth − clientWidth]` so the last bar rests at the right edge with no empty void past the score.
+- Re-anchors (one-shot `applyFollow()` after `rebuildLayout()`) on: `playing` toggle, `view` switch, `activeVoltaPass` flip (deferred 380ms for the 0.35s collapse animation), `currentBarIndex` seek while paused, and window `resize`.
+- Scrollbar is hidden during playback via `.stage-strip--playing` (a two-class selector, `.stage-{sec,tab}-scroll.stage-strip--playing::-webkit-scrollbar`, to outrank the per-view `::-webkit-scrollbar {height:4px}` rules by specificity) — a moving auto-scrollbar is a false affordance while the cam drives; it returns on pause for manual panning.
 
 **Shared behaviour:**
-- `watch(currentBarIndex)` auto-advances `activeSectionIndex` + calls `scrollToActive()` which `scrollIntoView`s the active element in whichever scroll container is visible.
 - Clicking any bar/measure emits `seek-measure(globalIndex)`.
 - Volta bars: `isMeasureVisible(measure)` hides measures whose `volta.number ≠ activeVoltaPass`. Hidden measures collapse via `max-width: 0 + min-width: 0 + margin: 0` transition (no flex gap left behind).
 
@@ -585,6 +593,6 @@ Rule: whenever you add a new `inject()` to a component that is also used in the 
 - **Fret-string consolidation:** ✅ DONE (2026-07-02) — `ChordFretString.php` + `fretString.ts` are the shared authorities; five sites routed through them. See §10 for the two barre-aware helpers deliberately left as a follow-up.
 - **Tab reflow on resize:** tab view uses static row layout; does not reflow on viewport resize. Acceptable; revisit if flagged.
 - **`edu_topics` DB table:** `EduContentService` is config-backed. DB migration deferred.
-- **Cinema fallback clock is not repeat-aware (§8.2):** the silent fallback (no video) walks gi linearly. Fix by counting in play positions and looking up the gi via `giAtPosition(expandedSequence.value, pos)` per beat; small change but currently low-priority since the practical use of Cinema is video-master.
+- **Cinema fallback clock repeat-awareness:** ✅ DONE (2026-07-02) — the silent (no-video) fallback now counts in play-position space and derives the highlighted gi via `giAtPosition(expandedSequence.value, pos)`, looping/ending at `expandedSequence.length` instead of `totalBars`. `onSeekBar`'s no-video branch syncs `currentPlayPosition` via `firstPositionForGi` so play resumes from the seeked bar. Repeated bars now re-light on each pass.
 - **Cinema-side bar-click on repeated bars always lands on pass 1:** `measureIndexToVideoTime(gi)` uses `firstPositionForGi`. Match the tab editor's "click a sync editor row to seek a specific pass" idea (a Cinema popover or right-click menu) once badge popovers ship there.
 - **Cinema fretboard view:** `StageSectionsGrid` view toggle is `'chords' | 'tab'`; fretboard (`'fretboard'`) is the planned third option. Model: `ChordProgressionViewer`'s embedded fretboard SVG as a standalone component fed from `chordCards` + active section measures.
