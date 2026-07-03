@@ -31,6 +31,14 @@ export function useBackingTrack() {
   let startedAtCtxTime = 0; // ctx.currentTime when playback last started
   let startedAtOffset = 0;  // video-seconds offset corresponding to that start
   let playToken = 0;        // guards against overlapping play() calls (see play())
+  // ctx.currentTime at which the *most recent* play() was invoked — set
+  // synchronously, before play()'s await. resyncTo uses this (not
+  // startedAtCtxTime, which only updates once play() finishes its await) to
+  // decide whether a re-seek is already in flight, so the ~60fps rAF poll
+  // can't fire a fresh re-seek on every frame during that async gap. Without
+  // it, a single drift event spawns dozens of stacked play() calls before the
+  // first one completes — the "audio race we never get out of".
+  let lastPlayInvokedAtCtxTime = -Infinity;
 
   const RAMP_SEC = 0.08;
   // Video timeupdate fires ~every 250ms (YT) and drift accumulates from
@@ -56,7 +64,6 @@ export function useBackingTrack() {
     ready.value = false;
     error.value = '';
     if (!backingUrl || !guitarUrl) return;
-    console.log('[backingTrack] load() called', { backingUrl, guitarUrl, hadExistingBuses: !!(backingBus || guitarBus) });
     // Defensive: a second load() without an intervening destroy() would
     // otherwise leave the previous buses connected to ctx.destination,
     // doubling up playback once the new buffers start.
@@ -68,8 +75,14 @@ export function useBackingTrack() {
       guitarBus = ctx.createGain();
       backingBus.connect(ctx.destination);
       guitarBus.connect(ctx.destination);
-      backingBus.gain.value = 1;
-      guitarBus.gain.value = guitarOn.value ? 1 : 0;
+      // The two files are ALTERNATE full mixes of the same performance —
+      // `backing` = without guitar, `guitar` = with guitar — NOT a stem layered
+      // on top of the other. So exactly one bus is audible at a time: the toggle
+      // crossfades between them (see setGuitarOn), it never sums them. Summing
+      // both played the performance twice, ~half a beat out of phase (the files
+      // aren't sample-aligned to each other), which smeared/flammed the audio.
+      backingBus.gain.value = guitarOn.value ? 0 : 1;
+      guitarBus.gain.value  = guitarOn.value ? 1 : 0;
 
       const [bBuf, gBuf] = await Promise.all([
         fetchAndDecode(backingUrl),
@@ -94,9 +107,6 @@ export function useBackingTrack() {
   }
 
   function _stopSources() {
-    if (backingSource || guitarSource) {
-      console.log('[backingTrack] stopSources', { hadBacking: !!backingSource, hadGuitar: !!guitarSource });
-    }
     for (const src of [backingSource, guitarSource]) {
       if (!src) continue;
       try { src.stop(); } catch (_) { /* already stopped */ }
@@ -118,7 +128,6 @@ export function useBackingTrack() {
    * however long the resume() took.
    */
   async function play(atSeconds = 0) {
-    console.log('[backingTrack] play() called', { ready: ready.value, ctxState: ctx?.state, myToken: playToken + 1 });
     if (!ready.value) return;
     // Overlapping play() calls race: resyncTo() on a timeupdate tick can fire
     // again while an earlier play()'s ctx.resume() await is still pending.
@@ -129,6 +138,11 @@ export function useBackingTrack() {
     // Claiming a token before the only await, and bailing if a newer call
     // has claimed it by the time we resume, serializes these instead.
     const myToken = ++playToken;
+    // Record the invocation time synchronously (before the await), so resyncTo
+    // treats a re-seek as in flight the instant play() is called — not only
+    // once it finishes and updates startedAtCtxTime. This is what stops the
+    // rAF poll from stacking a fresh play() every ~16ms during the async gap.
+    lastPlayInvokedAtCtxTime = ctx.currentTime;
     // The raw AudioContext can start (or fall back to) 'suspended' under the
     // browser's autoplay policy since this bypasses Tone's own start() gate —
     // without this, start() calls are silently queued and nothing audible
@@ -137,7 +151,6 @@ export function useBackingTrack() {
       try { await ctx.resume(); } catch (_) { /* ignore */ }
     }
     if (myToken !== playToken) {
-      console.log('[backingTrack] play() superseded, aborting', { myToken, currentToken: playToken });
       return; // a newer play() superseded this one
     }
 
@@ -159,11 +172,9 @@ export function useBackingTrack() {
     startedAtCtxTime = ctx.currentTime;
     startedAtOffset = offset;
     playing.value = true;
-    console.log('[backingTrack] buffers started', { offset, myToken });
   }
 
   function pause() {
-    console.trace('[backingTrack] pause() called');
     playToken++; // invalidate any in-flight play() awaiting ctx.resume()
     playing.value = false;
     _stopSources();
@@ -186,24 +197,47 @@ export function useBackingTrack() {
    * that is left alone so a normal timeupdate tick doesn't cause audible
    * re-triggering.
    */
+  let lastResyncVideoSeconds = -1;
   function resyncTo(videoSeconds) {
     if (!ready.value || !backingSource) return;
-    if (ctx.currentTime - startedAtCtxTime < RESYNC_GRACE_SEC) return;
+    // Frozen video clock = the player is buffering/stalled (the rAF poll keeps
+    // firing but getCurrentTime() returns the same value). Our audio ctx clock
+    // keeps advancing through that stall, so drift looks large — but re-seeking
+    // to a frozen position is pointless churn (it'll be stale the instant the
+    // video resumes and jumps forward). Skip until the video is actually moving
+    // again; the post-buffer tick then does a single clean re-seek.
+    if (videoSeconds === lastResyncVideoSeconds) return;
+    lastResyncVideoSeconds = videoSeconds;
+    // Suppress re-checks during the grace window after a (re)start. Key it on
+    // whichever is later: the last completed start (startedAtCtxTime) or the
+    // last *invoked* play() (lastPlayInvokedAtCtxTime, set synchronously). The
+    // latter covers the async gap while a re-seek's ctx.resume()/await is still
+    // pending and startedAtCtxTime hasn't updated yet — without it the ~60fps
+    // poll re-fires play() every frame across that gap.
+    const lastStart = Math.max(startedAtCtxTime, lastPlayInvokedAtCtxTime);
+    if (ctx.currentTime - lastStart < RESYNC_GRACE_SEC) return;
     const drift = videoSeconds - currentPlaybackTime();
     if (Math.abs(drift) > RESYNC_THRESHOLD_SEC) {
-      console.log('[backingTrack] resyncTo triggering re-seek', { videoSeconds, drift });
       play(videoSeconds);
     }
   }
 
-  /** Toggle "with guitar" on/off — a short gain ramp avoids a click. */
+  /**
+   * Toggle "with guitar" on/off. The two files are alternate full mixes, so
+   * this crossfades between them — guitar bus up + backing bus down (or the
+   * reverse) — keeping exactly one audible. A short ramp on each avoids a
+   * click. (Both buffers keep running; only their gains move, so the switch is
+   * gapless and stays sample-locked to the video.)
+   */
   function setGuitarOn(on) {
     guitarOn.value = on;
-    if (!guitarBus) return;
+    if (!guitarBus || !backingBus) return;
     const now = ctx.currentTime;
-    guitarBus.gain.cancelScheduledValues(now);
-    guitarBus.gain.setValueAtTime(guitarBus.gain.value, now);
-    guitarBus.gain.linearRampToValueAtTime(on ? 1 : 0, now + RAMP_SEC);
+    for (const [bus, target] of [[guitarBus, on ? 1 : 0], [backingBus, on ? 0 : 1]]) {
+      bus.gain.cancelScheduledValues(now);
+      bus.gain.setValueAtTime(bus.gain.value, now);
+      bus.gain.linearRampToValueAtTime(target, now + RAMP_SEC);
+    }
   }
 
   function toggleGuitar() {

@@ -279,6 +279,21 @@ function onVideoTimeUpdate(time) {
   fractionalPlayPosition.value = Math.max(0, pos);
 }
 
+// YouTube emits a transient PAUSED (state 2) during its initial play
+// negotiation — right after the first PLAYING, with no user action. Acting on
+// it immediately tears the backing track down (pause → stopSources) a beat
+// after it started, and the follow-up PLAYING restarts it: the stop/start
+// cycle at the top of playback is exactly the stutter/stack the user heard.
+// So defer the teardown briefly; a genuine pause sticks (the timer fires and
+// stops audio), a spurious startup blip is cancelled by the PLAYING that lands
+// right after. A quarter-second of backing audio over a truly-paused video is
+// imperceptible, so the delay costs nothing on real pauses.
+const PAUSE_DEBOUNCE_MS = 250;
+let _pauseTimer = null;
+function _cancelPendingPause() {
+  if (_pauseTimer) { clearTimeout(_pauseTimer); _pauseTimer = null; }
+}
+
 function onVideoPlayState(playing_) {
   const wasPlaying = playing.value;
   playing.value = playing_;
@@ -290,11 +305,17 @@ function onVideoPlayState(playing_) {
   // video by however long buffering took. video-genuinely-playing (YT state
   // === 1 only) is what starts it instead — see onVideoGenuinelyPlaying.
   if (!playing_ && wasPlaying) {
-    backingTrack.pause();
+    _cancelPendingPause();
+    _pauseTimer = setTimeout(() => {
+      _pauseTimer = null;
+      backingTrack.pause();
+    }, PAUSE_DEBOUNCE_MS);
   }
 }
 
 function onVideoGenuinelyPlaying() {
+  // A real PLAYING event supersedes any pending (possibly-spurious) pause.
+  _cancelPendingPause();
   if (!hasBackingTrack.value || backingTrack.playing.value) return;
   // Pass a live getter, not a snapshot — ctx.resume() inside play() can take
   // real time, during which the video keeps advancing. Reading videoTime.value
@@ -350,7 +371,6 @@ function stopFallbackClock() {
 }
 
 function onTransportToggle() {
-  console.log('[Cinema] onTransportToggle', { playingBefore: playing.value, hasVideo: hasVideo.value });
   if (hasVideo.value) {
     // Video is master — call play/pause on the actual YT player. The backing
     // track is NOT started here: onVideoPlayState is the single source of
@@ -453,6 +473,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown);
   stopFallbackClock();
+  _cancelPendingPause();
   backingTrack.destroy();
 });
 

@@ -41,6 +41,11 @@ Thumbs.db
 /ffmpeg.zip
 /storage/app/temp_audio/
 
+# Large media — served from public/ but deployed out-of-band (scp), never
+# committed. Cinema backing-track WAVs and self-hosted leadsheet videos.
+/public/audio/backing-tracks/
+/public/video/
+
 # Runtime logs
 /logs/
 

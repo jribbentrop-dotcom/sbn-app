@@ -37,16 +37,24 @@
         </template>
 
         <template v-else>
-            <!-- Hosted video (future) -->
+            <!-- Self-hosted video: the <video> element is its own exact,
+                 synchronous clock — no postMessage lag, no buffering-vs-playing
+                 ambiguity — so it drives Cinema's backing-track sync far more
+                 reliably than the YouTube iframe. See useBackingTrack.js. -->
             <video
                 ref="videoEl"
                 class="sbn-video-hosted"
                 :src="videoId"
                 :muted="muted"
-                @timeupdate="onTimeUpdate"
+                playsinline
+                preload="auto"
+                @loadedmetadata="onHostedReady"
                 @play="onPlay"
+                @playing="onPlay"
                 @pause="onPause"
+                @waiting="onWaiting"
                 @seeked="onSeeked"
+                @ended="onHostedEnded"
             ></video>
         </template>
     </div>
@@ -165,12 +173,7 @@ async function initYTPlayer() {
 function onYTReady() {
     playerReady.value = true;
     playerStarted.value = true;
-    console.log('[VideoEmbed] onYTReady', { muted: props.muted, isMutedNow: _ytPlayer?.isMuted?.() });
     if (props.muted) applyMuted(true);
-    console.log('[VideoEmbed] after mute() call (sync check)', { isMutedNow: _ytPlayer?.isMuted?.() });
-    setTimeout(() => {
-        console.log('[VideoEmbed] mute() check +500ms', { isMutedNow: _ytPlayer?.isMuted?.(), volume: _ytPlayer?.getVolume?.() });
-    }, 500);
     // Iframe sizing is handled by the scoped <style> block — no JS layout here.
     emit('ready');
     startPolling();
@@ -220,12 +223,18 @@ function onYTStateChange(event) {
     // -1 (unstarted) and 5 (cued) are ignored — no transport change.
 }
 
-// Poll getCurrentTime via requestAnimationFrame for 60fps smooth cursor
+// Poll currentTime via requestAnimationFrame for a 60fps smooth cursor.
+// Branch-aware: reads the YT player or the hosted <video> via getCurrentTime().
+// The native <video>'s own `timeupdate` event only fires ~4×/s — too coarse for
+// a smooth playhead or drift-checking — so we poll it at frame rate too.
 function startPolling() {
     stopPolling();
     const tick = () => {
-        if (_ytPlayer && typeof _ytPlayer.getCurrentTime === 'function') {
-            emit('timeupdate', _ytPlayer.getCurrentTime());
+        const hasSource = props.videoType === 'youtube'
+            ? (_ytPlayer && typeof _ytPlayer.getCurrentTime === 'function')
+            : !!videoEl.value;
+        if (hasSource) {
+            emit('timeupdate', getCurrentTime());
         }
         _rafId = requestAnimationFrame(tick);
     };
@@ -291,7 +300,10 @@ function play() {
         if (!_ytPlayer) upgradeAndPlay();
         else _ytPlayer.playVideo?.();
     } else {
-        videoEl.value?.play();
+        // play() rejects if the autoplay policy blocks it (e.g. unmuted without
+        // a gesture). Cinema's video is muted, and this is called from a click,
+        // so it won't — but swallow the rejection so it isn't an unhandled one.
+        videoEl.value?.play?.()?.catch(() => {});
     }
 }
 
@@ -316,12 +328,41 @@ function setPlaybackRate(rate) {
 
 // ── Hosted video handlers ────────────────────────────────────
 
-function onTimeUpdate() {
-    emit('timeupdate', videoEl.value?.currentTime ?? 0);
+/**
+ * Metadata is loaded — the element is ready to seek/play. Apply mute and the
+ * snippet start offset, mirror the YT onReady contract, and begin polling so
+ * the playhead is live even before the first play.
+ */
+function onHostedReady() {
+    playerReady.value = true;
+    playerStarted.value = true;
+    if (videoEl.value) videoEl.value.muted = props.muted;
+    const seekTo = _seekOnReady ?? (props.startSec > 0 ? props.startSec : null);
+    _seekOnReady = null;
+    if (seekTo != null && videoEl.value) videoEl.value.currentTime = seekTo;
+    emit('ready');
+    if (_playOnReady) { _playOnReady = false; videoEl.value?.play?.(); }
 }
-function onPlay()   { emit('play-state-change', true);  }
-function onPause()  { emit('play-state-change', false); }
+
+// A native <video> `play`/`playing` event is unambiguously genuine — unlike the
+// YouTube iframe there's no separate buffering state that masquerades as
+// playing — so it drives both the transport state AND Cinema's backing-track
+// start (genuinely-playing). Idempotent: playing after a stall re-fires this,
+// and Cinema's onVideoGenuinelyPlaying no-ops when the track is already going.
+function onPlay() {
+    emit('play-state-change', true);
+    emit('genuinely-playing');
+    startPolling();
+}
+// A real pause (user/transport). Native pause has no spurious startup blip the
+// way YT does, but Cinema still debounces it harmlessly.
+function onPause()  { emit('play-state-change', false); stopPolling(); }
+// Buffering stall: keep the transport in its playing state (don't report a
+// pause — that would tear the backing track down for a momentary network
+// hiccup). The backing track's own frozen-clock drift guard covers the gap.
+function onWaiting() { /* no state change; polling continues */ }
 function onSeeked() { emit('timeupdate', videoEl.value?.currentTime ?? 0); }
+function onHostedEnded() { emit('play-state-change', false); stopPolling(); }
 
 // ── Lifecycle ─────────────────────────────────────────────────
 
