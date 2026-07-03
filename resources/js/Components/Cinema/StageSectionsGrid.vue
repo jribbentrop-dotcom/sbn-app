@@ -33,72 +33,76 @@
 
     <!-- ── Chords view ── -->
     <div v-if="view === 'chords' && activeSection" class="stage-sec-panel" :data-sec="activeSectionIndex % 4">
-      <div ref="chordsScrollEl" class="stage-sec-scroll">
-        <div
-          v-for="(measure, mi) in (activeSection.measures || [])" :key="measure.globalIndex ?? mi"
-          class="stage-sec-measure"
-          :class="{
-            'stage-sec-measure--active': measure.globalIndex === currentBarIndex,
-            'stage-sec-measure--past':   playing && measure.globalIndex < currentBarIndex,
-            'stage-sec-measure--hidden': !isMeasureVisible(measure),
-          }"
-          @click="isMeasureVisible(measure) && $emit('seek-measure', measure.globalIndex ?? mi)"
-        >
-          <div class="stage-sec-bar-num">{{ (measure.globalIndex ?? mi) + 1 }}</div>
-          <div class="stage-sec-measure-chords">
-            <div
-              v-for="(name, ci) in (measure.chordNames || [])" :key="ci"
-              class="stage-chord-card"
-            >
-              <div class="stage-chord-name" v-html="formatChordHtml(name)"></div>
+      <div ref="chordsScrollEl" class="stage-sec-scroll" :class="{ 'stage-strip--playing': playing }">
+        <div ref="chordsTrackEl" class="stage-strip-track">
+          <div
+            v-for="(measure, mi) in (activeSection.measures || [])" :key="measure.globalIndex ?? mi"
+            class="stage-sec-measure"
+            :class="{
+              'stage-sec-measure--active': measure.globalIndex === currentBarIndex,
+              'stage-sec-measure--past':   playing && measure.globalIndex < currentBarIndex,
+              'stage-sec-measure--hidden': !isMeasureVisible(measure),
+            }"
+            @click="isMeasureVisible(measure) && $emit('seek-measure', measure.globalIndex ?? mi)"
+          >
+            <div class="stage-sec-bar-num">{{ (measure.globalIndex ?? mi) + 1 }}</div>
+            <div class="stage-sec-measure-chords">
               <div
-                v-if="getVoicingAt(measure, ci)"
-                class="stage-chord-diagram"
-                v-html="renderDiagram(getVoicingAt(measure, ci))"
-              ></div>
-              <div v-else class="stage-chord-empty"></div>
+                v-for="(name, ci) in (measure.chordNames || [])" :key="ci"
+                class="stage-chord-card"
+              >
+                <div class="stage-chord-name" v-html="formatChordHtml(name)"></div>
+                <div
+                  v-if="getVoicingAt(measure, ci)"
+                  class="stage-chord-diagram"
+                  v-html="renderDiagram(getVoicingAt(measure, ci))"
+                ></div>
+                <div v-else class="stage-chord-empty"></div>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ── Tab view — horizontal scroll, smooth follow-cam ── -->
+    <!-- ── Tab view — horizontal strip, transform-driven follow-cam ── -->
     <div v-if="view === 'tab' && tabModel" class="stage-tab-panel">
-      <div ref="tabScrollEl" class="stage-tab-scroll">
-        <template v-for="(section, si) in tabSections" :key="section.id || si">
-          <div
-            v-for="measure in section.measures"
-            :key="measure.index"
-            class="stage-tab-measure-wrap"
-            :class="{ 'stage-tab-measure-wrap--active': measure.index === currentBarIndex }"
-            @click="emit('seek-measure', measure.index)"
-          >
-            <TabMeasure
-              :measure="measure"
-              :is-first-of-section="si === 0 && measure === section.measures[0]"
-              :show-clef="measure.index === 0"
-              :time-signature="props.timeSignature"
-              :ticks-per-measure="tabModel.ticksPerMeasure"
-              :next-measure="getNextTabMeasure(measure.index)"
-              :is-next-first-of-section="isNextTabMeasureFirstOfSection(measure.index)"
-              :chord-names="measure.chordNames || []"
-              :bars-per-row="4"
-              :read-only="true"
-              :allow-chord-click="false"
-              :cursor="null"
-              :pending-digit="null"
-              :selected-events="new Set()"
-            />
-          </div>
-        </template>
+      <div ref="tabScrollEl" class="stage-tab-scroll" :class="{ 'stage-strip--playing': playing }">
+        <div ref="tabTrackEl" class="stage-strip-track">
+          <template v-for="(section, si) in tabSections" :key="section.id || si">
+            <div
+              v-for="measure in section.measures"
+              :key="measure.index"
+              class="stage-tab-measure-wrap"
+              :class="{ 'stage-tab-measure-wrap--active': measure.index === currentBarIndex }"
+              @click="emit('seek-measure', measure.index)"
+            >
+              <TabMeasure
+                :measure="measure"
+                :is-first-of-section="si === 0 && measure === section.measures[0]"
+                :show-clef="measure.index === 0"
+                :time-signature="props.timeSignature"
+                :ticks-per-measure="tabModel.ticksPerMeasure"
+                :next-measure="getNextTabMeasure(measure.index)"
+                :is-next-first-of-section="isNextTabMeasureFirstOfSection(measure.index)"
+                :chord-names="measure.chordNames || []"
+                :bars-per-row="4"
+                :read-only="true"
+                :allow-chord-click="false"
+                :cursor="null"
+                :pending-digit="null"
+                :selected-events="new Set()"
+              />
+            </div>
+          </template>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { formatChordHtml } from '@/tab-editor/utils/chordFormat.js';
 import TabMeasure from '@/tab-editor/components/TabMeasure.vue';
 
@@ -125,27 +129,34 @@ const activeSection = computed(() => props.sections[activeSectionIndex.value] ??
 
 const chordsScrollEl = ref(null);
 const tabScrollEl    = ref(null);
+const chordsTrackEl  = ref(null);
+const tabTrackEl     = ref(null);
 
-// ── Continuous follow-cam scroll ─────────────────────────────────────────────
-// Driven by fractionalPlayPosition (a global float like 5.73 = bar 5, 73%
-// through) so the scroll target moves SUB-BAR every frame, not just at bar
-// boundaries. Each RAF tick:
-//   1. measure the active bar's offset + width (per-bar layout map),
-//   2. compute the playhead pixel-X = bar.offset + frac × bar.width,
-//   3. target scrollLeft to keep that playhead centered in the viewport,
-//   4. lerp scrollLeft toward the target for smoothness.
+// ── Follow-cam: direct scrollLeft, not a lerp'd chaser ───────────────────────
+// We know exactly where the playhead is every frame (fractionalPlayPosition →
+// pixel), so we SET container.scrollLeft to it directly each RAF tick instead of
+// lerping toward it. Direct assignment is rigid — no feedback loop, so it can't
+// drift or lag — while staying native scroll, so overflow-x:auto's scrollbar
+// stays live and draggable-when-paused. RAF just re-reads the (continuous)
+// position and re-applies scrollLeft at 60fps.
 //
 // The beat metronome column inside TabMeasure / the active chord card is a
 // separate, beat-snapped cursor and is intentionally left untouched.
 
-const LERP = 0.20;
+// Where the playhead sits in the viewport, as a fraction of its width.
+// 0.5 = dead center; below 0.5 biases LEFT so upcoming bars stay on-screen to
+// the right (you read ahead).
+const PLAYHEAD_ANCHOR = 0.4;
 
-let _scrollRaf     = null;
-let _scrollTarget  = 0;
+let _raf           = null;
 let _measureLayout = [];   // per-visible-bar { offset, width } in active strip
 
 function activeContainer() {
   return view.value === 'tab' ? tabScrollEl.value : chordsScrollEl.value;
+}
+
+function activeTrack() {
+  return view.value === 'tab' ? tabTrackEl.value : chordsTrackEl.value;
 }
 
 function barSelector() {
@@ -153,13 +164,21 @@ function barSelector() {
 }
 
 function rebuildLayout() {
-  const container = activeContainer();
-  if (!container) { _measureLayout = []; return; }
-  const els = container.querySelectorAll(barSelector());
-  _measureLayout = Array.from(els).map(el => ({ offset: el.offsetLeft, width: el.offsetWidth }));
+  const track = activeTrack();
+  if (!track) { _measureLayout = []; return; }
+  // Exclude hidden volta measures: playheadX indexes this array by VISIBLE
+  // measure order (it skips hidden ones), so the layout must be visible-only too,
+  // or every bar after a collapsed volta maps to the wrong card. (Chords only —
+  // the tab view has no hidden measures.)
+  const els = Array.from(track.querySelectorAll(barSelector()))
+    .filter(el => !el.classList.contains('stage-sec-measure--hidden'));
+  // offsetLeft is measured from the track's origin (the track is position:relative,
+  // so it's the offsetParent) which coincides with the container's scroll-content
+  // origin — so offsetLeft is directly usable as a scrollLeft target.
+  _measureLayout = els.map(el => ({ offset: el.offsetLeft, width: el.offsetWidth }));
 }
 
-// Pixel-X of the playhead inside the active section's strip.
+// Pixel-X of the playhead inside the active section's strip (track coordinates).
 // currentBarIndex (a gi) picks the bar (repeat/volta-aware); the sub-bar
 // fraction comes from fractionalPlayPosition.
 function playheadX() {
@@ -178,43 +197,52 @@ function playheadX() {
   return bar.offset + frac * bar.width;
 }
 
-function scrollTargetFor(container, px) {
-  const vw = container.clientWidth;
+// scrollLeft that places the playhead at PLAYHEAD_ANCHOR of the viewport,
+// clamped to the container's own scroll range (last bar rests at the right edge;
+// no empty gap past the score).
+function anchorScrollLeft(container, px) {
+  const vw        = container.clientWidth;
   const maxScroll = Math.max(0, container.scrollWidth - vw);
-  return Math.max(0, Math.min(maxScroll, px - vw * 0.9));   // center the playhead
+  return Math.max(0, Math.min(maxScroll, px - vw * PLAYHEAD_ANCHOR));
 }
 
-function startScrollFollow() {
-  if (_scrollRaf) return;
-  function tick() {
-    const container = activeContainer();
-    if (container) {
-      const px = playheadX();
-      if (px !== null) {
-        _scrollTarget = scrollTargetFor(container, px);
-        const diff = _scrollTarget - container.scrollLeft;
-        if (Math.abs(diff) > 0.5) container.scrollLeft += diff * LERP;
-      }
-    }
-    _scrollRaf = requestAnimationFrame(tick);
-  }
-  _scrollRaf = requestAnimationFrame(tick);
-}
-
-function stopScrollFollow() {
-  if (_scrollRaf) { cancelAnimationFrame(_scrollRaf); _scrollRaf = null; }
-}
-
-function snapToCurrent() {
-  rebuildLayout();
+// The follow-cam drives native scrollLeft DIRECTLY (no lerp). Direct assignment
+// is as rigid as a transform — it can't drift — but unlike a transform it keeps
+// overflow-x:auto's scrollbar live and accurate during playback, so the user
+// always sees their position in the section.
+function applyFollow() {
   const container = activeContainer();
   if (!container) return;
   const px = playheadX();
   if (px === null) return;
-  container.scrollLeft = _scrollTarget = scrollTargetFor(container, px);
+  container.scrollLeft = anchorScrollLeft(container, px);
 }
 
-onUnmounted(() => stopScrollFollow());
+function startScrollFollow() {
+  if (_raf) return;
+  function tick() {
+    applyFollow();
+    _raf = requestAnimationFrame(tick);
+  }
+  _raf = requestAnimationFrame(tick);
+}
+
+function stopScrollFollow() {
+  if (_raf) { cancelAnimationFrame(_raf); _raf = null; }
+}
+
+// Viewport width feeds both the end-pad and the anchor math, so re-measure on
+// resize. During playback the RAF reads live geometry and self-corrects; this
+// keeps the cached layout + end-pad fresh for the paused state too.
+function onResize() {
+  rebuildLayout();
+  applyFollow();   // re-anchor after viewport change (RAF continues if playing)
+}
+onMounted(() => window.addEventListener('resize', onResize));
+onUnmounted(() => {
+  stopScrollFollow();
+  window.removeEventListener('resize', onResize);
+});
 
 watch(() => props.playing, async (isPlaying) => {
   if (isPlaying) {
@@ -226,6 +254,28 @@ watch(() => props.playing, async (isPlaying) => {
   }
 }, { immediate: true });
 
+// Switching Chords ↔ Tab swaps which container the follow-cam drives, but
+// _measureLayout still holds the OLD view's geometry until something rebuilds it.
+// Re-measure the now-active view and re-anchor to the current bar so focus isn't
+// lost across the toggle.
+watch(view, async () => {
+  await nextTick();
+  rebuildLayout();
+  applyFollow();
+});
+
+// A volta pass flip changes which measures are visible, and each collapse/expand
+// animates over 0.35s (see .stage-sec-measure transition). Re-measure once the
+// animation settles so the follow-cam's cached offsets match the new layout
+// instead of desyncing until the next seek/section change. (Chords-only concern.)
+watch(() => props.activeVoltaPass, () => {
+  if (view.value !== 'chords') return;
+  setTimeout(() => {
+    rebuildLayout();
+    applyFollow();
+  }, 380);
+});
+
 watch(() => props.currentBarIndex, async (barIndex) => {
   const si = props.sections.findIndex(sec =>
     (sec.measures ?? []).some(m => (m.globalIndex ?? -1) === barIndex)
@@ -235,7 +285,12 @@ watch(() => props.currentBarIndex, async (barIndex) => {
     await nextTick();
     rebuildLayout();
   }
-  if (!props.playing) snapToCurrent();   // paused seek — snap directly
+  if (!props.playing) {
+    // Paused seek: reveal the bar (RAF isn't running, so anchor it once).
+    await nextTick();
+    rebuildLayout();
+    applyFollow();
+  }
 });
 
 // A volta measure is visible only when its number matches the active pass.
@@ -253,7 +308,7 @@ function getVoicingAt(measure, ci) {
 
 function renderDiagram(voicing) {
   if (!voicing || typeof window.sbnRenderDiagramSVG !== 'function') return '';
-  return window.sbnRenderDiagramSVG(voicing, { dotColor: 'var(--stage-accent)', showFingers: true });
+  return window.sbnRenderDiagramSVG(voicing, { dotColor: '#000', showFingers: true });
 }
 
 // ── Tab helpers ──────────────────────────────────────────────────────────────
@@ -400,7 +455,6 @@ function isNextTabMeasureFirstOfSection(index) {
 }
 
 .stage-sec-scroll {
-  display: flex;
   overflow-x: auto;
   padding-bottom: 6px;
   scrollbar-width: thin;
@@ -410,6 +464,30 @@ function isNextTabMeasureFirstOfSection(index) {
 .stage-sec-scroll::-webkit-scrollbar { height: 4px; }
 .stage-sec-scroll::-webkit-scrollbar-track { background: transparent; }
 .stage-sec-scroll::-webkit-scrollbar-thumb { background: var(--clr-border); border-radius: 2px; }
+
+/* Inner track: the row of measures. position:relative makes THIS the offsetParent
+   for the measures, so their offsetLeft is measured from the track's own origin —
+   which equals the scroll-content origin of the container. That's what lets the
+   follow-cam use offsetLeft directly as a scrollLeft target (any other offsetParent
+   would fold in an extra, per-view constant and mis-anchor the playhead). */
+.stage-strip-track {
+  display: flex;
+  width: max-content;
+  position: relative;
+}
+
+/* During playback the follow-cam owns scrollLeft, so a scrollbar would be a
+   false affordance (its thumb moves on its own and fights a manual drag) and a
+   small motion distraction under the notation. Hide it while playing — scroll
+   still works, it's just not shown; it returns on pause for manual panning.
+   Both classes are named in the ::-webkit selectors so they outrank the per-view
+   .stage-*-scroll::-webkit-scrollbar { height:4px } rules regardless of source order. */
+.stage-sec-scroll.stage-strip--playing,
+.stage-tab-scroll.stage-strip--playing {
+  scrollbar-width: none;              /* Firefox */
+}
+.stage-sec-scroll.stage-strip--playing::-webkit-scrollbar,
+.stage-tab-scroll.stage-strip--playing::-webkit-scrollbar { display: none; }   /* Chromium/WebKit */
 
 .stage-sec-measure {
   display: flex;
@@ -520,7 +598,6 @@ function isNextTabMeasureFirstOfSection(index) {
 }
 
 .stage-tab-scroll {
-  display: flex;
   overflow-x: auto;
   padding-bottom: 6px;
   scrollbar-width: thin;
