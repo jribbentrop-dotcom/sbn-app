@@ -281,9 +281,17 @@ Each `ProgressionRef` carries a `ranges` array — one entry per occurrence — 
 
 **Classic viewer accent override:** `.sbn-leadsheet-viewer` overrides `--clr-accent` / `--clr-accent-bg` / `--clr-accent-border` / `--clr-accent-dim` to blue (`#3b82f6`) so all accent-colored UI on the viewer page (toggle buttons, EduPanel borders, chord focus ring, hover frame) is blue rather than the global orange.
 
-### 6.7 Transport placement
+### 6.7 Transport placement (shared with Cinema — see §8.8)
 
-`.sbn-leadsheet-transport` inside `.sbn-leadsheet-main` flex column, `position: sticky; bottom: 20px; margin-top: auto`. Short songs: sits at bottom of content. Long songs: sticks near viewport bottom while scrolling. Spacebar toggles playback globally from the viewer.
+`<TransportDeck>` (prev/play/next, click-seek section-tinted track, `<RateSlider>` ±20% speed, no loop — `show-loop="false"`, since the Tone.js engine has no loop concept yet) sits inside `<HoverRevealDeck variant="score">`, itself inside `.sbn-leadsheet-main`. `position: sticky; bottom: 12vh` (`8vh` on mobile) — floats above the very bottom of the viewport rather than flush against it.
+
+**Hover-reveal, not scroll-based.** The deck is invisible until hovered; the mouseenter/mouseleave listeners live on `.sbn-leadsheet-main` itself (the whole score column), not on the deck (which can't host a meaningful hover target while translated off-screen). `useHoverRevealTransport()` composable just holds the boolean; `HoverRevealDeck` is presentational only, taking `visible` as a prop.
+
+Bar-vs-beat adapter: the audio engine is beat-indexed, `TransportDeck` works in bars — `currentBar`/`totalBars` are derived (`Math.floor`/`Math.round` against `beatsPerMeasure`), and `onPrevBar`/`onNextBar`/`onDeckSeekBar` translate back to `seekToMeasure`/`onTransportSeek` beat calls.
+
+**Speed slider is a UI convention, not a shared mechanism.** `RateSlider` looks identical on both views but drives different backends: Viewer's `onRateChange(rate)` computes `engine.setTempo(baseTempo * rate)` on the real Tone.js clock (continuous BPM); Cinema's `setRate(rate)` is a multiplier on either `VideoPlayer.setPlaybackRate()` or the fallback `setInterval` tick length. Do not assume the two are interchangeable when touching either.
+
+Spacebar toggles playback globally from the viewer (unrelated to hover-reveal).
 
 ---
 
@@ -304,12 +312,18 @@ Full-page dark surface, no nav chrome (`PublicLayout` not used).
 
 ```
 Pages/Leadsheet/Cinema.vue
-  ├─ <StageTopBar>          — title, classic-link, theme toggle
+  ├─ <StageTopBar>          — Songs→style→difficulty→title breadcrumb (§8.8),
+  │                           Options menu (display mode + backing track),
+  │                           pinned <ViewToggle> back to Classic
   ├─ <StageHeroNow ref="heroRef">
-  │    ├─ <VideoPlayer>     — YouTube IFrame API, controls hidden
-  │    └─ <ChordCard>       — current chord: diagram + popularity + difficulty
-  ├─ <StageSectionsGrid>    — section tabs, full-width bar grid (horizontal scroll)
-  └─ <StageTransportDeck>   — play/pause, prev/next, loop/count/click toggles
+  │    ├─ <VideoPlayer>     — YouTube IFrame API (controls hidden) or self-hosted <video>
+  │    ├─ <ChordCard>       — current chord: diagram + popularity + difficulty
+  │    └─ #overlay slot     — <HoverRevealDeck variant="video"><TransportDeck>,
+  │                           self-hosted video only (§8.8)
+  ├─ <StageSectionsGrid>    — section tabs, full-width bar grid (horizontal scroll);
+  │                           chords/tab view is a `view` prop now (lifted to StageTopBar's
+  │                           Options menu), not an internal toggle
+  └─ (no static transport deck below the grid — see §8.8)
 ```
 
 ### 8.1 CSS design tokens (`--stage-*`)
@@ -414,6 +428,24 @@ This drives which chord is shown in the hero and which `ChordCard` is highlighte
 
 `playerVars`: `controls: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, disablekb: 1`. The YouTube title overlay cannot be suppressed via API; it fades naturally after a few seconds of playback.
 
+### 8.8 Shared top-bar / transport components (Viewer ↔ Cinema)
+
+Unified 2026-07-04 so the two views feel like one app with a mode switch, not two separate builds. All four live in `resources/js/Components/Leadsheet/` (not `Cinema/`) since both pages consume them:
+
+| Component | Role | Notes |
+|---|---|---|
+| `Breadcrumb.vue` | Songs → style → difficulty → title trail, gradient band | `size="lg"` variant (taller, fully-rounded) used by both the classic Viewer and `StageTopBar` (which renders the shared `.sbn-breadcrumb .sbn-breadcrumb--cat .sbn-breadcrumb--lg` classes directly, not a copy) |
+| `TopBarMenu.vue` | Generic "Options ▾" dropdown, click-outside + Escape to close | Holds whatever secondary switches a page has (arrangement, display mode, backing track) so the top bar doesn't keep growing new pinned buttons |
+| `ViewToggle.vue` | Pinned Classic/Cinema two-segment pill | Only pinned control; the "primary switch experience" action, per its own design doc discussion |
+| `TransportDeck.vue` | prev/play/next, click-seek section-tinted track, `<RateSlider>`, optional Loop | Was Cinema-only (`StageTransportDeck.vue`); made host-agnostic — CSS reads `var(--stage-accent, var(--clr-accent))` etc. so it looks right on both the plain Viewer surface and Cinema's per-style `--stage-*` palette. `showLoop` prop (default true) lets Viewer omit Loop until its audio composables actually support it. |
+| `RateSlider.vue` | ±20% speed slider (0.8×–1.2×), same look both places | Drives *different* backends — see §6.7's "not a shared mechanism" note |
+| `HoverRevealDeck.vue` | Presentational show/hide wrapper for the transport deck | Takes `visible` prop (not self-hosted hover) + `variant="score"\|"video"` for sticky-in-column vs. absolute-over-video positioning |
+| `useHoverRevealTransport.js` (composable) | Just a `transportHovered` ref + enter/leave setters | Bind the handlers to the **larger host container** (`.sbn-leadsheet-main` / `.stage-video-card`), never to `HoverRevealDeck` itself — it's invisible until revealed and can't host a meaningful hover target while hidden |
+
+**Cinema's video overlay only renders for self-hosted video** (`videoType !== 'youtube'`) — YouTube's own iframe chrome already covers play/seek, and layering a second transport on top of it would fight the native controls. YouTube/no-video songs on Cinema rely on Space/←/→ keyboard shortcuts only; there's no fallback static deck.
+
+`StageHeroNow` exposes the overlay via a scoped slot (`#overlay="{ visible }"`) so Cinema.vue's `<HoverRevealDeck>` gets the hover state without `StageHeroNow` needing to know anything about the deck's internals.
+
 ---
 
 ## 9. `ChordCard` navigation
@@ -479,11 +511,14 @@ Quality slugs: `maj`, `min`, `aug`, `dim`, `5`, `sus4`, `sus2`, `add9`, `maj7`, 
 
 | File | What lives there |
 |------|-----------------|
-| `public/css/sbn-design-system.css` | `.sbn-ve-*` chord grid, `.sbn-transport-*`, `.sbn-chord-card`, `.sbn-card-*`, density animation system |
-| `resources/js/Components/Leadsheet/LeadsheetViewer.vue` (scoped) | Viewer two-column layout, `.sbn-leadsheet-main`, `.sbn-leadsheet-transport` sticky placement |
+| `public/css/sbn-design-system.css` | `.sbn-ve-*` chord grid (section headers now full-bleed + colorless, shared by admin editor/tab view/chords view), `.sbn-page` / `.sbn-page-detail` / `.sbn-page-stage` container widths, `.sbn-breadcrumb` (+ `--cat`/`--brand`/`--lg` variants), `.sbn-chord-card`, `.sbn-card-*`, density animation system |
+| `resources/js/Components/Leadsheet/LeadsheetViewer.vue` (scoped) | Viewer two-column layout, `.sbn-leadsheet-main`, `deckAccentStyle` (feeds `--stage-accent`/`--stage-gradient*` from the song's category color onto `HoverRevealDeck`) |
+| `resources/js/Components/Leadsheet/TransportDeck.vue` (scoped) | `.tdeck-*` — shared Viewer/Cinema transport deck, translucent + blurred background |
+| `resources/js/Components/Leadsheet/HoverRevealDeck.vue` (scoped) | `.sbn-hover-deck--score` / `--video` positioning variants |
 | `resources/js/Pages/Leadsheet/Cinema.vue` (scoped) | `.leadsheet-stage`, all `--stage-*` token assignments, light theme overrides |
-| `resources/js/Components/Cinema/StageHeroNow.vue` (scoped) | `.stage-hero`, `.stage-hero-card`, `.stage-beat-row`, `stagePulse` keyframe |
+| `resources/js/Components/Cinema/StageHeroNow.vue` (scoped) | `.stage-hero`, `.stage-hero-card`, `.stage-video-card` (overlay host), `.stage-beat-row`, `stagePulse` keyframe |
 | `resources/js/Components/Cinema/StageSectionsGrid.vue` (scoped) | `.stage-sec-*`, `.classic-chord-card` |
+| `resources/js/Components/Cinema/StageTopBar.vue` (scoped) | Options-menu panel styling only — band itself comes from the shared `.sbn-breadcrumb*` classes |
 
 ---
 
@@ -509,17 +544,24 @@ Quality slugs: `maj`, `min`, `aug`, `dim`, `5`, `sus4`, `sus2`, `add9`, `maj7`, 
 - `resources/js/tab-editor/components/ChordMeasure.vue` (readOnly + density props)
 - `resources/js/tab-editor/components/TabMeasure.vue` (readOnly prop)
 - `resources/js/tab-editor/components/TabCursor.vue` (readOnly prop)
-- `resources/js/tab-editor/components/TransportBar.vue`
+- `resources/js/tab-editor/components/TransportBar.vue` — **admin tab editor only now**; the public Viewer uses the shared `TransportDeck.vue` (§8.8)
 
 **Components — cinema view**
 - `resources/js/Components/Cinema/StageTopBar.vue`
 - `resources/js/Components/Cinema/StageHeroNow.vue`
 - `resources/js/Components/Cinema/StageSectionsGrid.vue`
-- `resources/js/Components/Cinema/StageTransportDeck.vue`
 - `resources/js/Components/ChordDiagram/ClassicChordCard.vue`
 - `resources/js/Components/ChordDiagram/NeonChordDiagram.vue`
 
-**Shared**
+**Shared (Viewer ↔ Cinema — §8.8)**
+- `resources/js/Components/Breadcrumb.vue`
+- `resources/js/Components/Leadsheet/TopBarMenu.vue`
+- `resources/js/Components/Leadsheet/ViewToggle.vue`
+- `resources/js/Components/Leadsheet/TransportDeck.vue`
+- `resources/js/Components/Leadsheet/RateSlider.vue`
+- `resources/js/Components/Leadsheet/HoverRevealDeck.vue`
+- `resources/js/composables/useHoverRevealTransport.js`
+- `resources/js/composables/useBreadcrumb.ts` — `songBreadcrumbSegments()`, `styleLabel()`
 - `resources/js/Components/Library/ChordCard.vue`
 - `resources/js/Components/Library/ChordDiagram.vue`
 - `resources/js/tab-editor/components/VideoPlayer.vue`
