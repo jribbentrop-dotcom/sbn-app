@@ -27,7 +27,7 @@
                 <button
                   :class="{ active: mode === 'no-chords' }"
                   @click="mode = 'no-chords'"
-                >No chords</button>
+                >Analysis</button>
                 <button
                   :class="{ active: mode === 'chords' }"
                   @click="mode = 'chords'"
@@ -140,6 +140,8 @@
           :quality-by-key="qualityByKey"
           :edu-chord-qualities="eduChordQualities"
           :edu-related-concepts="eduRelatedConcepts"
+          :skill-nodes="skillNodes"
+          :related-theory="relatedTheory"
           :hovered-progression-id="hoveredProgressionId"
           @progression-hover="hoveredProgressionId = $event"
         />
@@ -200,6 +202,14 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
+  /** Roman-numeral map keyed by "chordName@gi.ci", relative to the song key —
+   *  see EduContentService/LeadsheetViewerService::buildChordCards(). Powers
+   *  the "Analysis" display mode. Null value = chord couldn't be analyzed
+   *  (e.g. no key set); ChordCard falls back to the chord name in that case. */
+  chordNumerals: {
+    type: Object,
+    default: () => ({}),
+  },
   /** Edu content blurbs for chord qualities keyed by quality slug */
   eduChordQualities: {
     type: Object,
@@ -209,6 +219,17 @@ const props = defineProps({
   eduRelatedConcepts: {
     type: Object,
     default: () => ({}),
+  },
+  /** Skill nodes this song is tagged as teaching — see SkillNode::leadsheets() */
+  skillNodes: {
+    type: Array,
+    default: () => [],
+  },
+  /** Concept topics resolved from skill nodes / progressions / genre / difficulty
+   *  — see EduContentService::conceptsForLeadsheet() */
+  relatedTheory: {
+    type: Array,
+    default: () => [],
   },
   /** When true, suppresses the standalone header band (course-lesson embed). */
   embedded: {
@@ -306,7 +327,7 @@ watch(mode, async (newMode, oldMode) => {
   seekChord(beat);
 
   if (wasPlaying) {
-    if (!_eventsLoaded) await loadAllEvents();
+    if (!_eventsLoaded || _eventsLoadedForMode !== newMode) await loadAllEvents();
     if (newMode === 'tab') await playTab();
     else                   await playChord();
   }
@@ -343,13 +364,21 @@ function switchVersion(slug) {
 
 /**
  * Density computed: maps mode → density prop for ChordGridView.
- * Per Phase 9b §4: mode === 'chords' → density='full', mode === 'no-chords' → density='compact'.
+ * 'no-chords' (the "Analysis" toggle button) keeps full chord-card spacing —
+ * it swaps chord names for roman numerals (see showNumerals below) rather
+ * than shrinking the grid the way the old "compact" density did.
  */
 const density = computed(() => {
+  if (mode.value === 'no-chords') return 'full';
   if (mode.value === 'chords') return 'full';
-  if (mode.value === 'no-chords') return 'compact';
   return 'full'; // tab mode doesn't render ChordGridView, so density is irrelevant
 });
+
+// Analysis mode: chord cards render a giant light-grey roman numeral instead
+// of the chord name/diagram. Provided to ChordCard (viewer-only — see provide()
+// below); the admin tab editor never sets mode to 'no-chords' so this is a
+// pure no-op there.
+const showNumerals = computed(() => mode.value === 'no-chords');
 
 // ── Transport deck hover-reveal (host is the whole score column, see template) ──
 const { transportHovered: deckHovered } = useHoverRevealTransport();
@@ -436,23 +465,32 @@ const {
   seek:   seekTab,
 } = tabAudio;
 
-// Engine event-loading. Phase 9b: always load both tab + chord events.
-// The engine is a singleton shared with the admin editor; events must be
-// (re)loaded once per model before play(). Mirrors TabEditor.vue:421-441.
+// Engine event-loading. The engine is a singleton shared with the admin
+// editor and only holds one event list at a time, so only the events for the
+// currently-active mode are loaded — Tab mode plays tab notes only, Chords/
+// Analysis mode plays chord strums only (previously both were combined and
+// played together regardless of which transport button was pressed).
 const engine = getAudioEngine();
 let _eventsLoaded = false;
+let _eventsLoadedForMode = null;
 
 async function loadAllEvents() {
   if (!model.value) return;
-  await engine.init({ bpm: model.value.tempo ?? 120 });
+  // A non-empty samplesBaseUrl arms the shared NylonSampler singleton (its own
+  // sample path is hardcoded to /audio/nylon/ inside AudioEngine.init()) — this
+  // value itself is the percussion sampler's base path, matching other callers.
+  await engine.init({ bpm: model.value.tempo ?? 120, samplesBaseUrl: '/audio/rhythm-samples/' });
 
-  const tabEvents   = tabModelToEvents(model.value, { startBeat: 0 });
-  const chordEvents = chordVoicingsToEvents(model.value, { startBeat: 0 });
-  const combined    = [...tabEvents, ...chordEvents].sort((a, b) => a.time - b.time);
+  // Real guitar samples (nylon-string) for viewer/cinema playback — the admin
+  // tab editor keeps the 'pitched' synth voice (see TabEditor.vue).
+  const events = mode.value === 'tab'
+    ? tabModelToEvents(model.value, { startBeat: 0, voice: 'nylon' })
+    : chordVoicingsToEvents(model.value, { startBeat: 0, voice: 'nylon' });
 
-  engine.load(combined);
+  engine.load(events);
   engine.setTempo(model.value.tempo ?? 120);
   _eventsLoaded = true;
+  _eventsLoadedForMode = mode.value;
 }
 
 async function reloadEvents() {
@@ -499,7 +537,7 @@ async function onTransportToggle() {
     if (isTabPlaying.value)   pauseTab();
     if (isChordPlaying.value) pauseChord();
   } else {
-    if (!_eventsLoaded) await loadAllEvents();
+    if (!_eventsLoaded || _eventsLoadedForMode !== mode.value) await loadAllEvents();
     // Dispatch by mode: tab mode uses tab audio, else chord audio
     if (mode.value === 'tab') await playTab();
     else                      await playChord();
@@ -572,7 +610,7 @@ async function seekToMeasure(gi, ci = 0) {
   const measureBeat = firstBeatForGi.value.get(gi) ?? gi * bpm;
   const beatStart = measureBeat + beatOffset;
 
-  if (!_eventsLoaded) await loadAllEvents();
+  if (!_eventsLoaded || _eventsLoadedForMode !== mode.value) await loadAllEvents();
   // Seek both paths
   seekTab(beatStart);
   seekChord(beatStart);
@@ -749,10 +787,12 @@ function onTabChordClick({ measureIndex, chordIndex, chordName }) {
 const songInfo = computed(() => ({
   title:         props.leadsheet.title,
   composer:      props.leadsheet.composer ?? null,
+  performer:     props.leadsheet.performer ?? null,
   songKey:       props.leadsheet.songKey ?? null,
   tempo:         props.leadsheet.tempo ?? null,
   timeSignature: props.leadsheet.timeSignature ?? null,
   rhythm:        props.leadsheet.rhythm ?? null,
+  styleSlug:     props.leadsheet.styleSlug ?? null,
 }));
 
 // ── Tab view helpers (Phase 9b) ───────────────────────────────────────────────
@@ -845,6 +885,14 @@ provide('readOnly', true);
 // currently-hovered progression id. ChordMeasure injects both.
 provide('progressionHighlights', progressionHighlights);
 provide('hoveredProgressionId', hoveredProgressionId);
+// Analysis mode (roman numerals instead of chord names) — ChordCard injects both.
+provide('showNumerals', showNumerals);
+provide('chordNumerals', props.chordNumerals);
+// Raw progression list (id/name/category/ranges) — ChordSection injects this
+// to draw one bracket-box per detected progression (per row segment) instead
+// of tinting each chord card individually. progressionHighlights (above) is
+// the flattened per-chord version other components still use.
+provide('progressionsList', computed(() => props.progressions || []));
 // globalIndexOf: in the viewer the model already stores measure.index as the
 // global index, so the identity-style fallback in ChordMeasure is fine. We
 // still provide a function so descendants can rely on it being callable.
@@ -999,8 +1047,8 @@ provide('globalIndexOf', (si, mi) => {
   position: sticky;
   top: 80px;
   align-self: flex-start;
-  width: 280px;
-  min-width: 280px;
+  width: 340px;
+  min-width: 340px;
   flex-shrink: 0;
   order: 1;
 }

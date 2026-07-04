@@ -23,6 +23,10 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
+  chordNumerals: {
+    type: Object,
+    default: () => ({}),
+  },
   eduChordQualities: {
     type: Object,
     default: () => ({}),
@@ -30,6 +34,14 @@ const props = defineProps({
   eduRelatedConcepts: {
     type: Object,
     default: () => ({}),
+  },
+  skillNodes: {
+    type: Array,
+    default: () => [],
+  },
+  relatedTheory: {
+    type: Array,
+    default: () => [],
   },
   versions: {
     type: Array,
@@ -67,8 +79,11 @@ const metaDescription = computed(() => {
     :progressions="progressions"
     :chord-cards="chordCards"
     :quality-by-key="qualityByKey"
+    :chord-numerals="chordNumerals"
     :edu-chord-qualities="eduChordQualities"
     :edu-related-concepts="eduRelatedConcepts"
+    :skill-nodes="skillNodes"
+    :related-theory="relatedTheory"
     :cinema-url="cinemaUrl"
     :versions="versions"
     :active-version="activeVersion"

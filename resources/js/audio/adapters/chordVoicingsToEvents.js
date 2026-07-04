@@ -35,12 +35,14 @@ const TICKS_PER_BEAT = 480;
  * @param {Object} model     The reactive tab model from useTabModel.
  * @param {Object} [ctx]     AdapterContext overrides.
  * @param {Beats}  [ctx.startBeat=0]
+ * @param {string} [ctx.voice='pitched']  Voice name passed to the engine ('pitched' or 'nylon').
  * @returns {EngineEvent[]}
  */
 export function chordVoicingsToEvents(model, ctx = {}) {
     if (!model?.sections?.length) return [];
 
     const startBeat     = ctx.startBeat ?? 0;
+    const voice         = ctx.voice ?? 'pitched';
     const voicings      = model.chordVoicings ?? {};
     const beatsPerMeasure = (model.ticksPerMeasure ?? 1920) / TICKS_PER_BEAT;
 
@@ -102,7 +104,7 @@ export function chordVoicingsToEvents(model, ctx = {}) {
 
                     out.push({
                         time:     chordBeat,
-                        voice:    'pitched',
+                        voice,
                         pitch:    midi,
                         duration,
                         velocity: 0.8,

@@ -1,5 +1,15 @@
 <template>
   <div
+    v-if="showNumerals"
+    class="sbn-ve-chord sbn-ve-chord--numeral"
+    :class="[densityClass, { 'is-selected': selected, 'is-active': isPlayingCard, 'is-being-dragged': isBeingDragged, 'in-progression': inProgression, 'in-progression--active': inHoveredProgression }]"
+    @click.stop="onBodyClick"
+  >
+    <span class="sbn-ve-chord-numeral" v-html="formattedNumeral"></span>
+  </div>
+
+  <div
+    v-else
     class="sbn-ve-chord"
     :class="[densityClass, { 'is-selected': selected, 'is-active': isPlayingCard, 'is-being-dragged': isBeingDragged, 'in-progression': inProgression, 'in-progression--active': inHoveredProgression }]"
     @click.stop="onBodyClick"
@@ -56,7 +66,7 @@
 <script setup>
 import { inject, computed, ref, nextTick, watch } from 'vue';
 
-import { formatChordHtml, renderDiagramSVG } from '../utils/chordFormat';
+import { formatChordHtml, formatNumeralHtml, renderDiagramSVG } from '../utils/chordFormat';
 
 const props = defineProps({
   chord: {
@@ -124,6 +134,10 @@ const beatsPerMeasureRef  = inject('beatsPerMeasureRef', null);
 const seekToMeasure       = inject('seekToMeasure', null);  // seek + play from TabEditor
 const setChordName         = inject('setChordName', null);
 const inlineRenameTarget   = inject('inlineRenameTarget', null);
+// Analysis mode (viewer-only — see LeadsheetViewer.vue's provide()). Absent
+// (null) in the admin tab editor, so showNumerals is always falsy there.
+const showNumeralsRef     = inject('showNumerals', null);
+const chordNumeralsMap    = inject('chordNumerals', null);
 
 // ── Inline editing state ──────────────────────────────────────────────────────
 
@@ -176,6 +190,25 @@ const selected = computed(() =>
 const formattedChordName = computed(() =>
   formatChordHtml(props.chord.name)
 );
+
+const showNumerals = computed(() => !!showNumeralsRef?.value);
+
+// Same per-slot-then-bare lookup pattern as voicing/chordCards elsewhere in
+// the viewer: try "ChordName@gi.ci" first, fall back to the bare chord name.
+// chordNumeralsMap is a plain object prop (see LeadsheetViewer's provide()),
+// not a ref — no .value needed.
+const numeral = computed(() => {
+  if (!chordNumeralsMap || !props.chord.name) return props.chord.name || '';
+  const key = `${props.chord.name}@${gi.value}.${ci.value}`;
+  const raw = chordNumeralsMap[key] ?? chordNumeralsMap[props.chord.name] ?? props.chord.name;
+  // Strip the slash-bass suffix (e.g. "bVII/D" → "bVII") — inversions still
+  // read as their basic scale-degree function in Analysis mode.
+  return raw.split('/')[0];
+});
+
+// Chord-name-style formatting: base numeral normal size, quality/extension
+// suffix (m7, °, maj7, etc.) as superscript — same convention as formatChordHtml.
+const formattedNumeral = computed(() => formatNumeralHtml(numeral.value));
 
 const voicing = computed(() => {
   if (!model || !model.value?.chordVoicings || !props.chord.name) return null;

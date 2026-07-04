@@ -2128,23 +2128,40 @@
     box-shadow: none;
 }
 
-/* Hover frame in the frontend leadsheet viewer — uses locally overridden --clr-accent (blue) */
+/* Hover frame in the frontend leadsheet viewer — colorless (light grey), not accent-tinted */
 .sbn-leadsheet-viewer .sbn-ve-measure:hover .sbn-ve-measure-content::after {
-    box-shadow: inset 0 0 0 1px var(--clr-accent);
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.45);
 }
 
 /* ── Detected-progression highlight (leadsheet viewer only) ──────────────────
-   Chord cards that belong to a detected progression get a faint blue background.
-   Hovered progression intensifies the tint. No border animation.
+   One bracket-box per detected progression per row-segment (see ChordSection's
+   progressionBoxesByRow) — replaces the old per-chord tint so a multi-bar
+   progression reads as a single continuous region instead of separately
+   highlighted cells. Color comes from the progression's category via
+   getCategoryColor(), same palette as the EduPanel progression list.
    ──────────────────────────────────────────────────────────────────────── */
 
-.sbn-leadsheet-viewer .sbn-ve-chord.in-progression {
-    background: rgba(59, 130, 246, 0.08);
+.sbn-ve-prog-box {
+    position: absolute;
+    /* Same box as the measure hover frame (.sbn-ve-measure-content::after):
+       top:0, bottom:18px relative to .sbn-ve-measure, excludes the beat-dot
+       strip. This box's positioning parent is .sbn-ve-row though (not
+       .sbn-ve-measure-content), and the row has padding-top:26px for
+       repeat/volta bracket headroom — offset top by that same amount so
+       both frames read as the same size/geometry. */
+    top: 26px;
+    bottom: 18px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid color-mix(in srgb, var(--prog-color, var(--clr-accent)) 45%, transparent);
+    background: color-mix(in srgb, var(--prog-color, var(--clr-accent)) 8%, transparent);
+    pointer-events: none;
+    z-index: 0;
+    transition: background 0.15s, border-color 0.15s;
 }
 
-.sbn-leadsheet-viewer .sbn-ve-chord.in-progression--active {
-    background: rgba(59, 130, 246, 0.18);
-    z-index: 2;
+.sbn-ve-prog-box.is-hovered {
+    border-color: var(--prog-color, var(--clr-accent));
+    background: color-mix(in srgb, var(--prog-color, var(--clr-accent)) 16%, transparent);
 }
 
 /* Playback: measure z-index only (chord card gets the visual effect) */
@@ -3056,6 +3073,39 @@
 
 .sbn-ve-grid .sbn-ve-chord.dense .sbn-ve-chord-name {
     font-size: 10px;
+}
+
+/* Analysis mode — giant light-grey roman numeral, same measure footprint as
+   the normal chord card (see .sbn-ve-grid .sbn-ve-chord above; this variant
+   only changes what's drawn inside the slot, not its position/size). */
+.sbn-ve-grid .sbn-ve-chord--numeral {
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+}
+
+.sbn-ve-chord-numeral {
+    font-family: 'Crimson Text', Georgia, serif;
+    font-weight: 600;
+    font-size: clamp(28px, 7.5vw, 52px);
+    line-height: 1;
+    color: color-mix(in srgb, var(--clr-text-muted, #8896a4) 65%, transparent);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+/* Quality/extension suffix (m7, °, maj7…) — same convention as chord-name
+   styling (.sbn-ve-chord-name sup): smaller, slightly bolder, superscript. */
+.sbn-ve-chord-numeral sup {
+    font-size: 0.5em;
+    font-weight: 700;
+}
+
+.sbn-ve-chord--numeral.is-active .sbn-ve-chord-numeral {
+    color: var(--clr-accent);
 }
 
 /* Diagram sizing in grid */

@@ -8,6 +8,7 @@ use App\Models\Leadsheet;
 use App\Models\LeadsheetVersion;
 use App\Services\ChordFretString;
 use App\Services\HarmonicContext;
+use App\Services\ProgressionDetector;
 
 /**
  * Enriches a leadsheet with chord cards, progression list, and quality
@@ -17,15 +18,18 @@ use App\Services\HarmonicContext;
  */
 class LeadsheetViewerService
 {
+    public function __construct(private ProgressionDetector $progressionDetector) {}
+
     // =========================================================================
     // Public API
     // =========================================================================
 
     /**
      * @return array{
-     *   progressions: array,
-     *   chordCards:   array,
-     *   qualityByKey: array,
+     *   progressions:   array,
+     *   chordCards:     array,
+     *   qualityByKey:   array,
+     *   chordNumerals:  array,
      * }
      */
     /**
@@ -38,12 +42,13 @@ class LeadsheetViewerService
         $version ??= $this->resolveVersion($leadsheet);
 
         $progressions = $this->fetchProgressions($version);
-        [$chordCards, $qualityByKey] = $this->buildChordCards($leadsheet, $search, $version);
+        [$chordCards, $qualityByKey, $chordNumerals] = $this->buildChordCards($leadsheet, $search, $version);
 
         return [
-            'progressions' => $progressions,
-            'chordCards'   => $chordCards,
-            'qualityByKey' => $qualityByKey,
+            'progressions'  => $progressions,
+            'chordCards'    => $chordCards,
+            'qualityByKey'  => $qualityByKey,
+            'chordNumerals' => $chordNumerals,
         ];
     }
 
@@ -136,11 +141,13 @@ class LeadsheetViewerService
 
     private function buildChordCards(Leadsheet $leadsheet, ChordVoicingSearch $search, LeadsheetVersion $version): array
     {
-        $voicings     = $version->parsed_data['chordVoicings'] ?? [];
-        $chordCards   = [];
-        $qualityByKey = [];
-        $searchCache  = [];
-        $songKey      = ($version->song_key ?: $leadsheet->song_key) ?: 'C';
+        $voicings      = $version->parsed_data['chordVoicings'] ?? [];
+        $chordCards    = [];
+        $qualityByKey  = [];
+        $chordNumerals = [];
+        $searchCache   = [];
+        $numeralCache  = [];
+        $songKey       = ($version->song_key ?: $leadsheet->song_key) ?: 'C';
 
         foreach ($voicings as $key => $voicing) {
             if (preg_match('/^(.+)@\d+\.\d+$/', $key, $m)) {
@@ -155,6 +162,13 @@ class LeadsheetViewerService
 
             $parsed = $search->parseChordName($chordName);
             $qualityByKey[$key] = $parsed['quality'] ?? 'maj';
+
+            // Roman-numeral analysis (Analysis display mode) — relative to the
+            // song's key, same conversion the progression detector uses.
+            if (!array_key_exists($chordName, $numeralCache)) {
+                $numeralCache[$chordName] = $this->progressionDetector->chordToNumeral($chordName, $songKey);
+            }
+            $chordNumerals[$key] = $numeralCache[$chordName];
 
             if (!isset($searchCache[$chordName])) {
                 $searchCache[$chordName] = $search->searchByName($chordName);
@@ -176,7 +190,7 @@ class LeadsheetViewerService
             }
         }
 
-        return [$chordCards, $qualityByKey];
+        return [$chordCards, $qualityByKey, $chordNumerals];
     }
 
     // =========================================================================

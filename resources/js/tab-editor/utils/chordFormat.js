@@ -24,6 +24,26 @@ export function formatChordHtml(name) {
     return root + (ext ? '<sup>' + ext + '</sup>' : '') + bass;
 }
 
+/**
+ * Format a Roman-numeral analysis token (from ProgressionDetector::chordToNumeral,
+ * e.g. "IIm7", "bVII7", "Vmaj7") the same way formatChordHtml formats a chord
+ * name: base numeral at normal size, quality/extension suffix as <sup>.
+ *
+ * Numerals are always uppercase Roman with an optional leading accidental
+ * (b/#) and a quality suffix appended by ProgressionDetector::qualityToSuffix()
+ * — e.g. "IIm7" is II + "m7", not lowercase-for-minor like textbook notation.
+ * The base token is `b?(I|II|III|IV|V|VI|VII)`; everything after is the suffix.
+ */
+export function formatNumeralHtml(numeral) {
+    if (!numeral) return '';
+    const m = numeral.match(/^(b|#)?(VII|VI|V|IV|III|II|I)(.*)$/);
+    if (!m) return numeral;
+    const [, accidental, base, suffix] = m;
+    const acc = accidental ? (accidental === '#' ? '♯' : '♭') : '';
+    const ext = suffix.replace(/#/g, '♯').replace(/b(?=[0-9°])/g, '♭');
+    return acc + base + (ext ? '<sup>' + ext + '</sup>' : '');
+}
+
 export function renderDiagramSVG(voicing) {
     if (typeof window.sbnRenderDiagramSVG === 'function') {
         return window.sbnRenderDiagramSVG(voicing);

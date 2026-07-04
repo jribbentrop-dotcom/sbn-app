@@ -1,7 +1,7 @@
 # SBN Audio System
 
-> Last updated: 2026-05-16  
-> Status: chord view and tab editor fully wired. Percussion voices wired. Video sync shipped (YouTube-as-clock, play-position model, AABA repeats). Adapters (`tabMeasureToEvents`, `chordVoicingsToEvents`) are repeat/volta-aware via `expandMeasureSequence`.
+> Last updated: 2026-07-04  
+> Status: chord view and tab editor fully wired. Percussion voices wired. Video sync shipped (YouTube-as-clock, play-position model, AABA repeats). Adapters (`tabMeasureToEvents`, `chordVoicingsToEvents`) are repeat/volta-aware via `expandMeasureSequence`. Leadsheet Viewer plays real nylon-guitar samples (`NylonSampler`, `voice: 'nylon'`) instead of the synth voice, and loads only the active mode's events (Tab mode ≠ Chords mode) instead of combining both — see SBN-Leadsheet-Reference §6.3.
 
 ---
 
@@ -131,8 +131,8 @@ Fired at the start of every `play()` call, before audio starts. Composables use 
 ```js
 {
   time:      Beats,      // musical time from transport 0; NOT seconds
-  voice:     Voice,      // 'pitched' | 'percussion' | 'muted' | 'clave' | 'noise'
-  pitch:     MIDINote,   // 0–127; required for 'pitched'
+  voice:     Voice,      // 'pitched' | 'nylon' | 'percussion' | 'muted' | 'clave' | 'noise'
+  pitch:     MIDINote,   // 0–127; required for 'pitched' / 'nylon'
   duration:  Beats,
   velocity:  number,     // 0..1
   variant?:  'soft' | 'accent',   // percussion only
@@ -158,10 +158,10 @@ ctx = {
 ```
 
 ### `tabMeasureToEvents(model, ctx)`
-Converts the tab model (`model.sections[].measures[].events[].notes[]`) into pitched events. One event per sounding note. Pitch derived from string number + fret via standard tuning (Low E = MIDI 40). Repeat/volta-aware — runs the flat measure list through `expandMeasureSequence` and re-times each event by `tickInMeasure` within its play position, so a bar that repeats produces two sets of events at different beat offsets. Ties and bends not yet implemented.
+Converts the tab model (`model.sections[].measures[].events[].notes[]`) into pitched events. One event per sounding note. Pitch resolved by `noteToMidi()` (`resources/js/audio/adapters/pitchToMidi.js`) — prefers the note's stored `pitch`+`octave` (concert/sounding pitch, as parsed straight off MusicXML's `<pitch>` by `TabXmlParser.php`; **not** written/8va-transposed, verified against string+fret cross-checks), falling back to `string`+`fret` via standard tuning (Low E = MIDI 40) when pitch/octave are absent. `ctx.voice` (default `'pitched'`) is passed through onto every emitted event — the Leadsheet Viewer passes `'nylon'` for real guitar-sample playback (§6.3 of SBN-Leadsheet-Reference), the admin tab editor leaves it at `'pitched'`. Repeat/volta-aware — runs the flat measure list through `expandMeasureSequence` and re-times each event by `tickInMeasure` within its play position, so a bar that repeats produces two sets of events at different beat offsets. Ties and bends not yet implemented.
 
 ### `chordVoicingsToEvents(model, ctx)`
-Converts `model.chordVoicings` into one strum per measure. Voicing key lookup: `"Am@3.0"` (per-measure) falling back to `"Am"` (global). Fret string format: 6-char hex string (`"x32010"`), index 0 = string 1 (Low E). Produced by `useVoicingPickerStore._diagramDataToFrets()`. Repeat/volta-aware via `expandMeasureSequence` — see §5.1.
+Converts `model.chordVoicings` into one strum per measure. Voicing key lookup: `"Am@3.0"` (per-measure) falling back to `"Am"` (global). Fret string format: 6-char hex string (`"x32010"`), index 0 = string 1 (Low E). Produced by `useVoicingPickerStore._diagramDataToFrets()`. Repeat/volta-aware via `expandMeasureSequence` — see §5.1. `ctx.voice` (default `'pitched'`) works the same as `tabMeasureToEvents` above.
 
 ### 5.1 Repeat + volta playback model
 
@@ -212,10 +212,22 @@ Configuration (verbatim from WP, tuned by ear — do not change):
 - Reverb: decay 1.6, wet 0.18
 - Limiter: −3 dB
 
+### `NylonSampler` — active
+[`resources/js/audio/engine/voices/NylonSampler.js`](../resources/js/audio/engine/voices/NylonSampler.js) — real nylon-string guitar samples (MusyngKite soundfont derived) via `Tone.Sampler`, pitch-shifting between six recorded anchor notes: `public/audio/nylon/{E2,A2,D3,G3,B3,E4}.mp3`. Signal chain: `Sampler → Filter(lowpass) → EQ3 → Reverb → destination`.
+
+Current tuning (as of 2026-07-04):
+- Filter: lowpass 1800 Hz
+- EQ3: low 0, mid −4, high +1
+- Reverb: decay 3.2, wet 0.5
+
+Instantiated as a **shared singleton** (`getSharedNylon()`, `resources/js/audio/engine/voices/sharedNylon.js`) since `AudioEngine` itself is also a singleton — `AudioEngine.init()` lazily calls `nylonSampler.init('/audio/nylon/')` the first time `init()` runs with a non-empty `samplesBaseUrl` (any truthy value arms it — the actual value used is the *percussion* sampler's base path, e.g. `/audio/rhythm-samples/`, since that's the param's real purpose; the nylon sampler's own sample path is hardcoded inside `AudioEngine.init()` regardless of what `samplesBaseUrl` points to). Passing `''`/omitting `samplesBaseUrl` entirely leaves the nylon sampler silently unloaded even when events are tagged `voice: 'nylon'` — no error, just no sound.
+
+`trigger(midi, time, durationSec, velocity, offsetSec)` mirrors `PitchedSynth`'s interface so the two are interchangeable at the `Scheduler._dispatch()` level (routes on `ev.voice === 'nylon'`).
+
 ### `PercussionSampler` — wired
 Port of `sbn-percussion.js`. Loads 10 WAV files (`shaker_soft/accent`, `tamborim`, `kick`, `hihat_brush`, `brush_snare`) via `Promise.allSettled()` — a missing file is a non-fatal warning. Always obtains `AudioContext` via `Tone.getContext().rawContext` (never `new AudioContext()`).
 
-Wired into `AudioEngine._voices = { pitched, percussion: percSampler, percFallback }`. `init()` calls `percSampler.init(samplesBaseUrl)` if `samplesBaseUrl` is provided.
+Wired into `AudioEngine._voices = { pitched, percussion: percSampler, percFallback, nylon }`. `init()` calls `percSampler.init(samplesBaseUrl)` if `samplesBaseUrl` is provided (and separately arms `nylon` — see above).
 
 ### `FallbackSynths` — wired
 Raw WebAudio API synthesis for when WAV samples are unavailable. Methods: `playClave(time, register)`, `playMuted(time, register)`, `playHiHat(time)`, `playNote(time, freq, dur, vol)`. Frequency values from WP `course-player.js` (do not change).

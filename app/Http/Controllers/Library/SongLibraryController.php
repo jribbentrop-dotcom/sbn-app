@@ -422,12 +422,15 @@ class SongLibraryController extends Controller
         $version  = $this->resolveVersion($leadsheet, $request->query('v'));
         $enriched = $this->viewerService->enrich($leadsheet, $search, $version);
 
+        $progressionSlugs = array_column($enriched['progressions'], 'slug');
+
         return Inertia::render('Library/Songs/Viewer', [
             'leadsheet' => [
                 'id'            => $leadsheet->id,
                 'slug'          => $leadsheet->slug,
                 'title'         => $leadsheet->title,
                 'composer'      => $leadsheet->composer,
+                'performer'     => $version->performer,
                 'songKey'       => $version->song_key ?: $leadsheet->song_key,
                 'tempo'         => $version->tempo ?: $leadsheet->tempo,
                 'timeSignature' => $leadsheet->time_signature,
@@ -448,6 +451,17 @@ class SongLibraryController extends Controller
             ...$enriched,
             'eduChordQualities'   => $edu->allChordQualities(),
             'eduRelatedConcepts'  => $this->buildEduRelatedConcepts($edu),
+            'skillNodes' => $leadsheet->skillNodes->map(fn ($n) => [
+                'slug'      => $n->slug,
+                'title'     => $n->title,
+                'branch'    => $n->branch,
+                'subBranch' => $n->sub_branch,
+                'iconKey'   => $n->icon_key,
+                'iconPath'  => $n->icon_path,
+            ])->values(),
+            'relatedTheory' => collect($edu->conceptsForLeadsheet($leadsheet, $progressionSlugs))
+                ->map(fn ($topic) => $topic->toArray())
+                ->values(),
         ]);
     }
 

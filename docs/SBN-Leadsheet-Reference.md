@@ -202,30 +202,34 @@ Pages/Library/Songs/Viewer.vue
 
 ### 6.2 Mode toggle (3-way)
 
-`mode` ref: `'no-chords' | 'chords' | 'tab'`. Persisted to `localStorage` under key `sbn.leadsheet.mode`.
+`mode` ref: `'no-chords' | 'chords' | 'tab'`. Persisted to `localStorage` under key `sbn.leadsheet.mode`. Toggle button labels (UI only — the stored `mode` values are unchanged for localStorage-migration compatibility): `no-chords` → "Analysis", `chords` → "Chords", `tab` → "Tab".
 
-| Mode | ChordMeasure density | Tab rendered |
-|------|---------------------|--------------|
-| `chords` | `full` | no |
-| `no-chords` | `compact` | no |
-| `tab` | — (grid hidden) | yes |
+| Mode | ChordMeasure density | Tab rendered | Chord card content |
+|------|---------------------|--------------|---------------------|
+| `chords` | `full` | no | chord name + diagram |
+| `no-chords` ("Analysis") | `full` | no | giant light-grey Roman numeral (see below) |
+| `tab` | — (grid hidden) | yes | — |
 
 Tab button only shown when `hasTab` (useTabModel's `hasData` — at least one note with `string` + `fret`).
 
-Legacy `sbn.leadsheet.density` key: read once on mount, migrated to new key (`compact` → `no-chords`).
+Legacy `sbn.leadsheet.density` key: read once on mount, migrated to new key (`compact` → `no-chords`). Analysis mode keeps full chord-card spacing (it swaps content, not density) — the old "compact" grid-shrink behavior no longer exists.
+
+**Analysis mode (Roman numerals).** `LeadsheetViewerService::enrich()` computes `chordNumerals` (keyed `"${chordName}@${gi}.${ci}"`, same per-slot-then-bare-name lookup convention as `chordCards`/`chordVoicings`) via `ProgressionDetector::chordToNumeral()`, cached per chord name. `LeadsheetViewer` provides `showNumerals` (`computed(() => mode.value === 'no-chords')`) and `chordNumerals` (plain object, no `.value`) — both `inject('key', null)`-defaulted so the admin tab editor is unaffected. `ChordCard.vue` branches its template on `showNumerals`: the numeral branch strips the `/bass` suffix (`numeral.split('/')[0]` — inversions still read as their base scale-degree function) and renders via `formatNumeralHtml()` (`resources/js/tab-editor/utils/chordFormat.js`), which mirrors `formatChordHtml`'s convention — base numeral normal size, quality/extension suffix (`m7`, `°`, `maj7`, …) as `<sup>`, unicode accidentals (`♭`/`♯`). Font: `'Crimson Text', Georgia, serif` (the numeral font must be one of the four families actually loaded in `app.blade.php` — DM Sans, JetBrains Mono, Crimson Text 400/600, Fraunces; there is no Cormorant Garamond despite it looking plausible for a serif numeral).
 
 ### 6.3 Audio model
 
-Two playback paths share one `AudioEngine` singleton:
+Two playback paths share one `AudioEngine` singleton, which only holds **one loaded event list at a time**:
 
 ```js
 const chordAudio = useChordAudio(model);
 const tabAudio   = useAudioEngine(model);
 ```
 
-`loadAllEvents()` builds a combined sorted event array from both `tabModelToEvents` and `chordVoicingsToEvents` and calls `engine.load(combined)`. Events are mode-agnostic.
+`loadAllEvents()` loads **only the events for the currently-active `mode`** — Tab mode loads `tabModelToEvents()` output only; Chords/Analysis mode loads `chordVoicingsToEvents()` output only. (Earlier this combined both into one array and loaded them together, which meant pressing play in Chords mode also sounded every tab note simultaneously — fixed 2026-07-04.) A `_eventsLoadedForMode` guard forces a reload whenever `mode` changes or a play/seek call finds the loaded events don't match the active mode: `if (!_eventsLoaded || _eventsLoadedForMode !== mode.value) await loadAllEvents();`
 
-`onTransportToggle` dispatches to the active path based on `mode`. Mode-swap mid-playback: pause active path → seek both paths to current beat → resume in new path.
+Both adapters are called with `voice: 'nylon'` so playback uses real nylon-string guitar samples (`NylonSampler`, `public/audio/nylon/{E2,A2,D3,G3,B3,E4}.mp3`, a `Tone.Sampler` pitch-shifting between six recorded anchor notes) rather than the `PitchedSynth` oscillator — the admin tab editor still uses `'pitched'` (untouched). `engine.init()` must be called with a non-empty `samplesBaseUrl` (e.g. `/audio/rhythm-samples/`, the *percussion* sampler's own base path) purely to arm the shared `NylonSampler` singleton's lazy `init()` gate inside `AudioEngine.init()` — passing `''`/omitting it silently leaves the nylon sampler's samples unloaded even if events are tagged `voice: 'nylon'`.
+
+`onTransportToggle` dispatches to the active path based on `mode`. Mode-swap mid-playback: pause active path → seek both paths to current beat → resume in new path (which now also reloads events for the new mode, see above).
 
 Cross-source coordination: the `'playStarted'` engine event clears `isPlaying` in each composable — no extra wiring needed when the EduPanel card plays a single chord.
 
@@ -244,14 +248,22 @@ Mode-swap handoff:
 
 ### 6.5 EduPanel
 
-Props: `currentChord`, `currentSectionId`, `selectionKey`, `song`, `progressions`, `chordCards`, `eduChordQualities`, `hoveredProgressionId`. Emits `progression-hover`.
+Props: `currentChord`, `currentSectionId`, `selectionKey`, `song`, `progressions`, `chordCards`, `eduChordQualities`, `hoveredProgressionId`, `skillNodes`, `relatedTheory`. Emits `progression-hover`.
+
+**Layout (2026-07-04 redesign):** all sections are `<details class="vC-panel">` accordions matching the course-player convention (`PracticePanel.vue`), in order: Song info (composer/performer/key/style/tempo/time — collapsed by default), Current chord (open), Progressions (open), Skill nodes, Related theory.
 
 - Renders `<ChordCard :chord="activeCard" :show-root="true" />` for the selected chord.
 - `activeCard` = `_lookupWithFallback(chordCards, selectionKey)` — tries per-slot key, then bare name.
 - Chord-quality blurb from `eduChordQualities[qualitySlug]` (keyed by `quality` field on the card).
 - Progressions: shows all song progressions. Each list entry emits `progression-hover` (id, or `null` on leave) so `LeadsheetViewer` can intensify the matching bars in the grid; the entry hovered (`hoveredProgressionId`) gets an `is-active` marker.
+- **Skill nodes:** icon-only tile grid (`sbn-edu-skill-grid`), one `<a href="/skills#{slug}">` tile per linked `SkillNode`, reusing `SkillIcon.vue` (icon-path → icon-key → branch-default fallback), title attr for hover tooltip. Sourced from `Leadsheet::skillNodes()` (reverse morphToMany via `sbn_skill_node_content`).
+- **Related theory:** neutral-titled (non-orange) expander list, full-width flush layout so embedded widgets get maximum width. Backed by `EduContentService::conceptsForLeadsheet()` — see below.
 
-### 6.6 Detected-progression chord-level highlight
+**`onPanelToggle` guard:** the top-level accordion's `@toggle.capture` handler that closes sibling `<details>` must check `if (!opened.classList?.contains('vC-panel')) return;` before doing anything — nested `<details>` (a "Learn more" expander, or a Related-theory item) also fire `toggle` and bubble up via capture; without this guard, opening a nested expander force-closes every top-level panel.
+
+**`EduContentService::conceptsForLeadsheet(Leadsheet, array $progressionSlugs = [])`** resolves up to `MAX_RELATED_CONCEPTS = 4` topics for Related theory, in priority order: skill-node-linked concepts (`SKILL_NODE_CONCEPTS` map) → progression-slug substring match (`PROGRESSION_CONCEPTS`) → genre fallback (`GENRE_CONCEPTS`, only if nothing found above) → difficulty gate (`DIFFICULTY_GATED_CONCEPTS`, advanced concepts require `difficulty >= 3`) → dedupe/cap → resolve to `EduTopic` objects. This widens "Related theory" beyond the old chord-quality-only lookup (which showed near-identical generic content for e.g. Canarios vs. Summertime) by using curriculum data the skill-node graph already links to the song.
+
+### 6.6 Detected-progression bracket boxes
 
 Each `ProgressionRef` carries a `ranges` array — one entry per occurrence — built by `LeadsheetViewerService::fetchProgressions()` from `sbn_progression_occurrences`. Each range is:
 
@@ -266,18 +278,25 @@ Each `ProgressionRef` carries a `ranges` array — one entry per occurrence — 
 }
 ```
 
-`LeadsheetViewer` builds `progressionHighlights` — `Map<gi, { chords: Set<ci>, byId: Map<progId, Set<ci>> }>` — and `provide()`s it alongside `hoveredProgressionId`.
+**One continuous box per progression per row-segment (2026-07-04 — replaces the old per-chord `.in-progression` tint).** `ChordSection.vue` injects `progressionsList` / `hoveredProgressionId` / `beatsPerMeasureRef` (all `null`-defaulted — viewer-only, `LeadsheetViewer.vue` is the only provider) and computes `progressionBoxesByRow` — a `Map<rowIndex, box[]>` where each `box` is `{ progId, left, width, color }` as **row-relative percentages**, using the same beat-fraction math as `ChordMeasure`'s own `chordPositionStyle()` (no `getBoundingClientRect()` needed — `.sbn-ve-measure { flex: 1 1 0 }` gives deterministically equal-width flex children, so measure `mi`'s left/width within a row of `N` measures is `mi/N` / `1/N`).
 
-- `chords`: merged set of all chord indices in any progression for this measure (used for passive `.in-progression` highlight).
-- `byId`: per-progression chord sets (used for `.in-progression--active` hover highlight — prevents cross-contamination when two progressions share a measure).
+A progression whose bars wrap across a row break gets **one box per row it touches** — `progressionBoxesByRow`'s per-row walk flushes an open segment (`pushBox`) whenever the next bar in the range isn't found in the current row's gi set, then starts a new segment for the next row.
 
-`ChordMeasure` injects both and calls `isChordInProgression(ci)` / `isChordInHoveredProgression(ci)` to pass `:in-progression` / `:in-hovered-progression` props to each `ChordCard`.
+Rendered as an absolutely-positioned `<div class="sbn-ve-prog-box">` per box inside `.sbn-ve-row`, styled via a `--prog-color` CSS custom property (from `getCategoryColor(prog.category)`) rather than per-chord background tinting:
 
-**CSS** (in `public/css/sbn-design-system.css`, scoped under `.sbn-leadsheet-viewer`):
-- `.sbn-ve-chord.in-progression` — faint blue background (`rgba(59,130,246,0.08)`)
-- `.sbn-ve-chord.in-progression--active` — intensified blue (`rgba(59,130,246,0.18)`) on hover
+```css
+.sbn-ve-prog-box {
+    position: absolute;
+    top: 26px;    /* matches .sbn-ve-row's own padding-top (repeat/volta bracket headroom) */
+    bottom: 18px; /* matches the measure hover-frame's geometry exactly */
+    border: 1.5px solid color-mix(in srgb, var(--prog-color, var(--clr-accent)) 45%, transparent);
+    background: color-mix(in srgb, var(--prog-color, var(--clr-accent)) 8%, transparent);
+    pointer-events: none;
+}
+.sbn-ve-prog-box.is-hovered { /* border-color/background intensify to full var(--prog-color) / 16% */ }
+```
 
-**Do not add `position: relative` to `.in-progression`** — `.sbn-ve-grid .sbn-ve-chord` is `position: absolute` for beat-offset placement; overriding it with `relative` shifts chord cards out of the grid layout.
+**`top: 26px` is load-bearing** — the box is a child of `.sbn-ve-row` (which has its own `padding-top: 26px`), not `.sbn-ve-measure-content` like the hover frame; using `top: 0` (matching the hover frame literally) renders the box visibly too high.
 
 **Classic viewer accent override:** `.sbn-leadsheet-viewer` overrides `--clr-accent` / `--clr-accent-bg` / `--clr-accent-border` / `--clr-accent-dim` to blue (`#3b82f6`) so all accent-colored UI on the viewer page (toggle buttons, EduPanel borders, chord focus ring, hover frame) is blue rather than the global orange.
 
@@ -502,6 +521,7 @@ Sites now routed through the shared code:
 - `allChordQualities()` — returns all `Record<slug, { title, blurb }>` in one shot.
 - Config keys match canonical quality slugs from `ChordVoicingSearch::parseChordName()`.
 - Future: replace config lookup with `edu_topics` Eloquent query; public method signatures stay the same.
+- `conceptsForLeadsheet(Leadsheet, array $progressionSlugs = [])` (2026-07-04) — powers EduPanel's "Related theory" section; see §6.5 for the priority-order resolution (skill nodes → progressions → genre fallback → difficulty gate) and the four backing static maps (`SKILL_NODE_CONCEPTS`, `PROGRESSION_CONCEPTS`, `GENRE_CONCEPTS`, `DIFFICULTY_GATED_CONCEPTS`).
 
 Quality slugs: `maj`, `min`, `aug`, `dim`, `5`, `sus4`, `sus2`, `add9`, `maj7`, `m7`, `dom7`, `m7b5`, `o7`, `maj6`, `m6`, `mMaj7`, `aug7`, `7sus4`.
 
@@ -625,6 +645,10 @@ This was a real regression during Phase 9 Step 1. The template ternary compiles 
 `ChordGridView`, `ChordSection`, `ChordMeasure`, and `ChordCard` all use `inject()` for editor services (`chordPicker`, `voicingPicker`, `chordClipboard`, etc.). The viewer does not provide these. Without a default, `inject()` returns `undefined` and any `?.` call silently no-ops while any direct call throws.
 
 Rule: whenever you add a new `inject()` to a component that is also used in the viewer, add `inject('key', null)` and guard usage with `?.`. Audit the full inject list in §6.1 "Not provided" before adding new injects to shared components.
+
+### New Inertia props must be forwarded by `Pages/Library/Songs/Viewer.vue`, not just the controller
+
+`Viewer.vue` is a thin Inertia page wrapper: it declares its own `defineProps` and must **explicitly bind each one** in its template to `<LeadsheetViewer>`. A prop returned by `SongLibraryController::viewer()` reaching the Inertia payload does **not** automatically reach `LeadsheetViewer.vue` — if `Viewer.vue` itself doesn't declare + bind it, it silently vanishes with no error, no warning, nothing rendered. This bit `skillNodes` / `relatedTheory` / `chordNumerals` in the same session they were added (2026-07-04): the controller and `LeadsheetViewer.vue`'s own prop list were both updated correctly, and it still "did nothing" until `Viewer.vue` was found to be the missing link. Whenever threading a new prop through this stack, update three places: controller `render()` payload → `Viewer.vue` `defineProps` + template binding → `LeadsheetViewer.vue` `defineProps`.
 
 ---
 

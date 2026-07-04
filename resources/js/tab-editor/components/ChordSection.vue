@@ -61,6 +61,18 @@
                   title="New section after this row"
                   @click.stop="rowSplit(sectionIndex, ri)">§</button>
         </div>
+
+        <!-- Detected-progression bracket boxes (viewer only — progressionsList
+             is null in the admin editor). One box per progression per
+             row-segment; a progression spanning a row wrap gets one box per
+             row it touches, computed in progressionBoxesByRow below. -->
+        <div
+          v-for="box in (progressionBoxesByRow[ri] || [])"
+          :key="`${box.progId}-${box.segStart}`"
+          class="sbn-ve-prog-box"
+          :class="{ 'is-hovered': box.progId === hoveredProgressionId }"
+          :style="{ left: box.left + '%', width: box.width + '%', '--prog-color': box.color }"
+        />
       </div>
     </div>
   </div>
@@ -69,6 +81,7 @@
 <script setup>
 import { computed, inject, ref } from 'vue';
 import ChordMeasure from './ChordMeasure.vue';
+import { getCategoryColor } from '@/composables/useCategoryColors';
 
 const props = defineProps({
   section: {
@@ -102,6 +115,12 @@ const rowShrink            = inject('rowShrink', null);
 const rowGrow              = inject('rowGrow', null);
 const rowSplit             = inject('rowSplit', null);
 const setBarsPerRow        = inject('setBarsPerRow', null);
+
+// Detected-progression bracket boxes (viewer only — both null in the admin
+// editor, so progressionBoxesByRow below is always empty there).
+const progressionsList     = inject('progressionsList', null);
+const hoveredProgressionId = inject('hoveredProgressionId', null);
+const beatsPerMeasureRef   = inject('beatsPerMeasureRef', null);
 
 // ── Row layout (respects lineBreaks from model) ───────────────────────────────
 
@@ -140,6 +159,103 @@ const rows = computed(() => {
   }
   return out;
 });
+
+// ── Detected-progression bracket boxes ────────────────────────────────────────
+// One box per progression per row-segment, positioned as a row-relative
+// percentage rect so it draws as a single continuous outline around the
+// bars it spans — replacing the old per-chord tint. A progression whose bars
+// wrap across a row break gets one box per row it touches (each row is a
+// separate absolutely-positioned box; a box can't visually span a wrap).
+//
+// Math mirrors ChordMeasure's own chordPositionStyle(): within a measure,
+// chord ci's left/width are offset/bpm and dur/bpm (evenly divided when the
+// model has no explicit chordOffsets/chordBeats). Measures within a row are
+// equal-width flex children (`.sbn-ve-measure { flex: 1 1 0 }`), so measure
+// mi's left/width within the row are mi/N and 1/N.
+function chordFrac(measure, ci) {
+  const total = measure.chordNames?.length || measure.chords?.length || 1;
+  const bpm   = measure.pickupBeats ?? (beatsPerMeasureRef?.value ?? 4);
+  const offset = measure.chordOffsets?.[ci] ?? (ci * (bpm / total));
+  const dur    = measure.chordBeats?.[ci]   ?? (bpm / total);
+  return { start: offset / bpm, end: (offset + dur) / bpm };
+}
+
+const progressionBoxesByRow = computed(() => {
+  const result = {}; // ri → box[]
+  if (!progressionsList?.value?.length) return result;
+
+  rows.value.forEach((row, ri) => {
+    const N = row.length;
+    if (!N) return;
+    const rowGiSet = new Map(row.map((m, mi) => [m.index, mi]));
+
+    for (const prog of progressionsList.value) {
+      const color = getCategoryColor(prog.category);
+
+      for (const range of prog.ranges || []) {
+        if (String(range.sectionId) !== String(props.section.id)) continue;
+
+        const startMeasure  = range.startMeasure ?? 0;
+        const endMeasure    = startMeasure + (range.length ?? 1) - 1;
+        const startChord    = range.startChord    ?? 0;
+        const endChord      = range.endChord      ?? 999;
+        const endChordStart = range.endChordStart ?? 0;
+
+        // Section-relative measure index → this section's flat measures array,
+        // so we can resolve each measure's global index (rowGiSet is keyed by gi).
+        let segStart = null;
+        let segEndLeft = null; // right edge (as a 0..1 fraction of the row) of the running segment
+
+        for (let mi = startMeasure; mi <= endMeasure; mi++) {
+          const measure = props.section.measures[mi];
+          if (!measure) continue;
+          const rowMi = rowGiSet.get(measure.index);
+          if (rowMi === undefined) {
+            // This bar isn't in the current row — flush any open segment.
+            if (segStart !== null) {
+              pushBox(result, ri, prog, color, segStart, segEndLeft);
+              segStart = null;
+            }
+            continue;
+          }
+
+          // Same per-measure chord-slot resolution as LeadsheetViewer's
+          // progressionHighlights computed (kept in sync deliberately).
+          const totalChords = measure.chordNames?.length ?? measure.chords?.length ?? 1;
+          const ciStart = (mi === startMeasure) ? startChord
+                        : (mi === endMeasure)   ? endChordStart
+                        : 0;
+          const ciEnd = (mi === endMeasure)
+            ? Math.min(endChord, Math.max(0, totalChords - 1))
+            : Math.max(0, totalChords - 1);
+
+          const leftFrac  = (rowMi + chordFrac(measure, ciStart).start) / N;
+          const rightFrac = (rowMi + chordFrac(measure, ciEnd).end) / N;
+
+          if (segStart === null) segStart = leftFrac;
+          segEndLeft = rightFrac;
+        }
+
+        if (segStart !== null) {
+          pushBox(result, ri, prog, color, segStart, segEndLeft);
+        }
+      }
+    }
+  });
+
+  return result;
+});
+
+function pushBox(result, ri, prog, color, leftFrac, rightFrac) {
+  if (!result[ri]) result[ri] = [];
+  result[ri].push({
+    progId: prog.id,
+    segStart: leftFrac,
+    left: leftFrac * 100,
+    width: Math.max(0, (rightFrac - leftFrac) * 100),
+    color,
+  });
+}
 
 function localIndexOf(measure) {
   return props.section.measures.indexOf(measure);

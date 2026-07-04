@@ -19,9 +19,9 @@ export class NylonSampler {
     init(basePath = '/audio/nylon/') {
         if (this._readyPromise) return this._readyPromise;
         this._readyPromise = new Promise((resolve) => {
-            this.filter  = new Tone.Filter(2200, 'lowpass');
-            this.eq      = new Tone.EQ3(0, -4, 2);
-            this.reverb  = new Tone.Reverb({ decay: 2.4, wet: 0.38 });
+            this.filter  = new Tone.Filter(1800, 'lowpass');
+            this.eq      = new Tone.EQ3(0, -4, 1);
+            this.reverb  = new Tone.Reverb({ decay: 3.2, wet: 0.5 });
             this.sampler = new Tone.Sampler(
                 {
                     E2: `${basePath}E2.mp3`,

@@ -34,6 +34,85 @@ class EduContentService
     private const CACHE_KEY = 'edu.topics';
 
     /**
+     * Skill-node slug → concept slug. Deliberately partial: most skill nodes
+     * have no natural 1:1 concept (e.g. ear-training/technique nodes), so only
+     * the subset with an obvious theory-concept counterpart is listed. Used by
+     * conceptsForLeadsheet() to surface "what this song teaches" in theory terms.
+     */
+    private const SKILL_NODE_CONCEPTS = [
+        'triads'                  => 'triad',
+        'chord-inversions'        => 'triad',
+        'diatonic-harmony'        => 'chord-function',
+        'cadences'                => 'circle-of-fifths',
+        'ii-v-i-major'            => 'chord-function',
+        'ii-v-i-minor'            => 'chord-function',
+        'turnarounds'             => 'chord-function',
+        'secondary-dominants'     => 'chord-function',
+        'tritone-substitution'    => 'circle-of-fifths',
+        'borrowed-chords'         => 'chord-quality-brightness',
+        'drop2-voicings'          => 'drop2',
+        'shell-voicings'          => 'chord-tones',
+        'voice-leading'           => 'voice-leading',
+        'the-basic-8'             => 'basic-chords',
+        'pentatonic-scale'        => 'pentatonic-scales',
+        'foundational-scales'     => 'scale-steps',
+        'major-minor-scales'      => 'scale-steps',
+        'chromatic-scale'         => 'scale-steps',
+        'arpeggio-shapes'         => 'chord-tones',
+        'scale-degrees'           => 'scale-steps',
+        'rhythm-notation'         => 'note-durations',
+        'tab-reading-basics'      => 'tab-diagram',
+        'meter-basics'            => 'time-signature',
+        'pulse-subdivision'       => 'note-durations',
+        'swing-feel'              => 'triplets',
+        'waltz-feel'              => 'time-signature',
+        'brazilian-rhythm-styles' => 'repeat-signs',
+        'barre-chords'            => 'caged-system',
+        'caged-system'            => 'caged-system',
+        'position-shifting'       => 'scale-positions',
+    ];
+
+    /**
+     * Detected-progression slug substring → concept slug. Matched with
+     * str_contains against the progression's own slug (e.g.
+     * "secondary-dominant-ii-v" contains "secondary-dominant"), so one entry
+     * covers every variant/name built on that harmonic device.
+     */
+    private const PROGRESSION_CONCEPTS = [
+        'secondary-dominant' => 'chord-function',
+        'tritone-sub'        => 'circle-of-fifths',
+        'authentic-cadence'  => 'circle-of-fifths',
+        'ii-v'               => 'chord-function',
+        'turnaround'         => 'chord-function',
+        'lydian'             => 'chord-quality-brightness',
+        'borrowed'           => 'chord-quality-brightness',
+        'tonic-dominant'     => 'circle-of-fifths',
+    ];
+
+    /**
+     * Song genre → fallback concept(s), used when a song has no linked skill
+     * nodes and no detected progression matches PROGRESSION_CONCEPTS. Keeps
+     * "Related theory" from defaulting to the same one or two concepts for
+     * every song regardless of style (the original complaint that chord
+     * quality alone can't tell a classical piece from a jazz standard).
+     */
+    private const GENRE_CONCEPTS = [
+        'classical'  => ['circle-of-fifths', 'caged-system'],
+        'jazz'       => ['chord-function', 'chord-extensions'],
+        'bossa-nova' => ['drop2', 'chord-tones'],
+        'pop'        => ['basic-chords', 'triad'],
+    ];
+
+    /** Concepts gated to only surface once a song reaches this difficulty (1-5). */
+    private const DIFFICULTY_GATED_CONCEPTS = [
+        'chord-extensions'         => 3,
+        'chord-quality-brightness' => 3,
+    ];
+
+    /** Hard cap on how many concepts conceptsForLeadsheet() returns. */
+    private const MAX_RELATED_CONCEPTS = 4;
+
+    /**
      * Recognised topic types mapped to their subdirectory under resources/edu/.
      * Type is singular (the lookup value); the directory is plural.
      */
@@ -133,6 +212,61 @@ class EduContentService
     public function topic(string $type, string $slug): ?EduTopic
     {
         return $this->allTopics()[$type][$slug] ?? null;
+    }
+
+    /**
+     * Resolve "Related theory" concepts for a song's sidebar (SBN-Leadsheet
+     * Viewer EduPanel). Chord-quality alone can't tell a classical piece from
+     * a jazz standard apart (both use dom7/maj7 chords), so this widens the
+     * signal across four sources, in priority order:
+     *
+     *   1. skill nodes actually linked to the song (most specific — curated)
+     *   2. detected progressions, matched by name/slug substring
+     *   3. genre fallback, so a song with neither of the above still
+     *      differentiates by style rather than falling through to nothing
+     *   4. difficulty gate — advanced concepts (extensions, brightness) only
+     *      surface once the song is difficulty >= their configured floor
+     *
+     * @param  \App\Models\Leadsheet  $leadsheet
+     * @param  string[]  $progressionSlugs  slugs of progressions detected in this song
+     * @return EduTopic[]  concept topics, most-relevant first, deduped, capped
+     */
+    public function conceptsForLeadsheet(\App\Models\Leadsheet $leadsheet, array $progressionSlugs = []): array
+    {
+        $slugs = [];
+
+        foreach ($leadsheet->skillNodes as $node) {
+            $concept = self::SKILL_NODE_CONCEPTS[$node->slug] ?? null;
+            if ($concept) {
+                $slugs[] = $concept;
+            }
+        }
+
+        foreach ($progressionSlugs as $progSlug) {
+            foreach (self::PROGRESSION_CONCEPTS as $needle => $concept) {
+                if (str_contains($progSlug, $needle)) {
+                    $slugs[] = $concept;
+                }
+            }
+        }
+
+        if (! $slugs && $leadsheet->genre) {
+            $slugs = self::GENRE_CONCEPTS[$leadsheet->genre] ?? [];
+        }
+
+        $difficulty = (int) ($leadsheet->difficulty ?? 0);
+        $slugs = array_values(array_filter($slugs, function (string $slug) use ($difficulty) {
+            $floor = self::DIFFICULTY_GATED_CONCEPTS[$slug] ?? null;
+
+            return $floor === null || $difficulty >= $floor;
+        }));
+
+        $slugs = array_slice(array_unique($slugs), 0, self::MAX_RELATED_CONCEPTS);
+
+        return array_values(array_filter(array_map(
+            fn (string $slug) => $this->topic('concept', $slug),
+            $slugs,
+        )));
     }
 
     /**
