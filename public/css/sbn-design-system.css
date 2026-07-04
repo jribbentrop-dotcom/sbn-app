@@ -2770,6 +2770,14 @@
     padding: 16px 20px;
 }
 
+/* Bleed section headers past the grid's own 20px side padding so they still
+   span edge-to-edge here (LeadsheetViewer overrides .sbn-ve-grid's padding to
+   0 and applies its own -24px bleed instead — see that component's styles). */
+.sbn-ve-grid .sbn-ve-section-header {
+    margin: 0 -20px;
+    width: calc(100% + 40px);
+}
+
 /* Section container */
 .sbn-ve-section {
     margin-bottom: 16px;
@@ -2779,31 +2787,30 @@
     margin-bottom: 0;
 }
 
-/* Section header base (shared readonly/editable) */
+/* Section header base (shared readonly/editable) — full-width, neutral bar
+   (no accent color) so it reads as a plain divider between sections rather
+   than a colored card. Bleeds edge-to-edge within whatever padded ancestor
+   it sits in; consumers with a padded grid override the inset (see the
+   admin editor's own .sbn-ve-grid padding and LeadsheetViewer's -24px rule). */
 .sbn-ve-section-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 7px 12px;
+    padding: 7px 20px;
+    width: 100%;
     background: var(--clr-surface-2);
-    border-bottom: 2px solid var(--clr-accent);
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-    transition: border-radius 0.2s;
+    border-bottom: 1px solid var(--clr-border);
 }
 
-.sbn-ve-section-header.is-collapsed {
-    border-radius: var(--radius-sm);
-}
-
-/* Section ID badge */
+/* Section ID badge — neutral/muted, not accent-filled */
 .sbn-ve-section-id {
     width: 26px;
     height: 26px;
     text-align: center;
     font-weight: 800;
     font-size: 14px;
-    background: var(--clr-accent);
-    color: #fff;
+    background: var(--clr-surface-3);
+    color: var(--clr-text-dim);
     border: none;
     border-radius: var(--radius-sm);
     text-transform: uppercase;
@@ -3820,9 +3827,18 @@
     margin: 0 auto;
     padding: 40px 20px 80px;
 }
+/* Wide "stage" pages — leadsheet Viewer + Cinema. Both are reading/performance
+   surfaces (sheet music, video) that want tablet-width breathing room rather
+   than the narrower prose-style .sbn-page-detail, so they share this instead. */
+.sbn-page-stage {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px 28px 64px;
+}
 @media (max-width: 768px) {
     .sbn-page       { padding: 24px 16px 60px; }
     .sbn-page-detail { padding: 24px 16px 60px; }
+    .sbn-page-stage { padding: 20px 16px 48px; }
 }
 
 /* ── Horizontal card scroll row ──────────────────────────────
@@ -4049,6 +4065,13 @@
     border-radius: var(--radius) var(--radius) 0 0;
     margin-bottom: 0;
 }
+/* Large variant — stage-style pages (leadsheet Viewer + Cinema's StageTopBar
+   share this height/shape) where nothing sits flush beneath the band. */
+.sbn-breadcrumb--lg {
+    padding: 12px 20px;
+    border-radius: var(--radius);
+    margin-bottom: 28px;
+}
 /* Category variant — uses --breadcrumb-clr set via inline style */
 .sbn-breadcrumb--cat {
     background: linear-gradient(100deg,
@@ -4083,6 +4106,9 @@
 .sbn-breadcrumb-sep {
     opacity: 0.55;
     user-select: none;
+}
+.sbn-breadcrumb-spacer {
+    flex: 1;
 }
 
 /* Back Link (Unified style for all library return links) */

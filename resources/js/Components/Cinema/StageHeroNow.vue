@@ -1,8 +1,16 @@
 <template>
   <!-- Hero row: video left, Now Playing right -->
   <section class="stage-hero">
-    <!-- Video card (left, 1.55fr) -->
-    <div class="stage-video-card" :class="{ 'stage-video-card--live': hasVideo }">
+    <!-- Video card (left, 1.55fr). Hover anywhere on the card reveals the
+         transport overlay (self-hosted video only) — the deck itself is
+         invisible until revealed, so the hover target has to live on this
+         larger, always-present container instead. -->
+    <div
+      class="stage-video-card"
+      :class="{ 'stage-video-card--live': hasVideo }"
+      @mouseenter="overlayHovered = true"
+      @mouseleave="overlayHovered = false"
+    >
       <!-- VideoPlayer or placeholder -->
       <VideoPlayer
         v-if="hasVideo"
@@ -19,6 +27,11 @@
         <div class="stage-video-placeholder-icon">▶</div>
         <p class="stage-video-placeholder-hint">No video linked — attach a YouTube URL in the admin editor to enable sync.</p>
       </div>
+
+      <!-- Transport overlay — only for self-hosted video. YouTube's own iframe
+           controls already occupy this space, so we don't layer another
+           transport on top of them. -->
+      <slot v-if="hasVideo && videoType !== 'youtube'" name="overlay" :visible="overlayHovered" />
     </div>
 
     <!-- Now Playing plinth (right, 1fr) -->
@@ -81,6 +94,7 @@ import ChordCard from '@/Components/Library/ChordCard.vue';
 import { formatChordHtml } from '@/tab-editor/utils/chordFormat.js';
 
 const playerRef = ref(null);
+const overlayHovered = ref(false);
 
 const props = defineProps({
   // Video

@@ -9,13 +9,15 @@ export interface BreadcrumbSegment {
 defineProps<{
   segments: BreadcrumbSegment[]
   color?: string  // category color hex — omit to use brand gradient
+  /** 'lg' = taller band for stage-style pages (Viewer/Cinema); default fits prose Show pages. */
+  size?: 'default' | 'lg'
 }>()
 </script>
 
 <template>
   <nav
     class="sbn-breadcrumb"
-    :class="color ? 'sbn-breadcrumb--cat' : 'sbn-breadcrumb--brand'"
+    :class="[color ? 'sbn-breadcrumb--cat' : 'sbn-breadcrumb--brand', size === 'lg' ? 'sbn-breadcrumb--lg' : '']"
     :style="color ? { '--breadcrumb-clr': color } : undefined"
     aria-label="Breadcrumb"
   >
@@ -24,5 +26,7 @@ defineProps<{
       <Link v-if="seg.href" :href="seg.href" class="sbn-breadcrumb-link">{{ seg.label }}</Link>
       <span v-else class="sbn-breadcrumb-current" aria-current="page">{{ seg.label }}</span>
     </template>
+    <div v-if="$slots.actions" class="sbn-breadcrumb-spacer"></div>
+    <slot name="actions" />
   </nav>
 </template>

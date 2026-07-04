@@ -1,63 +1,62 @@
 <template>
-  <div class="sbn-leadsheet-viewer" :class="{ 'is-embedded': embedded }">
-    <!-- Header band (hidden when embedded) -->
-    <div v-if="!embedded" class="sbn-leadsheet-header">
-      <div class="sbn-leadsheet-back-section">
-        <Link href="/library/songs" class="sbn-back-link">← Back to Library</Link>
-      </div>
+  <div class="sbn-leadsheet-viewer sbn-page-stage" :class="{ 'is-embedded': embedded }">
+    <!-- Breadcrumb band (hidden when embedded) — lg variant matches Cinema's StageTopBar -->
+    <Breadcrumb v-if="!embedded" :segments="breadcrumbSegments" :color="categoryColor" size="lg">
+      <template #actions>
+        <div class="sbn-leadsheet-controls">
+          <!-- Secondary switches (arrangement + display mode) — collapsed so the
+               bar can keep growing new switches without competing for space. -->
+          <TopBarMenu label="Options">
+            <div v-if="hasMultipleVersions" class="sbn-tbm-group">
+              <div class="sbn-tbm-label">Arrangement</div>
+              <select
+                class="sbn-tbm-select"
+                :value="activeVersion"
+                @change="switchVersion($event.target.value)"
+                @click.stop
+              >
+                <option v-for="v in versions" :key="v.slug" :value="v.slug">
+                  {{ versionOptionLabel(v) }}
+                </option>
+              </select>
+            </div>
 
-      <div class="sbn-leadsheet-controls">
-        <!-- Arrangement switcher (leadsheet-versions; only with >1 version) -->
-        <select
-          v-if="hasMultipleVersions"
-          class="sbn-leadsheet-version-select"
-          :value="activeVersion"
-          title="Arrangement"
-          @change="switchVersion($event.target.value)"
-        >
-          <option v-for="v in versions" :key="v.slug" :value="v.slug">
-            {{ versionOptionLabel(v) }}
-          </option>
-        </select>
+            <div class="sbn-tbm-group">
+              <div class="sbn-tbm-label">Display</div>
+              <div class="sbn-tbm-radio-row">
+                <button
+                  :class="{ active: mode === 'no-chords' }"
+                  @click="mode = 'no-chords'"
+                >No chords</button>
+                <button
+                  :class="{ active: mode === 'chords' }"
+                  @click="mode = 'chords'"
+                >Chords</button>
+                <button
+                  v-if="hasTab"
+                  :class="{ active: mode === 'tab' }"
+                  @click="mode = 'tab'"
+                >Tab</button>
+              </div>
+            </div>
+          </TopBarMenu>
 
-        <!-- Mode toggle (Phase 9b: 3-way: no-chords / chords / tab) -->
-        <div class="sbn-leadsheet-density-toggle">
-          <button
-            :class="{ active: mode === 'no-chords' }"
-            @click="mode = 'no-chords'"
-            title="No chords"
-          >—</button>
-          <button
-            :class="{ active: mode === 'chords' }"
-            @click="mode = 'chords'"
-            title="Chords"
-          >▦</button>
-          <button
-            v-if="hasTab"
-            :class="{ active: mode === 'tab' }"
-            @click="mode = 'tab'"
-            title="Tab notation"
-          >♫</button>
+          <!-- Cinema view toggle — stays pinned; it's the primary "switch experience" action -->
+          <ViewToggle active="classic" :cinema-url="cinemaUrl" />
         </div>
-
-        <!-- Cinema view toggle -->
-        <div class="sbn-leadsheet-view-toggle">
-          <button class="is-active" disabled>Classic</button>
-          <a
-            v-if="cinemaUrl"
-            :href="cinemaUrl"
-            class="sbn-leadsheet-view-toggle-link"
-            title="Cinema view"
-          >Cinema</a>
-          <button v-else disabled title="Cinema view">Cinema</button>
-        </div>
-      </div>
-    </div>
+      </template>
+    </Breadcrumb>
 
     <!-- Two-column layout -->
     <div class="sbn-leadsheet-content">
-      <!-- Main chord grid + transport -->
-      <div class="sbn-leadsheet-main">
+      <!-- Main chord grid + transport. Hover anywhere in this column reveals
+           the transport deck — the deck itself is invisible until revealed,
+           so the hover target has to live on this larger container. -->
+      <div
+        class="sbn-leadsheet-main"
+        @mouseenter="deckHovered = true"
+        @mouseleave="deckHovered = false"
+      >
         <!-- Tab view (Phase 9b) -->
         <div v-if="mode === 'tab' && model" class="sbn-tab-viewer">
           <div 
@@ -108,25 +107,25 @@
           :density="density"
         />
 
-        <!-- Transport bar (sticky within main container) -->
-        <div
-          class="sbn-leadsheet-transport"
-          :class="{ 'is-visible': transportVisible || transportHovered, 'is-hidden': !transportVisible && !transportHovered }"
-          @mouseenter="onTransportMouseEnter"
-          @mouseleave="onTransportMouseLeave"
-        >
-      <TransportBar
-        :is-playing="transportPlaying"
-        :current-beat="transportBeat"
-        :total-beats="totalBeats"
-        :tempo="tempo"
-        :beats-per-measure="beatsPerMeasure"
-        :view-mode="mode === 'tab' ? 'tab' : 'chords'"
-        @toggle="onTransportToggle"
-        @seek="onTransportSeek"
-        @tempo-change="onTempoChange"
-      />
-        </div>
+        <!-- Transport deck (sticky, hover-reveal within main container — shared with Cinema).
+             Tinted to the song's category color, same as Cinema's per-style palette. -->
+        <HoverRevealDeck variant="score" :visible="deckHovered" :style="deckAccentStyle">
+          <TransportDeck
+            :playing="transportPlaying"
+            :current-bar="currentBar"
+            :current-beat="transportBeat % (beatsPerMeasure || 1)"
+            :total-bars="totalBars"
+            :beats-per-measure="beatsPerMeasure"
+            :sections="model?.sections || []"
+            :show-loop="false"
+            :rate="rateMultiplier"
+            @toggle="onTransportToggle"
+            @prev="onPrevBar"
+            @next="onNextBar"
+            @seek-bar="onDeckSeekBar"
+            @update:rate="onRateChange"
+          />
+        </HoverRevealDeck>
       </div>
 
       <!-- Education panel -->
@@ -151,13 +150,22 @@
 
 <script setup>
 import { ref, computed, provide, watch, onMounted, onUnmounted } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
+import { router } from '@inertiajs/vue3';
 
 // Components
 import ChordGridView from '@/tab-editor/components/ChordGridView.vue';
-import TransportBar from '@/tab-editor/components/TransportBar.vue';
 import EduPanel from './EduPanel.vue';
 import TabMeasure from '@/tab-editor/components/TabMeasure.vue';
+import Breadcrumb from '@/Components/Breadcrumb.vue';
+import TopBarMenu from './TopBarMenu.vue';
+import ViewToggle from './ViewToggle.vue';
+import TransportDeck from './TransportDeck.vue';
+import HoverRevealDeck from './HoverRevealDeck.vue';
+
+// Style/category helpers (breadcrumb color + segments — shared with Songs/Show.vue + Cinema)
+import { getCategoryColor } from '@/composables/useCategoryColors';
+import { songBreadcrumbSegments } from '@/composables/useBreadcrumb';
+import { useHoverRevealTransport } from '@/composables/useHoverRevealTransport';
 
 // Composables
 import { useTabModel } from '@/tab-editor/composables/useTabModel.js';
@@ -223,6 +231,19 @@ const props = defineProps({
     default: '',
   },
 });
+
+// ── Breadcrumb (Songs → style → difficulty → title — shared with Songs/Show.vue + Cinema) ─
+const categoryColor = computed(() => getCategoryColor(props.leadsheet.styleSlug));
+const breadcrumbSegments = computed(() => songBreadcrumbSegments(props.leadsheet));
+
+// TransportDeck reads --stage-accent (falling back to --clr-accent) plus the two
+// gradient vars for its play button/progress fill — set all three from the song's
+// category color so the Viewer's deck is tinted the same way Cinema's is per-style.
+const deckAccentStyle = computed(() => ({
+  '--stage-accent': categoryColor.value,
+  '--stage-gradient': `linear-gradient(120deg, ${categoryColor.value}, color-mix(in srgb, ${categoryColor.value} 72%, white))`,
+  '--stage-gradient-hover': `linear-gradient(120deg, color-mix(in srgb, ${categoryColor.value} 88%, black), ${categoryColor.value})`,
+}));
 
 // ── 3-way mode state with localStorage persistence (Phase 9b) ───────────────
 /**
@@ -330,48 +351,10 @@ const density = computed(() => {
   return 'full'; // tab mode doesn't render ChordGridView, so density is irrelevant
 });
 
-// ── Smart sticky transport bar (contained within main content) ───────────────
-// Hide on scroll down, show on scroll up (modern header pattern)
-const transportVisible = ref(true);
-const transportHovered = ref(false);
-let _lastScrollY = 0;
-let _scrollTimeout = null;
+// ── Transport deck hover-reveal (host is the whole score column, see template) ──
+const { transportHovered: deckHovered } = useHoverRevealTransport();
 
-function onScroll() {
-  const currentY = window.scrollY;
-  const scrollDelta = currentY - _lastScrollY;
-  
-  // Show when scrolling up, hide when scrolling down (with threshold)
-  if (scrollDelta < -5) {
-    transportVisible.value = true; // Scrolling up
-  } else if (scrollDelta > 10 && currentY > 100) {
-    transportVisible.value = false; // Scrolling down, past initial viewport
-  }
-  
-  // Always show when near bottom of page
-  const nearBottom = (window.innerHeight + currentY) >= (document.documentElement.scrollHeight - 100);
-  if (nearBottom) {
-    transportVisible.value = true;
-  }
-  
-  _lastScrollY = currentY;
-  
-  // Clear existing timeout and set new one to show bar after scroll stops
-  clearTimeout(_scrollTimeout);
-  _scrollTimeout = setTimeout(() => {
-    transportVisible.value = true;
-  }, 2000); // Show after 2s of no scrolling
-}
-
-function onTransportMouseEnter() {
-  transportHovered.value = true;
-  transportVisible.value = true;
-}
-
-function onTransportMouseLeave() {
-  transportHovered.value = false;
-}
-
+// ── Keyboard shortcut ─────────────────────────────────────────────────────────
 function onKeyDown(e) {
   if (e.code === 'Space' || e.key === ' ') {
     e.preventDefault(); // Prevent page scroll
@@ -380,14 +363,11 @@ function onKeyDown(e) {
 }
 
 onMounted(() => {
-  window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('keydown', onKeyDown);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('scroll', onScroll);
   window.removeEventListener('keydown', onKeyDown);
-  clearTimeout(_scrollTimeout);
 });
 
 // ── Tab model from leadsheet json_data ───────────────────────────────────────
@@ -536,6 +516,34 @@ function onTempoChange(newTempo) {
   tempo.value = newTempo;
   if (model.value) model.value.tempo = newTempo;
   engine.setTempo(newTempo);
+}
+
+// ── TransportDeck adapter (shared component with Cinema) ─────────────────────
+// TransportDeck works in bars, not raw beats — derive bar position from the
+// existing beat-based transport state instead of teaching the engine bars.
+const totalBars  = computed(() => Math.max(1, Math.round(totalBeats.value / (beatsPerMeasure.value || 1))));
+const currentBar = computed(() => Math.floor(transportBeat.value / (beatsPerMeasure.value || 1)));
+
+function onDeckSeekBar(bar) {
+  onTransportSeek(bar * beatsPerMeasure.value);
+}
+
+function onPrevBar() {
+  seekToMeasure(Math.max(0, currentBar.value - 1));
+}
+
+function onNextBar() {
+  seekToMeasure(Math.min(totalBars.value - 1, currentBar.value + 1));
+}
+
+// ±20% playback-rate multiplier — engine.setTempo takes an absolute BPM, so
+// the slider's multiplier is applied against the leadsheet's base tempo.
+const baseTempo = props.leadsheet.tempo ?? 120;
+const rateMultiplier = ref(1);
+
+function onRateChange(rate) {
+  rateMultiplier.value = rate;
+  onTempoChange(Math.round(baseTempo * rate));
 }
 
 // Click-to-seek from a chord card: seek to measure + chord offset (only auto-play if already playing)
@@ -847,10 +855,10 @@ provide('globalIndexOf', (si, mi) => {
 </script>
 
 <style scoped>
+/* Box model (max-width/padding) comes from the shared .sbn-page-stage class —
+   same container Cinema uses, so the two views line up exactly. This rule
+   only adds what's specific to the classic viewer. */
 .sbn-leadsheet-viewer {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 40px 20px 80px;
   background: white;
 }
 
@@ -863,99 +871,67 @@ provide('globalIndexOf', (si, mi) => {
   overflow: hidden;
 }
 
-/* Header - now inline, not full-width band */
-.sbn-leadsheet-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 24px;
-  padding: 0 0 24px;
-  background: transparent;
-}
-
-
-
-/* Controls */
+/* Controls — sit in the breadcrumb band's actions slot, glassy on the
+   gradient (mirrors StageTopBar's chip/icon-button treatment). */
 .sbn-leadsheet-controls {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
 }
 
-.sbn-leadsheet-density-toggle,
-.sbn-leadsheet-version-select {
-  padding: 6px 10px;
-  font-size: 0.85rem;
+/* Options menu panel contents (rendered inside TopBarMenu's popover, which is
+   an opaque surface — not the gradient band — so these use normal DS tokens). */
+.sbn-tbm-group + .sbn-tbm-group {
+  border-top: 1px solid var(--clr-border);
+  padding-top: 12px;
+}
+
+.sbn-tbm-label {
+  font-size: 11px;
   font-weight: 600;
+  color: var(--clr-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 6px;
+}
+
+.sbn-tbm-select {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
   color: var(--clr-text);
-  background: var(--clr-surface);
+  background: var(--clr-surface-2);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.sbn-tbm-radio-row {
+  display: flex;
+  gap: 6px;
+}
+
+.sbn-tbm-radio-row button {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--clr-text);
+  background: var(--clr-surface-2);
   border: 1px solid var(--clr-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s;
 }
 
-.sbn-leadsheet-version-select:hover {
-  background: var(--clr-surface-2);
+.sbn-tbm-radio-row button:hover {
+  background: var(--clr-surface-3);
 }
 
-.sbn-leadsheet-view-toggle {
-  display: inline-flex;
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-.sbn-leadsheet-density-toggle button,
-.sbn-leadsheet-view-toggle button {
-  padding: 6px 12px;
-  border: 0;
-  background: var(--clr-surface);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.sbn-leadsheet-density-toggle button + button,
-.sbn-leadsheet-view-toggle button + button {
-  border-left: 1px solid var(--clr-border);
-}
-
-.sbn-leadsheet-density-toggle button:hover,
-.sbn-leadsheet-view-toggle button:hover:not(:disabled) {
-  background: var(--clr-surface-2);
-}
-
-.sbn-leadsheet-density-toggle button.active {
+.sbn-tbm-radio-row button.active {
   background: var(--clr-accent-bg);
   color: var(--clr-accent);
-}
-
-.sbn-leadsheet-view-toggle button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.sbn-leadsheet-view-toggle button.is-active:disabled {
-  background: var(--clr-accent-bg);
-  color: var(--clr-accent);
-  opacity: 1;
-}
-
-.sbn-leadsheet-view-toggle-link {
-  padding: 6px 12px;
-  border: 0;
-  border-left: 1px solid var(--clr-border);
-  background: var(--clr-surface);
-  cursor: pointer;
-  transition: background 0.15s;
-  text-decoration: none;
-  color: inherit;
-  font: inherit;
-  display: inline-block;
-}
-
-.sbn-leadsheet-view-toggle-link:hover {
-  background: var(--clr-surface-2);
+  border-color: var(--clr-accent);
 }
 
 /* Two-column layout - match library structure */
@@ -999,6 +975,16 @@ provide('globalIndexOf', (si, mi) => {
   padding: 0;
 }
 
+/* Bleed section headers past .sbn-leadsheet-main's own 24px side padding so
+   they span edge-to-edge (the shared DS rule bleeds -20px by default, matching
+   the admin editor's grid inset instead — see sbn-design-system.css). Applies
+   to both the tab view's inline header and the chords view's ChordSection. */
+.sbn-ve-section-header,
+.sbn-ve-grid :deep(.sbn-ve-section-header) {
+  margin: 0 -24px;
+  width: calc(100% + 48px);
+}
+
 /* Tab viewer chord name hover styling */
 .sbn-tab-viewer .sbn-tab-chord-name-wrap {
   cursor: pointer;
@@ -1019,40 +1005,6 @@ provide('globalIndexOf', (si, mi) => {
   order: 1;
 }
 
-/* Transport bar container - sticky within main container */
-.sbn-leadsheet-transport {
-    position: sticky;
-    bottom: 20px;
-    z-index: 100;
-    margin-top: auto;
-    transition: transform 0.3s var(--ease), opacity 0.3s var(--ease);
-    pointer-events: auto;
-}
-
-/* Hidden state: slide down + fade out */
-.sbn-leadsheet-transport.is-hidden {
-    transform: translateY(120%);
-    opacity: 0;
-    pointer-events: none;
-}
-
-/* Visible state: slide up + fade in */
-.sbn-leadsheet-transport.is-visible {
-    transform: translateY(0);
-    opacity: 1;
-}
-
-/* Hover peek area - invisible strip at bottom that triggers show */
-.sbn-leadsheet-transport::before {
-    content: '';
-    position: absolute;
-    bottom: 100%;
-    left: 0;
-    right: 0;
-    height: 40px;
-    background: transparent;
-}
-
 /* Mobile - match library responsive behavior */
 @media (max-width: 1024px) {
   .sbn-leadsheet-content {
@@ -1068,14 +1020,13 @@ provide('globalIndexOf', (si, mi) => {
 }
 
 @media (max-width: 768px) {
-  .sbn-leadsheet-viewer {
-    padding: 24px 16px 60px;
+  .sbn-breadcrumb {
+    flex-wrap: wrap;
+    row-gap: 10px;
   }
 
-  .sbn-leadsheet-header {
-    flex-direction: column;
-    gap: 16px;
-    padding: 0 0 20px;
+  .sbn-leadsheet-controls {
+    flex-wrap: wrap;
   }
 
   .sbn-leadsheet-content {
@@ -1087,13 +1038,13 @@ provide('globalIndexOf', (si, mi) => {
     padding: 20px;
   }
 
-  /* Mobile: transport bar adjustments */
-  .sbn-leadsheet-transport {
+  /* Mobile: transport deck adjustments (HoverRevealDeck's root lands in this
+     scope since it's rendered directly in this component's template). */
+  .sbn-hover-deck--score {
     bottom: 12px;
   }
 
-  /* Reduce hover peek area on mobile */
-  .sbn-leadsheet-transport::before {
+  .sbn-hover-deck--score::before {
     height: 20px;
   }
 }

@@ -1,6 +1,8 @@
 <template>
   <div>
-    <!-- Top bar: section tabs left, view toggle right -->
+    <!-- Top bar: section tabs. Chords/Tab view is now chosen from the page's
+         top-bar Options menu (view prop, lifted so it can live alongside the
+         backing-track toggle) — see Leadsheet/Cinema.vue. -->
     <div class="stage-sec-topbar">
       <div class="stage-sec-tabs">
         <button
@@ -13,21 +15,6 @@
           <span class="stage-sec-tab-letter">{{ sec.id || String.fromCharCode(65 + si) }}</span>
           <span class="stage-sec-tab-name">{{ sec.name || '' }}</span>
         </button>
-      </div>
-
-      <!-- View toggle — only show Tab button when song has tab data -->
-      <div class="stage-view-toggle">
-        <button
-          class="stage-view-btn"
-          :class="{ 'stage-view-btn--active': view === 'chords' }"
-          @click="view = 'chords'"
-        >Chords</button>
-        <button
-          v-if="tabHasData"
-          class="stage-view-btn"
-          :class="{ 'stage-view-btn--active': view === 'tab' }"
-          @click="view = 'tab'"
-        >Tab</button>
       </div>
     </div>
 
@@ -117,13 +104,14 @@ const props = defineProps({
   chordVoicings:          { type: Object,  default: () => ({}) },
   activeVoltaPass:        { type: Number,  default: 1 },
   tabModel:               { type: Object,  default: null },
-  tabHasData:             { type: Boolean, default: false },
   timeSignature:          { type: String,  default: '4/4' },
+  /** 'chords' | 'tab' — lifted to the page's top-bar Options menu. */
+  view:                   { type: String,  default: 'chords' },
 });
 
 const emit = defineEmits(['seek-measure']);
 
-const view = ref('chords');
+const view = computed(() => props.view);
 const activeSectionIndex = ref(0);
 const activeSection = computed(() => props.sections[activeSectionIndex.value] ?? null);
 
@@ -339,11 +327,10 @@ function isNextTabMeasureFirstOfSection(index) {
 </script>
 
 <style scoped>
-/* ── Top bar: section tabs + view toggle ── */
+/* ── Top bar: section tabs (Chords/Tab toggle now lives in the page's Options menu) ── */
 .stage-sec-topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
   flex-wrap: wrap;
@@ -408,42 +395,6 @@ function isNextTabMeasureFirstOfSection(index) {
   font-family: var(--font-chord);
   font-style: italic;
   font-size: 13px;
-}
-
-/* ── View toggle ── */
-.stage-view-toggle {
-  display: flex;
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.stage-view-btn {
-  padding: 5px 14px;
-  background: transparent;
-  border: none;
-  color: var(--clr-text-dim);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.stage-view-btn + .stage-view-btn {
-  border-left: 1px solid var(--clr-border);
-}
-
-.stage-view-btn:hover {
-  background: var(--clr-surface-2);
-  color: var(--clr-text);
-}
-
-.stage-view-btn--active {
-  background: rgba(var(--stage-accent-rgb), 0.1);
-  color: var(--stage-accent);
 }
 
 /* ── Chords panel ── */

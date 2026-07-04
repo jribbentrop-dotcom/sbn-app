@@ -4,7 +4,7 @@ import { Link, Head, router } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { getCategoryStyle, getCategoryColor } from '@/composables/useCategoryColors';
-import { difficultyBreadcrumbSegment } from '@/composables/useBreadcrumb';
+import { songBreadcrumbSegments, styleLabel as resolveStyleLabel } from '@/composables/useBreadcrumb';
 import { chordShowUrl } from '@/composables/useChordUrl';
 
 import ChordCard from '@/Components/Library/ChordCard.vue';
@@ -99,18 +99,7 @@ function switchVersion(slug: string): void {
 
 const categoryStyle = computed(() => getCategoryStyle(props.song.styleSlug));
 const categoryColor = computed(() => getCategoryColor(props.song.styleSlug));
-
-const STYLE_LABELS: Record<string, string> = {
-  'bossa-nova': 'Bossa Nova',
-  'jazz':       'Jazz',
-  'classical':  'Classical',
-  'pop':        'Pop',
-};
-
-const styleLabel = computed(() =>
-  STYLE_LABELS[props.song.styleSlug]
-  ?? props.song.styleSlug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-);
+const styleLabel = computed(() => resolveStyleLabel(props.song.styleSlug));
 
 const chordsScrollEl = ref<HTMLElement | null>(null);
 const chordsCanLeft  = ref(false);
@@ -150,24 +139,7 @@ const songPopularityTier = computed(() => {
   return null;
 });
 
-const breadcrumbSegments = computed(() => {
-  const segs = [{ label: 'Songs', href: '/library/songs' }];
-  const filterParams: Record<string, string> = {};
-
-  if (props.song.styleSlug) {
-    filterParams.style = props.song.styleSlug;
-    segs.push({
-      label: styleLabel.value,
-      href: `/library/songs?style=${encodeURIComponent(props.song.styleSlug)}`,
-    });
-  }
-
-  const difficultySeg = difficultyBreadcrumbSegment(props.song.difficulty, '/library/songs', filterParams);
-  if (difficultySeg) segs.push(difficultySeg);
-
-  segs.push({ label: props.song.title });
-  return segs;
-});
+const breadcrumbSegments = computed(() => songBreadcrumbSegments(props.song));
 
 </script>
 

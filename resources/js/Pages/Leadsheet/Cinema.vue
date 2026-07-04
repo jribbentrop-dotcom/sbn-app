@@ -4,8 +4,9 @@ import { Head } from '@inertiajs/vue3';
 
 import StageTopBar from '@/Components/Cinema/StageTopBar.vue';
 import StageHeroNow from '@/Components/Cinema/StageHeroNow.vue';
-import StageTransportDeck from '@/Components/Cinema/StageTransportDeck.vue';
 import StageSectionsGrid from '@/Components/Cinema/StageSectionsGrid.vue';
+import TransportDeck from '@/Components/Leadsheet/TransportDeck.vue';
+import HoverRevealDeck from '@/Components/Leadsheet/HoverRevealDeck.vue';
 import { useTabModel } from '@/tab-editor/composables/useTabModel.js';
 import { useBackingTrack } from '@/composables/useBackingTrack.js';
 import {
@@ -135,6 +136,10 @@ const beatsPerMeasure = computed(() => {
   return Number.isFinite(n) && n > 0 ? n : 4;
 });
 
+// ── Chords/Tab display mode — lifted out of StageSectionsGrid so it can live
+// in the top-bar Options menu alongside the backing-track toggle. ──────────
+const displayMode = ref('chords');
+
 // ── Ref to StageHeroNow (exposes play/pause/seekTo on the VideoPlayer) ───
 const heroRef = ref(null);
 
@@ -147,9 +152,7 @@ const playing = ref(false);
 
 // Toggle/loop/count/click toggles
 const loopOn       = ref(false);
-const playbackRate = ref(1);
-
-const RATE_STEPS = [0.5, 0.75, 1, 1.25];
+const playbackRate = ref(1); // ±20% multiplier — 1 = normal speed
 
 function setRate(rate) {
   playbackRate.value = rate;
@@ -591,19 +594,23 @@ provide('tapCursor',      ref(null));
 
   <!-- Full-page stage wrapper -->
   <div class="leadsheet-stage" :data-style="leadsheet.styleSlug || 'bossa-nova'">
-    <div class="stage-content">
+    <div class="stage-content sbn-page-stage">
       <!-- Top bar -->
       <StageTopBar
         :title="leadsheet.title"
-        :composer="leadsheet.composer"
-        :song-key="leadsheet.songKey ?? ''"
-        :time-signature="leadsheet.timeSignature ?? '4/4'"
-        :bar-count="totalBars"
-        :classic-url="classicUrl"
         :style-slug="leadsheet.styleSlug ?? ''"
+        :difficulty="leadsheet.difficulty ?? null"
+        :classic-url="classicUrl"
+        v-model:display-mode="displayMode"
+        :tab-has-data="tabHasData"
+        :has-backing-track="hasBackingTrack"
+        :guitar-on="backingTrack.guitarOn.value"
+        @toggle-guitar="backingTrack.toggleGuitar()"
       />
 
-      <!-- Hero: video + Now Playing -->
+      <!-- Hero: video + Now Playing. Self-hosted video gets the transport deck
+           as a hover-reveal overlay; YouTube keeps its own native controls
+           (plus Space/←/→ keyboard shortcuts), so no deck is rendered there. -->
       <StageHeroNow
         ref="heroRef"
         :has-video="hasVideo"
@@ -622,32 +629,32 @@ provide('tapCursor',      ref(null));
         @video-timeupdate="onVideoTimeUpdate"
         @video-play-state="onVideoPlayState"
         @video-genuinely-playing="onVideoGenuinelyPlaying"
-      />
-
-      <!-- Transport deck -->
-      <StageTransportDeck
-        :playing="playing"
-        :current-bar="currentBarIndex"
-        :current-beat="currentBeat"
-        :total-bars="totalBars"
-        :beats-per-measure="beatsPerMeasure"
-        :sections="sections"
-        :loop-on="loopOn"
-        :playback-rate="playbackRate"
-        :rate-steps="RATE_STEPS"
-        :has-backing-track="hasBackingTrack"
-        :guitar-on="backingTrack.guitarOn.value"
-        @toggle="onTransportToggle"
-        @prev="onPrev"
-        @next="onNext"
-        @seek-bar="onSeekBar"
-        @toggle-loop="loopOn = !loopOn"
-        @set-rate="setRate"
-        @toggle-guitar="backingTrack.toggleGuitar()"
-      />
+      >
+        <template #overlay="{ visible }">
+          <HoverRevealDeck variant="video" :visible="visible">
+            <TransportDeck
+              :playing="playing"
+              :current-bar="currentBarIndex"
+              :current-beat="currentBeat"
+              :total-bars="totalBars"
+              :beats-per-measure="beatsPerMeasure"
+              :sections="sections"
+              :loop-on="loopOn"
+              :rate="playbackRate"
+              @toggle="onTransportToggle"
+              @prev="onPrev"
+              @next="onNext"
+              @seek-bar="onSeekBar"
+              @toggle-loop="loopOn = !loopOn"
+              @update:rate="setRate"
+            />
+          </HoverRevealDeck>
+        </template>
+      </StageHeroNow>
 
       <!-- Sections grid -->
       <StageSectionsGrid
+        :view="displayMode"
         :sections="sections"
         :current-bar-index="currentFlatBar?.globalIndex ?? currentFlatBar?.index ?? 0"
         :fractional-play-position="fractionalPlayPosition"
@@ -655,7 +662,6 @@ provide('tapCursor',      ref(null));
         :chord-voicings="chordVoicings"
         :active-volta-pass="activeVoltaPass"
         :tab-model="tabModel"
-        :tab-has-data="tabHasData"
         :time-signature="props.leadsheet.timeSignature ?? '4/4'"
         @seek-measure="onSeekMeasure"
       />
@@ -742,11 +748,8 @@ provide('tapCursor',      ref(null));
     rgb(var(--stage-accent-rgb)));
 }
 
-.stage-content {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 24px 28px 64px;
-}
+/* Box model (max-width/padding) comes from the shared .sbn-page-stage class —
+   same container the classic Viewer uses, so the two line up exactly. */
 
 .leadsheet-stage * {
   box-sizing: border-box;
