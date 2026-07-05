@@ -1005,9 +1005,20 @@ class MusicXMLParser {
             }
             if (!sounding.length) continue;
             // De-dup by pitch/tab so two voices on the same pitch don't double.
+            // When two voices attack the SAME pitch at this onset with different
+            // rhythms (e.g. a right-hand triplet note doubling a sustained bass
+            // quarter note), keep the one with the shorter original duration —
+            // it's the more precise rhythmic value, and its tuplet/beam metadata
+            // (if any) is what should survive the merge. Sort shortest-first so
+            // the de-dup below naturally keeps that one.
+            const bySrcDur = (ne) => {
+                const d = ne.querySelector('duration');
+                return d ? (parseInt(d.textContent) || Infinity) : Infinity;
+            };
+            const ordered = [...sounding].sort((a, b) => bySrcDur(a) - bySrcDur(b));
             const seen = new Set();
             const uniq = [];
-            for (const ne of sounding) {
+            for (const ne of ordered) {
                 const key = this._noteKey(ne);
                 if (seen.has(key)) continue;
                 seen.add(key);
@@ -1073,7 +1084,19 @@ class MusicXMLParser {
     }
 
     // Clone a source note into a single-voice (voice 1) note with a clipped duration,
-    // snapped <type>, and (for stacked pitches) a <chord/> marker.
+    // and (for stacked pitches) a <chord/> marker.
+    //
+    // Rhythmic notation (type/dot/time-modification/tuplet/beam) is carried
+    // through VERBATIM from the source note whenever the clip didn't actually
+    // shorten it (durDivs matches the source's own <duration> — the common
+    // case, including a tuplet note that happens to share its onset with a
+    // same-pitch note in another voice: de-dup already keeps whichever source
+    // note has the shorter original duration, so its real tuplet/beam tags
+    // survive instead of being discarded and re-derived). Only when this
+    // event's clip genuinely cuts the note short (an earlier onset in another
+    // voice truncates it) do we fall back to re-deriving <type> from the
+    // clipped duration — there is no original notation for a duration that
+    // never existed in the source.
     _buildSingleVoiceNote(srcNote, durDivs, divisions, isChordMember) {
         const doc = this.doc;
         const note = doc.createElement('note');
@@ -1092,21 +1115,47 @@ class MusicXMLParser {
         v.textContent = '1';
         note.appendChild(v);
 
-        // type snapped from the clipped duration in quarter-beats.
-        const typeName = this._divsToType(durDivs, divisions);
-        if (typeName) {
-            const t = doc.createElement('type');
-            t.textContent = typeName.name;
-            note.appendChild(t);
-            if (typeName.dot) note.appendChild(doc.createElement('dot'));
+        const srcDurEl = srcNote.querySelector('duration');
+        const srcDurDivs = srcDurEl ? parseInt(srcDurEl.textContent) || 0 : 0;
+        const clipped = Math.round(durDivs) !== srcDurDivs;
+
+        if (!clipped) {
+            // Unclipped: carry the source's own rhythmic notation through as-is,
+            // tuplet/time-modification/beam included.
+            ['type', 'dot', 'time-modification'].forEach(tag => {
+                srcNote.querySelectorAll(':scope > ' + tag).forEach(el => note.appendChild(el.cloneNode(true)));
+            });
+            srcNote.querySelectorAll(':scope > beam').forEach(el => note.appendChild(el.cloneNode(true)));
+            const srcNotations = srcNote.querySelector(':scope > notations');
+            const srcTuplet = srcNotations ? srcNotations.querySelector('tuplet') : null;
+            if (srcTuplet) {
+                const notations = doc.createElement('notations');
+                notations.appendChild(srcTuplet.cloneNode(true));
+                note.appendChild(notations);
+            }
+        } else {
+            // Clipped shorter than the source note: no original notation applies to
+            // this duration — snap <type> from the clipped duration in quarter-beats.
+            const typeName = this._divsToType(durDivs, divisions);
+            if (typeName) {
+                const t = doc.createElement('type');
+                t.textContent = typeName.name;
+                note.appendChild(t);
+                if (typeName.dot) note.appendChild(doc.createElement('dot'));
+            }
         }
 
         // Carry tab string/fret notations through (lead sheets with tab staves).
+        // Merged separately from the tuplet <notations> block above (both may
+        // coexist: a tuplet note with tab data).
         const tech = srcNote.querySelector('notations technical');
         if (tech) {
-            const notations = doc.createElement('notations');
+            let notations = note.querySelector('notations');
+            if (!notations) {
+                notations = doc.createElement('notations');
+                note.appendChild(notations);
+            }
             notations.appendChild(tech.cloneNode(true));
-            note.appendChild(notations);
         }
         return note;
     }
@@ -1301,6 +1350,15 @@ class MusicXMLParser {
                 });
             }
         });
+        // Fill in string/fret for notes that came from a pitch-only source (no
+        // <technical><string>/<fret> in the MusicXML, e.g. standard-notation-only
+        // guitar scores). Bar-locked position pass (same Viterbi as the audio
+        // transcription pipeline's T1 stage) — commits to one hand position per
+        // bar so a single passing fretted note doesn't displace a bar's open
+        // strings, unlike MuseScore's own auto-tab (lowest-fret-per-note, no
+        // position continuity at all).
+        this._assignFretsWherePitchOnly(allNotes);
+
         for (let i = 0; i < allNotes.length; i++) {
             const note = allNotes[i];
             if (note.isRest) {
@@ -1906,6 +1964,176 @@ const isChord=!!el.querySelector('chord'),isRest=!!el.querySelector('rest');cons
             : { 1: 4, 2: 11, 3: 7, 4: 2, 5: 9, 6: 4 }; // E on string 6
     }
     static get _OPEN_PC() { return { 1: 4, 2: 11, 3: 7, 4: 2, 5: 9, 6: 4 }; }
+
+    // step/alter → semitone within an octave (C=0). Used only by the pitch-only
+    // fretting fallback below.
+    static get _STEP_PC() { return { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }; }
+
+    // note name (e.g. "C#", "Bb") + octave (MusicXML octave, 4 = middle-C octave) → MIDI.
+    _noteToMidi(pitch, octave) {
+        const step = pitch[0];
+        let pc = MusicXMLParser._STEP_PC[step] ?? 0;
+        if (pitch.includes('#')) pc += 1;
+        else if (pitch.includes('b')) pc -= 1;
+        return pc + (octave + 1) * 12;
+    }
+
+    // Bar-locked position assignment for notes with no tab data (string/fret both
+    // null) — a JS port of LeadsheetController::optimizeTabPositions(), the same
+    // Viterbi used by the audio-transcription pipeline (docs/Audio-Transcription-
+    // Architecture.md, "T1: fretboard position optimisation"). A naive per-note
+    // "closest to the previous fret" greedy pass over-reacts to a single note: one
+    // fret-3 passing tone next to an open chord would drag the open string up to
+    // stay "close," which is not how a hand actually moves. Instead this commits
+    // to ONE hand position per bar (a 4-fret window) via a Viterbi forward pass,
+    // so a bar full of open-position notes stays open even if one note sits at
+    // fret 3 within reach of the same hand shape.
+    //
+    // style: 'open' (default here — MusicXML imports are typically classical /
+    // fingerstyle scores like this module was built for) makes open strings
+    // near-free regardless of hand position, matching how a classical guitarist
+    // actually plays. 'fretted' (the transcription pipeline's default, for jazz
+    // chord-melody) makes open strings costlier the higher the hand sits, so the
+    // optimiser prefers a fretted note over reaching down for an open string.
+    _assignFretsWherePitchOnly(allNotes, style = 'open') {
+        const targets = allNotes.filter(n =>
+            !n.isRest && n.string == null && n.fret == null && n.pitch != null && n.octave != null);
+        if (targets.length === 0) return;
+
+        const maxFret = 15, handSpan = 3, ticksPerBar = 1920, shiftCost = 0.6;
+        const preferOpen = style === 'open';
+        const os = this._openStringMidi();
+
+        const candidatesFor = (midi) => {
+            const out = [];
+            for (let string = 1; string <= 6; string++) {
+                const fret = midi - os[string];
+                if (fret >= 0 && fret <= maxFret) out.push({ string, fret });
+            }
+            return out;
+        };
+        // Cost of playing one pitch from a hand position anchored at `pos`
+        // (window pos..pos+handSpan), optionally excluding strings already
+        // claimed by other notes sounding at the same instant. Candidate kept
+        // inside the window when possible; one outside pays a stiff per-fret
+        // reach penalty.
+        const playFromPos = (midi, pos, excludeStrings) => {
+            let cands = candidatesFor(midi);
+            if (excludeStrings && excludeStrings.size) {
+                cands = cands.filter(c => !excludeStrings.has(c.string));
+            }
+            if (cands.length === 0) return null;
+            let best = null;
+            cands.forEach(c => {
+                let cost;
+                if (c.fret === 0) {
+                    cost = preferOpen ? 0.05 : pos * 0.12;
+                } else {
+                    const out = c.fret < pos ? (pos - c.fret)
+                        : (c.fret > pos + handSpan ? c.fret - (pos + handSpan) : 0);
+                    cost = c.fret * 0.05 + out * 1.5;
+                }
+                if (!best || cost < best.cost) best = { string: c.string, fret: c.fret, cost };
+            });
+            return best;
+        };
+
+        // Assign a whole simultaneity (notes sharing one tick — e.g. a chord) from
+        // a single hand position, claiming distinct strings so notes don't
+        // collide. Lower pitches are assigned first, since a bass note's natural
+        // string is usually unambiguous and should not get crowded out by upper
+        // voices. Returns the summed cost and, if `apply`, writes string/fret
+        // onto each note.
+        const playGroupFromPos = (group, pos, apply) => {
+            const used = new Set();
+            let sum = 0, valid = false;
+            const ordered = [...group].sort((a, b) =>
+                this._noteToMidi(a.pitch, a.octave) - this._noteToMidi(b.pitch, b.octave));
+            ordered.forEach(n => {
+                const midi = this._noteToMidi(n.pitch, n.octave);
+                const play = playFromPos(midi, pos, used);
+                if (!play) return; // no free string in range for this note — leave unfretted
+                used.add(play.string);
+                sum += play.cost;
+                valid = true;
+                if (apply) { n.string = play.string; n.fret = play.fret; }
+            });
+            return valid ? sum : null;
+        };
+
+        // Group target notes by voice, then by tick (simultaneities), then by bar.
+        const byVoice = new Map();
+        targets.forEach(n => {
+            const voice = n.voice || 1;
+            if (!byVoice.has(voice)) byVoice.set(voice, []);
+            byVoice.get(voice).push(n);
+        });
+
+        byVoice.forEach(notes => {
+            notes.sort((a, b) => a.tick - b.tick);
+            const groupsByTick = new Map();
+            notes.forEach(n => {
+                if (!groupsByTick.has(n.tick)) groupsByTick.set(n.tick, []);
+                groupsByTick.get(n.tick).push(n);
+            });
+            const allGroups = Array.from(groupsByTick.values());
+
+            const bars = new Map(); // barIdx -> groups[]
+            allGroups.forEach(group => {
+                const barIdx = Math.floor(group[0].tick / ticksPerBar);
+                if (!bars.has(barIdx)) bars.set(barIdx, []);
+                bars.get(barIdx).push(group);
+            });
+            const barKeys = Array.from(bars.keys()).sort((a, b) => a - b);
+            const positions = Array.from({ length: maxFret + 1 }, (_, i) => i);
+
+            // Viterbi forward pass over bars. State = hand position (fret 0..maxFret).
+            let prevCol = null;
+            const cols = [];
+            barKeys.forEach(barIdx => {
+                const barGroups = bars.get(barIdx);
+                const nodeCost = new Map();
+                positions.forEach(pos => {
+                    let sum = 0, valid = false;
+                    barGroups.forEach(group => {
+                        const cost = playGroupFromPos(group, pos, false);
+                        if (cost !== null) { sum += cost; valid = true; }
+                    });
+                    if (valid) nodeCost.set(pos, sum);
+                });
+                if (nodeCost.size === 0) { cols.push(null); prevCol = null; return; }
+
+                const states = new Map();
+                nodeCost.forEach((nc, pos) => {
+                    if (prevCol === null) { states.set(pos, { cost: nc, back: -1 }); return; }
+                    let bestCost = Infinity, bestBack = -1;
+                    prevCol.forEach((p, pPos) => {
+                        const move = pPos === pos ? 0 : (shiftCost + Math.abs(pos - pPos));
+                        const t = p.cost + nc + move;
+                        if (t < bestCost) { bestCost = t; bestBack = pPos; }
+                    });
+                    states.set(pos, { cost: bestCost, back: bestBack });
+                });
+                cols.push(states);
+                prevCol = states;
+            });
+
+            // Backtrace each contiguous chain of decided bar-columns.
+            let col = barKeys.length - 1;
+            while (col >= 0) {
+                if (!cols[col]) { col--; continue; }
+                let bestPos = null, bestCost = Infinity;
+                cols[col].forEach((s, pos) => { if (s.cost < bestCost) { bestCost = s.cost; bestPos = pos; } });
+                while (col >= 0 && cols[col]) {
+                    const state = cols[col].get(bestPos);
+                    bars.get(barKeys[col]).forEach(group => playGroupFromPos(group, bestPos, true));
+                    bestPos = state.back;
+                    col--;
+                    if (bestPos < 0) break;
+                }
+            }
+        });
+    }
 
     /**
      * Collect each <harmony> chord's notated voicing from the bar's tab notes

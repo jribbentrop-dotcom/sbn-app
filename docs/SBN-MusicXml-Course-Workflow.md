@@ -27,7 +27,7 @@ python scripts/export_mscz.py "docs/Some Score.mscz"      # writes Some Score.mu
 python scripts/export_mscz.py docs/scores -o docs         # whole folder → docs/*.musicxml
 ```
 
-**Import runs three pre-passes in `MusicXMLParser` (in `resources/views/admin/leadsheets/edit.blade.php`),
+**Import runs several pre-passes in `MusicXMLParser` (in `resources/views/admin/leadsheets/edit.blade.php`),
 so any import path gets them for free:**
 
 1. **`selectTabStaff()`** — a guitar score often has a standard-notation staff AND a tab staff (often
@@ -37,12 +37,37 @@ so any import path gets them for free:**
    one chord-stack; duration clipped to the next onset on any voice; held-note tails dropped (lossy on
    duration, lossless on pitch). Only notes that *attack* at an onset stack there — a held bass/inner
    note is not re-articulated at every onset it spans.
+   - **De-dup tie-break:** when two voices attack the *same pitch* at one onset (e.g. a right-hand
+     triplet note doubling a sustained bass quarter note — common in classical arpeggio studies), the
+     voice with the **shorter original duration wins** — it's the more precise rhythmic value, and its
+     tuplet/beam metadata is what should survive.
+   - **Rhythmic notation is preserved verbatim when the clip doesn't shorten the note.** `<type>`,
+     `<dot>`, `<time-modification>`, `<tuplet>`, and `<beam>` are cloned from the surviving source note
+     rather than re-derived from the clipped duration — re-deriving has no tuplet concept, so a triplet
+     eighth (1/3 quarter-beat) used to get rounded to the nearest *dyadic* value ("dotted 16th") and lose
+     its beam grouping entirely. Only a genuinely truncated note (cut short by an earlier onset in
+     another voice) falls back to re-deriving `<type>` from the clipped duration, since no original
+     notation exists for a duration that never occurred in the source.
 3. Single-voice measures whose voice isn't `1` (e.g. a tab staff on voice 5) are normalized to voice 1,
    otherwise the model's global multi-voice flag flips every stem upward.
+4. **`_assignFretsWherePitchOnly()`** — fills in `string`/`fret` for notes that have pitch/duration but
+   no `<technical><string>/<fret>` in the source (a standard-notation-only score, e.g. a classical piece
+   that was never given fingerings in MuseScore — audio playback still works from pitch/duration alone,
+   but the TAB view has nothing to render without this pass). This is a JS port of the same bar-locked
+   Viterbi used by the audio-transcription pipeline's T1 stage
+   (`LeadsheetController::optimizeTabPositions()`, see `docs/Audio-Transcription-Architecture.md`): one
+   hand position (a 4-fret window) is committed per bar rather than choosing each note's fret in
+   isolation, so a single passing note doesn't drag a bar's open strings into a barre position just
+   because it's "closest." Notes sounding at the same tick (real chords) are fretted together onto
+   distinct strings so they don't collide. Defaults to `'open'` style (open strings near-free regardless
+   of hand position) since MusicXML imports are typically classical/fingerstyle scores; the
+   transcription pipeline's own default is `'fretted'` (jazz chord-melody, open strings costlier the
+   higher the hand sits). Notes that already carry real tab data are left untouched.
 
-Together these replace the old manual "flatten to one voice in MuseScore" step. The tab editor is
-single-voice by design, so this is the expected, lossy-on-duration simplification — pitches/onsets are
-preserved.
+Together these replace the old manual "flatten to one voice in MuseScore" step, plus the manual
+"add a linked TAB staff in MuseScore" step for scores that only have standard notation. The tab editor is
+single-voice by design, so voice-flattening is an expected, lossy-on-duration simplification — pitches,
+onsets, and (as of the fix above) rhythmic notation are preserved.
 
 PDF is fine as a source only when the content is already plain prose/text (no notation to
 parse) — at that point it's no different from any other text document.
