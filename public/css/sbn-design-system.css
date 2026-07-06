@@ -2997,44 +2997,66 @@
     pointer-events: none;
 }
 
-/* Beat tick dots */
+/* Beat tick cells — RhythmStrip cell styling (see sbn-rhythm-strip-cell in
+   RhythmStrip.vue): rounded bars instead of round dots. Without an assigned
+   rhythm pattern every tick renders as a flat "hit" cell (no rest/accent
+   distinction, one tick per quarter-beat). When the song has a rhythm
+   pattern (Chords mode only — see ChordMeasure.vue's rhythmData inject),
+   ticks follow the pattern's real subdivision + hit/rest/accent steps. */
 .sbn-ve-beat-tick {
     position: absolute;
-    bottom: 5px;
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
+    bottom: 4px;
+    width: 10px;
+    height: 6px;
+    border-radius: 3px;
     background: var(--clr-border, rgba(0, 0, 0, 0.25));
     transform: translateX(-50%);
-    transition: background 0.1s;
+    transition: background 0.1s, transform 0.1s;
 }
 
 .sbn-ve-beat-tick.beat-one {
-    width: 11px;
-    height: 11px;
+    width: 12px;
+    height: 8px;
     background: rgba(0, 0, 0, 0.35);
-    bottom: 4px;
+    bottom: 3px;
+}
+
+/* Rest step (rhythm pattern only) — slimmer, dimmer, matches RhythmStrip's is-rest. */
+.sbn-ve-beat-tick.beat-rest {
+    width: 6px;
+    height: 3px;
+    background: var(--clr-border, rgba(0, 0, 0, 0.15));
+}
+
+/* Accent step (rhythm pattern only) — bolder, matches RhythmStrip's is-accent. */
+.sbn-ve-beat-tick.beat-accent {
+    width: 12px;
+    height: 8px;
+    background: rgba(0, 0, 0, 0.45);
+    bottom: 3px;
 }
 
 .sbn-ve-beat-tick.beat-active {
     background: var(--clr-accent, #f39c12);
+    outline: 1.5px solid var(--clr-accent, #f39c12);
+    outline-offset: 1px;
     animation: sbn-beat-pulse 0.25s ease-out forwards;
 }
 
 @keyframes sbn-beat-pulse {
     0% {
-        transform: translateX(-50%) scale(1);
+        transform: translateX(-50%) translateY(0) scale(1);
         opacity: 1;
     }
 
     40% {
-        transform: translateX(-50%) scale(1.7);
+        transform: translateX(-50%) translateY(-1px) scale(1.15);
         opacity: 0.9;
     }
 
     100% {
-        transform: translateX(-50%) scale(1);
-        opacity: 0.6;
+        transform: translateX(-50%) translateY(-1px) scale(1);
+        opacity: 0.85;
     }
 }
 

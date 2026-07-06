@@ -179,6 +179,7 @@ import { useAudioEngine } from '@/tab-editor/composables/useAudioEngine.js';
 import { getAudioEngine } from '@/audio/engine/AudioEngine.js';
 import { tabModelToEvents } from '@/audio/adapters/tabMeasureToEvents.js';
 import { chordVoicingsToEvents } from '@/audio/adapters/chordVoicingsToEvents.js';
+import { rhythmPatternToEvents } from '@/audio/adapters/rhythmPatternToEvents.js';
 import { expandModelSequence, flattenModelMeasures } from '@/audio/adapters/expandMeasureSequence.js';
 
 const props = defineProps({
@@ -474,6 +475,52 @@ const engine = getAudioEngine();
 let _eventsLoaded = false;
 let _eventsLoadedForMode = null;
 
+// Steps-per-beat for each rhythm-pattern grid type — matches rhythmPatternToEvents.js's
+// own GRID_STEP_BEATS table (kept local since that map isn't exported).
+const RHYTHM_STEP_BEATS = { eighth: 0.5, sixteenth: 0.25, triplet: 1 / 3 };
+
+/**
+ * Loop the song's assigned rhythm pattern (percussion only — see below) to
+ * cover `totalBeats`, anchored at `anchorBeat` rather than absolute beat 0.
+ *
+ * anchorBeat matters when the song opens with a pickup bar: the chord grid's
+ * "downbeat 1" of the first full measure sits at beat `pickupBeats` (e.g. 3
+ * for a quarter-note pickup in 4/4), not at beat 0. Looping the pattern from
+ * 0 regardless would permanently offset every subsequent repetition by the
+ * pickup's shortfall — a constant, song-wide sync drift (heard as "everything
+ * is a quarter-note off"), not a cumulative one, since both streams still run
+ * at the same tempo afterward.
+ *
+ * Picking-mode patterns are skipped: rhythmPatternToEvents() generates their
+ * pitched notes from generic open-string MIDI defaults, not this song's real
+ * chord voicings, so layering them under actual chord audio would sound like
+ * two unrelated guitar parts playing at once. Percussion-mode patterns
+ * (percTop/percBass samples) have no such collision and merge cleanly.
+ */
+function buildRhythmEvents(totalBeats, anchorBeat = 0) {
+  const pattern = props.leadsheet.rhythmData;
+  if (!pattern || pattern.pickingMode || !totalBeats) return [];
+
+  const stepBeats = RHYTHM_STEP_BEATS[pattern.gridType] ?? 0.25;
+  const patLen = Math.max(pattern.thumb?.length ?? 0, pattern.fingers?.length ?? 0) * stepBeats;
+  if (!patLen) return [];
+
+  const events = [];
+  // Before the anchor (i.e. during the pickup bar itself), the pattern isn't
+  // rendered — there's no well-defined "which step of the pattern" a pickup's
+  // partial bar corresponds to. Playback of the rhythm layer begins at the
+  // first full measure, same as where the chord grid's regular meter begins.
+  let offset = anchorBeat;
+  while (offset < totalBeats) {
+    for (const ev of rhythmPatternToEvents(pattern, { startBeat: offset })) {
+      if (ev.time >= totalBeats) break;
+      events.push(ev);
+    }
+    offset += patLen;
+  }
+  return events;
+}
+
 async function loadAllEvents() {
   if (!model.value) return;
   // A non-empty samplesBaseUrl arms the shared NylonSampler singleton (its own
@@ -487,7 +534,25 @@ async function loadAllEvents() {
     ? tabModelToEvents(model.value, { startBeat: 0, voice: 'nylon' })
     : chordVoicingsToEvents(model.value, { startBeat: 0, voice: 'nylon' });
 
-  engine.load(events);
+  // Rhythm-pattern layer: Chords mode only (per product decision — Analysis
+  // mode plays the same chord audio today but doesn't additionally get the
+  // rhythm layer; Tab mode has real note-accurate audio that a generic
+  // backing rhythm shouldn't compete with).
+  let allEvents = events;
+  if (mode.value === 'chords' && events.length) {
+    const totalBeats = events.at(-1).time + events.at(-1).duration;
+    // A pickup-bar first measure shifts "downbeat 1" away from beat 0 — see
+    // buildRhythmEvents' anchorBeat doc. flattenModelMeasures gives the first
+    // flat measure regardless of section nesting.
+    const firstMeasure = flattenModelMeasures(model.value).flatMeasures[0];
+    const anchorBeat = firstMeasure?.pickupBeats ?? 0;
+    const rhythmEvents = buildRhythmEvents(totalBeats, anchorBeat);
+    if (rhythmEvents.length) {
+      allEvents = [...events, ...rhythmEvents].sort((a, b) => a.time - b.time);
+    }
+  }
+
+  engine.load(allEvents);
   engine.setTempo(model.value.tempo ?? 120);
   _eventsLoaded = true;
   _eventsLoadedForMode = mode.value;
@@ -926,6 +991,11 @@ provide('transportBeat', transportBeat);
 provide('seekToMeasure', seekToMeasure);
 provide('transportPlaying', transportPlaying);
 provide('readOnly', true);
+// Song's assigned rhythm pattern — Chords mode only (Analysis mode shows the
+// same chord audio but keeps the flat tick row; Tab mode has real note-
+// accurate playback that a generic backing rhythm shouldn't visually imply).
+// ChordMeasure falls back to its default flat-tick behavior when this is null.
+provide('rhythmData', computed(() => (mode.value === 'chords' ? props.leadsheet.rhythmData ?? null : null)));
 // Map of gi → beatStart for the current play pass (mirrors TabEditor.vue) —
 // TabMeasure's beatInThisMeasure needs this to compute true beat-within-measure
 // for a pickup bar. Without it, TabMeasure falls back to `beat % thisBarsBpm`,

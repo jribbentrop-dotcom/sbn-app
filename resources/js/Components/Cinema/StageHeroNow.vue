@@ -75,20 +75,23 @@
         </div>
       </div>
 
-      <!-- 4-beat pulse row (pinned to bottom) -->
+      <!-- Beat row (pinned to bottom) — RhythmStrip cell styling.
+           beatCellStates is a flat "every beat is a hit" array for now; once
+           the song's real rhythm pattern is wired in, only that computed's
+           source changes (rest/hit/accent per step) — template + CSS stay. -->
       <div class="stage-beat-row">
-        <div
-          v-for="b in beatsPerMeasure" :key="b"
-          class="stage-beat"
-          :class="{ 'stage-beat--active': b - 1 === currentBeat }"
-        ></div>
+        <span
+          v-for="(state, i) in beatCellStates" :key="i"
+          class="stage-beat-cell"
+          :class="{ 'is-current': i === currentBeat }"
+        ></span>
       </div>
     </div>
   </section>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import VideoPlayer from '@/Components/Library/Video/VideoEmbed.vue';
 import ChordCard from '@/Components/Library/ChordCard.vue';
 import { formatChordHtml } from '@/tab-editor/utils/chordFormat.js';
@@ -118,6 +121,10 @@ const props = defineProps({
 });
 
 defineEmits(['video-timeupdate', 'video-play-state', 'video-ready', 'video-genuinely-playing']);
+
+// Basic beat row: every beat is a "hit" cell. Swap the source here (a real
+// rhythm pattern's hit/rest/accent steps) to upgrade — template/CSS unchanged.
+const beatCellStates = computed(() => Array.from({ length: props.beatsPerMeasure }, () => 'hit'));
 
 defineExpose({
   play:            () => playerRef.value?.play(),
@@ -414,26 +421,31 @@ defineExpose({
   flex-shrink: 0;
 }
 
-/* Beat row */
+/* Beat row — RhythmStrip cell styling, driven by beatCellStates */
 .stage-beat-row {
   position: absolute;
   left: 32px;
   right: 32px;
   bottom: 28px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 8px;
 }
 
-.stage-beat {
-  height: 5px;
+.stage-beat-cell {
+  height: 22px;
   border-radius: 3px;
-  background: var(--clr-border);
+  background: var(--stage-line);
+  transition: background 0.1s, transform 0.1s;
 }
 
-.stage-beat--active {
+.stage-beat-cell.is-current {
   background: var(--stage-gradient);
   box-shadow: 0 0 6px rgba(var(--stage-accent-rgb), 0.3);
+  outline: 1.5px solid var(--stage-accent);
+  outline-offset: 1px;
+  transform: translateY(-1px);
 }
 
 @keyframes stagePulse {

@@ -186,6 +186,20 @@ class SongLibraryController extends Controller
     }
 
     /**
+     * Resolve the rhythm pattern to play/display for this song. Prefers the
+     * real FK (version override, then leadsheet default) added alongside the
+     * legacy `rhythm` text column; falls back to a slug lookup against that
+     * text column for older rows that predate the FK / weren't backfillable
+     * (e.g. a bare genre label like "jazz" that never matched a pattern slug).
+     */
+    private function resolveRhythmPattern(Leadsheet $leadsheet, LeadsheetVersion $version): ?\App\Models\RhythmPattern
+    {
+        return $version->rhythmPattern
+            ?? $leadsheet->rhythmPattern
+            ?? \App\Models\RhythmPattern::where('slug', $version->rhythm ?: $leadsheet->rhythm)->first();
+    }
+
+    /**
      * Serialize a leadsheet's versions for the Show-page arrangement dropdown.
      */
     private function versionList(Leadsheet $leadsheet, LeadsheetVersion $active): array
@@ -325,7 +339,7 @@ class SongLibraryController extends Controller
 
         $chordNames = $version->getChordNames();
 
-        $rhythmPattern = \App\Models\RhythmPattern::where('slug', $rhythm)->first();
+        $rhythmPattern = $this->resolveRhythmPattern($leadsheet, $version);
 
         // Normalise style_slug → course category (courses use full slugs like 'bossa-nova')
         $rawStyle = Leadsheet::resolveStyleSlug($leadsheet->genre, $leadsheet->rhythm);
@@ -419,8 +433,9 @@ class SongLibraryController extends Controller
         $this->abortIfDraft($leadsheet);
         $this->abortIfNotPro($leadsheet);
 
-        $version  = $this->resolveVersion($leadsheet, $request->query('v'));
-        $enriched = $this->viewerService->enrich($leadsheet, $search, $version);
+        $version       = $this->resolveVersion($leadsheet, $request->query('v'));
+        $enriched      = $this->viewerService->enrich($leadsheet, $search, $version);
+        $rhythmPattern = $this->resolveRhythmPattern($leadsheet, $version);
 
         $progressionSlugs = array_column($enriched['progressions'], 'slug');
 
@@ -435,6 +450,9 @@ class SongLibraryController extends Controller
                 'tempo'         => $version->tempo ?: $leadsheet->tempo,
                 'timeSignature' => $leadsheet->time_signature,
                 'rhythm'        => $version->rhythm ?: $leadsheet->rhythm,
+                'rhythmName'    => $rhythmPattern?->name ?? ($version->rhythm ?: $leadsheet->rhythm),
+                'rhythmCategory'=> $rhythmPattern?->category ?? 'general',
+                'rhythmData'    => $rhythmPattern ? $rhythmPattern->toPlayerData() : null,
                 'styleSlug'     => Leadsheet::resolveStyleSlug($leadsheet->genre, $leadsheet->rhythm),
                 'difficulty'    => $version->difficulty ?? $leadsheet->difficulty,
                 'jsonData'      => $version->parsed_data,
@@ -675,8 +693,9 @@ class SongLibraryController extends Controller
         $this->abortIfDraft($leadsheet);
         $this->abortIfNotPro($leadsheet);
 
-        $version  = $this->resolveVersion($leadsheet, $request->query('v'));
-        $enriched = $this->viewerService->enrich($leadsheet, $search, $version);
+        $version       = $this->resolveVersion($leadsheet, $request->query('v'));
+        $enriched      = $this->viewerService->enrich($leadsheet, $search, $version);
+        $rhythmPattern = $this->resolveRhythmPattern($leadsheet, $version);
 
         return response()->json([
             'leadsheet' => [
@@ -688,6 +707,7 @@ class SongLibraryController extends Controller
                 'tempo'         => $version->tempo ?: $leadsheet->tempo,
                 'timeSignature' => $leadsheet->time_signature,
                 'rhythm'        => $version->rhythm ?: $leadsheet->rhythm,
+                'rhythmData'    => $rhythmPattern ? $rhythmPattern->toPlayerData() : null,
                 'jsonData'      => $version->parsed_data,
                 'harmonyNotes'  => $leadsheet->harmony_notes,
                 'formNotes'     => $leadsheet->form_notes,
@@ -710,8 +730,9 @@ class SongLibraryController extends Controller
         $this->abortIfDraft($leadsheet);
         $this->abortIfNotPro($leadsheet);
 
-        $version  = $this->resolveVersion($leadsheet, $request->query('v'));
-        $enriched = $this->viewerService->enrich($leadsheet, $search, $version);
+        $version       = $this->resolveVersion($leadsheet, $request->query('v'));
+        $enriched      = $this->viewerService->enrich($leadsheet, $search, $version);
+        $rhythmPattern = $this->resolveRhythmPattern($leadsheet, $version);
 
         return Inertia::render('Leadsheet/Cinema', [
             'leadsheet' => [
@@ -722,6 +743,8 @@ class SongLibraryController extends Controller
                 'songKey'       => $version->song_key ?: $leadsheet->song_key,
                 'tempo'         => $version->tempo ?: $leadsheet->tempo,
                 'timeSignature' => $leadsheet->time_signature,
+                'rhythm'        => $version->rhythm ?: $leadsheet->rhythm,
+                'rhythmData'    => $rhythmPattern ? $rhythmPattern->toPlayerData() : null,
                 'styleSlug'     => Leadsheet::resolveStyleSlug($leadsheet->genre, $leadsheet->rhythm),
                 'difficulty'    => $version->difficulty ?? $leadsheet->difficulty,
                 'jsonData'      => $version->parsed_data,

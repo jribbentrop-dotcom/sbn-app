@@ -29,6 +29,7 @@ class LeadsheetVersion extends Model
         'sort_order',
         'song_key',
         'rhythm',
+        'rhythm_pattern_id',
         'tempo',
         'measure_count',
         'json_data',
@@ -39,12 +40,13 @@ class LeadsheetVersion extends Model
     ];
 
     protected $casts = [
-        'difficulty'    => 'integer',
-        'sort_order'    => 'integer',
-        'tempo'         => 'integer',
-        'measure_count' => 'integer',
-        'created_at'    => 'datetime',
-        'updated_at'    => 'datetime',
+        'difficulty'        => 'integer',
+        'sort_order'        => 'integer',
+        'tempo'             => 'integer',
+        'measure_count'     => 'integer',
+        'rhythm_pattern_id' => 'integer',
+        'created_at'        => 'datetime',
+        'updated_at'        => 'datetime',
     ];
 
     // =========================================================================
@@ -54,6 +56,16 @@ class LeadsheetVersion extends Model
     public function leadsheet(): BelongsTo
     {
         return $this->belongsTo(Leadsheet::class, 'leadsheet_id');
+    }
+
+    /**
+     * This arrangement's own rhythm pattern override, if set — falls back to
+     * the parent Leadsheet's rhythmPattern() when null (same convention as
+     * the existing `rhythm` text column: version overrides leadsheet default).
+     */
+    public function rhythmPattern(): BelongsTo
+    {
+        return $this->belongsTo(RhythmPattern::class, 'rhythm_pattern_id');
     }
 
     // =========================================================================

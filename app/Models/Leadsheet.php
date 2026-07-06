@@ -25,6 +25,7 @@ class Leadsheet extends Model
         'tempo',
         'time_signature',
         'rhythm',
+        'rhythm_pattern_id',
         'measure_count',
         'course_id',
         'shortcode_content',
@@ -47,12 +48,13 @@ class Leadsheet extends Model
      * Attribute casting.
      */
     protected $casts = [
-        'tempo'         => 'integer',
-        'measure_count' => 'integer',
-        'course_id'     => 'integer',
-        'is_pro'        => 'boolean',
-        'created_at'    => 'datetime',
-        'updated_at'    => 'datetime',
+        'tempo'             => 'integer',
+        'measure_count'     => 'integer',
+        'course_id'         => 'integer',
+        'rhythm_pattern_id' => 'integer',
+        'is_pro'            => 'boolean',
+        'created_at'        => 'datetime',
+        'updated_at'        => 'datetime',
     ];
 
     /**
@@ -338,6 +340,15 @@ class Leadsheet extends Model
     public function defaultVersion()
     {
         return $this->belongsTo(LeadsheetVersion::class, 'default_version_id');
+    }
+
+    /**
+     * The rhythm pattern this song plays/displays by default. Versions can
+     * override via their own rhythm_pattern_id — see LeadsheetVersion::rhythmPattern().
+     */
+    public function rhythmPattern()
+    {
+        return $this->belongsTo(RhythmPattern::class, 'rhythm_pattern_id');
     }
 
     /**

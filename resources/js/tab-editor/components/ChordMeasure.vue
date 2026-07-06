@@ -47,14 +47,20 @@
     <SyncPointBadge v-if="syncPoint" :marker-index="syncPoint.markerIndex" :video-time="syncPoint.videoTime" :measure-index="globalIdx" :marks="syncPoint.marks" />
 
     <div class="sbn-ve-measure-content">
-      <!-- Beat-grid tick marks — one per quarter-note beat across the measure -->
+      <!-- Beat-grid tick marks — one per quarter-note beat, or one per rhythm-
+           pattern step when the song has an assigned pattern (Chords mode). -->
       <div class="sbn-ve-beat-grid">
         <div
           v-for="b in beatTickCount"
           :key="b"
           class="sbn-ve-beat-tick"
-          :class="{ 'beat-one': b === 1, 'beat-active': activeBeat === b }"
-          :style="{ left: ((b - 0.5) / beatsPerMeasure * 100) + '%' }"
+          :class="{
+            'beat-one': b === 1,
+            'beat-active': activeBeat === b,
+            'beat-rest': rhythmStepStates[b - 1] === 'rest',
+            'beat-accent': rhythmStepStates[b - 1] === 'accent',
+          }"
+          :style="{ left: ((b - 0.5) / beatTickCount * 100) + '%' }"
         ></div>
       </div>
 
@@ -157,6 +163,13 @@ const chordGridOps        = inject('chordGridOps', null);
 const progressionHighlights = inject('progressionHighlights', null);
 const hoveredProgressionId  = inject('hoveredProgressionId', null);
 
+// Song's assigned rhythm pattern (leadsheet viewer, Chords mode only — see
+// LeadsheetViewer.vue's provide()). RhythmPattern::toPlayerData() shape,
+// same as RhythmStrip.vue's `pattern` prop. Null everywhere else (editor,
+// Tab/Analysis modes) — the beat grid falls back to today's flat tick row.
+const rhythmDataRef = inject('rhythmData', null);
+const rhythmData = computed(() => rhythmDataRef?.value ?? null);
+
 // videoSyncMap.value is Map<gi, VideoSyncMark[]> (typedef in useVideoSync.js).
 // The badge takes the FIRST mark (pass 1) as its representative and an array
 // of all marks so it can show a "·N" count for repeated bars.
@@ -196,11 +209,41 @@ const effectiveBeats = computed(() =>
     props.measure.pickupBeats ?? globalBeatsPerMeasure.value
 );
 
+// Steps-per-beat for the assigned rhythm pattern's grid subdivision — mirrors
+// RhythmStrip.vue's stepDuration computed.
+const RHYTHM_STEP_BEATS = { eighth: 0.5, sixteenth: 0.25, triplet: 1 / 3 };
+const rhythmStepBeats = computed(() => RHYTHM_STEP_BEATS[rhythmData.value?.gridType] ?? 0.25);
+
+// Per-step hit/rest/accent state from the pattern's fingers+thumb rows,
+// merged into one array the same way RhythmStrip.vue's mergedFingersArray
+// does for its compact strip (a step is an accent if either row accents it,
+// a hit if either row hits it, a rest otherwise). Only meaningful when
+// rhythmData is present; unused otherwise.
+const rhythmStepStates = computed(() => {
+  const pattern = rhythmData.value;
+  if (!pattern) return [];
+  const steps = pattern.beats ?? 0;
+  const fingers = (pattern.fingers || '').padEnd(steps, '.');
+  const thumb   = (pattern.thumb   || '').padEnd(steps, '.');
+  return Array.from({ length: steps }, (_, i) => {
+    const f = fingers[i] ?? '.';
+    const t = thumb[i] ?? '.';
+    if (f === 'X' || t === 'X') return 'accent';
+    if (f === 'x' || t === 'x') return 'hit';
+    return 'rest';
+  });
+});
+
 // Tick-mark count for the beat grid. `v-for="b in N"` requires a positive
 // integer, but a sub-quarter pickup bar (e.g. an 8th-note anacrusis) has
 // effectiveBeats = 0.5 — Vue warns and renders nothing. Ceil to at least one
 // tick so the grid still draws. Layout math keeps the fractional value.
-const beatTickCount = computed(() => Math.max(1, Math.ceil(effectiveBeats.value)));
+// When a rhythm pattern is active, ticks follow its own subdivision count
+// instead of one-per-quarter-beat (falls back to the flat count otherwise).
+const beatTickCount = computed(() => {
+  if (rhythmData.value) return Math.max(1, rhythmStepStates.value.length);
+  return Math.max(1, Math.ceil(effectiveBeats.value));
+});
 
 function chordBeats(ci) {
   const total = chordNamesArray.value.length || 1;
@@ -210,6 +253,9 @@ function chordBeats(ci) {
 }
 
 // Which beat (1-based) is currently playing in this measure, or 0 if none.
+// When a rhythm pattern is active, "beat" here actually means "pattern step"
+// (beatTickCount follows the pattern's own subdivision, not quarter-beats) —
+// the same beat-within-measure math is reused, just diced into finer steps.
 const activeBeat = computed(() => {
   if (playingMeasureIndex?.value !== globalIdx.value) return 0;
   const bpm  = effectiveBeats.value;
@@ -219,6 +265,10 @@ const activeBeat = computed(() => {
   const bim = beatStart !== null
     ? Math.max(0, beat - beatStart)
     : ((beat % bpm) + bpm) % bpm;
+  if (rhythmData.value) {
+    const step = Math.floor(bim / rhythmStepBeats.value) % beatTickCount.value;
+    return step + 1; // 1-based
+  }
   return Math.floor(bim) + 1; // 1-based
 });
 
