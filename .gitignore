@@ -44,7 +44,12 @@ Thumbs.db
 # Large media — served from public/ but deployed out-of-band (scp), never
 # committed. Cinema backing-track WAVs and self-hosted leadsheet videos.
 /public/audio/backing-tracks/
+# Persisted original recordings from audio import (synth-vs-original A/B blend).
+/public/audio/source/
 /public/video/
+
+# Audio stem audition sessions (Demucs separate → audition → transcribe).
+/storage/app/stems/
 
 # Runtime logs
 /logs/

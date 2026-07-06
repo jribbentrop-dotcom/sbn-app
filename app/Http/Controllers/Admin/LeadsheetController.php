@@ -662,11 +662,18 @@ class LeadsheetController extends Controller
             'minimum_note_length'  => 'nullable|numeric|min:10|max:500',
             'restrict_guitar_range'=> 'nullable|boolean',
             'separate_stem'        => 'nullable|boolean',
+            // Two-phase stem workflow: when the admin has already separated &
+            // auditioned, the modal sends a session token + the chosen stems.
+            'stem_session'         => 'nullable|string|max:64',
+            'stems'                => 'nullable|array',
+            'stems.*'              => 'string|in:guitar,bass,vocals,drums,piano,other',
         ]);
 
+        $sourceAudioPath = null; // preserved original recording (audio mode only)
         if (($validated['mode'] ?? '') === 'audio') {
             $hasYoutube = !empty($validated['youtube_id']);
             $hasLocal   = $request->hasFile('local_audio');
+            $stemSession = $validated['stem_session'] ?? null;
 
             if (!$hasYoutube && !$hasLocal) {
                 return back()->withErrors(['lookup' => 'You must select a YouTube video or upload a local audio file for transcription.']);
@@ -676,8 +683,23 @@ class LeadsheetController extends Controller
             // (balanced / sensitive / strict) plus any custom overrides.
             $detectionParams = $this->resolveDetectionParams($validated);
 
+            // The chosen stems (two-phase workflow). Empty when the admin never
+            // ran the separate step — then $stemSession is null and we fall back
+            // to the one-shot transcribe paths below.
+            $chosenStems = array_values(array_intersect(
+                $validated['stems'] ?? [],
+                MidiTranscriptionService::STEM_NAMES
+            ));
+
             try {
-                if ($hasLocal) {
+                if ($stemSession) {
+                    // PHASE 2: transcribe the summed stems from the audition
+                    // session. No re-download / re-separate.
+                    $rawResult  = $transcriber->transcribeFromSession($stemSession, $chosenStems, $detectionParams);
+                    $audioTitle = $request->input('youtube_title')
+                        ?: ($hasLocal ? 'Audio Transcription' : 'Audio Transcription');
+                    $youtubeId  = $validated['youtube_id'] ?: null;
+                } elseif ($hasLocal) {
                     $uploadedFile = $request->file('local_audio');
                     $tempDir  = storage_path('app/temp_audio');
                     if (!is_dir($tempDir)) mkdir($tempDir, 0777, true);
@@ -701,8 +723,19 @@ class LeadsheetController extends Controller
                 if (!($rawResult['success'] ?? false)) {
                     throw new \Exception($rawResult['error'] ?? "Unknown transcription error.");
                 }
+
+                // Preserved copy of the full original recording (temp path); moved
+                // into public storage after the leadsheet is created so the editor
+                // can blend the synth transcription against it.
+                $sourceAudioPath = $rawResult['source_audio_path'] ?? null;
             } catch (\Exception $e) {
                 return back()->withErrors(['lookup' => "Transcription Error: " . $e->getMessage()]);
+            } finally {
+                // Sweep the audition session — its stems have served their
+                // purpose once transcription has been attempted.
+                if ($stemSession) {
+                    $transcriber->removeStemSession($stemSession);
+                }
             }
 
             // Convert raw Python output (beats/notes) to standard Analysis format.
@@ -723,10 +756,14 @@ class LeadsheetController extends Controller
                 // default) keeps a bar in one neck position; 'open' favours
                 // open strings (classical / fingerstyle).
                 'tab_position_style' => $validated['tab_position_style'] ?? 'fretted',
-                // Record whether Demucs guitar-stem separation ran, so the
-                // cached transcriptionRaw reflects what actually produced
-                // this transcription (see resolveDetectionParams()).
-                'separate_stem' => $detectionParams['separate_stem'] ?? true,
+                // Record whether Demucs stem separation ran, so the cached
+                // transcriptionRaw reflects what actually produced this
+                // transcription (see resolveDetectionParams()). In the two-phase
+                // workflow this is the list of stems that were summed; otherwise
+                // a bool for the legacy guitar-only one-shot path.
+                'separate_stem' => $stemSession
+                    ? $chosenStems
+                    : ($detectionParams['separate_stem'] ?? true),
             ], 0, $crossref);
 
             // ── Optional: AI Refinement (Structuralisation Pass) ─────────────
@@ -887,6 +924,32 @@ class LeadsheetController extends Controller
             'voicing_notes'     => '',
             'popularity'        => 0,
         ]);
+
+        // Persist the preserved original recording (audio imports) so the editor
+        // can blend the synth transcription against the real audio. Writes the
+        // public URL into json_data.sourceAudio and deletes the temp copy.
+        if ($sourceAudioPath && is_file($sourceAudioPath)) {
+            try {
+                $dir  = "audio/source/{$leadsheet->id}";
+                $name = 'original.wav';
+                $destDir = public_path($dir);
+                if (!is_dir($destDir)) mkdir($destDir, 0777, true);
+                if (@rename($sourceAudioPath, "{$destDir}/{$name}")) {
+                    $jd = json_decode($leadsheet->json_data, true) ?: [];
+                    $jd['sourceAudio'] = [
+                        'url'  => asset("{$dir}/{$name}"),
+                        'kind' => ($stemSession ?? null) ? 'stems_original' : (($youtubeId ?? null) ? 'youtube' : 'upload'),
+                    ];
+                    $leadsheet->update([
+                        'json_data' => json_encode($jd, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('[LeadsheetController] source audio persist failed: ' . $e->getMessage());
+            } finally {
+                if (is_file($sourceAudioPath)) @unlink($sourceAudioPath);
+            }
+        }
 
         return redirect()
             ->route('admin.leadsheets.edit', $leadsheet)
@@ -1207,6 +1270,115 @@ class LeadsheetController extends Controller
         }
 
         return response()->json(['ok' => true, 'song_key' => $newKey]);
+    }
+
+    /**
+     * PHASE 1 of the audio import: run Demucs and persist all six stems so the
+     * admin can audition each and pick which to transcribe. Returns a session
+     * token + the list of available stems. No leadsheet is created yet.
+     */
+    public function separateStems(Request $request, \App\Services\MidiTranscriptionService $transcriber)
+    {
+        set_time_limit(600);
+
+        $validated = $request->validate([
+            'youtube_id'  => 'nullable|string',
+            'local_audio' => 'nullable|file|mimes:mp3,wav,m4a,ogg,flac|max:102400',
+            // Separate an existing leadsheet's persisted original recording
+            // (from the editor's video-sync sidebar) — no re-upload.
+            'leadsheet_id' => 'nullable|integer|exists:sbn_leadsheets,id',
+        ]);
+
+        $hasYoutube   = !empty($validated['youtube_id']);
+        $hasLocal     = $request->hasFile('local_audio');
+        $hasLeadsheet = !empty($validated['leadsheet_id']);
+        if (!$hasYoutube && !$hasLocal && !$hasLeadsheet) {
+            return response()->json(['success' => false, 'error' => 'Provide a YouTube id, upload an audio file, or a leadsheet with persisted source audio.'], 422);
+        }
+
+        if ($hasLeadsheet) {
+            $ls = Leadsheet::find($validated['leadsheet_id']);
+            $url = $ls?->parsed_data['sourceAudio']['url'] ?? null;
+            $path = $url ? public_path(parse_url($url, PHP_URL_PATH)) : null;
+            if (!$path || !is_file($path)) {
+                return response()->json(['success' => false, 'error' => 'This leadsheet has no persisted source audio to separate.'], 422);
+            }
+            // Don't move/delete the persisted original — separateStemsToSession
+            // treats an 'upload' source as caller-owned and won't unlink it.
+            $result = $transcriber->separateStemsToSession($path, 'upload');
+        } elseif ($hasLocal) {
+            $uploadedFile = $request->file('local_audio');
+            $tempDir = storage_path('app/temp_audio');
+            if (!is_dir($tempDir)) mkdir($tempDir, 0777, true);
+            $tempPath = $tempDir . '/' . uniqid('sep_', true) . '.' . $uploadedFile->getClientOriginalExtension();
+            $uploadedFile->move($tempDir, basename($tempPath));
+            try {
+                $result = $transcriber->separateStemsToSession($tempPath, 'upload');
+            } finally {
+                if (file_exists($tempPath)) unlink($tempPath);
+            }
+        } else {
+            $result = $transcriber->separateStemsToSession($validated['youtube_id'], 'youtube');
+        }
+
+        if (!($result['success'] ?? false)) {
+            return response()->json(['success' => false, 'error' => $result['error'] ?? 'Stem separation failed.'], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'session' => $result['session'],
+            'stems'   => $result['stems'], // ordered subset of STEM_NAMES
+        ]);
+    }
+
+    /**
+     * Stream one separated stem for in-browser audition. Both the session token
+     * and the stem name are whitelisted so neither can escape storage/app/stems.
+     */
+    public function streamStem(string $session, string $stem, \App\Services\MidiTranscriptionService $transcriber)
+    {
+        if (!in_array($stem, \App\Services\MidiTranscriptionService::STEM_NAMES, true)) {
+            abort(404);
+        }
+        $path = $transcriber->stemSessionDir($session) . '/' . $stem . '.wav';
+        if (!is_file($path)) {
+            abort(404);
+        }
+        return response()->file($path, [
+            'Content-Type'  => 'audio/wav',
+            'Cache-Control' => 'no-store',
+        ]);
+    }
+
+    /**
+     * Persist a chosen audition stem as a leadsheet's hosted sync audio, so the
+     * video-sync editor can follow (e.g.) the isolated guitar instead of the
+     * full mix. Copies the session stem into public storage and returns its URL;
+     * the frontend points videoSync at it. The ephemeral session may be swept
+     * afterwards without affecting this persisted copy.
+     */
+    public function persistStemAsSync(Request $request, Leadsheet $leadsheet, \App\Services\MidiTranscriptionService $transcriber)
+    {
+        $validated = $request->validate([
+            'session' => 'required|string|max:64',
+            'stem'    => 'required|string|in:guitar,bass,vocals,drums,piano,other',
+        ]);
+
+        $src = $transcriber->stemSessionDir($validated['session']) . '/' . $validated['stem'] . '.wav';
+        if (!is_file($src)) {
+            return response()->json(['success' => false, 'error' => 'Stem not found (session may have expired).'], 422);
+        }
+
+        $dir = "audio/source/{$leadsheet->id}";
+        $name = "stem-{$validated['stem']}.wav";
+        $destDir = public_path($dir);
+        if (!is_dir($destDir)) mkdir($destDir, 0777, true);
+        if (!@copy($src, "{$destDir}/{$name}")) {
+            return response()->json(['success' => false, 'error' => 'Could not persist the stem.'], 500);
+        }
+
+        return response()->json(['success' => true, 'url' => asset("{$dir}/{$name}")]);
     }
 
     public function destroy(Leadsheet $leadsheet)
@@ -3109,16 +3281,15 @@ class LeadsheetController extends Controller
      * the preset baseline. restrict_guitar_range clamps detection to the
      * 6-string range (~E2..~E6), trimming sub-bass rumble and cymbal noise.
      *
-     * Also folds in `separate_stem` — a control flag (not a basic-pitch
-     * param) telling MidiTranscriptionService to run the audio through
-     * Demucs and isolate the guitar stem before transcription. Defaults to
-     * TRUE when absent from the request, since the modal always submits the
-     * checkbox and ships it default-checked; only an explicit `false` (e.g.
-     * a programmatic caller) turns it off.
+     * Also folds in `separate_stem` — a legacy control flag (not a basic-pitch
+     * param) for the one-shot path that isolates the guitar stem via Demucs
+     * before transcription. Defaults FALSE now that stem separation is an
+     * explicit two-phase step in the modal (separate → audition → transcribe);
+     * the audition path sends `stem_session` and bypasses this entirely.
      *
      * Returns only the keys the user actually changed from basic-pitch's own
      * defaults (plus separate_stem), so an untouched modal yields
-     * ['separate_stem' => true] and Python uses its defaults otherwise.
+     * ['separate_stem' => false] and Python uses its defaults otherwise.
      */
     protected function resolveDetectionParams(array $validated): array
     {
@@ -3154,11 +3325,16 @@ class LeadsheetController extends Controller
             }
         }
 
-        // Stem separation control flag — default TRUE when absent from the
-        // request (see doc comment above).
+        // Stem separation control flag for the LEGACY one-shot path (no
+        // audition session). Defaults FALSE now that separation is an explicit
+        // opt-in step in the modal: if the admin didn't run "Separate stems",
+        // transcribe the raw audio rather than surprise-isolating the guitar.
+        // The two-phase workflow never reaches this — it sends stem_session and
+        // is dispatched to transcribeFromSession() before detection params are
+        // consulted for separation.
         $base['separate_stem'] = array_key_exists('separate_stem', $validated)
             ? !empty($validated['separate_stem'])
-            : true;
+            : false;
 
         return $base;
     }

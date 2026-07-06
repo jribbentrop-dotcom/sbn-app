@@ -27,15 +27,8 @@ def transcribe(audio_path, params=None):
         if maximum_frequency is not None:
             maximum_frequency = float(maximum_frequency)
         
-        # 1. Load Audio (full duration)
+        # 1. Load Audio (full duration — no cap; the whole track is transcribed)
         y, sr = librosa.load(audio_path, sr=22050)
-        
-        # Save a temporary clipped version for basic-pitch to read
-        # this ensures it only processes the 90s we want.
-        temp_clip_path = audio_path + ".clip.wav"
-        import soundfile as sf
-        sf.write(temp_clip_path, y, sr)
-        
         duration = librosa.get_duration(y=y, sr=sr)
 
         # 2. Beat Tracking
@@ -48,8 +41,9 @@ def transcribe(audio_path, params=None):
         # PLP (librosa.beat.plp) follows local tempo better but emits far fewer,
         # unevenly-spaced beats — it is a *pulse curve*, not a quarter grid —
         # which breaks the "1 entry = 1 quarter" contract and drops notes.
-        # Rubato is therefore corrected by the user via the tap-to-mark re-time
-        # UI, not by swapping the automatic detector here.
+        # Rubato is therefore corrected downstream by bass-snap (bass onsets as
+        # metric anchors, in LeadsheetController), not by swapping the automatic
+        # detector here.
         tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
         beat_times = librosa.frames_to_time(beat_frames, sr=sr)
 
@@ -61,11 +55,11 @@ def transcribe(audio_path, params=None):
             beat_times = np.array([0.0])
 
         # 3. MIDI Extraction (Basic Pitch)
-        # Use the clipped file. Detection thresholds come from the import
-        # modal — lowering onset_threshold / frame_threshold recovers soft or
-        # legato attacks that the defaults miss (e.g. solo jazz guitar).
+        # Detection thresholds come from the import modal — lowering
+        # onset_threshold / frame_threshold recovers soft or legato attacks
+        # that the defaults miss (e.g. solo jazz guitar).
         model_output, midi_data, note_events = predict(
-            temp_clip_path,
+            audio_path,
             ICASSP_2022_MODEL_PATH,
             onset_threshold=onset_threshold,
             frame_threshold=frame_threshold,
@@ -73,10 +67,6 @@ def transcribe(audio_path, params=None):
             minimum_frequency=minimum_frequency,
             maximum_frequency=maximum_frequency,
         )
-        
-        # Cleanup temp clip
-        if os.path.exists(temp_clip_path):
-            os.remove(temp_clip_path)
 
         # Minimum note duration to qualify for harmonic bucketing.
         # Eliminates transients, basic-pitch false-positives, and melody grace notes

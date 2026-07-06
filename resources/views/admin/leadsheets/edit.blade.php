@@ -757,6 +757,9 @@
         // Cinema "with/without guitar" backing-track toggle — seeds the Vue
         // panel in VideoSyncEditor; saved back into json_data.backingTrack.
         backingTrack: @json(isset($leadsheet) ? ($leadsheet->parsed_data['backingTrack'] ?? null) : null),
+        // Original recording persisted at audio import — the editor blends the
+        // synth transcription against it ({ url, kind }). Audio imports only.
+        sourceAudio: @json(isset($leadsheet) ? ($leadsheet->parsed_data['sourceAudio'] ?? null) : null),
     };
 </script>
 {{-- Chord diagram renderer --}}

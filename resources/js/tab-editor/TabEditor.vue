@@ -23,6 +23,11 @@
                     @click="setViewMode('analysis')">Analysis</button>
             <button class="sbn-ve-tab" :class="{ 'is-active': videoSidebarOpen }"
                     @click="toggleVideoSidebar">🎬 Video</button>
+            <button class="sbn-ve-tab" :class="{ 'is-active': notePreviewEnabled }"
+                    @click="notePreviewEnabled = !notePreviewEnabled"
+                    :title="notePreviewEnabled ? 'Note preview on — click to mute' : 'Note preview off — click to hear notes as you type/click'">
+                {{ notePreviewEnabled ? '🔊' : '🔇' }} Notes
+            </button>
             <span v-if="tuning === 'drop-d'" class="sbn-ve-tuning-badge">Drop D</span>
         </div>
 
@@ -299,6 +304,25 @@
             @volume-rhythm="onVolumeRhythm"
             @volume-tab="onVolumeTab"
         />
+
+        <!-- Source mix: play the synth transcription against the original recording. -->
+        <div v-if="hasSourceAudio && ((viewMode === 'tab' && hasData) || (viewMode === 'chords' && hasChordsData))"
+             class="sbn-source-mix">
+            <span class="sbn-source-mix-title">A/B</span>
+            <label class="sbn-source-mix-toggle" :class="{ 'is-on': synthEnabled }">
+                <input type="checkbox" v-model="synthEnabled" />
+                <span>🎹 Synth</span>
+            </label>
+            <label class="sbn-source-mix-toggle" :class="{ 'is-on': originalEnabled }">
+                <input type="checkbox" v-model="originalEnabled" />
+                <span>🎙️ Original</span>
+            </label>
+            <div v-if="synthEnabled && originalEnabled" class="sbn-source-mix-balance">
+                <span>synth</span>
+                <input type="range" min="0" max="1" step="0.02" v-model.number="mixBalance" />
+                <span>orig</span>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -339,6 +363,7 @@ import { useChordAudio }          from './composables/useChordAudio.js';
 import { useVideoSync }           from './composables/useVideoSync.js';
 import { getAudioEngine }         from '../audio/engine/AudioEngine.js';
 import { tabModelToEvents }       from '../audio/adapters/tabMeasureToEvents.js';
+import { stringFretToMidi }       from '../audio/adapters/pitchToMidi.js';
 import { chordVoicingsToEvents }  from '../audio/adapters/chordVoicingsToEvents.js';
 import { expandModelSequence, giAtPosition, firstPositionForGi } from '../audio/adapters/expandMeasureSequence.js';
 import TransportBar               from './components/TransportBar.vue';
@@ -530,6 +555,61 @@ const { isPlaying: isChordPlaying, currentBeat: chordCurrentBeat, activeSourceId
 const engine = getAudioEngine();
 let _eventsLoaded = false; // Track if events have been loaded for current session
 
+// ── Note preview on input (hear the note as you type/click it) ──
+const notePreviewEnabled = ref(true);
+
+// ── Original-recording blend (MIDI vs. the real audio) ─────────
+// Persisted at audio import as json_data.sourceAudio.url (a decodable WAV).
+const _sourceAudioUrl = (typeof window !== 'undefined' && window.__sbnLeadsheet?.sourceAudio?.url) || null;
+const hasSourceAudio  = ref(!!_sourceAudioUrl);
+const synthEnabled     = ref(true);   // play the MIDI transcription
+const originalEnabled  = ref(false);  // play the original recording alongside
+// Balance 0..1 (0 = all synth, 1 = all original) — only meaningful when BOTH on.
+const mixBalance       = ref(0.5);
+
+/**
+ * Push the current synth/original mix to the engine's crossfade bus.
+ *   - neither on  → silence-ish (blend 0, but synth gain also implicitly 0 via not loading)
+ *   - synth only  → blend 0 (pure samples/synth bus)
+ *   - original only → blend 1 (pure demo bus)
+ *   - both on     → blend = mixBalance
+ */
+function applyMix() {
+    if (!engine.isInited) return;
+    let blend;
+    if (originalEnabled.value && synthEnabled.value) blend = mixBalance.value;
+    else if (originalEnabled.value) blend = 1;
+    else blend = 0;
+    engine.setBlend(blend);
+}
+
+// Balance is cheap — just re-blend live.
+watch(mixBalance, applyMix);
+
+// Enabling/disabling a source changes the loaded event set and/or the demo
+// track, so the engine must reload. Reload from a stopped state; if playing,
+// the next play() picks it up. Guard against toggles before first load.
+watch([synthEnabled, originalEnabled], () => {
+    if (!engine.isInited) return;
+    _eventsLoaded = false;
+    loadAllEvents().then(applyMix);
+});
+
+/**
+ * Sound a single MIDI note immediately, off the transport. Best-effort:
+ * lazily inits the engine on first use (a user keypress/click is a valid
+ * gesture to unlock audio) and never throws into note input.
+ */
+async function previewNote(midi) {
+    if (!notePreviewEnabled.value || midi == null) return;
+    try {
+        if (!engine.isInited) {
+            await engine.init({ bpm: model.value?.tempo || 120 });
+        }
+        engine.previewNote(midi);
+    } catch (_) { /* preview is non-essential */ }
+}
+
 /**
  * Load combined events from all active voices into the audio engine.
  * Called once before playback starts; subsequent calls only reload if model changed.
@@ -542,17 +622,24 @@ async function loadAllEvents() {
     // This must happen after a user gesture for AudioContext autoplay policy.
     await engine.init({ bpm: model.value.tempo || 120 });
 
-    // Gather events from all voices
-    const tabEvents = tabModelToEvents(model.value, { startBeat: 0, tuning: tuning.value });
-    const chordEvents = chordVoicingsToEvents(model.value, { startBeat: 0 });
-    // Future: const rhythmEvents = rhythmPatternToEvents(rhythmModel.value, { startBeat: 0 });
+    // Gather events from all voices. When the synth is muted (original-only
+    // A/B listening) we still load an empty timeline so the demo track has a
+    // clock to ride, but emit no synth notes.
+    let combinedEvents = [];
+    if (synthEnabled.value) {
+        const tabEvents = tabModelToEvents(model.value, { startBeat: 0, tuning: tuning.value });
+        const chordEvents = chordVoicingsToEvents(model.value, { startBeat: 0 });
+        combinedEvents = [...tabEvents, ...chordEvents].sort((a, b) => a.time - b.time);
+    }
 
-    // Merge and sort by time
-    const combinedEvents = [...tabEvents, ...chordEvents].sort((a, b) => a.time - b.time);
+    // Blend the persisted original recording in on the demo bus when enabled.
+    const loadOpts = (originalEnabled.value && _sourceAudioUrl)
+        ? { demoUrl: _sourceAudioUrl }
+        : {};
 
-    // Single engine.load() call with all events
-    engine.load(combinedEvents);
+    engine.load(combinedEvents, loadOpts);
     engine.setTempo(model.value.tempo || 120);
+    applyMix();
 
     _eventsLoaded = true;
 }
@@ -1346,7 +1433,7 @@ const {
     handleKeydown: noteInputKeydown,
     shiftNoteToString,
     dispose: disposeNoteInput,
-} = useNoteInput(cursor, model, wrapCommand, repositionMeasure);
+} = useNoteInput(cursor, model, wrapCommand, repositionMeasure, { previewNote });
 
 
 // ── Event insertion helpers (Phase 7d / 7-polish) ──────────────
@@ -2464,6 +2551,25 @@ function onCursorMousedownEvent({ measureIndex, eventId, stringIndex, event }) {
     _noteSelAnchorIdx.value = null;
     editorRoot.value?.focus({ preventScroll: true });
     seekToMeasure(measureIndex);
+    previewClickedNote(measureIndex, eventId, stringIndex);
+}
+
+/**
+ * Preview the note the user just clicked. Reads the actual note on the clicked
+ * string of the clicked event and sounds it (feature: hear MIDI vs original).
+ * Silent when the string has no note (empty space / rest).
+ */
+function previewClickedNote(measureIndex, eventId, stringIndex) {
+    if (!notePreviewEnabled.value || !model.value) return;
+    const measures = model.value.sections.flatMap(s => s.measures);
+    const m = measures[measureIndex];
+    if (!m) return;
+    const ev = m.events.find(e => e.id === eventId);
+    if (!ev || ev.isRest || !ev.notes?.length) return;
+    const note = ev.notes.find(n => n.string === stringIndex);
+    if (!note) return;
+    const midi = stringFretToMidi(note.string, note.fret, model.value?.tuning || 'standard');
+    if (midi != null) previewNote(midi);
 }
 
 function onCursorMouseenterEvent({ eventId }) { }
@@ -3178,6 +3284,49 @@ defineExpose({
 }
 .sbn-tab-rest.sbn-playing {
     fill: #ef4444 !important;
+}
+
+/* Source A/B mix bar (synth vs. original recording) */
+.sbn-source-mix {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 12px;
+    font-size: 12px;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+    flex-wrap: wrap;
+}
+.sbn-source-mix-title {
+    font-weight: 700;
+    color: #6b7280;
+    letter-spacing: 0.03em;
+}
+.sbn-source-mix-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    color: #6b7280;
+    user-select: none;
+}
+.sbn-source-mix-toggle.is-on {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-weight: 600;
+}
+.sbn-source-mix-balance {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #6b7280;
+}
+.sbn-source-mix-balance input[type="range"] {
+    width: 120px;
 }
 .sbn-ve-tuning-badge {
     display: inline-flex;

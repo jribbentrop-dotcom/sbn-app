@@ -66,6 +66,12 @@ class MidiTranscriptionService
         // 3. Run Python Transcription
         $result = $this->runPythonTranscription($transcribePath, $this->stripControlFlags($detectionParams));
 
+        // 3b. Preserve a copy of the FULL original recording so the editor can
+        // blend the synth transcription against it (MIDI-vs-original A/B). Kept
+        // past the cleanup below; the caller moves it into public storage and
+        // deletes this temp copy.
+        $result['source_audio_path'] = $this->preserveSourceAudio($wavPath);
+
         // 4. Cleanup
         if (file_exists($rawPath)) unlink($rawPath);
         if (file_exists($wavPath)) unlink($wavPath);
@@ -73,6 +79,21 @@ class MidiTranscriptionService
         if ($redownconvertedPath && file_exists($redownconvertedPath)) unlink($redownconvertedPath);
 
         return $result;
+    }
+
+    /**
+     * Copy a WAV to a stable temp path that survives the transcription method's
+     * own cleanup, so createFromLookup() can persist it as the leadsheet's
+     * source audio. Returns the temp path, or null on failure (non-fatal — the
+     * blend feature just won't have an original to play).
+     */
+    protected function preserveSourceAudio(string $wavPath): ?string
+    {
+        if (!is_file($wavPath)) return null;
+        $dir = storage_path('app/temp_audio');
+        if (!is_dir($dir)) mkdir($dir, 0777, true);
+        $dest = $dir . '/source_' . bin2hex(random_bytes(6)) . '.wav';
+        return @copy($wavPath, $dest) ? $dest : null;
     }
 
     protected function downloadAudio(string $youtubeId): ?string
@@ -193,6 +214,7 @@ class MidiTranscriptionService
             $transcribePath = $redownconvertedPath ?? $stemWavPath ?? $wavPath;
 
             $result = $this->runPythonTranscription($transcribePath, $this->stripControlFlags($detectionParams));
+            $result['source_audio_path'] = $this->preserveSourceAudio($wavPath);
         } finally {
             if (file_exists($wavPath) && $wavPath !== $uploadedPath) {
                 unlink($wavPath);
@@ -329,6 +351,250 @@ class MidiTranscriptionService
         // sweep again in case it exited before cleanup.
         $this->rrmdir($scratchDir);
         return $outputPath;
+    }
+
+    /**
+     * The six stems htdemucs_6s produces. Must match STEM_NAMES in
+     * separate_stem.py and the checkbox names in the import modal.
+     */
+    public const STEM_NAMES = ['guitar', 'bass', 'vocals', 'drums', 'piano', 'other'];
+
+    /** Absolute path to a stem session directory (storage/app/stems/{session}). */
+    public function stemSessionDir(string $session): string
+    {
+        // Guard the token so it can never escape storage/app/stems.
+        $session = preg_replace('/[^A-Za-z0-9_-]/', '', $session);
+        return storage_path('app/stems/' . $session);
+    }
+
+    /** Delete a stem session directory and everything in it. */
+    public function removeStemSession(string $session): void
+    {
+        $this->rrmdir($this->stemSessionDir($session));
+    }
+
+    /**
+     * PHASE 1 (audition): download/convert the source, run Demucs once, and
+     * persist ALL six stems under storage/app/stems/{session}/ so the admin can
+     * play each and pick which to transcribe. Does NOT transcribe.
+     *
+     * @param string      $source     YouTube id, or an absolute path to an uploaded file
+     * @param string|null $sourceKind 'youtube' | 'upload'
+     * @return array{success:bool, session?:string, stems?:array<string>, error?:string}
+     */
+    public function separateStemsToSession(string $source, string $sourceKind = 'youtube'): array
+    {
+        $rawPath = null;
+        $wavPath = null;
+        try {
+            if ($sourceKind === 'youtube') {
+                $rawPath = $this->downloadAudio($source);
+                if (!$rawPath) {
+                    return ['success' => false, 'error' => 'Failed to download audio from YouTube.'];
+                }
+                $wavPath = $this->convertToWav($rawPath);
+            } else {
+                $rawPath = $source; // caller owns cleanup of the uploaded temp file
+                $wavPath = $this->convertToWav($source);
+            }
+
+            if (!preg_match('/\.wav$/i', $wavPath)) {
+                return ['success' => false, 'error' => 'Audio could not be converted to WAV (is ffmpeg.exe present?). Stem separation needs a real WAV.'];
+            }
+
+            $session = bin2hex(random_bytes(8));
+            $sessionDir = $this->stemSessionDir($session);
+            if (!is_dir($sessionDir)) {
+                mkdir($sessionDir, 0777, true);
+            }
+
+            $data = $this->runSeparateAll($wavPath, $sessionDir);
+            if (!($data['success'] ?? false)) {
+                $this->rrmdir($sessionDir);
+                return ['success' => false, 'error' => $data['error'] ?? 'Stem separation failed.'];
+            }
+
+            // Keep the full original mix in the session so a later
+            // transcribeFromSession() can persist it as the leadsheet's source
+            // audio (blend against the synth), regardless of which stems the
+            // admin picks to transcribe.
+            @copy($wavPath, $sessionDir . '/_original.wav');
+
+            return [
+                'success' => true,
+                'session' => $session,
+                'stems'   => array_keys($data['stems'] ?? []),
+            ];
+        } catch (\Throwable $e) {
+            Log::error('separateStemsToSession failed: ' . $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
+        } finally {
+            // Clean up the download + full-mix WAV; the persisted stems live in
+            // the session dir now. Uploaded temp file is the caller's to remove.
+            if ($sourceKind === 'youtube' && $rawPath && file_exists($rawPath)) {
+                @unlink($rawPath);
+            }
+            if ($wavPath && $wavPath !== $rawPath && file_exists($wavPath)) {
+                @unlink($wavPath);
+            }
+        }
+    }
+
+    /**
+     * PHASE 2 (transcribe): sum the chosen stems from a session dir into one
+     * WAV, downconvert to 22050Hz mono, and run basic-pitch. Reuses the
+     * persisted stems — no Demucs re-run.
+     *
+     * @param string   $session
+     * @param string[] $stems           subset of STEM_NAMES
+     * @param array    $detectionParams basic-pitch knobs (separate_stem stripped)
+     */
+    public function transcribeFromSession(string $session, array $stems, array $detectionParams = []): array
+    {
+        $sessionDir = $this->stemSessionDir($session);
+        if (!is_dir($sessionDir)) {
+            return ['success' => false, 'error' => "Stem session not found (it may have expired): {$session}"];
+        }
+
+        $stems = array_values(array_intersect($stems, self::STEM_NAMES));
+        if (empty($stems)) {
+            $stems = ['guitar']; // never transcribe silence
+        }
+
+        $summedPath = null;
+        $redownconvertedPath = null;
+        try {
+            $summedPath = $sessionDir . '/_mix.wav';
+            $sum = $this->runSumStems($sessionDir, $stems, $summedPath);
+            if (!($sum['success'] ?? false)) {
+                return ['success' => false, 'error' => $sum['error'] ?? 'Failed to mix stems.'];
+            }
+
+            // Demucs stems are 44.1kHz stereo — downconvert for basic-pitch.
+            $redownconvertedPath = $this->convertToWav(
+                $summedPath,
+                preg_replace('/\.wav$/i', '.22k.wav', $summedPath)
+            );
+
+            $result = $this->runPythonTranscription(
+                $redownconvertedPath ?? $summedPath,
+                $this->stripControlFlags($detectionParams)
+            );
+
+            // Preserve the full original mix (kept in the session as _original.wav)
+            // as the leadsheet's source audio. Falls back to the summed stems if
+            // the original wasn't captured for some reason.
+            $original = $sessionDir . '/_original.wav';
+            $result['source_audio_path'] = $this->preserveSourceAudio(
+                is_file($original) ? $original : $summedPath
+            );
+
+            return $result;
+        } finally {
+            if ($summedPath && file_exists($summedPath)) @unlink($summedPath);
+            if ($redownconvertedPath && file_exists($redownconvertedPath)) @unlink($redownconvertedPath);
+        }
+    }
+
+    /** Shell separate_stem.py --all-stems; returns its decoded JSON payload. */
+    protected function runSeparateAll(string $wavPath, string $outputDir): array
+    {
+        $inputPath = str_replace('\\', '/', $wavPath);
+        $outDir    = str_replace('\\', '/', $outputDir);
+        $cmd = sprintf(
+            '"%s" "%s" --all-stems "%s" "%s" --device cuda',
+            str_replace('\\', '/', $this->pythonPath),
+            str_replace('\\', '/', $this->separateScriptPath),
+            $inputPath,
+            $outDir
+        );
+        return $this->runSeparateCommand($cmd, $inputPath . '.demucs_out');
+    }
+
+    /** Shell separate_stem.py --sum; returns its decoded JSON payload. */
+    protected function runSumStems(string $stemsDir, array $stems, string $outputPath): array
+    {
+        $cmd = sprintf(
+            '"%s" "%s" --sum "%s" --stems-dir "%s" "%s"',
+            str_replace('\\', '/', $this->pythonPath),
+            str_replace('\\', '/', $this->separateScriptPath),
+            implode(',', $stems),
+            str_replace('\\', '/', $stemsDir),
+            str_replace('\\', '/', $outputPath)
+        );
+        return $this->runSeparateCommand($cmd, null);
+    }
+
+    /**
+     * Run a separate_stem.py invocation with the same env injection + stderr-to-
+     * file discipline as separateStem(), and parse its JSON_START payload.
+     * $scratchDir (if given) is swept on failure.
+     */
+    protected function runSeparateCommand(string $cmd, ?string $scratchDir): array
+    {
+        Log::info("Running stem command: {$cmd}");
+
+        $env = getenv();
+        $env['PATH'] = base_path() . ';' . ($env['PATH'] ?? '');
+        $env['TF_CPP_MIN_LOG_LEVEL'] = '3';
+        $temp = sys_get_temp_dir();
+        $env['TEMP'] = $temp;
+        $env['TMP'] = $temp;
+
+        // stderr → file, never a pipe (Demucs tqdm floods it and deadlocks).
+        $stderrFile = sys_get_temp_dir() . '/demucs_' . uniqid() . '.log';
+        $process = proc_open($cmd, [
+            1 => ['pipe', 'w'],
+            2 => ['file', $stderrFile, 'w'],
+        ], $pipes, null, $env);
+
+        if (!is_resource($process)) {
+            @unlink($stderrFile);
+            if ($scratchDir) $this->rrmdir($scratchDir);
+            return ['success' => false, 'error' => 'Could not start stem process.'];
+        }
+
+        $stdout = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $returnCode = proc_close($process);
+
+        $stderr = is_file($stderrFile) ? (file_get_contents($stderrFile) ?: '') : '';
+        @unlink($stderrFile);
+
+        if ($returnCode !== 0) {
+            if ($scratchDir) $this->rrmdir($scratchDir);
+            return ['success' => false, 'error' => "Stem process failed (code {$returnCode}): {$stderr}"];
+        }
+
+        $parts = explode('JSON_START', $stdout);
+        $data = json_decode(trim(end($parts)), true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            if ($scratchDir) $this->rrmdir($scratchDir);
+            return ['success' => false, 'error' => 'Stem process returned invalid JSON: ' . $stdout];
+        }
+        return $data;
+    }
+
+    /**
+     * Sweep stem session dirs older than $maxAgeHours (orphaned separations
+     * where the admin never completed a transcription). Called by a scheduled
+     * command. Returns the number of sessions removed.
+     */
+    public function sweepStaleStemSessions(int $maxAgeHours = 6): int
+    {
+        $base = storage_path('app/stems');
+        if (!is_dir($base)) {
+            return 0;
+        }
+        $cutoff = time() - ($maxAgeHours * 3600);
+        $removed = 0;
+        foreach (glob($base . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
+            if (filemtime($dir) < $cutoff) {
+                $this->rrmdir($dir);
+                $removed++;
+            }
+        }
+        return $removed;
     }
 
     protected function runPythonTranscription(string $audioPath, array $detectionParams = []): array

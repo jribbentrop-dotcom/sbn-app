@@ -213,6 +213,31 @@ export class AudioEngine {
     }
 
     /**
+     * Fire a single note immediately, off the transport — for previewing a note
+     * as it's typed/clicked in the editor. Prefers the nylon sampler (matches
+     * playback timbre), falls back to the pitched synth.
+     * @param {number} midi        MIDI note number
+     * @param {number} [durationSec=0.6]
+     * @param {number} [velocity=0.85]
+     */
+    previewNote(midi, durationSec = 0.6, velocity = 0.85) {
+        if (!this._inited || midi == null) return;
+        const now = this._rawCtx ? this._rawCtx.currentTime : (Tone.now?.() ?? 0);
+        const nylon = this._voices?.nylon;
+        // NylonSampler.trigger returns falsy / throws if its samples aren't
+        // loaded yet; fall through to the always-available pitched synth.
+        try {
+            if (nylon && nylon.ready) {
+                nylon.trigger(midi, now, durationSec, velocity);
+                return;
+            }
+        } catch (_) { /* fall through */ }
+        try {
+            this._voices?.pitched?.trigger(midi, now, durationSec, velocity);
+        } catch (_) { /* preview is best-effort — never throw into note input */ }
+    }
+
+    /**
      * Cross-fade between the samples bus and the demo bus.
      * @param {number} value01 — 0 = pure samples, 1 = pure demo
      */

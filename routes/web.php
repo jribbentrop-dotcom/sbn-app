@@ -142,6 +142,10 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
     Route::post('/leadsheets/create-blank', [LeadsheetController::class, 'createBlank'])->name('leadsheets.create-blank');
     Route::post('/leadsheets/create-from-sequence', [LeadsheetController::class, 'createFromSequence'])->name('leadsheets.create-from-sequence');
     Route::post('/leadsheets/create-from-lookup', [LeadsheetController::class, 'createFromLookup'])->name('leadsheets.create-from-lookup');
+    // Audio stem separation (audition step) — separate first, play/pick stems, then transcribe.
+    Route::post('/leadsheets/separate-stems', [LeadsheetController::class, 'separateStems'])->name('leadsheets.separate-stems');
+    Route::get('/leadsheets/stems/{session}/{stem}', [LeadsheetController::class, 'streamStem'])->name('leadsheets.stream-stem');
+    Route::post('/leadsheets/{leadsheet}/persist-stem-sync', [LeadsheetController::class, 'persistStemAsSync'])->name('leadsheets.persist-stem-sync');
     Route::post('/leadsheets/convert-mscz', [LeadsheetController::class, 'convertMscz'])->name('leadsheets.convert-mscz');
 
     // Version merge (Phase 1) + Song merge (§9.1). Static paths BEFORE {leadsheet} routes.

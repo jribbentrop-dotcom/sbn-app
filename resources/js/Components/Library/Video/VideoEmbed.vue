@@ -37,11 +37,30 @@
         </template>
 
         <template v-else>
-            <!-- Self-hosted video: the <video> element is its own exact,
-                 synchronous clock — no postMessage lag, no buffering-vs-playing
-                 ambiguity — so it drives Cinema's backing-track sync far more
-                 reliably than the YouTube iframe. See useBackingTrack.js. -->
+            <!-- Self-hosted media: a media element is its own exact, synchronous
+                 clock — no postMessage lag, no buffering-vs-playing ambiguity —
+                 so it drives sync far more reliably than the YouTube iframe.
+                 An audio-only source (e.g. the transcription's original recording
+                 used as a sync master) renders as an <audio> with controls; a
+                 video source renders as <video>. Both share videoEl + handlers. -->
+            <audio
+                v-if="isAudioSource"
+                ref="videoEl"
+                class="sbn-audio-hosted"
+                :src="videoId"
+                :muted="muted"
+                controls
+                preload="auto"
+                @loadedmetadata="onHostedReady"
+                @play="onPlay"
+                @playing="onPlay"
+                @pause="onPause"
+                @waiting="onWaiting"
+                @seeked="onSeeked"
+                @ended="onHostedEnded"
+            ></audio>
             <video
+                v-else
                 ref="videoEl"
                 class="sbn-video-hosted"
                 :src="videoId"
@@ -117,6 +136,15 @@ const iframeWrapStyle = computed(() => ({
 const thumbnailUrl = computed(() =>
     props.videoId ? `https://i.ytimg.com/vi/${props.videoId}/hqdefault.jpg` : '',
 );
+
+// A hosted source pointing at an audio file renders as <audio> (a video
+// element playing an audio-only file shows a black box). Extension sniff on
+// the URL, query string stripped.
+const isAudioSource = computed(() => {
+    if (props.videoType === 'youtube' || !props.videoId) return false;
+    const path = props.videoId.split('?')[0].toLowerCase();
+    return /\.(wav|mp3|m4a|aac|ogg|flac|opus)$/.test(path);
+});
 
 // ── YouTube IFrame API ────────────────────────────────────────
 
@@ -467,6 +495,13 @@ defineExpose({ seekTo, getCurrentTime, play, pause, setPlaybackRate });
 .sbn-video-hosted {
     width: 100%;
     display: block;
+}
+.sbn-audio-hosted {
+    width: 100%;
+    display: block;
+    padding: 8px;
+    box-sizing: border-box;
+    background: #111;
 }
 
 /* Facade: static thumbnail shown until first play. Covers the iframe box so

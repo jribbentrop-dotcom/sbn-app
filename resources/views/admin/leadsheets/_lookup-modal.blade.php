@@ -175,15 +175,49 @@
                         </div>
                     </div>
 
-                    <div class="sbn-form-group" style="margin-top: 15px;">
-                        <label class="sbn-checkbox">
-                            <input type="checkbox" name="separate_stem" value="1" x-model="separateStem" :disabled="loading">
-                            <div>
-                                <div style="font-weight: 600;">Separate guitar from vocals first</div>
-                                <div style="font-size: 11px; color: #6b7280;">Isolates the guitar with AI (Demucs) before transcribing &mdash; best for recordings with vocals. ~adds a few seconds.</div>
+                    <!-- ── Stem separation + audition (Demucs, htdemucs_6s) ──── -->
+                    <div class="sbn-form-group" style="margin-top: 15px; padding: 12px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;">
+                        <div style="font-weight: 600;">Separate &amp; audition stems <span style="font-weight:400; color:#6b7280;">(optional)</span></div>
+                        <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">
+                            Splits the recording into six stems with AI so you can listen and pick
+                            exactly what gets transcribed &mdash; best for recordings with vocals or a
+                            full band. Guitar + bass are a good default for solo guitar.
+                        </div>
+
+                        <button type="button" class="sbn-btn sbn-btn-secondary"
+                                style="margin-top: 10px;"
+                                @click="separateStems()"
+                                :disabled="loading || stemSeparating || !canSubmit">
+                            <span x-show="!stemSeparating && !stemSession">Separate stems</span>
+                            <span x-show="!stemSeparating && stemSession">Re-separate</span>
+                            <span x-show="stemSeparating">Separating… (~a few seconds)</span>
+                        </button>
+                        <div x-show="stemError" style="color:#ef4444; font-size:12px; margin-top:6px;" x-text="stemError"></div>
+
+                        <!-- Audition + selection grid -->
+                        <div x-show="stemSession" style="margin-top: 12px;">
+                            <div style="font-size:12px; font-weight:600; margin-bottom:6px;">Tick the stems to transcribe:</div>
+                            <template x-for="name in availableStems" :key="name">
+                                <div style="display:flex; align-items:center; gap:10px; padding:4px 0;">
+                                    <label class="sbn-checkbox" style="margin:0; flex:0 0 auto;">
+                                        <input type="checkbox" :value="name" x-model="chosenStems" :disabled="loading">
+                                        <span style="text-transform:capitalize; font-size:13px;" x-text="name"></span>
+                                    </label>
+                                    <audio controls preload="none" style="height:32px; flex:1 1 auto; max-width:260px;"
+                                           :src="stemUrl(name)"></audio>
+                                </div>
+                            </template>
+                            <div style="font-size:11px; color:#6b7280; margin-top:6px;">
+                                htdemucs_6s can misfile low guitar notes into <em>bass</em> — include bass if the low end sounds thin.
                             </div>
-                        </label>
+                        </div>
                     </div>
+
+                    <!-- Hidden inputs carrying the two-phase workflow into the main form submit. -->
+                    <input type="hidden" name="stem_session" :value="stemSession">
+                    <template x-for="name in chosenStems" :key="'h-'+name">
+                        <input type="hidden" name="stems[]" :value="name">
+                    </template>
 
                     <!-- ── Note Detection Tuning (basic-pitch) ──────────────── -->
                     <div class="sbn-form-group" style="margin-top: 15px;">
@@ -341,9 +375,6 @@
             extensionMode: 'basic',
             loading: false,
 
-            // Isolate the guitar stem (Demucs) before transcription — default ON.
-            separateStem: true,
-
             // Audio-transcription detection tuning (basic-pitch knobs)
             detectionPreset: 'balanced',
             showDetectionAdvanced: false,
@@ -368,6 +399,13 @@
             // Audio source: 'youtube' | 'local'
             audioSource: 'youtube',
             localFileName: '',
+
+            // Two-phase stem workflow (separate → audition → transcribe).
+            stemSeparating: false,
+            stemSession: '',
+            availableStems: [],       // ordered subset of the six stems Demucs produced
+            chosenStems: [],          // which stems to sum & transcribe
+            stemError: '',
 
             // YouTube Search State
             youtubeQuery: '',
@@ -395,8 +433,6 @@
                 this.voicingStyle = 'popular';
                 this.loading = false;
 
-                this.separateStem = true;
-
                 this.detectionPreset = 'balanced';
                 this.showDetectionAdvanced = false;
                 this.restrictGuitarRange = false;
@@ -404,6 +440,11 @@
 
                 this.audioSource = 'youtube';
                 this.localFileName = '';
+                this.stemSeparating = false;
+                this.stemSession = '';
+                this.availableStems = [];
+                this.chosenStems = [];
+                this.stemError = '';
                 this.youtubeQuery = '';
                 this.youtubeResults = [];
                 this.selectedVideoId = '';
@@ -439,6 +480,68 @@
                     this.localFileName = file.name;
                 } else {
                     this.localFileName = '';
+                }
+                // A new source invalidates any prior separation.
+                this.resetStems();
+            },
+
+            // Any separated stems belong to the previous source; drop them.
+            resetStems() {
+                this.stemSession = '';
+                this.availableStems = [];
+                this.chosenStems = [];
+                this.stemError = '';
+            },
+
+            stemUrl(name) {
+                if (!this.stemSession) return '';
+                return `{{ url('admin/leadsheets/stems') }}/${this.stemSession}/${name}`;
+            },
+
+            // PHASE 1: run Demucs on the chosen source and load the stems for
+            // audition. Uses fetch (not the main form) so the modal stays open.
+            async separateStems() {
+                if (!this.canSubmit || this.stemSeparating) return;
+                this.resetStems();
+                this.stemSeparating = true;
+
+                try {
+                    const fd = new FormData();
+                    const token = document.querySelector('#lookup-modal input[name="_token"]');
+                    if (token) fd.append('_token', token.value);
+
+                    if (this.audioSource === 'local') {
+                        const fileInput = document.querySelector('#lookup-modal input[name="local_audio"]');
+                        if (fileInput && fileInput.files[0]) {
+                            fd.append('local_audio', fileInput.files[0]);
+                        } else {
+                            throw new Error('Pick an audio file first.');
+                        }
+                    } else {
+                        if (!this.selectedVideoId) throw new Error('Select a YouTube video first.');
+                        fd.append('youtube_id', this.selectedVideoId);
+                    }
+
+                    const res = await fetch('{{ route('admin.leadsheets.separate-stems') }}', {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json' },
+                        body: fd,
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.success) {
+                        throw new Error(data.error || `Separation failed (HTTP ${res.status}).`);
+                    }
+
+                    this.stemSession = data.session;
+                    this.availableStems = data.stems || [];
+                    // Sensible default: guitar + bass (bass covers the low-note
+                    // clipping caveat), falling back to whatever exists.
+                    const preferred = ['guitar', 'bass'].filter(s => this.availableStems.includes(s));
+                    this.chosenStems = preferred.length ? preferred : this.availableStems.slice(0, 1);
+                } catch (e) {
+                    this.stemError = e.message || 'Separation failed.';
+                } finally {
+                    this.stemSeparating = false;
                 }
             },
 
@@ -492,6 +595,7 @@
             selectVideo(video) {
                 this.selectedVideoId = video.videoId;
                 this.selectedVideoTitle = video.title;
+                this.resetStems(); // a different video invalidates prior stems
             },
 
             extractYoutubeId(url) {
@@ -506,6 +610,7 @@
                     return;
                 }
                 if (id) {
+                    if (id !== this.selectedVideoId) this.resetStems();
                     this.selectedVideoId = id;
                     this.selectedVideoTitle = this.youtubeUrlInput.trim();
                     this.youtubeResults = [];

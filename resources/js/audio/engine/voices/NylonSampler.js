@@ -12,6 +12,11 @@ export class NylonSampler {
         this.sampler = null;
     }
 
+    /** True once the samples have loaded and trigger() will actually sound. */
+    get ready() {
+        return this._ready;
+    }
+
     /**
      * @param {string} basePath — e.g. '/audio/nylon/'
      * @returns {Promise<void>}

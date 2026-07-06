@@ -546,9 +546,11 @@ Lower priority — bass-snap covers the common case.
 
 ### Smaller fixes
 
-- **90-second cap.** `transcribe.py` — `librosa.load(..., duration=90)` truncates
-  every transcription at 90 s (≈ one chorus of a jazz tune). Likely a leftover
-  dev limit; lifting it removes a hard ceiling on usefulness.
+- **90-second cap — ✅ lifted.** `transcribe.py` now loads full duration
+  (`librosa.load(audio_path, sr=22050)`, no `duration=` arg) and hands the full
+  audio path straight to `predict()`. The old `.clip.wav` round-trip (a
+  full-length `soundfile.write` copy that only existed to clip to 90 s) is
+  removed — basic-pitch reads the converted WAV directly.
 
 ### Suggested order
 
@@ -560,16 +562,50 @@ existing engine) → T5 → T6. The 90 s cap can be lifted any time.
 
 ---
 
-## 11. Stem Separation (Session 2026-07-02)
+## 11. Stem Separation (Session 2026-07-02, two-phase audition rebuild 2026-07-06)
 
 ### What it does
 Recordings with vocals or a full band badly confuse `basic-pitch` — it's a
 polyphonic *pitch* detector, not a source separator, so a lead vocal or piano
 comping over the guitar shows up as spurious notes. **Demucs** (`htdemucs_6s`,
 already installed in `python_env` alongside torch 2.5.1+cu121) runs a 6-stem
-separation and isolates a clean `guitar.wav` before transcription. On the dev
-GPU (GTX 1070, CUDA) a ~152s recording separates in **~7s** — cheap enough to
-leave on by default.
+separation (guitar / bass / vocals / drums / piano / other). On the dev GPU
+(GTX 1070, CUDA) a ~152s recording separates in **~7s**.
+
+### Two-phase workflow (audition + selection) — 2026-07-06
+Separation is now an explicit **opt-in step** in the import modal, split from
+transcription so the admin can **listen to each stem and pick which to
+transcribe** (not just guitar):
+
+```
+Phase 1  [Separate stems]  ──POST /admin/leadsheets/separate-stems──▶
+           download/convert → Demucs (all 6 stems) → persist to
+           storage/app/stems/{session}/ → return {session, stems[]}
+         ▶ audition each stem (GET /admin/leadsheets/stems/{session}/{stem})
+         ☑ tick stems to transcribe (guitar+bass default)
+Phase 2  [Look Up & Generate]  ──POST create-from-lookup {stem_session, stems[]}──▶
+           sum ticked stems (separate_stem.py --sum, no Demucs re-run) →
+           downconvert 22050Hz mono → basic-pitch → assemble → sweep session
+```
+
+- **Selection covers the low-note caveat.** Summing `guitar` + `bass` is the
+  documented fix for htdemucs_6s attributing low guitar notes to the bass stem
+  — it's now a checkbox, not a code change.
+- **Sum is peak-normalised** to −1 dBFS so adding stems can't clip.
+- **Sessions are ephemeral.** A completed transcription sweeps its own session;
+  orphaned sessions (separated, never transcribed) are removed by
+  `php artisan sbn:sweep-stem-sessions --hours=6` (scheduled hourly in
+  `routes/console.php`, also runnable manually).
+- **Skipping separation transcribes the raw audio.** The old auto guitar-isolate
+  default is gone — `resolveDetectionParams()`'s `separate_stem` now defaults
+  **false**. If you don't run the separate step, basic-pitch sees the full mix.
+
+### Legacy one-shot path (still present)
+`separateStem()` (guitar-only, Demucs → copy `guitar.wav`) and
+`separate_stem.py`'s single-stem mode remain for back-compat, driven by the
+`separate_stem` boolean flag on the non-session path. `separate_stem.py` also
+gained `--all-stems <dir>` (phase 1) and `--sum <a,b,c> --stems-dir <dir>
+<out.wav>` (phase 2) modes.
 
 ### Where it sits in the pipeline
 Separation runs **between** `convertToWav()` and `runPythonTranscription()` —
@@ -587,29 +623,36 @@ The re-downconvert is necessary because Demucs's stem output is full-length
 writing a bespoke downsampler) keeps exactly one code path responsible for
 "whatever basic-pitch receives is 22050Hz mono."
 
-### The modal toggle
-`_lookup-modal.blade.php` (audio mode) has a **"Separate guitar from vocals
-first"** checkbox, default **checked**, right above the Note Detection
-Sensitivity preset. Caption: *"Isolates the guitar with AI (Demucs) before
-transcribing — best for recordings with vocals. ~adds a few seconds."*
+### The modal UI (two-phase)
+`_lookup-modal.blade.php` (audio mode) replaces the old single "Separate guitar
+from vocals first" checkbox with a **[Separate stems]** button + audition grid.
+Alpine (`lookupModal()`) state: `stemSession`, `availableStems`, `chosenStems`,
+`stemSeparating`, `stemError`. The button `fetch`es phase 1 (so the modal stays
+open), renders one `<audio>` + checkbox per returned stem, and stashes
+`stem_session` + `stems[]` in hidden inputs the main form submits. Picking a
+different source (video/file) calls `resetStems()` to drop stale stems.
 
-### Flag threading
-`separate_stem` is a **control flag**, not a basic-pitch detection param, but
-it rides in the same `$detectionParams` array so neither `transcribe()` nor
-`transcribeLocalFile()` needed a new parameter:
+### Endpoint / flag threading
+```
+Phase 1: [Separate stems] fetch → POST admin.leadsheets.separate-stems
+  → LeadsheetController::separateStems() (validates youtube_id | local_audio)
+  → MidiTranscriptionService::separateStemsToSession()
+      download/convert → runSeparateAll() → separate_stem.py --all-stems
+      → persist 6 stems to storage/app/stems/{session}/
+  → JSON {session, stems[]}
+Audition: GET admin.leadsheets.stream-stem {session}/{stem}
+  → streamStem() (whitelists stem name; response()->file the WAV)
 
+Phase 2: [Look Up & Generate] main form → POST create-from-lookup
+  (stem_session + stems[] + detection params)
+  → createFromLookup(): if stem_session present →
+      transcribeFromSession(session, stems, params)
+        runSumStems() → separate_stem.py --sum → downconvert → basic-pitch
+  → finally: removeStemSession(session)  (sweep)
 ```
-modal checkbox (separate_stem, default checked)
-  → createFromLookup() validation ('separate_stem' => 'nullable|boolean')
-  → resolveDetectionParams() folds it into $detectionParams,
-    defaulting to TRUE when absent from the request (the modal always
-    submits the checkbox; only an explicit false turns it off)
-  → MidiTranscriptionService::transcribe() / transcribeLocalFile()
-    checks $detectionParams['separate_stem'] and calls separateStem()
-  → stripped back out before the *.params.json written for transcribe.py —
-    that file must stay basic-pitch keyword args only (onset/frame/minLen/
-    frequency). transcribe.py never sees separate_stem.
-```
+`separate_stem` (bool) is now only the **legacy** non-session flag, defaulting
+FALSE (`resolveDetectionParams()`). It's still stripped before transcribe.py's
+`*.params.json` (basic-pitch keyword args only).
 
 ### `MidiTranscriptionService::separateStem()`
 Shells to `python_env/python.exe scripts/separate_stem.py <in.wav> <out.wav>
@@ -657,3 +700,82 @@ re-downconvert step, rather than using `guitar.wav` alone. Left as a knob on
 `separate_stem.py` for a future session if this shows up on real material —
 not implemented now since it wasn't observed as a problem on the verification
 pass.
+
+---
+
+## 12. Editor Playback Aids (Session 2026-07-06)
+
+Two transcription-workflow features in the tab editor (`TabEditor.vue`), both
+riding the existing `AudioEngine` singleton.
+
+### 12a. Note preview on input
+Hear a note the moment you type or click it — the fastest way to catch a wrong
+fret against the original.
+
+- `AudioEngine.previewNote(midi, dur=0.6, vel=0.85)` fires one note off the
+  transport: prefers the **nylon sampler** (`NylonSampler.ready` getter added),
+  falls back to `PitchedSynth`. Best-effort — never throws into note input.
+- `useNoteInput(cursor, model, wrapCommand, reposition, { previewNote })` calls
+  it from `commitFret()` and `commitGraceFret()` via `stringFretToMidi`.
+- Clicking a note (`TabEditor.onCursorMousedownEvent` → `previewClickedNote`)
+  reads the actual note on the clicked string and sounds it.
+- **🔊/🔇 Notes** toggle in the editor tab bar (`notePreviewEnabled`). Engine
+  inits lazily on first keypress/click (a valid audio-unlock gesture).
+
+### 12b. Synth-vs-original A/B blend
+Play the synth transcription against the **real recording**, together, with
+on/off toggles + a balance slider — direct A/B while transcribing.
+
+- **Persisted source audio.** Audio imports now keep the full original: each
+  transcription method returns `source_audio_path` (a copy that survives its own
+  cleanup, via `preserveSourceAudio()`); `createFromLookup()` moves it to
+  `public/audio/source/{leadsheetId}/original.wav` and records
+  `json_data.sourceAudio = { url, kind }`. For a stem-session import the full
+  original is reconstructed from `_original.wav` kept in the session dir (not the
+  chosen stems). Gitignored (`/public/audio/source/`), scp'd like backing tracks.
+- **Blend path.** `edit.blade.php` exposes `window.__sbnLeadsheet.sourceAudio`.
+  `loadAllEvents()` passes `{ demoUrl: sourceAudio.url }` to `engine.load()`; the
+  engine decodes it onto the **demo bus** and `setBlend()` crossfades synth↔demo.
+  `applyMix()` maps the UI: synth-only → blend 0, original-only → blend 1, both →
+  `mixBalance`. Toggling a source reloads events (synth off ⇒ empty timeline so
+  only the demo sounds; `Scheduler` treats 0 events as never-ending, so the demo
+  isn't cut off).
+- **UI.** A source-mix bar under the transport (`.sbn-source-mix`), shown only
+  when `hasSourceAudio`: 🎹 Synth / 🎙️ Original toggles + a balance slider when
+  both are on.
+
+**Known limitation — alignment.** The demo track starts at transport beat 0,
+matching the silence-trimmed transcription. A pickup bar or residual offset can
+put the original slightly ahead/behind the synth. Drift-correction (reuse the
+videoSync downbeat offset to delay the demo) is a follow-up, not built.
+
+**Not built this pass:** #3 (local audio as a first-class syncable source) and
+#4 (stem separate/audition UI inside the video-sync sidebar). The persisted
+`sourceAudio` is the foundation both will build on.
+
+### 12c. Local/original audio as a syncable source (feature #3)
+Any hosted audio URL now drives the video-sync path, not just video. A hosted
+source whose URL ends in an audio extension renders as an `<audio controls>`
+element in `VideoEmbed.vue` (`isAudioSource`) instead of a black `<video>` box;
+it shares the same `videoEl` ref + handlers, so `getCurrentTime`/`seekTo`/
+`play`/`pause` and the 60fps `timeupdate` poll all work identically — the media
+element is its own clock. The `MediaElementClock` stub stays unused; sync runs
+through the existing rAF loop reading `currentTime`.
+
+**One-click:** the video-sync sidebar shows **🎙️ Sync to original recording**
+when `sourceAudio` exists — emits `set-video-id { id: sourceAudio.url,
+type: 'hosted' }`. No re-upload; it reuses the file persisted in 12b.
+
+### 12d. Stem separation + audition in the video-sync sidebar (feature #4)
+The sidebar can separate the **persisted original** into stems and sync to one
+(e.g. the isolated guitar is easier to follow than the full mix):
+
+- `POST admin.leadsheets.separate-stems` now also accepts `leadsheet_id` —
+  resolves the leadsheet's `json_data.sourceAudio.url` to a public_path and runs
+  the same `separateStemsToSession()` (as an 'upload' source, so the persisted
+  original is never unlinked). Returns a session + the six stems.
+- Audition via the existing `stream-stem` route.
+- **Sync to this** → `POST admin.leadsheets.{id}.persist-stem-sync {session,
+  stem}` copies the chosen session stem into `public/audio/source/{id}/
+  stem-{name}.wav` (survives session sweep) and returns its URL; the sidebar
+  points videoSync at it as a hosted source.

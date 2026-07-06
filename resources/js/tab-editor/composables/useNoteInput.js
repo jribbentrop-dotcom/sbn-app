@@ -17,6 +17,7 @@ import { ref } from 'vue';
 
 // Sticky grace-entry mode — exported so TabCursor can show a visual hint.
 import { flagCount } from '../utils/constants.js';
+import { stringFretToMidi } from '../../audio/adapters/pitchToMidi.js';
 
 // ── Constants ──────────────────────────────────────────────
 
@@ -24,7 +25,20 @@ const TWO_DIGIT_TIMEOUT_MS = 600;
 const MIN_FRET = 0;
 const MAX_FRET = 24;
 
-export function useNoteInput(cursor, model, wrapCommand = null, repositionMeasure = null) {
+/**
+ * @param {object} [opts]
+ * @param {(midi:number)=>void} [opts.previewNote] — called with the MIDI pitch
+ *        of a note as it's committed, so the editor can sound it. Best-effort.
+ */
+export function useNoteInput(cursor, model, wrapCommand = null, repositionMeasure = null, opts = {}) {
+    const previewNote = typeof opts.previewNote === 'function' ? opts.previewNote : null;
+
+    // Sound a just-entered note on (string, fret) for audible feedback.
+    function firePreview(stringIdx, fret) {
+        if (!previewNote) return;
+        const midi = stringFretToMidi(stringIdx, fret, model.value?.tuning || 'standard');
+        if (midi != null) previewNote(midi);
+    }
 
     // ── Two-digit fret input state ─────────────────────────
 
@@ -110,6 +124,7 @@ export function useNoteInput(cursor, model, wrapCommand = null, repositionMeasur
             doCommit();
         }
 
+        firePreview(cursor.value.stringIndex, fret);
     }
 
     // ── Note deletion ──────────────────────────────────────
@@ -293,6 +308,7 @@ export function useNoteInput(cursor, model, wrapCommand = null, repositionMeasur
         if (wrapCommand) wrapCommand('grace', [ev.measureIdx], doCommit);
         else doCommit();
 
+        firePreview(stringIdx, fret);
         graceMode.value = false;
     }
 

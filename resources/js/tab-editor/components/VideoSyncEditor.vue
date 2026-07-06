@@ -14,8 +14,40 @@
             <button class="sbn-btn sbn-btn-sm sbn-btn-primary" @click="applyVideoId">Set</button>
         </div>
         <div v-if="videoId" class="sbn-vsync-video-id-badge">
-            {{ videoType === 'youtube' ? 'YouTube: ' : 'Video: ' }}<strong>{{ videoId }}</strong>
+            {{ videoType === 'youtube' ? 'YouTube: ' : 'Audio/Video: ' }}<strong>{{ videoIdLabel }}</strong>
             <button class="sbn-vsync-clear-btn" @click="clearVideo" title="Remove video">✕</button>
+        </div>
+
+        <!-- Use the original recording (persisted at audio import) as the sync
+             master. It's a hosted audio file, so it drives the same <audio>-clock
+             sync path as a self-hosted video — no re-upload needed. -->
+        <div v-if="_sourceAudioUrl && videoId !== _sourceAudioUrl" class="sbn-vsync-use-original">
+            <button class="sbn-btn sbn-btn-sm sbn-btn-secondary" @click="useOriginalRecording">
+                🎙️ Sync to original recording
+            </button>
+            <span class="sbn-vsync-hint">Uses the audio you transcribed — nothing to upload.</span>
+        </div>
+
+        <!-- Separate & audition stems from the original recording, then sync to one. -->
+        <div v-if="_sourceAudioUrl && _leadsheetId" class="sbn-vsync-stems">
+            <button class="sbn-btn sbn-btn-sm sbn-btn-secondary"
+                    @click="separateSourceStems"
+                    :disabled="stemBusy">
+                <span v-if="!stemBusy && !stemSession">🎛️ Separate stems from original</span>
+                <span v-else-if="!stemBusy && stemSession">Re-separate</span>
+                <span v-else>Separating… (~a few seconds)</span>
+            </button>
+            <div v-if="stemError" class="sbn-downbeat-error">{{ stemError }}</div>
+            <div v-if="stemSession" class="sbn-vsync-stem-list">
+                <div v-for="name in availableStems" :key="name" class="sbn-vsync-stem-row">
+                    <span class="sbn-vsync-stem-name">{{ name }}</span>
+                    <audio controls preload="none" :src="stemStreamUrl(name)" class="sbn-vsync-stem-audio"></audio>
+                    <button class="sbn-btn sbn-btn-xs sbn-btn-primary"
+                            :disabled="stemSyncBusy"
+                            @click="syncToStem(name)">Sync to this</button>
+                </div>
+                <div class="sbn-vsync-hint">Syncing to the isolated guitar is often easier to follow than the full mix.</div>
+            </div>
         </div>
 
         <!-- Cinema with/without-guitar backing-track toggle -->
@@ -231,6 +263,88 @@ const BEATS_PER_BAR = 4;
 const _lsGlobal = (typeof window !== 'undefined' && window.__sbnLeadsheet) || {};
 const _rawTranscription = _lsGlobal.transcriptionRaw || null;
 const _leadsheetId = _lsGlobal.id || null;
+// Original recording persisted at audio import — offer it as a one-click
+// hosted sync source (see useOriginalRecording).
+const _sourceAudioUrl = _lsGlobal.sourceAudio?.url || null;
+
+// For a hosted URL the id IS the full URL — show a short label, not the path.
+const videoIdLabel = computed(() => {
+    if (props.videoType === 'youtube') return props.videoId;
+    if (props.videoId === _sourceAudioUrl) return 'original recording';
+    try { return decodeURIComponent(props.videoId.split('/').pop()) || props.videoId; }
+    catch { return props.videoId; }
+});
+
+function useOriginalRecording() {
+    if (!_sourceAudioUrl) return;
+    rawInput.value = _sourceAudioUrl;
+    emit('set-video-id', { id: _sourceAudioUrl, type: 'hosted' });
+}
+
+// ── Stem separation + audition (from the persisted original recording) ──
+const stemBusy       = ref(false);
+const stemSyncBusy    = ref(false);
+const stemSession    = ref('');
+const availableStems = ref([]);
+const stemError      = ref('');
+
+function _csrf() {
+    return document.querySelector('meta[name="csrf-token"]')?.content || '';
+}
+
+function stemStreamUrl(name) {
+    return stemSession.value ? `/admin/leadsheets/stems/${stemSession.value}/${name}` : '';
+}
+
+async function separateSourceStems() {
+    if (!_leadsheetId || stemBusy.value) return;
+    stemError.value = '';
+    stemSession.value = '';
+    availableStems.value = [];
+    stemBusy.value = true;
+    try {
+        const fd = new FormData();
+        fd.append('leadsheet_id', String(_leadsheetId));
+        const res = await fetch('/admin/leadsheets/separate-stems', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': _csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+            body: fd,
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || `Separation failed (${res.status}).`);
+        stemSession.value = data.session;
+        availableStems.value = data.stems || [];
+    } catch (e) {
+        stemError.value = e.message || 'Separation failed.';
+    } finally {
+        stemBusy.value = false;
+    }
+}
+
+async function syncToStem(name) {
+    if (!_leadsheetId || !stemSession.value || stemSyncBusy.value) return;
+    stemSyncBusy.value = true;
+    stemError.value = '';
+    try {
+        const fd = new FormData();
+        fd.append('session', stemSession.value);
+        fd.append('stem', name);
+        const res = await fetch(`/admin/leadsheets/${_leadsheetId}/persist-stem-sync`, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': _csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+            body: fd,
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || `Could not sync to stem (${res.status}).`);
+        // Point video-sync at the persisted stem (hosted audio).
+        rawInput.value = data.url;
+        emit('set-video-id', { id: data.url, type: 'hosted' });
+    } catch (e) {
+        stemError.value = e.message || 'Could not sync to stem.';
+    } finally {
+        stemSyncBusy.value = false;
+    }
+}
 
 const reshiftBusy  = ref(false);
 const reshiftError = ref('');
@@ -613,6 +727,42 @@ onUnmounted(() => { document.removeEventListener('keydown', onKeydown); });
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+.sbn-vsync-use-original,
+.sbn-vsync-stems {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.sbn-vsync-hint {
+    font-size: 11px;
+    color: #6b7280;
+}
+.sbn-vsync-stem-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+}
+.sbn-vsync-stem-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.sbn-vsync-stem-name {
+    text-transform: capitalize;
+    font-size: 12px;
+    font-weight: 600;
+    width: 52px;
+    flex: 0 0 auto;
+}
+.sbn-vsync-stem-audio {
+    height: 30px;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 /* Ensure video player respects 16:9 aspect ratio within sidebar width */
