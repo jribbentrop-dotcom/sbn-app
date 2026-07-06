@@ -182,6 +182,19 @@ Helpers exported from the same file:
 
 Video sync layers on top: see SBN-Admin-Reference §VIDEO SYNC ARCHITECTURE for editor-side authoring and SBN-Leadsheet-Reference §8.2 for the Cinema viewer.
 
+### 5.2 Pickup bars
+
+A pickup bar (`measure.pickup === true`, `measure.pickupBeats` set to a value less than the global time signature's beat count) contributes only its own `pickupBeats` to the timeline instead of a full `beatsPerMeasure` — otherwise every bar after the pickup would be shifted by `(beatsPerMeasure - pickupBeats)` beats, a systematic drift that gets worse the longer the song runs.
+
+Every place that turns a play position (or gi) into a beat offset must branch on `pickupBeats`:
+
+- `chordVoicingsToEvents.js` / `tabMeasureToEvents.js` — build a `positionBeatStart` array before emitting events: `beatCursor += measure.pickupBeats ?? beatsPerMeasure`.
+- `expandMeasureSequence.js`'s `sequenceToBeatMap(sequence, beatsPerMeasure, measureByGi)` — same pattern, as a reusable table-builder (`measureByGi` is optional; omitting it falls back to flat spacing).
+- `TabEditor.vue`'s `playPositionBeatTable` / `LeadsheetViewer.vue`'s `playPositionBeatTable` — the UI-facing version of the same table, `{ gi, beatStart, beatEnd }` per play position. Both views build their own copy (see §8 below) rather than sharing one, since one lives in the admin editor's transport and the other in the read-only viewer.
+- `useVideoSync.js`'s `videoBeat` / `videoTimeToBeat` (admin video-sync) — must agree with `playPositionBeatTable`, since the cursor watcher looks beats up in that table; if `videoBeat` uses flat `pos * bpm` while pickup bars exist, playback drifts the moment video is the master clock.
+
+**Gotcha:** getting the *engine clock* pickup-aware isn't enough — every consumer that independently re-derives "beat within this bar" from the raw transport beat via `beat % bpm` will desync after a pickup, because that modulo has no memory of the non-uniform bar before it. See `measureBeatStartMap` in §8 — this is what `TabMeasure.vue`/`ChordMeasure.vue` need injected to compute `beatInThisMeasure` correctly; without it they silently fall back to the broken modulo and produce a per-measure "sawtooth" jump in the sub-beat cursor, easy to miss because it only manifests on songs that actually have a pickup bar.
+
 ### `chordDiagramToEvents(model, ctx)`
 Converts a `ChordDiagram` database record into a single strum. MIDI derived from `diagram_data.positions` + standard tuning — **not** from the `notes` column (which has no octave). Barre chords handled; muted strings skipped.
 
@@ -314,13 +327,31 @@ const transportBeat = computed(() => {
     if (isChordPlaying.value) return chordCurrentBeat.value;
     return currentBeat.value || chordCurrentBeat.value;
 });
-
-// Always-on measure cursor: used for unified highlight in both views.
-// Shows measure 0 at page load; retains paused position after stop.
-const playingMeasureIndex = computed(() =>
-    Math.floor(transportBeat.value / beatsPerMeasure.value)
-);
 ```
+
+`playingMeasureIndex` is **not** `Math.floor(transportBeat / beatsPerMeasure)` — that flat division is wrong the moment a pickup bar exists (§5.2). Instead it's derived from `playPositionBeatTable`, a `{ gi, beatStart, beatEnd }` array built once per play position, honouring each bar's own `pickupBeats`:
+
+```js
+const playPositionBeatTable = computed(() => {
+    const table = [];
+    let cursor = 0;
+    for (const gi of expandedSequence.value) {
+        const beats = measureByGi.get(gi)?.pickupBeats ?? beatsPerMeasure.value;
+        table.push({ gi, beatStart: cursor, beatEnd: cursor + beats });
+        cursor += beats;
+    }
+    return table;
+});
+
+const playingMeasureIndex = ref(0);
+watch([transportBeat, playPositionBeatTable], ([beat]) => {
+    const table = playPositionBeatTable.value;
+    const entry = table.find(e => beat >= e.beatStart && beat < e.beatEnd) ?? table.at(-1);
+    playingMeasureIndex.value = entry?.gi ?? 0;
+});
+```
+
+`TabEditor.vue` and `LeadsheetViewer.vue` (the public read-only viewer) each build their own copy of this table rather than sharing one — see §5.2.
 
 ### User actions
 
@@ -338,15 +369,27 @@ const playingMeasureIndex = computed(() =>
 
 ### Unified cursor in tab view
 
-While tab is playing, a `watch(transportBeat)` in `TabEditor` calls `beatToMeasureEvent(beat)` → `moveTo(mi, ei, si)` to drive the orange cursor column in real time. The same cursor serves editing (when stopped) and playback tracking (when playing). The user never edits during playback, so this dual use is safe.
+While tab is playing, a `watch(transportBeat)` in `TabEditor` calls `beatToMeasureEvent(beat)` → `moveTo(mi, ei, si)` to drive the orange cursor column in real time. The same cursor serves editing (when stopped) and playback tracking (when playing). The user never edits during playback, so this dual use is safe. `beatToMeasureEvent` looks the bar up in `measureBeatTable` (the gi-keyed counterpart of `playPositionBeatTable`, §8 above) rather than a flat `Math.floor(beat / beatsPerMeasure)`, so it resolves correctly across a pickup bar.
+
+Each `TabMeasure`/`ChordMeasure` also computes its own **within-bar** beat position (`beatInThisMeasure`, for the metronome/sub-beat cursor) from an injected `measureBeatStartMap` — a `Map<gi, beatStart>` provided alongside `playingMeasureIndex`/`transportBeat`:
 
 ```js
-function beatToMeasureEvent(beat) {
-    const mi = Math.floor(beat / beatsPerMeasure);
-    const tickInMeasure = (beat % beatsPerMeasure) * ppq;
-    // find last v1 event whose tickInMeasure <= current tick
-}
+// Provided by TabEditor.vue (admin) and LeadsheetViewer.vue (public viewer) —
+// both must provide this, or TabMeasure/ChordMeasure fall back to
+// `beat % thisBarsBpm`, which has no memory of a shorter pickup bar earlier
+// in the timeline and desyncs every measure after it.
+provide('measureBeatStartMap', computed(() => {
+    const beat  = transportBeat.value ?? 0;
+    const table = playPositionBeatTable.value;
+    const map   = new Map();
+    for (const e of table) if (!map.has(e.gi)) map.set(e.gi, e.beatStart);
+    const active = table.find(e => beat >= e.beatStart && beat < e.beatEnd);
+    if (active) map.set(active.gi, active.beatStart);
+    return map;
+}));
 ```
+
+`beatInThisMeasure` in `TabMeasure.vue` then does `beat - measureBeatStartMap.get(gi)` instead of a modulo — see §5.2's gotcha for why the modulo fallback silently breaks on pickup bars.
 
 ---
 
