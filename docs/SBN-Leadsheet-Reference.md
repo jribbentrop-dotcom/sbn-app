@@ -233,6 +233,22 @@ Both adapters are called with `voice: 'nylon'` so playback uses real nylon-strin
 
 Cross-source coordination: the `'playStarted'` engine event clears `isPlaying` in each composable — no extra wiring needed when the EduPanel card plays a single chord.
 
+#### 6.3.1 Rhythm-pattern layer (Chords mode only)
+
+`sbn_leadsheets.rhythm_pattern_id` (nullable FK, added 2026-07-06 — see migration `2026_07_06_000000_add_rhythm_pattern_id_to_leadsheets.php`) links a leadsheet to a real `sbn_rhythm_patterns` row, replacing the old string-match convention (`sbn_leadsheets.rhythm === sbn_rhythm_patterns.slug`). `sbn_leadsheet_versions` has its own `rhythm_pattern_id` override column, mirroring how `rhythm` (the legacy text column) already worked per-arrangement. Both `rhythm` text columns are kept for backward compatibility; `SongLibraryController::resolveRhythmPattern()` resolves version override → leadsheet default → legacy slug lookup, in that order, so pre-migration rows with an unmatched `rhythm` string (e.g. a bare genre label like `"jazz"` that was never a real pattern slug) still resolve to `null` rather than a false match.
+
+`viewer()`, `apiViewerData()`, and `cinema()` all thread `rhythmData` (`RhythmPattern::toPlayerData()`) into the `leadsheet` payload object — no separate top-level Inertia prop, so the "must forward through Viewer.vue" trap (§14) doesn't apply here; `leadsheet.rhythmData` just rides along.
+
+**Audio merge** — `LeadsheetViewer.vue`'s `loadAllEvents()` merges the pattern into the chord-audio event stream, **Chords mode only** (Analysis mode plays the same chord audio but keeps the flat beat row; Tab mode has real note-accurate audio a generic backing rhythm shouldn't compete with). `buildRhythmEvents(totalBeats, anchorBeat)` loops `rhythmPatternToEvents()` to cover the song, tagging events `voice: 'percussion'`.
+
+**Picking-mode patterns are skipped entirely** (silent — the visual beat cells still work). `rhythmPatternToEvents()` generates picking-mode notes from generic open-string MIDI defaults (`FINGER_DEFAULT_MIDI`), not the song's actual chord voicings — layering that under real chord audio would sound like two unrelated guitar parts. Only `percTop`/`percBass` (pure percussion sample) patterns merge into playback.
+
+**Pickup-bar anchor is load-bearing.** The rhythm loop must start at the first *full* measure's beat (`anchorBeat = firstMeasure.pickupBeats ?? 0`, via `flattenModelMeasures(model.value).flatMeasures[0]`), not absolute beat 0. A song that opens with a pickup bar shifts the chord grid's "downbeat 1" away from beat 0 by the pickup's length — anchoring the pattern loop at 0 regardless permanently offsets every subsequent repetition by that same shortfall (heard as a constant, song-wide sync drift — e.g. "everything is a quarter-note off" for a quarter-note pickup — not a growing one, since both streams still share the same tempo afterward). Fixed 2026-07-06; verify against a pickup-bar song specifically if touching this again, since non-pickup songs won't surface the bug.
+
+**Visual beat cells** — `ChordMeasure.vue` injects `rhythmData` (provided by `LeadsheetViewer.vue`, `computed(() => mode.value === 'chords' ? props.leadsheet.rhythmData ?? null : null)`, `null`-defaulted per the shared-component contract). When present: `beatTickCount` follows the pattern's own step count (`pattern.beats`) instead of one-tick-per-quarter-beat; each tick's hit/rest/accent state comes from merging `pattern.fingers`/`pattern.thumb` (same merge convention as `RhythmStrip.vue`'s `mergedFingersArray`); `activeBeat` maps the engine's beat-in-measure into pattern-step space via the pattern's `stepBeats`. Unlike the audio layer, the *visual* ticks need no pickup-bar anchor fix — `measureBeatStartMap` already gives each `ChordMeasure` instance its own measure-relative beat-start, so each measure's local tick-0 is correct regardless of pickup bars elsewhere in the song. Falls back to the pre-2026-07-06 flat "every tick is a hit, one per quarter-beat" behavior when no pattern is assigned (drafts, unmatched legacy `rhythm` strings, the admin tab editor, Tab/Analysis modes).
+
+CSS: `.sbn-ve-beat-tick`/`.beat-rest`/`.beat-accent`/`.beat-one`/`.beat-active` in `sbn-design-system.css` (§12) — RhythmStrip-style rounded-bar cells, not the original round dots. Cinema's `StageHeroNow.vue` beat row (`.stage-beat-cell`/`.is-current`) got the same visual treatment but is **not** wired to a real pattern yet (`beatCellStates` is still a flat placeholder array) — Cinema has no audio engine at all today, so the rhythm-pattern audio merge only applies to the classic Viewer.
+
 ### 6.4 Selection — `selectionData`
 
 Single computed merges both modes:
@@ -545,10 +561,12 @@ Quality slugs: `maj`, `min`, `aug`, `dim`, `5`, `sus4`, `sus2`, `add9`, `maj7`, 
 ## 13. Files index
 
 **Controllers / services**
-- `app/Http/Controllers/Library/SongLibraryController.php` — `show()`, `viewer()`, `cinema()`, `apiSearch()`, `apiViewerData()`
+- `app/Http/Controllers/Library/SongLibraryController.php` — `show()`, `viewer()`, `cinema()`, `apiSearch()`, `apiViewerData()`, `resolveRhythmPattern()` (§6.3.1)
 - `app/Services/LeadsheetViewerService.php` — `enrich()`, `pickBestVoicing()`, `synthesizeMinimalCard()`, `getVoicingShapePattern()`
 - `app/Services/ChordVoicingSearch.php` — `searchByName()`, `parseChordName()`
 - `app/Services/EduContentService.php`
+- `app/Models/RhythmPattern.php` — `toPlayerData()`, `rhythmPatternToEvents()`'s backend counterpart data source (§6.3.1)
+- `database/migrations/2026_07_06_000000_add_rhythm_pattern_id_to_leadsheets.php` — adds/backfills `rhythm_pattern_id` on `sbn_leadsheets` + `sbn_leadsheet_versions`
 - `config/edu/chord-qualities.php`
 
 **Pages**
@@ -568,7 +586,7 @@ Quality slugs: `maj`, `min`, `aug`, `dim`, `5`, `sus4`, `sus2`, `add9`, `maj7`, 
 
 **Components — cinema view**
 - `resources/js/Components/Cinema/StageTopBar.vue`
-- `resources/js/Components/Cinema/StageHeroNow.vue`
+- `resources/js/Components/Cinema/StageHeroNow.vue` — beat row (`.stage-beat-cell`) restyled to match RhythmStrip cells 2026-07-06; still a flat placeholder array, not wired to `leadsheet.rhythmData` (§6.3.1, §15)
 - `resources/js/Components/Cinema/StageSectionsGrid.vue`
 - `resources/js/Components/ChordDiagram/ClassicChordCard.vue`
 - `resources/js/Components/ChordDiagram/NeonChordDiagram.vue`
@@ -650,6 +668,22 @@ Rule: whenever you add a new `inject()` to a component that is also used in the 
 
 `Viewer.vue` is a thin Inertia page wrapper: it declares its own `defineProps` and must **explicitly bind each one** in its template to `<LeadsheetViewer>`. A prop returned by `SongLibraryController::viewer()` reaching the Inertia payload does **not** automatically reach `LeadsheetViewer.vue` — if `Viewer.vue` itself doesn't declare + bind it, it silently vanishes with no error, no warning, nothing rendered. This bit `skillNodes` / `relatedTheory` / `chordNumerals` in the same session they were added (2026-07-04): the controller and `LeadsheetViewer.vue`'s own prop list were both updated correctly, and it still "did nothing" until `Viewer.vue` was found to be the missing link. Whenever threading a new prop through this stack, update three places: controller `render()` payload → `Viewer.vue` `defineProps` + template binding → `LeadsheetViewer.vue` `defineProps`.
 
+### Rhythm-pattern audio must anchor to the first full measure, not beat 0
+
+```js
+// WRONG — always loops the pattern from absolute beat 0
+let offset = 0;
+while (offset < totalBeats) { /* ... */ offset += patLen; }
+
+// CORRECT — anchor at the first full measure's start beat
+const firstMeasure = flattenModelMeasures(model.value).flatMeasures[0];
+const anchorBeat = firstMeasure?.pickupBeats ?? 0;
+let offset = anchorBeat;
+while (offset < totalBeats) { /* ... */ offset += patLen; }
+```
+
+A song that opens with a pickup bar has its chord grid's "downbeat 1" at beat `pickupBeats`, not beat 0. Looping the rhythm pattern from 0 regardless produces a **constant**, song-wide offset equal to the pickup's length (reported as "everything is a quarter-note off" for a quarter-note pickup) — not a growing drift, since both streams share the same tempo afterward, which makes it easy to mistake for a scheduler/clock bug rather than a beat-0 anchoring bug. See §6.3.1. Only pickup-bar songs surface this; test against one specifically when touching `buildRhythmEvents()`.
+
 ---
 
 ## 15. Open items
@@ -662,3 +696,6 @@ Rule: whenever you add a new `inject()` to a component that is also used in the 
 - **Cinema fallback clock repeat-awareness:** ✅ DONE (2026-07-02) — the silent (no-video) fallback now counts in play-position space and derives the highlighted gi via `giAtPosition(expandedSequence.value, pos)`, looping/ending at `expandedSequence.length` instead of `totalBars`. `onSeekBar`'s no-video branch syncs `currentPlayPosition` via `firstPositionForGi` so play resumes from the seeked bar. Repeated bars now re-light on each pass.
 - **Cinema-side bar-click on repeated bars always lands on pass 1:** `measureIndexToVideoTime(gi)` uses `firstPositionForGi`. Match the tab editor's "click a sync editor row to seek a specific pass" idea (a Cinema popover or right-click menu) once badge popovers ship there.
 - **Cinema fretboard view:** `StageSectionsGrid` view toggle is `'chords' | 'tab'`; fretboard (`'fretboard'`) is the planned third option. Model: `ChordProgressionViewer`'s embedded fretboard SVG as a standalone component fed from `chordCards` + active section measures.
+- **No admin UI to assign/reassign `rhythm_pattern_id`:** the 2026-07-06 migration backfilled it from clean slug matches (71/73 leadsheets, 70/72 versions), but the handful of unmatched rows (bare genre labels like `rhythm = 'jazz'` that were never real pattern slugs — e.g. `dream-a-little-dream`, `georgia-on-my-mind`) need manual assignment via SQL or a script; no picker exists in the leadsheet admin editor yet.
+- **Cinema has no audio engine, so no rhythm-pattern playback there:** the §6.3.1 audio merge is classic-Viewer-only. Cinema's `StageHeroNow.vue` beat row got the same RhythmStrip visual treatment but is still driven by a flat placeholder array, not `leadsheet.rhythmData` (which Cinema's controller payload does include, unused so far).
+- **Rhythm-pattern picking-mode songs get no audio layer:** `buildRhythmEvents()` silently skips `pickingMode` patterns (see §6.3.1) since they'd need the song's real chord-tone MIDI (`ctx.chordMidi`) wired in to sound right instead of generic open-string defaults — deferred rather than shipping an audibly-wrong "second guitar part."

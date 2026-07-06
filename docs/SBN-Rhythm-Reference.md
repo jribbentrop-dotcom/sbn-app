@@ -266,6 +266,15 @@ RhythmPattern model (DB)
 Pure function — no side effects. Takes a `RhythmPatternData` and returns an array of
 timed percussion events. Uses `percTop` / `percBass` to route to the correct sample bucket.
 
+**Second consumer (2026-07-06):** the classic leadsheet viewer merges this same adapter's
+output into its chord-audio event stream when a song has an assigned `rhythm_pattern_id` —
+see [SBN-Leadsheet-Reference.md §6.3.1](SBN-Leadsheet-Reference.md). That merge only uses
+non-`pickingMode` patterns (percussion-only) and anchors the loop to the song's first full
+measure, not beat 0 — a pickup bar shifts the chord grid's downbeat away from 0, and the
+leadsheet integration has its own pickup-anchor trap documented there. `RhythmStrip.vue`'s
+own standalone playback (this section) is unaffected — it always starts at `startBeat: 0`,
+which is correct for a rhythm pattern played on its own with no pickup-bar context.
+
 ### AudioEngine
 
 **File:** `resources/js/audio/engine/AudioEngine.js`  
@@ -360,7 +369,7 @@ the Course Reference §10 for the course-side video-sync flow.
 | 1 | ~~Migrate `<sbn-rhythm>` lesson embed (`mountSbnNodes.ts`) to `RhythmStrip`~~ — **DONE** | Medium |
 | 2 | ~~Add `@click.stop` on `RhythmStrip`'s play button~~ — **DONE** | High |
 | 3 | ~~Extend `RhythmStrip` with a `mini` prop~~ — **DONE** | Low |
-| 4 | Phase 7: "Used in songs" section on rhythm Show page (query `sbn_leadsheets WHERE rhythm = {slug}`) | Low |
+| 4 | ~~Phase 7: "Used in songs" section on rhythm Show page (query `sbn_leadsheets WHERE rhythm = {slug}`)~~ — superseded 2026-07-06: `sbn_leadsheets`/`sbn_leadsheet_versions` now have a real `rhythm_pattern_id` FK (see [SBN-Leadsheet-Reference.md §6.3.1](SBN-Leadsheet-Reference.md)); "used in songs" should query that FK, not the legacy `rhythm` string match, once built | Low |
 | 5 | Rhythm Show page: confirm demo blend slider still works after `RhythmPattern` refactors | Medium |
 
 ---
