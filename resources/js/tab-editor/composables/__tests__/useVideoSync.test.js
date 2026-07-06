@@ -132,3 +132,46 @@ describe('useVideoSync mappingsByPosition', () => {
         expect(vs.mappingsByPosition.value).toEqual([]);
     });
 });
+
+describe('useVideoSync videoBeat / videoTimeToBeat (pickup bars)', () => {
+    // gi 0 is a 1-beat pickup; gi 1, 2 are full 4-beat bars.
+    const model = { value: { sections: [{ measures: [
+        { index: 0, pickupBeats: 1 },
+        { index: 1 },
+        { index: 2 },
+    ] }] } };
+    const sequence = [0, 1, 2];
+
+    function mountWithModel(marks) {
+        const bpm = { value: 4 };
+        const vs = useVideoSync(model, {
+            wrapCommand: runNow,
+            beatsPerMeasure: bpm,
+            getSequence: () => sequence,
+        });
+        vs.mappings.value = marks.map(m => ({ ...m }));
+        return vs;
+    }
+
+    it('videoTimeToBeat shrinks the pickup bar to its own beat count instead of a full measure', () => {
+        const vs = mountWithModel([
+            { measureIndex: 0, videoTime: 0 },
+            { measureIndex: 1, videoTime: 1 },
+            { measureIndex: 2, videoTime: 5 },
+        ]);
+        // pos 0 (pickup, gi 0) -> beat 0; pos 1 (gi 1) -> beat 1 (not 4); pos 2 (gi 2) -> beat 5.
+        expect(vs.videoTimeToBeat(0)).toBe(0);
+        expect(vs.videoTimeToBeat(1)).toBe(1);
+        expect(vs.videoTimeToBeat(5)).toBe(5);
+    });
+
+    it('videoBeat mirrors videoTimeToBeat for the current play position', () => {
+        const vs = mountWithModel([
+            { measureIndex: 0, videoTime: 0 },
+            { measureIndex: 1, videoTime: 1 },
+            { measureIndex: 2, videoTime: 5 },
+        ]);
+        vs.videoPlayPosition.value = 1; // start of gi 1, right after the 1-beat pickup
+        expect(vs.videoBeat.value).toBe(1);
+    });
+});

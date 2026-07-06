@@ -113,7 +113,7 @@
           <TransportDeck
             :playing="transportPlaying"
             :current-bar="currentBar"
-            :current-beat="transportBeat % (beatsPerMeasure || 1)"
+            :current-beat="currentBeatInBar"
             :total-bars="totalBars"
             :beats-per-measure="beatsPerMeasure"
             :sections="model?.sections || []"
@@ -179,7 +179,7 @@ import { useAudioEngine } from '@/tab-editor/composables/useAudioEngine.js';
 import { getAudioEngine } from '@/audio/engine/AudioEngine.js';
 import { tabModelToEvents } from '@/audio/adapters/tabMeasureToEvents.js';
 import { chordVoicingsToEvents } from '@/audio/adapters/chordVoicingsToEvents.js';
-import { expandModelSequence } from '@/audio/adapters/expandMeasureSequence.js';
+import { expandModelSequence, flattenModelMeasures } from '@/audio/adapters/expandMeasureSequence.js';
 
 const props = defineProps({
   /** Leadsheet payload from controller — see resources/js/types/leadsheet.ts */
@@ -559,11 +559,35 @@ function onTempoChange(newTempo) {
 // ── TransportDeck adapter (shared component with Cinema) ─────────────────────
 // TransportDeck works in bars, not raw beats — derive bar position from the
 // existing beat-based transport state instead of teaching the engine bars.
-const totalBars  = computed(() => Math.max(1, Math.round(totalBeats.value / (beatsPerMeasure.value || 1))));
-const currentBar = computed(() => Math.floor(transportBeat.value / (beatsPerMeasure.value || 1)));
+const totalBars  = computed(() => Math.max(1, playPositionBeatTable.value.length || Math.round(totalBeats.value / (beatsPerMeasure.value || 1))));
+
+// Shared lookup for the current transportBeat's table entry — currentBar and
+// currentBeatInBar must agree on which bar/range they're describing, or
+// TransportDeck's `currentBar + currentBeat/beatsPerMeasure` sweep desyncs at
+// every bar boundary after a pickup (currentBar jumping to the next table
+// index while currentBeat is still computed against the OLD bar's length).
+const currentBarEntry = computed(() => {
+  const b = transportBeat.value ?? 0;
+  const table = playPositionBeatTable.value;
+  return table.find(e => b >= e.beatStart && b < e.beatEnd) ?? null;
+});
+const currentBar = computed(() => {
+  const entry = currentBarEntry.value;
+  if (entry) return playPositionBeatTable.value.indexOf(entry);
+  return Math.floor((transportBeat.value ?? 0) / (beatsPerMeasure.value || 1));
+});
+// Beats elapsed within the current bar, using THAT bar's own beat count
+// (pickupBeats when it's a pickup) rather than the global time signature.
+const currentBeatInBar = computed(() => {
+  const entry = currentBarEntry.value;
+  const b = transportBeat.value ?? 0;
+  if (entry) return b - entry.beatStart;
+  return b % (beatsPerMeasure.value || 1);
+});
 
 function onDeckSeekBar(bar) {
-  onTransportSeek(bar * beatsPerMeasure.value);
+  const entry = playPositionBeatTable.value[bar];
+  onTransportSeek(entry ? entry.beatStart : bar * beatsPerMeasure.value);
 }
 
 function onPrevBar() {
@@ -626,26 +650,47 @@ const expandedSequence = computed(() => {
   return expandModelSequence(model.value);
 });
 
+// Play-position → beat-range table, accounting for pickup bars whose beat
+// count differs from the global time signature. Mirrors TabEditor.vue's
+// playPositionBeatTable — without this, a pickup bar (fewer beats than a
+// full measure) throws every beatStart after it off by
+// (beatsPerMeasure - pickupBeats), desyncing the playhead/highlight from the
+// audio engine clock (which chordVoicingsToEvents.js/tabMeasureToEvents.js
+// already build correctly using pickupBeats).
+const playPositionBeatTable = computed(() => {
+  const bpm = beatsPerMeasure.value;
+  const { measureByGi } = flattenModelMeasures(model.value);
+  const table = [];
+  let cursor = 0;
+  for (const gi of expandedSequence.value) {
+    const beats = measureByGi.get(gi)?.pickupBeats ?? bpm;
+    table.push({ gi, beatStart: cursor, beatEnd: cursor + beats });
+    cursor += beats;
+  }
+  return table;
+});
+
 // Inverse map: globalIndex → first play-position beat (for seek).
 // When a bar repeats, points to its FIRST occurrence so clicking it
 // seeks to the beginning of the phrase containing that bar.
 const firstBeatForGi = computed(() => {
-  const bpm = beatsPerMeasure.value;
   const map = new Map();
-  expandedSequence.value.forEach((gi, pos) => {
-    if (!map.has(gi)) map.set(gi, pos * bpm);
-  });
+  for (const entry of playPositionBeatTable.value) {
+    if (!map.has(entry.gi)) map.set(entry.gi, entry.beatStart);
+  }
   return map;
 });
 
 // ── Active-measure highlight (drives the beat-tick sweep across the grid) ────
 const playingMeasureIndex = ref(0);
 watch(
-  [transportBeat, beatsPerMeasure],
-  ([beat, bpm]) => {
-    // Convert play-position to globalIndex using the expanded sequence.
-    const pos = Math.floor((beat ?? 0) / (bpm || 4));
-    playingMeasureIndex.value = expandedSequence.value[pos] ?? pos;
+  [transportBeat, playPositionBeatTable],
+  ([beat]) => {
+    const b = beat ?? 0;
+    const table = playPositionBeatTable.value;
+    const entry = table.find(e => b >= e.beatStart && b < e.beatEnd) ?? table[table.length - 1];
+    const pos = entry ? table.indexOf(entry) : Math.floor(b / (beatsPerMeasure.value || 4));
+    playingMeasureIndex.value = entry?.gi ?? expandedSequence.value[pos] ?? pos;
   },
   { immediate: true }
 );
@@ -881,6 +926,22 @@ provide('transportBeat', transportBeat);
 provide('seekToMeasure', seekToMeasure);
 provide('transportPlaying', transportPlaying);
 provide('readOnly', true);
+// Map of gi → beatStart for the current play pass (mirrors TabEditor.vue) —
+// TabMeasure's beatInThisMeasure needs this to compute true beat-within-measure
+// for a pickup bar. Without it, TabMeasure falls back to `beat % thisBarsBpm`,
+// which desyncs every measure after a pickup (the flat modulo doesn't know the
+// timeline before it wasn't uniform) — the "chainsaw" sub-measure cursor jump.
+provide('measureBeatStartMap', computed(() => {
+  const beat  = transportBeat.value ?? 0;
+  const table = playPositionBeatTable.value;
+  const map   = new Map();
+  for (const e of table) {
+    if (!map.has(e.gi)) map.set(e.gi, e.beatStart);
+  }
+  const active = table.find(e => beat >= e.beatStart && beat < e.beatEnd);
+  if (active) map.set(active.gi, active.beatStart);
+  return map;
+}));
 // Detected-progression highlight: map of gi → progression ids, plus the
 // currently-hovered progression id. ChordMeasure injects both.
 provide('progressionHighlights', progressionHighlights);

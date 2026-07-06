@@ -1,5 +1,5 @@
 import { ref, computed, watch } from 'vue';
-import { giAtPosition, firstPositionForGi } from '../../audio/adapters/expandMeasureSequence.js';
+import { giAtPosition, firstPositionForGi, flattenModelMeasures } from '../../audio/adapters/expandMeasureSequence.js';
 
 /**
  * useVideoSync — Phase D1 (Playback sync)
@@ -31,6 +31,36 @@ import { giAtPosition, firstPositionForGi } from '../../audio/adapters/expandMea
 export function useVideoSync(model, { wrapCommand, playingMeasureIndex, transportPlaying, beatsPerMeasure, getSequence }) {
 
     const _sequence = () => (typeof getSequence === 'function' ? (getSequence() || []) : []);
+
+    // Play-position → beat-range table, accounting for pickup bars whose beat
+    // count differs from the global time signature. Mirrors TabEditor.vue's
+    // playPositionBeatTable — videoBeat/videoTimeToBeat MUST agree with it or
+    // the cursor watcher (which looks beats up in that table) desyncs from the
+    // position video-master mode actually reports, drifting starting at any
+    // pickup bar.
+    const _positionBeatTable = computed(() => {
+        const seq = _sequence();
+        const bpm = beatsPerMeasure?.value ?? 4;
+        const { measureByGi } = flattenModelMeasures(model.value);
+        const table = [];
+        let cursor = 0;
+        for (const gi of seq) {
+            const beats = measureByGi.get(gi)?.pickupBeats ?? bpm;
+            table.push({ beatStart: cursor, beats });
+            cursor += beats;
+        }
+        return table;
+    });
+
+    /** Fractional play position → global beat, honouring pickup-bar beat counts. */
+    function positionToBeat(pos) {
+        const table = _positionBeatTable.value;
+        if (!table.length) return pos * (beatsPerMeasure?.value ?? 4);
+        const i = Math.max(0, Math.min(table.length - 1, Math.floor(pos)));
+        const entry = table[i];
+        const frac = pos - i;
+        return entry.beatStart + frac * entry.beats;
+    }
 
     // ── State ─────────────────────────────────────────────────
     const videoId          = ref('');
@@ -81,8 +111,7 @@ export function useVideoSync(model, { wrapCommand, playingMeasureIndex, transpor
     const videoBeat = computed(() => {
         const pos = videoPlayPosition.value;
         if (pos === null) return null;
-        const bpm = beatsPerMeasure?.value ?? 4;
-        return pos * bpm;
+        return positionToBeat(pos);
     });
 
     const sortedMappings = computed(() =>
@@ -273,8 +302,7 @@ export function useVideoSync(model, { wrapCommand, playingMeasureIndex, transpor
     function videoTimeToBeat(time) {
         const pos = videoTimeToPlayPosition(time);
         if (pos === null) return null;
-        const bpm = beatsPerMeasure?.value ?? 4;
-        return pos * bpm;
+        return positionToBeat(pos);
     }
 
     // ── Video → Audio sync (D1, 60fps via requestAnimationFrame) ─

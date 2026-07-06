@@ -341,7 +341,12 @@ let renameInputEl    = null;  // set via callback ref — avoids v-for array iss
 const renamingCi     = ref(null);   // chord index currently being renamed, or null
 const renameValue    = ref('');
 
-watch(inlineRenameTarget, (target) => {
+// inlineRenameTarget is only provided by the admin TabEditor (inline chord
+// rename isn't wired up in the read-only public LeadsheetViewer, which also
+// renders this component) — inject() then falls back to the literal `null`
+// default, which isn't a valid watch source. Wrap in a getter so it's always
+// watchable; the getter itself just returns null when there's nothing to watch.
+watch(() => inlineRenameTarget?.value ?? null, (target) => {
     if (target && target.source === 'tab' && target.gi === props.measure.index) {
         renameValue.value = props.chordNames[target.ci] || '';
         renamingCi.value  = target.ci;

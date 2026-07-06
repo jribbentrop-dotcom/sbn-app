@@ -168,15 +168,25 @@ function _blockHasAnyVolta(measures, start, end) {
  * Returns an array where index i = { globalIndex, beatStart }.
  * beatStart is in quarter-note beats from the start of playback.
  *
+ * A pickup bar (measureByGi.get(gi).pickupBeats set) contributes only its own
+ * beat count instead of a full measure — otherwise every bar after the pickup
+ * would be shifted by (beatsPerMeasure - pickupBeats) beats. Matches the
+ * pickup-aware offset tables in chordVoicingsToEvents.js, tabMeasureToEvents.js,
+ * and TabEditor.vue's playPositionBeatTable.
+ *
  * @param {number[]} sequence   — output of expandMeasureSequence
  * @param {number}   beatsPerMeasure
+ * @param {Map<number, any>} [measureByGi]  — gi → measure, for pickupBeats lookup
  * @returns {Array<{ globalIndex: number, beatStart: number }>}
  */
-export function sequenceToBeatMap(sequence, beatsPerMeasure) {
-    return sequence.map((globalIndex, position) => ({
-        globalIndex,
-        beatStart: position * beatsPerMeasure,
-    }));
+export function sequenceToBeatMap(sequence, beatsPerMeasure, measureByGi) {
+    let cursor = 0;
+    return sequence.map((globalIndex) => {
+        const beatStart = cursor;
+        const beats = measureByGi?.get(globalIndex)?.pickupBeats ?? beatsPerMeasure;
+        cursor += beats;
+        return { globalIndex, beatStart };
+    });
 }
 
 /**

@@ -69,4 +69,13 @@ describe('expandMeasureSequence', () => {
             { globalIndex: 2, beatStart: 16 },
         ]);
     });
+
+    it('shrinks a pickup bar to its own beat count instead of a full measure', () => {
+        const measureByGi = new Map([[0, { pickupBeats: 1 }]]);
+        expect(sequenceToBeatMap([0, 1, 2], 4, measureByGi)).toEqual([
+            { globalIndex: 0, beatStart: 0 },
+            { globalIndex: 1, beatStart: 1 },
+            { globalIndex: 2, beatStart: 5 },
+        ]);
+    });
 });
