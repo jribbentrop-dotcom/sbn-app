@@ -53,6 +53,10 @@ const props = defineProps({
   },
 });
 
+// leadsheet.hasChordTab / leadsheet.chordLayerMelody ride along inside the
+// leadsheet object itself (no separate top-level prop needed) — forwarded
+// automatically via the single :leadsheet="leadsheet" binding below.
+
 const cinemaUrl = computed(() => `/library/songs/${props.leadsheet.slug}/cinema`);
 
 // SEO metadata

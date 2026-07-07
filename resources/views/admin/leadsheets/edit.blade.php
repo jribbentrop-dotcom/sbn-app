@@ -458,6 +458,26 @@
                     </button>
                 </div>
 
+                @if (!($isExercise ?? false) && isset($leadsheet) && $leadsheet && isset($activeVersion))
+                <div class="sbn-ve-desc-panel">
+                    <div class="sbn-ve-desc-label">Arrangement Notes <span style="font-weight:400;color:var(--clr-text-muted);text-transform:none;letter-spacing:0">— this version only</span></div>
+                    <div class="sbn-desc-preview sbn-desc-preview--inline"
+                         x-html="arrangementNotes || '<span style=\'color:var(--clr-text-muted);font-style:italic\'>No notes for this arrangement yet…</span>'"></div>
+                    <button type="button" class="sbn-btn sbn-btn-secondary" style="margin-top:8px;font-size:12px;"
+                            data-ls-meta='{!! htmlspecialchars(json_encode([
+                                'title'    => $leadsheet->title    ?? '',
+                                'composer' => $leadsheet->composer ?? '',
+                                'genre'    => $leadsheet->genre    ?? '',
+                                'style'    => $leadsheet->rhythm   ?? '',
+                                'key'      => $activeVersion->song_key ?? $leadsheet->song_key ?? '',
+                                'tempo'    => $activeVersion->tempo    ?? $leadsheet->tempo    ?? null,
+                            ]), ENT_QUOTES) !!}'
+                            @click="window.__descEditor.open({ initial: arrangementNotes, eventName: 'desc-editor:save:arrangement-notes', placeholder: 'What makes this arrangement different — performer style, difficulty notes…', entityType: 'leadsheet', entityMeta: JSON.parse($event.currentTarget.dataset.lsMeta) })">
+                        Edit Arrangement Notes
+                    </button>
+                </div>
+                @endif
+
                 <div class="sbn-ve-shortcode-panel">
                     <div class="sbn-ve-shortcode-header">
                         <span>Generated Shortcode</span>
@@ -2359,6 +2379,7 @@ function leadsheetEditor() {
         activeVersionSlug: @json($activeVersion->version_slug ?? null),
         versionLabel: @json($activeVersion->label ?? null),
         versionPerformer: @json($activeVersion->performer ?? null),
+        arrangementNotes: '{{ isset($activeVersion) ? addslashes($activeVersion->arrangement_notes ?? '') : '' }}',
         rhythmSlug: '{{ $leadsheet->rhythm ?? $exercise->rhythm ?? '' }}',
         genre: '{{ $leadsheet->genre ?? $exercise->genre ?? '' }}',
         popularity: {{ $leadsheet->popularity ?? $exercise->popularity ?? 0 }},
@@ -2489,6 +2510,11 @@ function leadsheetEditor() {
 
             document.addEventListener('desc-editor:save:leadsheet', (e) => {
                 this.description = e.detail;
+                this.markDirty();
+            });
+
+            document.addEventListener('desc-editor:save:arrangement-notes', (e) => {
+                this.arrangementNotes = e.detail;
                 this.markDirty();
             });
 
@@ -3861,6 +3887,7 @@ function leadsheetEditor() {
                         difficulty: this.difficulty || 0,
                         version_label: this.versionLabel || null,
                         version_performer: this.versionPerformer || null,
+                        arrangement_notes: this.arrangementNotes,
                         tags: this.leadsheetTags.join(','),
                     };
 

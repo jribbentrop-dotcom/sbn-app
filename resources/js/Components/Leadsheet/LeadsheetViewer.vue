@@ -6,7 +6,7 @@
         <div class="sbn-leadsheet-controls">
           <!-- Secondary switches (arrangement + display mode) — collapsed so the
                bar can keep growing new switches without competing for space. -->
-          <TopBarMenu label="Options">
+          <TopBarMenu label="Options" :style="{ '--tbm-active-clr': categoryColor }">
             <div v-if="hasMultipleVersions" class="sbn-tbm-group">
               <div class="sbn-tbm-label">Arrangement</div>
               <select
@@ -37,6 +37,20 @@
                   :class="{ active: mode === 'tab' }"
                   @click="mode = 'tab'"
                 >Tab</button>
+              </div>
+            </div>
+
+            <div v-if="mode === 'tab' && hasChordTab" class="sbn-tbm-group">
+              <div class="sbn-tbm-label">Tab layer</div>
+              <div class="sbn-tbm-radio-row">
+                <button
+                  :class="{ active: tabLayer === 'melody' }"
+                  @click="tabLayer = 'melody'"
+                >Melody</button>
+                <button
+                  :class="{ active: tabLayer === 'chord' }"
+                  @click="tabLayer = 'chord'"
+                >Chords</button>
               </div>
             </div>
           </TopBarMenu>
@@ -341,6 +355,13 @@ watch(mode, async (newMode, oldMode) => {
  */
 const hasTab = computed(() => hasData.value);
 
+// ── Tab layer (Axis B — melody vs. chord/comping TAB, within Tab mode) ──────
+// hasChordTab/tabLayer declared here (used by the template); the watcher that
+// actually swaps the model's melody staff lives further down, after
+// melodyRef/buildModel/reloadEvents are declared (see "Tab layer switch").
+const hasChordTab = computed(() => !!props.leadsheet.hasChordTab && !!props.leadsheet.chordLayerMelody);
+const tabLayer = ref('melody');
+
 // ── Arrangement (version) switcher ──────────────────────────────────────────
 const hasMultipleVersions = computed(() => (props.versions?.length ?? 0) > 1);
 
@@ -534,12 +555,13 @@ async function loadAllEvents() {
     ? tabModelToEvents(model.value, { startBeat: 0, voice: 'nylon' })
     : chordVoicingsToEvents(model.value, { startBeat: 0, voice: 'nylon' });
 
-  // Rhythm-pattern layer: Chords mode only (per product decision — Analysis
+  // Rhythm-pattern layer: Chords and Tab modes (per product decision — Analysis
   // mode plays the same chord audio today but doesn't additionally get the
-  // rhythm layer; Tab mode has real note-accurate audio that a generic
-  // backing rhythm shouldn't compete with).
+  // rhythm layer). Tab's note-accurate melody/comping is a distinct voice from
+  // the percussion-only rhythm layer, so the two don't compete the way a second
+  // pitched guitar part would.
   let allEvents = events;
-  if (mode.value === 'chords' && events.length) {
+  if ((mode.value === 'chords' || mode.value === 'tab') && events.length) {
     const totalBeats = events.at(-1).time + events.at(-1).duration;
     // A pickup-bar first measure shifts "downbeat 1" away from beat 0 — see
     // buildRhythmEvents' anchorBeat doc. flattenModelMeasures gives the first
@@ -562,6 +584,21 @@ async function reloadEvents() {
   _eventsLoaded = false;
   await loadAllEvents();
 }
+
+// ── Tab layer switch (Axis B) ────────────────────────────────────────────────
+// Mirrors the admin editor's melody/chord layer switch (see
+// SBN-Admin-Chord-Tab-Editor-Reference.md "Tab layers"), simplified for a
+// read-only viewer: the two layers share one sections/chordVoicings/repeats
+// skeleton and differ only in the staff notes, so switching just swaps
+// melodyRef's contents and rebuilds — no save-serialization round trip needed.
+watch(tabLayer, async (layer) => {
+  melodyRef.value = layer === 'chord' && hasChordTab.value
+    ? props.leadsheet.chordLayerMelody
+    : (json.melody ?? null);
+  buildModel();
+  if (model.value) model.value.tempo = props.leadsheet.tempo ?? 120;
+  if (mode.value === 'tab') await reloadEvents();
+});
 
 // ── Unified transport state (mirrors TabEditor.vue:464-477) ───────────────────
 // Phase 9b: unified state across both playback paths. Mode dispatch happens in
@@ -1108,9 +1145,12 @@ provide('globalIndexOf', (si, mi) => {
 }
 
 .sbn-tbm-radio-row button.active {
-  background: var(--clr-accent-bg);
-  color: var(--clr-accent);
-  border-color: var(--clr-accent);
+  /* Song's own category color, not the global brand orange — a grey toggle
+     row shouldn't read as an accent/CTA. Falls back to --clr-accent only if
+     no category color was threaded in (shouldn't happen in the viewer). */
+  background: color-mix(in srgb, var(--tbm-active-clr, var(--clr-accent)) 12%, var(--clr-surface-2));
+  color: var(--tbm-active-clr, var(--clr-accent));
+  border-color: var(--tbm-active-clr, var(--clr-accent));
 }
 
 /* Two-column layout - match library structure */

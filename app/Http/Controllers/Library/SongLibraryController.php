@@ -25,6 +25,77 @@ class SongLibraryController extends Controller
     ) {}
 
     /**
+     * Chord/comping TAB layer, pre-parsed server-side into the flat per-note
+     * `melody` array useTabModel.buildModel() expects (one entry per note/rest
+     * with tick/voice/string/fret — see resources/js/tab-editor/composables/
+     * useTabModel.js). The two layers share one sections/chordVoicings/repeats/
+     * voltas skeleton (see SBN-Admin-Chord-Tab-Editor-Reference.md "Tab layers")
+     * — only the staff notes differ, so the frontend just swaps this array in
+     * for jsonData.melody rather than needing a second full model.
+     *
+     * TabXmlParser::parse() returns tick-GROUPED TabEvent objects (one per
+     * chord/note-stack, with a nested `notes[]` per string) — the same output
+     * shape useTabModel itself produces, not the flat per-note input shape it
+     * consumes. Must flatten back to one entry per note before handing to the
+     * frontend, or buildModel() silently misreads each event as a single note
+     * (reading .string/.fret off an object that only has .notes[]) and the
+     * chord layer renders empty/garbage, falling through to whatever melody
+     * data was already loaded.
+     */
+    private function resolveChordLayerMelody(LeadsheetVersion $version): ?array
+    {
+        if (!$version->has_chord_tab) {
+            return null;
+        }
+
+        $parser   = new \App\Services\TabXmlParser();
+        $tabData  = $parser->parse($version->chord_tab_xml);
+        $measures = $tabData['measures'] ?? [];
+        $events   = $measures ? array_merge(...array_map(fn ($m) => $m['events'] ?? [], $measures)) : [];
+
+        return $this->flattenTabEventsToNotes($events) ?: null;
+    }
+
+    /**
+     * TabEvent[] (tick-grouped, nested notes[]) → flat per-note array.
+     * Mirrors useTabModel.buildModel()'s Pass 1 in reverse: emits one entry
+     * per note (or one rest entry) with tick/voice/string/fret/tie/beam/tuplet
+     * fields at the top level, exactly what buildModel() reads as input.
+     */
+    private function flattenTabEventsToNotes(array $events): array
+    {
+        $notes = [];
+        foreach ($events as $ev) {
+            $base = [
+                'tick'          => $ev['tick'] ?? 0,
+                'ticks'         => $ev['ticks'] ?? null,
+                'voice'         => $ev['voice'] ?? 1,
+                'beam1'         => $ev['_beam1'] ?? null,
+                'tupletActual'  => $ev['tupletActual'] ?? null,
+                'tupletNormal'  => $ev['tupletNormal'] ?? null,
+                'tupletType'    => $ev['tupletType'] ?? null,
+                'tupletBracket' => $ev['tupletBracket'] ?? false,
+            ];
+
+            if (!empty($ev['isRest'])) {
+                $notes[] = $base + ['isRest' => true];
+                continue;
+            }
+
+            foreach (($ev['notes'] ?? []) as $n) {
+                $notes[] = $base + [
+                    'isRest'   => false,
+                    'string'   => $n['string'] ?? null,
+                    'fret'     => $n['fret']   ?? null,
+                    'tieStart' => $n['tieStart'] ?? false,
+                    'tieStop'  => $n['tieStop']  ?? false,
+                ];
+            }
+        }
+        return $notes;
+    }
+
+    /**
      * Map a rhythm slug to a music-style slug for color assignment.
      * Rhythm slugs from the RhythmPattern model → canonical style slugs.
      */
@@ -211,6 +282,7 @@ class SongLibraryController extends Controller
             'performer'  => $v->performer,
             'difficulty' => $v->difficulty,
             'isActive'   => $v->id === $active->id,
+            'notes'      => $v->arrangement_notes,
         ])->values()->all();
     }
 
@@ -463,6 +535,7 @@ class SongLibraryController extends Controller
                 'hasChordTab'   => $version->has_chord_tab,
                 'melodyTabXml'  => $version->melody_tab_xml ?: $leadsheet->tab_xml,
                 'chordTabXml'   => $version->chord_tab_xml,
+                'chordLayerMelody' => $this->resolveChordLayerMelody($version),
             ],
             'versions'      => $this->versionList($leadsheet, $version),
             'activeVersion' => $version->version_slug,
@@ -500,16 +573,17 @@ class SongLibraryController extends Controller
         $data = $version->parsed_data ?? [];
 
         // ?layer=chord requests the chord-comping TAB staff instead of the melody staff.
-        // The chord_tab_xml is parsed server-side into the same tick-based events shape
-        // that SheetMiniPlayer / useTabModel expects, so the client path is unchanged.
+        // The chord_tab_xml is parsed + flattened server-side into the same flat
+        // per-note shape SheetMiniPlayer / useTabModel expects (see
+        // resolveChordLayerMelody()'s doc comment for why the raw parser output
+        // can't be used directly), so the client path is unchanged.
         $layer = $request->query('layer', 'melody');
         if ($layer === 'chord') {
-            $chordTabXml = $version->chord_tab_xml;
-            abort_if(!$chordTabXml, 404);
-            $parser   = new \App\Services\TabXmlParser();
-            $tabData  = $parser->parse($chordTabXml);
-            $melody   = array_merge(...array_map(fn ($m) => $m['events'] ?? [], $tabData['measures'] ?? [])) ?: null;
-            $timeSig  = $tabData['timeSig'] ?? $leadsheet->time_signature ?? '4/4';
+            abort_if(!$version->has_chord_tab, 404);
+            $parser  = new \App\Services\TabXmlParser();
+            $tabData = $parser->parse($version->chord_tab_xml);
+            $melody  = $this->resolveChordLayerMelody($version);
+            $timeSig = $tabData['timeSig'] ?? $leadsheet->time_signature ?? '4/4';
         } else {
             $melody  = $data['melody'] ?? null;
             $timeSig = $data['timeSignature'] ?? $leadsheet->time_signature ?? '4/4';
@@ -716,6 +790,7 @@ class SongLibraryController extends Controller
                 'hasChordTab'   => $version->has_chord_tab,
                 'melodyTabXml'  => $version->melody_tab_xml ?: $leadsheet->tab_xml,
                 'chordTabXml'   => $version->chord_tab_xml,
+                'chordLayerMelody' => $this->resolveChordLayerMelody($version),
             ],
             'versions'      => $this->versionList($leadsheet, $version),
             'activeVersion' => $version->version_slug,

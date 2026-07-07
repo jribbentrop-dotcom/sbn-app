@@ -1,7 +1,7 @@
   j# SBN Admin — Chord / Tab Editor Reference
 
 > **Purpose:** Complete reference for the admin leadsheet editor: architecture, Vue component tree, chord grid, voicing picker, tab notation, audio playback, video sync, keyboard shortcuts, design system, and all creation flows (blank, from progression, exercises, transcription).
-> **Last updated:** 2026-06-29
+> **Last updated:** 2026-07-07
 
 ---
 
@@ -62,6 +62,31 @@ ALPINE (edit.blade.php — thin page shell)
 - **Arrangement switcher** — dropdown when >1 version, plain label when only one. Navigates to `?v={slug}`.
 - **Actions menu** — Import MusicXML → Melody / Chords, Generate Chords tab from voicings, Swap layers, Merge sheets…, Save as Exercise, **Clone arrangement** (copies current version as a new draft), **Delete arrangement** (hidden when only one version or when it is the default).
 - Routes: `POST /leadsheets/{ls}/clone-version?v={slug}` → `cloneVersion()`; `DELETE /leadsheets/{ls}/versions/{version}` → `deleteVersion()`. Delete nulls out detection cache `version_id` rows rather than orphaning them; refuses if the version is the default or the only one.
+- Schema and version/arrangement data model (work vs. arrangement split, `sbn_leadsheet_versions`, version-scoped detection caches): [SBN-Leadsheet-Reference.md §2.3](SBN-Leadsheet-Reference.md#23-versions-arrangements--workarrangement-split-shipped-2026-06-23–29).
+
+### Tab layers (Axis B — melody vs. chord/comping TAB)
+
+One arrangement (`LeadsheetVersion` row) can hold **two notated TAB layers**: `melody_tab_xml` (the melody staff) and `chord_tab_xml` (comping/rhythm staff). They are a column pair on the same row, not sibling versions — switching layers must never create a phantom arrangement or double-count detection caches (§"Merge flows" below).
+
+**Core architectural fact (as-built, corrected 2026-06-24).** The Vue tab model does **not** read from the `tabXml` string — `useAlpineBridge.handleTabInit` sets `melody.value = d.parsed.melody`, and `useTabModel.buildModel()` reads `melody.value`. `tabXml` is only ever the **save-serializer's output**, never a model input. The two layers share **one structure** (`parsed.sections` / chord grid / `chordVoicings` / key / TS / repeats / videoSync) and differ only in the **staff notes**, which live in `parsed.melody`. A layer switch therefore works by grafting the incoming layer's notes into `parsed.melody`, not by swapping the XML string:
+
+1. `_graftLayerNotes(layerXml)` (`edit.blade.php`) parses the layer's XML → notes, spreads onto the shared skeleton (`{ ...skeleton, melody: notes }`), warns (does not block) on a bar-count mismatch — first import defines the structure of record. Reassigns `parsed` by reference so `$watch('parsed')` + the Alpine↔Vue bridge fire as on a fresh import.
+2. `_dispatchTabInit()` reloads (same route `sbn-rhythm-applied` uses).
+3. `melodyTabXml`/`chordTabXml` remain the **persistence** strings — parsed in on import/load, serialized out on save; they are not the live model's data source.
+
+**`json_data` is the melody layer's data, full stop.** A chord-layer save must not pull `sections`/`melody`/shortcode from the live Vue model while the chord layer is active (it holds chord-staff events then). `save()` and `shortcodeOutput` gate `window.__sbnTabModel` reads on `activeTabLayer !== 'chord'`; `_melodyLayerJsonMelody` preserves melody notes across a chord-layer edit so `json_data.melody` is never clobbered with chord notes. The original wrong premise (routing a different `tabXml` string through `_dispatchTabInit()`) was the cause of a real data-loss bug: importing the melody silently overwrote the chords too, because both layers rendered the same melody-derived notes and a chord-layer save serialized them back over `chord_tab_xml`.
+
+**Save writes both columns.** `LeadsheetController::update()` writes `melody_tab_xml` (dual-writes to the leadsheet's legacy `tab_xml` column, melody only — there is no legacy column for chord TAB) and `chord_tab_xml` from the active/inactive layer strings. **Detection caveat:** `VoicingCrossref`/`ProgressionDetector` run off `json_data`, not tab XML — authoring `chord_tab_xml` must never touch voicing/progression caches.
+
+**Layer-switch save ordering is the highest-risk part.** Switching layers must serialize the **outgoing** layer (round-trip via `sbn-tab-save-request`/`sbn-tab-save-response`, 3s timeout) *before* loading the incoming layer's XML. Loading incoming over an unsaved outgoing loses edits — the same bug class as commit `17b5acf` ("restore arrangement overwritten by stale-editor save"). Abort-on-timeout is mandatory.
+
+**Import into a specific layer:** the MusicXML file-drop import writes to whichever layer is currently active — switch to Chords, then drop a MusicXML file, to populate `chord_tab_xml`.
+
+### Merge flows
+
+**Tab-data merge (within one song, shipped 2026-06-24).** `LeadsheetController::mergeVersions()` / `mergeSourceList()` (`admin.leadsheets.merge-{versions,sources}`). Pick a **mother** version (target) plus a **melody source** and a **chords source**; each source's single tab layer copies into the mother's melody/chord layer. Mother's `json_data`/grid is kept verbatim; no detection run (tab XML doesn't drive caches). Source-list aliases (`tab_melody`/`tab_chord`) must stay accessor-free — `getHasMelody*Attribute` would otherwise shadow a `has_*` alias with grid-melody logic (a real bug, fixed).
+
+**Song merge (Axis A, shipped 2026-06-29).** `LeadsheetController::mergeSong()` / `mergeSongSourceList()` (`admin.leadsheets.merge-song[-sources]`). Song B becomes a sibling arrangement under song A: B's `sbn_voicing_usage` / `sbn_voicing_drafts` / `sbn_progression_occurrences` are re-pointed to A's leadsheet id + B's new version id; B's leadsheet row is deleted.
 
 ### View modes
 Five tabs owned by Vue: **Grid** | **Chords** | **Melody** | **Analysis** | **🎬 Video**. Vue's `viewMode` ref dispatches `sbn-tab-view-changed` → Alpine's `alpineViewMode` mirrors it one-way.
@@ -271,6 +296,98 @@ undo.wrapCommand('Insert bar', [], () => { tabModel.insertMeasureAfter(si, mi); 
   afterApply: () => dispatchEvent(new CustomEvent('sbn-tab-sections-sync')),
 });
 ```
+
+### Grace notes (shipped 2026-06-24, both phases)
+
+Phase 1: round-trip parse→model→render→export→audio. Phase 2: keyboard editing + layout overhaul.
+(Folded in from the retired standalone `SBN-Grace-Notes-Reference.md`.)
+
+**The one decision that drives everything:** grace notes are stored as a `graceNotes[]` array on the
+*following* principal `TabEvent`. They are NOT standalone events. Every layer of this app is built on
+the invariant that *an event consumes tick-space*. A grace note consumes **zero** tick-space (it steals
+time from the principal note at render/playback). Modelling it as its own event would shift the beat
+grid, break overfill math, and desync the two audio adapters — attaching it to the principal note
+sidesteps all of that.
+
+```js
+// On a TabEvent:
+event.graceNotes = [
+  {
+    string: 2, fret: 3,
+    pitch: 'C', octave: 4,   // for audio + XML export; derived from string/fret when absent
+    slash: true,              // acciaccatura (slashed stem) vs appoggiatura (false)
+    slur: true,               // slur from grace → principal (almost always true)
+    // multiple entries = a grace group, in play order
+  },
+];
+```
+
+Keep `graceNotes` absent (not `[]`) when empty so snapshots stay small and `graceNotes?.length` guards
+short-circuit everywhere.
+
+**Round-trip, layer by layer:**
+- **Fixture:** `docs/GRACE - test fixture.musicxml` — acciaccatura, a grace group, an appoggiatura, and
+  a grace note with tab `<technical><string>/<fret>` data. Grace `<note>`s have no `<duration>`.
+- **Parser** (`edit.blade.php` `parseNotes` ~840): grace notes do NOT advance `currentTick` /
+  `lastNoteTick`. Buffered in `pendingGrace = []`, attached to the next non-grace, non-chord note as
+  `graceNotes`. The secondary chord/voicing-extraction reader (~1140) skips grace elements.
+- **Model** (`useTabModel.js` `buildModel` ~108): `event.graceNotes = note.graceNotes.map(g => ({ ...g }))`
+  in the pitched-note branch. `serializeModel`/`deserializeModel` round-trip plain arrays via JSON.
+- **Renderer** (`TabMeasure.vue` `svgContent` ~689): smaller fret numbers to the LEFT of the principal
+  with a slur; must NOT shift the principal's tick-locked `xPos` directly — see the layout overhaul below.
+- **MusicXML export** (`musicXmlWriter.js` `serializeGraceNote`): emits immediately before the
+  principal's `<note>`; schema order `<grace/>` → `<pitch>` → `<voice>` → `<type>` → `<stem>` →
+  `<notations>`; `<type>` hardcoded `'eighth'`.
+- **Audio** (`tabMeasureToEvents.js`): grace notes get a short duration (`GRACE_BEATS = 0.0625`, ~64th)
+  stolen from the principal and played just before the beat; the principal's own `time`/`duration` is
+  unchanged.
+
+**Keyboard editing (Phase 2, `useNoteInput.js`):**
+- `graceMode = ref(false)` — sticky until a grace is committed or Escape pressed. Key: **`g`**.
+- `g` toggles grace mode on a pitched event; Escape cancels; Backspace in grace mode →
+  `deleteGraceAtCursor()` (prefers the cursor string, falls back to the last entry; deletes the array
+  once it hits length 0).
+- `commitGraceFret(fret)` pushes `{ string, fret, pitch: null, octave: null, slash: true, slur: true }`;
+  repeated `g`+fret presses append to the array in play order (left→right, nearest-principal last).
+- Digit routing goes through `commitPendingFret(fret)` for both the synchronous and the two-digit
+  `startPendingDigit` timeout path — skipping this makes timed-out two-digit grace entries commit as
+  normal notes.
+- String editing ships as delete+re-add; no dedicated `shiftGraceToString`.
+- **Undo bug (fixed):** `useUndo.js` `snapshotMeasure`'s `{ ...ev, notes: ev.notes.map(...) }` shallow-
+  copies `graceNotes`, aliasing the live array. Fixed by deep-cloning `graceNotes` on snapshot and again
+  on `restoreSnapshot` (prevents second-undo aliasing).
+
+**Layout overhaul (Phase 2 as-built):** the original simple leftward offset overlapped neighbours and
+didn't make room, replaced by a cumulative-shift precompute pass:
+- **Per-bar spacing** (`TabMeasure.vue`): walks voice-1 events L→R keeping `cumShift`; each grace
+  cluster adds its width to `cumShift` *before* its principal is placed, shifting the principal and
+  every later note right. `graceShiftById` map + `ev._graceShift` stash for cross-component reads.
+  Constants: `GRACE_DX=8` (between glyphs), `GRACE_PAD=8` (last grace→principal), `GRACE_GLYPH_W=3`
+  (left clearance); `graceClusterWidth(n) = PAD + (n-1)*DX + GLYPH_W`.
+- **Stems down:** grace stems/flags draw below the strings (`bottomStringY+1`, `SMUFL.flag8thDown`) to
+  match the tab-note convention.
+- **Row-level squeeze** (`_stampGraceFlexPcts`, `TabEditor.vue`): each bar's demand weight = base
+  (`0.6 + 0.1*min(events,8)`) + grace demand (`graceWidthPx / measureWidth`); flex % = demand share, so
+  the row stays exactly 100% wide — grace bars grow, slack bars give up width. Skipped on pickup and
+  grace-free rows. **Maintenance footgun:** `_graceWidthPx` constants mirror the per-bar cluster-width
+  constants above in two files — keep in sync or hoist to `constants.js`.
+- **`_graceShift` consumers** — every xPos consumer must add `+ (ev._graceShift || 0)`: `svgHelpers.js`
+  `renderBeams` (stems, both secondary-beam paths) and `renderTies`; `TabCursor.vue` `getEvX`
+  (navigation ring + click hit-targets).
+
+**Known follow-ups:**
+- In-place grace fret edit not fully wired — `commitGraceFret`'s `existing !== -1` branch exists in
+  spec but as-built always pushes, so `g`+fret on a string with an existing grace adds a duplicate.
+- Render-space, not reflow — the shift is added on top of `xPos` rather than baked into reflow; any new
+  xPos consumer must remember `_graceShift`. Proper fix: fold into `useReflow`.
+- Overfull bars with grace notes — row squeeze mitigates; a heavier fix would widen via `actualTicks`
+  like overfill does.
+
+**Files touched:** fixture `docs/GRACE - test fixture.musicxml`; parse `edit.blade.php` `parseNotes`
+~840 + guard ~1140; model `useTabModel.js` ~108; render/layout `TabMeasure.vue`; row squeeze
+`TabEditor.vue` `_stampGraceFlexPcts`; beam/tie/cursor `svgHelpers.js`, `TabCursor.vue`; CSS
+`.sbn-tab-grace-note`; export `musicXmlWriter.js` `serializeGraceNote`; audio
+`tabMeasureToEvents.js` ~73; undo `useUndo.js` `snapshotMeasure`; input `useNoteInput.js`.
 
 ### Transpose sheet (backend, whole-arrangement — shipped 2026-07-01)
 

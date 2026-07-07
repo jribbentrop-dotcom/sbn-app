@@ -10,7 +10,7 @@
 
     <!-- Secondary switches (display mode + backing track) — same Options menu
          pattern as the classic Viewer's top bar. -->
-    <TopBarMenu label="Options">
+    <TopBarMenu label="Options" :style="{ '--tbm-active-clr': styleColor }">
       <div v-if="tabHasData" class="sbn-tbm-group">
         <div class="sbn-tbm-label">Display</div>
         <div class="sbn-tbm-radio-row">
@@ -118,8 +118,10 @@ const segments = computed(() => songBreadcrumbSegments(props));
 }
 
 .sbn-tbm-radio-row button.active {
-  background: var(--clr-accent-bg);
-  color: var(--clr-accent);
-  border-color: var(--clr-accent);
+  /* Song's own category color, not the global brand orange — matches the
+     classic Viewer's Options menu (LeadsheetViewer.vue). */
+  background: color-mix(in srgb, var(--tbm-active-clr, var(--clr-accent)) 12%, var(--clr-surface-2));
+  color: var(--tbm-active-clr, var(--clr-accent));
+  border-color: var(--tbm-active-clr, var(--clr-accent));
 }
 </style>

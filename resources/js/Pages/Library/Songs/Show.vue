@@ -59,6 +59,7 @@ interface VersionRef {
   performer: string | null;
   difficulty: number | null;
   isActive: boolean;
+  notes: string | null;
 }
 
 interface Props {
@@ -78,13 +79,16 @@ const props = defineProps<Props>();
 // Arrangement switcher: only meaningful when more than one version exists.
 const hasMultipleVersions = computed(() => (props.versions?.length ?? 0) > 1);
 
-function versionOptionLabel(v: VersionRef): string {
-  // "João Gilberto · ★★★" style: performer (or label) + difficulty dots.
-  const name = v.performer || v.label || 'Basic';
-  const d = v.difficulty ?? 0;
-  const dots = d > 0 ? ' · ' + '●'.repeat(Math.min(d, 5)) : '';
-  return name + dots;
+function versionTabLabel(v: VersionRef): string {
+  // Label first — it's the differentiating field ("Joe Pass Solo" vs "Joe &
+  // Ella"); performer alone can repeat across arrangements by the same
+  // artist and would render two identical-looking tabs side by side.
+  return v.label || v.performer || 'Basic';
 }
+
+const activeVersionRef = computed(() =>
+  props.versions?.find(v => v.slug === props.activeVersion) ?? null
+);
 
 function switchVersion(slug: string): void {
   if (slug === props.activeVersion) return;
@@ -185,21 +189,6 @@ const breadcrumbSegments = computed(() => songBreadcrumbSegments(props.song));
           <span v-if="song.measureCount"  class="sbn-song-meta-chip"><strong>Bars</strong> {{ song.measureCount }}</span>
         </div>
 
-        <!-- ── Arrangement switcher (only with >1 version) ──────────────────── -->
-        <div v-if="hasMultipleVersions" class="sbn-ss-arrangement">
-          <label class="sbn-ss-arrangement-label" for="sbn-arrangement-select">Arrangement</label>
-          <select
-            id="sbn-arrangement-select"
-            class="sbn-ss-arrangement-select"
-            :value="activeVersion"
-            @change="switchVersion(($event.target as HTMLSelectElement).value)"
-          >
-            <option v-for="v in versions" :key="v.slug" :value="v.slug">
-              {{ versionOptionLabel(v) }}
-            </option>
-          </select>
-        </div>
-
         <div v-if="song.isPro" class="sbn-ss-cta">
           <Link :href="`/library/songs/${song.slug}/viewer`" class="sbn-btn sbn-btn-primary sbn-btn-lg">
             Open in viewer →
@@ -217,6 +206,31 @@ const breadcrumbSegments = computed(() => songBreadcrumbSegments(props.song));
     <div v-if="song.description" class="sbn-ss-section">
       <h2 class="sbn-ss-section-title">About this song</h2>
       <div class="sbn-ss-description sbn-prose" v-html="song.description"></div>
+    </div>
+
+    <!-- ── Arrangement tabs (only with >1 version) ─────────────────────────
+         Replaces the old hero <select>: a horizontal pill strip switches
+         which arrangement's chords/rhythm/progressions render below, plus
+         that arrangement's own notes (distinct from the shared song
+         description above — see sbn_leadsheet_versions.arrangement_notes). -->
+    <div v-if="hasMultipleVersions" class="sbn-ss-section sbn-ss-arrangement-tabs-section">
+      <h2 class="sbn-ss-section-title">Arrangements</h2>
+      <div class="sbn-ss-arrangement-tabs" role="tablist" :style="{ '--tab-active-clr': categoryColor }">
+        <button
+          v-for="v in versions"
+          :key="v.slug"
+          type="button"
+          role="tab"
+          :aria-selected="v.slug === activeVersion"
+          class="sbn-ss-arrangement-tab"
+          :class="{ 'is-active': v.slug === activeVersion }"
+          @click="switchVersion(v.slug)"
+        >
+          <span class="sbn-ss-arrangement-tab-name">{{ versionTabLabel(v) }}</span>
+          <span v-if="v.difficulty" class="sbn-ss-arrangement-tab-dots">{{ '●'.repeat(Math.min(v.difficulty, 5)) }}</span>
+        </button>
+      </div>
+      <div v-if="activeVersionRef?.notes" class="sbn-ss-arrangement-notes sbn-prose" v-html="activeVersionRef.notes"></div>
     </div>
 
     <!-- ── Chords + Rhythm | Progressions ──────────────────────────────── -->
@@ -363,38 +377,6 @@ const breadcrumbSegments = computed(() => songBreadcrumbSegments(props.song));
   margin: 0 0 16px;
 }
 
-/* ── Arrangement switcher ────────────────────────────────────────────────── */
-.sbn-ss-arrangement {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 16px;
-}
-
-.sbn-ss-arrangement-label {
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--clr-text-muted);
-}
-
-.sbn-ss-arrangement-select {
-  padding: 6px 12px;
-  font-size: 0.92rem;
-  font-weight: 600;
-  color: var(--clr-text);
-  background: var(--clr-surface, rgba(255, 255, 255, 0.06));
-  border: 1px solid var(--clr-border, rgba(255, 255, 255, 0.18));
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.sbn-ss-arrangement-select:hover {
-  border-color: var(--clr-text-muted);
-}
-
-
 .sbn-ss-meta {
   display: flex;
   flex-wrap: wrap;
@@ -441,6 +423,67 @@ const breadcrumbSegments = computed(() => songBreadcrumbSegments(props.song));
   line-height: 1.7;
   color: var(--clr-text-muted);
   margin: 0;
+}
+
+/* ── Arrangement tabs ────────────────────────────────────────────────────── */
+
+.sbn-ss-arrangement-tabs-section {
+  margin-bottom: 28px;
+}
+
+.sbn-ss-arrangement-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.sbn-ss-arrangement-tab {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--clr-text);
+  background: var(--clr-surface-2);
+  border: 1px solid var(--clr-border);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.sbn-ss-arrangement-tab:hover {
+  background: var(--clr-surface-3);
+}
+
+.sbn-ss-arrangement-tab.is-active {
+  /* Song's own category color, not the global brand orange — a grey toggle
+     row shouldn't read as an accent/CTA. Matches the same fix applied to
+     LeadsheetViewer.vue's and StageTopBar.vue's Options-menu toggles. */
+  background: color-mix(in srgb, var(--tab-active-clr, var(--clr-accent)) 12%, var(--clr-surface-2));
+  color: var(--tab-active-clr, var(--clr-accent));
+  border-color: var(--tab-active-clr, var(--clr-accent));
+}
+
+.sbn-ss-arrangement-tab-dots {
+  font-size: 0.7em;
+  letter-spacing: 1px;
+  opacity: 0.8;
+}
+
+.sbn-ss-arrangement-notes {
+  margin-top: 16px;
+  font-size: 0.92em;
+  line-height: 1.7;
+  color: var(--clr-text-muted);
+  padding-top: 16px;
+  border-top: 1px solid var(--clr-border);
 }
 
 /* ── Chords ──────────────────────────────────────────────────────────────── */
