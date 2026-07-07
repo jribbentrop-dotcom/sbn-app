@@ -10,8 +10,10 @@ use App\Models\Leadsheet;
 use App\Models\RhythmPattern;
 use App\Models\SkillNode;
 use App\Services\ContentHealthService;
+use App\Services\SkillGraphService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Admin CRUD for skill nodes — the v1 table editor (no graph viz yet).
@@ -118,9 +120,21 @@ class SkillNodeController extends Controller
         return view('admin.skill-nodes.edit', $this->editData($skillNode, $isNew));
     }
 
-    public function update(Request $request, SkillNode $skillNode)
+    public function update(Request $request, SkillNode $skillNode, SkillGraphService $graph)
     {
         $data = $this->validated($request, $skillNode->id);
+
+        // A prereq edge can't close a loop back to this node — see
+        // docs/SBN-Skill-System-Plan.md "v1 gaps" (no cycle detection existed
+        // before this) and SkillGraphService for the traversal.
+        $cyclic = $graph->cyclicRequirements($skillNode->id, $data['prereqs']);
+        if ($cyclic) {
+            $titles = SkillNode::whereIn('id', $cyclic)->pluck('title')->implode(', ');
+            throw ValidationException::withMessages([
+                'prereqs' => "Can't add {$titles} as a prerequisite — it already depends on \"{$skillNode->title}\", so this would create a cycle.",
+            ]);
+        }
+
         $skillNode->update($data['attributes']);
         $this->syncRelations($skillNode, $data);
 

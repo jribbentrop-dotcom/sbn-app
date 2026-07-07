@@ -4,13 +4,15 @@ namespace App\Http\Controllers\Account;
 
 use App\Http\Controllers\Controller;
 use App\Models\SkillNode;
+use App\Services\SkillClassService;
 use App\Services\SkillGradeService;
+use App\Services\SkillGraphService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class SkillController extends Controller
 {
-    public function index(Request $request, SkillGradeService $grades)
+    public function index(Request $request, SkillGradeService $grades, SkillGraphService $graph, SkillClassService $classes)
     {
         $user = $request->user();
 
@@ -19,22 +21,45 @@ class SkillController extends Controller
             ->pluck('sbn_skill_nodes.slug')
             ->flip(); // slug => index, for fast O(1) lookup in the map below
 
+        // One query for all node style weights (avoid N+1 from calling
+        // $n->styleWeights() per node) — id => [style => weight].
+        $stylesByNodeId = \DB::table('sbn_skill_node_style')
+            ->get(['skill_node_id', 'style', 'weight'])
+            ->groupBy('skill_node_id')
+            ->map(fn ($rows) => $rows->pluck('weight', 'style')->map(fn ($w) => (int) $w)->all());
+
         $nodes = SkillNode::orderBy('sort_order')
             ->get(['id', 'slug', 'title', 'branch', 'sub_branch', 'grade', 'icon_key', 'icon_path'])
             ->map(fn (SkillNode $n) => [
-                'slug'      => $n->slug,
-                'title'     => $n->title,
-                'branch'    => $n->branch,
-                'subBranch' => $n->sub_branch,
-                'grade'     => $n->grade,
-                'iconKey'   => $n->icon_key,
-                'iconPath'  => $n->icon_path,
-                'done'      => isset($completedSlugs[$n->slug]),
+                'slug'         => $n->slug,
+                'title'        => $n->title,
+                'branch'       => $n->branch,
+                'subBranch'    => $n->sub_branch,
+                'grade'        => $n->grade,
+                'iconKey'      => $n->icon_key,
+                'iconPath'     => $n->icon_path,
+                'done'         => isset($completedSlugs[$n->slug]),
+                // Style weights let the page recompute class % live as the
+                // student toggles nodes, mirroring liveGrades() below.
+                'styleWeights' => $stylesByNodeId[$n->id] ?? (object) [],
+            ]);
+
+        $recommended = $graph->recommendedNext($user)
+            ->map(fn (SkillNode $n) => [
+                'slug'     => $n->slug,
+                'title'    => $n->title,
+                'branch'   => $n->branch,
+                'grade'    => $n->grade,
+                'iconKey'  => $n->icon_key,
+                'iconPath' => $n->icon_path,
+                'practice' => $n->practiceLinks(),
             ]);
 
         return Inertia::render('Account/Skills', [
-            'nodes'      => $nodes,
-            'gradeStats' => $grades->forUser($user),
+            'nodes'        => $nodes,
+            'gradeStats'   => $grades->forUser($user),
+            'recommended'  => $recommended,
+            'classStats'   => $classes->forUser($user),
         ]);
     }
 

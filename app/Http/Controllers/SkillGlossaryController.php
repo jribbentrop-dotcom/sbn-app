@@ -17,7 +17,7 @@ class SkillGlossaryController extends Controller
     public function index()
     {
         $skills = SkillNode::orderByRaw('LOWER(title)')
-            ->get(['id', 'slug', 'title', 'branch', 'sub_branch', 'grade', 'description', 'icon_key', 'icon_path'])
+            ->get(['id', 'slug', 'title', 'branch', 'sub_branch', 'grade', 'description', 'icon_key', 'icon_path', 'voicing_categories'])
             ->map(fn (SkillNode $n) => [
                 'slug'        => $n->slug,
                 'title'       => $n->title,
@@ -28,6 +28,7 @@ class SkillGlossaryController extends Controller
                 'description' => $n->description,
                 'iconKey'     => $n->icon_key,
                 'iconPath'    => $n->icon_path,
+                'practice'    => $n->practiceLinks(),
             ])
             ->values();
 

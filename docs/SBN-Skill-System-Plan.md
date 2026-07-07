@@ -9,9 +9,10 @@
 > across all 5 tiers** (G1=13, G2=19, G3=17, G4=3, G5=5) and READ by `SkillGradeService` (level computed
 > from node completion). **Style dimension built** (`sbn_skill_node_style`). Skill-tree (pillar 6):
 > positions schema + auto-layout + admin drag editor BUILT; **student-facing render SHIPPED 2026-07-02**
-> at `/account/skills/tree` — see "Student Skill Tree (Shipped 2026-07-02)" below and
-> `SBN-Skill-Tree-Design-Brief.md` §8/§9 for the as-built design. `icon_key` set on 50 nodes; `icon_path`
-> (custom SVG) on 0.
+> at `/account/skills/tree` — see "Student Skill Tree (Shipped 2026-07-02)" below for the full as-built
+> design (`docs/archive/SBN-Skill-Tree-Design-Brief.md` is now archived design-history only). **Icon
+> System Phase B (custom per-node SVG) now COMPLETE**: `icon_key` and `icon_path` both set on all 64/64
+> nodes, one hand-drawn SVG per node in `public/images/skills/{slug}.svg`.
 > **Node ↔ content links BUILT 2026-06-29** (Step A): rhythms/progressions/songs via polymorphic pivot
 > `sbn_skill_node_content`; chord voicings via a `voicing_categories` column (category, not per-diagram);
 > exercises excluded (course-only). Reverse relations on each content model power "skills this builds".
@@ -33,10 +34,15 @@
 > lists offending rows per section with collapsible `<details>` panels. `sbn_chord_progressions` gains
 > `updated_at` (migration 2026_06_29_000003, backfilled from `created_at`). Orphan `dashboard.blade.php`
 > deleted.
-> **Remaining vs full vision** (see "Vision → Reality Reconciliation"): student skill-tree render,
-> player-class/style-class tables (pillar 5), repertoire tables, technique sub-curriculum (PIMA,
-> rest/free stroke, posture, etc. — pending course 9 rewrite, see brainstorm crossref recommendation #1).
-> Tracked in "Open Decisions" / "Post-v1 Roadmap".
+> **Remaining vs full vision** (see "Vision → Reality Reconciliation"): repertoire tables, technique
+> sub-curriculum (PIMA, rest/free stroke, posture, etc. — pending course 9 rewrite, see brainstorm
+> crossref recommendation #1). Tracked in "Open Decisions" / "Post-v1 Roadmap".
+> **Recommended next nodes + practice links + style classes SHIPPED 2026-07-07** (see "Post-v1 Roadmap"
+> #3/#3a/#4): `SkillGraphService` adds cycle detection (now enforced on every admin prereq edit — the
+> v1 "no cycle detection" gap is closed) and ranks available-but-incomplete nodes; `SkillNode::practiceLinks()`
+> surfaces courses/lessons/rhythms/progressions/songs/chords per node on both `/skills` and
+> `/account/skills`; `SkillClassService` derives one style class per style live from existing weight data
+> (no new tables — the tiered hand-curated version from the original vision is still deferred).
 > **Course 9 technique rewrite APPLIED 2026-06-29** (recommendation #1): 9 new foundational lessons
 > (posture/setup/tuning, PIMA naming, rest vs. free stroke, nail/flesh tone, right-hand arpeggio
 > patterns, thumb independence/bass lines, damping, hammer-ons/pull-offs, slides/vibrato) + 4 new
@@ -72,7 +78,7 @@ brainstorm. (DB-verified 2026-06-25.)
 | 2 | **Nodes = glue between grade leaps / keys to advance** | ❌ designed, not built | This is the "Option B" grade-threshold logic (below) — deferred as a tuning problem. The keystone of pillar 1. |
 | 3 | **Nodes interconnected + categorised** (rhythm/harmony/…) | ✅ **real** | 57 nodes, 60 prereq edges, 6 branches, 98 course mappings. The solid spine. |
 | 4 | **Nodes related to styles** (walking-bass→jazz, partido-alto→bossa) | ❌ **no data** | Nodes have `branch`/`sub_branch` = musical *category*, NOT style. No node↔style link, no genre on nodes. **Biggest mismatch with the vision.** |
-| 5 | **Character class / player style** (Jazz / Bossa / Classical / Pop player) | ❌ deferred | `style_classes` table never built. Cannot exist until pillar 4 gives it data. |
+| 5 | **Character class / player style** (Jazz / Bossa / Classical / Pop player) | ✅ **SHIPPED 2026-07-07 (simple cut)** | `SkillClassService` — one live-computed class per style, no table. See "Post-v1 Roadmap" #4 for the as-built + scope note (tiered version still deferred). |
 | 6 | **Complex skill-tree visualisation** | ❌ not built | The gamification payoff. Flagged "take to Opus first" (SVG vs canvas, hand-laid x/y). |
 
 **The dependency order that falls out of this** (and the agreed build sequence):
@@ -168,12 +174,14 @@ prereqs can be declared before their target appears. Fully idempotent: `updateOr
 `insertOrIgnore` on edges. `two-four-feel` carries `content_tag_slug => 'samba'` (a tag already
 populated by the categories migration) so the tag bridge returns real rows on day one.
 
-**Two different confidence levels, by design:** Harmony and Rhythm (the original 14) were curated
-against actual lesson content — see "Course → Node Mapping" below for the evidence. Melody, Technique,
-Ear Training, and Reading & Theory (the 21 added 2026-06-23) are seeded from the taxonomy first draft
-only — titles, branches, and musically-sound prerequisite edges, but **not yet checked against lesson
-content**. Treat them as a structural placeholder, not a curated graph, until someone does the same
-content pass on them that Harmony/Rhythm already got.
+**Two different confidence levels, by design (historical — since resolved):** Harmony and Rhythm (the
+original 14) were curated against actual lesson content — see "Course → Node Mapping" below for the
+evidence. Melody, Technique, Ear Training, and Reading & Theory (the 21 added 2026-06-23) were
+originally seeded from the taxonomy first draft only. **✅ Content-evidence pass now done** (verified
+2026-07-07): all nodes across all six branches carry substantial, specific descriptions (~440–470 char
+avg per branch, no gap between the originally-curated and originally-placeholder branches), and every
+previously-flagged zero-coverage node (`barre-chords`, `position-shifting`, `tone-production`,
+`standard-notation-basics`, `rhythm-notation`, the Ear Training branch) now has course coverage.
 
 **Deliberate cross-branch edges:** the graph is not six independent trees. `arpeggio-shapes` (melody)
 requires `triads` (harmony); `improvisation-over-changes` (melody) requires `ii-v-i-major` (harmony);
@@ -207,10 +215,9 @@ nodes plus the new Melody/Technique branches where lesson titles or content gave
 read every lesson's `title` + `section_title` for the course (high precision — these are the actual
 authored unit headers), then spot-checked candidate body-text matches for context before including them,
 to avoid mapping on incidental keyword mentions (e.g. "triad" used once to explain what a 7th chord is
-on top of isn't "this course teaches triads"). Course 5 (*Choro: The Ancestor of Bossa Nova*) is left
-**unmapped** — it's pure repertoire with no lesson content that maps cleanly to any current node; that's
-a real gap, not an oversight, and shows up correctly in the admin index's Courses=0 column if a Choro
-node is ever added.
+on top of isn't "this course teaches triads"). Course 5 (*Choro: The Ancestor of Bossa Nova*) was
+originally left **unmapped**. **✅ Since mapped** (verified 2026-07-07): `sbn_course_skill_node` now has
+5 rows for course 5 (node ids 11, 12, 13, 50, 51).
 
 Mapping by course (id → node slugs):
 
@@ -238,17 +245,11 @@ Mapping by course (id → node slugs):
 | 75 Arpeggio Shapes: The Five Chord Qualities | arpeggio-shapes |
 | 76 Approach Notes & Enclosures | motivic-development, improvisation-over-changes |
 
-**Curriculum gaps this surfaced** (nodes with zero course coverage — legitimate targets for Post-v1
-Roadmap #1/#2, not bugs): the entire **Ear Training** branch except `interval-recognition`, which
-Course 72 now closes (no course teaches recognition/dictation as a named skill yet otherwise, even
-though e.g. Course 9's right-hand work implicitly trains rhythm feel); **Melody**'s
-`improvisation-over-changes` (Course 76 contributes toward it but doesn't fully close it alone —
-its other prerequisites `arpeggio-shapes` and `ii-v-i-major` are now also covered by courses 75 and
-existing courses respectively, so a student completing those three courses satisfies the node);
-**Technique**'s `barre-chords`, `position-shifting`, `tone-production` (note: `caged-system` is now
-closed by Course 73); **Reading & Theory**'s `standard-notation-basics` and `rhythm-notation`
-(note: `nashville-number-system` and `leadsheet-reading` are now closed by Course 74). None of these
-are mistakes — they reflect that the current catalog doesn't have dedicated content for them yet.
+**Curriculum gaps this surfaced** (nodes with zero course coverage, as of the 2026-06-23 mapping pass):
+the entire **Ear Training** branch except `interval-recognition`; **Melody**'s
+`improvisation-over-changes`; **Technique**'s `barre-chords`, `position-shifting`, `tone-production`;
+**Reading & Theory**'s `standard-notation-basics` and `rhythm-notation`. **✅ All closed** (verified
+2026-07-07): every node named above now shows course coverage in `sbn_course_skill_node`.
 
 **Courses 74–76 (2026-06-23)** — three intermediate courses imported together.
 - **74 Diatonic Chords & the Nashville Number System** — source: `THEORIE - Stufenvierklänge.musicxml`
@@ -291,9 +292,9 @@ interval is a good Phase 2 addition once a clean candidate is identified per int
 
 ### Known v1 gaps (deliberate deferrals, not bugs)
 
-- **No cycle detection** — the form allows A→B and B→A. Harmless for a 14-node hand-curated graph;
-  add a topological check at the moment something actually *traverses* the graph (student "recommended
-  next"), not before.
+- **No cycle detection** — ✅ **CLOSED 2026-07-07**, exactly at the point predicted below: "recommended
+  next" shipped and needed real traversal, so `SkillGraphService` was built with cycle detection wired
+  into the admin edit form at the same time (see "Post-v1 Roadmap" #3).
 - **Native multi-selects** — unglamorous but fine for admin-only v1; a tag-style picker is polish.
 - **Prod deploy** — handled by `scripts/deploy_db.sh`: it scp's the whole local `sbn.db` up (so the
   four `sbn_*` tables AND seeded nodes ride along — no manual table creation, no remote seeding),
@@ -514,9 +515,9 @@ A small Vue component (`SkillIcon.vue`) renders: if `icon_path` is set → `<img
 Heroicon SVG looked up by `icon_key`, else → branch icon fallback. Nodes within the same branch
 default to the branch icon until a specific one is assigned.
 
-**Phase B (design task):** Custom per-node SVG icons created in Canva or Illustrator, exported as
-SVGs, dropped into `public/images/skills/`, and the `icon_path` column updated. No code change
-required — the component already handles it.
+**Phase B — ✅ COMPLETE.** Custom per-node SVG icons for all 64 nodes, dropped into
+`public/images/skills/{slug}.svg`, with `icon_path` updated on every row. No code change was
+required — `SkillIcon.vue` already handled the priority fallback.
 
 This means the frontend tree and node landing pages can be built now using Heroicon placeholders,
 and the icon upgrade is a pure design/content task that doesn't touch any Vue components.
@@ -705,11 +706,11 @@ links). Coverage reachable from the skill-nodes index ("📊 Coverage" action) +
 In rough priority order, once the taxonomy is curated:
 
 1. **Curate remaining branches** — ✅ structurally done 2026-06-23 (21 nodes + edges added for Melody,
-   Technique, Ear Training, Reading & Theory — see "Seeder" above). ⏳ Still needs the same
-   content-evidence pass Harmony/Rhythm got before it's trustworthy, not just structurally plausible.
+   Technique, Ear Training, Reading & Theory — see "Seeder" above). ✅ Content-evidence pass now done
+   (verified 2026-07-07) — descriptions across all six branches are equally substantial.
 2. **Map existing courses** to nodes through the pivot — ✅ done 2026-06-23 for 15/16 published courses,
-   see "Course → Node Mapping". Revisit once branches above are content-verified, and whenever a new
-   course ships.
+   see "Course → Node Mapping". ✅ Course 5 (Choro) gap since closed (verified 2026-07-07) — all
+   published courses now mapped.
 3. **Student-facing progress** — ✅ a first cut shipped 2026-06-23 (`/account/skills`, commit `309e555`):
    per-branch grid of self-report toggle cards backed by `sbn_user_skill_progress`, with `SkillIcon.vue`
    (3-tier icon fallback) and account-nav links. ✅ 2026-06-25 (commit `1baeae4`): "Skills you'll build"
@@ -718,10 +719,35 @@ In rough priority order, once the taxonomy is curated:
    `/account/skills`); guests see it read-only and clicking routes to `/register`. ✅ 2026-06-25 (commit
    `0da79c3`): `CourseSkillTracker.vue` — a collapsible self-report panel *inside the lesson player*
    (`Courses/Player.vue`, gated to enrolled students), backed by a shared `CourseController::courseSkills()`
-   helper. **Self-report toggles on lesson/course pages = DONE.** Next: "recommended next nodes". *That* is
-   when cycle detection / topological traversal earns its place (see v1 gaps). ✅ `sbn_user_skill_progress`
-   added to the `TABLES` preserve list in `scripts/deploy_db.sh` 2026-06-25 (prerequisite for prod).
-4. **Style classes** — the deferred tables + auto-award logic. Treat thresholds as a tuning problem.
+   helper. **Self-report toggles on lesson/course pages = DONE.** ✅ **"Recommended next nodes" SHIPPED
+   2026-07-07**: `App\Services\SkillGraphService` adds cycle detection (`wouldCreateCycle`,
+   `cyclicRequirements` — wired into `Admin\SkillNodeController::update()` so a prereq edit can no longer
+   close a loop) plus `topologicalOrder()` and `recommendedNext(User, limit)` — nodes with all
+   prerequisites completed but not yet done, ranked by unlock-count desc → grade asc → title. Surfaced as
+   a "Recommended next" section on `/account/skills`, each card showing `SkillNode::practiceLinks()` —
+   see below. `sbn_user_skill_progress` was added to the `TABLES` preserve list in `scripts/deploy_db.sh`
+   2026-06-25 (prerequisite for prod).
+3a. **Node → content practice links SHIPPED 2026-07-07**: `SkillNode::practiceLinks()` flattens
+   `linkedContent()` (rhythms/progressions/songs/chord-category) plus courses AND individual lessons
+   (a `lessons()` relation was added — the data already existed in `sbn_skill_node_content` via the
+   polymorphic pivot, but no relation exposed it) into a uniform `{courses, rhythmPatterns,
+   chordProgressions, leadsheets, chordCategoryLabel}` payload, each group capped at 5 items with a
+   `more` overflow count (an uncapped node — e.g. a voicing category pulling 50 songs — was blowing out
+   the card grid layout). Rendered by the shared `PracticeLinks.vue` chip-row component on both the
+   public glossary (`/skills`, every entry) and the "Recommended next" cards on `/account/skills`.
+   Chip labels are hard-capped at 28 characters (full text via `title=` tooltip) to keep multiple chips
+   readable in a narrow card.
+4. **Style classes** — ✅ **SHIPPED 2026-07-07 (simple cut)**: `App\Services\SkillClassService` derives
+   one class per style (`SkillNode::STYLES`) LIVE from `sbn_skill_node_style` weights + completed nodes —
+   no new tables, no persistence, mirrors `SkillGradeService`'s "compute on every request" pattern. Award
+   rule: weight-sum of completed nodes tagged that style (weight ≥ 2, i.e. "toolkit" or "definitional" —
+   weight-1 "touches the style" tags are too incidental to gate a class on) ÷ weight-sum of all qualifying
+   nodes for that style ≥ 70%. Surfaced as a "Style Classes" panel on `/account/skills` (progress bar per
+   style + ✓ badge when awarded), computed live client-side on toggle exactly like `liveGrades`. **Scope
+   note:** the full vision (hand-curated tiers per style — Bossa Rhythm Player → Bossa Comper → Bossa
+   Nova Guitarist, see "Style Classes" below) was explicitly deferred as real curatorial work on the scale
+   of the original graph; this ships one flat "X Player" class per style instead, using data that already
+   existed. The tiered version can still be built later without touching callers.
 5. **Repertoire nodes** — the deferred tables + acquisition types + affiliate links.
 6. **Graph visualization (student-facing skill tree)** — ✅ **SHIPPED 2026-07-02** at
    `/account/skills/tree` — see "Student Skill Tree (Shipped 2026-07-02)" below for the as-built
@@ -748,8 +774,8 @@ columns; sorted server-side `orderByRaw('LOWER(title)')`.
 pages), `Account/Skills.vue` grid ⓘ link, the `SkillTree.vue` popover "Full details →", and the grade
 page skill strip — all now target `/skills#{slug}`.
 
-**Not done (content, for co-work):** the actual one-sentence blurbs on `sbn_skill_nodes.description`
-(most are still terse one-liners — the glossary is only as good as those sentences).
+**✅ Blurbs done** (verified 2026-07-07): `sbn_skill_nodes.description` now carries substantial,
+specific copy for every node (~440–470 char avg across all six branches) — no longer terse one-liners.
 
 ### Grade page ↔ skill-node integration (Shipped 2026-07-02)
 
@@ -809,9 +835,9 @@ constraint.
 reuse). Mobile: one branch at a time within the active style tab, matching `Skills.vue`'s existing
 card visual language rather than a new mobile-only design.
 
-**Not done:** custom per-node SVG art (`icon_path`, still Heroicon fallbacks for all nodes);
-"recommended next nodes" / topological traversal; automated tests (manual QA only, matching how the
-rest of this feature area has shipped).
+**Not done:** "recommended next nodes" / topological traversal; automated tests (manual QA only,
+matching how the rest of this feature area has shipped). (Custom per-node SVG art shipped separately —
+see Icon System Phase B, now complete.)
 
 ---
 

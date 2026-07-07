@@ -5001,6 +5001,72 @@
     line-height: 1;
 }
 
+/* ── Practice Links (node → content, "where to work on this") ───────────────── */
+
+.sbn-practice-links {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    margin-top: 10px;
+    min-width: 0;
+}
+
+.sbn-practice-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.sbn-practice-group-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--clr-text-muted);
+    margin-right: 2px;
+}
+
+.sbn-practice-chip {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--clr-border);
+    background: var(--clr-surface);
+    color: var(--clr-text);
+    text-decoration: none;
+    transition: border-color 0.15s, background 0.15s;
+    /* Long lesson titles ("Course — Lesson") must wrap or truncate, not force
+       the grid track wider than its column — see layout bug fixed 2026-07-07. */
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sbn-practice-chip:hover {
+    border-color: color-mix(in srgb, var(--_chip-clr, var(--clr-accent)) 55%, transparent);
+    background: color-mix(in srgb, var(--_chip-clr, var(--clr-accent)) 10%, var(--clr-surface));
+}
+
+.sbn-practice-chip--course     { --_chip-clr: #f39c12; }
+.sbn-practice-chip--chord      { --_chip-clr: #8b5cf6; }
+.sbn-practice-chip--rhythm     { --_chip-clr: #3b82f6; }
+.sbn-practice-chip--progression{ --_chip-clr: #10b981; }
+.sbn-practice-chip--song       { --_chip-clr: #ec4899; }
+
+.sbn-practice-chip-more {
+    font-size: 11px;
+    color: var(--clr-text-muted);
+    padding: 3px 4px;
+    white-space: nowrap;
+}
+
 /* Songs: skills strip below meta row, inside hero-text */
 .sbn-ss-hero-skills {
     margin-top: 16px;

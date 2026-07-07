@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import SkillIcon from '@/Components/Skill/SkillIcon.vue';
+import PracticeLinks, { type PracticeLinksData } from '@/Components/Skill/PracticeLinks.vue';
 import { BRANCH_LABELS } from '@/Constants/skillBranches';
 
 defineOptions({ layout: PublicLayout });
@@ -33,6 +34,7 @@ interface SkillEntry {
     grade: number | null;
     gradeLabel: string | null;
     description: string | null;
+    practice: PracticeLinksData;
     iconKey: string | null;
     iconPath: string | null;
 }
@@ -102,6 +104,7 @@ const letters = computed(() => groups.value.map(([l]) => l));
                                     <span class="skgl-entry-branch">{{ BRANCH_LABELS[entry.branch] ?? entry.branch }}</span>
                                 </div>
                                 <p v-if="entry.description" class="skgl-entry-desc">{{ entry.description }}</p>
+                                <PracticeLinks :practice="entry.practice" />
                             </div>
                         </li>
                     </ul>

@@ -49,6 +49,9 @@ class SkillNode extends Model
 
     public const COMPLETION_SELF_REPORT = 'self_report';
 
+    /** Max chips shown per content-type group in practiceLinks() before truncating. */
+    private const PRACTICE_LINKS_CAP = 5;
+
     // =========================================================================
     // RELATIONS
     // =========================================================================
@@ -183,6 +186,20 @@ class SkillNode extends Model
     }
 
     /**
+     * Lessons directly linked to this node via the same pivot. Despite the
+     * "exercises excluded, course-only" note above (still true — exercises
+     * really are absent), individual Lesson rows ARE present in
+     * sbn_skill_node_content in practice (discovered 2026-07-07) — this
+     * relation was missing even though the data existed. Used by
+     * practiceLinks() to deep-link into the exact lesson, not just the course.
+     */
+    public function lessons(): MorphToMany
+    {
+        return $this->morphedByMany(Lesson::class, 'content', 'sbn_skill_node_content', 'skill_node_id', 'content_id')
+            ->withPivot('sort_order')->withTimestamps();
+    }
+
+    /**
      * Chord voicings this node teaches, resolved from voicing_categories — NOT a
      * pivot. The node owns a category (e.g. "drop2"); this returns every diagram in
      * those categories, so new voicings are covered automatically as the library
@@ -204,8 +221,10 @@ class SkillNode extends Model
      * Directly-linked content grouped by type. Rhythms/progressions/songs are
      * specific-item pivot links; chordDiagrams is category-resolved (see above).
      * Leadsheets are the "songs as equipment" link — the repertoire a node unlocks.
+     * Lessons are included too (see lessons() docblock — data existed, relation
+     * was missing until 2026-07-07).
      *
-     * @return array{rhythmPatterns:Collection,chordProgressions:Collection,chordDiagrams:Collection,leadsheets:Collection}
+     * @return array{rhythmPatterns:Collection,chordProgressions:Collection,chordDiagrams:Collection,leadsheets:Collection,lessons:Collection}
      */
     public function linkedContent(): array
     {
@@ -214,6 +233,80 @@ class SkillNode extends Model
             'chordProgressions' => $this->chordProgressions,
             'chordDiagrams'     => $this->chordDiagrams(),
             'leadsheets'        => $this->leadsheets,
+            'lessons'           => $this->lessons()->with('course:id,slug,title')->get(),
+        ];
+    }
+
+    /**
+     * Flat, Inertia-friendly "where to practice this" payload: courses that
+     * teach the node plus every directly-linked content item, each reduced to
+     * a slug + title + library route so a Vue "Practice this" panel can render
+     * without knowing about each content model's own shape. Used by the public
+     * glossary (/skills) and the "Recommended next" panel on /account/skills —
+     * see docs/SBN-Skill-System-Plan.md "Node ↔ Content Links".
+     *
+     * Lessons deep-link into their own course/lesson pair and are appended to
+     * the "courses" list alongside any plain node<->course mappings (a node can
+     * have both — they're not mutually exclusive, and a node commonly links
+     * several lessons within the same course, so lessons can't collapse into a
+     * single per-course entry).
+     *
+     * Each group is capped at PRACTICE_LINKS_CAP items with a `more` overflow
+     * count, not the raw list — a broadly-linked node (e.g. a voicing category
+     * pulling 50 songs) was blowing out the recommended-card grid layout
+     * (found + fixed 2026-07-07).
+     *
+     * @return array{courses:array{items:array,more:int},rhythmPatterns:array{items:array,more:int},chordProgressions:array{items:array,more:int},leadsheets:array{items:array,more:int},chordCategoryLabel:?string,chordLibraryUrl:?string}
+     */
+    public function practiceLinks(): array
+    {
+        $linked = $this->linkedContent();
+
+        $courseLinks = $this->courses()->get(['sbn_courses.id', 'sbn_courses.slug', 'sbn_courses.title'])
+            ->map(fn ($c) => ['slug' => $c->slug, 'title' => $c->title, 'url' => "/learn/{$c->slug}"]);
+
+        $lessonLinks = $linked['lessons']
+            ->filter(fn ($lesson) => $lesson->course) // skip orphaned rows (dangling course_id)
+            ->map(fn ($lesson) => [
+                // Lesson title alone, not "Course — Lesson": the course-level
+                // chip (above) already names the course, and the long combined
+                // string was overflowing the recommended-card grid (2026-07-07).
+                'slug'  => $lesson->slug,
+                'title' => $lesson->title,
+                'url'   => "/learn/{$lesson->course->slug}/play/{$lesson->slug}",
+            ]);
+
+        $allCourseLinks = $courseLinks->concat($lessonLinks)->values();
+
+        // Cap each group so a broadly-linked node (e.g. a voicing category
+        // pulling 50 songs) can't blow out the card — see layout bug found
+        // 2026-07-07. "more" carries the true count for a "+N more" affordance.
+        $cap = fn ($items) => [
+            'items' => $items->take(self::PRACTICE_LINKS_CAP)->values()->all(),
+            'more'  => max(0, $items->count() - self::PRACTICE_LINKS_CAP),
+        ];
+
+        return [
+            'courses' => $cap($allCourseLinks),
+
+            'rhythmPatterns' => $cap($linked['rhythmPatterns']
+                ->map(fn ($r) => ['slug' => $r->slug, 'title' => $r->name, 'url' => "/library/rhythms/{$r->slug}"])),
+
+            'chordProgressions' => $cap($linked['chordProgressions']
+                ->map(fn ($p) => ['slug' => $p->slug, 'title' => $p->name, 'url' => "/library/progressions/{$p->slug}"])),
+
+            'leadsheets' => $cap($linked['leadsheets']
+                ->map(fn ($l) => ['slug' => $l->slug, 'title' => $l->title, 'url' => "/library/songs/{$l->slug}"])),
+
+            // Chord voicings are category-resolved, not individual items — link
+            // to the chord library filtered by category rather than N diagrams.
+            'chordCategoryLabel' => ($this->voicing_categories ?: null)
+                ? implode(' / ', array_map(
+                    fn ($cat) => ChordDiagram::VOICING_CATEGORIES[$cat] ?? $cat,
+                    $this->voicing_categories,
+                ))
+                : null,
+            'chordLibraryUrl' => $this->voicing_categories ? '/library/chords' : null,
         ];
     }
 
