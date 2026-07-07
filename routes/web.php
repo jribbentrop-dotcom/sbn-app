@@ -281,6 +281,9 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
     Route::post('/leadsheets/{leadsheet}/status', [LeadsheetController::class, 'updateStatus'])->name('leadsheets.updateStatus');
     Route::post('/leadsheets/{leadsheet}/is-pro', [LeadsheetController::class, 'updateIsPro'])->name('leadsheets.updateIsPro');
     Route::post('/leadsheets/{leadsheet}/reshift-downbeat', [LeadsheetController::class, 'reshiftDownbeat'])->name('leadsheets.reshiftDownbeat');
+    Route::post('/leadsheets/{leadsheet}/fix-transcription', [LeadsheetController::class, 'fixTranscription'])->name('leadsheets.fixTranscription');
+    Route::post('/leadsheets/{leadsheet}/reopen-tuning', [LeadsheetController::class, 'reopenTuning'])->name('leadsheets.reopenTuning');
+    Route::post('/leadsheets/{leadsheet}/retune-detection', [LeadsheetController::class, 'retuneDetection'])->name('leadsheets.retuneDetection');
     Route::get('/leadsheets/{leadsheet}/data', [LeadsheetController::class, 'apiShow'])->name('leadsheets.show');
     Route::post('/leadsheets/identify-voicings', [LeadsheetController::class, 'identifyVoicings'])->name('leadsheets.identifyVoicings');
     Route::post('/leadsheets/identify-single', [LeadsheetController::class, 'identifySingle']);

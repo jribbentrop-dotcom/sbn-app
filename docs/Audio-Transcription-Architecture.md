@@ -19,20 +19,24 @@ The transcription process follows a six-stage pipeline designed for structural a
     *   **Beat-Boundary Clamping:** Notes are strictly prevented from crossing beat boundaries (480-tick grid).
     *   **Rhythmic Standardization:** Snap-to-grid (no dotted notes) and gap-closing to eliminate 16th-note jitter.
     *   **Silence Trimming:** Automatic removal of leading empty measures to align the score with music onset.
-5.  **Musicology Pass (AI Refinement):** If enabled, the raw analysis is sent to Gemini.
-    *   **Quantization:** Raw timestamps are "musicalized" into standard rhythms.
-    *   **Structuralization:** Logical song sections (Intro, Verse, Chorus, Outro) are identified.
-    *   **Harmonic Correction:** Chord labels are refined based on functional harmony.
-6.  **Assembly:** The final data is assembled into the Leadsheet model, including video sync mappings and quantized melody/tab data.
+5.  **Assembly:** The final data is assembled into the Leadsheet model, including video sync mappings and quantized melody/tab data.
+
+> **No AI refinement pass.** The pipeline is fully deterministic. An optional
+> Gemini "musicalize" step (rhythm quantization → then, after T4, section
+> grouping + enharmonic relabel + key correction) existed historically but was
+> **removed 2026-07-07** — see §T8. Rhythm is quantized deterministically (§5),
+> spelling is owned by the app's deterministic spelling authority, and
+> section-from-chord-list inference proved too weak to justify an LLM round-trip.
 
 ---
 
 ## 2. Technical Stack & Bridge
 
 *   **PHP/Laravel:** Orchestration and Harmonic Recognition.
-*   **Python 3.11.9:** AI Inference (located in `/python_env`).
-*   **Gemini (LLM):** Rhythmic and structural refinement.
+*   **Python 3.11.9:** AI Inference — pitch/beat detection, stem separation (located in `/python_env`).
 *   **FFmpeg & yt-dlp:** Audio conversion and acquisition.
+*   *(No LLM in the transcription path — removed 2026-07-07, see §T8. Gemini/LLM
+    clients remain in use for the separate **AI Song Search** leadsheet path.)*
 *   **Handshake Pattern:** The PHP service manually injects the system `PATH`, `TEMP`, and `TMP` variables into the `proc_open` environment. Python output is prefixed with `JSON_START` to allow the PHP service to ignore diagnostic noise (TensorFlow warnings, etc.).
 
 ---
@@ -305,12 +309,13 @@ Integrating a "Standard Reference" database (like the Mike Oliphant Jazz Standar
 | **P1** | Duration-Weighted ID | ✅ Implemented | Better chord recognition input |
 | **P2** | User Downbeat Offset UI | ✅ Implemented | User clicks the true "1" note in the tab; tick-resolution re-shift via pickup bar |
 | **P2** | Bass-Snap Beat Correction | ✅ Implemented | Rebuilds beat_times from bass-note anchors so the grid follows rubato |
-| **P1** | T4 AI Job Re-division | ✅ Implemented | Deterministic chord ID for all paths; AI does structuralisation only |
+| **P1** | T4 AI Job Re-division | ✅ Implemented | Deterministic chord ID for all paths; AI narrowed to structuralisation (later removed — see T8) |
+| **P2** | T8 Remove AI refinement | ✅ Implemented | Transcription path now 100% deterministic; Gemini "musicalize" pass dropped |
 | **P1** | T1 Fretboard Optimisation | ✅ Implemented | Viterbi over (string,fret) — playable tab instead of absurd fret leaps |
 | **P1** | T1b Melody→Voicing Position | ✅ Implemented | Chord voicings tracked to the melody's hand position per bar |
 | **P1** | T1 Bar-Locked Positions | ✅ Implemented | One compact 4-fret hand position per bar — no fret-1/fret-8 mixing |
 | **P2** | T2 Voice Labelling | ⏸ Shelved | Position win folded into T1; chord-ID win smaller than T3 |
-| **P2** | Phase 3 Context Awareness | ⏳ Pending | Context-aware chord disambiguation |
+| **P2** | T3 Phase 3 Context Awareness | ✅ Implemented | Sequence rerank (key-fit+bigram+Viterbi) over per-region audio chord IDs |
 | **P3** | Tap-Correct Re-time UI | ⏳ Designed | Manual downbeat tapping for recordings bass-snap can't anchor |
 | **P3** | Reference Leadsheet Sync | ⏳ Pending | Anchoring transcription to standard progressions |
 
@@ -322,8 +327,7 @@ Integrating a "Standard Reference" database (like the Mike Oliphant Jazz Standar
 *   **Bass-snap inspection:** `php artisan sbn:bass-snap-debug {leadsheetId}` — prints `beat_track` vs bass-snapped grid per beat with deltas.
 *   **yt-dlp Update:** `.\yt-dlp.exe -U`
 *   **Harmonic Engine:** Core logic in `VoicingCrossref.php` (Pass 1–3c).
-*   **Assembly:** `LeadsheetController::assembleTranscription()` owns beat→bar grouping, bass-snap, chord region detection, melody reconstruction and videoSync mapping.
-*   **Melody Pipeline:** `LeadsheetController::musicalizeTranscription` orchestration.
+*   **Assembly:** `LeadsheetController::assembleTranscription()` owns beat→bar grouping, bass-snap, chord region detection, melody reconstruction, context reranking (T3) and videoSync mapping — the entire deterministic pipeline. No LLM call.
 
 > **History:** This doc supersedes the 2026-05-04 `Audio-Transcription-OPUSAnalysis` audit, whose proposed fixes (range filter, beat clamping, no-dots grid, duration-weighted ID) are all now implemented above. The chord mis-ID deep-dive it called out lives in [SBN-Identifier-Reference.md](SBN-Identifier-Reference.md).
 
@@ -344,7 +348,8 @@ array, including the `transcriptionRaw` blob (cached `beats`, `beat_times`, all
 raw `notes`) and `raw_beats` / `melody_data`. The AI payload now contains only
 the title, key/tempo/time-sig, and a compact one-line-per-bar chord listing;
 `transcriptionRaw`, `raw_beats`, `melody_data` and pitch integers are never
-encoded into it. See T4 below.
+encoded into it. See T4 below. *(Moot after T8 — there is no AI prompt in the
+transcription path anymore; retained as history.)*
 
 ### Phase T1 — Fretboard position optimisation ✅ IMPLEMENTED (Session 2026-05-20, bar-locked rewrite 2026-05-21)
 
@@ -482,15 +487,47 @@ revisit only if T1's position fix proves insufficient on more material.
 **Constraint:** the tab editor renders a **single voice** and there is no plan
 to extend it — so multi-staff separation is out of scope regardless.
 
-### Phase T3 — Wire the context-aware identifier into the audio path
+### Phase T3 — Wire the context-aware identifier into the audio path ✅ IMPLEMENTED (Session 2026-07-07)
 
-**Problem:** doc §6 — the audio path identifies every chord *in isolation* via
-`identifyFromMidi()`. The context-aware Phase 3 engine (Viterbi + bigram +
-key-fit, see [SBN-Identifier-Reference.md](SBN-Identifier-Reference.md) §5) was
-built but **never connected to transcription**.
+**Problem (as was):** doc §6 — the audio path identified every chord *in
+isolation* via `identifyFromMidi()`. The context-aware Phase 3 engine (Viterbi +
+bigram + key-fit, see [SBN-Identifier-Reference.md](SBN-Identifier-Reference.md)
+§5) was built but **only connected to the fret path** (`identifyVoicingsBatch`),
+never to transcription.
 
-**Approach:** after first-pass ID, re-identify with key + neighbour context.
-Mostly plumbing of an existing engine, not new algorithm.
+**As built — sequence rerank after per-region ID:**
+- `assembleTranscription()` still runs `identifyFromMidi()` per harmonic region
+  as the first pass. Each emitted chord entry now carries a transient `_seq` id
+  and the full `identifyFromMidi()` result (which already includes `candidates`,
+  `pcs`, `bass_note` — exactly the per-slot shape the reranker consumes) is
+  collected into an ordered `$chordSeq`. Emission is funnelled through one
+  `$emitChord` closure so all three flush sites (mid-region / end-of-bar /
+  trailing) record into the sequence identically.
+- After the grid is assembled, `applyContextualChordReranking()` feeds the
+  ordered slots through `ContextualReranker::rerank($slots, $songKey)` — the
+  same engine the fret path uses (2d diatonicity → 2e bigram → 2f Viterbi).
+  Reinterpreted names are written back into the matching chord entries by
+  `_seq`, and the scratch key is stripped so `_seq` never reaches `json_data`.
+- **Conservative by construction.** The reranker only shifts a *near-tied* local
+  reading (its `minScoreRatio` guards keep a dominant `identifyFromMidi()` winner
+  intact) and can never introduce a name no candidate produced. So a clean
+  ii-V-I stays untouched; the win is on the borderline regions (rootless
+  voicings, tritone ambiguity, enharmonic spelling) doc §6 called out.
+- **Non-fatal.** Any exception logs a warning and leaves the deterministic
+  per-region labels; `_seq` is stripped on every path.
+- **Key source.** `$analysis['key']` (audio imports default to `'C'` when none
+  was inferred). The key-dependent sub-passes are internally inert on a neutral
+  key; bigram + Viterbi don't use the key at all — so a wrong/absent key
+  degrades gracefully rather than mis-ranking.
+
+Tests: `tests/Feature/Identifier/AudioContextRerankTest.php` drives
+`assembleTranscription()` on a synthetic ii-V-I rawResult and asserts labels +
+no `_seq` leakage (multi-chord and single-chord/short-circuit paths).
+
+**Caveat:** the reranker's ceiling is the candidate list `identifyFromMidi()`
+produced for each region — if the right reading isn't in a slot's top-K
+candidates, sequence context can't summon it. T5 (reference anchoring) is the
+lever for cases where even the candidate set is wrong.
 
 ### Phase T4 — Redivide the AI's job ✅ IMPLEMENTED (Session 2026-05-20)
 
@@ -525,17 +562,18 @@ results. The prompt also dumped tens of thousands of tokens of redundant JSON.
 at (pattern recognition over chord *names*) on clean input, and can no longer
 corrupt deterministic chord/rhythm results.
 
-**Not yet done (folds into T5):** feeding the matched Jazz Standard's changes
-into the AI payload — `musicalizeTranscription()` no longer takes the
-`SongLookup` it would need; T5 re-introduces it.
+> **Superseded by T8.** T4 kept a *narrowed* AI pass (structuralisation +
+> relabel). T8 removed even that — the transcription path is now 100%
+> deterministic. Reference anchoring (T5) is now a purely deterministic idea:
+> force-align the grid + bias chord ID from the matched standard, no LLM.
 
 ### Phase T5 — Reference anchoring (known standards)
 
 When the tune matches an entry in the ~1,400-row **Mike Oliphant Jazz Standards
 DB**, use its bar count / section labels / changes to force-align the grid and
 bias chord ID (doc §7). Especially powerful for known standards (e.g. *Body and
-Soul*). Composes with T4 (feed the reference into the AI payload) and with
-bass-snap (bias anchors toward expected bass pitches).
+Soul*). Composes with bass-snap (bias anchors toward expected bass pitches).
+Fully deterministic — a matched standard is a *reference*, not a prompt.
 
 ### Phase T6 — Tap-correct re-time UI (manual fallback)
 
@@ -543,6 +581,100 @@ Designed, not built (see §3 Future Improvements B). Manual downbeat tapping
 against the synced video for recordings where bass-snap can't find good
 anchors. Tapped times become `downbeatOverrides` feeding `assembleTranscription()`.
 Lower priority — bass-snap covers the common case.
+
+### Phase T7 — Cross-ref detected voicings against the chord DB (proposed)
+
+**Idea:** attach a real catalogued voicing (a `diagram_id` from
+`sbn_chord_diagrams`) to each transcribed chord — the actual shape the player
+used — instead of only a bare chord *name*. Today `identifyFromMidi()` answers
+"what chord *name* is this pitch-set?" and always returns `diagram_id = null`
+(no fret string to look up). Now that T1 lays out real per-bar `(string,fret)`
+positions, a region *does* have playable frets — so we can ask the fret-based
+twin instead: "is this specific shape one of our catalogued voicings?"
+
+**Reuse, not new algorithm.** `VoicingCrossref::identifyFromFrets()` /
+`findDiagramByFrets()` already do DB diagram lookup from a 6-char fret string —
+they're the fret path's engine. The work is plumbing:
+1. For each harmonic region, assemble a 6-char fret string from the T1-assigned
+   positions of the notes that fall in that region (bass + comp; the melody note
+   is the top voice). Regions where the notes don't form a single grippable
+   shape (span > ~4 frets, or too few voices) simply don't cross-ref — leave
+   `diagram_id` null, keep the name from the context-reranked `identifyFromMidi`.
+2. Call `identifyFromFrets($frets, $position, $songKey)` → take its
+   `diagram_id` when the name agrees with the region's already-chosen label
+   (guard against the fret shape naming a *different* chord than the reranked
+   sequence settled on — trust the sequence for the name, the shape only for the
+   diagram link).
+3. Store the `diagram_id` on the chord entry so the leadsheet links to the real
+   voicing (fingering diagram, chord-library "level up" page).
+
+**Why it's the *right* replacement for the removed Build Voicings block.** The
+old block *synthesized* voicings from labels via `ProgressionBuilder` — inventing
+fingerings the recording never contained, keyed on the wrong default key. This
+instead *recognises* the voicing that was actually played. It's additive
+(diagram links), never overwrites the transcribed melody/tab, and needs no key.
+
+**Ceiling:** only as good as T1's fret assignment and the DB's voicing coverage;
+a shape not in `sbn_chord_diagrams` just stays unlinked. No downside — it's a
+pure enrichment pass.
+
+#### Import-modal cleanup (Session 2026-07-07)
+
+The **Build Voicings** block (checkbox + Voicing Style / Extension Mode / Rhythm
+Override) is now **hidden in Audio Transcription mode** — it only shows for AI
+Song Search. Rationale: the block runs `ProgressionBuilder` to *synthesize*
+voicings/comping/melody from chord labels, which is exactly what the AI-search
+path needs (no performance data) but actively wrong for a transcription (which
+already carries melody + tab from the recording, and whose `analysis['key']`
+defaults to `'C'` in this path, so builder voicings would be keyed wrong and
+clobber the transcribed data).
+
+- Modal (`_lookup-modal.blade.php`): the four form-groups gate on
+  `mode !== 'audio'`; switching to audio sets `buildVoicings = false` (so the
+  still-in-DOM hidden inputs submit nothing), switching back to search restores
+  the AI-search default `true`.
+- Backend backstop (`createFromLookup`): `$wantVoicings` additionally requires
+  `mode !== 'audio'`, so even a hand-crafted request can't run the builder on an
+  audio import.
+- T7 (above) is the intended *replacement* enrichment for the audio path —
+  recognise the played voicing in the DB, don't synthesize a new one.
+
+### Phase T8 — Remove the AI refinement pass ✅ IMPLEMENTED (Session 2026-07-07)
+
+The Gemini "musicalize" pass is **gone**. The transcription path is now fully
+deterministic end-to-end.
+
+**History.** Originally the AI quantized *rhythm*. T4 (2026-05-20) took rhythm
+and chord-ID away from it (deterministic quantizer + `VoicingCrossref` do both
+better) and narrowed it to **section grouping + enharmonic relabel + key
+correction**. T8 removes that remnant too.
+
+**Why drop the narrowed pass:**
+- **Rhythm** — already quantized deterministically upstream (beat-clamp / no-dots
+  grid / gap-close, §5) before the AI ever saw a bar. The checkbox still *said*
+  "AI Rhythmic Cleanup" but hadn't done that since T4.
+- **Enharmonic spelling** — owned by the app's deterministic spelling authority
+  (`HarmonicContext::useFlatsFor` + the JS twin). The AI relabel was redundant
+  with a system already trusted more.
+- **Section grouping** — the AI inferred form from a bare chord-per-bar list (no
+  melody, no repeats, no rhythm). Too weak to be reliable; in practice labels
+  rarely surfaced, and on a barCount mismatch it silently collapsed to one
+  section anyway. Not worth an LLM round-trip.
+- **Key correction** — silently *overwrote* the deterministic key with no guard,
+  a real downside for ~zero upside.
+- **Unevaluable.** Success was never logged (only the failure path warned), so
+  the tool's contribution was impossible to measure — the deciding factor.
+
+**Removed:** the `ai_cleanup` checkbox (`_lookup-modal.blade.php`), its validation
+key + branch in `createFromLookup`, and the entire `musicalizeTranscription()`
+method. `LLM\LookupClient` stays — it's still used by the separate **AI Song
+Search** leadsheet path (`SongLookup`), which is untouched.
+
+**Verdict — no AI in transcription.** Revisit only if a genuinely more
+sophisticated capability is on the table (form detection from melody + repeat
+structure, or rhythmic *interpretation* that rewrites note positions) — and that
+would need the evaluation harness this pass never had, plus the "AI can't
+corrupt good deterministic data" guard T4 established.
 
 ### Smaller fixes
 
@@ -556,9 +688,14 @@ Lower priority — bass-snap covers the common case.
 
 ~~T4~~ ✅ · ~~T1~~ ✅ (Session 2026-05-20; bar-locked rewrite + 4-fret window
 2026-05-21) · ~~T2~~ ⏸ shelved (the position win it promised was achieved
-inside T1; revisit only if more material shows T1 is insufficient) → **T3
-next** (wire the context-aware identifier into the audio path — plumbing of an
-existing engine) → T5 → T6. The 90 s cap can be lifted any time.
+inside T1; revisit only if more material shows T1 is insufficient) · ~~T3~~ ✅
+(Session 2026-07-07 — context-aware sequence rerank wired into the audio path) ·
+~~T8~~ ✅ (Session 2026-07-07 — AI refinement pass removed; path now fully
+deterministic)
+→ **T5 next** (reference anchoring to the Jazz Standards DB — force-align grid +
+bias chord ID; also lifts T3's candidate-set ceiling; now a deterministic pass,
+no LLM) → T7 (cross-ref detected voicings to the chord DB — the replacement for
+the removed Build Voicings block) → T6. The 90 s cap can be lifted any time.
 
 ---
 
@@ -779,3 +916,162 @@ The sidebar can separate the **persisted original** into stems and sync to one
   stem}` copies the chosen session stem into `public/audio/source/{id}/
   stem-{name}.wav` (survives session sweep) and returns its URL; the sidebar
   points videoSync at it as a hosted source.
+
+---
+
+## 13. Transcription Lifecycle: "Fix transcription" latch ✅ IMPLEMENTED (Session 2026-07-07)
+
+### The problem it solves
+Every re-derive tool (the downbeat re-shift; the proposed detection tuning, §14)
+rebuilds the grid from cached `transcriptionRaw` via `assembleTranscription()`,
+which **discards manual chord/voicing/note edits** made after import. Today the
+"raw" and the "worked-on" data are the same mutable `json_data` blob, so there is
+no boundary between *still tuning the transcription* and *editing a finished
+sheet*. The downbeat tool warns about this; it doesn't prevent it.
+
+### The model (latch)
+An audio-transcribed sheet has two stages, tracked by a single flag
+`json_data.transcriptionFixed` (boolean, absent ⇒ false ⇒ still tuning):
+
+- **Tuning** (default after import): re-derive tools (downbeat / detection /
+  bass-snap) are live and re-assemble freely. Manual edits are *disposable* —
+  you're hunting for the best raw transcription.
+- **Fixed** (after pressing **Fix transcription**): the sheet is the source of
+  truth. Re-derive tools **lock**; re-opening tuning requires an explicit
+  "this discards your edits" confirm. `transcriptionRaw` is **kept** (not
+  discarded), so re-tuning stays *possible*, just gated.
+
+### Why a dedicated endpoint (not the editor save)
+`update()` writes `json_data` **verbatim from the client payload** — and the
+editor's tab-save posts a serialized *model*, not the whole `json_data`. Relying
+on the generic save to carry a new flag is fragile. Instead the flag is written
+by purpose-built endpoints that merge into `parsed_data` server-side — the exact
+idiom used for `sourceAudio` persistence (read `parsed_data` → set key →
+`json_encode` → `update(['json_data' => ...])`), which preserves every other key
+including `transcriptionRaw`.
+
+### Endpoints (as built)
+- `POST /api/admin/leadsheets/{id}/fix-transcription`
+  (`LeadsheetController::fixTranscription`) — set `transcriptionFixed = true`,
+  persist, return `{success, transcriptionFixed}`. No grid re-assembly — just the
+  flag. Idempotent. 422 if the sheet has no `transcriptionRaw`.
+- `POST /api/admin/leadsheets/{id}/reopen-tuning` (`reopenTuning`) — set it
+  false, called only after the client's discard-confirm.
+- Both share `setTranscriptionFixed()`, which uses the `sourceAudio`-persistence
+  idiom (read `parsed_data` → set key → `json_encode` → `update`), so every other
+  `json_data` key (incl. `transcriptionRaw`) survives.
+
+### Backend guard
+`reshiftDownbeat` (and the future §14 retune/redetect endpoints) **refuse with
+409** (`{success:false, fixed:true}`) when `transcriptionFixed === true`, unless
+the request carries `force: true` (the client sends it right after
+`reopen-tuning`). A stale client can't silently clobber a fixed sheet.
+
+### Editor UI (`VideoSyncEditor.vue`)
+- Blade exposes `transcriptionFixed` on `window.__sbnLeadsheet` (mirrors
+  `transcriptionRaw`); seeded into a `transcriptionFixed` ref.
+- **Tuning stage** (`!fixed`): the Set-downbeat tool + a green **✓ Fix
+  transcription** button (calls `fix-transcription`, flips the ref, disarms the
+  picker).
+- **Fixed stage:** the tool is replaced by a "🔒 Transcription fixed" panel with
+  a **Re-open tuning** button — a `window.confirm` warns it discards edits, then
+  calls `reopen-tuning` and flips the ref back. `applyDownbeat` is only reachable
+  in the tuning stage, so no `force` is needed from the picker itself.
+- Older sheets (no flag) ⇒ treated as un-fixed (tuning available) — safe default.
+
+### Tests
+`tests/Feature/TranscriptionFixLatchTest.php` — fix → reshift 409 → forced
+reshift OK → reopen → reshift OK; `transcriptionRaw` preserved across fix;
+non-audio sheet rejected. (Runs against real `sbn.db`; row deleted in tearDown.)
+
+### Sequencing
+This latch is a **prerequisite** for §14 (live detection tuning): without it,
+more re-derive surfaces = more ways to silently clobber. Built first; §14's
+re-derive endpoints inherit the guard for free.
+
+---
+
+## 14. Live detection tuning in the editor (T9 — Tier 1 ✅ IMPLEMENTED, Tier 2 PENDING; Session 2026-07-07)
+
+### Goal
+Adjust basic-pitch detection knobs and **watch the tab re-render**, instead of
+the current blind flow (set knobs in the import modal → full import → discover
+it's wrong → re-import from scratch). UI lives in the tab editor, post-import,
+tuning against the resident `sourceAudio` (§12b).
+
+**Status:** Tier 1 (post-filter sliders) shipped — P1/P2/P3. Tier 2 (onset/frame
+re-inference button) pending — P4/P5.
+
+### The governing constraint
+The knobs split by *where basic-pitch consumes them* (`transcribe.py`):
+
+| Knob | Consumed | Re-tunable without Python? |
+|---|---|---|
+| `minimum_note_length` | post-filter on `note_events` | **Yes** |
+| `MIN_NOTE_DURATION` (50 ms floor) | post-filter | **Yes** |
+| MIDI/guitar-range clamp | inside `predict()` (freq) | **Yes** as a MIDI post-filter proxy |
+| `onset_threshold` | **inside** `predict()` | **No** — needs re-inference |
+| `frame_threshold` | **inside** `predict()` | **No** — needs re-inference |
+
+So there is no single "all live" path — hence a two-tier design. Both tiers
+reuse the `reshiftDownbeat` machinery (cached raw → assemble → convert → persist
+→ return fresh leadsheet).
+
+### Tier 1 — live post-filter sliders ✅ (P1–P3, as built)
+Min-note-length + MIDI range clamp. **Key simplification found during build:**
+no `transcribe.py` change was needed. The cached `transcriptionRaw.notes` is
+*already* the full unfiltered note set (Python's 50 ms floor only applies to
+`beats`, the chord-region buckets — `notes` is untouched). So the chord regions
+can be **re-bucketed from the cached `notes`** post-hoc.
+
+- **`rebucketBeats($notes, $beatTimes, $filter=null)`** was parameterized: the
+  filter overrides the 50 ms floor and adds an optional MIDI min/max clamp. Null
+  filter ⇒ exactly the original behaviour (regression-safe, `notes` was already
+  the superset — no floor lowering required).
+- **`assembleTranscription()`** gained a `detection_filter` opt: when present it
+  re-buckets `beats` from `notes` with those values (after any bass-snap
+  re-bucket), and narrows the melody range clamp within the hard guitar bound
+  (MIDI 40–88 floor/ceiling — a filter can only tighten it). Cached as
+  `transcriptionRaw.detectionFilter` for reproducibility.
+- **`retuneDetection`** endpoint (`POST .../retune-detection`) — a clone of
+  `reshiftDownbeat`: reads cached raw, re-assembles with the new filter (reusing
+  cached downbeat offset / bass-snap / tab-position style), persists, returns the
+  fresh leadsheet. Inherits the §13 fixed-latch guard (409 unless `force`).
+- **UI** (`VideoSyncEditor.vue`, tuning stage only): a "Clean up detection" panel
+  — min-note-length slider + optional pitch-range clamp. `@change` fires a
+  **debounced (350 ms)** POST → full re-assembly → `window.location.reload()`.
+  Single source of truth (server assembly); rejected a JS mirror of the bucketing.
+- **UI-state restore across the reload.** Because retune re-assembles the whole
+  leadsheet, it still reloads — but before reloading it stashes
+  `sbn_retune_restore` in `sessionStorage`, and `TabEditor.onMounted` reads it
+  (fresh-intent guard, 15 s) to come back in the **Tab view with the video
+  sidebar open + synced**, instead of resetting to the default Grid view. Keeps
+  slider tuning fast and in place. *Limitation:* still a full reload (flashes) —
+  true in-place re-hydration of grid+melody+videoSync was judged too risky for
+  the payoff; deferred.
+- Tests: `DetectionFilterTest` (rebucket unit + filter-in-assembly) and the
+  retune case in `TranscriptionFixLatchTest`.
+
+### Tier 2 — "Re-run detection" button (seconds)
+Onset + frame thresholds (+ preset). A `redetect` endpoint re-invokes
+`transcribe.py` on the resident `sourceAudio` (no re-download / re-YouTube /
+re-separate — reuses cached `separateStem`/`tabPositionStyle`), then flows
+through the same assemble→persist→reload path. One inference; seconds.
+
+### Phases
+1. **P1** ✅ — parameterize `rebucketBeats` + `detection_filter` opt on
+   `assembleTranscription`. Regression-guarded (null filter = unchanged).
+2. **P2** ✅ — `retuneDetection` endpoint (Tier-1 server re-assembly + latch guard).
+3. **P3** ✅ — Tier-1 UI (sliders + debounced POST + reload). The "watch it change" win.
+4. **P4** ⏳ — `redetect` endpoint (Tier-2 re-inference on resident audio).
+5. **P5** ⏳ — Tier-2 UI (onset/frame threshold sliders + Re-run button).
+Stopped after P3 for now — over-detection / clutter is the common failure and
+Tier 1 covers it. P4/P5 add the onset/frame re-inference when a recording needs
+*more* notes surfaced (below the original detection floor), which Tier 1 can't do.
+
+### Risks
+- **P1 regression** is the real one — the filter relocation must not shift
+  default-value assembly. Guard with a fixture test.
+- **`sourceAudio` presence** — Tier 2 needs the persisted original; pre-§12b
+  sheets lack it ⇒ Tier-2 button disabled (Tier 1 still works from cache).
+- Inherits §13's `transcriptionFixed` guard — a fixed sheet's tuning is locked.

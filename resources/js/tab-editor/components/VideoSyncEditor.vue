@@ -72,30 +72,105 @@
             </div>
         </div>
 
-        <!-- Set downbeat — only for audio-transcribed leadsheets -->
+        <!-- Transcription tuning — only for audio-transcribed leadsheets -->
         <div v-if="canReshift" class="sbn-downbeat-tool">
-            <div class="sbn-downbeat-header">
-                <span class="sbn-vsync-label">Set downbeat</span>
-            </div>
-            <button
-                class="sbn-btn sbn-btn-sm"
-                :class="downbeatPickMode ? 'sbn-btn-warning' : 'sbn-btn-primary'"
-                :disabled="reshiftBusy"
-                @click="downbeatPickMode = !downbeatPickMode"
-            >
-                {{ reshiftBusy
-                    ? 'Re-shifting…'
-                    : (downbeatPickMode ? 'Click a note in the tab…  (cancel)' : '🎯 Set downbeat from a note') }}
-            </button>
-            <p class="sbn-downbeat-hint" v-if="downbeatPickMode">
-                Switch to <strong>Tab</strong> view, then click the note that is the
-                true beat <strong>“1”</strong>.
-            </p>
-            <div v-if="reshiftError" class="sbn-downbeat-error">{{ reshiftError }}</div>
-            <div class="sbn-downbeat-warn">
-                Re-shifting rebuilds the grid from the original audio — manual chord
-                or voicing edits made after import will be lost. Do this first.
-            </div>
+
+            <!-- Fixed latch (§13): re-derive tools are locked. -->
+            <template v-if="transcriptionFixed">
+                <div class="sbn-downbeat-header">
+                    <span class="sbn-vsync-label">🔒 Transcription fixed</span>
+                </div>
+                <p class="sbn-downbeat-hint">
+                    This transcription is committed as the source of truth — your edits
+                    are safe. Re-opening tuning re-derives from the original audio and
+                    <strong>discards edits made since</strong>.
+                </p>
+                <button
+                    class="sbn-btn sbn-btn-sm sbn-btn-secondary"
+                    :disabled="reshiftBusy"
+                    @click="reopenTuning"
+                >
+                    {{ reshiftBusy ? 'Re-opening…' : 'Re-open tuning' }}
+                </button>
+                <div v-if="reshiftError" class="sbn-downbeat-error">{{ reshiftError }}</div>
+            </template>
+
+            <!-- Tuning stage: downbeat re-shift + commit. -->
+            <template v-else>
+                <div class="sbn-downbeat-header">
+                    <span class="sbn-vsync-label">Set downbeat</span>
+                </div>
+                <button
+                    class="sbn-btn sbn-btn-sm"
+                    :class="downbeatPickMode ? 'sbn-btn-warning' : 'sbn-btn-primary'"
+                    :disabled="reshiftBusy"
+                    @click="downbeatPickMode = !downbeatPickMode"
+                >
+                    {{ reshiftBusy
+                        ? 'Re-shifting…'
+                        : (downbeatPickMode ? 'Click a note in the tab…  (cancel)' : '🎯 Set downbeat from a note') }}
+                </button>
+                <p class="sbn-downbeat-hint" v-if="downbeatPickMode">
+                    Switch to <strong>Tab</strong> view, then click the note that is the
+                    true beat <strong>“1”</strong>.
+                </p>
+                <div v-if="reshiftError" class="sbn-downbeat-error">{{ reshiftError }}</div>
+                <div class="sbn-downbeat-warn">
+                    Re-shifting rebuilds the grid from the original audio — manual chord
+                    or voicing edits made after import will be lost. Do this first.
+                </div>
+
+                <!-- Detection tuning (T9 Tier-1: live post-filter) -->
+                <div class="sbn-detune">
+                    <div class="sbn-downbeat-header">
+                        <span class="sbn-vsync-label">Clean up detection</span>
+                    </div>
+                    <label class="sbn-detune-row">
+                        <span>Min note length</span>
+                        <input type="range" min="10" max="500" step="10"
+                               v-model.number="filterMinNoteMs"
+                               :disabled="reshiftBusy"
+                               @change="scheduleRetune">
+                        <span class="sbn-detune-val">{{ Math.round(filterMinNoteMs) }} ms</span>
+                    </label>
+                    <p class="sbn-downbeat-warn">
+                        Higher drops short ghost notes / reverb tails from the chords.
+                        Re-derives from the original audio (no re-transcribe).
+                    </p>
+
+                    <label class="sbn-detune-check">
+                        <input type="checkbox" v-model="filterRangeOn"
+                               :disabled="reshiftBusy" @change="scheduleRetune">
+                        <span>Clamp pitch range</span>
+                    </label>
+                    <template v-if="filterRangeOn">
+                        <label class="sbn-detune-row">
+                            <span>Low</span>
+                            <input type="range" min="40" max="88" step="1"
+                                   v-model.number="filterMidiMin"
+                                   :disabled="reshiftBusy" @change="scheduleRetune">
+                            <span class="sbn-detune-val">{{ Math.round(filterMidiMin) }}</span>
+                        </label>
+                        <label class="sbn-detune-row">
+                            <span>High</span>
+                            <input type="range" min="40" max="88" step="1"
+                                   v-model.number="filterMidiMax"
+                                   :disabled="reshiftBusy" @change="scheduleRetune">
+                            <span class="sbn-detune-val">{{ Math.round(filterMidiMax) }}</span>
+                        </label>
+                    </template>
+                </div>
+
+                <!-- Commit boundary -->
+                <button
+                    class="sbn-btn sbn-btn-sm sbn-btn-success sbn-downbeat-fix"
+                    :disabled="reshiftBusy"
+                    @click="fixTranscription"
+                    title="Lock this as the final transcription and start editing safely"
+                >
+                    ✓ Fix transcription
+                </button>
+            </template>
         </div>
 
         <!-- Player -->
@@ -349,6 +424,20 @@ async function syncToStem(name) {
 const reshiftBusy  = ref(false);
 const reshiftError = ref('');
 
+// "Fix transcription" latch (§13): once fixed, the re-derive tools lock so manual
+// edits aren't clobbered. Seeded from the blade; flipped by fix/reopen handlers.
+const transcriptionFixed = ref(!!_lsGlobal.transcriptionFixed);
+
+// ── Detection tuning (T9 Tier-1: live post-filter re-bucket) ───
+// Seeded from the cached filter that produced the current assembly, if any.
+const _seedFilter = _rawTranscription?.detectionFilter || {};
+// null slider = "off" (no clamp). Backed by the number inputs below.
+const filterMinNoteMs = ref(_seedFilter.min_note_length_ms ?? 50);
+const filterMidiMin   = ref(_seedFilter.midi_min ?? 40);
+const filterMidiMax   = ref(_seedFilter.midi_max ?? 88);
+const filterRangeOn   = ref(_seedFilter.midi_min != null || _seedFilter.midi_max != null);
+let   _retuneTimer    = null;
+
 // ── Backing-track toggle (Cinema with/without-guitar) ──────────
 const _seedBackingTrack = _lsGlobal.backingTrack || null;
 const backingTrackEnabled = ref(!!_seedBackingTrack?.enabled);
@@ -470,6 +559,117 @@ async function applyDownbeat(offset) {
         }
         // Full re-assembly replaces sections/melody/videoSync. Reload so the
         // editor re-initialises cleanly from the fresh json_data.
+        window.location.reload();
+    } catch (e) {
+        reshiftError.value = 'Could not reach the server.';
+        reshiftBusy.value = false;
+    }
+}
+
+// ── "Fix transcription" latch (§13) ────────────────────────────
+// Small POST that flips json_data.transcriptionFixed server-side (merged into
+// parsed_data, so transcriptionRaw/sourceAudio/melody all survive). No grid
+// re-assembly — just the flag.
+async function postLatch(action) {
+    if (!_leadsheetId || reshiftBusy.value) return null;
+    reshiftBusy.value = true;
+    reshiftError.value = '';
+    try {
+        const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const resp = await fetch(`/api/admin/leadsheets/${_leadsheetId}/${action}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': token,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({}),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.success) {
+            reshiftError.value = data.error || `Request failed (${resp.status}).`;
+            reshiftBusy.value = false;
+            return null;
+        }
+        return data;
+    } catch (e) {
+        reshiftError.value = 'Could not reach the server.';
+        reshiftBusy.value = false;
+        return null;
+    }
+}
+
+async function fixTranscription() {
+    const data = await postLatch('fix-transcription');
+    if (!data) return;
+    transcriptionFixed.value = true;
+    reshiftBusy.value = false;
+    // If the downbeat picker was armed, disarm it — tuning is now closed.
+    if (downbeatPickMode.value) downbeatPickMode.value = false;
+}
+
+async function reopenTuning() {
+    if (!window.confirm(
+        'Re-open tuning?\n\nThis unlocks the re-derive tools. Re-shifting the downbeat '
+        + 'or re-running detection after this will rebuild the grid from the original '
+        + 'audio and DISCARD any chord/voicing/note edits you made since fixing it.'
+    )) return;
+    const data = await postLatch('reopen-tuning');
+    if (!data) return;
+    transcriptionFixed.value = false;
+    reshiftBusy.value = false;
+}
+
+// ── Detection re-tune (T9 Tier-1) ──────────────────────────────
+// Post-filter only (min-note-length / MIDI range) — re-buckets the cached note
+// set server-side without re-running Python. Debounced so dragging a slider
+// doesn't fire a request per pixel. Only reachable in the tuning stage, so no
+// force needed. Full re-assembly ⇒ reload on success.
+function scheduleRetune() {
+    if (transcriptionFixed.value) return;
+    if (_retuneTimer) clearTimeout(_retuneTimer);
+    _retuneTimer = setTimeout(applyRetune, 350);
+}
+
+async function applyRetune() {
+    if (!_leadsheetId || reshiftBusy.value || transcriptionFixed.value) return;
+    reshiftBusy.value = true;
+    reshiftError.value = '';
+    const body = { min_note_length_ms: Math.round(filterMinNoteMs.value) };
+    if (filterRangeOn.value) {
+        body.midi_min = Math.round(filterMidiMin.value);
+        body.midi_max = Math.round(filterMidiMax.value);
+    }
+    try {
+        const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const resp = await fetch(`/api/admin/leadsheets/${_leadsheetId}/retune-detection`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': token,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.success) {
+            reshiftError.value = data.error || `Re-tune failed (${resp.status}).`;
+            reshiftBusy.value = false;
+            return;
+        }
+        // Re-assembly rebuilds the whole leadsheet, so we still reload — but stash
+        // the editor's tuning context so it comes back in the Tab view with the
+        // video sidebar open + synced, not reset to the default Grid view. Lets
+        // the user keep dragging sliders without losing their place each time.
+        try {
+            sessionStorage.setItem('sbn_retune_restore', JSON.stringify({
+                view: 'tab',
+                sidebar: true,
+                ts: Date.now(),
+            }));
+        } catch (e) { /* sessionStorage unavailable — degrade to default reload */ }
         window.location.reload();
     } catch (e) {
         reshiftError.value = 'Could not reach the server.';
@@ -871,6 +1071,47 @@ onUnmounted(() => { document.removeEventListener('keydown', onKeydown); });
     font-size: 10px;
     color: var(--clr-text-muted);
     line-height: 1.4;
+}
+
+/* Detection tuning (T9 Tier-1) */
+.sbn-detune {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--clr-border);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.sbn-detune-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+}
+.sbn-detune-row > span:first-child { flex: 0 0 90px; }
+.sbn-detune-row input[type="range"] { flex: 1 1 auto; }
+.sbn-detune-val { flex: 0 0 46px; text-align: right; color: var(--clr-text-muted); }
+.sbn-detune-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    margin-top: 4px;
+}
+
+/* Commit boundary — sits under the re-shift warning, visually separated. */
+.sbn-downbeat-fix {
+    margin-top: 6px;
+    align-self: flex-start;
+}
+.sbn-btn-success {
+    background: #16a34a;
+    border-color: #16a34a;
+    color: #fff;
+}
+.sbn-btn-success:hover:not(:disabled) {
+    background: #15803d;
+    border-color: #15803d;
 }
 
 /* ── Backing-track toggle (Cinema with/without-guitar) ──────── */

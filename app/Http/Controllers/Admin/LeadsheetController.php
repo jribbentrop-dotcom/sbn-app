@@ -652,7 +652,6 @@ class LeadsheetController extends Controller
             'mode'          => 'nullable|string|in:quick,assistant,audio',
             'youtube_id'    => 'nullable|string',
             'local_audio'   => 'nullable|file|mimes:mp3,wav,m4a,ogg,flac|max:102400',
-            'ai_cleanup'    => 'nullable|boolean',
             'bass_snap'     => 'nullable|boolean',
             'tab_position_style' => 'nullable|string|in:fretted,open',
             // ── basic-pitch detection tuning (audio mode) ────────────────────
@@ -743,8 +742,6 @@ class LeadsheetController extends Controller
             // detection, melody reconstruction and videoSync mapping. The raw
             // Python output is cached in json_data so the downbeat can be
             // re-shifted later without re-downloading / re-transcribing.
-            $aiCleanup = !empty($validated['ai_cleanup']);
-
             $analysis = $this->assembleTranscription($rawResult, [
                 'title'       => $audioTitle,
                 'key'         => $validated['preferred_key'] ?: 'C',
@@ -766,18 +763,13 @@ class LeadsheetController extends Controller
                     : ($detectionParams['separate_stem'] ?? true),
             ], 0, $crossref);
 
-            // ── Optional: AI Refinement (Structuralisation Pass) ─────────────
-            // T4: chords are already identified deterministically by
-            // assembleTranscription(). The AI only groups bars into named
-            // sections and does light enharmonic spelling cleanup.
-            if ($aiCleanup) {
-                try {
-                    $analysis = $this->musicalizeTranscription($analysis);
-                } catch (\Exception $e) {
-                    \Log::error('[LeadsheetController] AI Cleanup failed: ' . $e->getMessage());
-                    // Non-fatal: the deterministic analysis is already complete.
-                }
-            }
+            // Note: audio transcription is fully deterministic. There is no AI
+            // refinement pass — the old Gemini "musicalize" step (section
+            // grouping + enharmonic relabel + key correction) was removed
+            // 2026-07-07: rhythm is already quantized deterministically (§5),
+            // spelling is owned by the app's deterministic spelling authority,
+            // and section-from-chord-list inference was too weak to be worth an
+            // LLM round-trip. See Audio-Transcription-Architecture.md §T4/T8.
         } else {
             try {
                 $analysis = $lookup->lookup($validated);
@@ -794,7 +786,17 @@ class LeadsheetController extends Controller
         $jsonDataArray = json_decode($scaffold['json_data'], true);
         $tabXml = null;
 
-        if (!empty($validated['build_voicings'])) {
+        // Voicing building is an AI-Song-Search-only feature: it synthesizes
+        // fingerings/comping/melody from bare chord labels, which is exactly what
+        // that path lacks. An audio transcription already carries its own melody +
+        // tab derived from the recording (basic-pitch + T1), and its key defaults
+        // to 'C' in this path — so running the builder here would re-synthesize
+        // voicings against the wrong key and clobber the transcribed data. The
+        // modal hides the block in audio mode; this guard is the backend backstop.
+        $wantVoicings = !empty($validated['build_voicings'])
+            && ($validated['mode'] ?? '') !== 'audio';
+
+        if ($wantVoicings) {
             // Build full chord objects for the algorithm, preserving measure boundaries
             $allChords = [];
             $mIdx = 0;
@@ -1842,6 +1844,9 @@ class LeadsheetController extends Controller
             'offset'    => 'required|integer|min:0|max:1919',
             'bass_snap' => 'nullable|boolean',
             'tab_position_style' => 'nullable|string|in:fretted,open',
+            // Set true (by the client, right after reopen-tuning) to re-derive a
+            // transcription the user had latched as "fixed". See §13.
+            'force'     => 'nullable|boolean',
         ]);
 
         $parsed = $leadsheet->parsed_data;
@@ -1852,6 +1857,18 @@ class LeadsheetController extends Controller
                 'success' => false,
                 'error'   => 'This leadsheet has no cached audio transcription. The downbeat can only be re-shifted on sheets created via audio transcription after this feature was added.',
             ], 422);
+        }
+
+        // Fixed-transcription latch (§13): once the user commits the sheet as the
+        // source of truth, re-deriving would silently clobber their edits. Refuse
+        // unless the client explicitly forces it (which it does only after the
+        // "this discards your edits" confirm has flipped the flag via reopen-tuning).
+        if (($parsed['transcriptionFixed'] ?? false) && empty($validated['force'])) {
+            return response()->json([
+                'success' => false,
+                'fixed'   => true,
+                'error'   => 'This transcription is fixed. Re-open tuning first — re-deriving will discard edits made since.',
+            ], 409);
         }
 
         // Bass-snap defaults to whatever produced the current assembly so a
@@ -1893,6 +1910,145 @@ class LeadsheetController extends Controller
         return response()->json([
             'success'   => true,
             'offset'    => (int)$validated['offset'],
+            'leadsheet' => $this->serializeLeadsheet(
+                $leadsheet->fresh(),
+                $this->backfillFingersFromCrossref($leadsheet->fresh()->parsed_data)
+            ),
+        ]);
+    }
+
+    /**
+     * "Fix transcription" latch (§13). Commits an audio-transcribed leadsheet as
+     * the source of truth: sets json_data.transcriptionFixed = true. From then on
+     * the re-derive tools (downbeat re-shift, detection tuning) refuse to run
+     * without an explicit force, so manual edits can't be silently clobbered.
+     *
+     * Merges the flag into parsed_data and re-persists json_data verbatim — every
+     * other key (transcriptionRaw, sourceAudio, sections, melody, videoSync) is
+     * preserved. transcriptionRaw is deliberately KEPT so re-tuning stays possible
+     * (via reopenTuning + force), just gated. Idempotent.
+     */
+    public function fixTranscription(Request $request, Leadsheet $leadsheet)
+    {
+        return $this->setTranscriptionFixed($leadsheet, true);
+    }
+
+    /**
+     * Unlatch (§13): set transcriptionFixed = false so the re-derive tools work
+     * again. The editor calls this only after the user confirms "this discards my
+     * edits", then immediately re-runs the re-derive with force=true.
+     */
+    public function reopenTuning(Request $request, Leadsheet $leadsheet)
+    {
+        return $this->setTranscriptionFixed($leadsheet, false);
+    }
+
+    /**
+     * Shared writer for the transcriptionFixed latch. Uses the same
+     * read-parsed_data → set key → json_encode → update idiom as sourceAudio
+     * persistence, so all other json_data keys survive untouched.
+     */
+    private function setTranscriptionFixed(Leadsheet $leadsheet, bool $fixed): \Illuminate\Http\JsonResponse
+    {
+        $parsed = $leadsheet->parsed_data;
+
+        if (empty($parsed['transcriptionRaw'])) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'Only audio-transcribed leadsheets can be fixed / re-opened.',
+            ], 422);
+        }
+
+        $parsed['transcriptionFixed'] = $fixed;
+        $leadsheet->update([
+            'json_data' => json_encode($parsed, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'transcriptionFixed' => $fixed,
+        ]);
+    }
+
+    /**
+     * T9 Tier-1 — live detection re-tune (post-filter only, no re-inference).
+     *
+     * Re-derives the chord-region buckets + melody from the cached full note set
+     * with a new min-note-length / MIDI-range filter, WITHOUT re-running Python.
+     * Structurally identical to reshiftDownbeat (cached raw → assembleTranscription
+     * → convert → persist → return fresh leadsheet), reusing the cached downbeat
+     * offset / bass-snap / tab-position style so only the filter changes.
+     *
+     * Onset/frame thresholds are NOT here — they require re-inference (redetect,
+     * Tier 2). Inherits the §13 fixed-transcription guard.
+     */
+    public function retuneDetection(
+        Request $request,
+        Leadsheet $leadsheet,
+        AnalysisToLeadsheet $converter,
+        VoicingCrossref $crossref
+    ) {
+        $validated = $request->validate([
+            'min_note_length_ms' => 'nullable|numeric|min:0|max:2000',
+            'midi_min'           => 'nullable|integer|min:0|max:127',
+            'midi_max'           => 'nullable|integer|min:0|max:127',
+            'force'              => 'nullable|boolean',
+        ]);
+
+        $parsed = $leadsheet->parsed_data;
+        $raw    = $parsed['transcriptionRaw'] ?? null;
+
+        if (empty($raw) || empty($raw['notes']) || empty($raw['beats'])) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'This leadsheet has no cached audio transcription to re-tune.',
+            ], 422);
+        }
+
+        // §13 fixed-transcription latch.
+        if (($parsed['transcriptionFixed'] ?? false) && empty($validated['force'])) {
+            return response()->json([
+                'success' => false,
+                'fixed'   => true,
+                'error'   => 'This transcription is fixed. Re-open tuning first — re-tuning will discard edits made since.',
+            ], 409);
+        }
+
+        // Assemble the filter from provided keys only (empty ⇒ null ⇒ no re-bucket,
+        // i.e. back to the pristine Python buckets).
+        $filter = array_filter([
+            'min_note_length_ms' => $validated['min_note_length_ms'] ?? null,
+            'midi_min'           => $validated['midi_min'] ?? null,
+            'midi_max'           => $validated['midi_max'] ?? null,
+        ], fn($v) => $v !== null);
+        $filter = empty($filter) ? null : $filter;
+
+        $analysis = $this->assembleTranscription($raw, [
+            'title'      => $leadsheet->title,
+            'key'        => $leadsheet->song_key ?: 'C',
+            'youtube_id' => $raw['videoId'] ?? ($parsed['videoSync']['videoId'] ?? ''),
+            // Preserve everything else that produced the current assembly.
+            'bass_snap'          => !empty($raw['bassSnap']),
+            'tab_position_style' => $raw['tabPositionStyle'] ?? 'fretted',
+            'separate_stem'      => $raw['separateStem'] ?? true,
+            'detection_filter'   => $filter,
+        ], (int)($raw['downbeatOffset'] ?? 0), $crossref);
+
+        $scaffold      = $converter->convert($analysis);
+        $jsonDataArray = json_decode($scaffold['json_data'], true);
+
+        $leadsheet->update([
+            'measure_count'     => $scaffold['measure_count'],
+            'shortcode_content' => $scaffold['shortcode_content'],
+            'json_data'         => $this->normalizeChordNamesInJson(
+                json_encode($jsonDataArray, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            ),
+            'tab_xml'           => null,
+        ]);
+
+        return response()->json([
+            'success'   => true,
+            'filter'    => $filter,
             'leadsheet' => $this->serializeLeadsheet(
                 $leadsheet->fresh(),
                 $this->backfillFingersFromCrossref($leadsheet->fresh()->parsed_data)
@@ -3230,9 +3386,16 @@ class LeadsheetController extends Controller
      * @param array $beatTimes  Corrected grid, one entry per quarter note.
      * @return array  beats[] in Python's shape: { start, end, notes, note_durations }
      */
-    protected function rebucketBeats(array $notes, array $beatTimes): array
+    protected function rebucketBeats(array $notes, array $beatTimes, ?array $filter = null): array
     {
-        $MIN_NOTE_DURATION = 0.05;   // matches transcribe.py
+        // Default 50 ms floor matches transcribe.py's MIN_NOTE_DURATION. The
+        // optional $filter (T9 live detection tuning) overrides it and can add a
+        // MIDI range clamp, so the chord-region buckets can be re-derived from the
+        // cached full note set without re-running Python. Null $filter ⇒ exactly
+        // the original behaviour (regression-safe).
+        $minDur   = isset($filter['min_note_length_ms']) ? ((float)$filter['min_note_length_ms'] / 1000.0) : 0.05;
+        $midiMin  = isset($filter['midi_min']) ? (int)$filter['midi_min'] : null;
+        $midiMax  = isset($filter['midi_max']) ? (int)$filter['midi_max'] : null;
         $count = count($beatTimes);
         $beats = [];
 
@@ -3246,8 +3409,10 @@ class LeadsheetController extends Controller
             $pitchDur = [];
             foreach ($notes as $n) {
                 $dur = $n['end'] - $n['start'];
-                if ($n['start'] >= $startT && $n['start'] < $endT && $dur >= $MIN_NOTE_DURATION) {
+                if ($n['start'] >= $startT && $n['start'] < $endT && $dur >= $minDur) {
                     $p = (int)$n['pitch'];
+                    if ($midiMin !== null && $p < $midiMin) continue;
+                    if ($midiMax !== null && $p > $midiMax) continue;
                     if (!isset($pitchDur[$p]) || $dur > $pitchDur[$p]) {
                         $pitchDur[$p] = $dur;
                     }
@@ -3347,7 +3512,7 @@ class LeadsheetController extends Controller
      * by reshiftDownbeat() whenever the user re-picks the downbeat.
      *
      * @param array $rawResult  Raw Python output: beats[], notes[], beat_times[], tempo
-     * @param array $opts       title, key, youtube_id, ai_cleanup, bass_snap
+     * @param array $opts       title, key, youtube_id, bass_snap, tab_position_style, separate_stem
      * @param int   $downbeatOffset  0..1919 — tick position (relative to the
      *              first busy beat; 480 = 1 quarter) of the true musical "1".
      *              When > 0, the content before it is kept as a leading pickup
@@ -3380,6 +3545,21 @@ class LeadsheetController extends Controller
                 $rawResult['beats']      = $this->rebucketBeats($rawResult['notes'], $corrected);
                 $bassSnapped = true;
             }
+        }
+
+        // ── Detection filter (T9 live tuning) — re-bucket chord regions ─────
+        // The cached `notes` are the full unfiltered note set, so the chord-region
+        // buckets can be re-derived post-hoc with a different min-note-length /
+        // MIDI-range filter WITHOUT re-running basic-pitch. Only the post-filter
+        // knobs live here; onset/frame thresholds need re-inference (see redetect).
+        // Absent ⇒ no re-bucket, exactly the original behaviour.
+        $detectionFilter = $opts['detection_filter'] ?? null;
+        if (!empty($detectionFilter) && !empty($rawResult['notes']) && !empty($rawResult['beat_times'])) {
+            $rawResult['beats'] = $this->rebucketBeats(
+                $rawResult['notes'],
+                $rawResult['beat_times'],
+                $detectionFilter
+            );
         }
 
         $analysis = [
@@ -3416,6 +3596,10 @@ class LeadsheetController extends Controller
                 // for the editor (so the user can see what was used and
                 // re-import with different values if detection was off).
                 'detectionParams' => $rawResult['detection_params'] ?? null,
+                // T9 live-tuning post-filter (min-note-length / MIDI range) applied
+                // to the cached note set at assembly time. Carried through so a
+                // retune / reshift reuses it unless overridden.
+                'detectionFilter' => $detectionFilter,
             ],
         ];
 
@@ -3457,6 +3641,23 @@ class LeadsheetController extends Controller
         $regionPitches   = [];
         $regionStartBeat = 1;
 
+        // ── T3: context-aware identifier plumbing ───────────────────────────
+        // Each identified region is collected into an ordered sequence and,
+        // after the whole grid is assembled, re-ranked as a sequence by the
+        // ContextualReranker (key-fit + bigram + Viterbi — the Phase 3 engine,
+        // previously only wired into the fret path). Identify-in-isolation stays
+        // the first pass; the reranker only shifts *borderline* readings using
+        // neighbour context. Each emitted chord entry carries a `_seq` id so its
+        // label can be rewritten in place after reranking, then stripped.
+        $chordSeq = [];
+        $emitChord = function (array &$bar, array $regionPitches, int $beat) use ($crossref, &$chordSeq) {
+            $idResult = $crossref->identifyFromMidi($regionPitches);
+            if (empty($idResult['name'])) return;
+            $seq = count($chordSeq);
+            $chordSeq[$seq] = $idResult;
+            $bar['chords'][] = ['label' => $idResult['name'], 'beat' => $beat, '_seq' => $seq];
+        };
+
         // `g` is the padded grid index (0-based from the start of the pickup bar).
         for ($i = $startBeatIdx; $i < count($rawResult['beats']); $i++) {
             $beat = $rawResult['beats'][$i];
@@ -3493,10 +3694,7 @@ class LeadsheetController extends Controller
             // chords from pitch integers.
             if (empty($rawPitches)) {
                 if (!empty($regionPitches)) {
-                    $idResult = $crossref->identifyFromMidi($regionPitches);
-                    if ($idResult['name']) {
-                        $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
-                    }
+                    $emitChord($tempBar, $regionPitches, $regionStartBeat);
                     $regionPitches = [];
                 }
             } else {
@@ -3508,10 +3706,7 @@ class LeadsheetController extends Controller
                     if ($sim >= 0.5) {
                         $regionPitches = array_values(array_unique(array_merge($regionPitches, $rawPitches)));
                     } else {
-                        $idResult = $crossref->identifyFromMidi($regionPitches);
-                        if ($idResult['name']) {
-                            $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
-                        }
+                        $emitChord($tempBar, $regionPitches, $regionStartBeat);
                         $regionPitches   = $rawPitches;
                         $regionStartBeat = $beatNum;
                     }
@@ -3521,10 +3716,7 @@ class LeadsheetController extends Controller
             // ── End of bar ──────────────────────────────────────────────────
             if (($g + 1) % $beatsPerBar === 0) {
                 if (!empty($regionPitches)) {
-                    $idResult = $crossref->identifyFromMidi($regionPitches);
-                    if ($idResult['name']) {
-                        $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
-                    }
+                    $emitChord($tempBar, $regionPitches, $regionStartBeat);
                     $regionPitches = [];
                 }
 
@@ -3538,10 +3730,7 @@ class LeadsheetController extends Controller
 
         // Flush any trailing partial bar
         if (!empty($regionPitches)) {
-            $idResult = $crossref->identifyFromMidi($regionPitches);
-            if ($idResult['name']) {
-                $tempBar['chords'][] = ['label' => $idResult['name'], 'beat' => $regionStartBeat];
-            }
+            $emitChord($tempBar, $regionPitches, $regionStartBeat);
         }
         if (!empty($tempBar['chords'])) {
             $currentSection['bars'][] = $tempBar;
@@ -3552,6 +3741,15 @@ class LeadsheetController extends Controller
         }
         $analysis['sections'][] = $currentSection;
         $analysis['videoSync']['mappings'] = $mappings;
+
+        // ── T3: sequence-level context re-identification ────────────────────
+        // Re-rank the collected region results as an ordered sequence, then
+        // write any reinterpreted labels back into their chord entries. The
+        // reranker consumes the same per-slot shape identifyFromMidi already
+        // returns (`name`, `candidates`, `pcs`, `bass_note`), so no adaptation
+        // is needed. Non-fatal: on any failure the deterministic per-region
+        // labels stand.
+        $this->applyContextualChordReranking($analysis, $chordSeq, $crossref);
 
         // ── Reconstruct melody from raw MIDI notes (P0 & P1 fixes) ──────────
         $melody = [];
@@ -3568,9 +3766,15 @@ class LeadsheetController extends Controller
             //    duration quantization, so after shifting we re-snap to the
             //    grid: the sub-beat pick re-PHASES the rhythm, it doesn't
             //    de-quantize it.
+            // Melody range: the guitar bound (MIDI 40–88) is a hard floor/ceiling
+            // for the tab; a T9 detection filter can only *narrow* it further, so
+            // removing sub-bass / high noise affects the melody as well as chords.
+            $melMin = max(40, (int)($detectionFilter['midi_min'] ?? 40));
+            $melMax = min(88, (int)($detectionFilter['midi_max'] ?? 88));
+
             $tickGroups = [];
             foreach ($rawResult['notes'] as $note) {
-                if ($note['pitch'] < 40 || $note['pitch'] > 88) continue;
+                if ($note['pitch'] < $melMin || $note['pitch'] > $melMax) continue;
 
                 $rawStart  = $this->timeToTicks($note['start'], $rawResult['beat_times']);
                 $startTick = (int)round($rawStart / 240) * 240;
@@ -4074,165 +4278,103 @@ class LeadsheetController extends Controller
     }
 
     /**
-     * Refine an assembled audio transcription using Gemini (T4 redivision).
+     * T3 — context-aware chord re-identification for the audio path.
      *
-     * Chords are already identified deterministically by assembleTranscription()
-     * via VoicingCrossref — the AI is NOT asked to do pitch-set→chord arithmetic.
-     * Its job is narrowed to what an LLM is actually good at:
-     *  - read the *sequence of chord names* + bar structure and group bars into
-     *    musically logical, named sections (Intro / A / A / B / A / Outro);
-     *  - light enharmonic spelling cleanup (e.g. D#m7 → Ebm7 to match the key).
+     * `assembleTranscription()` identifies each harmonic region *in isolation*
+     * via `identifyFromMidi()`. That is a strong first pass but has no notion of
+     * key or neighbour chords, so borderline regions (rootless voicings, tritone
+     * ambiguity, enharmonic spelling) can read wrong. This runs the whole song's
+     * regions through the Phase 3 `ContextualReranker` — the same engine already
+     * wired into the fret path (`identifyVoicingsBatch`) — which applies key-fit,
+     * bigram transition and Viterbi sequence scoring over the ordered slots and
+     * only shifts a reading when sequence evidence outweighs a *near-tied* local
+     * winner (its own minScoreRatio guards protect a dominant local reading).
      *
-     * The AI never sees pitch integers, melody, raw beats, or transcriptionRaw;
-     * it returns only section grouping + an optional relabel map. The
-     * deterministic bar list (chord labels, beats), melody, videoSync and
-     * transcriptionRaw are preserved verbatim — the AI cannot overwrite them.
+     * `$chordSeq` is the ordered list of the full `identifyFromMidi()` results
+     * (index = the `_seq` id stamped onto each emitted chord entry). After
+     * reranking, reinterpreted names are written back into the matching chord
+     * entries in `$analysis['sections'][*]['bars'][*]['chords'][*]`, and the
+     * `_seq` scratch key is stripped from every entry.
+     *
+     * Non-fatal: any exception leaves the deterministic per-region labels intact.
+     *
+     * @param array &$analysis   Assembled analysis (mutated in place)
+     * @param array  $chordSeq   Ordered identifyFromMidi() results, keyed by _seq
      */
-    protected function musicalizeTranscription(array $analysis): array
+    protected function applyContextualChordReranking(array &$analysis, array $chordSeq, \App\Services\VoicingCrossref $crossref): void
     {
-        $client = app(LLM\LookupClient::class);
+        // Fewer than two chords → no sequence context to exploit. Still strip
+        // the scratch key so `_seq` never leaks into persisted json_data.
+        if (count($chordSeq) < 2) {
+            $this->stripChordSeqKeys($analysis);
+            return;
+        }
 
-        // Flatten the deterministic analysis into a bar list the AI can read.
-        $flatBars = [];
-        foreach ($analysis['sections'] as $section) {
-            foreach ($section['bars'] as $bar) {
-                $flatBars[] = $bar;
+        try {
+            $reranker = app(\App\Services\HarmonicContext\ContextualReranker::class);
+
+            // Reindex 0..n-1 (the reranker requires sequential slots) — $chordSeq
+            // keys are already dense 0-based, but be defensive.
+            $slots = array_values($chordSeq);
+
+            // Audio imports default key to 'C' when none was inferred; pass it
+            // through anyway. The key-dependent sub-passes are internally inert
+            // on a neutral/absent key, and bigram + Viterbi don't use the key.
+            $songKey = $analysis['key'] ?? null;
+
+            $reranked = $reranker->rerank($slots, $songKey);
+
+            // Map _seq → reinterpreted name (only where it actually changed).
+            $relabel = [];
+            foreach ($reranked as $seq => $slot) {
+                $newName = $slot['name'] ?? null;
+                $oldName = $chordSeq[$seq]['name'] ?? null;
+                if ($newName && $newName !== $oldName) {
+                    $relabel[$seq] = $newName;
+                }
             }
-        }
-        $barCount = count($flatBars);
 
-        // Render each bar as a compact chord string ("Dm7 | G7" / "/").
-        $barLines = [];
-        foreach ($flatBars as $i => $bar) {
-            $labels = array_map(
-                fn($c) => $c['label'] ?? '/',
-                $bar['chords'] ?? []
-            );
-            $barLines[] = ($i + 1) . ': ' . (empty($labels) ? '/' : implode(' ', $labels));
-        }
-
-        $systemPrompt = <<<PROMPT
-You are a jazz musicologist. A solo jazz guitar performance has already been
-transcribed and its chords identified by a deterministic harmonic engine. Your
-job is structural analysis only — do NOT re-identify chords from scratch.
-
-## YOUR TASKS:
-1. **STRUCTURALIZATION**: Read the sequence of chord-bar lines and group the
-   bars into musically logical, named sections (e.g. Intro, A, A, B, A, Outro,
-   or Verse / Chorus / Bridge). Return one entry per section with its 'name'
-   and 'barCount' (number of consecutive bars it spans). The barCounts MUST
-   sum to exactly the total bar count given.
-2. **SPELLING CLEANUP** (optional): If a chord label is enharmonically spelled
-   against the key (e.g. 'D#m7' in a flat key), add a 'relabel' entry mapping
-   the exact old label to the corrected one. Only fix spelling — never change
-   chord quality or root function. Omit 'relabel' entirely if nothing needs it.
-3. **KEY**: Confirm or correct the song's key from the chord sequence.
-
-Do NOT invent chords, change rhythms, or touch the melody. Return only the
-schema fields requested.
-PROMPT;
-
-        $context = $analysis['key'] ?? 'C';
-        $userPrompt  = "Song: '{$analysis['title']}'\n";
-        $userPrompt .= "Style: solo jazz guitar\n";
-        $userPrompt .= "Detected key: {$context}\n";
-        $userPrompt .= "Time signature: " . ($analysis['timeSignature'] ?? '4/4') . "\n";
-        $userPrompt .= "Tempo: " . ($analysis['tempo'] ?? 120) . " BPM\n";
-        $userPrompt .= "Total bars: {$barCount}\n\n";
-        $userPrompt .= "Chords per bar (one line = one bar):\n";
-        $userPrompt .= implode("\n", $barLines);
-
-        $schema = [
-            'type'       => 'OBJECT',
-            'properties' => [
-                'key'      => ['type' => 'STRING'],
-                'sections' => [
-                    'type'  => 'ARRAY',
-                    'items' => [
-                        'type'       => 'OBJECT',
-                        'properties' => [
-                            'name'     => ['type' => 'STRING'],
-                            'barCount' => ['type' => 'INTEGER'],
-                        ],
-                        'required' => ['name', 'barCount'],
-                    ],
-                ],
-                'relabel' => [
-                    'type'  => 'ARRAY',
-                    'items' => [
-                        'type'       => 'OBJECT',
-                        'properties' => [
-                            'from' => ['type' => 'STRING'],
-                            'to'   => ['type' => 'STRING'],
-                        ],
-                        'required' => ['from', 'to'],
-                    ],
-                ],
-            ],
-            'required' => ['key', 'sections'],
-        ];
-
-        $response = $client->complete($systemPrompt, $userPrompt, $schema, [
-            'timeoutSeconds' => 60,
-        ]);
-
-        $refined = $response['data'];
-
-        // ── Apply enharmonic relabel map to the deterministic bar list ──────
-        $relabel = [];
-        foreach ($refined['relabel'] ?? [] as $r) {
-            if (!empty($r['from']) && !empty($r['to'])) {
-                $relabel[$r['from']] = $r['to'];
-            }
-        }
-        if (!empty($relabel)) {
-            foreach ($flatBars as &$bar) {
-                foreach ($bar['chords'] as &$chord) {
-                    if (isset($relabel[$chord['label'] ?? ''])) {
-                        $chord['label'] = $relabel[$chord['label']];
+            if (!empty($relabel)) {
+                foreach ($analysis['sections'] as &$section) {
+                    foreach ($section['bars'] as &$bar) {
+                        foreach ($bar['chords'] as &$chord) {
+                            $seq = $chord['_seq'] ?? null;
+                            if ($seq !== null && isset($relabel[$seq])) {
+                                $chord['label'] = $relabel[$seq];
+                            }
+                        }
+                        unset($chord);
                     }
+                    unset($bar);
+                }
+                unset($section);
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('T3 contextual chord reranking failed; keeping deterministic labels', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Always strip the scratch key, whether or not reranking ran/changed anything.
+        $this->stripChordSeqKeys($analysis);
+    }
+
+    /** Remove the transient `_seq` scratch key from every chord entry. */
+    private function stripChordSeqKeys(array &$analysis): void
+    {
+        if (empty($analysis['sections'])) return;
+        foreach ($analysis['sections'] as &$section) {
+            if (empty($section['bars'])) continue;
+            foreach ($section['bars'] as &$bar) {
+                if (empty($bar['chords'])) continue;
+                foreach ($bar['chords'] as &$chord) {
+                    unset($chord['_seq']);
                 }
                 unset($chord);
             }
             unset($bar);
         }
-
-        // ── Re-slice the flat bar list into the AI's named sections ─────────
-        // The bars themselves are never rewritten — only regrouped. If the
-        // AI's barCounts don't sum to the total, fall back to one section.
-        $aiSections = $refined['sections'] ?? [];
-        $sumCounts  = array_sum(array_map(fn($s) => (int)($s['barCount'] ?? 0), $aiSections));
-
-        if (!empty($aiSections) && $sumCounts === $barCount) {
-            $newSections = [];
-            $cursor = 0;
-            foreach ($aiSections as $s) {
-                $n    = (int)($s['barCount'] ?? 0);
-                $name = $s['name'] ?: 'A';
-                $newSections[] = [
-                    // 'name' is what AnalysisToLeadsheet reads; 'label' kept
-                    // for parity with the deterministic single-section shape.
-                    'name'  => $name,
-                    'label' => $name,
-                    'bars'  => array_slice($flatBars, $cursor, $n),
-                ];
-                $cursor += $n;
-            }
-            $analysis['sections'] = $newSections;
-        } else {
-            // AI sectioning unusable — keep deterministic single section,
-            // but still apply any relabels we made above.
-            \Log::warning('[LeadsheetController] AI sectioning rejected '
-                . "(sum {$sumCounts} != {$barCount}); keeping single section.");
-            $analysis['sections'] = [['label' => 'A', 'bars' => $flatBars]];
-        }
-
-        // Adopt the AI's key only if it returned a non-empty value.
-        if (!empty($refined['key'])) {
-            $analysis['key'] = $refined['key'];
-        }
-
-        return $analysis;
+        unset($section);
     }
 
     /**

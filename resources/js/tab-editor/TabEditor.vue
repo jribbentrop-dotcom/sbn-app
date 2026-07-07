@@ -1614,6 +1614,31 @@ function _onStructuralSync() {
 }
 
 onMounted(() => {
+    // Restore editor context after a detection-retune reload (§14): the retune
+    // re-assembles server-side and reloads, which would otherwise drop us back to
+    // the default Grid view with the video sidebar closed. Come back to the Tab
+    // view with the sidebar open + synced so slider tuning stays fast and in place.
+    try {
+        const raw = sessionStorage.getItem('sbn_retune_restore');
+        if (raw) {
+            sessionStorage.removeItem('sbn_retune_restore');
+            const st = JSON.parse(raw);
+            // Only honour a fresh intent (guards against a stale tab restoring later).
+            if (st && (Date.now() - (st.ts || 0)) < 15000) {
+                if (st.view === 'tab') setViewMode('tab');
+                if (st.sidebar && !videoSidebarOpen.value) {
+                    // Mirror toggleVideoSidebar()'s open path (event on document,
+                    // switch audio source to the video).
+                    videoSidebarOpen.value = true;
+                    document.dispatchEvent(new CustomEvent('sbn-video-sidebar-toggle', {
+                        detail: { open: true },
+                    }));
+                    videoSync.setAudioSource('video');
+                }
+            }
+        }
+    } catch (e) { /* no sessionStorage / bad JSON — skip restore */ }
+
     window.addEventListener('sbn-tab-sections-sync', _onStructuralSync);
     window.addEventListener('sbn-transpose', openTransposeModal);
     document.addEventListener('sbn-sidebar-set-duration', onSidebarSetDuration);

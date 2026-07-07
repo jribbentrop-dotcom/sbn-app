@@ -754,6 +754,9 @@
         versionSlug: @json($activeVersion->version_slug ?? null),
         // transcriptionRaw only exists on audio-transcribed leadsheets.
         transcriptionRaw: @json(isset($leadsheet) ? ($leadsheet->parsed_data['transcriptionRaw'] ?? null) : null),
+        // "Fix transcription" latch (§13): once true the re-derive tools lock so
+        // manual edits aren't clobbered. Absent/false ⇒ still tuning.
+        transcriptionFixed: @json(isset($leadsheet) ? (bool)($leadsheet->parsed_data['transcriptionFixed'] ?? false) : false),
         // Cinema "with/without guitar" backing-track toggle — seeds the Vue
         // panel in VideoSyncEditor; saved back into json_data.backingTrack.
         backingTrack: @json(isset($leadsheet) ? ($leadsheet->parsed_data['backingTrack'] ?? null) : null),

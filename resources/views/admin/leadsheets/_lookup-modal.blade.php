@@ -65,14 +65,14 @@
                     <label>Lookup Mode</label>
                     <div style="display: flex; gap: 20px; margin-top: 8px;">
                         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                            <input type="radio" name="mode_display" value="search" x-model="modeDisplay" :disabled="loading" @change="mode = 'quick'">
+                            <input type="radio" name="mode_display" value="search" x-model="modeDisplay" :disabled="loading" @change="mode = 'quick'; buildVoicings = true">
                             <div>
                                 <div style="font-weight: 600;">AI Song Search</div>
                                 <div style="font-size: 11px; color: #6b7280;">Finds changes via LLM.</div>
                             </div>
                         </label>
                         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                            <input type="radio" name="mode_display" value="audio" x-model="modeDisplay" :disabled="loading" @change="mode = 'audio'; audioSource = 'youtube'">
+                            <input type="radio" name="mode_display" value="audio" x-model="modeDisplay" :disabled="loading" @change="mode = 'audio'; audioSource = 'youtube'; buildVoicings = false">
                             <div>
                                 <div style="font-weight: 600;">Audio Transcription</div>
                                 <div style="font-size: 11px; color: #6b7280;">High-precision via YouTube or local file.</div>
@@ -152,16 +152,6 @@
                         <input type="hidden" name="youtube_id" :value="selectedVideoId">
                         <input type="hidden" name="youtube_title" :value="selectedVideoTitle">
                     </div><!-- /audioSource youtube -->
-
-                    <div class="sbn-form-group" style="margin-top: 15px;">
-                        <label class="sbn-checkbox">
-                            <input type="checkbox" name="ai_cleanup" value="1" checked>
-                            <div>
-                                <div style="font-weight: 600;">AI Rhythmic Cleanup</div>
-                                <div style="font-size: 11px; color: #6b7280;">Simplifies micro-timing and corrects harmonic errors using Gemini.</div>
-                            </div>
-                        </label>
-                    </div>
 
                     <div class="sbn-form-group" style="margin-top: 15px;">
                         <label for="tab_position_style">Tab Position Style</label>
@@ -301,14 +291,19 @@
                     </div>
                 </div>
 
-                <div class="sbn-form-group">
+                {{-- Voicing building is only meaningful for the AI Song Search path, which
+                     has no performance data and needs the builder to synthesize fingerings.
+                     Audio Transcription already derives its voicings/tab/melody from the
+                     recording (basic-pitch + T1 fret optimiser), so the whole block is
+                     hidden in audio mode. --}}
+                <div class="sbn-form-group" x-show="mode !== 'audio'">
                     <label class="sbn-checkbox">
                         <input type="checkbox" name="build_voicings" value="1" x-model="buildVoicings" :disabled="loading">
                         <span>Build voicings automatically</span>
                     </label>
                 </div>
 
-                <div class="sbn-form-group" x-show="buildVoicings" style="margin-top: 10px;">
+                <div class="sbn-form-group" x-show="mode !== 'audio' && buildVoicings" style="margin-top: 10px;">
                     <label for="lookup_voicing_style">Voicing Style</label>
                     <select id="lookup_voicing_style" name="voicing_style" class="sbn-select" x-model="voicingStyle" :disabled="loading">
                         <option value="popular">Most popular</option>
@@ -318,7 +313,7 @@
                     </select>
                 </div>
 
-                <div class="sbn-form-group" x-show="buildVoicings" style="margin-top: 10px;">
+                <div class="sbn-form-group" x-show="mode !== 'audio' && buildVoicings" style="margin-top: 10px;">
                     <label>Extension Mode</label>
                     <label class="sbn-radio" style="display:block; margin-top:4px;">
                         <input type="radio" name="extension_mode" value="basic" x-model="extensionMode" :disabled="loading">
@@ -329,8 +324,8 @@
                         <span>Extended &mdash; builder adds option tones</span>
                     </label>
                 </div>
-                
-                <div class="sbn-form-group" x-show="buildVoicings" style="margin-top: 10px;">
+
+                <div class="sbn-form-group" x-show="mode !== 'audio' && buildVoicings" style="margin-top: 10px;">
                     <label for="lookup_rhythm">Rhythm Override (Optional)</label>
                     <select id="lookup_rhythm" name="rhythm_override" class="sbn-select" :disabled="loading">
                         <option value="">Auto-detect from AI</option>
