@@ -36,6 +36,7 @@ class LeadsheetVersion extends Model
         'melody_tab_xml',
         'chord_tab_xml',
         'shortcode_content',
+        'arrangement_notes',
         'status',
     ];
 

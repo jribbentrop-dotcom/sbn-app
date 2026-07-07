@@ -418,6 +418,41 @@ function stemStreamUrl(name) {
     return stemSession.value ? `/admin/leadsheets/stems/${stemSession.value}/${name}` : '';
 }
 
+// The stem audition session (Demucs output on disk) is transient — not persisted
+// to parsed_data — so a re-assembly reload after "Transcribe this" would drop the
+// populated stem list and bounce back to "Separate stems". Stash it in
+// sessionStorage (own key, keyed by leadsheet id) and restore on mount so the six
+// stems + their options survive the reload.
+const _STEM_RESTORE_KEY = 'sbn_stem_session_restore';
+
+function stashStemSession() {
+    if (!stemSession.value) return;
+    try {
+        sessionStorage.setItem(_STEM_RESTORE_KEY, JSON.stringify({
+            leadsheetId: _leadsheetId,
+            session: stemSession.value,
+            stems: availableStems.value,
+            ts: Date.now(),
+        }));
+    } catch (e) { /* sessionStorage unavailable — degrade to fresh separation */ }
+}
+
+function restoreStemSession() {
+    try {
+        const raw = sessionStorage.getItem(_STEM_RESTORE_KEY);
+        if (!raw) return;
+        sessionStorage.removeItem(_STEM_RESTORE_KEY);
+        const st = JSON.parse(raw);
+        // Same leadsheet, fresh intent, and a real session — guard against a stale
+        // tab restoring someone else's stems.
+        if (st && st.leadsheetId === _leadsheetId && st.session
+            && (Date.now() - (st.ts || 0)) < 15000) {
+            stemSession.value = st.session;
+            availableStems.value = st.stems || [];
+        }
+    } catch (e) { /* no sessionStorage / bad JSON — skip, user re-separates */ }
+}
+
 async function separateSourceStems() {
     if (!_leadsheetId || stemBusy.value) return;
     stemError.value = '';
@@ -492,6 +527,9 @@ async function transcribeStem(name) {
             stemTranscribeBusy.value = '';
             return;
         }
+        // We just separated these stems — keep the audition panel populated across
+        // the re-assembly reload so the user isn't bounced back to "Separate stems".
+        stashStemSession();
         stashRetuneRestoreAndReload();
     } catch (e) {
         stemError.value = 'Could not reach the server.';
@@ -800,6 +838,21 @@ async function applyRedetect() {
             reshiftBusy.value = false;
             return;
         }
+        // Re-detection targets the isolated stem the transcription was built from,
+        // when there is one. If that audition session expired, the server falls back
+        // to the full-mix original — flash a note past the reload so the user knows
+        // detection is no longer running on their chosen stem.
+        if (data.stemExpired) {
+            try {
+                sessionStorage.setItem('sbn_redetect_notice', JSON.stringify({
+                    leadsheetId: _leadsheetId,
+                    msg: 'The stem audition session expired, so re-detection ran on the '
+                        + 'full-mix original. Separate stems again and “Transcribe this” '
+                        + 'to get back to the isolated stem.',
+                    ts: Date.now(),
+                }));
+            } catch (e) { /* sessionStorage unavailable — skip the notice */ }
+        }
         stashRetuneRestoreAndReload();
     } catch (e) {
         reshiftError.value = 'Could not reach the server.';
@@ -1046,7 +1099,22 @@ function onKeydown(e) {
     }
 }
 
-onMounted(() => { document.addEventListener('keydown', onKeydown); });
+onMounted(() => {
+    document.addEventListener('keydown', onKeydown);
+    // After a "Transcribe this" reload, bring the stem audition panel back.
+    restoreStemSession();
+    // Surface a redetect-fell-back-to-mix notice stashed before the reload.
+    try {
+        const raw = sessionStorage.getItem('sbn_redetect_notice');
+        if (raw) {
+            sessionStorage.removeItem('sbn_redetect_notice');
+            const n = JSON.parse(raw);
+            if (n && n.leadsheetId === _leadsheetId && (Date.now() - (n.ts || 0)) < 15000) {
+                reshiftError.value = n.msg;
+            }
+        }
+    } catch (e) { /* no sessionStorage / bad JSON — skip */ }
+});
 onUnmounted(() => { document.removeEventListener('keydown', onKeydown); });
 </script>
 

@@ -663,9 +663,14 @@ class LeadsheetController extends Controller
             'separate_stem'        => 'nullable|boolean',
             // Two-phase stem workflow: when the admin has already separated &
             // auditioned, the modal sends a session token + the chosen stems.
+            // (Legacy — the modal no longer auditions; it sends stem_choice below.)
             'stem_session'         => 'nullable|string|max:64',
             'stems'                => 'nullable|array',
             'stems.*'              => 'string|in:guitar,bass,vocals,drums,piano,other',
+            // Modal stem quick-pick: 'mix' (no separation) or a comma-separated
+            // stem set (e.g. 'guitar', 'guitar,bass', 'bass'). Separation runs on
+            // submit — fine per-stem audition lives in the editor, not here.
+            'stem_choice'          => 'nullable|string|max:64',
         ]);
 
         $sourceAudioPath = null; // preserved original recording (audio mode only)
@@ -673,6 +678,7 @@ class LeadsheetController extends Controller
             $hasYoutube = !empty($validated['youtube_id']);
             $hasLocal   = $request->hasFile('local_audio');
             $stemSession = $validated['stem_session'] ?? null;
+            $localAudioName = null; // set when a local upload is staged for stems
 
             if (!$hasYoutube && !$hasLocal) {
                 return back()->withErrors(['lookup' => 'You must select a YouTube video or upload a local audio file for transcription.']);
@@ -690,13 +696,54 @@ class LeadsheetController extends Controller
                 MidiTranscriptionService::STEM_NAMES
             ));
 
+            // Modal stem quick-pick → separate on submit (no pre-made audition
+            // session). 'mix' (or absent) means transcribe the full mix. Any stem
+            // set reuses the two-phase engine: separate to a session, then the
+            // $stemSession branch below sums + transcribes the chosen stems.
+            $stemChoice = trim((string)($validated['stem_choice'] ?? ''));
+            if (!$stemSession && $stemChoice !== '' && $stemChoice !== 'mix') {
+                $pick = array_values(array_intersect(
+                    array_map('trim', explode(',', $stemChoice)),
+                    MidiTranscriptionService::STEM_NAMES
+                ));
+                if (!empty($pick)) {
+                    // Stage a local upload to a caller-owned temp file (mirrors
+                    // separateStems()); YouTube is downloaded inside the service.
+                    $sepTemp = null;
+                    try {
+                        if ($hasLocal) {
+                            $up = $request->file('local_audio');
+                            // Capture the name before move() consumes the upload —
+                            // the phase-2 title fallback reuses it for local stems.
+                            $localAudioName = pathinfo($up->getClientOriginalName(), PATHINFO_FILENAME);
+                            $tempDir = storage_path('app/temp_audio');
+                            if (!is_dir($tempDir)) mkdir($tempDir, 0777, true);
+                            $sepTemp = $tempDir . '/' . uniqid('sep_', true) . '.' . $up->getClientOriginalExtension();
+                            $up->move($tempDir, basename($sepTemp));
+                            $sep = $transcriber->separateStemsToSession($sepTemp, 'upload');
+                        } else {
+                            $sep = $transcriber->separateStemsToSession($validated['youtube_id'], 'youtube');
+                        }
+                    } catch (\Exception $e) {
+                        return back()->withErrors(['lookup' => 'Stem separation failed: ' . $e->getMessage()]);
+                    } finally {
+                        if ($sepTemp && file_exists($sepTemp)) unlink($sepTemp);
+                    }
+                    if (!($sep['success'] ?? false)) {
+                        return back()->withErrors(['lookup' => 'Stem separation failed: ' . ($sep['error'] ?? 'unknown error')]);
+                    }
+                    $stemSession = $sep['session'];
+                    $chosenStems = $pick;
+                }
+            }
+
             try {
                 if ($stemSession) {
                     // PHASE 2: transcribe the summed stems from the audition
                     // session. No re-download / re-separate.
                     $rawResult  = $transcriber->transcribeFromSession($stemSession, $chosenStems, $detectionParams);
                     $audioTitle = $request->input('youtube_title')
-                        ?: ($hasLocal ? 'Audio Transcription' : 'Audio Transcription');
+                        ?: ($hasLocal && $localAudioName ? $localAudioName : 'Audio Transcription');
                     $youtubeId  = $validated['youtube_id'] ?: null;
                 } elseif ($hasLocal) {
                     $uploadedFile = $request->file('local_audio');
@@ -1041,6 +1088,12 @@ class LeadsheetController extends Controller
             }
             if (array_key_exists('difficulty', $validated) && $validated['difficulty'] !== null) {
                 $versionUpdate['difficulty'] = $validated['difficulty'];
+            }
+            // Per-arrangement notes (distinct from the leadsheet-level description
+            // above — never falls back to it, empty just means "no notes yet" for
+            // this arrangement). Only overwrite when the form actually sent it.
+            if (array_key_exists('arrangement_notes', $validated)) {
+                $versionUpdate['arrangement_notes'] = $validated['arrangement_notes'] ?: null;
             }
             $activeVersion->update($versionUpdate);
         }
@@ -1891,10 +1944,15 @@ class LeadsheetController extends Controller
             // reshiftDownbeat never re-runs Python (no re-separation) — just
             // preserve whatever produced the current assembly for the record.
             'separate_stem' => $raw['separateStem'] ?? true,
+            // Carry the stem source through untouched: a reshift re-buckets the
+            // cached (stem) notes, so a later Re-run detection must still target
+            // the same stem rather than reverting to the full mix.
+            'stem_source'   => $raw['stemSource'] ?? null,
         ], (int)$validated['offset'], $crossref);
 
         $scaffold      = $converter->convert($analysis);
         $jsonDataArray = json_decode($scaffold['json_data'], true);
+        $jsonDataArray = $this->carryForwardImportKeys($jsonDataArray, $parsed);
 
         $leadsheet->update([
             'measure_count'     => $scaffold['measure_count'],
@@ -2032,10 +2090,14 @@ class LeadsheetController extends Controller
             'tab_position_style' => $raw['tabPositionStyle'] ?? 'fretted',
             'separate_stem'      => $raw['separateStem'] ?? true,
             'detection_filter'   => $filter,
+            // Carry the stem source through untouched (see reshiftDownbeat) so a
+            // later Re-run detection still targets the same isolated stem.
+            'stem_source'        => $raw['stemSource'] ?? null,
         ], (int)($raw['downbeatOffset'] ?? 0), $crossref);
 
         $scaffold      = $converter->convert($analysis);
         $jsonDataArray = json_decode($scaffold['json_data'], true);
+        $jsonDataArray = $this->carryForwardImportKeys($jsonDataArray, $parsed);
 
         $leadsheet->update([
             'measure_count'     => $scaffold['measure_count'],
@@ -2066,13 +2128,32 @@ class LeadsheetController extends Controller
      *
      * @param array $prevRaw  the leadsheet's existing transcriptionRaw (for settings)
      */
+    /**
+     * A re-derive scaffold (reshift / retune / re-inference) only carries the
+     * assembled grid — it does NOT re-emit the import-only keys. Blindly replacing
+     * json_data would drop sourceAudio (written once at import) and backingTrack,
+     * which the re-derive toolbar gates on, plus the transcriptionFixed latch.
+     * Carry them forward from the existing parsed_data so re-deriving doesn't wipe
+     * the toolbar out from under the user.
+     */
+    private function carryForwardImportKeys(array $jsonDataArray, array $prevParsed): array
+    {
+        foreach (['sourceAudio', 'backingTrack', 'transcriptionFixed'] as $key) {
+            if (array_key_exists($key, $prevParsed)) {
+                $jsonDataArray[$key] = $prevParsed[$key];
+            }
+        }
+        return $jsonDataArray;
+    }
+
     private function reassembleFromRawResult(
         Leadsheet $leadsheet,
         array $rawResult,
         array $prevRaw,
         array $separateStem,
         AnalysisToLeadsheet $converter,
-        VoicingCrossref $crossref
+        VoicingCrossref $crossref,
+        ?array $stemSource = null
     ): array {
         $analysis = $this->assembleTranscription($rawResult, [
             'title'      => $leadsheet->title,
@@ -2083,10 +2164,14 @@ class LeadsheetController extends Controller
             'bass_snap'          => !empty($prevRaw['bassSnap']),
             'tab_position_style' => $prevRaw['tabPositionStyle'] ?? 'fretted',
             'separate_stem'      => $separateStem,
+            // Record the isolated-stem source (if this re-derive ran on one) so a
+            // later Re-run detection re-inferences on the same stem, not the mix.
+            'stem_source'        => $stemSource,
         ], (int)($prevRaw['downbeatOffset'] ?? 0), $crossref);
 
         $scaffold      = $converter->convert($analysis);
         $jsonDataArray = json_decode($scaffold['json_data'], true);
+        $jsonDataArray = $this->carryForwardImportKeys($jsonDataArray, $leadsheet->parsed_data ?? []);
 
         $leadsheet->update([
             'measure_count'     => $scaffold['measure_count'],
@@ -2147,24 +2232,47 @@ class LeadsheetController extends Controller
             ], 409);
         }
 
-        // Resolve the persisted original recording (Tier 2 needs it — cached notes
-        // can't surface below the original detection floor; only re-inference can).
-        $srcUrl = $parsed['sourceAudio']['url'] ?? null;
-        $srcPath = $srcUrl ? public_path(parse_url($srcUrl, PHP_URL_PATH)) : null;
-        if (!$srcPath || !is_file($srcPath)) {
-            return response()->json([
-                'success' => false,
-                'error'   => 'Re-detection needs the original recording, which wasn\'t saved for this sheet (imported before that feature). Re-import to use it.',
-            ], 422);
-        }
-
         // basic-pitch knobs from preset + overrides (same resolver as import).
         $detectionParams = $this->resolveDetectionParams($validated);
-        // Re-inference reuses the persisted original as-is — separation already
-        // happened at import (baked into sourceAudio), so never re-separate here.
+        // Re-inference never re-separates: either the persisted original is already
+        // the (possibly stem-blended) source, or we re-mix an existing audition
+        // session below. So drop any separation flag from the resolved params.
         unset($detectionParams['separate_stem']);
 
-        $rawResult = $transcriber->transcribeResidentAudio($srcPath, $detectionParams);
+        // If the current transcription came from "Transcribe this stem", keep
+        // re-detecting on THAT isolated stem — otherwise the user's stem choice is
+        // silently thrown away and detection reverts to the muddy full mix. Falls
+        // back to the original recording if the audition session has been swept.
+        $stemSource = $raw['stemSource'] ?? null;
+        $usedStem   = null;
+        if ($stemSource && !empty($stemSource['session'])
+            && is_dir($transcriber->stemSessionDir($stemSource['session']))) {
+            $stems = $stemSource['stems'] ?? ['guitar'];
+            $rawResult = $transcriber->transcribeStemFromSession(
+                $stemSource['session'], $stems, $detectionParams
+            );
+            if ($rawResult['success'] ?? false) {
+                $usedStem = $stemSource; // record it again for the next re-detect
+            }
+            // On failure fall through to the original recording below.
+        }
+
+        if (!isset($rawResult) || !($rawResult['success'] ?? false)) {
+            // Resolve the persisted original recording (Tier 2 needs it — cached
+            // notes can't surface below the original detection floor; only
+            // re-inference can). Also the fallback when a stem session has expired.
+            $srcUrl  = $parsed['sourceAudio']['url'] ?? null;
+            $srcPath = $srcUrl ? public_path(parse_url($srcUrl, PHP_URL_PATH)) : null;
+            if (!$srcPath || !is_file($srcPath)) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Re-detection needs the original recording, which wasn\'t saved for this sheet (imported before that feature). Re-import to use it.',
+                ], 422);
+            }
+            $rawResult = $transcriber->transcribeResidentAudio($srcPath, $detectionParams);
+            $usedStem  = null; // reverted to full mix — clear any stale stem source
+        }
+
         if (!($rawResult['success'] ?? false)) {
             return response()->json([
                 'success' => false,
@@ -2174,11 +2282,22 @@ class LeadsheetController extends Controller
 
         $leadsheetData = $this->reassembleFromRawResult(
             $leadsheet, $rawResult, $raw,
-            $raw['separateStem'] ?? true, // carry the record of what the ORIGINAL was
-            $converter, $crossref
+            $usedStem ? ($usedStem['stems'] ?? true) : ($raw['separateStem'] ?? true),
+            $converter, $crossref,
+            $usedStem // persist/clear the stem source for the next re-detect
         );
 
-        return response()->json(['success' => true, 'leadsheet' => $leadsheetData]);
+        // Tell the editor which audio this ran on, so it can warn when a re-detect
+        // fell back to the full mix because the stem audition session had expired.
+        $stemExpired = $stemSource && !$usedStem;
+
+        return response()->json([
+            'success'     => true,
+            'leadsheet'   => $leadsheetData,
+            'source'      => $usedStem ? 'stem' : 'original',
+            'stems'       => $usedStem['stems'] ?? null,
+            'stemExpired' => $stemExpired,
+        ]);
     }
 
     /**
@@ -2248,7 +2367,10 @@ class LeadsheetController extends Controller
         $leadsheetData = $this->reassembleFromRawResult(
             $leadsheet, $rawResult, $raw,
             $stems, // the assembly now reflects the stems that were transcribed
-            $converter, $crossref
+            $converter, $crossref,
+            // Remember the audition session + stems so a later Re-run detection
+            // re-inferences on THIS isolated stem, not the full-mix original.
+            ['session' => $validated['session'], 'stems' => $stems]
         );
 
         return response()->json(['success' => true, 'leadsheet' => $leadsheetData]);
@@ -2711,6 +2833,7 @@ class LeadsheetController extends Controller
             'difficulty'        => 'nullable|integer|min:0|max:5',
             'version_label'     => 'nullable|string|max:120',
             'version_performer' => 'nullable|string|max:120',
+            'arrangement_notes' => 'nullable|string|max:5000',
             'tags'              => 'nullable|string|max:500',
         ]);
     }
@@ -3790,6 +3913,13 @@ class LeadsheetController extends Controller
                 // just carries this flag through for the record — it doesn't
                 // re-separate.
                 'separateStem' => $opts['separate_stem'] ?? true,
+                // If this assembly came from "Transcribe this stem", record which
+                // audition session + stems it used so a later Re-run detection
+                // re-inferences on the SAME isolated stem (with new onset/frame
+                // thresholds) rather than silently reverting to the full-mix
+                // original. Null for full-mix / original-recording transcriptions.
+                // Carried through untouched by non-stem re-derives via $opts.
+                'stemSource' => $opts['stem_source'] ?? null,
                 // The basic-pitch knobs that produced this note set. Recorded
                 // for the editor (so the user can see what was used and
                 // re-import with different values if detection was off).

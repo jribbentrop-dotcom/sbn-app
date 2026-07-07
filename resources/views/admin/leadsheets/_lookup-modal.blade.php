@@ -165,129 +165,37 @@
                         </div>
                     </div>
 
-                    <!-- ── Stem separation + audition (Demucs, htdemucs_6s) ──── -->
-                    <div class="sbn-form-group" style="margin-top: 15px; padding: 12px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;">
-                        <div style="font-weight: 600;">Separate &amp; audition stems <span style="font-weight:400; color:#6b7280;">(optional)</span></div>
-                        <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">
-                            Splits the recording into six stems with AI so you can listen and pick
-                            exactly what gets transcribed &mdash; best for recordings with vocals or a
-                            full band. Guitar + bass are a good default for solo guitar.
-                        </div>
-
-                        <button type="button" class="sbn-btn sbn-btn-secondary"
-                                style="margin-top: 10px;"
-                                @click="separateStems()"
-                                :disabled="loading || stemSeparating || !canSubmit">
-                            <span x-show="!stemSeparating && !stemSession">Separate stems</span>
-                            <span x-show="!stemSeparating && stemSession">Re-separate</span>
-                            <span x-show="stemSeparating">Separating… (~a few seconds)</span>
-                        </button>
-                        <div x-show="stemError" style="color:#ef4444; font-size:12px; margin-top:6px;" x-text="stemError"></div>
-
-                        <!-- Audition + selection grid -->
-                        <div x-show="stemSession" style="margin-top: 12px;">
-                            <div style="font-size:12px; font-weight:600; margin-bottom:6px;">Tick the stems to transcribe:</div>
-                            <template x-for="name in availableStems" :key="name">
-                                <div style="display:flex; align-items:center; gap:10px; padding:4px 0;">
-                                    <label class="sbn-checkbox" style="margin:0; flex:0 0 auto;">
-                                        <input type="checkbox" :value="name" x-model="chosenStems" :disabled="loading">
-                                        <span style="text-transform:capitalize; font-size:13px;" x-text="name"></span>
-                                    </label>
-                                    <audio controls preload="none" style="height:32px; flex:1 1 auto; max-width:260px;"
-                                           :src="stemUrl(name)"></audio>
-                                </div>
-                            </template>
-                            <div style="font-size:11px; color:#6b7280; margin-top:6px;">
-                                htdemucs_6s can misfile low guitar notes into <em>bass</em> — include bass if the low end sounds thin.
-                            </div>
+                    <!-- ── Stem quick-pick (coarse; fine audition lives in editor) ── -->
+                    <div class="sbn-form-group" style="margin-top: 15px;">
+                        <label for="stem_choice">Transcribe from</label>
+                        <select id="stem_choice" name="stem_choice" class="sbn-select"
+                                x-model="stemChoice" :disabled="loading">
+                            <option value="mix">Full mix &mdash; no separation (default, fastest)</option>
+                            <option value="guitar">Guitar only</option>
+                            <option value="guitar,bass">Guitar + bass &mdash; solo-guitar default</option>
+                            <option value="bass">Bass only</option>
+                        </select>
+                        <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">
+                            Splits the recording with AI and transcribes only the chosen stem(s) &mdash;
+                            best for recordings with vocals or a full band. You can re-separate and
+                            audition every stem in the editor afterwards.
                         </div>
                     </div>
 
-                    <!-- Hidden inputs carrying the two-phase workflow into the main form submit. -->
-                    <input type="hidden" name="stem_session" :value="stemSession">
-                    <template x-for="name in chosenStems" :key="'h-'+name">
-                        <input type="hidden" name="stems[]" :value="name">
-                    </template>
-
-                    <!-- ── Note Detection Tuning (basic-pitch) ──────────────── -->
+                    <!-- ── Note Detection Sensitivity (coarse preset only) ──── -->
                     <div class="sbn-form-group" style="margin-top: 15px;">
                         <label for="detection_preset">Note Detection Sensitivity</label>
                         <select id="detection_preset" name="detection_preset" class="sbn-select"
-                                x-model="detectionPreset" @change="applyDetectionPreset()" :disabled="loading">
+                                x-model="detectionPreset" :disabled="loading">
                             <option value="balanced">Balanced &mdash; clearly-picked recordings (default)</option>
                             <option value="sensitive">Sensitive &mdash; soft / legato solo guitar, orchestral mixes</option>
                             <option value="strict">Strict &mdash; reject reverb tails &amp; false notes</option>
-                            <option value="custom">Custom &mdash; set the sliders below</option>
                         </select>
                         <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">
-                            Controls how aggressively note onsets are detected. If a transcription
-                            comes back with far too few notes, switch to <strong>Sensitive</strong>.
-                            Too many spurious notes &rarr; <strong>Strict</strong>.
+                            A first-pass guess. Too few notes &rarr; <strong>Sensitive</strong>; too many
+                            spurious ones &rarr; <strong>Strict</strong>. Fine onset/frame tuning and
+                            re-detection live in the editor once you can see the result.
                         </div>
-                    </div>
-
-                    <div class="sbn-form-group" style="margin-top: 8px;">
-                        <button type="button" class="sbn-link-btn"
-                                @click="showDetectionAdvanced = !showDetectionAdvanced"
-                                style="background:none; border:none; padding:0; color:#3b82f6; font-size:12px; cursor:pointer;">
-                            <span x-text="showDetectionAdvanced ? '▾ Hide advanced detection knobs' : '▸ Advanced detection knobs'"></span>
-                        </button>
-                    </div>
-
-                    <div x-show="showDetectionAdvanced" style="margin-top: 8px; padding: 12px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;">
-                        <!-- Onset threshold -->
-                        <div style="margin-bottom: 14px;">
-                            <label style="font-size:12px; font-weight:600; display:flex; justify-content:space-between;">
-                                <span>Onset Threshold</span>
-                                <span x-text="Number(onsetThreshold).toFixed(2)" style="color:#3b82f6;"></span>
-                            </label>
-                            <input type="range" name="onset_threshold" min="0.05" max="0.95" step="0.05"
-                                   x-model.number="onsetThreshold"
-                                   @input="detectionPreset = 'custom'" :disabled="loading"
-                                   style="width:100%;">
-                            <div style="font-size:10px; color:#6b7280;">
-                                Lower = catches softer / legato attacks (more notes). Higher = only firm attacks.
-                            </div>
-                        </div>
-                        <!-- Frame threshold -->
-                        <div style="margin-bottom: 14px;">
-                            <label style="font-size:12px; font-weight:600; display:flex; justify-content:space-between;">
-                                <span>Frame (Pitch) Threshold</span>
-                                <span x-text="Number(frameThreshold).toFixed(2)" style="color:#3b82f6;"></span>
-                            </label>
-                            <input type="range" name="frame_threshold" min="0.05" max="0.95" step="0.05"
-                                   x-model.number="frameThreshold"
-                                   @input="detectionPreset = 'custom'" :disabled="loading"
-                                   style="width:100%;">
-                            <div style="font-size:10px; color:#6b7280;">
-                                Lower = sustains quiet pitches longer. Higher = drops faint / decaying notes.
-                            </div>
-                        </div>
-                        <!-- Minimum note length -->
-                        <div style="margin-bottom: 10px;">
-                            <label style="font-size:12px; font-weight:600; display:flex; justify-content:space-between;">
-                                <span>Minimum Note Length</span>
-                                <span style="color:#3b82f6;"><span x-text="Math.round(minNoteLength)"></span> ms</span>
-                            </label>
-                            <input type="range" name="minimum_note_length" min="10" max="500" step="2"
-                                   x-model.number="minNoteLength"
-                                   @input="detectionPreset = 'custom'" :disabled="loading"
-                                   style="width:100%;">
-                            <div style="font-size:10px; color:#6b7280;">
-                                Lower = keeps fast runs &amp; grace notes. Higher = filters out transients.
-                            </div>
-                        </div>
-                        <!-- Guitar range clamp -->
-                        <label class="sbn-checkbox" style="margin-top:4px;">
-                            <input type="checkbox" name="restrict_guitar_range" value="1"
-                                   x-model="restrictGuitarRange" :disabled="loading">
-                            <div>
-                                <div style="font-weight:600; font-size:12px;">Restrict to guitar range</div>
-                                <div style="font-size:10px; color:#6b7280;">
-                                    Ignores sub-bass rumble and cymbal noise outside ~E2&ndash;E6.
-                                </div>
-                            </div>
-                        </label>
                     </div>
                 </div>
 
@@ -370,37 +278,17 @@
             extensionMode: 'basic',
             loading: false,
 
-            // Audio-transcription detection tuning (basic-pitch knobs)
+            // Audio-transcription first-pass coarse settings. Fine tuning
+            // (onset/frame sliders, per-stem audition, re-detection) lives in the
+            // editor once the result is visible.
             detectionPreset: 'balanced',
-            showDetectionAdvanced: false,
-            onsetThreshold: 0.5,
-            frameThreshold: 0.3,
-            minNoteLength: 128,
-            restrictGuitarRange: false,
-            detectionPresets: {
-                balanced:  { onset: 0.5, frame: 0.3,  minLen: 128 },
-                sensitive: { onset: 0.3, frame: 0.18, minLen: 58 },
-                strict:    { onset: 0.7, frame: 0.45, minLen: 160 },
-            },
-            applyDetectionPreset() {
-                const p = this.detectionPresets[this.detectionPreset];
-                if (p) {
-                    this.onsetThreshold = p.onset;
-                    this.frameThreshold = p.frame;
-                    this.minNoteLength = p.minLen;
-                }
-            },
+            // Stem quick-pick: 'mix' | 'guitar' | 'guitar,bass' | 'bass'.
+            // Separation runs server-side on submit.
+            stemChoice: 'mix',
 
             // Audio source: 'youtube' | 'local'
             audioSource: 'youtube',
             localFileName: '',
-
-            // Two-phase stem workflow (separate → audition → transcribe).
-            stemSeparating: false,
-            stemSession: '',
-            availableStems: [],       // ordered subset of the six stems Demucs produced
-            chosenStems: [],          // which stems to sum & transcribe
-            stemError: '',
 
             // YouTube Search State
             youtubeQuery: '',
@@ -429,17 +317,10 @@
                 this.loading = false;
 
                 this.detectionPreset = 'balanced';
-                this.showDetectionAdvanced = false;
-                this.restrictGuitarRange = false;
-                this.applyDetectionPreset();
+                this.stemChoice = 'mix';
 
                 this.audioSource = 'youtube';
                 this.localFileName = '';
-                this.stemSeparating = false;
-                this.stemSession = '';
-                this.availableStems = [];
-                this.chosenStems = [];
-                this.stemError = '';
                 this.youtubeQuery = '';
                 this.youtubeResults = [];
                 this.selectedVideoId = '';
@@ -475,68 +356,6 @@
                     this.localFileName = file.name;
                 } else {
                     this.localFileName = '';
-                }
-                // A new source invalidates any prior separation.
-                this.resetStems();
-            },
-
-            // Any separated stems belong to the previous source; drop them.
-            resetStems() {
-                this.stemSession = '';
-                this.availableStems = [];
-                this.chosenStems = [];
-                this.stemError = '';
-            },
-
-            stemUrl(name) {
-                if (!this.stemSession) return '';
-                return `{{ url('admin/leadsheets/stems') }}/${this.stemSession}/${name}`;
-            },
-
-            // PHASE 1: run Demucs on the chosen source and load the stems for
-            // audition. Uses fetch (not the main form) so the modal stays open.
-            async separateStems() {
-                if (!this.canSubmit || this.stemSeparating) return;
-                this.resetStems();
-                this.stemSeparating = true;
-
-                try {
-                    const fd = new FormData();
-                    const token = document.querySelector('#lookup-modal input[name="_token"]');
-                    if (token) fd.append('_token', token.value);
-
-                    if (this.audioSource === 'local') {
-                        const fileInput = document.querySelector('#lookup-modal input[name="local_audio"]');
-                        if (fileInput && fileInput.files[0]) {
-                            fd.append('local_audio', fileInput.files[0]);
-                        } else {
-                            throw new Error('Pick an audio file first.');
-                        }
-                    } else {
-                        if (!this.selectedVideoId) throw new Error('Select a YouTube video first.');
-                        fd.append('youtube_id', this.selectedVideoId);
-                    }
-
-                    const res = await fetch('{{ route('admin.leadsheets.separate-stems') }}', {
-                        method: 'POST',
-                        headers: { 'Accept': 'application/json' },
-                        body: fd,
-                    });
-                    const data = await res.json();
-                    if (!res.ok || !data.success) {
-                        throw new Error(data.error || `Separation failed (HTTP ${res.status}).`);
-                    }
-
-                    this.stemSession = data.session;
-                    this.availableStems = data.stems || [];
-                    // Sensible default: guitar + bass (bass covers the low-note
-                    // clipping caveat), falling back to whatever exists.
-                    const preferred = ['guitar', 'bass'].filter(s => this.availableStems.includes(s));
-                    this.chosenStems = preferred.length ? preferred : this.availableStems.slice(0, 1);
-                } catch (e) {
-                    this.stemError = e.message || 'Separation failed.';
-                } finally {
-                    this.stemSeparating = false;
                 }
             },
 
@@ -590,7 +409,6 @@
             selectVideo(video) {
                 this.selectedVideoId = video.videoId;
                 this.selectedVideoTitle = video.title;
-                this.resetStems(); // a different video invalidates prior stems
             },
 
             extractYoutubeId(url) {
@@ -605,7 +423,6 @@
                     return;
                 }
                 if (id) {
-                    if (id !== this.selectedVideoId) this.resetStems();
                     this.selectedVideoId = id;
                     this.selectedVideoTitle = this.youtubeUrlInput.trim();
                     this.youtubeResults = [];
