@@ -284,6 +284,9 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
     Route::post('/leadsheets/{leadsheet}/fix-transcription', [LeadsheetController::class, 'fixTranscription'])->name('leadsheets.fixTranscription');
     Route::post('/leadsheets/{leadsheet}/reopen-tuning', [LeadsheetController::class, 'reopenTuning'])->name('leadsheets.reopenTuning');
     Route::post('/leadsheets/{leadsheet}/retune-detection', [LeadsheetController::class, 'retuneDetection'])->name('leadsheets.retuneDetection');
+    // T9 Tier 2: re-inference on the resident audio (persisted original / a stem).
+    Route::post('/leadsheets/{leadsheet}/redetect', [LeadsheetController::class, 'redetect'])->name('leadsheets.redetect');
+    Route::post('/leadsheets/{leadsheet}/transcribe-stem', [LeadsheetController::class, 'transcribeStem'])->name('leadsheets.transcribeStem');
     Route::get('/leadsheets/{leadsheet}/data', [LeadsheetController::class, 'apiShow'])->name('leadsheets.show');
     Route::post('/leadsheets/identify-voicings', [LeadsheetController::class, 'identifyVoicings'])->name('leadsheets.identifyVoicings');
     Route::post('/leadsheets/identify-single', [LeadsheetController::class, 'identifySingle']);

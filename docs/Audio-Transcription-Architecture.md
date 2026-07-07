@@ -991,7 +991,7 @@ re-derive endpoints inherit the guard for free.
 
 ---
 
-## 14. Live detection tuning in the editor (T9 — Tier 1 ✅ IMPLEMENTED, Tier 2 PENDING; Session 2026-07-07)
+## 14. Live detection tuning in the editor (T9 — Tier 1 ✅ + Tier 2 ✅ IMPLEMENTED; Session 2026-07-07)
 
 ### Goal
 Adjust basic-pitch detection knobs and **watch the tab re-render**, instead of
@@ -1000,7 +1000,7 @@ it's wrong → re-import from scratch). UI lives in the tab editor, post-import,
 tuning against the resident `sourceAudio` (§12b).
 
 **Status:** Tier 1 (post-filter sliders) shipped — P1/P2/P3. Tier 2 (onset/frame
-re-inference button) pending — P4/P5.
+re-inference button) shipped — P4/P5, plus its sibling "Transcribe this stem".
 
 ### The governing constraint
 The knobs split by *where basic-pitch consumes them* (`transcribe.py`):
@@ -1052,22 +1052,71 @@ can be **re-bucketed from the cached `notes`** post-hoc.
 - Tests: `DetectionFilterTest` (rebucket unit + filter-in-assembly) and the
   retune case in `TranscriptionFixLatchTest`.
 
-### Tier 2 — "Re-run detection" button (seconds)
-Onset + frame thresholds (+ preset). A `redetect` endpoint re-invokes
-`transcribe.py` on the resident `sourceAudio` (no re-download / re-YouTube /
-re-separate — reuses cached `separateStem`/`tabPositionStyle`), then flows
-through the same assemble→persist→reload path. One inference; seconds.
+### Tier 2 — "Re-run detection" button ✅ IMPLEMENTED (P4/P5, Session 2026-07-07)
+Onset + frame thresholds — the knobs that live *inside* `predict()` and so, unlike
+Tier 1's post-filter, **cannot** be re-tuned from the cached note set. A `redetect`
+endpoint re-invokes `transcribe.py` on the resident `sourceAudio` (§12b) — no
+re-download / re-YouTube / re-separate — then flows through the same
+assemble→persist→reload path. One inference; seconds.
+
+- **`POST /api/admin/leadsheets/{id}/redetect`** (`LeadsheetController::redetect`).
+  Validates preset + onset/frame/minLen sliders + `restrict_guitar_range`
+  (same `resolveDetectionParams()` resolver as import) + `force`. Resolves
+  `json_data.sourceAudio.url` → `public_path()`, and **422s if absent** (pre-§12b
+  imports never persisted the original). Calls the new service primitive
+  `MidiTranscriptionService::transcribeResidentAudio($wav, $params)` — downconvert
+  to 22050Hz mono → `runPythonTranscription` → return raw (never re-preserves a new
+  `sourceAudio`, so the blend original is untouched). Inherits §13's guard.
+- **Shared re-assembly.** `redetect` and `transcribeStem` both call the private
+  `reassembleFromRawResult($ls, $rawResult, $prevRaw, $separateStem, …)` — the
+  same assemble→convert→persist→serialize tail as `reshiftDownbeat`/
+  `retuneDetection`, reusing the cached downbeat offset / bass-snap / tab-position
+  style so only what detection surfaced changes.
+- **UI** (`VideoSyncEditor.vue`, tuning stage, shown only when `sourceAudio`
+  exists): a **Re-run detection** panel — onset + frame sliders + guitar-range
+  check + **🔁 Re-run detection** button. Seeded from
+  `transcriptionRaw.detectionParams`. On success, `stashRetuneRestoreAndReload()`
+  (factored out of `applyRetune`) reloads into Tab-view + synced sidebar.
+
+### "Transcribe this stem" ✅ IMPLEMENTED (Session 2026-07-07)
+Re-inference on an **isolated stem** — the guitar-only stem transcribes far
+cleaner than the full mix, so this is the re-derive to reach for when the original
+import was muddied by vocals / piano / drums. Built as the Tier-2 sibling
+(shared machinery), and lives in the video-sync sidebar's stem-audition block
+(feature 12d) alongside "Sync to this".
+
+- **`POST /api/admin/leadsheets/{id}/transcribe-stem`** (`transcribeStem`).
+  Validates `session` + `stems[]` + the same detection knobs + `force`. Reuses the
+  persisted audition session (no re-download / re-separate) via the new
+  `MidiTranscriptionService::transcribeStemFromSession($session, $stems, $params)`
+  — sums the ticked stems (`runSumStems`) → `transcribeResidentAudio` → raw.
+  Then the same `reassembleFromRawResult` (with `separate_stem` recorded as the
+  transcribed stem list). Inherits §13's guard. The session is **not** swept here
+  (the sidebar keeps it for further tries; the hourly sweep reaps orphans).
+- **UI:** a green **Transcribe this** button per stem row (hidden when fixed),
+  with an inline warning that it re-runs detection and **replaces** the
+  transcription. Reload via the shared `stashRetuneRestoreAndReload()`.
+
+**Testing note.** Both endpoints shell out to Python/Demucs, so the happy path is
+verified manually on the dev box (GPU). `tests/Feature/Identifier/RedetectStemTest.php`
+covers everything that fires *before* any inference: the §13 latch (409/force), the
+preconditions (no `sourceAudio` ⇒ 422, missing session ⇒ 500 graceful), and knob
+validation.
 
 ### Phases
 1. **P1** ✅ — parameterize `rebucketBeats` + `detection_filter` opt on
    `assembleTranscription`. Regression-guarded (null filter = unchanged).
 2. **P2** ✅ — `retuneDetection` endpoint (Tier-1 server re-assembly + latch guard).
 3. **P3** ✅ — Tier-1 UI (sliders + debounced POST + reload). The "watch it change" win.
-4. **P4** ⏳ — `redetect` endpoint (Tier-2 re-inference on resident audio).
-5. **P5** ⏳ — Tier-2 UI (onset/frame threshold sliders + Re-run button).
-Stopped after P3 for now — over-detection / clutter is the common failure and
-Tier 1 covers it. P4/P5 add the onset/frame re-inference when a recording needs
-*more* notes surfaced (below the original detection floor), which Tier 1 can't do.
+4. **P4** ✅ — `redetect` endpoint (Tier-2 re-inference on resident audio) +
+   `transcribeResidentAudio`/`transcribeStemFromSession` service primitives +
+   shared `reassembleFromRawResult`.
+5. **P5** ✅ — Tier-2 UI (onset/frame threshold sliders + Re-run button) and the
+   "Transcribe this" per-stem button in the audition sidebar.
+Tier 1 covers the common failure (over-detection / clutter). Tier 2 adds the
+onset/frame re-inference when a recording needs *more* notes surfaced (below the
+original detection floor), which Tier 1 can't do; "Transcribe this stem" is the
+same re-inference on a cleaner isolated stem.
 
 ### Risks
 - **P1 regression** is the real one — the filter relocation must not shift

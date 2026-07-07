@@ -2056,6 +2056,204 @@ class LeadsheetController extends Controller
         ]);
     }
 
+    /**
+     * Shared re-assembly for the re-inference endpoints (redetect / transcribe-stem):
+     * take a FRESH raw Python result, run it through assembleTranscription() reusing
+     * the settings that produced the current assembly (downbeat offset / bass-snap /
+     * tab-position style), persist, and return the serialized leadsheet. Structurally
+     * the same tail as reshiftDownbeat / retuneDetection, but the raw is new (a
+     * re-inference) rather than the cached grid.
+     *
+     * @param array $prevRaw  the leadsheet's existing transcriptionRaw (for settings)
+     */
+    private function reassembleFromRawResult(
+        Leadsheet $leadsheet,
+        array $rawResult,
+        array $prevRaw,
+        array $separateStem,
+        AnalysisToLeadsheet $converter,
+        VoicingCrossref $crossref
+    ): array {
+        $analysis = $this->assembleTranscription($rawResult, [
+            'title'      => $leadsheet->title,
+            'key'        => $leadsheet->song_key ?: 'C',
+            'youtube_id' => $prevRaw['videoId'] ?? ($leadsheet->parsed_data['videoSync']['videoId'] ?? ''),
+            // Reuse the settings that produced the current assembly, so a re-detect
+            // only changes what detection surfaced — not bass-snap / hand-position.
+            'bass_snap'          => !empty($prevRaw['bassSnap']),
+            'tab_position_style' => $prevRaw['tabPositionStyle'] ?? 'fretted',
+            'separate_stem'      => $separateStem,
+        ], (int)($prevRaw['downbeatOffset'] ?? 0), $crossref);
+
+        $scaffold      = $converter->convert($analysis);
+        $jsonDataArray = json_decode($scaffold['json_data'], true);
+
+        $leadsheet->update([
+            'measure_count'     => $scaffold['measure_count'],
+            'shortcode_content' => $scaffold['shortcode_content'],
+            'json_data'         => $this->normalizeChordNamesInJson(
+                json_encode($jsonDataArray, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            ),
+            'tab_xml'           => null,
+        ]);
+
+        return $this->serializeLeadsheet(
+            $leadsheet->fresh(),
+            $this->backfillFingersFromCrossref($leadsheet->fresh()->parsed_data)
+        );
+    }
+
+    /**
+     * T9 Tier-2 — re-detect (re-inference). Re-runs basic-pitch on the RESIDENT
+     * source audio (the persisted blend original, §12b) with new onset/frame
+     * thresholds — the knobs that live *inside* predict() and can't be re-tuned
+     * post-hoc like Tier 1. No re-download / re-YouTube / re-separate; reuses the
+     * cached bass-snap / tab-position style / downbeat offset. Inherits §13's guard.
+     *
+     * 422 if the sheet has no persisted sourceAudio (pre-§12b imports).
+     */
+    public function redetect(
+        Request $request,
+        Leadsheet $leadsheet,
+        AnalysisToLeadsheet $converter,
+        VoicingCrossref $crossref,
+        \App\Services\MidiTranscriptionService $transcriber
+    ) {
+        $validated = $request->validate([
+            'detection_preset'      => 'nullable|string|in:balanced,sensitive,strict,custom',
+            'onset_threshold'       => 'nullable|numeric|min:0.05|max:0.95',
+            'frame_threshold'       => 'nullable|numeric|min:0.05|max:0.95',
+            'minimum_note_length'   => 'nullable|numeric|min:10|max:500',
+            'restrict_guitar_range' => 'nullable|boolean',
+            'force'                 => 'nullable|boolean',
+        ]);
+
+        $parsed = $leadsheet->parsed_data;
+        $raw    = $parsed['transcriptionRaw'] ?? null;
+
+        if (empty($raw)) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'This leadsheet has no cached audio transcription to re-detect.',
+            ], 422);
+        }
+
+        // §13 fixed-transcription latch.
+        if (($parsed['transcriptionFixed'] ?? false) && empty($validated['force'])) {
+            return response()->json([
+                'success' => false,
+                'fixed'   => true,
+                'error'   => 'This transcription is fixed. Re-open tuning first — re-detecting will discard edits made since.',
+            ], 409);
+        }
+
+        // Resolve the persisted original recording (Tier 2 needs it — cached notes
+        // can't surface below the original detection floor; only re-inference can).
+        $srcUrl = $parsed['sourceAudio']['url'] ?? null;
+        $srcPath = $srcUrl ? public_path(parse_url($srcUrl, PHP_URL_PATH)) : null;
+        if (!$srcPath || !is_file($srcPath)) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'Re-detection needs the original recording, which wasn\'t saved for this sheet (imported before that feature). Re-import to use it.',
+            ], 422);
+        }
+
+        // basic-pitch knobs from preset + overrides (same resolver as import).
+        $detectionParams = $this->resolveDetectionParams($validated);
+        // Re-inference reuses the persisted original as-is — separation already
+        // happened at import (baked into sourceAudio), so never re-separate here.
+        unset($detectionParams['separate_stem']);
+
+        $rawResult = $transcriber->transcribeResidentAudio($srcPath, $detectionParams);
+        if (!($rawResult['success'] ?? false)) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'Re-detection failed: ' . ($rawResult['error'] ?? 'unknown error'),
+            ], 500);
+        }
+
+        $leadsheetData = $this->reassembleFromRawResult(
+            $leadsheet, $rawResult, $raw,
+            $raw['separateStem'] ?? true, // carry the record of what the ORIGINAL was
+            $converter, $crossref
+        );
+
+        return response()->json(['success' => true, 'leadsheet' => $leadsheetData]);
+    }
+
+    /**
+     * "Transcribe this stem" — re-inference on an isolated audition-session stem
+     * (or a sum of the ticked stems) and REPLACE the transcription. The guitar-only
+     * stem transcribes far cleaner than the full mix, so this is the re-derive to
+     * reach for when the original import was muddied by vocals / piano / drums.
+     *
+     * Reuses the persisted audition session from the video-sync sidebar (feature
+     * 12d) — no re-download / re-separate. Inherits §13's guard.
+     */
+    public function transcribeStem(
+        Request $request,
+        Leadsheet $leadsheet,
+        AnalysisToLeadsheet $converter,
+        VoicingCrossref $crossref,
+        \App\Services\MidiTranscriptionService $transcriber
+    ) {
+        $validated = $request->validate([
+            'session'               => 'required|string|max:64',
+            'stems'                 => 'nullable|array',
+            'stems.*'               => 'string|in:guitar,bass,vocals,drums,piano,other',
+            'detection_preset'      => 'nullable|string|in:balanced,sensitive,strict,custom',
+            'onset_threshold'       => 'nullable|numeric|min:0.05|max:0.95',
+            'frame_threshold'       => 'nullable|numeric|min:0.05|max:0.95',
+            'minimum_note_length'   => 'nullable|numeric|min:10|max:500',
+            'restrict_guitar_range' => 'nullable|boolean',
+            'force'                 => 'nullable|boolean',
+        ]);
+
+        $parsed = $leadsheet->parsed_data;
+        $raw    = $parsed['transcriptionRaw'] ?? null;
+
+        if (empty($raw)) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'This leadsheet has no cached audio transcription to replace.',
+            ], 422);
+        }
+
+        // §13 fixed-transcription latch.
+        if (($parsed['transcriptionFixed'] ?? false) && empty($validated['force'])) {
+            return response()->json([
+                'success' => false,
+                'fixed'   => true,
+                'error'   => 'This transcription is fixed. Re-open tuning first — re-transcribing will discard edits made since.',
+            ], 409);
+        }
+
+        $stems = array_values(array_intersect(
+            $validated['stems'] ?? ['guitar'],
+            \App\Services\MidiTranscriptionService::STEM_NAMES
+        ));
+        if (empty($stems)) $stems = ['guitar'];
+
+        $detectionParams = $this->resolveDetectionParams($validated);
+        unset($detectionParams['separate_stem']); // stems are already isolated
+
+        $rawResult = $transcriber->transcribeStemFromSession($validated['session'], $stems, $detectionParams);
+        if (!($rawResult['success'] ?? false)) {
+            return response()->json([
+                'success' => false,
+                'error'   => 'Stem transcription failed: ' . ($rawResult['error'] ?? 'unknown error'),
+            ], 500);
+        }
+
+        $leadsheetData = $this->reassembleFromRawResult(
+            $leadsheet, $rawResult, $raw,
+            $stems, // the assembly now reflects the stems that were transcribed
+            $converter, $crossref
+        );
+
+        return response()->json(['success' => true, 'leadsheet' => $leadsheetData]);
+    }
+
     public function apiShow(Request $request, Leadsheet $leadsheet)
     {
         // Resolve the arrangement being edited (?v=slug, else default version) and

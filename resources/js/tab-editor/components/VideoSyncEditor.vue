@@ -43,10 +43,22 @@
                     <span class="sbn-vsync-stem-name">{{ name }}</span>
                     <audio controls preload="none" :src="stemStreamUrl(name)" class="sbn-vsync-stem-audio"></audio>
                     <button class="sbn-btn sbn-btn-xs sbn-btn-primary"
-                            :disabled="stemSyncBusy"
+                            :disabled="stemSyncBusy || stemTranscribeBusy"
                             @click="syncToStem(name)">Sync to this</button>
+                    <button v-if="!transcriptionFixed"
+                            class="sbn-btn sbn-btn-xs sbn-btn-success"
+                            :disabled="stemTranscribeBusy || stemSyncBusy"
+                            title="Re-transcribe from this isolated stem and replace the current transcription"
+                            @click="transcribeStem(name)">
+                        {{ stemTranscribeBusy === name ? 'Transcribing…' : 'Transcribe this' }}
+                    </button>
                 </div>
                 <div class="sbn-vsync-hint">Syncing to the isolated guitar is often easier to follow than the full mix.</div>
+                <div v-if="!transcriptionFixed" class="sbn-downbeat-warn">
+                    “Transcribe this” re-runs detection on the isolated stem (cleaner than
+                    the full mix) and <strong>replaces</strong> the transcription — manual
+                    edits made since import are lost.
+                </div>
             </div>
         </div>
 
@@ -159,6 +171,40 @@
                             <span class="sbn-detune-val">{{ Math.round(filterMidiMax) }}</span>
                         </label>
                     </template>
+                </div>
+
+                <!-- Re-run detection (T9 Tier-2: onset/frame re-inference) -->
+                <div v-if="_sourceAudioUrl" class="sbn-detune sbn-redetect">
+                    <div class="sbn-downbeat-header">
+                        <span class="sbn-vsync-label">Re-run detection</span>
+                    </div>
+                    <label class="sbn-detune-row">
+                        <span>Onset</span>
+                        <input type="range" min="0.05" max="0.95" step="0.01"
+                               v-model.number="onsetThreshold" :disabled="reshiftBusy">
+                        <span class="sbn-detune-val">{{ onsetThreshold.toFixed(2) }}</span>
+                    </label>
+                    <label class="sbn-detune-row">
+                        <span>Frame</span>
+                        <input type="range" min="0.05" max="0.95" step="0.01"
+                               v-model.number="frameThreshold" :disabled="reshiftBusy">
+                        <span class="sbn-detune-val">{{ frameThreshold.toFixed(2) }}</span>
+                    </label>
+                    <label class="sbn-detune-check">
+                        <input type="checkbox" v-model="redetectGuitarRange" :disabled="reshiftBusy">
+                        <span>Restrict to guitar range</span>
+                    </label>
+                    <button class="sbn-btn sbn-btn-sm sbn-btn-primary"
+                            :disabled="reshiftBusy"
+                            @click="applyRedetect">
+                        {{ reshiftBusy ? 'Re-detecting…' : '🔁 Re-run detection' }}
+                    </button>
+                    <p class="sbn-downbeat-warn">
+                        Lower onset/frame surfaces <strong>more</strong> notes (soft/legato
+                        playing) — beyond what “Clean up detection” can recover. Re-runs
+                        basic-pitch on the original recording (a few seconds) and
+                        <strong>replaces</strong> the transcription.
+                    </p>
                 </div>
 
                 <!-- Commit boundary -->
@@ -359,6 +405,7 @@ function useOriginalRecording() {
 // ── Stem separation + audition (from the persisted original recording) ──
 const stemBusy       = ref(false);
 const stemSyncBusy    = ref(false);
+const stemTranscribeBusy = ref(''); // holds the stem name being transcribed, '' when idle
 const stemSession    = ref('');
 const availableStems = ref([]);
 const stemError      = ref('');
@@ -421,6 +468,37 @@ async function syncToStem(name) {
     }
 }
 
+// Re-inference on an isolated stem → REPLACE the transcription (T9 Tier 2 sibling).
+// The guitar-only stem transcribes far cleaner than the full mix. Re-assembly
+// rebuilds the whole leadsheet, so we reload (stashing the tuning context).
+async function transcribeStem(name) {
+    if (!_leadsheetId || !stemSession.value || stemTranscribeBusy.value) return;
+    stemTranscribeBusy.value = name;
+    stemError.value = '';
+    try {
+        const resp = await fetch(`/api/admin/leadsheets/${_leadsheetId}/transcribe-stem`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': _csrf(),
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ session: stemSession.value, stems: [name] }),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.success) {
+            stemError.value = data.error || `Stem transcription failed (${resp.status}).`;
+            stemTranscribeBusy.value = '';
+            return;
+        }
+        stashRetuneRestoreAndReload();
+    } catch (e) {
+        stemError.value = 'Could not reach the server.';
+        stemTranscribeBusy.value = '';
+    }
+}
+
 const reshiftBusy  = ref(false);
 const reshiftError = ref('');
 
@@ -437,6 +515,14 @@ const filterMidiMin   = ref(_seedFilter.midi_min ?? 40);
 const filterMidiMax   = ref(_seedFilter.midi_max ?? 88);
 const filterRangeOn   = ref(_seedFilter.midi_min != null || _seedFilter.midi_max != null);
 let   _retuneTimer    = null;
+
+// ── Re-run detection (T9 Tier-2: onset/frame re-inference) ─────
+// Seeded from the basic-pitch knobs the current transcription was detected with,
+// falling back to basic-pitch's own defaults.
+const _seedDetect = _rawTranscription?.detectionParams || {};
+const onsetThreshold      = ref(_seedDetect.onset_threshold ?? 0.5);
+const frameThreshold      = ref(_seedDetect.frame_threshold ?? 0.3);
+const redetectGuitarRange = ref(_seedDetect.minimum_frequency != null);
 
 // ── Backing-track toggle (Cinema with/without-guitar) ──────────
 const _seedBackingTrack = _lsGlobal.backingTrack || null;
@@ -659,18 +745,62 @@ async function applyRetune() {
             reshiftBusy.value = false;
             return;
         }
-        // Re-assembly rebuilds the whole leadsheet, so we still reload — but stash
-        // the editor's tuning context so it comes back in the Tab view with the
-        // video sidebar open + synced, not reset to the default Grid view. Lets
-        // the user keep dragging sliders without losing their place each time.
-        try {
-            sessionStorage.setItem('sbn_retune_restore', JSON.stringify({
-                view: 'tab',
-                sidebar: true,
-                ts: Date.now(),
-            }));
-        } catch (e) { /* sessionStorage unavailable — degrade to default reload */ }
-        window.location.reload();
+        stashRetuneRestoreAndReload();
+    } catch (e) {
+        reshiftError.value = 'Could not reach the server.';
+        reshiftBusy.value = false;
+    }
+}
+
+// Re-assembly rebuilds the whole leadsheet, so every re-derive still reloads —
+// but stash the editor's tuning context so it comes back in the Tab view with the
+// video sidebar open + synced, not reset to the default Grid view. Lets the user
+// keep tuning without losing their place each time. Shared by retune (Tier 1),
+// redetect (Tier 2) and transcribe-stem.
+function stashRetuneRestoreAndReload() {
+    try {
+        sessionStorage.setItem('sbn_retune_restore', JSON.stringify({
+            view: 'tab',
+            sidebar: true,
+            ts: Date.now(),
+        }));
+    } catch (e) { /* sessionStorage unavailable — degrade to default reload */ }
+    window.location.reload();
+}
+
+// ── Re-run detection (T9 Tier-2) ───────────────────────────────
+// Onset/frame thresholds live INSIDE predict() — unlike Tier-1's post-filter,
+// they can't be re-tuned from the cached note set, so this re-runs basic-pitch on
+// the resident original recording (a few seconds). Only reachable in the tuning
+// stage, so no force needed. Full re-assembly ⇒ reload on success.
+async function applyRedetect() {
+    if (!_leadsheetId || reshiftBusy.value || transcriptionFixed.value) return;
+    reshiftBusy.value = true;
+    reshiftError.value = '';
+    const body = {
+        detection_preset: 'custom',
+        onset_threshold: Number(onsetThreshold.value.toFixed(2)),
+        frame_threshold: Number(frameThreshold.value.toFixed(2)),
+    };
+    if (redetectGuitarRange.value) body.restrict_guitar_range = true;
+    try {
+        const resp = await fetch(`/api/admin/leadsheets/${_leadsheetId}/redetect`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': _csrf(),
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.success) {
+            reshiftError.value = data.error || `Re-detection failed (${resp.status}).`;
+            reshiftBusy.value = false;
+            return;
+        }
+        stashRetuneRestoreAndReload();
     } catch (e) {
         reshiftError.value = 'Could not reach the server.';
         reshiftBusy.value = false;

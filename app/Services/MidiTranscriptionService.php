@@ -496,6 +496,76 @@ class MidiTranscriptionService
         }
     }
 
+    /**
+     * Re-inference on a WAV that already lives on disk — no download, no YouTube,
+     * no stem separation. The shared primitive behind BOTH re-detect surfaces:
+     *   - redetect (T9 Tier 2): the persisted sourceAudio (public/audio/source/…),
+     *   - transcribe-stem: a summed session stem.
+     * Downconverts to 22050Hz mono (basic-pitch's expected input — the resident
+     * file may be 44.1kHz stereo, e.g. a persisted original or a demucs stem),
+     * runs basic-pitch, and returns the raw Python result. Does NOT preserve a new
+     * sourceAudio (the caller already has one — re-inference must never clobber the
+     * blend original). The passed WAV is left in place; only the temp downconvert
+     * is cleaned up.
+     */
+    public function transcribeResidentAudio(string $wavPath, array $detectionParams = []): array
+    {
+        if (!is_file($wavPath)) {
+            return ['success' => false, 'error' => "Resident audio not found: {$wavPath}"];
+        }
+
+        $downconverted = null;
+        try {
+            // Always downconvert to a fresh temp copy — never overwrite the resident
+            // source (it's the persisted blend original / an in-session stem).
+            $tempDir = storage_path('app/temp_audio');
+            if (!is_dir($tempDir)) mkdir($tempDir, 0777, true);
+            $downconverted = $tempDir . '/redetect_' . bin2hex(random_bytes(6)) . '.wav';
+            $downconverted = $this->convertToWav($wavPath, $downconverted);
+
+            return $this->runPythonTranscription(
+                $downconverted,
+                $this->stripControlFlags($detectionParams)
+            );
+        } catch (\Throwable $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        } finally {
+            if ($downconverted && $downconverted !== $wavPath && file_exists($downconverted)) {
+                @unlink($downconverted);
+            }
+        }
+    }
+
+    /**
+     * Re-inference on a single audition-session stem (or a sum of them), reusing
+     * the persisted audition session — no re-download / re-separate. Sums the
+     * chosen stems, downconverts, runs basic-pitch. The session is NOT swept here
+     * (the caller decides — the audition sidebar keeps it for further tries).
+     */
+    public function transcribeStemFromSession(string $session, array $stems, array $detectionParams = []): array
+    {
+        $sessionDir = $this->stemSessionDir($session);
+        if (!is_dir($sessionDir)) {
+            return ['success' => false, 'error' => "Stem session not found (it may have expired): {$session}"];
+        }
+
+        $stems = array_values(array_intersect($stems, self::STEM_NAMES));
+        if (empty($stems)) {
+            $stems = ['guitar'];
+        }
+
+        $summedPath = $sessionDir . '/_redetect_mix.wav';
+        try {
+            $sum = $this->runSumStems($sessionDir, $stems, $summedPath);
+            if (!($sum['success'] ?? false)) {
+                return ['success' => false, 'error' => $sum['error'] ?? 'Failed to mix stems.'];
+            }
+            return $this->transcribeResidentAudio($summedPath, $detectionParams);
+        } finally {
+            if (file_exists($summedPath)) @unlink($summedPath);
+        }
+    }
+
     /** Shell separate_stem.py --all-stems; returns its decoded JSON payload. */
     protected function runSeparateAll(string $wavPath, string $outputDir): array
     {
