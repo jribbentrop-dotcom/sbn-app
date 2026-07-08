@@ -29,6 +29,7 @@ Three display modes are supported:
 | `id` | bigint PK | |
 | `slug` | varchar(120) unique | URL-safe identifier, auto-derived from `title` |
 | `title` | varchar(255) | Display name |
+| `root_note` | varchar(3) nullable | The key this record is authored in (e.g. `"E"` for an E minor pentatonic scale), added 2026-07-08. Required for the course tag's `key="…"` transposition override (§6) to do anything — null means "not transposable." |
 | `description` | text nullable | Optional admin note |
 | `display_mode` | string `chord\|scale\|sequence\|positions` | Controls render path. **Was an enum; relaxed to a plain string in the 2026-07-01 migration** so `positions` is accepted (the old CHECK constraint was dropped). |
 | `theme` | enum `dark\|light` | CSS theme scope |
@@ -43,6 +44,8 @@ Three display modes are supported:
 > **Deploy note (2026-07-01):** migration `2026_07_01_000000_add_windows_to_fretboards.php` adds `windows` and drops the `display_mode` CHECK constraint (SQLite rebuilds the table). Prod DB is scp'd and does **not** run create/alter migrations automatically — apply the same change to prod: `ALTER TABLE fretboards ADD COLUMN windows text;` plus a table rebuild to drop the old `CHECK (display_mode IN ('chord','scale','sequence'))`, otherwise inserting a `positions` row fails. The local `sbn.db` already has both applied.
 
 > **Deploy note (2026-07-07):** migration `2026_07_07_000000_add_start_window_to_fretboards.php` adds `start_window` (unsigned tinyint, default 0). Apply to prod with `ALTER TABLE fretboards ADD COLUMN start_window INTEGER NOT NULL DEFAULT 0;` — no table rebuild needed (plain column add). The local `sbn.db` already has it applied.
+
+> **Deploy note (2026-07-08):** migration `2026_07_08_000000_add_root_note_to_fretboards.php` adds `root_note` (nullable varchar(3)). Apply to prod with `ALTER TABLE fretboards ADD COLUMN root_note varchar(3) NULL;` — plain column add, no rebuild needed. The local `sbn.db` already has it applied.
 | `created_at` / `updated_at` | timestamps | |
 
 **Model:** [`app/Models/Fretboard.php`](../app/Models/Fretboard.php)
@@ -173,19 +176,26 @@ Each entry in the `voicings` JSON array is one "frame" — a single fretboard st
 
 <!-- positions mode: open on window 3 (1-indexed) instead of the record's default -->
 <sbn-fretboard slug="pentatonic-5-positions" position="3"></sbn-fretboard>
+
+<!-- positions mode: transpose to G (record is authored with root_note "E") -->
+<sbn-fretboard slug="pentatonic-5-positions" position="3" key="G"></sbn-fretboard>
 ```
 
-Attrs: `slug` (required). `position` (optional, **positions mode only**) — 1-indexed window number to open the camera on for this embed, overriding the record's stored `start_window`. Lets one positions-mode record (e.g. the 5 pentatonic boxes) be embedded once per position across a course, each opening on a different window. Out-of-range or non-numeric values are ignored (falls back to the record's `start_window`). No other attrs — all other display options are baked into the stored record.
+Attrs: `slug` (required).
 
-Always use explicit closing tags — HTML parsers do not honor self-closing on custom elements.
+- `position` (optional, **positions mode only**) — 1-indexed window number to open the camera on for this embed, overriding the record's stored `start_window`. Lets one positions-mode record (e.g. the 5 pentatonic boxes) be embedded once per position across a course, each opening on a different window. Out-of-range or non-numeric values are ignored (falls back to the record's `start_window`).
+- `key` (optional, **positions mode only, requires `root_note` set on the record**) — target key to transpose the whole shape to, e.g. `key="G"` on a record authored in E shifts every dot fret and window boundary by the semitone distance from `root_note` to `key`. The offset is octave-folded (±12) **once for the whole shape** — not per-fret — against the combined min/max fret across all dots and windows, so the entire scale shifts together and stays valid for any key without any window boundary landing an octave away from its neighbor (which would invert or distort that window's span). If `root_note` is unset, `key` is a no-op — the record renders as authored. **Scale, chord, and sequence modes are not transposable** (scale mode has a fixed `start_fret`/`fret_count` viewport with no camera to reflow around a shifted shape; chord/sequence mode's single-hex-digit fret encoding and RH-finger auto-assignment would need reworking).
+
+No other attrs — all other display options are baked into the stored record. Always use explicit closing tags — HTML parsers do not honor self-closing on custom elements.
 
 ### Runtime
 
 **`mountSbnNodes.ts`** handles `<sbn-fretboard>` via the standard Vue mount path (same as `<sbn-chord>`, `<sbn-rhythm>`, etc.):
 
-1. Fetches `GET /api/sbn/fretboards/{slug}` (cached per-slug, since the fetch is unaffected by the per-embed `position` attr).
-2. Dynamically imports `SbnFretboard.vue` and mounts it with `{ data: fullRecord }`, cloning `fullRecord` with `start_window` overridden to `position - 1` when a valid `position` attr is present.
-3. On error: renders an `.sbn-node-error` span with the slug.
+1. Fetches `GET /api/sbn/fretboards/{slug}` (cached per-slug, since the fetch is unaffected by the per-embed `position`/`key` attrs — transposition is pure client-side math on the fetched record, no server round-trip).
+2. Dynamically imports `SbnFretboard.vue` and mounts it with `{ data: fullRecord }`, cloning `fullRecord` with `start_window` overridden to `position - 1` when a valid `position` attr is present, and `transposeKey` set from the `key` attr.
+3. `SbnFretboard.vue` computes the semitone offset (`root_note` → `transposeKey`) via [`fretboardTranspose.ts`](../resources/js/Components/Library/fretboard/fretboardTranspose.ts), folds it once against the whole shape's fret range (`foldShapeOffset`), then applies the single resulting offset to every positions-mode dot fret and window `from`/`to` before rendering.
+4. On error: renders an `.sbn-node-error` span with the slug.
 
 **Phase 3 change:** the bespoke vanilla-JS `sbnHydrateFretboard` block was deleted from `mountSbnNodes.ts`. Fretboard is now a first-class member of the `components` registry in that file.
 
@@ -193,8 +203,8 @@ Always use explicit closing tags — HTML parsers do not honor self-closing on c
 
 | Method | Path | Purpose | Returns |
 |---|---|---|---|
-| `GET` | `/api/sbn/fretboards/{slug}` | Mount payload for `<sbn-fretboard>` | Full fretboard record (§2 shape) |
-| `GET` | `/api/sbn/fretboards?q=…` | Palette search (admin) | `{ results: [{slug, label, meta}] }` |
+| `GET` | `/api/sbn/fretboards/{slug}` | Mount payload for `<sbn-fretboard>` | Full fretboard record (§2 shape), including `root_note` |
+| `GET` | `/api/sbn/fretboards?q=…` | Palette search (admin) | `{ results: [{slug, label, meta, windows, root_note}] }` — `windows`/`root_note` power the palette's position/key pickers |
 
 Controller: [`AdminFretboardController::apiShow`](../app/Http/Controllers/Admin/AdminFretboardController.php) and `::apiSearch`. Route group: `api/sbn` prefix in [`routes/web.php`](../routes/web.php). Public, no auth.
 
@@ -218,7 +228,7 @@ Controller: [`AdminFretboardController::apiShow`](../app/Http/Controllers/Admin/
 **Index view** ([`admin/fretboards/index.blade.php`](../resources/views/admin/fretboards/index.blade.php)) — table of all fretboards with mode badge, frame count, and a one-click "copy tag" button that puts `<sbn-fretboard slug="…">` on the clipboard.
 
 **Edit view** ([`admin/fretboards/edit.blade.php`](../resources/views/admin/fretboards/edit.blade.php)) — two-column layout:
-- **Left sidebar (300px):** Properties (title, slug, mode, description, fret count, start fret, theme, guide tones toggle, RH fingers toggle) + Frames list (add/remove/reorder, active frame label field).
+- **Left sidebar (300px):** Properties (title, root note, slug, mode, description, fret count, start fret, theme, guide tones toggle, RH fingers toggle) + Frames list (add/remove/reorder, active frame label field). **Root note** is a plain `<select name="root_note">` (— none — or one of the 12 notes); it only matters for positions-mode records where it enables the course tag's `key="…"` transposition (§6).
 - **Right panel (sticky):** Interactive click-to-place fretboard grid. Click a cell to toggle a dot; right-click to assign a finger (1/2/3/4/T/●). Clear button to wipe the current frame. Fret string + fingers readout for chord/sequence mode.
 
 The editor is an **Alpine component** (`fretboardEditor()`). State:
@@ -245,7 +255,7 @@ The lesson editor ([`LessonEditor.vue`](../resources/js/admin/LessonEditor.vue))
 
 Keyboard shortcut: **Ctrl+Shift+F** opens the palette to the Fretboard tab.
 
-The palette ([`LessonPalette.vue`](../resources/js/admin/LessonPalette.vue)) has a **Fretboard** tab that searches `/api/sbn/fretboards?q=…`. Results show title + mode. For chord/scale/sequence-mode results, clicking inserts `<sbn-fretboard slug="…">` straight away. For **positions**-mode results, the search response also carries `windows` (added alongside `start_window`, §7), so clicking opens a **Start position** dropdown (record default, or any named window, 1-indexed) before inserting — this stamps a `position="N"` attr on the tag (§6). Use the chip's ✎ edit button to change slug or position later.
+The palette ([`LessonPalette.vue`](../resources/js/admin/LessonPalette.vue)) has a **Fretboard** tab that searches `/api/sbn/fretboards?q=…`. Results show title + mode. For chord/scale/sequence-mode results, clicking inserts `<sbn-fretboard slug="…">` straight away. For **positions**-mode results, the search response also carries `windows` and `root_note`, so clicking opens a **Start position** dropdown (record default, or any named window, 1-indexed) and, if `root_note` is set, a **Key** dropdown (record's own key, or any of the 12 notes) before inserting — these stamp `position="N"` and `key="…"` attrs on the tag (§6). Use the chip's ✎ edit button to change slug, position, or key later.
 
 Slash command: typing `/fretboard` (or `/f…`) in the editor body triggers the slash popup and delegates to the palette on selection.
 

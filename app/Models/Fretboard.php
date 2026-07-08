@@ -9,6 +9,7 @@ class Fretboard extends Model
     protected $fillable = [
         'slug',
         'title',
+        'root_note',
         'description',
         'display_mode',
         'theme',

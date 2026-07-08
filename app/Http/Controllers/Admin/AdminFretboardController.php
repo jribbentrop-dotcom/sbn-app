@@ -19,6 +19,7 @@ class AdminFretboardController extends Controller
     {
         $fretboard = new Fretboard([
             'display_mode'    => 'chord',
+            'root_note'       => null,
             'theme'           => 'dark',
             'fret_count'      => 12,
             'start_fret'      => 1,
@@ -86,12 +87,13 @@ class AdminFretboardController extends Controller
         }
 
         $results = $query->orderBy('title')->limit(30)->get()->map(fn (Fretboard $fb) => [
-            'slug'    => $fb->slug,
-            'label'   => $fb->title,
-            'meta'    => $fb->display_mode,
+            'slug'      => $fb->slug,
+            'label'     => $fb->title,
+            'meta'      => $fb->display_mode,
             // Positions-mode window labels, so the palette can offer a
             // "which position?" picker without a second round-trip.
-            'windows' => $fb->display_mode === 'positions' ? ($fb->windows ?? []) : null,
+            'windows'   => $fb->display_mode === 'positions' ? ($fb->windows ?? []) : null,
+            'root_note' => $fb->root_note,
         ]);
 
         return response()->json(['results' => $results]);
@@ -108,6 +110,7 @@ class AdminFretboardController extends Controller
         return response()->json([
             'slug'             => $fb->slug,
             'title'            => $fb->title,
+            'root_note'        => $fb->root_note,
             'description'      => $fb->description,
             'display_mode'     => $fb->display_mode,
             'theme'            => $fb->theme,
@@ -127,6 +130,7 @@ class AdminFretboardController extends Controller
     {
         $raw = $request->validate([
             'title'            => 'required|string|max:255',
+            'root_note'        => 'nullable|string|in:C,C#,Db,D,D#,Eb,E,F,F#,Gb,G,G#,Ab,A,A#,Bb,B',
             'slug'             => 'nullable|string|max:120',
             'description'      => 'nullable|string|max:1000',
             'display_mode'     => 'required|in:chord,scale,sequence,positions',

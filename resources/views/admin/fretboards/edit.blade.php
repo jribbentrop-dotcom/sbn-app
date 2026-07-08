@@ -288,6 +288,17 @@
                 </div>
 
                 <div class="sbn-edit-field" style="margin-top:10px;">
+                    <label>Root note</label>
+                    <select name="root_note" x-model="meta.root_note">
+                        <option value="">— none —</option>
+                        <template x-for="note in ['C','C#','Db','D','D#','Eb','E','F','F#','Gb','G','G#','Ab','A','A#','Bb','B']" :key="note">
+                            <option :value="note" x-text="note"></option>
+                        </template>
+                    </select>
+                    <span class="sbn-edit-hint">The key this record is authored in — enables <code>&lt;sbn-fretboard key="…"&gt;</code> transposition on the course tag.</span>
+                </div>
+
+                <div class="sbn-edit-field" style="margin-top:10px;">
                     <label>Description</label>
                     <input type="text" name="description"
                            value="{{ old('description', $fretboard->description ?? '') }}"
@@ -551,6 +562,7 @@ function fretboardEditor() {
 
         meta: {
             title:            @json(old('title', $fretboard->title ?? '')),
+            root_note:        @json(old('root_note', $fretboard->root_note ?? '')),
             slug:             @json(old('slug',  $fretboard->slug  ?? '')),
             display_mode:     @json(old('display_mode', $fretboard->display_mode ?? 'chord')),
             theme:            @json(old('theme',        $fretboard->theme        ?? 'dark')),

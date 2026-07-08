@@ -27,6 +27,7 @@ import FretboardNeck, {
     type FretboardNeckOpenMarker,
 } from './FretboardNeck.vue';
 import { stringY, makeGeometry, VB_H, PAD_T, PAD_B } from './fretboardGeometry';
+import { semitoneOffset, foldShapeOffset, transposeFret } from './fretboardTranspose';
 
 // ── Data model ──────────────────────────────────────────────────────────────
 
@@ -55,6 +56,7 @@ interface FretboardVoicing {
 interface FretboardRecord {
     slug: string;
     title?: string;
+    root_note?: string | null;
     display_mode: 'chord' | 'scale' | 'sequence' | 'positions';
     fret_count: number;
     start_fret: number;
@@ -63,6 +65,8 @@ interface FretboardRecord {
     voicings: FretboardVoicing[];
     windows?: FretWindow[];
     start_window?: number;
+    /** Target key requested by the course tag's `key="…"` attr (e.g. "G"); requires root_note to be set on the record. Positions mode only. */
+    transposeKey?: string | null;
 }
 
 const props = defineProps<{ data: FretboardRecord }>();
@@ -90,15 +94,51 @@ const isPositions = computed(() => props.data.display_mode === 'positions');
 // ── Positions mode: full-neck dots + named camera windows ─────────────────────
 // The whole scale lives in voicings[0].dots[]; the camera pans between windows.
 
-const posDots = computed((): ScaleDot[] => {
+const rawPosDots = computed((): ScaleDot[] => {
     if (!isPositions.value) return [];
     return props.data.voicings?.[0]?.dots ?? [];
 });
 
-const windows = computed((): FretWindow[] => {
+const rawWindows = computed((): FretWindow[] => {
     if (!isPositions.value) return [];
     const ws = props.data.windows ?? [];
     return ws.filter(w => w && Number.isFinite(w.from) && Number.isFinite(w.to));
+});
+
+// Fold the requested transpose offset once, against the whole shape's fret
+// range (all dots + window boundaries) — not per-fret. Per-fret folding would
+// let one dot or window boundary land an octave away from its neighbors,
+// distorting the shape (e.g. a window's `from` folding but `to` not).
+const transposeSemitones = computed(() => {
+    if (props.data.display_mode !== 'positions') return 0;
+    const root = props.data.root_note;
+    const target = props.data.transposeKey;
+    if (!root || !target) return 0;
+    const raw = semitoneOffset(root, target);
+    if (!raw) return 0;
+
+    const frets = [
+        ...rawPosDots.value.map(d => d.f),
+        ...rawWindows.value.flatMap(w => [w.from, w.to]),
+    ];
+    if (!frets.length) return raw;
+    return foldShapeOffset(Math.min(...frets), Math.max(...frets), raw);
+});
+
+const posDots = computed((): ScaleDot[] => {
+    const st = transposeSemitones.value;
+    if (!st) return rawPosDots.value;
+    return rawPosDots.value.map(d => ({ ...d, f: transposeFret(d.f, st) }));
+});
+
+const windows = computed((): FretWindow[] => {
+    const st = transposeSemitones.value;
+    if (!st) return rawWindows.value;
+    return rawWindows.value.map(w => ({
+        ...w,
+        from: transposeFret(w.from, st),
+        to: transposeFret(w.to, st),
+    }));
 });
 
 // Author-configured opening window (defaults to 0 = first position), clamped
@@ -304,7 +344,9 @@ const neckDots = computed((): FretboardNeckDot[] => {
     }
 
     if (isScale.value) {
-        // Scale mode: expand dots[] — multiple per string allowed, f:0 skipped
+        // Scale mode: expand dots[] — multiple per string allowed, f:0 skipped.
+        // Not transposable (fixed start_fret/fret_count viewport, unlike
+        // positions mode's sliding camera) — see SBN-Fretboard-Reference.md §6.
         const rawDots = v.dots ?? [];
         return rawDots
             .filter(d => d.f >= startFret.value) // f:0 and f < startFret don't render
@@ -440,8 +482,8 @@ const showPositionControls = computed(() => isPositions.value && windows.value.l
     <div class="sbn-fretboard-vue-wrap">
         <!-- ── Positions mode ── -->
         <template v-if="isPositions">
-            <!-- "Position X" centered above the board -->
-            <div class="sbn-fv-pos-label">Position {{ activeWindowIdx + 1 }}</div>
+            <!-- "Position X" centered above the board, with key when transposed -->
+            <div class="sbn-fv-pos-label">Position {{ activeWindowIdx + 1 }}<span v-if="transposeSemitones && data.transposeKey"> — {{ data.transposeKey }}</span></div>
             <!-- Arrow left | board | arrow right -->
             <div class="sbn-fv-pos-row">
                 <button

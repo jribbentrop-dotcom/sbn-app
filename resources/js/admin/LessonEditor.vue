@@ -50,7 +50,7 @@ const ATTRS: Record<SbnNodeType, Record<string, AttrSpec>> = {
                    bpm: { default: '', parseHTML: (el) => el.getAttribute('bpm') || '', renderHTML: (attrs) => attrs.bpm ? { bpm: attrs.bpm } : {} } },
     song:            { slug: { default: '' }, bars: { default: '' }, label: { default: '' } },
     widget:          { slug: { default: '' } },
-    fretboard:       { slug: { default: '' }, position: { default: '' } },
+    fretboard:       { slug: { default: '' }, position: { default: '' }, key: { default: '' } },
     'synced-player': {
         slug:     { default: '' },
         type:     { default: 'leadsheet' },
@@ -95,6 +95,7 @@ function makeSbnNode(type: SbnNodeType) {
                 if (type === 'sheet'       && node.attrs.key)   extras.push(`key: ${node.attrs.key}`);
                 if (type === 'song'             && node.attrs.bars)  extras.push(`bars ${node.attrs.bars}`);
                 if (type === 'fretboard'    && node.attrs.position) extras.push(`position ${node.attrs.position}`);
+                if (type === 'fretboard'    && node.attrs.key)      extras.push(`key: ${node.attrs.key}`);
                 if (type === 'synced-player'   && node.attrs.start !== '') extras.push(`bars ${node.attrs.start}–${node.attrs.end}`);
                 if ((type === 'rhythm' || type === 'progression') && node.attrs.videoSnippet) extras.push('▶ video');
                 const suffix = extras.length ? ` (${extras.join(', ')})` : '';
@@ -134,8 +135,11 @@ function makeSbnNode(type: SbnNodeType) {
                         if (newSlug === null) return;
                         const newPosition = window.prompt('Start position (1-indexed, leave blank for record default):', node.attrs.position ?? '');
                         if (newPosition === null) return;
+                        const newKey = window.prompt('Key (e.g. G, leave blank for the record\'s own key):', node.attrs.key ?? '');
+                        if (newKey === null) return;
                         newAttrs.slug     = newSlug || node.attrs.slug;
                         newAttrs.position = newPosition;
+                        newAttrs.key      = newKey;
                     } else {
                         const newSlug = window.prompt(`Edit ${type} slug:`, node.attrs.slug);
                         if (newSlug === null) return;

@@ -15,6 +15,8 @@ interface PaletteItem {
     snippets?: SnippetRef[];
     /** Positions-mode fretboard window labels; null/omitted for other modes. */
     windows?: { label?: string; from?: number; to?: number }[] | null;
+    /** Fretboard's authored root note (e.g. "E"); needed to enable the key/transpose picker. */
+    root_note?: string | null;
 }
 
 const TABS: { type: NodeType; label: string }[] = [
@@ -66,6 +68,9 @@ const configSnippetList  = ref<SnippetRef[]>([]);
 // Positions-mode fretboard — which window to open on (1-indexed, '' = record default).
 const configPosition     = ref('');
 const configPositionList = ref<{ label?: string; from?: number; to?: number }[]>([]);
+// Positions-mode fretboard — target key to transpose to ('' = record's own key).
+const configKey          = ref('');
+const configRootNote     = ref<string | null>(null);
 
 const ROOTS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
@@ -180,8 +185,9 @@ function insert(item: PaletteItem) {
         return;
     }
 
-    // Fretboard: positions-mode records offer a "which position?" picker;
-    // chord/scale/sequence-mode records have no windows, so insert straight away.
+    // Fretboard: positions-mode records offer "which position?" + "which key?"
+    // pickers; chord/scale/sequence-mode records have no windows, so insert
+    // straight away.
     if (activeTab.value === 'fretboard') {
         if (!item.windows?.length) {
             doInsert(item.slug);
@@ -193,6 +199,8 @@ function insert(item: PaletteItem) {
             selectedSlug.value = item.slug;
             configPosition.value = '';
             configPositionList.value = item.windows;
+            configKey.value = '';
+            configRootNote.value = item.root_note ?? null;
         }
         return;
     }
@@ -245,7 +253,10 @@ function doConfirmInsert() {
     const extras: Record<string, string> = {};
     if (activeTab.value === 'chord')          extras.root  = configRoot.value;
     if (activeTab.value === 'song')           extras.bars  = configBars.value;
-    if (activeTab.value === 'fretboard' && configPosition.value !== '') extras.position = configPosition.value;
+    if (activeTab.value === 'fretboard') {
+        if (configPosition.value !== '') extras.position = configPosition.value;
+        if (configKey.value !== '')      extras.key      = configKey.value;
+    }
     if (activeTab.value === 'synced-player') {
         if (configSyncedType.value === 'exercise') extras.type = 'exercise';
         if (configSyncedStart.value !== '') extras.start = configSyncedStart.value;
@@ -402,6 +413,13 @@ function onDragStart(e: DragEvent, item: PaletteItem) {
             <select v-model="configPosition" class="sbn-search-input" style="height:28px; flex:1; font-size:12px;">
               <option value="">Record default</option>
               <option v-for="(w, i) in configPositionList" :key="i" :value="String(i + 1)">{{ w.label || `Position ${i + 1}` }}</option>
+            </select>
+          </div>
+          <div v-if="activeTab === 'fretboard' && configRootNote" class="sbn-palette-config-row">
+            <label>Key:</label>
+            <select v-model="configKey" class="sbn-search-input" style="height:28px; flex:1; font-size:12px;">
+              <option value="">{{ configRootNote }} (as authored)</option>
+              <option v-for="note in ROOTS.filter(n => n !== configRootNote)" :key="note" :value="note">{{ note }}</option>
             </select>
           </div>
           <button type="button" class="sbn-btn sbn-btn-primary sbn-btn-sm" style="height:28px;" @click="doConfirmInsert">Insert</button>
