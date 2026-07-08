@@ -20,7 +20,7 @@ return [
         ],
         'category' => 'latin',
         'syncedPlayer' => [
-            'slug' => 'untitled-8',
+            'slug' => 'blue-bossa',
             'type' => 'leadsheet',
             'start' => 0,
             'end' => 7,
@@ -110,7 +110,7 @@ return [
         'progressionCaption' => "The <strong>minor II-V resolving to a major tonic</strong> is a key sound of <em>Night and Day</em>, here voiced in C.",
         'progressionCitation' => "<strong>Cole Porter</strong>, <em>Gay Divorce</em>, 1932",
         'syncedPlayer' => [
-            'slug' => 'untitled-9',
+            'slug' => 'night-and-day',
             'type' => 'leadsheet',
             'start' => 1,
             'end' => 4,
@@ -280,7 +280,7 @@ return [
         'progressionCaption' => "<strong>Michel Legrand's</strong> introduction to this song is unmistakable. The tonic chord is surrounded by two dominant chords.",
         'progressionCitation' => "<strong>Joe Pass</strong>, <em>Intercontinental</em>, 1971",
         'syncedPlayer' => [
-            'slug' => 'untitled-11',
+            'slug' => 'watch-what-happens',
             'type' => 'leadsheet',
             'start' => 1,
             'end' => 3,
@@ -360,7 +360,7 @@ return [
         'progressionCaption' => "<strong>Cole Porter's</strong> harmonic twist is brilliant: a modal interchange color using I to Vm.",
         'progressionCitation' => "<strong>Dexter Gordon</strong>, <em>Go!</em>, 1962",
         // Live leadsheet bars — Love For Sale bars 0-3
-        'syncedPlayer' => ['slug' => 'untitled-10', 'type' => 'leadsheet', 'start' => 0, 'end' => 3],
+        'syncedPlayer' => ['slug' => 'love-for-sale', 'type' => 'leadsheet', 'start' => 0, 'end' => 3],
         'rhythmName' => 'Trademark Rhythm',
         'rhythmSlug' => 'son-clave-3-2',
         'rhythmCaption' => "Drummer <strong>Billy Higgins</strong> invented a unique, driving Latin texture that is a variation of the Bossa Nova Clave.",

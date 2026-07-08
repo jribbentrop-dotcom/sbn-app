@@ -71,6 +71,19 @@ function clearFilters() {
   filterLevel.value = '';
   filterSlugs.value = [];
 }
+
+// JSON-LD: ItemList of the full (unfiltered) catalogue so Google can see all
+// course URLs from this one page, independent of the client-side filter UI.
+const courseListJsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  itemListElement: props.courses.map((course, i) => ({
+    '@type': 'ListItem',
+    position: i + 1,
+    url: `https://www.soulbossanova.com/learn/${course.slug}`,
+    name: course.title,
+  })),
+}).replace(/</g, '\\u003c');
 </script>
 
 <template>
@@ -80,6 +93,7 @@ function clearFilters() {
         <meta property="og:title" content="Bossa Nova Guitar Courses | Soul Bossa Nova" />
         <meta property="og:description" content="Structured Bossa Nova guitar courses with video lessons, leadsheets and interactive exercises for all levels." />
         <meta property="og:type" content="website" />
+        <component :is="'script'" type="application/ld+json">{{ courseListJsonLd }}</component>
     </Head>
 
   <main class="sbn-page sbn-course-library-main">

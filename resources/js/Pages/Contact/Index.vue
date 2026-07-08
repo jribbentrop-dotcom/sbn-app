@@ -21,7 +21,13 @@ function submit() {
 </script>
 
 <template>
-    <Head title="Contact — Soul Bossa Nova" />
+    <Head>
+        <title>Contact — Soul Bossa Nova</title>
+        <meta name="description" content="Questions about courses, lessons or your account? Get in touch with Soul Bossa Nova — we're happy to help." />
+        <meta property="og:title" content="Contact | Soul Bossa Nova" />
+        <meta property="og:description" content="Get in touch with Soul Bossa Nova for questions about courses, lessons or your account." />
+        <meta property="og:type" content="website" />
+    </Head>
 
     <main class="sbn-page sbn-contact">
         <div class="sbn-contact-header">

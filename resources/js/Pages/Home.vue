@@ -19,6 +19,29 @@ const props = defineProps<{
     heroRhythm: RhythmPatternData | null;
     rainChords: ChordShape[];
 }>();
+
+// JSON-LD: Organization + WebSite, so Google can build a knowledge panel and
+// sitelinks searchbox for brand-name queries ("Soul Bossa Nova").
+const orgJsonLd = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@graph': [
+        {
+            '@type': 'Organization',
+            '@id': 'https://www.soulbossanova.com/#organization',
+            name: 'Soul Bossa Nova',
+            url: 'https://www.soulbossanova.com/',
+            logo: 'https://www.soulbossanova.com/images/logoplain.png',
+            sameAs: [],
+        },
+        {
+            '@type': 'WebSite',
+            '@id': 'https://www.soulbossanova.com/#website',
+            name: 'Soul Bossa Nova',
+            url: 'https://www.soulbossanova.com/',
+            publisher: { '@id': 'https://www.soulbossanova.com/#organization' },
+        },
+    ],
+}).replace(/</g, '\\u003c');
 </script>
 
 <template>
@@ -28,6 +51,7 @@ const props = defineProps<{
         <meta property="og:title" content="Soul Bossa Nova — Guitar Lessons for Bossa Nova & Latin Jazz" />
         <meta property="og:description" content="Interactive Bossa Nova guitar platform with leadsheets, theory widgets, chord library and courses." />
         <meta property="og:type" content="website" />
+        <component :is="'script'" type="application/ld+json">{{ orgJsonLd }}</component>
     </Head>
 
     <div class="home-page">

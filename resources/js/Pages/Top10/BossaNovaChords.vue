@@ -92,6 +92,19 @@ const props = defineProps<{
     rhythmPattern: RhythmPatternData | null;
 }>();
 
+// JSON-LD: ItemList so Google can render this as a "top 10" rich list.
+const top10JsonLd = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: '10 Essential Bossa Nova Guitar Chords',
+    itemListElement: props.top10Data.map((item, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        name: item.title,
+        description: item.description,
+    })),
+}).replace(/</g, '\\u003c');
+
 const chords = ref<Top10ChordWithDetail[]>([]);
 const selectedChord = ref<Top10ChordWithDetail | null>(null);
 const isLoading = ref(false);
@@ -194,6 +207,7 @@ function goToChordLibrary(chord: ChordDiagramData) {
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://www.soulbossanova.com/top10/bossa-nova-chords" />
         <meta property="og:image" content="https://www.soulbossanova.com/images/products/thumbnails/top10-bossa-nova-chords.webp" />
+        <component :is="'script'" type="application/ld+json">{{ top10JsonLd }}</component>
     </Head>
 
     <div class="sbn-top10-page">

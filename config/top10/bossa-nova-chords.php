@@ -13,14 +13,15 @@ return [
         'progressionViewerName' => 'Ellington Progression',
         'progressionLibrarySlug' => 'ellington-progression',
         'progressionSeedKey' => 'Db',
+        'voicingSlug' => 'maj6-custom-roote-inv2-9-overAb',
         'progressionVoicingOverrides' => [
-            0 => 'maj6-custom-roote-inv2-9',
+            0 => 'maj6-custom-roote-inv2-9-overAb',
         ],
         'progressionCaption' => "<strong>Tom Jobim</strong> borrowed the idea of the chord progression to the first part of <em>Garota</em> from <strong>Duke Ellington's</strong> <em>Take the A-Train</em>. <strong>João Gilberto's</strong> chord voicings give the progression its distinctive <strong>Bossa Nova</strong> flavor.",
         'citation' => "<strong>Stan Getz & João Gilberto</strong>, <em>Getz/Gilberto</em>, 1964",
         // Live leadsheet bars — same as Bossa Nova Songs Girl from Ipanema
         'rhythmSlug' => 'gilberto-rhythm',
-        'syncedPlayer' => ['slug' => 'the-girl-from-ipanema', 'start' => 5, 'end' => 12],
+        'syncedPlayer' => ['slug' => 'the-girl-from-ipanema-1', 'start' => 5, 'end' => 12],
         'relatedProducts' => [
             [
                 'title' => 'Gilberto plays Jobim',
@@ -182,7 +183,7 @@ return [
         'progressionCaption' => "The Jazz Minor Cadence in its purest form. Notice how the half-diminished creates a sense of suspension — it leans forward into the dominant and won't feel resolved until it reaches the Am tonic.",
         'citation' => "<strong>Luiz Bonfá</strong>, <em>Solo In Rio</em>, 1959",
         // Live leadsheet bars — Manha de Carnaval bars 15-17
-        'syncedPlayer' => ['slug' => 'manha-de-carnaval', 'start' => 16, 'end' => 18],
+        'syncedPlayer' => ['slug' => 'manha-de-carnaval-jazz', 'start' => 16, 'end' => 18],
         'relatedProducts' => [
             [
                 'title' => 'Music Theory Basics',
@@ -332,7 +333,7 @@ return [
         'voicingCaption' => "The drop-3 voicing places the root on the low E string for a full, resonant sound. The ♭13 is the added color note — one extra finger, but it changes the emotional quality of the chord completely.",
         'progressionName' => 'The Corcovado Progression',
         'progressionViewerName' => 'The Corcovado Progression',
-        'progressionLibrarySlug' => 'corcovado-progression',
+        'progressionLibrarySlug' => 'the-corcovado-progression',
         'progressionSeedKey' => 'Bm',
         'progressionVoicingOverrides' => [
             1 => 'o7-drop3-roote-b13',
@@ -379,7 +380,7 @@ return [
             1 => 'dom7-drop3-roote-b13',
         ],
         'progressionCaption' => "Joao Gilberto cleverly injected this dominant color into <em>S'Wonderful</em>, turning the modulation to the new key in the B-Bart into a smooth Minor Blues Cadence.",
-        'citation' => "<strong>João Gilberto</strong>, <em>S'Wonderful</em>, 1978",
+        'citation' => "<strong>João Gilberto</strong>, <em>Amoroso</em>, 1977",
           // Live leadsheet bars — swonderful bars 16-17
         'syncedPlayer' => ['slug' => 'swonderful', 'start' => 14, 'end' => 17],
         'relatedProducts' => [

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, reactive, onMounted } from 'vue';
-import { Link, Head, usePage } from '@inertiajs/vue3';
+import { computed, ref, onMounted } from 'vue';
+import { Link, Head } from '@inertiajs/vue3';
 import Breadcrumb from '@/Components/Breadcrumb.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import ChordDiagram from '@/Components/Library/ChordDiagram.vue';
-import SkillIcon from '@/Components/Skill/SkillIcon.vue';
+import SkillsBuiltPanel from '@/Components/Skill/SkillsBuiltPanel.vue';
+import type { SkillRef as PanelSkillRef } from '@/Components/Skill/SkillsBuiltPanel.vue';
 import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
 import { getCategoryColor, getCategoryStyle, difficultyLabel } from '@/composables/useCategoryColors';
 import { formatChordNameHtml } from '@/composables/useChordName';
@@ -167,6 +168,34 @@ const grouped = computed(() => {
   return out;
 });
 
+// JSON-LD: Course schema so Google can show a course rich result (provider,
+// level, free/paid) for /learn/{course} — a public, crawlable page.
+const courseJsonLd = computed(() => JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'Course',
+  name: props.course.title,
+  description: props.course.excerpt || props.course.description || `${props.course.title} — a Bossa Nova guitar course on Soul Bossa Nova.`,
+  url: `https://www.soulbossanova.com/learn/${props.course.slug}`,
+  provider: {
+    '@type': 'Organization',
+    name: 'Soul Bossa Nova',
+    sameAs: 'https://www.soulbossanova.com/',
+  },
+  ...(props.course.isFree ? {
+    offers: {
+      '@type': 'Offer',
+      category: 'Free',
+      price: '0',
+      priceCurrency: 'USD',
+    },
+  } : {}),
+  hasCourseInstance: {
+    '@type': 'CourseInstance',
+    courseMode: 'online',
+    courseWorkload: `${props.course.lessonCount} lessons`,
+  },
+}).replace(/</g, '\\u003c'));
+
 const collapsedSections = ref<Set<string>>(new Set());
 function toggleSection(title: string): void {
   if (collapsedSections.value.has(title)) collapsedSections.value.delete(title);
@@ -180,32 +209,20 @@ const totalSections = computed(() => grouped.value.length);
 const learningOutcomes = computed(() => props.course.learningOutcomes ?? []);
 
 // ── Skills this course teaches ───────────────────────────────────────────────
-// Signed-in students can self-report completion right here (same toggle as
-// /account/skills). Guests see the list read-only — clicking sends them to register.
-const isAuthed = computed(() => !!usePage().props.auth?.user);
-
-const skillDone = reactive<Record<string, true>>(
-  Object.fromEntries(props.skills.filter(s => s.done).map(s => [s.slug, true]))
+// Rendered as the read-only compact icon strip (SkillsBuiltPanel), matching the
+// song pages. The controller sends camelCase (iconKey/iconPath/done); map it to
+// the panel's SkillRef shape (icon_key/icon_path/completed).
+const skillRefs = computed<PanelSkillRef[]>(() =>
+  props.skills.map(s => ({
+    slug: s.slug,
+    title: s.title,
+    branch: s.branch,
+    grade: s.grade,
+    icon_key: s.iconKey,
+    icon_path: s.iconPath,
+    completed: s.done,
+  }))
 );
-const skillPending = reactive<Record<string, true>>({});
-
-function toggleSkill(skill: SkillRef) {
-  if (!isAuthed.value) { window.location.href = '/register'; return; }
-  if (skillPending[skill.slug]) return;
-  skillPending[skill.slug] = true;
-
-  const wasDone = !!skillDone[skill.slug];
-  wasDone ? delete skillDone[skill.slug] : (skillDone[skill.slug] = true);
-
-  fetch(`/account/skills/${skill.slug}/toggle`, {
-    method: 'POST',
-    headers: { 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '' },
-  }).catch(() => {
-    wasDone ? (skillDone[skill.slug] = true) : delete skillDone[skill.slug];
-  }).finally(() => {
-    delete skillPending[skill.slug];
-  });
-}
 const hasExplore = computed(() =>
   props.chords.length || props.rhythms.length || props.exercises.length ||
   props.songs.length || props.progressions.length || props.widgets.length
@@ -235,6 +252,7 @@ function toggleSidebar(key: SidebarSection) {
         <meta property="og:description" :content="course.excerpt || `Bossa Nova guitar course: ${course.title}`" />
         <meta property="og:type" content="website" />
         <meta v-if="course.featuredImagePath" property="og:image" :content="course.featuredImagePath" />
+        <component :is="'script'" type="application/ld+json">{{ courseJsonLd }}</component>
     </Head>
 
   <div class="sbn-page-detail sbn-course-show" :style="heroStyle">
@@ -332,33 +350,8 @@ function toggleSidebar(key: SidebarSection) {
         <!-- Skills you'll build -->
         <section v-if="skills.length" class="sbn-cs-section">
           <h2 class="sbn-cs-section-title">Skills you'll build</h2>
-          <p class="sbn-cs-skills-hint">
-            <template v-if="isAuthed">Tick a skill once you've got it — it syncs to <Link href="/account/skills">My Skills</Link>.</template>
-            <template v-else>The atomic skills this course develops. <Link href="/register">Sign in</Link> to track your progress.</template>
-          </p>
-          <div class="sbn-cs-skills-grid">
-            <div v-for="skill in skills" :key="skill.slug" class="sbn-cs-skill-cell">
-              <button
-                type="button"
-                class="sbn-cs-skill"
-                :class="{ 'is-done': !!skillDone[skill.slug], 'is-pending': !!skillPending[skill.slug] }"
-                :aria-pressed="!!skillDone[skill.slug]"
-                :aria-label="(skillDone[skill.slug] ? 'Mark incomplete: ' : 'Mark complete: ') + skill.title"
-                @click="toggleSkill(skill)"
-              >
-                <span class="sbn-cs-skill-icon">
-                  <SkillIcon :icon-path="skill.iconPath" :icon-key="skill.iconKey" :branch="skill.branch" :size="18" />
-                </span>
-                <span class="sbn-cs-skill-title">{{ skill.title }}</span>
-                <span class="sbn-cs-skill-check" aria-hidden="true">
-                  <svg v-if="skillDone[skill.slug]" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M20 6 9 17l-5-5"/>
-                  </svg>
-                </span>
-              </button>
-              <Link :href="`/skills#${skill.slug}`" class="sbn-cs-skill-info" :aria-label="'About ' + skill.title" title="What is this skill?">ⓘ</Link>
-            </div>
-          </div>
+          <p class="sbn-cs-skills-hint">The atomic skills this course develops — hover an icon for its name, or open it in the <Link href="/skills">skill glossary</Link>.</p>
+          <SkillsBuiltPanel :skills="skillRefs" :compact="true" />
         </section>
 
         <!-- About -->
@@ -743,44 +736,8 @@ function toggleSidebar(key: SidebarSection) {
   margin: -8px 0 14px; line-height: 1.5;
 }
 .sbn-cs-skills-hint a { color: var(--cat-text); text-decoration: underline; }
-.sbn-cs-skills-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 8px;
-}
-.sbn-cs-skill-cell { position: relative; display: flex; }
-.sbn-cs-skill {
-  flex: 1;
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 30px 9px 12px;
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius);
-  background: var(--clr-white);
-  cursor: pointer; text-align: left;
-  color: var(--clr-text);
-  transition: border-color 0.15s, background 0.15s, opacity 0.1s;
-}
-.sbn-cs-skill-info {
-  position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
-  width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
-  border-radius: 50%; font-size: 13px; line-height: 1; text-decoration: none;
-  color: var(--clr-text-muted);
-}
-.sbn-cs-skill-info:hover { color: var(--cat-text); background: color-mix(in srgb, var(--cat-text) 12%, transparent); }
-.sbn-cs-skill:hover { border-color: var(--cat-border); }
-.sbn-cs-skill.is-done {
-  background: color-mix(in srgb, var(--cat-text) 8%, transparent);
-  border-color: color-mix(in srgb, var(--cat-text) 40%, transparent);
-}
-.sbn-cs-skill.is-pending { opacity: 0.6; pointer-events: none; }
-.sbn-cs-skill-icon { flex-shrink: 0; color: var(--clr-text-muted); display: flex; }
-.sbn-cs-skill.is-done .sbn-cs-skill-icon { color: var(--cat-text); }
-.sbn-cs-skill-title { flex: 1; font-size: 13px; line-height: 1.3; }
-.sbn-cs-skill-check {
-  flex-shrink: 0; width: 15px; height: 15px;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--cat-text);
-}
+/* The skill icons themselves render via <SkillsBuiltPanel :compact> — its
+   icon-strip + hover-tooltip styles live in sbn-design-system.css. */
 
 /* ── About ─────────────────────────────────────────────────────────────────── */
 .sbn-cs-about-body { font-size: 14px; line-height: 1.7; color: var(--clr-text-dim); }

@@ -78,7 +78,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <Head title="Difficulty Levels" />
+    <Head>
+        <title>Guitar Grades — Difficulty Levels | Soul Bossa Nova</title>
+        <meta name="description" content="Five grades from first open chord to rootless jazz voicings. Find your level and see the skills, songs and courses that make up each step." />
+        <meta property="og:title" content="Guitar Grades — Difficulty Levels | Soul Bossa Nova" />
+        <meta property="og:description" content="Five clear grades — from first open chord to rootless jazz voicings — mapped to skills, songs and courses." />
+        <meta property="og:type" content="website" />
+    </Head>
 
     <div class="home-page grades-page">
 

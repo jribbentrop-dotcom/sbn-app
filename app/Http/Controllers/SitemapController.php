@@ -3,9 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Course;
-use App\Models\Leadsheet;
 use App\Models\Product;
-use App\Models\RhythmPattern;
 use Illuminate\Http\Response;
 
 class SitemapController extends Controller
@@ -29,16 +27,17 @@ class SitemapController extends Controller
         $urls = [];
 
         // ── Static pages ──────────────────────────────────────────────────────
+        // NOTE: /library/*, /theory and per-song /library/songs/{slug} are
+        // deliberately NOT listed here — those routes sit behind the `auth`
+        // middleware (beta account-wall, see routes/web.php + CLAUDE.md
+        // "Content access model"). Googlebot hits an auth redirect on them,
+        // so submitting them just produces "submitted URL redirected" noise
+        // in Search Console. Re-add if/when those routes are opened to guests.
         $statics = [
             ['loc' => $base . '/',                    'priority' => '1.0', 'changefreq' => 'weekly'],
-            ['loc' => $base . '/library/songs',       'priority' => '0.9', 'changefreq' => 'weekly'],
-            ['loc' => $base . '/library/chords',      'priority' => '0.9', 'changefreq' => 'weekly'],
-            ['loc' => $base . '/library/progressions','priority' => '0.8', 'changefreq' => 'weekly'],
-            ['loc' => $base . '/library/rhythms',     'priority' => '0.8', 'changefreq' => 'weekly'],
-            ['loc' => $base . '/theory',              'priority' => '0.8', 'changefreq' => 'monthly'],
-            ['loc' => $base . '/skills',              'priority' => '0.7', 'changefreq' => 'monthly'],
-            ['loc' => $base . '/grades',              'priority' => '0.7', 'changefreq' => 'monthly'],
-            ['loc' => $base . '/courses',             'priority' => '0.9', 'changefreq' => 'weekly'],
+            ['loc' => $base . '/skills',               'priority' => '0.6', 'changefreq' => 'monthly'],
+            ['loc' => $base . '/grades',               'priority' => '0.6', 'changefreq' => 'monthly'],
+            ['loc' => $base . '/learn',               'priority' => '0.9', 'changefreq' => 'weekly'],
             ['loc' => $base . '/shop',                'priority' => '0.8', 'changefreq' => 'weekly'],
             ['loc' => $base . '/top10/bossa-nova-songs',   'priority' => '0.9', 'changefreq' => 'monthly'],
             ['loc' => $base . '/top10/bossa-nova-chords',  'priority' => '0.9', 'changefreq' => 'monthly'],
@@ -50,28 +49,15 @@ class SitemapController extends Controller
             $urls[] = array_merge(['lastmod' => $now], $s);
         }
 
-        // ── Songs / Leadsheets ────────────────────────────────────────────────
-        Leadsheet::where('status', 'publish')
-            ->select(['slug', 'updated_at'])
-            ->orderByDesc('popularity')
-            ->chunk(200, function ($rows) use (&$urls, $base) {
-                foreach ($rows as $row) {
-                    $urls[] = [
-                        'loc'        => $base . '/library/songs/' . $row->slug,
-                        'lastmod'    => $row->updated_at?->toAtomString() ?? now()->toAtomString(),
-                        'priority'   => '0.7',
-                        'changefreq' => 'monthly',
-                    ];
-                }
-            });
-
-        // ── Courses ───────────────────────────────────────────────────────────
+        // ── Courses ─────────────────────────────────────────────────────────────
+        // Public catalog + detail live at /learn and /learn/{slug} — NOT /courses
+        // (that path is the auth-gated account/admin route, see routes/web.php).
         Course::where('status', 'publish')
             ->select(['slug', 'updated_at'])
             ->chunk(100, function ($rows) use (&$urls, $base) {
                 foreach ($rows as $row) {
                     $urls[] = [
-                        'loc'        => $base . '/courses/' . $row->slug,
+                        'loc'        => $base . '/learn/' . $row->slug,
                         'lastmod'    => $row->updated_at?->toAtomString() ?? now()->toAtomString(),
                         'priority'   => '0.8',
                         'changefreq' => 'monthly',

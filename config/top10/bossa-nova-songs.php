@@ -9,7 +9,7 @@ return [
         'description' => "Without a doubt the most famous Bossa Nova song of all time — and one of the most recorded songs in history. Written by Tom Jobim and Vinícius de Moraes in 1962, it became a worldwide hit through the legendary <em>Getz/Gilberto</em> recording of 1964, featuring <strong>João Gilberto's</strong> fingerstyle guitar and <strong>Astrud Gilberto's</strong> unforgettable vocal.",
         'recordings' => '822 Recordings',
         'voicingName' => 'Key Chords',
-        'voicingSlug' => 'maj6-custom-roote-inv2-9',
+        'voicingSlug' => 'maj6-custom-roote-inv2-9-overAb',
         'rootOverride' => 'Db',
         'voicingCaption' => "The <strong>Dbmaj6(9)</strong> with 5th (Ab) in the bass opens the song. Unlike traditional chords, this chord is voiced on 4ths, giving it a more open sound.",
         'progressionName' => 'Ellington Progression',
@@ -18,7 +18,7 @@ return [
         'progressionCaption' => "<strong>Tom Jobim</strong> borrowed the idea of leaping from the <strong>I</strong> chord to the <strong>II7</strong> from <strong>Duke Ellington's</strong> <em>Take the A-Train</em>. A favourite Jobim move that reappears across his catalogue.",
         'progressionSlugs' => ['maj6-custom-roote-inv2-9-overAb', 'dom7-shell-roota-9'],
         // Live leadsheet bars — replaces progressionTiles in the SyncedPlayer panel
-        'syncedPlayer' => ['slug' => 'the-girl-from-ipanema', 'start' => 5, 'end' => 12],
+        'syncedPlayer' => ['slug' => 'the-girl-from-ipanema-1', 'start' => 5, 'end' => 12],
         'rhythmName' => 'Trademark Rhythm Pattern',
         'rhythmSlug' => 'gilberto-rhythm',
         'rhythmCaption' => "The classic Gilberto pattern has three accents. The thumb handles the bass on beat 1 and 3, the fingers pluck  the upper strings.",
@@ -61,9 +61,9 @@ return [
         'progressionCaption' => "Although the <strong>minor ii-V</strong> appears repeatedly in jazz renditions of <em>Manhã de Carnaval</em>, Luiz Bonfá used a simple, classical progression in his wonderful arrangement.",
         'progressionSlugs' => ['m7b5-drop2-roota', 'dom7-shell-roote'],
         // Live leadsheet bars — replaces progressionTiles in the SyncedPlayer panel
-        'syncedPlayer' => ['slug' => 'manha-de-carnaval', 'start' => 1, 'end' => 3],
+        'syncedPlayer' => ['slug' => 'manha-de-carnaval-jazz', 'start' => 1, 'end' => 3],
         'rhythmName' => 'Trademark Rhythm Pattern',
-        'rhythmSlug' => 'bonfa',
+        'rhythmSlug' => 'choro',
         'rhythmCaption' => "<strong>Luiz Bonfá's</strong> favourite pattern is so simple yet effective. The thumb plays a steady bass while the fingers pluck the upper strings in a gentle, flowing rhythm.",
         'rhythmCitation' => "<strong>Luiz Bonfá</strong>, <em>Solo In Rio</em>, 1959",
         'relatedProducts' => [
@@ -380,7 +380,7 @@ return [
         // Live leadsheet bars — Dindi bars 0-1
         'syncedPlayer' => ['slug' => 'dindi', 'start' => 0, 'end' => 1],
         'rhythmName' => 'Ballad Bossa Pattern',
-        'rhythmSlug' => 'bonfa',
+        'rhythmSlug' => 'basic-picking-pattern',
         'rhythmCaption' => "<em>Dindi</em> floats. Use this slower pattern with more sustain to create that dreamy atmosphere.",
         'rhythmCitation' => "<strong>Astrud Gilberto</strong>, <em>The Astrud Gilberto Album</em>, 1965",
         'relatedProducts' => [
