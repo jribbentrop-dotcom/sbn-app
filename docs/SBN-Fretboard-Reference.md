@@ -1,7 +1,7 @@
 # SBN Fretboard Reference
 
 > **Purpose:** Single source of truth for the interactive fretboard system — admin CRUD, storage format, Vue SVG renderer, course tag, and TipTap editor integration. Load at the start of any session touching fretboards.
-> **Last updated:** 2026-07-01 (CSS polish pass: fixed-width positions board, click/drag/swipe window navigation, autoplay/slider/play-button removed — see §4, §9)
+> **Last updated:** 2026-07-08 (positions-mode transposition via `root_note` + course tag `key="…"` override, plus the earlier `position="N"` start-window override — see §2, §6)
 
 ---
 
