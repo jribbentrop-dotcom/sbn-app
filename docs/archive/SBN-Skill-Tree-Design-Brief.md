@@ -1,9 +1,11 @@
 # SBN Skill Tree — Design Brief (for Cowork / design brainstorm)
 
-> **Status: SHIPPED 2026-07-02** at `/account/skills/tree`. This doc is now historical context for
-> the brainstorm + locked layout decision (§7) — see §8 for how the two items that were open at
-> hand-off (multi-style tiles, mobile) actually resolved, and `SBN-Skill-System-Plan.md` →
-> "Student Skill Tree (Shipped 2026-07-02)" for the full as-built writeup.
+> ⚠️ **ARCHIVED / SHIPPED 2026-07-02.** Built; as-built design folded into
+> `docs/SBN-Skill-System-Plan.md` → "Student Skill Tree (Shipped 2026-07-02)". Kept for history only.
+> The layout-option comparison in §1–§7 below (why the FC26 tile tree beat grade-lanes and
+> constellation, and the locked dimension→encoding mapping) isn't duplicated anywhere else, so it's
+> preserved here — but for current behavior, encoding, the multi-style-tab resolution, and the mobile
+> design, `SBN-Skill-System-Plan.md` is the source of truth.
 
 > **Purpose of this doc:** hand a designer/brainstorm tool the *real constraints* of the SBN skill
 > tree so mockups start grounded, not blank-page. The **data is already built** (graph + grades +
@@ -188,58 +190,14 @@ the start so it isn't redone later.
 ### Still genuinely deferred to engineering (per §5, unchanged)
 
 SVG vs. Canvas vs. CSS-grid rendering for the *student* tree, and the mobile design pass flagged above.
-(The `pos_x`/`pos_y` schema + admin layout editor are now BUILT — see §8.)
+(The `pos_x`/`pos_y` schema + admin layout editor are now BUILT — see `SBN-Skill-System-Plan.md`.)
 
 ---
 
-## 8. As-built status (2026-06-25) + open questions
+## 8. As-built status — see `SBN-Skill-System-Plan.md`
 
-### Built
-- **Positions schema** — `pos_x`/`pos_y` on `sbn_skill_nodes` (0..1000 design units), auto-seeded by
-  `SkillNodePositionSeeder` (grade-tier × branch-spread), commit `4b8ad56`.
-- **Admin drag-to-position editor** — `/admin/skill-nodes/layout`, vanilla-JS draggable tiles + live
-  SVG edge redraw + bulk save, commit `441cc02`. Verified rendering; drag/save confirmed working by
-  Lucas in-browser 2026-06-25.
-- **Grade scale completed** — all five tiers now populated (G1=13, G2=19, G3=17, G4=3, G5=5; zero
-  ungraded), commit `73fcdad`. The tree is structurally complete top-to-bottom.
-
-### Encoding as-built — note the editor vs student divergence
-- **Admin editor tile color = BRANCH** (deliberate — for *positioning*, "which branch" is the more
-  useful key, and a node can carry 0–4 styles so style-color would be ambiguous there).
-- **Student tree tile color = STYLE** (the §7 locked mapping). These diverge ON PURPOSE.
-
-### Icons — two layers, current state
-- **`icon_key`** (Heroicon name, per-node): **50 of 57 set** in the seeder (e.g. `chord-melody`→
-  `queue-list`). The 7 without fall back to their branch icon. So per-node icons ARE specced — as
-  Heroicon placeholders, not bespoke art.
-- **`icon_path`** (custom purpose-drawn SVG, per-node): **0 of 57 set.** This is the bespoke-art tier
-  (Phase B in the plan's Icon System). `SkillIcon.vue` already prefers icon_path → icon_key → branch
-  fallback, so dropping custom SVGs in later is a pure design/content task, no code change.
-
-### RESOLVED (2026-07-02) — multi-style tiles
-The §7 mapping locked "tile color = style," but ~half the styled nodes carry 2+ styles (e.g.
-`shell-voicings` = jazz 3 + bossa 3; `secondary-dominants` = jazz 2 + classical 2 + bossa 1). None of
-the three candidate approaches below were used — mid-build, a real trial of the single combined tree
-(~64 nodes, one canvas) read as too dense/intense to be usable, independent of the tile-color question.
-**Actual resolution: split into 5 tabs** (Foundations + Bossa Nova/Jazz/Classical/Pop), each showing
-Foundations nodes plus that style's tagged nodes. `SkillNode::styleColor()` (dominant weight, tie
-priority `bossa-nova > jazz > classical > pop`) is still used for a node's own tile color, but that's
-now a per-tab question, not a "how do I show 3 colors on one tile" question. See
-`SBN-Skill-System-Plan.md` → "Student Skill Tree (Shipped 2026-07-02)" for full detail.
-- ~~Dominant-weight wins~~ — used, but for single-tab coloring, not as the multi-style solution.
-- ~~Split/gradient tile~~ / ~~pips~~ — not needed once tabs removed the multi-style-per-tile problem.
-- Foundational (0-style) nodes: neutral grey (`--clr-text-muted`), confirmed.
-
-### RESOLVED (2026-07-02) — mobile
-Built: one-branch-at-a-time collapse within the active style tab (768px breakpoint, matching existing
-CSS breakpoints), reusing `Skills.vue`'s card visual language. Cross-branch prerequisites render as
-text notes ("Requires: X (Harmony)") rather than lines. See `SkillTreeMobile.vue`.
-
-### Shipped 2026-07-02
-- **Student-facing SVG tree render** — `/account/skills/tree`. The reference mockup
-  (`...-Mockup-A-Reference.html`) was a comparative sketch, not a literal spec — real colors came from
-  `sbn-design-system.css` tokens (not the mockup's placeholder purple/coral/teal), and the tile frame
-  was dropped entirely per a later design pass (frameless, icon-only tiles — see plan doc).
-- **Completion glow / "just leveled up" micro-moment** — a lightweight CSS `drop-shadow` pulse
-  triggered only on a live toggle (not page load).
-- Not done: custom per-node SVG art (`icon_path` — still 0 of ~64 set, Heroicon fallbacks only).
+Everything that was tracked here as "as-built status (2026-06-25) + open questions" — the positions
+schema, admin drag-editor, icon_key/icon_path state, the multi-style-tile resolution (split into 5
+tabs), and the mobile build — shipped and is documented in full in
+`docs/SBN-Skill-System-Plan.md` → **"Student Skill Tree (Shipped 2026-07-02)"**. That section is now
+the single as-built source; it is not duplicated here to avoid the two docs drifting out of sync.

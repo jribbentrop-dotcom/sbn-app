@@ -1,18 +1,22 @@
 # Course 9 Rewrite — Full Lesson Draft (2026-06-29)
 
+> ⚠️ **APPLIED 2026-06-29.** The DB truncation noted below was resolved same-day and
+> `scripts/apply_course9_rewrite.py` has been run against a healthy `sbn.db`. Course 9 now has 12
+> lessons (9 new + 3 resequenced) and the 4 new technique nodes are live (`guitar-posture-setup`,
+> `pima-finger-assignment`, `rest-stroke-free-stroke`, `hand-damping-control`, ids 65–68). See
+> `docs/SBN-Skill-System-Plan.md` (header, "Course 9 technique rewrite APPLIED 2026-06-29") for the
+> as-applied confirmation. This document remains the canonical source of the lesson prose — the
+> original drafting-session notes below are kept for context.
+>
 > Full draft (not outline) per Lucas's instruction. Implements brainstorm-crossref recommendation #1
 > ("Build out a real technique sub-curriculum") — see `docs/archive/SBN-Skill-Nodes-Brainstorm-Crossref.md`
 > and the Course-9 status block in `docs/SBN-Skill-System-Plan.md` (header).
 >
-> **DB note (was true 2026-06-29, now RESOLVED):** `database/sbn.db` was truncated during the drafting
-> session (header expected 53,428,224 bytes); it has since been restored — verified healthy
-> (`integrity_check: ok`, 54,210,560 bytes, 61 nodes) on 2026-06-29 audit. The 4 new technique nodes
-> are still NOT applied — run `scripts/apply_course9_rewrite.py` (idempotent) to apply. Original note:
-> file is 53,125,120 — `db_checkout.py status` confirms `truncated: True`, not mount flakiness). Per
-> `CLAUDE.md` this is host-side damage, not something fixable in-sandbox, so none of this has been
-> applied to the DB. This document is the content; `scripts/apply_course9_rewrite.py` (written
-> alongside this doc) applies it once `sbn.db` is restored from a backup. Nothing here required DB
-> access to draft — it's new content, not a query against existing rows.
+> **DB note (was true 2026-06-29, now fully resolved):** `database/sbn.db` was truncated during the
+> drafting session (header expected 53,428,224 bytes); it was restored same-day — verified healthy
+> (`integrity_check: ok`, 54,210,560 bytes) — and `scripts/apply_course9_rewrite.py` has since been run
+> successfully against it. Nothing here required DB access to draft — it was new content, not a query
+> against existing rows.
 >
 > Because of the truncation, **the exact titles/content of Course 9's existing 3 lessons could not be
 > re-read** to incorporate verbatim. From the crossref doc we know their subjects: a Villa-Lobos étude,
@@ -542,10 +546,12 @@ fingerpicking-basics is broader "can play a basic fingerstyle pattern at all").
 
 ## Still open
 
-- **DB is genuinely truncated** — restore `sbn.db` from a Windows-host backup before running anything.
-- Run `scripts/apply_course9_rewrite.py` against the restored DB, then spot-check the existing 3
-  lessons' actual titles/slugs and correct the node-mapping guesses in the table above if needed.
-- Course excerpt/description above are drafted text, not yet written to `sbn_courses` — the apply
-  script includes them, but worth Lucas's read-through first given they're public-facing copy.
+- ~~DB is genuinely truncated~~ — resolved 2026-06-29; `sbn.db` restored and verified healthy.
+- ~~Run `scripts/apply_course9_rewrite.py`~~ — **applied 2026-06-29.** Existing-lesson node mappings
+  (rows 10–12) were guesses at draft time; still worth a spot-check confirm-or-correct pass against
+  the actual lesson content now that it's readable again, but this is a low-priority cleanup, not a
+  blocker.
+- Course excerpt/description above were written to `sbn_courses` by the apply script — worth Lucas's
+  read-through of the live copy if it hasn't happened yet, since it's public-facing.
 - The "Advanced Performance" scope question from the crossref (harmonics, campanella, rasgueado, etc.)
   remains unresolved and **out of scope** for this rewrite by design.

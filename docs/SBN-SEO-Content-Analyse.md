@@ -1,6 +1,74 @@
 # SBN – SEO & Content-Analyse
 
-_Erstellt: 13. Juni 2026_
+_Erstellt: 13. Juni 2026 — Update: 7. Juli 2026_
+
+---
+
+## 🔄 Update 7. Juli 2026 — Umsetzungsstand
+
+Alle Punkte aus dem ursprünglichen Audit (unten) wurden geprüft. Der Großteil war
+bereits umgesetzt; ergänzt wurden JSON-LD sowie zwei Korrekturen, die beim
+Nachprüfen aufgefallen sind.
+
+**Bereits erledigt (vor diesem Update umgesetzt):**
+- `APP_NAME="Soul Bossa Nova"` in `.env`
+- `<Head>` (Title/Description/OG) auf Homepage, allen Library-Index/Show-Seiten,
+  Progressions, Rhythms, Theory, Courses Index/Show, allen drei Top10-Seiten und
+  Shop-Seiten
+- `sitemap.xml` existiert (`SitemapController`, eigene Implementierung statt
+  `spatie/laravel-sitemap`), `robots.txt` verweist darauf
+
+**Neu in diesem Update:**
+- **JSON-LD hinzugefügt:** `Organization`/`WebSite` auf der Homepage, `Course`
+  auf `Courses/Show.vue`, `ItemList` auf `Courses/Index.vue` und allen drei
+  Top10-Seiten. Technischer Hinweis: Vue verbietet literale `<script>`-Tags
+  in Templates (werden beim Kompilieren stillschweigend entfernt) — Workaround
+  ist `<component :is="'script'" type="application/ld+json">`, das Inertias
+  `Head`-Komponente korrekt in ein echtes `<script>`-Element umwandelt.
+- **`<Head>` ergänzt auf `Contact/Index.vue` und `Grades/Index.vue`** (hatten nur
+  einen nackten `<title>`, keine Description/OG) — waren nicht in der
+  Original-Tabelle unten, aber öffentliche, indexierbare Seiten.
+- **Sitemap-Bug behoben:** Kurs-URLs zeigten auf `/courses` bzw.
+  `/courses/{slug}` — das ist aber die auth-geschützte Account-Route. Die
+  öffentliche Kurs-Seite liegt unter `/learn` bzw. `/learn/{slug}`
+  (`routes/web.php:427-428`). Google bekam hier durchgehend 404/Redirect
+  gemeldet. Jetzt korrigiert.
+- **Sitemap bereinigt:** `/library/*`, `/theory` und die einzelnen
+  `/library/songs/{slug}`-Einträge wurden entfernt — siehe kritischer Punkt
+  unten. `/skills` und `/grades` (öffentlich, vorher fehlend) wurden ergänzt.
+
+### 🔴 Neu entdecktes kritisches Problem: Auth-Gate blockiert Indexierung
+
+`/library/*`, `/theory` und alle Unterseiten sitzen hinter `auth`-Middleware
+(Beta-Account-Wall, siehe `routes/web.php:363-381` und `redirectGuestsTo()` in
+`bootstrap/app.php`). Ein Gast — und damit auch Googlebot — wird auf
+`/register` umgeleitet, **bevor** er den Seiteninhalt oder die neuen
+Meta-Tags je zu sehen bekommt. Die Chord-, Song-, Progression-, Rhythm- und
+Theory-Bibliothek sind aktuell also für Google technisch unsichtbar, egal wie
+gut die SEO-Verpackung ist.
+
+Das war im Original-Audit nicht berücksichtigt (es ging davon aus, diese
+Seiten seien öffentlich crawlbar). Zwei Optionen:
+1. **So lassen** (aktuell umgesetzt) — Account-Wall bleibt als bewusste
+   Beta-/Conversion-Strategie bestehen; die Seiten wurden aus der Sitemap
+   entfernt, um Search-Console-Fehler zu vermeiden.
+2. **Einzelne Seiten öffnen** — z. B. gezielt die publikumsstärksten
+   Song-Referenzseiten (Girl from Ipanema, Wave, Corcovado …) als Gäste-Teaser
+   freigeben, um SEO-Traffic UND Registrierungen zu kombinieren. Größere
+   Entscheidung, nicht im Rahmen dieses Updates umgesetzt.
+
+### ⚠️ Weiterer Befund: Kein Server-Side-Rendering
+
+Die App ist reines Client-Side-Rendering (Inertia ohne `resources/js/ssr.ts`,
+`app.blade.php` hat nur `<title inertia>{{ config('app.name') }}</title>` als
+Fallback). Titel, Description und OG-Tags werden erst nach dem Laden von
+JavaScript gesetzt. Für Google ist das in der Regel unproblematisch (Googlebot
+rendert JS), aber Social-Media-Crawler (Facebook, Slack, X/Twitter, LinkedIn)
+führen meist **kein** JavaScript aus — Link-Vorschaubilder für Top10-, Shop-
+und Song-Seiten funktionieren dadurch aktuell wahrscheinlich nicht zuverlässig,
+obwohl die OG-Tags im Code vorhanden sind. Volle Abhilfe würde Inertia SSR
+erfordern (zusätzlicher Node-Prozess neben PHP) — das ist ein größeres
+Infrastruktur-Vorhaben und war außerhalb des Rahmens dieses Updates.
 
 ---
 
@@ -39,24 +107,35 @@ Die wichtigste Seite der App hat weder Titel, Description noch OG-Tags.
 
 ## 🟠 Hohe Priorität — Fehlende Meta-Tags auf öffentlichen Seiten
 
-| Seite | Datei | Status |
-|---|---|---|
-| Homepage | `Home.vue` | ❌ kein Head |
-| Akkord-Bibliothek | `Library/Chords/Index.vue` | ❌ kein Head |
-| Akkord-Detail | `Library/Chords/Show.vue` | ❌ kein Head |
-| Song-Bibliothek | `Library/Songs/Index.vue` | ❌ kein Head |
-| Song-Detail | `Library/Songs/Show.vue` | ❌ kein Head |
-| Progressionen | `Library/Progressions/Index.vue` | ❌ kein Head |
-| Rhythmen | `Library/Rhythms/Index.vue` | ❌ kein Head |
-| Music Theory | `Library/Theory/Index.vue` | ❌ kein Head |
-| Kurse (Liste) | `Courses/Index.vue` | ❌ kein Head |
-| Kurs (Detail) | `Courses/Show.vue` | ❌ kein Head |
-| Top 10 Bossa Nova Songs | `Top10/BossaNovaSongs.vue` | ✅ |
-| Top 10 Bossa Nova Chords | `Top10/BossaNovaChords.vue` | ✅ |
-| Latin Jazz Standards | `Top10/LatinJazzStandards.vue` | ✅ |
-| Shop (Liste) | `Shop/Index.vue` | ✅ |
-| Shop (Produkt) | `Shop/Show.vue` | ✅ + OG |
-| Song Viewer (Leadsheet) | `Library/Songs/Viewer.vue` | ✅ + OG |
+> **Stand 7. Juli 2026:** Diese Tabelle zeigt den Befund vom 13. Juni — alle
+> ❌-Zeilen sind seither behoben (Head-Blöcke mit Title/Description/OG sind
+> im Code vorhanden, siehe Update-Abschnitt ganz oben). Wichtige Einschränkung:
+> `Library/*`, `Theory/Index.vue` und `Library/Songs/Viewer.vue` sitzen hinter
+> der `auth`-Middleware (Beta-Account-Wall) — die Head-Tags sind zwar da, aber
+> für Google/Gäste nicht erreichbar, solange das Gate steht (siehe kritischen
+> Punkt im Update-Abschnitt oben).
+
+| Seite | Datei | Status (13. Juni) | Status (7. Juli) |
+|---|---|---|---|
+| Homepage | `Home.vue` | ❌ kein Head | ✅ Head + JSON-LD, öffentlich crawlbar |
+| Akkord-Bibliothek | `Library/Chords/Index.vue` | ❌ kein Head | ✅ Head vorhanden, aber **auth-gated** |
+| Akkord-Detail | `Library/Chords/Show.vue` | ❌ kein Head | ✅ Head vorhanden, aber **auth-gated** |
+| Song-Bibliothek | `Library/Songs/Index.vue` | ❌ kein Head | ✅ Head vorhanden, aber **auth-gated** |
+| Song-Detail | `Library/Songs/Show.vue` | ❌ kein Head | ✅ Head vorhanden, aber **auth-gated** |
+| Progressionen | `Library/Progressions/Index.vue` | ❌ kein Head | ✅ Head vorhanden, aber **auth-gated** |
+| Rhythmen | `Library/Rhythms/Index.vue` | ❌ kein Head | ✅ Head vorhanden, aber **auth-gated** |
+| Music Theory | `Library/Theory/Index.vue` | ❌ kein Head | ✅ Head vorhanden, aber **auth-gated** |
+| Kurse (Liste) | `Courses/Index.vue` | ❌ kein Head | ✅ Head + JSON-LD (ItemList), öffentlich crawlbar |
+| Kurs (Detail) | `Courses/Show.vue` | ❌ kein Head | ✅ Head + JSON-LD (Course), öffentlich crawlbar |
+| Top 10 Bossa Nova Songs | `Top10/BossaNovaSongs.vue` | ✅ | ✅ + JSON-LD (ItemList) |
+| Top 10 Bossa Nova Chords | `Top10/BossaNovaChords.vue` | ✅ | ✅ + JSON-LD (ItemList) |
+| Latin Jazz Standards | `Top10/LatinJazzStandards.vue` | ✅ | ✅ + JSON-LD (ItemList) |
+| Shop (Liste) | `Shop/Index.vue` | ✅ | ✅ unverändert |
+| Shop (Produkt) | `Shop/Show.vue` | ✅ + OG | ✅ unverändert |
+| Song Viewer (Leadsheet) | `Library/Songs/Viewer.vue` | ✅ + OG | ✅ + OG, aber **auth-gated** |
+| Contact | `Contact/Index.vue` | *(nicht geprüft)* | ✅ Head ergänzt (hatte nur nackten Title) |
+| Grades | `Grades/Index.vue` | *(nicht geprüft)* | ✅ Head ergänzt (hatte nur nackten Title) |
+| Skills Glossary | `Skills/Glossary.vue` | *(nicht geprüft)* | ✅ war bereits vollständig |
 
 ### Empfohlene Titles & Descriptions für die wichtigsten Seiten
 

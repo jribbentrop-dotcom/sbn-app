@@ -253,7 +253,11 @@ The core audit corpus resides in `docs/*.musicxml` and their expectations are en
 
 ### B.1 Known Bugs
 
-- **Slash chord over-eagerness on `7sus4` shapes**: Voicings like `x3333x` output as `Bbadd9/C` instead of `C7sus4`. *Fix shape:* Add a `7sus4` recognition gate that fires *before* the slash-bonus is applied (requires a new `IDENTIFY_SUS_DOM_TEMPLATES` entry).
+- **Slash chord over-eagerness on `7sus4` shapes**: Voicings like `x3338x` = {C,F,G,Bb}/C name as `Cm7(11)` (or slash chords) instead of `C7sus4`. *Attempted & reverted (2026-07-02):* adding `'7sus4' => [0,5,7,10]` to `IDENTIFY_QUALITY_INTERVALS` (+ extending the sus 3rd-guard) did NOT fix it — a partial `Cm7` match (4th read as `11`) still out-scores the exact `7sus4` in Pass 1, for reasons not fully traced without a running PHP env. The interval-table entry alone is insufficient; the real fix needs a Pass 1 scoring change (why does a partial-3-of-4 minor beat an exact-4-of-4 sus?). Skipped placeholder test: `VoicingCrossrefSlashChordTest::test_complete_7sus4_names_as_7sus4_not_slash`.
+- **`VoicingCrossrefSlashChordTest` was never runnable + has drifted cases (found 2026-07-02):** the file used the schema-less `:memory:` connection so all cases threw `no such table: sbn_chord_diagrams` (0 assertions, silent). Fixed to point at real `sbn.db` (mirrors `DbVoicingMatcherTest`). Running it then exposed **pre-existing drift** — the identifier's actual output diverged from expectations frozen in 2026-05, unnoticed because the test never ran. Skipped-with-notes, needing triage:
+  - `0xx558` {E,C}/E → `C/E`, expected `Eaug`. **Regresses a shipped 2026-05 fix** (`test_augmented_with_sharp_five_present_stays_aug`, Maria Luisa). Highest priority — an intentional behavior silently reverted.
+  - `xx333x` {F,Bb,D}/F → bare `F`, expected `Bb/F`. Complete Bb triad reading lost.
+  - `xx799a` {A,E,Ab,D}/A → `Amaj7(11)`, expected `E7(11)/A`. Possibly a defensible reinterpretation; needs a human call.
 - **`noteNameToPc` maps unknown to 0**: `PedalDetector` and the diminished resolvers treat unrecognized note strings as C (0). This is a latent bug if Phase 1 ever emits non-standard names. *Fix shape:* Return `null` and skip gracefully. (Note: the two diminished resolvers now delegate `noteNameToPc`/`pcToNoteName`/symmetric-root math to the shared `App\Services\HarmonicContext\DiminishedSymmetry` primitive — fixing it there fixes both at once.)
 
 ### B.2 Planned Improvements

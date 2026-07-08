@@ -259,6 +259,69 @@ finishes (`applyRepeatedChordReuse`), not before.
 > we want. (See appendix item "xx0212 D7 bug" for the diagnostic that
 > uncovered this.)
 
+#### §6.6 Pedagogical cadence enforcement (`pedagogical_vl`)
+
+Shipped 2026-07-02. On the progression-library display surface (all
+`ProgressionLibraryController` builds pass `pedagogical_vl: true`), any
+edge whose role pair matches a `cadence_requirements` entry in
+[`Phase-E-Extension-Table.yaml`](Phase-E-Extension-Table.yaml) §3b has its
+required named resolutions enforced as **hard edge admissibility** inside
+Viterbi — not a bonus. The chosen voicing pair must demonstrate the
+guide-tone motion the edu prose describes (authentic: `b7→3` plus the
+leading-tone voice; ii–V: `b7→3`; deceptive: `ti↑` + `fa↓`; tritone sub:
+the common-tone pair), ideally **on a single string** so the diagram
+shows one dot sliding by the exact interval.
+
+Mechanics:
+
+- **Requirement matching** uses functional roles plus an optional
+  root-interval guard, with **local tonicization**: a dominant resolving
+  down a fifth reads its target as a local tonic (`III7 → VIm` is an
+  authentic cadence into the relative minor, not a deceptive cadence).
+  `any_tonic` in requirements means the strict tonic families only —
+  blues `I7 → IV7` edges never bind.
+- **`require` vs `require_one_of`:** all of `require` must fire, plus at
+  least one alternative — used for the leading-tone voice, which goes
+  ti→do on triads but is held as the maj7 (B→B) or falls to the b7
+  (B→Bb) on root-position 7th-chord voicings where the bass owns the root.
+- **Per-edge relaxation ladder**, decided by a feasibility pre-scan over
+  the candidate pools: `same_string` → `same_voice` (nearest voice, may
+  cross strings) → `dropped`. Each edge relaxes independently; one
+  unsatisfiable edge never weakens the others. If no global path exists
+  even at relaxed levels, enforcement is abandoned entirely
+  (`pedagogical_vl_abandoned` diagnostic) rather than returning nothing.
+- **Audit:** `php artisan builder:cadence-audit` runs every progression
+  with requirement edges through all 12 keys and reports the level per
+  edge. As of ship date: 300/300 edge×key combinations at `same_string`.
+- **Decoration/requirement ordering (Round 2, 2026-07-06):** requirement
+  defs (`computeEdgeRequirementDefs()` — role/interval matching, no
+  lattice) are computed right after the numeral upgrade and *before*
+  Phase E option-tone decoration. Any slot touched by a requirement edge
+  is passed to `applyPhaseEExtensionUpgrade()` as a skip set, the same
+  way sus/add chords and hardcoded extensions are already skipped —
+  otherwise Phase E decorates the chord (e.g. bVImaj7 → Abmaj7(9)) before
+  `fetchVoicingsForChord` runs, which then restricts the pool to
+  9-carrying shapes that the extension-discipline check rejects for lack
+  of a justifying resolution, silently dropping the edge. Full
+  requirement enforcement (`computeEdgeRequirements()`, lattice-dependent
+  feasibility ladder) still runs afterward, unchanged.
+- **Classical pool widening (Round 2):** `fetchVoicingsForChord` takes a
+  `$widenArchetype` flag — true for any slot adjacent to a requirement
+  edge — that merges the `archetype` pool in alongside the category pool.
+  Some category pools (classical dominant 7ths) carried only one voicing
+  shape, starving the same-string search of a textbook pair (open G7
+  `320001` → C `x32010`); the requirement/discipline checks still gate
+  which candidate actually gets picked, so this only adds candidates, it
+  doesn't relax enforcement.
+- **Display contract:** every edge (all categories, both passes) now
+  emits `fired_resolution_details` — id, `core` flag, `same_string`,
+  signed semitones, and exact `from`/`to` `{string, fret, midi, tone}` —
+  alongside the legacy `fired_resolutions` ID list.
+  `ChordProgressionViewer` builds its pulsing-dot/ghost-dot/motion-row
+  display from these details and **caps the shown motion at two pairs**
+  (core before extension, same-string before cross-string) so the
+  student sees one or two clean semitone moves, never a web of arrows.
+
 ### §7. Cost function
 
 All terms produce values in `[0, 1]`. Total cost is a weighted sum.
@@ -449,6 +512,7 @@ buildVoicings($context, [
     'extensions'       => bool,                        // gates Pass 2 (§8)
     'rootOnly'         => bool,                        // filter inversions
     'vlLevel'          => 1 | 2,                       // explicit pass level
+    'pedagogical_vl'   => bool,                        // §6.6 hard cadence enforcement
 
     // Pinning
     'pinnedSlot'       => int|null,
@@ -488,6 +552,12 @@ The standard pattern for resolving a progression for display is:
 - `phase_e.pass2_won` — bool, reflects the §8.2 decision rule outcome
 - `slot_constraints` — list of relaxation events (which step of the
   cascade fired, by slot)
+- `pedagogical_vl` — per-edge cadence enforcement log: requirement ID,
+  required/one-of resolution IDs, and the level the edge landed on
+  (`same_string` / `same_voice` / `dropped`). §6.6.
+- `pedagogical_vl_abandoned` — set when no global path satisfied the
+  (already per-edge-relaxed) requirements and enforcement was dropped.
+- Per-selection `fired_resolution_details` — see §6.6 display contract.
 - `style_ignored` — fired when the requested style is outside the
   category pool
 - `category_pool_fallback` — fired when the category's primary pool
@@ -1131,6 +1201,106 @@ A round of user-reported builder corrections.
    `chord_diagrams.extensions`, surfaced because that voicing is now the
    pick — unrelated to this work.)
 
+### Pedagogical cadence enforcement — ✅ SHIPPED 2026-07-02
+
+The "clear cadences" feature: when a student opens a cadence progression,
+the voicings must *visibly* demonstrate the textbook guide-tone motion
+(7→3, ti→do) that the edu prose describes — one dot sliding on one
+string — instead of drifting to whatever scored best. Full design: §6.6.
+
+Built in this batch:
+
+1. **`cadence_requirements` YAML section (§3b)** — authentic / ii–V /
+   deceptive / tritone-sub edges with `require` + `require_one_of`
+   semantics and root-interval guards. New named resolutions:
+   `vl.dom.3_to_maj7` (B held as maj7 — the 7th-chord vocabulary's
+   ti→do), `vl.dom.3_to_b7` (B→Bb into minor), `vl.deceptive.3_to_b3`,
+   `vl.deceptive.b7_to_5`. `core: true` flags mark the bedrock motions.
+2. **Same-string motion mode** — `findSameStringMotionPair` alongside
+   the nearest-voice tester; both now return the exact note pair.
+3. **Hard edge admissibility in Viterbi** with per-edge feasibility
+   pre-scan and independent relaxation
+   (same_string → same_voice → dropped), memoized per voicing pair,
+   plus a whole-search abandonment fallback.
+4. **Local tonicization in requirement matching** — `III7 → VIm` reads
+   as an authentic cadence into the relative minor (found because
+   `ii-v-to-relative-minor` bound the deceptive rule and dropped in all
+   12 keys).
+5. **`fired_resolution_details` on every edge, all categories/passes** —
+   classical/pop cadences finally feed the frontend's guide-tone
+   display, which previously only lit up when Pass 2 won on jazz/latin.
+   Frontend caps display at 2 pairs, core first
+   (`selectDisplayPairs` / `findResolutionPairsFromDetails` in
+   `guideToneResolution.js`).
+6. **`builder:cadence-audit` command** — 12-key coverage report;
+   dropped edges are the curation worklist. Shipped at 300/300
+   same-string, 0 dropped, 0 abandoned.
+
+**Latent bugs found and fixed along the way:**
+
+- **Int-vs-string tone remap.** YAML parses `tone: 3` as an *integer*;
+  the minor-tonic remap compared `=== '3'` and silently never fired —
+  so `vl.dom.b7_to_3` had never actually fired into minor tonics
+  despite the 2026-05-19 entry believing it did (that fix addressed the
+  role-family match, masking this second gate). Compare as string.
+- **`IIm7` role family widened to include `IIm7b5`** — the minor ii's
+  b7→3 descent into V7 is identical, so `cad.ii_v` and the `vl.iiV.*`
+  bonuses now cover minor ii–V.
+
+The `phase-e-regression.json` fixture was regenerated: it was stale from
+before the 2026-06-21 fret-decode/nearest-voice fixes (23/26 failing on
+unmodified HEAD). Diff between baseline and this batch was a single slot
+(one G7 altered-palette pick), so the regeneration captures the June
+behavior plus this batch. Suite: 26/26.
+
+### Pedagogical cadence enforcement Round 2 — ✅ SHIPPED 2026-07-06
+
+User-reported drift in full-force mode: classical cadences were picking
+`dom7(b13#9)` + inversion-2 tonics, `bVI → V` showed no planing, and
+diminished ascents landed on random inversions. Two root causes
+confirmed via debug harness, both fixed:
+
+1. **Decoration-before-requirements ordering.** Phase E's
+   `applyPhaseEExtensionUpgrade` ran before `computeEdgeRequirements`,
+   so a requirement-edge chord (e.g. `bVImaj7`) got decorated into
+   `Abmaj7(9)` first; `fetchVoicingsForChord` then restricted its pool
+   to 9-carrying shapes, and the extension-discipline check rejected
+   them for lack of a justifying resolution — the edge silently dropped
+   to `same_voice`/`dropped`. Fix: split `computeEdgeRequirements` into
+   `computeEdgeRequirementDefs()` (role/interval matching only, no
+   lattice) and a feasibility wrapper; defs are computed right after the
+   numeral upgrade and before Phase E, and the resulting requirement-edge
+   slot set is passed into `applyPhaseEExtensionUpgrade()` as a skip set
+   — the same mechanism already used for sus/add chords and hardcoded
+   extensions.
+2. **Classical dominant pool coverage.** The classical category pool
+   carried only one dom7 shape (a `3x3447` archetype with a hidden b13
+   label), starving the same-string search of the textbook pair (open
+   G7 `320001` → C `x32010`). Fix: `fetchVoicingsForChord` takes a
+   `$widenArchetype` flag, set true for any slot touching a requirement
+   edge, which merges the `archetype` pool into the category pool before
+   querying. The requirement/discipline gates are unchanged — this only
+   adds candidates for them to choose from.
+
+Verified via `php artisan builder:cadence-audit`: 372 edge×key
+combinations, 360 `same_string` (97%), 0 `same_voice`, 12 `dropped`
+(all on `tritone-substitution-jazz-cadence` — pre-existing curation
+gap, no root-position `bII7` voicing shapes exist in the DB; unrelated
+to this fix), 0 abandoned. Direct repro confirmed `deceptive-cadence`,
+`perfect-authentic-cadence(-2)` land on clean triads/G7 with no rogue
+tensions, `minor-blues-cadenza`'s `bVImaj7 → V7` edge planes the same
+shape down one fret, and `ascending-diminished`'s three requirement
+edges all land `same_string`.
+
+`sbn_builder_settings` was empty during this work (Machine Room wipe,
+see Part-3 pedagogical-cadence entry) — user decided to re-tune from
+scratch rather than restore, so `phase-e-regression.json` was
+regenerated against current (fallback-default) behavior: 26/26 pass.
+That fixture diff also picked up an unrelated DB edit
+(`deceptive-cadence-to-iv`'s stored `numerals` changed from
+`Imaj7, III7, IVmaj7` to `III7, IV` sometime before this session) —
+verified against the live DB, not a code-caused regression.
+
 ---
 
 ## Part 4 — Known places to improve
@@ -1222,6 +1392,18 @@ they ship.
   `popular | drop2 | shell | archetype` control with the §17 expanded
   panel.
 
+### 4.5b Cadence-requirement curation gaps
+
+- **Tritone-sub `bII7 → I` has no satisfiable voicing pair.**
+  `tritone-substitution-jazz-cadence` drops on `builder:cadence-audit`
+  in all 12 keys — `cad.tritone` requires `root_position: [source,
+  target]` but the DB has no root-position `bII7` shape in any pool
+  reachable from a jazz cadence slot (archetype widening, added in
+  Round 2 §6.6, doesn't help here — the gap is missing voicing data,
+  not pool selection). Needs a root-position dominant-7 shape added to
+  `sbn_chord_diagrams` (or a pool-widen rule that reaches it) before
+  this edge can enforce.
+
 ### 4.6 Notable diagnostic episodes (worth not forgetting)
 
 - **xx0212 D7 bug (2026-05-05).** Repeated-chord reuse pinned
@@ -1265,3 +1447,13 @@ Key dates from the refactor:
   routing fix + minor-tonic named resolutions un-deadened. Builder
   polish: `bVIIm` mis-upgrade, `II7` altered-tone routing/filtering,
   m7b5 option-tone penalty (`HALF_DIM_OPTION_TONE_PENALTY`).
+- 2026-07-02: Pedagogical cadence enforcement (§6.6) — hard same-string
+  guide-tone requirements on cadence edges, `fired_resolution_details`
+  display contract, capped frontend guide-tone display,
+  `builder:cadence-audit`, int-tone remap bug fix, fixture regen.
+- 2026-07-06: Pedagogical cadence enforcement Round 2 — fixed Phase E
+  decoration running before requirement matching (skip-set threading
+  into `applyPhaseEExtensionUpgrade`) and classical pool starvation
+  (`$widenArchetype` merge in `fetchVoicingsForChord`). Audit improved
+  to 360/372 same_string (97%); remaining 12 are a pre-existing
+  tritone-sub voicing-data gap (§4.5b), not a code issue.

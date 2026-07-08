@@ -295,9 +295,16 @@ avoid_tones_index:
 #   target.tone        — interval from target root that must be present
 #                        in target voicing as an actual sounded note
 #   motion.semitones   — signed; negative = downward
-#   motion.same_voice  — true: must be the same voice (string) in both
-#                        voicings; false: any voice pair is fine
+#   motion.same_voice  — true: must be the same voice in both voicings
+#                        (nearest-voice semantics — see same_voice_definition);
+#                        false: any voice pair is fine
 #   bonus              — negative number; magnitude = strength of the bonus
+#   core               — optional bool. Marks the 1–2 bedrock guide-tone
+#                        motions a student must SEE for the cadence to read
+#                        as textbook (7→3, ti→do and their family). Consumed
+#                        by cadence_requirements enforcement and by the
+#                        frontend, which caps the displayed voice-leading at
+#                        two core motions to avoid arrow overload.
 
 named_resolutions:
 
@@ -308,13 +315,33 @@ named_resolutions:
     target: { role: any_tonic, tone: 3 }    # 3 of major or b3 of minor
     motion: { semitones: -1, same_voice: true }
     bonus: -0.40
+    core: true
 
   - id: vl.dom.3_to_root
-    description: "V7 3 rises to I root (leading-tone resolution)"
+    description: "V7 3 rises to I root (leading-tone resolution — triad/close vocabulary)"
     source: { role: V7, tone: 3 }
     target: { role: any_tonic, tone: 1 }
     motion: { semitones: +1, same_voice: true }
     bonus: -0.30
+    core: true
+
+  - id: vl.dom.3_to_maj7
+    description: "V7 3 held as Imaj7 7 (jazz guide-tone line: B stays B over G7→Cmaj7 —
+                  the 7th-chord vocabulary's answer to ti→do, since the root
+                  lives in the bass on root-position voicings)"
+    source: { role: V7, tone: 3 }
+    target: { role: Imaj7, tone: 7 }
+    motion: { semitones: 0, same_voice: true }
+    bonus: -0.25
+    core: true
+
+  - id: vl.dom.3_to_b7
+    description: "V7 3 falls to Im7 b7 (jazz minor guide-tone line: B→Bb over G7→Cm7)"
+    source: { role: V7, tone: 3 }
+    target: { role: Im, tone: b7 }
+    motion: { semitones: -1, same_voice: true }
+    bonus: -0.25
+    core: true
 
   - id: vl.dom.b13_to_9
     description: "V7 b13 falls to I 9 (annotated 'Guide Tone Line b13-9' — Laura,
@@ -360,6 +387,7 @@ named_resolutions:
     target: { role: Imaj7, tone: 7 }
     motion: { semitones: 0, same_voice: true }
     bonus: -0.40
+    core: true
 
   # ---- ii–V guide-tone chain --------------------------------------------
   - id: vl.iiV.b7_to_3
@@ -368,6 +396,7 @@ named_resolutions:
     target: { role: V7, tone: 3 }
     motion: { semitones: -1, same_voice: true }
     bonus: -0.25
+    core: true
 
   - id: vl.iiV.3_to_b7
     description: "iim7 b3 stays as V7 b7 (common-tone bridge — already partly credited by §8.4)"
@@ -375,6 +404,7 @@ named_resolutions:
     target: { role: V7, tone: b7 }
     motion: { semitones: 0, same_voice: true }
     bonus: -0.10        # small because §8.4 already rewards common tones
+    core: true
 
     # ---- ii–V extension-tone resolution --------------------------------------------
   - id: vl.iiV.9_to_b13
@@ -436,6 +466,155 @@ named_resolutions:
     target: { role: IVmaj7, tone: 1 }
     motion: { semitones: -2, same_voice: true }
     bonus: -0.10
+
+  # ---- bVI → V planing (minor blues cadence) -----------------------------
+  # Abmaj7 → G7 in C minor: the upper structure slides down a half step
+  # (3→3, 5→5) while the maj7 is retaken as the dominant's root. Ideally the
+  # whole shape moves one fret down — neighbor-tone voice leading.
+  - id: vl.bvi.3_to_3
+    description: "bVImaj7 3 falls a half step to V7 3 (planing descent)"
+    source: { role: bVImaj7, tone: 3 }
+    target: { role: V7, tone: 3 }
+    motion: { semitones: -1, same_voice: true }
+    bonus: -0.30
+    core: true
+
+  - id: vl.bvi.5_to_5
+    description: "bVImaj7 5 falls a half step to V7 5 (planing descent)"
+    source: { role: bVImaj7, tone: 5 }
+    target: { role: V7, tone: 5 }
+    motion: { semitones: -1, same_voice: true }
+    bonus: -0.25
+    core: true
+
+  - id: vl.bvi.maj7_to_root
+    description: "bVImaj7 7 held as V7 root (common-tone hinge of the planing move)"
+    source: { role: bVImaj7, tone: 7 }
+    target: { role: V7, tone: 1 }
+    motion: { semitones: 0, same_voice: true }
+    bonus: -0.15
+
+  # ---- Deceptive cadence (V7 → vi) --------------------------------------
+  # The textbook fa→mi / ti→do pair re-targeted at the submediant: ti still
+  # rises a half step (to vi's b3), fa still falls a half step (to vi's 5).
+  - id: vl.deceptive.3_to_b3
+    description: "V7 3 rises to VIm b3 (leading tone resolves up, deceptive target)"
+    source: { role: V7, tone: 3 }
+    target: { role: VIm7, tone: b3 }
+    motion: { semitones: +1, same_voice: true }
+    bonus: -0.30
+    core: true
+
+  - id: vl.deceptive.b7_to_5
+    description: "V7 b7 falls to VIm 5 (fa→mi re-targeted at the submediant)"
+    source: { role: V7, tone: b7 }
+    target: { role: VIm7, tone: 5 }
+    motion: { semitones: -1, same_voice: true }
+    bonus: -0.30
+    core: true
+
+
+# --------------------------------------------------------------------------
+# 3b. Cadence requirements (pedagogical voice-leading enforcement)
+# --------------------------------------------------------------------------
+# When the builder runs with `pedagogical_vl: true` (the progression-library
+# display surface), any edge whose role pair matches an entry below has the
+# listed named resolutions enforced as HARD edge admissibility in Viterbi —
+# not a bonus. The voicing pair is only admissible when every required
+# resolution fires, so the chosen diagrams always demonstrate the guide-tone
+# motion the edu prose describes.
+#
+# Per-edge relaxation ladder (each edge relaxes independently, logged in
+# diagnostics.pedagogical_vl):
+#   1. same_string  — the motion must happen on ONE string (dot slides one
+#                     fret on the diagram; the ideal teaching picture)
+#   2. same_voice   — nearest-voice motion, may cross strings
+#   3. dropped      — no candidate pair satisfies the requirement at all;
+#                     requirement is dropped for that edge (audit-visible)
+#
+# Fields:
+#   id             — stable identifier for logs / audit
+#   edge           — source_role / target_role pair. `any_tonic` here means the
+#                    strict tonic families (Imaj7, I6, Im, Im7, Im6, ImMaj7) —
+#                    NOT the loose match-anything wildcard the named_resolutions
+#                    section uses (blues I7→IV7 edges must not bind).
+#   edge.interval  — optional root-motion guard, (target − source) mod 12.
+#                    Roles alone can't separate a deceptive V7→vi (interval 2)
+#                    from a tonicizing III7→VIm (interval 5, an authentic
+#                    cadence into the local minor — the builder localizes the
+#                    target role to the tonic family on interval-5 dominants).
+#   require        — resolution IDs that must ALL fire on the edge.
+#   require_one_of — at least ONE of these must fire in addition. Used where
+#                    the same voice resolves differently per vocabulary: the
+#                    leading tone goes ti→do on triads, but is held as the
+#                    maj7 (B→B) or falls to the b7 (B→Bb) on root-position
+#                    7th-chord voicings, where the root is taken by the bass.
+#   root_position  — list of [source, target]: those voicings must have the
+#                    chord root in the bass. Cadence anchors: a resolving
+#                    dominant and its tonic read clearest in root position
+#                    (never land an authentic cadence on a 6/4 tonic).
+#   bass_semitones — signed raw bass motion required (target bass MIDI minus
+#                    source bass MIDI). Used by the passing-dim7 rules to
+#                    force the literal chromatic bass climb, which in turn
+#                    forces the RIGHT inversion instead of a random one.
+#
+# Extension discipline (implicit on every requirement edge, jazz/latin):
+#   any non-chord tone in a voicing must itself be justified by a fired
+#   named resolution — leaving the source (its tone is a resolution source)
+#   or arriving at the target (its tone is a resolution target). Tensions
+#   with no voice-leading story (e.g. #9 on a classical V7) are inadmissible.
+#   In plain-only categories (classical, pop) extensions are barred outright.
+
+cadence_requirements:
+
+  - id: cad.authentic
+    description: "V7 → tonic: fa→mi (b7→3) plus the leading-tone voice, in
+                  whichever form the vocabulary allows (ti→do / B held as maj7
+                  / B falls to minor b7)"
+    edge: { source_role: V7, target_role: any_tonic, interval: 5 }
+    require: [vl.dom.b7_to_3]
+    require_one_of: [vl.dom.3_to_root, vl.dom.3_to_maj7, vl.dom.3_to_b7]
+    root_position: [source, target]
+
+  - id: cad.ii_v
+    description: "ii → V: the b7→3 guide-tone descent must be visible"
+    edge: { source_role: IIm7, target_role: V7, interval: 5 }
+    require: [vl.iiV.b7_to_3]
+    root_position: [source, target]
+
+  - id: cad.deceptive
+    description: "V7 → vi: leading tone still resolves up, fa still falls"
+    edge: { source_role: V7, target_role: VIm7, interval: 2 }
+    require: [vl.deceptive.3_to_b3, vl.deceptive.b7_to_5]
+    root_position: [source, target]
+
+  - id: cad.tritone
+    description: "bII7 → I: the tritone-sub common-tone guide pair"
+    edge: { source_role: bII7, target_role: Imaj7, interval: 11 }
+    require: [vl.tritone.b7_to_3]
+    root_position: [source, target]
+
+  - id: cad.bvi_v
+    description: "bVImaj7 → V7: neighbor-tone planing — the upper structure
+                  slides down a half step (ideally the same shape one fret
+                  lower)"
+    edge: { source_role: bVImaj7, target_role: V7, interval: 11 }
+    require: [vl.bvi.3_to_3]
+    require_one_of: [vl.bvi.5_to_5, vl.bvi.maj7_to_root]
+    root_position: [source, target]
+
+  - id: cad.dim_ascent_in
+    description: "chromatic climb INTO a passing dim7 (I → #Io7 …): the bass
+                  must literally rise one semitone — this forces the correct
+                  dim7 inversion instead of a random one"
+    edge: { source_role: any, target_role: dim7, interval: 1 }
+    bass_semitones: 1
+
+  - id: cad.dim_ascent_out
+    description: "chromatic climb OUT of a passing dim7 (… #Io7 → IIm7): the
+                  bass rises the second semitone, completing the line"
+    edge: { source_role: dim7, target_role: any, interval: 1 }
+    bass_semitones: 1
 
 
 # --------------------------------------------------------------------------

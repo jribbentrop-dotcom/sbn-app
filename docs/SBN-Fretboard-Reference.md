@@ -1,7 +1,7 @@
 # SBN Fretboard Reference
 
 > **Purpose:** Single source of truth for the interactive fretboard system — admin CRUD, storage format, Vue SVG renderer, course tag, and TipTap editor integration. Load at the start of any session touching fretboards.
-> **Last updated:** 2026-07-01 (Phase 4a: `positions` display mode — sliding camera between named fret windows, autoplay/loop, per-dot `iv` guide-tone colors)
+> **Last updated:** 2026-07-01 (CSS polish pass: fixed-width positions board, click/drag/swipe window navigation, autoplay/slider/play-button removed — see §4, §9)
 
 ---
 
@@ -16,7 +16,7 @@ Three display modes are supported:
 | `chord` | One or more chord shapes (voice-leading sequence) | fret string `x32010` per frame |
 | `scale` | Scale positions with multiple dots per string | `dots: [{s,f,finger}]` array per frame |
 | `sequence` | Identical to `chord` — alias for author intent | fret string per frame |
-| `positions` | **One** neck-wide dot set; camera **slides** between named fret windows (e.g. 5 pentatonic positions in one record). Autoplay/loop. | `voicings[0].dots: [{s,f,finger,iv}]` + top-level `windows: [{label,from,to}]` |
+| `positions` | **One** neck-wide dot set; camera **slides** between named fret windows (e.g. 5 pentatonic positions in one record). Navigated via arrow buttons or click/drag/swipe — no autoplay. | `voicings[0].dots: [{s,f,finger,iv}]` + top-level `windows: [{label,from,to}]` |
 
 ---
 
@@ -38,8 +38,11 @@ Three display modes are supported:
 | `show_rh_fingers` | boolean (default false) | Shows p/i/m/a labels |
 | `voicings` | JSON | Array of frame objects (see §3) |
 | `windows` | JSON nullable | **Positions mode only:** array of `{label, from, to}` camera windows (added 2026-07-01) |
+| `start_window` | tinyint unsigned (default 0) | **Positions mode only:** 0-indexed entry into `windows[]` the camera opens on (added 2026-07-07). Clamped server-side to a valid index; out-of-range or missing values fall back to `0`. |
 
 > **Deploy note (2026-07-01):** migration `2026_07_01_000000_add_windows_to_fretboards.php` adds `windows` and drops the `display_mode` CHECK constraint (SQLite rebuilds the table). Prod DB is scp'd and does **not** run create/alter migrations automatically — apply the same change to prod: `ALTER TABLE fretboards ADD COLUMN windows text;` plus a table rebuild to drop the old `CHECK (display_mode IN ('chord','scale','sequence'))`, otherwise inserting a `positions` row fails. The local `sbn.db` already has both applied.
+
+> **Deploy note (2026-07-07):** migration `2026_07_07_000000_add_start_window_to_fretboards.php` adds `start_window` (unsigned tinyint, default 0). Apply to prod with `ALTER TABLE fretboards ADD COLUMN start_window INTEGER NOT NULL DEFAULT 0;` — no table rebuild needed (plain column add). The local `sbn.db` already has it applied.
 | `created_at` / `updated_at` | timestamps | |
 
 **Model:** [`app/Models/Fretboard.php`](../app/Models/Fretboard.php)
@@ -107,7 +110,8 @@ Each entry in the `voicings` JSON array is one "frame" — a single fretboard st
 ```
 
 - **The entire scale lives in `voicings[0].dots[]`** — one coherent neck-wide dot set (same `{s,f,finger}` shape as scale mode, plus optional `iv`). Only `voicings[0]` is used; extra frames are ignored in positions mode.
-- **`windows[]`** are named fret ranges the camera pans between (1-indexed frets, inclusive `from`/`to`). The student steps/slides/auto-plays through them; **dots don't move — the camera does.** Dots inside the active window render solid; dots outside fade out (`.is-hidden` opacity) but stay in place.
+- **`windows[]`** are named fret ranges the camera pans between (1-indexed frets, inclusive `from`/`to`). The student steps between them via arrow buttons or by clicking/dragging/swiping the board; **dots don't move — the camera does.** Dots inside the active window render solid; dots outside fade out (`.is-hidden` opacity) but stay in place.
+- **`start_window`** picks which window the camera opens on (0-indexed into `windows[]`), for cases where a lesson is specifically about e.g. "Position 3" and shouldn't force the student to step through 1 and 2 first. Defaults to `0` (first window). Set via the **Starting position** dropdown in the admin's Position Windows section.
 - **`dots[].iv`** (optional interval token — `R,b3,3,4,5,b7,…`) drives per-dot guide-tone color when `show_guide_tones` is set. This is independent of the comma-indexed `interval_labels` (which can't cleanly address N dots). `iv` is authored in the JSON; there's no per-dot `iv` UI in the admin grid yet (see §7).
 - `f:0` open-string dots are skipped (fretted-neck view, like scale mode). `start_fret`/`fret_count` are ignored — positions mode computes a full-neck geometry from fret 1 to `max(15, highest dot/window fret)` (capped at 24).
 
@@ -126,9 +130,10 @@ Each entry in the `voicings` JSON array is one "frame" — a single fretboard st
 **Render paths:**
 - **chord/sequence mode**: parses `voicing.frets` string (low E→high e, `x`=muted, `0`=open, `1-9`=fret). Open/muted strings appear as ○/× markers at the nut when `startFret === 1`. SVG dots for fretted strings. Guide-tone colors when `show_guide_tones` active.
 - **scale mode**: expands `voicing.dots[]` (multiple per string). `f:0` and `f < startFret` dots are skipped (same behavior as the old renderer). No nut/open column in scale mode.
-- **positions mode** (Phase 4a): expands `voicings[0].dots[]` across a **full-neck geometry** (`makeGeometry(1, fullFretCount)`), computing cx/cy for every dot. A dot's `visible` flag = "is its fret inside the active window." The camera pans via a `smoothX` rAF-lerp (ported verbatim from `ChordProgressionViewer.vue:278-296`) → `posViewBox` computed → `FretboardNeck :view-box`. Because the neck honors a parent-supplied `viewBox`, it skips its own tight-frame path and just crops. Leaving/entering dots cross-fade in place via the neck's existing `.is-hidden` opacity + `transition: transform`.
-  - **Controls** (header, only when `windows.length > 1`): a circular play/pause button (mirrors `SyncedPlayer.vue`), ‹/› prev-next window buttons, and a `<input type=range>` slider bound to `activeWindowIdx`. **Autoplay** is a bare `setInterval` (`STEP_MS = 1600`, visual-only — no AudioEngine) that advances `activeWindowIdx` and **loops** back to 0; `onBeforeUnmount` clears both the interval and any pending rAF.
-  - **Excerpt width** is measured at the *median dot fret* (not fret 1) because fret spacing is logarithmic — measuring low would make the up-neck excerpt far too wide. Widest window's span drives the frame count. This framing is functional but **spacing polish is still a deferred follow-up** (consistent with the CSS note below).
+- **positions mode**: expands `voicings[0].dots[]` across a **full-neck geometry** (`makeGeometry(1, fullFretCount)`), computing cx/cy for every dot. A dot's `visible` flag = "is its fret inside the active window." The camera pans via a `smoothX` rAF-lerp (ported verbatim from `ChordProgressionViewer.vue:278-296`) → `posViewBox` computed → `FretboardNeck :view-box`. Because the neck honors a parent-supplied `viewBox`, it skips its own tight-frame path and just crops. Leaving/entering dots cross-fade in place via the neck's existing `.is-hidden` opacity + `transition: transform`.
+  - **Controls** (only when `windows.length > 1`, gated by `showPositionControls`): flanking `‹`/`›` arrow buttons (`.sbn-fv-arrow-btn`, call `stepWindow(-1)`/`stepWindow(1)`) plus click/drag/swipe navigation directly on the board via pointer events (`onBoardPointerDown/Move/Up`). A drag past `DRAG_THRESHOLD = 40` SVG units steps to the next/previous window (with a `STEP_COOLDOWN_MS = 400` cooldown to prevent skip-multiple); a plain click/tap with no drag advances one window via `goToWindow`. The "Position X" label is centered above the board.
+  - **No play/pause button, no `<input type=range>` slider, no autoplay/`setInterval`/loop.** These were all removed in the 2026-07-01 CSS polish pass in favor of the drag-gesture controls above — the camera only moves in response to user input now.
+  - **Fixed board size:** the SVG viewBox width is pinned to `POS_EXCERPT_VW = 236` units regardless of which window is active (previously excerpt width varied per-window), so the board doesn't resize as the student navigates. The whole positions board is additionally scaled via `transform: scale(0.72)` in CSS to match surrounding lesson-text sizing.
   - Guide tones auto-apply from `dots[].iv` when `show_guide_tones` is set — positions mode has **no GT toggle button** (unlike chord/scale). `start_fret`/`fret_count`/nut/open-column/RH-fingers are all suppressed in this mode.
 
 **String orientation:** SBN convention — string 1 = Low E, string 6 = high e. Low E renders at the BOTTOM of the SVG (`stringY(1) > stringY(6)`), matching `ChordProgressionViewer`. The `frets` string index 0 = string 1 (low E), index 5 = string 6 (high e).
@@ -141,7 +146,7 @@ Each entry in the `voicings` JSON array is one "frame" — a single fretboard st
 
 **Layout / viewBox:** `FretboardNeck` accepts an optional `viewBox` prop. `ChordProgressionViewer` passes its camera-panned excerpt string. `<sbn-fretboard>` passes nothing, so the neck computes a **tight viewBox** around the actual fret span (`NECK_L`→`NECK_R`) — not the fixed 800-wide board — with padding for the open/muted column, RH-finger labels, and the fret-number row. (Reusing the full 800px board made the shorter `<sbn-fretboard>` neck shrink to a thin strip via `preserveAspectRatio="meet"`.) The wrapper (`SbnFretboard.vue`) is frame-free: no outer border, header is a plain caption row.
 
-> **CSS not yet fine-tuned (2026-06-30):** the migration landed structurally correct and frame-free, but spacing/header polish is deliberately deferred to a follow-up session. Don't treat the current padding/header values as final.
+> **CSS polish landed 2026-07-01:** chord/scale mode now crops tightly to the dot cluster (35-unit padding each side) with a max-width matching the positions board width; the nut is a filled path with explicit `rx=9` arcs matching the neck-surface corners (rendered via an `isNut` fret-line flag on fret 1, all modes); the wrapper has a thin border, subtle background tint, and 8% horizontal padding. Earlier "spacing not yet fine-tuned" caveat is resolved — current padding/header values are the settled ones.
 
 ---
 
@@ -245,7 +250,9 @@ Slash command: typing `/fretboard` (or `/f…`) in the editor body triggers the 
 
 ## 9. Deferred / not implemented
 
-**Done in Phase 4a (2026-07-01):** the sliding/morphing camera between positions (see §3 positions mode, §4 positions render path). Dots cross-fade as the camera pans; autoplay/loop shipped.
+**Done in Phase 4a (2026-07-01):** the sliding/morphing camera between positions (see §3 positions mode, §4 positions render path). Dots cross-fade as the camera pans.
+
+**Done in the same-day CSS polish pass (2026-07-01, commit `4df47a3`):** autoplay/play-button/slider were removed and replaced with click/drag/swipe + arrow-button navigation (see §4); fixed-width positions board (`scale(0.72)`, pinned `POS_EXCERPT_VW`); consistent nut/frame/padding styling across all modes. Excerpt-width/header spacing is no longer an open item.
 
 Still deferred:
 
@@ -255,6 +262,5 @@ Still deferred:
 | Per-dot `iv` editing + camera-accurate live preview in admin | Phase 4b — author `iv` by hand in JSON for now (§7) |
 | Rhythm-sync dot highlights (flash on beat) | Needs playback engine integration; no course rhythm sync yet |
 | Voice-leading ghost dots + SVG arrows | Playback-only visual; requires frame-change animation loop |
-| Excerpt-width / header spacing polish for positions mode | Cosmetic follow-up (§4 note) |
 
 The deferral boundary is now: *display + camera animation = done; interactive input (quiz) = Phase 4b*.

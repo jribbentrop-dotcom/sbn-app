@@ -2,7 +2,7 @@
 
 Covers two distinct but config-driven systems: the **product shop** (catalog, cart, checkout, orders, downloads) and the **Top10 curated list pages**.
 
-For payment processing see `SBN-Customer-Reference.md §12`. For auth and course access gating see `SBN-Customer-Reference.md §11`.
+For payment processing (provider architecture, webhook handling, schema, tests) see `SBN-Customer-Reference.md §12`. For auth see `SBN-Customer-Reference.md §11`; for course access gating (`CourseAccessService`, `course_user` pivot) see `SBN-Customer-Reference.md §2.1` and `§12` ("Entitlements seam").
 
 ---
 
@@ -86,21 +86,12 @@ Key behaviour:
 
 ### 5. Checkout Flow
 
-```
-User clicks "Buy" → cart → /shop/checkout
-  → CheckoutController::store
-      creates Order (status: pending_payment, user_id if logged in)
-      PaymentProvider::createCheckout(order) → URL
-      Inertia::location($url)   ← hard redirect to provider hosted page
-  → Provider collects payment → fires webhook
-  → PaymentWebhookController (POST /webhooks/payments)
-      order.status = paid
-      DownloadGrant::firstOrCreate per item
-      if order.user: CourseAccessService::grantPurchase
-  → Provider redirects back to /shop/order/{token}
-```
-
-Download grants are created **on webhook only**, not at checkout. This prevents dangling grants if payment is abandoned.
+Full flow (provider seam, webhook handling, idempotency, schema) is documented once in
+`SBN-Customer-Reference.md §12` — not repeated here. Shop-specific summary: "Buy" → cart →
+`/shop/checkout` → `CheckoutController::store` creates the `Order` and hard-redirects
+(`Inertia::location`) to the provider's hosted checkout page; the provider redirects back to
+`/shop/order/{token}` on completion. Download grants are created **on webhook only**, not at
+checkout — see §12 for why.
 
 ---
 

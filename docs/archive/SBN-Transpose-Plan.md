@@ -1,3 +1,9 @@
+> ⚠️ **ARCHIVED / SHIPPED 2026-07-01.** This is the original plan, kept for history. The feature was
+> ultimately built **server-side** (not the client-only approach sketched below) — see
+> `docs/SBN-Admin-Chord-Tab-Editor-Reference.md` → "Transpose sheet (backend, whole-arrangement —
+> shipped 2026-07-01)" for the as-built design. That doc is the source of truth for current behavior;
+> nothing here is linked to from elsewhere, so it's archived rather than left at top level.
+
 # Transpose Sheet — Implementation Plan
 
 > **SHIPPED 2026-07-01 — this is the original plan, kept for history.** The feature
