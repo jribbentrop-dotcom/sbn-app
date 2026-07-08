@@ -106,9 +106,16 @@ def robust_copy(src, dst, label, retries=4):
         f"without DB access if the task allows it. Do NOT keep retrying."
     )
 
+def checkout_marker_path():
+    return work_path() + ".checkout-md5"
+
 def cmd_checkout():
     src, dst = find_mount_db(), work_path()
     robust_copy(src, dst, "checkout")
+    # Record the mount's md5 at checkout time so commit can detect if someone
+    # (e.g. a live browser save) wrote to the mount while we had it checked out.
+    with open(checkout_marker_path(), "w") as f:
+        f.write(md5(src))
     print(dst)  # stdout = the path to use for ALL reads/writes
 
 BACKUP_KEEP = 10  # how many pre-commit snapshots to retain
@@ -158,8 +165,29 @@ def cmd_commit():
         sys.exit(f"ERROR: no local work DB at {src}; run checkout first")
     if not integrity_ok(src):
         sys.exit(f"ERROR: local work DB {src} fails integrity check; refusing to commit")
+    # Refuse to overwrite the mount if it changed since our checkout — that
+    # means someone else (e.g. a live browser save) wrote to it in the
+    # meantime, and a whole-file commit would silently clobber their change.
+    marker = checkout_marker_path()
+    if os.path.exists(dst) and not truncated(dst) and integrity_ok(dst):
+        if os.path.exists(marker):
+            checkout_md5 = open(marker).read().strip()
+            current_md5 = md5(dst)
+            if checkout_md5 != current_md5:
+                sys.exit(
+                    f"FATAL: {dst} changed since checkout (md5 mismatch) — "
+                    f"someone else wrote to the DB while it was checked out. "
+                    f"Committing now would silently overwrite their change. "
+                    f"Re-run checkout, redo your edits against the fresh copy "
+                    f"(or manually reconcile), then commit again."
+                )
+        else:
+            print("  (no checkout marker found; skipping staleness check)",
+                  file=sys.stderr)
     snapshot_before_commit(dst)  # snapshot the mount's current state before overwriting
     robust_copy(src, dst, "commit")
+    try: os.remove(marker)
+    except OSError: pass
     # verify round-trip
     if md5(src) == md5(dst):
         print(f"committed: {src} -> {dst} (md5 verified)")
