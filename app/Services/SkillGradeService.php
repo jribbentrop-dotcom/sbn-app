@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Computes a student's difficulty grade from their completed skill nodes
- * (vision pillars 1 + 2 — see docs/SBN-Skill-System-Plan.md).
+ * (vision pillars 1 + 2 — see docs/SBN-Skill-System-Reference.md).
  *
  * Rule (chosen 2026-06-25, "% of each grade's nodes"):
  *   - A grade is CLEARED when completed/total of its nodes ≥ THRESHOLD.

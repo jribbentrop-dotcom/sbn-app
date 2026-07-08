@@ -1,5 +1,24 @@
-# SBN Skill System — Planning & As-Built Reference
+# SBN Skill System — As-Built Reference
 
+> **This is an as-built reference, not a plan** — the system is set up and shipped. What remains
+> (repertoire nodes, tiered style classes, threshold *tuning*) is deferred-by-design, flagged in
+> "Open Decisions" / "Post-v1 Roadmap", not unfinished plumbing.
+>
+> **Content churns; this doc doesn't track it.** Node counts, prerequisite-edge totals, per-course
+> mappings, and which nodes have coverage are *live content* that changes continuously — they are NOT
+> maintained here (older numbers below are historical snapshots, not current truth; query the DB for
+> live figures). What this doc IS authoritative for: the data model, the services and their threshold
+> rules, the admin/student surfaces, and where each lives in code. Structural invariants that must hold
+> regardless of content are locked by `tests/Feature/SkillSystemIntegrityTest.php` (DAG/no dangling
+> refs/valid branch+grade/service math) — that suite, not this prose, is the guardrail.
+>
+> **Admin layout editor (as-built):** `/admin/skill-nodes/layout` is a positioned-tile canvas —
+> drag a tile to move it; **Ctrl+drag from a prerequisite onto the skill it unlocks** to create an
+> edge; **click an edge** (turns red on hover) to remove it. Edge create/delete are their own
+> immediate endpoints (`skill-nodes.addEdge`/`deleteEdge`), and *creation routes through the same
+> `SkillGraphService::wouldCreateCycle` guard as the edit form* — a drawn edge can never close a loop.
+> Covered by `tests/Feature/SkillNodeEdgeEditorTest.php`.
+>
 > Status: **v1 SHIPPED + expansion + student UI + admin dashboard rebuild.**
 > Data model, models, seeder, and admin table editor built — see "v1 Implementation (As-Built)".
 > Graph is now **57 nodes** across all six branches with **60 prerequisite edges** (no cycles, no

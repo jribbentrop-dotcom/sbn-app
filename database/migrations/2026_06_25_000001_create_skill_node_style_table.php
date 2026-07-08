@@ -8,7 +8,7 @@ return new class extends Migration
 {
     /**
      * SBN Skill System — node ↔ style relation (vision pillar 4).
-     * See docs/SBN-Skill-System-Plan.md "Vision → Reality Reconciliation".
+     * See docs/SBN-Skill-System-Reference.md "Vision → Reality Reconciliation".
      *
      * A node can be characteristic of several styles to differing degrees:
      *   partido-alto  → bossa-nova (strong)

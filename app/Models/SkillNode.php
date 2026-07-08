@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\MorphToMany;
  * Nodes form a directed graph via self-referencing prerequisite edges
  * (sbn_skill_node_prerequisites). They map many-to-many to courses, and may
  * optionally borrow the tag cloud (content_tag_slug) to discover associated
- * content. See docs/SBN-Skill-System-Plan.md.
+ * content. See docs/SBN-Skill-System-Reference.md.
  */
 class SkillNode extends Model
 {
@@ -38,7 +38,7 @@ class SkillNode extends Model
      * Canonical style axis (vision pillar 4). Same controlled vocabulary courses
      * use in their `genres` JSON — NOT the freeform sbn_tags cloud. A node relates
      * to 0..N of these via sbn_skill_node_style, each with a weight (1–3). See
-     * docs/SBN-Skill-System-Plan.md "Vision → Reality Reconciliation".
+     * docs/SBN-Skill-System-Reference.md "Vision → Reality Reconciliation".
      */
     public const STYLES = ['bossa-nova', 'jazz', 'classical', 'pop'];
 
@@ -243,7 +243,7 @@ class SkillNode extends Model
      * a slug + title + library route so a Vue "Practice this" panel can render
      * without knowing about each content model's own shape. Used by the public
      * glossary (/skills) and the "Recommended next" panel on /account/skills —
-     * see docs/SBN-Skill-System-Plan.md "Node ↔ Content Links".
+     * see docs/SBN-Skill-System-Reference.md "Node ↔ Content Links".
      *
      * Lessons deep-link into their own course/lesson pair and are appended to
      * the "courses" list alongside any plain node<->course mappings (a node can

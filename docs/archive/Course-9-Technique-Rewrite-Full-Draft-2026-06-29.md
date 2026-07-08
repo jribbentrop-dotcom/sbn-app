@@ -4,13 +4,13 @@
 > `scripts/apply_course9_rewrite.py` has been run against a healthy `sbn.db`. Course 9 now has 12
 > lessons (9 new + 3 resequenced) and the 4 new technique nodes are live (`guitar-posture-setup`,
 > `pima-finger-assignment`, `rest-stroke-free-stroke`, `hand-damping-control`, ids 65–68). See
-> `docs/SBN-Skill-System-Plan.md` (header, "Course 9 technique rewrite APPLIED 2026-06-29") for the
+> `docs/SBN-Skill-System-Reference.md` (header, "Course 9 technique rewrite APPLIED 2026-06-29") for the
 > as-applied confirmation. This document remains the canonical source of the lesson prose — the
 > original drafting-session notes below are kept for context.
 >
 > Full draft (not outline) per Lucas's instruction. Implements brainstorm-crossref recommendation #1
 > ("Build out a real technique sub-curriculum") — see `docs/archive/SBN-Skill-Nodes-Brainstorm-Crossref.md`
-> and the Course-9 status block in `docs/SBN-Skill-System-Plan.md` (header).
+> and the Course-9 status block in `docs/SBN-Skill-System-Reference.md` (header).
 >
 > **DB note (was true 2026-06-29, now fully resolved):** `database/sbn.db` was truncated during the
 > drafting session (header expected 53,428,224 bytes); it was restored same-day — verified healthy
@@ -84,7 +84,7 @@ Course-level `sbn_course_skill_node` rows for course 9 become: `guitar-posture-s
 `pima-finger-assignment`, `rest-stroke-free-stroke`, `tone-production`, `right-hand-independence`,
 `thumb-independence`, `hand-damping-control`, `legato-slurs`, `fingerpicking-basics`, plus the
 already-mapped `pulse-subdivision`, `syncopation`, `two-four-feel`, `arpeggio-shapes` (carried over from
-the current mapping in `SBN-Skill-System-Plan.md`).
+the current mapping in `SBN-Skill-System-Reference.md`).
 
 ---
 

@@ -8,7 +8,7 @@ return new class extends Migration
 {
     /**
      * Direct node ↔ content links — the precise content pivot the plan always said
-     * would follow v1's tag bridge (see docs/SBN-Skill-System-Plan.md "Tag System
+     * would follow v1's tag bridge (see docs/SBN-Skill-System-Reference.md "Tag System
      * Integration" caveat: tag granularity rarely matches skill granularity).
      *
      * Polymorphic, parallel to sbn_taggables (full class name in *_type, no morphMap

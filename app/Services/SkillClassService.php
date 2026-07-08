@@ -7,7 +7,7 @@ use App\Models\User;
 
 /**
  * Derives a student's style-class progress live from completed skill nodes —
- * vision pillar 5 (see docs/SBN-Skill-System-Plan.md "Vision → Reality
+ * vision pillar 5 (see docs/SBN-Skill-System-Reference.md "Vision → Reality
  * Reconciliation" and "Style Classes"). No persistence: exactly like
  * SkillGradeService, a class is recomputed on every request from
  * sbn_user_skill_progress + sbn_skill_node_style, so there's nothing to

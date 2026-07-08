@@ -1,11 +1,11 @@
 > ⚠️ **ARCHIVED 2026-06-29.** Analysis acted on: rhythm-ladder nodes + course mappings shipped;
 > the surviving open item (recommendation #1, Course 9 technique rewrite) is tracked in
-> `docs/SBN-Skill-System-Plan.md`. Kept for the 108-node comparison + technique-gap analysis.
+> `docs/SBN-Skill-System-Reference.md`. Kept for the 108-node comparison + technique-gap analysis.
 
 # Skill Nodes Brainstorm — Cross-Reference vs. Built System
 
 > Compares `Skill Nodes.docx` (108-node brainstorm, uploaded 2026-06-29) against the live skill-node
-> system (`sbn_skill_nodes`, 58 nodes) and the course catalog. See `SBN-Skill-System-Plan.md` for the
+> system (`sbn_skill_nodes`, 58 nodes) and the course catalog. See `SBN-Skill-System-Reference.md` for the
 > as-built system this is being checked against.
 
 ## TL;DR

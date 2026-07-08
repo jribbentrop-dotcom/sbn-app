@@ -26,6 +26,14 @@
         aspect-ratio: 1 / 1; max-height: 78vh;
     }
     .skt-edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    /* real edges become clickable (to delete); the drag preview never is */
+    .skt-edges line.skt-edge-hit { pointer-events: stroke; cursor: pointer; }
+    .skt-edges line.skt-edge-draw { pointer-events: none; }
+    /* hovering an edge signals it's clickable-to-delete (toggled from JS since
+       the hit-line and visible line are separate SVG elements) */
+    .skt-edges line.skt-edge-hover { stroke: var(--clr-danger, #c0392b) !important; stroke-width: 3 !important; }
+    .skt-canvas-wrap.is-linking .skt-tile { cursor: crosshair; }
+    .skt-tile.is-link-target .skt-tile-shape { box-shadow: 0 0 0 3px var(--clr-style-bossa, #BA7517); }
     .skt-tier-lbl {
         position: absolute; left: 8px; font-size: 11px; font-weight: 600;
         color: var(--clr-text-muted, #9a9a95); transform: translateY(-50%);
@@ -66,7 +74,7 @@
 @section('content')
 
 <div class="skt-toolbar">
-    <span>Drag tiles to position them. Vertical = grade tier (G1 bottom → top); colour = branch. Edges follow.</span>
+    <span>Drag tiles to position them. <strong>Ctrl+drag</strong> from a prerequisite onto the skill it unlocks to link them; <strong>click an edge</strong> to remove it. Vertical = grade tier; colour = branch.</span>
     <span id="skt-status" class="skt-status">No changes</span>
 </div>
 
@@ -99,6 +107,7 @@
     const NODES = @json($nodes);
     const EDGES = @json($edges);
     const SAVE_URL = @json(route('admin.skill-nodes.saveLayout'));
+    const EDGE_URL = @json(route('admin.skill-nodes.addEdge'));
     const CSRF = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
 
     // Branch → colour (the tile colour encodes branch here; the student tree
@@ -138,6 +147,20 @@
         statusEl.className = 'skt-status ' + (d ? 'is-dirty' : 'is-saved');
     }
 
+    // Transient message for edge add/remove (persisted server-side immediately,
+    // so this is independent of the position dirty/save state). Restores the
+    // position status afterwards.
+    let flashTimer = null;
+    function flash(msg, isError) {
+        statusEl.textContent = msg;
+        statusEl.className = 'skt-status ' + (isError ? 'is-dirty' : 'is-saved');
+        clearTimeout(flashTimer);
+        flashTimer = setTimeout(() => {
+            statusEl.textContent = dirty ? 'Unsaved changes' : 'No changes';
+            statusEl.className = 'skt-status' + (dirty ? ' is-dirty' : '');
+        }, 2600);
+    }
+
     // ── Tier labels (one per distinct grade row) ───────────────────────────────
     const tierY = new Map(); // grade → y (design units), from seeded data
     NODES.forEach(n => { if (n.grade) tierY.set(n.grade, n.pos_y); });
@@ -175,31 +198,158 @@
     }
 
     // ── Edges ────────────────────────────────────────────────────────────────────
+    // Each edge = { from: dependent id, to: prerequisite id }. The drawn line runs
+    // from the prerequisite (to) up to the dependent (from); arrowhead at the dependent.
+    const SVGNS = 'http://www.w3.org/2000/svg';
     const edgeEls = [];
-    EDGES.forEach(e => {
-        const fromN = byId.get(e.from), toN = byId.get(e.to);
-        if (!fromN || !toN) return;
+    const edgeKeys = new Set(); // "from>to" dedup
+    const edgeKey = (from, to) => from + '>' + to;
+
+    function addEdgeEl(from, to) {
+        if (edgeKeys.has(edgeKey(from, to))) return null;
+        const fromN = byId.get(from), toN = byId.get(to);
+        if (!fromN || !toN) return null;
         const crossBranch = fromN.branch !== toN.branch;
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+
+        // A wide, invisible hit-line under the visible one so clicking to delete
+        // is forgiving (SVG hairlines are near-impossible to click precisely).
+        const hit = document.createElementNS(SVGNS, 'line');
+        hit.setAttribute('class', 'skt-edge-hit');
+        hit.setAttribute('stroke', 'transparent');
+        hit.setAttribute('stroke-width', '12');
+
+        const line = document.createElementNS(SVGNS, 'line');
         line.setAttribute('stroke', crossBranch ? 'var(--clr-style-bossa, #BA7517)' : '#9a9a95');
         line.setAttribute('stroke-width', crossBranch ? '2' : '1.4');
         if (crossBranch) line.setAttribute('stroke-dasharray', '6 5');
         line.setAttribute('marker-end', 'url(#skt-arrow)');
-        svg.appendChild(line);
-        // edge points from prerequisite (to) UP to the dependent (from)
-        edgeEls.push({ el: line, from: e.from, to: e.to });
-    });
+        line.style.pointerEvents = 'none';
 
-    function redrawEdges() {
-        edgeEls.forEach(({ el, from, to }) => {
-            const a = pos.get(to);   // prerequisite (line start)
-            const b = pos.get(from); // dependent (line end / arrow)
-            if (!a || !b) return;
-            el.setAttribute('x1', a.x); el.setAttribute('y1', a.y);
-            el.setAttribute('x2', b.x); el.setAttribute('y2', b.y);
-        });
+        svg.appendChild(hit);
+        svg.appendChild(line);
+
+        const rec = { el: line, hit, from, to };
+        edgeEls.push(rec);
+        edgeKeys.add(edgeKey(from, to));
+
+        hit.addEventListener('click', () => deleteEdge(rec));
+        hit.addEventListener('pointerenter', () => line.classList.add('skt-edge-hover'));
+        hit.addEventListener('pointerleave', () => line.classList.remove('skt-edge-hover'));
+        hit.setAttribute('title', 'Click to remove this link');
+        positionEdge(rec);
+        return rec;
     }
+
+    function positionEdge(rec) {
+        const a = pos.get(rec.to);   // prerequisite (line start)
+        const b = pos.get(rec.from); // dependent (line end / arrow)
+        if (!a || !b) return;
+        for (const seg of [rec.el, rec.hit]) {
+            seg.setAttribute('x1', a.x); seg.setAttribute('y1', a.y);
+            seg.setAttribute('x2', b.x); seg.setAttribute('y2', b.y);
+        }
+    }
+
+    function redrawEdges() { edgeEls.forEach(positionEdge); }
+
+    EDGES.forEach(e => addEdgeEl(e.from, e.to));
     redrawEdges();
+
+    async function deleteEdge(rec) {
+        const fromN = byId.get(rec.from), toN = byId.get(rec.to);
+        if (!confirm(`Remove link: “${toN.title}” → “${fromN.title}”?`)) return;
+        try {
+            const res = await fetch(EDGE_URL, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+                body: JSON.stringify({ from: rec.from, requires: rec.to }),
+            });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            rec.el.remove(); rec.hit.remove();
+            edgeKeys.delete(edgeKey(rec.from, rec.to));
+            const i = edgeEls.indexOf(rec);
+            if (i > -1) edgeEls.splice(i, 1);
+            flash('Link removed', false);
+        } catch (err) {
+            flash('Delete failed — ' + err.message, true);
+        }
+    }
+
+    // ── Linking (Ctrl+drag prerequisite → dependent) ─────────────────────────────
+    // Shared across tiles: only one link gesture at a time. The source tile is the
+    // PREREQUISITE (drag start); the tile released on is the DEPENDENT.
+    let linking = null; // { sourceId, preview, hoverTile }
+
+    function pointToDesign(ev) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: clamp((ev.clientX - rect.left) / rect.width * 1000, 0, 1000),
+            y: clamp((ev.clientY - rect.top) / rect.height * 1000, 0, 1000),
+        };
+    }
+
+    function startLink(ev, sourceId) {
+        const preview = document.createElementNS(SVGNS, 'line');
+        preview.setAttribute('class', 'skt-edge-draw');
+        preview.setAttribute('stroke', 'var(--clr-style-bossa, #BA7517)');
+        preview.setAttribute('stroke-width', '2');
+        preview.setAttribute('stroke-dasharray', '4 4');
+        preview.setAttribute('marker-end', 'url(#skt-arrow)');
+        const a = pos.get(sourceId);
+        preview.setAttribute('x1', a.x); preview.setAttribute('y1', a.y);
+        preview.setAttribute('x2', a.x); preview.setAttribute('y2', a.y);
+        svg.appendChild(preview);
+        linking = { sourceId, preview, hoverTile: null };
+        canvas.classList.add('is-linking');
+    }
+
+    function moveLink(ev) {
+        const p = pointToDesign(ev);
+        linking.preview.setAttribute('x2', p.x);
+        linking.preview.setAttribute('y2', p.y);
+        // highlight the tile currently under the cursor (as the drop target)
+        const el = document.elementFromPoint(ev.clientX, ev.clientY);
+        const overTile = el && el.closest('.skt-tile');
+        if (overTile !== linking.hoverTile) {
+            linking.hoverTile?.classList.remove('is-link-target');
+            const overId = overTile ? Number(overTile.dataset.id) : null;
+            if (overTile && overId !== linking.sourceId) {
+                overTile.classList.add('is-link-target');
+                linking.hoverTile = overTile;
+            } else {
+                linking.hoverTile = null;
+            }
+        }
+    }
+
+    async function endLink(ev) {
+        const { sourceId, preview, hoverTile } = linking;
+        preview.remove();
+        hoverTile?.classList.remove('is-link-target');
+        canvas.classList.remove('is-linking');
+        linking = null;
+
+        const el = document.elementFromPoint(ev.clientX, ev.clientY);
+        const targetTile = el && el.closest('.skt-tile');
+        if (!targetTile) return;
+        const targetId = Number(targetTile.dataset.id); // dependent
+        if (targetId === sourceId) return;
+        if (edgeKeys.has(edgeKey(targetId, sourceId))) { flash('Already linked', false); return; }
+
+        try {
+            const res = await fetch(EDGE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+                body: JSON.stringify({ from: targetId, requires: sourceId }),
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) { flash(body.error || ('Link failed — HTTP ' + res.status), true); return; }
+            addEdgeEl(targetId, sourceId); // from=dependent, to=prerequisite
+            flash(`Linked “${byId.get(sourceId).title}” → “${byId.get(targetId).title}”`, false);
+        } catch (err) {
+            flash('Link failed — ' + err.message, true);
+        }
+    }
 
     // ── Drag (pointer events, design-unit math) ─────────────────────────────────
     function attachDrag(tile, id) {
@@ -207,6 +357,13 @@
 
         tile.addEventListener('pointerdown', (ev) => {
             ev.preventDefault();
+            // Ctrl/⌘ + drag = draw a prerequisite edge instead of moving the tile.
+            if (ev.ctrlKey || ev.metaKey) {
+                tile.setPointerCapture(ev.pointerId);
+                tile.dataset.linking = '1';
+                startLink(ev, id);
+                return;
+            }
             tile.setPointerCapture(ev.pointerId);
             tile.classList.add('is-dragging');
             startX = ev.clientX; startY = ev.clientY;
@@ -214,6 +371,7 @@
         });
 
         tile.addEventListener('pointermove', (ev) => {
+            if (tile.dataset.linking === '1' && linking) { moveLink(ev); return; }
             if (!tile.classList.contains('is-dragging')) return;
             const rect = canvas.getBoundingClientRect();
             // px delta → design-unit delta (canvas is 1000x1000 design units)
@@ -228,6 +386,12 @@
         });
 
         const end = (ev) => {
+            if (tile.dataset.linking === '1') {
+                delete tile.dataset.linking;
+                try { tile.releasePointerCapture(ev.pointerId); } catch (_) {}
+                if (linking) endLink(ev);
+                return;
+            }
             if (tile.classList.contains('is-dragging')) {
                 tile.classList.remove('is-dragging');
                 try { tile.releasePointerCapture(ev.pointerId); } catch (_) {}

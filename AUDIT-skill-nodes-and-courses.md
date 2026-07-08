@@ -11,7 +11,7 @@ Read-only audit of `sbn_skill_nodes`, `sbn_course_skill_node`, `sbn_skill_node_c
 > `icon_path` 64/64. Courses 68/69 confirmed `draft`. Course 9 rewrite confirmed applied (12 lessons,
 > nodes 65–68 present). The remaining open work is NEW (not in this audit): a public per-node
 > explanation page, node↔grade surfacing, and grade-page skill-node integration — tracked in
-> `docs/SBN-Skill-System-Plan.md`.
+> `docs/SBN-Skill-System-Reference.md`.
 
 ---
 

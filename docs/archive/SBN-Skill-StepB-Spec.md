@@ -1,11 +1,11 @@
 > ⚠️ **ARCHIVED / SHIPPED 2026-06-29.** Built; as-built folded into
-> `docs/SBN-Skill-System-Plan.md` → "Step B — student-facing 'Skills this builds' panel".
+> `docs/SBN-Skill-System-Reference.md` → "Step B — student-facing 'Skills this builds' panel".
 > Kept for history only; the Plan is the source of truth.
 
 # Skill System — Step B Spec: "Skills this builds" on detail pages
 
 > **For:** Sonnet (implementer). **Status:** ready to build. **Prereq:** Step A is shipped
-> (see `SBN-Skill-System-Plan.md` → "Node ↔ Content Links"). This spec is self-contained;
+> (see `SBN-Skill-System-Reference.md` → "Node ↔ Content Links"). This spec is self-contained;
 > read the named files before editing.
 
 ## Goal
@@ -142,7 +142,7 @@ invent a new layout slot. Songs: place near the existing chord/progression panel
 
 ## Reference trail
 
-- `SBN-Skill-System-Plan.md` → "Node ↔ Content Links (Step A)" — the data model + why voicings differ.
+- `SBN-Skill-System-Reference.md` → "Node ↔ Content Links (Step A)" — the data model + why voicings differ.
 - `CourseController::courseSkills()` — the completion-flag pattern to copy.
 - `SBN-Song-Library-Reference.md`, `SBN-Progression-Library-Reference.md` — the Show-page contracts.
 - `SBN-Design-Reference.md` — the global-CSS-not-scoped constraint.

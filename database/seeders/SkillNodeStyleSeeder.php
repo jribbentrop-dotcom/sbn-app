@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Tags skill nodes with the styles they're characteristic of (vision pillar 4).
- * See docs/SBN-Skill-System-Plan.md "Vision → Reality Reconciliation".
+ * See docs/SBN-Skill-System-Reference.md "Vision → Reality Reconciliation".
  *
  * Weights: 1 = touches the style, 2 = clearly part of its toolkit,
  *          3 = definitional (you can't separate the node from the style).

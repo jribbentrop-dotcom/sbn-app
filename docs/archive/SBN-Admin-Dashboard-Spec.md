@@ -1,5 +1,5 @@
 > ⚠️ **ARCHIVED / SHIPPED 2026-06-29.** Built; as-built folded into
-> `docs/SBN-Skill-System-Plan.md` → "Admin content-health dashboard". Kept for history only.
+> `docs/SBN-Skill-System-Reference.md` → "Admin content-health dashboard". Kept for history only.
 
 # Admin Dashboard Rebuild — Spec (for Sonnet)
 
@@ -159,6 +159,6 @@ Keep it a plain Blade table page in the house admin style (`sbn-editor-card`, et
 
 ## Reference trail
 
-- `SBN-Skill-System-Plan.md` → "Node ↔ Content Links (Step A)" — what the links/columns are.
+- `SBN-Skill-System-Reference.md` → "Node ↔ Content Links (Step A)" — what the links/columns are.
 - `DashboardController.php` + `dashboard/index.blade.php` — what you're extending.
 - `admin/skill-nodes/{index,layout}.blade.php` — the tab/nav pattern to match for the coverage page.

@@ -17,7 +17,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Admin CRUD for skill nodes — the v1 table editor (no graph viz yet).
- * See docs/SBN-Skill-System-Plan.md "v1 Scope Lock" #4.
+ * See docs/SBN-Skill-System-Reference.md "v1 Scope Lock" #4.
  */
 class SkillNodeController extends Controller
 {
@@ -92,6 +92,57 @@ class SkillNodeController extends Controller
         return response()->json(['saved' => count($data['positions'])]);
     }
 
+    /**
+     * Add one prerequisite edge from the layout editor (Ctrl+drag prereq →
+     * dependent). Payload: { from: dependent id, requires: prerequisite id }.
+     * Routed through the SAME cycle guard as the edit form so a drawn edge can
+     * never close a loop the form would have rejected. Idempotent — re-adding an
+     * existing edge is a no-op, not an error.
+     */
+    public function addEdge(Request $request, SkillGraphService $graph)
+    {
+        $data = $request->validate([
+            'from'     => 'required|integer|exists:sbn_skill_nodes,id',      // dependent
+            'requires' => 'required|integer|exists:sbn_skill_nodes,id|different:from', // prerequisite
+        ]);
+
+        if ($graph->wouldCreateCycle($data['from'], $data['requires'])) {
+            $names = SkillNode::whereIn('id', [$data['from'], $data['requires']])
+                ->pluck('title', 'id');
+
+            return response()->json([
+                'error' => "Can't connect these — \"{$names[$data['requires']]}\" already depends on "
+                    . "\"{$names[$data['from']]}\", so this would create a cycle.",
+            ], 422);
+        }
+
+        \DB::table('sbn_skill_node_prerequisites')->insertOrIgnore([
+            'skill_node_id'          => $data['from'],
+            'requires_skill_node_id' => $data['requires'],
+        ]);
+
+        return response()->json(['added' => true]);
+    }
+
+    /**
+     * Remove one prerequisite edge from the layout editor (click an edge).
+     * Payload mirrors addEdge. No-op if the edge is already gone.
+     */
+    public function deleteEdge(Request $request)
+    {
+        $data = $request->validate([
+            'from'     => 'required|integer',
+            'requires' => 'required|integer',
+        ]);
+
+        $deleted = \DB::table('sbn_skill_node_prerequisites')
+            ->where('skill_node_id', $data['from'])
+            ->where('requires_skill_node_id', $data['requires'])
+            ->delete();
+
+        return response()->json(['deleted' => (bool) $deleted]);
+    }
+
     public function create()
     {
         $node = new SkillNode([
@@ -125,7 +176,7 @@ class SkillNodeController extends Controller
         $data = $this->validated($request, $skillNode->id);
 
         // A prereq edge can't close a loop back to this node — see
-        // docs/SBN-Skill-System-Plan.md "v1 gaps" (no cycle detection existed
+        // docs/SBN-Skill-System-Reference.md "v1 gaps" (no cycle detection existed
         // before this) and SkillGraphService for the traversal.
         $cyclic = $graph->cyclicRequirements($skillNode->id, $data['prereqs']);
         if ($cyclic) {

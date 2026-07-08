@@ -1,11 +1,11 @@
 # SBN Skill Tree — Design Brief (for Cowork / design brainstorm)
 
 > ⚠️ **ARCHIVED / SHIPPED 2026-07-02.** Built; as-built design folded into
-> `docs/SBN-Skill-System-Plan.md` → "Student Skill Tree (Shipped 2026-07-02)". Kept for history only.
+> `docs/SBN-Skill-System-Reference.md` → "Student Skill Tree (Shipped 2026-07-02)". Kept for history only.
 > The layout-option comparison in §1–§7 below (why the FC26 tile tree beat grade-lanes and
 > constellation, and the locked dimension→encoding mapping) isn't duplicated anywhere else, so it's
 > preserved here — but for current behavior, encoding, the multi-style-tab resolution, and the mobile
-> design, `SBN-Skill-System-Plan.md` is the source of truth.
+> design, `SBN-Skill-System-Reference.md` is the source of truth.
 
 > **Purpose of this doc:** hand a designer/brainstorm tool the *real constraints* of the SBN skill
 > tree so mockups start grounded, not blank-page. The **data is already built** (graph + grades +
@@ -13,7 +13,7 @@
 > problem. Bring a chosen visual direction back to the engineer; do NOT decide SVG/canvas/schema here.
 >
 > Context: this tree is the **visual core and main student motivation** of a gamified guitar-education
-> app (RPG/FIFA analogy — see `SBN-Skill-System-Plan.md` "Vision → Reality Reconciliation"). It must
+> app (RPG/FIFA analogy — see `SBN-Skill-System-Reference.md` "Vision → Reality Reconciliation"). It must
 > feel **modern, attractive, rewarding** — the thing that makes practice feel like leveling up a
 > character. Brand is bossa-nova/jazz guitar: warm, sophisticated, not childish gamification.
 
@@ -117,7 +117,7 @@ and build the Vue component — all the data it needs already exists.
 
 ---
 
-*Created 2026-06-25. Companion to `SBN-Skill-System-Plan.md` (Post-v1 Roadmap #6 + Icon System).*
+*Created 2026-06-25. Companion to `SBN-Skill-System-Reference.md` (Post-v1 Roadmap #6 + Icon System).*
 *Live data snapshot in §1 verified against `database/sbn.db` on 2026-06-25.*
 
 ---
@@ -151,7 +151,7 @@ saved file carries the same caveat inline: it's a comparative sketch, not a visu
 | Dimension | Encoding |
 |---|---|
 | Grade (1–5) | Vertical position — tiles climb upward by tier, "you are here" as a horizontal line/region |
-| Branch (6 categories) | Icon (existing Heroicon system per `SBN-Skill-System-Plan.md`) |
+| Branch (6 categories) | Icon (existing Heroicon system per `SBN-Skill-System-Reference.md`) |
 | Style (bossa/jazz/classical/pop) | Tile color |
 | Completion (done / available / locked) | Border + check badge / plain / dimmed + lock badge — soft lock, never hard-blocked |
 | Prerequisite edges | Connector lines; cross-branch edges get a visually distinct treatment (color/weight) so the "graph not tree" reality stays legible, not hidden |
@@ -190,14 +190,14 @@ the start so it isn't redone later.
 ### Still genuinely deferred to engineering (per §5, unchanged)
 
 SVG vs. Canvas vs. CSS-grid rendering for the *student* tree, and the mobile design pass flagged above.
-(The `pos_x`/`pos_y` schema + admin layout editor are now BUILT — see `SBN-Skill-System-Plan.md`.)
+(The `pos_x`/`pos_y` schema + admin layout editor are now BUILT — see `SBN-Skill-System-Reference.md`.)
 
 ---
 
-## 8. As-built status — see `SBN-Skill-System-Plan.md`
+## 8. As-built status — see `SBN-Skill-System-Reference.md`
 
 Everything that was tracked here as "as-built status (2026-06-25) + open questions" — the positions
 schema, admin drag-editor, icon_key/icon_path state, the multi-style-tile resolution (split into 5
 tabs), and the mobile build — shipped and is documented in full in
-`docs/SBN-Skill-System-Plan.md` → **"Student Skill Tree (Shipped 2026-07-02)"**. That section is now
+`docs/SBN-Skill-System-Reference.md` → **"Student Skill Tree (Shipped 2026-07-02)"**. That section is now
 the single as-built source; it is not duplicated here to avoid the two docs drifting out of sync.

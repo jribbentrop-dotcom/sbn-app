@@ -8,7 +8,7 @@ return new class extends Migration
 {
     /**
      * Add icon and grade columns to sbn_skill_nodes.
-     * See docs/SBN-Skill-System-Plan.md "Icon System" and "Grade ↔ Skill Node Bridge".
+     * See docs/SBN-Skill-System-Reference.md "Icon System" and "Grade ↔ Skill Node Bridge".
      *
      * icon_key  — Heroicon name used as placeholder (e.g. "musical-note")
      * icon_path — custom SVG path that takes priority when set (e.g. "images/skills/shell-voicings.svg")

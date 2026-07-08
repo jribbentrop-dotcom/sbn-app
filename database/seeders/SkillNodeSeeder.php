@@ -12,11 +12,11 @@ use Illuminate\Support\Facades\DB;
  * Some edges cross branches deliberately (e.g. Ear Training's
  * interval-recognition requires Harmony's intervals) — the graph is meant to
  * be cross-cutting, not six independent trees. See "Key Design Principles" in
- * docs/SBN-Skill-System-Plan.md.
+ * docs/SBN-Skill-System-Reference.md.
  *
  * Idempotent — keyed on slug via updateOrCreate, edges via insertOrIgnore.
  * Re-running is safe. Harmony and Rhythm were curated against existing course
- * content (see SBN-Skill-System-Plan.md "Course → Node Mapping"); Melody,
+ * content (see SBN-Skill-System-Reference.md "Course → Node Mapping"); Melody,
  * Technique, Ear Training, and Reading & Theory are seeded from the taxonomy
  * first draft and still need the same content-evidence pass before being
  * treated as load-bearing.

@@ -8,7 +8,7 @@ return new class extends Migration
 {
     /**
      * SBN Skill System — v1 tables only.
-     * Scope locked 2026-06-23 (see docs/SBN-Skill-System-Plan.md "v1 Scope Lock").
+     * Scope locked 2026-06-23 (see docs/SBN-Skill-System-Reference.md "v1 Scope Lock").
      * Deferred (NOT created here): repertoire_*, style_classes, style_class_requirements,
      * user_repertoire, user_style_classes.
      */

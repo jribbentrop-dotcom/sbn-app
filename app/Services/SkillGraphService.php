@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * Graph algorithms over the skill-node prerequisite edges
  * (sbn_skill_node_prerequisites) — cycle detection and "recommended next"
- * traversal. See docs/SBN-Skill-System-Plan.md "Post-v1 Roadmap" #3 and
+ * traversal. See docs/SBN-Skill-System-Reference.md "Post-v1 Roadmap" #3 and
  * "v1 gaps" (no cycle detection existed before this).
  */
 class SkillGraphService
