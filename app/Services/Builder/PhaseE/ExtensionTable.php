@@ -142,8 +142,22 @@ class ExtensionTable
     }
 
     /**
+     * Get the cadence requirement entries (pedagogical VL enforcement).
+     *
+     * Each entry: id, description, edge {source_role, target_role}, require
+     * (list of named-resolution IDs that must all fire on a matching edge).
+     *
+     * @return array
+     */
+    public static function getCadenceRequirements(): array
+    {
+        self::ensureLoaded();
+        return self::$cache['cadence_requirements'] ?? [];
+    }
+
+    /**
      * Get named resolution by ID
-     * 
+     *
      * @param string $id
      * @return array|null
      */

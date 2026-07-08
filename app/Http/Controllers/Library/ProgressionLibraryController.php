@@ -157,9 +157,12 @@ class ProgressionLibraryController extends Controller
 
         $context = $this->harmonicContext->buildFromNumerals($progressionKey, $progression->numerals);
         $built   = $this->progressionBuilder->buildVoicings($context, [
-            'category'      => $progression->category,
-            'pinnedSlot'    => $pinnedSlot,
-            'pinnedVoicing' => $pinnedVoicing,
+            'category'       => $progression->category,
+            'pinnedSlot'     => $pinnedSlot,
+            'pinnedVoicing'  => $pinnedVoicing,
+            // Display surface: cadence-defining guide-tone motion is enforced
+            // as hard edge admissibility so diagrams match the edu prose.
+            'pedagogical_vl' => true,
         ]);
         $tiles = array_map(function ($sel) {
             $v = $sel['voicing'] ?? null;
@@ -170,6 +173,7 @@ class ProgressionLibraryController extends Controller
                 'functionalRole'   => $v['functional_role'] ?? null,
                 'slug'             => null,
                 'firedResolutions' => $sel['fired_resolutions'] ?? [],
+                'firedResolutionDetails' => $sel['fired_resolution_details'] ?? [],
             ];
         }, $built['selections']);
 
@@ -319,9 +323,10 @@ class ProgressionLibraryController extends Controller
     ): array {
         $context = $this->harmonicContext->buildFromNumerals($key, $progression->numerals);
         $built   = $this->progressionBuilder->buildVoicings($context, [
-            'category'   => $progression->category,
-            'extensions' => $usePass2,
-            'tonality'   => $progression->tonality ?? 'major',
+            'category'       => $progression->category,
+            'extensions'     => $usePass2,
+            'tonality'       => $progression->tonality ?? 'major',
+            'pedagogical_vl' => true,
         ]);
 
         $builtSelections = $built['selections'];
@@ -335,6 +340,7 @@ class ProgressionLibraryController extends Controller
                 'slug'             => null,
                 'numeral'          => $sel['roman_numeral'] ?? null,
                 'firedResolutions' => $sel['fired_resolutions'] ?? [],
+                'firedResolutionDetails' => $sel['fired_resolution_details'] ?? [],
             ], $builtSelections);
         }
 
@@ -375,6 +381,7 @@ class ProgressionLibraryController extends Controller
                     'slug'             => null,
                     'numeral'          => $sel['roman_numeral'] ?? null,
                     'firedResolutions' => $sel['fired_resolutions'] ?? [],
+                    'firedResolutionDetails' => $sel['fired_resolution_details'] ?? [],
                 ];
             }
         }

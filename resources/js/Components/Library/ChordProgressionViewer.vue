@@ -5,7 +5,14 @@ import ChordDiagram from './ChordDiagram.vue';
 import FretboardNeck from './fretboard/FretboardNeck.vue';
 import { getAudioEngine } from '../../audio/engine/AudioEngine.js';
 import { chordDiagramToEvents } from '../../audio/adapters/chordDiagramToEvents.js';
-import { buildPitchMap, findResolutionPairs, findResolutionPairsFromFired, arrowColor } from './guideToneResolution.js';
+import {
+    buildPitchMap,
+    findResolutionPairsFromFired,
+    findResolutionPairsFromDetails,
+    selectDisplayPairs,
+    arrowColor,
+    CORE_TYPES,
+} from './guideToneResolution.js';
 import {
     VB_H,
     FRET_FROM, FRET_TO, FRET_WINDOW,
@@ -59,6 +66,15 @@ function chordDisplayHtml(chord: ProgressionChord): string {
     return html + inv;
 }
 
+export interface FiredResolutionDetail {
+    id: string;
+    core: boolean;
+    same_string: boolean;
+    semitones: number;
+    from: { string: number; fret: number; midi: number; tone: string | number };
+    to: { string: number; fret: number; midi: number; tone: string | number };
+}
+
 export interface ProgressionChord {
     chordName: string;
     diagramData: ChordDiagramData | null;
@@ -67,6 +83,7 @@ export interface ProgressionChord {
     numeral?: string;
     functionalRole?: string | null;
     firedResolutions?: string[];
+    firedResolutionDetails?: FiredResolutionDetail[];
 }
 
 export interface StyleVariant {
@@ -309,6 +326,35 @@ function intervalLabelsForChord(chord: ProgressionChord | undefined): string[] {
     return raw ? raw.split(',').map(s => s.trim()) : [];
 }
 
+/**
+ * Guide-tone pairs for the edge chordA → chordB, capped for readability.
+ *
+ * Prefers the builder's fired_resolution_details (exact string/fret pairs,
+ * core flags, same-string preference); falls back to reconstructing dots
+ * from fired resolution IDs for older payloads. Either way at most two
+ * pairs survive — core motions first — so the student sees one or two
+ * clean semitone moves, not a web of arrows.
+ */
+function resolutionPairsFor(chordA: ProgressionChord | undefined, chordB: ProgressionChord | undefined): any[] {
+    if (!chordA?.diagramData || !chordB?.diagramData) return [];
+    const mapA = buildPitchMap(chordA.diagramData);
+    const mapB = buildPitchMap(chordB.diagramData);
+
+    const details = chordA.firedResolutionDetails ?? [];
+    if (details.length) {
+        return findResolutionPairsFromDetails(details, mapA, mapB);
+    }
+
+    const pairs = findResolutionPairsFromFired(
+        mapA, mapB, chordA.firedResolutions ?? [], chordB.diagramData.quality ?? '',
+    ) as any[];
+    return selectDisplayPairs(pairs.map(p => ({
+        ...p,
+        core: CORE_TYPES.has(p.type),
+        sameString: p.from.string === p.to.string,
+    })));
+}
+
 const dots = computed<Dot[]>(() => {
     const byString = new Map<number, Position>();
     for (const p of activePositions.value) byString.set(p.string, p);
@@ -318,13 +364,8 @@ const dots = computed<Dot[]>(() => {
     const vlColorMap = new Map<string, string>();
     const chordA = activeChords.value[activeIndex.value];
     const chordB = activeChords.value[activeIndex.value + 1];
-    if (chordA?.diagramData && chordB?.diagramData) {
-        const pairs = findResolutionPairsFromFired(
-            buildPitchMap(chordA.diagramData),
-            buildPitchMap(chordB.diagramData),
-            chordA.firedResolutions ?? [],
-            chordB.diagramData.quality ?? '',
-        );
+    {
+        const pairs = resolutionPairsFor(chordA, chordB);
         for (const p of pairs as any[]) {
             vlColorMap.set(`${p.from.string + 1},${p.from.fret}`, arrowColor(p.type));
         }
@@ -358,11 +399,7 @@ interface VLPair {
 const vlPairs = computed<VLPair[]>(() => {
     const chordA = activeChords.value[activeIndex.value];
     const chordB = activeChords.value[activeIndex.value + 1];
-    if (!chordA?.diagramData || !chordB?.diagramData) return [];
-
-    const mapA = buildPitchMap(chordA.diagramData);
-    const mapB = buildPitchMap(chordB.diagramData);
-    const pairs = findResolutionPairsFromFired(mapA, mapB, chordA.firedResolutions ?? [], chordB.diagramData.quality ?? '');
+    const pairs = resolutionPairsFor(chordA, chordB);
 
     return pairs.map((p: any) => ({
         fromString: p.from.string + 1, // buildPitchMap uses 0-based string index
@@ -411,11 +448,7 @@ interface VLRow {
 const vlRows = computed<VLRow[]>(() => {
     const chordA = activeChords.value[activeIndex.value];
     const chordB = activeChords.value[activeIndex.value + 1];
-    if (!chordA?.diagramData || !chordB?.diagramData) return [];
-
-    const mapA = buildPitchMap(chordA.diagramData);
-    const mapB = buildPitchMap(chordB.diagramData);
-    const pairs = findResolutionPairsFromFired(mapA, mapB, chordA.firedResolutions ?? [], chordB.diagramData.quality ?? '') as any[];
+    const pairs = resolutionPairsFor(chordA, chordB) as any[];
 
     return pairs.map(p => {
         const semitones = p.to.midi - p.from.midi;

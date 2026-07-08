@@ -18,9 +18,11 @@ interface Props {
     noNav?: boolean;
     /** Navigate in the same tab via Inertia instead of opening a new tab. */
     sameTab?: boolean;
+    /** Override chord-dot fill colour (forwarded to ChordDiagram). */
+    dotColor?: string;
 }
 
-const props = withDefaults(defineProps<Props>(), { mini: false, detail: false, showRoot: true, onChordClick: null, noNav: false, sameTab: false });
+const props = withDefaults(defineProps<Props>(), { mini: false, detail: false, showRoot: true, onChordClick: null, noNav: false, sameTab: false, dotColor: undefined });
 
 const formattedName = computed(() =>
     formatChordNameHtml(props.chord as any, props.showRoot)
@@ -135,7 +137,7 @@ async function playChord() {
 
         <!-- Diagram -->
         <div class="sbn-card-diagram">
-            <ChordDiagram :chord="chord" />
+            <ChordDiagram :chord="chord" v-bind="dotColor ? { dotColor } : {}" />
             <button
                 class="sbn-play-btn"
                 :class="{ 'is-playing': isPlaying }"

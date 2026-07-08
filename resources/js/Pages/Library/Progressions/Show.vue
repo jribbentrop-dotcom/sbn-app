@@ -9,7 +9,7 @@ import MediaShelf from '@/Components/Library/MediaShelf.vue';
 import SongShelfCard from '@/Components/Library/SongShelfCard.vue';
 import CourseShelfCard from '@/Components/Course/CourseShelfCard.vue';
 import type { CourseShelfCardData } from '@/Components/Course/CourseShelfCard.vue';
-import type { ProgressionChord, StyleVariant } from '@/Components/Library/ChordProgressionViewer.vue';
+import type { ProgressionChord, StyleVariant, FiredResolutionDetail } from '@/Components/Library/ChordProgressionViewer.vue';
 import { getCategoryColor } from '@/composables/useCategoryColors';
 import { difficultyBreadcrumbSegment } from '@/composables/useBreadcrumb';
 import SkillsBuiltPanel from '@/Components/Skill/SkillsBuiltPanel.vue';
@@ -21,6 +21,8 @@ interface ProgressionTile {
     diagramData: ChordDiagramData | null;
     slug?: string | null;
     numeral?: string | null;
+    firedResolutions?: string[];
+    firedResolutionDetails?: FiredResolutionDetail[];
 }
 
 defineOptions({ layout: PublicLayout });
@@ -103,6 +105,8 @@ const chords = computed((): ProgressionChord[] =>
         beats: 4,
         slug: tile.slug,
         numeral: tile.numeral ?? undefined,
+        firedResolutions: tile.firedResolutions ?? [],
+        firedResolutionDetails: tile.firedResolutionDetails ?? [],
     }))
 );
 

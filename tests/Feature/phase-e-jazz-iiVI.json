@@ -1,11 +1,13 @@
 {
     "phase_e": {
-        "pass1_cost": 0.7027,
-        "pass2_cost": -0.119,
+        "pass1_cost": 0.3071,
+        "pass2_cost": -0.8929,
         "pass2_fired_resolutions": [
             "vl.iiV.b7_to_3",
+            "vl.iiV.3_to_b7",
             "vl.dom.b7_to_3",
-            "vl.dom.3_to_root"
+            "vl.dom.3_to_maj7",
+            "vl.dom.13_to_9"
         ],
         "pass2_won": true
     },
@@ -20,18 +22,6 @@
             },
             {
                 "slot": 0,
-                "requested_pool": "drop3",
-                "fallback_pool": "shell",
-                "reason": "no candidates"
-            },
-            {
-                "slot": 0,
-                "requested_pool": "quartal",
-                "fallback_pool": "archetype",
-                "reason": "no candidates"
-            },
-            {
-                "slot": 0,
                 "requested_pool": "closed",
                 "fallback_pool": "closed_triads",
                 "reason": "no candidates"
@@ -40,18 +30,6 @@
                 "slot": 0,
                 "requested_pool": "closed_triads",
                 "fallback_pool": "triad",
-                "reason": "no candidates"
-            },
-            {
-                "slot": 1,
-                "requested_pool": "drop2",
-                "fallback_pool": "drop3",
-                "reason": "no candidates"
-            },
-            {
-                "slot": 1,
-                "requested_pool": "quartal",
-                "fallback_pool": "archetype",
                 "reason": "no candidates"
             },
             {
@@ -76,12 +54,6 @@
                 "slot": 2,
                 "requested_pool": "drop3",
                 "fallback_pool": "shell",
-                "reason": "no candidates"
-            },
-            {
-                "slot": 2,
-                "requested_pool": "quartal",
-                "fallback_pool": "archetype",
                 "reason": "no candidates"
             },
             {
@@ -110,7 +82,7 @@
             {
                 "rule": "position",
                 "from": 3,
-                "to": 6,
+                "to": 3,
                 "category_relaxed": false
             }
         ],
@@ -119,73 +91,77 @@
                 "from": 0,
                 "to": 1,
                 "simplicity": 0.25,
-                "position": 1,
+                "position": 0,
                 "bass_motion": 0,
-                "common_tone": 0.925,
-                "voice_leading": 0.2867,
-                "group_continuity": 0,
-                "register": 0.3333,
+                "common_tone": 0.5,
+                "voice_leading": 0,
+                "group_continuity": 0.1,
+                "register": 0.1667,
                 "style": 0,
-                "named_resolutions": -0.25,
-                "raw_voice_leading": 4.3,
+                "named_resolutions": -0.35,
+                "raw_voice_leading": 0,
                 "weighted": {
                     "simplicity": 0.025,
-                    "position": 0.2,
+                    "position": 0,
                     "bass_motion": 0,
-                    "common_tone": 0.1388,
-                    "voice_leading": 0.0717,
-                    "group_continuity": 0,
-                    "register": 0.0167,
+                    "common_tone": 0.075,
+                    "voice_leading": 0,
+                    "group_continuity": 0.01,
+                    "register": 0.0083,
                     "style": 0,
-                    "named_resolutions": -0.25
+                    "named_resolutions": -0.35
                 },
-                "weighted_total": 0.2022,
-                "total": 0.2022,
+                "weighted_total": -0.2317,
+                "total": -0.2317,
                 "fired_named_resolutions": [
-                    "vl.iiV.b7_to_3"
+                    "vl.iiV.b7_to_3",
+                    "vl.iiV.3_to_b7"
                 ]
             },
             {
                 "from": 1,
                 "to": 2,
                 "simplicity": 0.25,
-                "position": 0,
+                "position": 0.2,
                 "bass_motion": 0,
-                "common_tone": 0.925,
-                "voice_leading": 0.7933,
-                "group_continuity": 0,
-                "register": 0.3333,
+                "common_tone": 0.675,
+                "voice_leading": 0,
+                "group_continuity": 0.1,
+                "register": 0.25,
                 "style": 0,
-                "named_resolutions": -0.7,
-                "raw_voice_leading": 11.9,
+                "named_resolutions": -0.8500000000000001,
+                "raw_voice_leading": 0,
                 "weighted": {
                     "simplicity": 0.025,
-                    "position": 0,
+                    "position": 0.04,
                     "bass_motion": 0,
-                    "common_tone": 0.1388,
-                    "voice_leading": 0.1983,
-                    "group_continuity": 0,
-                    "register": 0.0167,
+                    "common_tone": 0.1013,
+                    "voice_leading": 0,
+                    "group_continuity": 0.01,
+                    "register": 0.0125,
                     "style": 0,
-                    "named_resolutions": -0.7
+                    "named_resolutions": -0.85
                 },
-                "weighted_total": -0.3212,
-                "total": -0.3212,
+                "weighted_total": -0.6612,
+                "total": -0.6612,
                 "fired_named_resolutions": [
                     "vl.dom.b7_to_3",
-                    "vl.dom.3_to_root"
+                    "vl.dom.3_to_maj7",
+                    "vl.dom.13_to_9"
                 ]
             }
         ],
-        "path_cost": -0.119,
-        "observed_raw_vl_max": 11.9,
+        "path_cost": -0.8929,
+        "observed_raw_vl_max": 0,
         "phase_e": {
-            "pass1_cost": 0.7027,
-            "pass2_cost": -0.119,
+            "pass1_cost": 0.3071,
+            "pass2_cost": -0.8929,
             "pass2_fired_resolutions": [
                 "vl.iiV.b7_to_3",
+                "vl.iiV.3_to_b7",
                 "vl.dom.b7_to_3",
-                "vl.dom.3_to_root"
+                "vl.dom.3_to_maj7",
+                "vl.dom.13_to_9"
             ],
             "pass2_won": true
         }
@@ -203,7 +179,7 @@
             "slot": 1,
             "chord_name": "G7(9,13)",
             "id": "unknown",
-            "frets": "xa9aax",
+            "frets": "3x345x",
             "root_note": "G",
             "quality": "dom7"
         },
@@ -211,7 +187,7 @@
             "slot": 2,
             "chord_name": "Cmaj7(9)",
             "id": "unknown",
-            "frets": "xxa9ca",
+            "frets": "x3243x",
             "root_note": "C",
             "quality": "maj7"
         }

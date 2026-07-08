@@ -1,5 +1,5 @@
 {
-    "generated_at": "2026-06-21T18:33:55+00:00",
+    "generated_at": "2026-07-06T12:13:30+00:00",
     "progressions": {
         "the-turnaround": {
             "name": "The Turnaround",
@@ -25,10 +25,18 @@
                 },
                 {
                     "chord_name": "G7",
-                    "extension_set": []
+                    "extension_set": [
+                        "b9",
+                        "b13"
+                    ]
                 }
             ],
-            "expected_resolutions": []
+            "expected_resolutions": [
+                "vl.iiV.b7_to_3",
+                "vl.iiV.3_to_b7",
+                "vl.iiV.9_to_b13",
+                "vl.iiV.5_to_b9"
+            ]
         },
         "the-rhythm-changes-progression": {
             "name": "The Rhythm Changes Progression",
@@ -43,17 +51,17 @@
                     ]
                 },
                 {
-                    "chord_name": "C#dim7",
+                    "chord_name": "Dbdim7",
                     "extension_set": []
                 },
                 {
                     "chord_name": "Dm7",
                     "extension_set": [
-                        "11"
+                        "9"
                     ]
                 },
                 {
-                    "chord_name": "D#dim7",
+                    "chord_name": "Ebdim7",
                     "extension_set": []
                 }
             ],
@@ -97,16 +105,19 @@
                 {
                     "chord_name": "E7(b9,b13)",
                     "extension_set": [
-                        "b9"
+                        "b9",
+                        "b13"
                     ]
                 },
                 {
                     "chord_name": "Am7",
-                    "extension_set": []
+                    "extension_set": [
+                        "9"
+                    ]
                 }
             ],
             "expected_resolutions": [
-                "vl.dom.3_to_root",
+                "vl.dom.b13_to_9",
                 "vl.dom.b9_to_5"
             ]
         },
@@ -117,10 +128,8 @@
             "key": "C",
             "slots": [
                 {
-                    "chord_name": "G#maj7(9)",
-                    "extension_set": [
-                        "9"
-                    ]
+                    "chord_name": "Abmaj7",
+                    "extension_set": []
                 },
                 {
                     "chord_name": "G7(9,13)",
@@ -136,25 +145,23 @@
                 }
             ],
             "expected_resolutions": [
+                "vl.bvi.3_to_3",
+                "vl.bvi.maj7_to_root",
                 "vl.dom.b7_to_3",
+                "vl.dom.3_to_maj7",
                 "vl.dom.13_to_9"
             ]
         },
         "deceptive-cadence-to-iv": {
             "name": "Deceptive Cadence to IV",
             "category": "jazz",
-            "numerals": "Imaj7, III7, IVmaj7",
+            "numerals": "III7, IV",
             "key": "C",
             "slots": [
                 {
-                    "chord_name": "Cmaj7(9)",
-                    "extension_set": [
-                        "9"
-                    ]
-                },
-                {
                     "chord_name": "E7(9,13)",
                     "extension_set": [
+                        "9",
                         "13"
                     ]
                 },
@@ -180,7 +187,7 @@
                 {
                     "chord_name": "G7(9,13)",
                     "extension_set": [
-                        "9"
+                        "13"
                     ]
                 },
                 {
@@ -191,8 +198,11 @@
                 }
             ],
             "expected_resolutions": [
+                "vl.iiV.b7_to_3",
+                "vl.iiV.3_to_b7",
                 "vl.dom.b7_to_3",
-                "vl.dom.3_to_root"
+                "vl.dom.3_to_maj7",
+                "vl.dom.13_to_9"
             ]
         },
         "modal-interchange": {
@@ -228,16 +238,27 @@
                 },
                 {
                     "chord_name": "E7",
-                    "extension_set": []
+                    "extension_set": [
+                        "b9",
+                        "b13"
+                    ]
                 },
                 {
                     "chord_name": "Am7",
-                    "extension_set": []
+                    "extension_set": [
+                        "9"
+                    ]
                 }
             ],
             "expected_resolutions": [
                 "vl.iiV.b7_to_3",
-                "vl.dom.3_to_root"
+                "vl.iiV.3_to_b7",
+                "vl.iiV.9_to_b13",
+                "vl.iiV.5_to_b9",
+                "vl.dom.b7_to_3",
+                "vl.dom.3_to_b7",
+                "vl.dom.b13_to_9",
+                "vl.dom.b9_to_5"
             ]
         },
         "modal-interchange-i-to-im": {
@@ -254,7 +275,9 @@
                 },
                 {
                     "chord_name": "Cm7",
-                    "extension_set": []
+                    "extension_set": [
+                        "9"
+                    ]
                 }
             ],
             "expected_resolutions": []
@@ -272,8 +295,10 @@
                     ]
                 },
                 {
-                    "chord_name": "C#dim7",
-                    "extension_set": []
+                    "chord_name": "Dbdim7",
+                    "extension_set": [
+                        "b13"
+                    ]
                 },
                 {
                     "chord_name": "Dm7(9)",
@@ -283,10 +308,18 @@
                 },
                 {
                     "chord_name": "G7",
-                    "extension_set": []
+                    "extension_set": [
+                        "b9",
+                        "b13"
+                    ]
                 }
             ],
-            "expected_resolutions": []
+            "expected_resolutions": [
+                "vl.iiV.b7_to_3",
+                "vl.iiV.3_to_b7",
+                "vl.iiV.9_to_b13",
+                "vl.iiV.5_to_b9"
+            ]
         },
         "the-major-jazz-cadence": {
             "name": "The Major Jazz Cadence",
@@ -303,7 +336,7 @@
                 {
                     "chord_name": "G7(9,13)",
                     "extension_set": [
-                        "9"
+                        "13"
                     ]
                 },
                 {
@@ -315,8 +348,10 @@
             ],
             "expected_resolutions": [
                 "vl.iiV.b7_to_3",
+                "vl.iiV.3_to_b7",
                 "vl.dom.b7_to_3",
-                "vl.dom.3_to_root"
+                "vl.dom.3_to_maj7",
+                "vl.dom.13_to_9"
             ]
         },
         "the-minor-jazz-cadence": {
@@ -327,22 +362,28 @@
             "slots": [
                 {
                     "chord_name": "Bm7b5",
-                    "extension_set": [
-                        "11"
-                    ]
+                    "extension_set": []
                 },
                 {
                     "chord_name": "E7",
                     "extension_set": [
-                        "#11"
+                        "b9",
+                        "b13"
                     ]
                 },
                 {
                     "chord_name": "Am7",
-                    "extension_set": []
+                    "extension_set": [
+                        "9"
+                    ]
                 }
             ],
             "expected_resolutions": [
+                "vl.iiV.b7_to_3",
+                "vl.iiV.3_to_b7",
+                "vl.dom.b7_to_3",
+                "vl.dom.3_to_b7",
+                "vl.dom.b13_to_9",
                 "vl.dom.b9_to_5"
             ]
         },
@@ -355,19 +396,19 @@
                 {
                     "chord_name": "E7(9,13)",
                     "extension_set": [
-                        "9"
+                        "13"
                     ]
                 },
                 {
                     "chord_name": "A7(9,13)",
                     "extension_set": [
-                        "13"
+                        "9"
                     ]
                 },
                 {
                     "chord_name": "D7(9,13)",
                     "extension_set": [
-                        "9"
+                        "13"
                     ]
                 },
                 {
@@ -377,7 +418,7 @@
             ],
             "expected_resolutions": {
                 "0": "vl.dom.b7_to_3",
-                "3": "vl.dom.3_to_root"
+                "2": "vl.dom.3_to_root"
             }
         },
         "the-turnaround-2": {
@@ -395,6 +436,7 @@
                 {
                     "chord_name": "A7(b9,b13)",
                     "extension_set": [
+                        "b9",
                         "b13"
                     ]
                 },
@@ -406,11 +448,19 @@
                 },
                 {
                     "chord_name": "G7",
-                    "extension_set": []
+                    "extension_set": [
+                        "b9",
+                        "b13"
+                    ]
                 }
             ],
             "expected_resolutions": [
-                "vl.dom.b13_to_9"
+                "vl.dom.b13_to_9",
+                "vl.dom.b9_to_5",
+                "vl.iiV.b7_to_3",
+                "vl.iiV.3_to_b7",
+                "vl.iiV.9_to_b13",
+                "vl.iiV.5_to_b9"
             ]
         },
         "backdoor-dominant": {
@@ -420,9 +470,9 @@
             "key": "C",
             "slots": [
                 {
-                    "chord_name": "A#7",
+                    "chord_name": "Bb7",
                     "extension_set": [
-                        "b9"
+                        "#11"
                     ]
                 },
                 {
@@ -442,12 +492,14 @@
             "slots": [
                 {
                     "chord_name": "Dm7",
-                    "extension_set": []
+                    "extension_set": [
+                        "11"
+                    ]
                 },
                 {
-                    "chord_name": "C#7(9,#11)",
+                    "chord_name": "Db7(9,#11)",
                     "extension_set": [
-                        "9"
+                        "#11"
                     ]
                 },
                 {
@@ -458,6 +510,7 @@
                 }
             ],
             "expected_resolutions": [
+                "vl.tritone.sharp11_to_5",
                 "vl.tritone.b7_to_3"
             ]
         },
@@ -474,19 +527,17 @@
                     ]
                 },
                 {
-                    "chord_name": "D#maj7(9)",
+                    "chord_name": "Ebmaj7(9)",
                     "extension_set": [
                         "9"
                     ]
                 },
                 {
-                    "chord_name": "G#maj7(9)",
-                    "extension_set": [
-                        "9"
-                    ]
+                    "chord_name": "Abmaj7",
+                    "extension_set": []
                 },
                 {
-                    "chord_name": "C#maj7(9)",
+                    "chord_name": "Dbmaj7(9)",
                     "extension_set": [
                         "9"
                     ]
@@ -502,13 +553,12 @@
             "slots": [
                 {
                     "chord_name": "Em7",
-                    "extension_set": [
-                        "11"
-                    ]
+                    "extension_set": []
                 },
                 {
                     "chord_name": "A7(b9,b13)",
                     "extension_set": [
+                        "b9",
                         "b13"
                     ]
                 },
@@ -520,11 +570,19 @@
                 },
                 {
                     "chord_name": "G7",
-                    "extension_set": []
+                    "extension_set": [
+                        "b9",
+                        "b13"
+                    ]
                 }
             ],
             "expected_resolutions": [
-                "vl.dom.b13_to_9"
+                "vl.dom.b13_to_9",
+                "vl.dom.b9_to_5",
+                "vl.iiV.b7_to_3",
+                "vl.iiV.3_to_b7",
+                "vl.iiV.9_to_b13",
+                "vl.iiV.5_to_b9"
             ]
         },
         "minor-plagal-cadence": {
@@ -546,38 +604,6 @@
             ],
             "expected_resolutions": []
         },
-        "parker-blues": {
-            "name": "Parker Blues",
-            "category": "jazz",
-            "numerals": "Imaj7,VIIm7b5,III7,VIm7",
-            "key": "C",
-            "slots": [
-                {
-                    "chord_name": "Cmaj7(9)",
-                    "extension_set": [
-                        "9"
-                    ]
-                },
-                {
-                    "chord_name": "Bm7b5",
-                    "extension_set": []
-                },
-                {
-                    "chord_name": "E7(b9,b13)",
-                    "extension_set": [
-                        "b9"
-                    ]
-                },
-                {
-                    "chord_name": "Am7",
-                    "extension_set": []
-                }
-            ],
-            "expected_resolutions": [
-                "vl.dom.3_to_root",
-                "vl.dom.b9_to_5"
-            ]
-        },
         "i-iv-v": {
             "name": "I\u2013IV\u2013V",
             "category": "jazz",
@@ -587,13 +613,14 @@
                 {
                     "chord_name": "C7(9,13)",
                     "extension_set": [
+                        "9",
                         "13"
                     ]
                 },
                 {
                     "chord_name": "F7(9,13)",
                     "extension_set": [
-                        "9"
+                        "13"
                     ]
                 },
                 {
@@ -602,7 +629,8 @@
                 }
             ],
             "expected_resolutions": [
-                "vl.dom.b7_to_3"
+                "vl.dom.b7_to_3",
+                "vl.dom.3_to_root"
             ]
         },
         "so-what-changes": {
@@ -613,12 +641,10 @@
             "slots": [
                 {
                     "chord_name": "Cm7",
-                    "extension_set": [
-                        "11"
-                    ]
+                    "extension_set": []
                 },
                 {
-                    "chord_name": "C#m7",
+                    "chord_name": "Dbm7",
                     "extension_set": []
                 }
             ],
@@ -658,7 +684,7 @@
                     ]
                 },
                 {
-                    "chord_name": "A#7",
+                    "chord_name": "Bb7",
                     "extension_set": []
                 }
             ],
@@ -677,9 +703,9 @@
                     ]
                 },
                 {
-                    "chord_name": "C#7(9,#11)",
+                    "chord_name": "Db7(9,#11)",
                     "extension_set": [
-                        "9"
+                        "#11"
                     ]
                 }
             ],
@@ -699,10 +725,18 @@
                 },
                 {
                     "chord_name": "G7",
-                    "extension_set": []
+                    "extension_set": [
+                        "b9",
+                        "b13"
+                    ]
                 }
             ],
-            "expected_resolutions": []
+            "expected_resolutions": [
+                "vl.iiV.b7_to_3",
+                "vl.iiV.3_to_b7",
+                "vl.iiV.9_to_b13",
+                "vl.iiV.5_to_b9"
+            ]
         }
     }
 }

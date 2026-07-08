@@ -254,6 +254,78 @@ const RESOLUTION_TONES = {
     'vl.iiV.5_to_b9':       { src: '5',   tgt: ['b9'],       type: 'fifth-ext'       },
 };
 
+/** Core guide-tone arrow types — the 7→3 / ti→do family the student must see. */
+export const CORE_TYPES = new Set(['seventh-to-third', 'third-to-root']);
+
+/** Map a backend fired-resolution detail to an arrow type by its source tone. */
+function typeForDetail(d) {
+    const src = String(d.from?.tone ?? '');
+    if (SEVENTH_LABELS.has(src))  return 'seventh-to-third';
+    if (THIRD_LABELS.has(src))    return 'third-to-root';
+    if (NINTH_LABELS.has(src) || SIXTH_LABELS.has(src)) return 'ninth-ext';
+    if (ELEVENTH_LABELS.has(src)) return 'eleventh-ext';
+    return 'fifth-ext';
+}
+
+/**
+ * Rank and cap the guide-tone pairs shown to the student.
+ *
+ * The point is a CLEAN picture, not a complete one: core motions (7→3,
+ * ti→do family) outrank extension colour, same-string motion outranks
+ * cross-string, smaller motion outranks bigger — and at most `max` arrows
+ * are drawn, one per source dot and one per target dot.
+ */
+export function selectDisplayPairs(pairs, max = 2) {
+    const ranked = [...pairs].sort((a, b) =>
+        ((b.core === true) - (a.core === true))
+        || ((b.sameString === true) - (a.sameString === true))
+        || (Math.abs(a.to.midi - a.from.midi) - Math.abs(b.to.midi - b.from.midi)));
+
+    const out = [];
+    const usedSrc = new Set();
+    const usedTgt = new Set();
+    for (const p of ranked) {
+        const sk = `${p.from.string},${p.from.fret}`;
+        const tk = `${p.to.string},${p.to.fret}`;
+        if (usedSrc.has(sk) || usedTgt.has(tk)) continue;
+        usedSrc.add(sk);
+        usedTgt.add(tk);
+        out.push(p);
+        if (out.length >= max) break;
+    }
+    return out;
+}
+
+/**
+ * Build display pairs from the builder's fired_resolution_details — the
+ * authoritative source: the backend reports the exact string/fret pair that
+ * satisfied each resolution (same-string preferred), so no re-derivation
+ * heuristics are involved. Details use 1-based strings (low E = 1);
+ * pitch-map entries use 0-based.
+ *
+ * Returns at most `max` pairs (see selectDisplayPairs).
+ */
+export function findResolutionPairsFromDetails(details, mapA, mapB, max = 2) {
+    if (!details || details.length === 0) return [];
+
+    const pairs = [];
+    for (const d of details) {
+        const from = mapA.find(p => p.string === d.from.string - 1 && p.fret === d.from.fret)
+            ?? { string: d.from.string - 1, fret: d.from.fret, midi: d.from.midi, label: String(d.from.tone), svgX: null, svgY: null };
+        const to = mapB.find(p => p.string === d.to.string - 1 && p.fret === d.to.fret)
+            ?? { string: d.to.string - 1, fret: d.to.fret, midi: d.to.midi, label: String(d.to.tone), svgX: null, svgY: null };
+        pairs.push({
+            from,
+            to,
+            type: typeForDetail(d),
+            core: !!d.core,
+            sameString: !!d.same_string,
+            id: d.id,
+        });
+    }
+    return selectDisplayPairs(pairs, max);
+}
+
 /**
  * Build resolution pairs from the builder's fired named resolution IDs.
  * For each fired ID, find the dot in mapA carrying the source tone and the

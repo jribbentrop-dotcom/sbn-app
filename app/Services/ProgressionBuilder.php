@@ -323,9 +323,22 @@ class ProgressionBuilder
             $context = $this->applyCategoryNumeralUpgrade($context, $category);
         }
 
+        // Pre-scan cadence-requirement edges (roles/intervals only, no lattice
+        // yet) so Phase E knows which slots it must NOT decorate with option
+        // tones — decorating first would restrict fetchVoicingsForChord's pool
+        // to tension-carrying shapes that the §6.6 discipline check then
+        // rejects for lack of a justifying resolution, dropping the edge.
+        $requirementSlots = [];
+        if (!empty($options['pedagogical_vl'])) {
+            foreach ($this->computeEdgeRequirementDefs($allChords, $category) as $i => $req) {
+                $requirementSlots[$i] = true;
+                $requirementSlots[$i + 1] = true;
+            }
+        }
+
         // Apply Phase E extension upgrade (§6.2)
         $applyExtensionUpgrade = $extensions && $this->settings->isPass2Eligible($category);
-        $context = $this->applyPhaseEExtensionUpgrade($context, $applyExtensionUpgrade);
+        $context = $this->applyPhaseEExtensionUpgrade($context, $applyExtensionUpgrade, $requirementSlots);
 
         // Ensure all chords have extension field set (fallback for non-PhaseE categories)
         foreach ($context['sections'] as $secIdx => $section) {
@@ -376,7 +389,8 @@ class ProgressionBuilder
                 $explicitQuality,
                 $tonality,
                 $presetBassMin,
-                $presetBassMax
+                $presetBassMax,
+                !empty($requirementSlots[$i])
             );
         }
         $lattice = $this->buildAnchorFreeLattice($chordVoicings, $style, $rootOnly, $category);
@@ -407,6 +421,24 @@ class ProgressionBuilder
         // harmonize with an arbitrary first-pool element rather than
         // letting Viterbi pick its true optimum.
 
+        // Pedagogical cadence enforcement: computed after pins so feasibility
+        // respects pinned single-element pools.
+        $this->activeEdgeRequirements = null;
+        $this->edgeRequirementMemo = [];
+        if (!empty($options['pedagogical_vl'])) {
+            $edgeReqs = $this->computeEdgeRequirements($allChords, $lattice, $category);
+            if (!empty($edgeReqs)) {
+                $this->activeEdgeRequirements = $edgeReqs;
+            }
+            $diagnostics['pedagogical_vl'] = array_map(fn($idx, $r) => [
+                'edge'        => $idx,
+                'requirement' => $r['requirement_id'],
+                'required'    => array_keys($r['resolutions']),
+                'one_of'      => array_keys($r['one_of'] ?? []),
+                'level'       => $r['level'],
+            ], array_keys($edgeReqs), $edgeReqs);
+        }
+
         // Phase E: Run Pass 1 and Pass 2, then apply decision rule
         $pass1Selections = null;
         $pass1Cost = null;
@@ -430,7 +462,7 @@ class ProgressionBuilder
                 'weight_overrides' => $options['weight_overrides'] ?? [],
                 'position_hints' => $positionHints,
             ];
-            $pass1Selections = $this->viterbiSearchWithRelaxation($lattice, $pass1Context, $style, $diagnostics, $allChords);
+            $pass1Selections = $this->searchWithPedagogicalFallback($lattice, $pass1Context, $style, $diagnostics, $allChords);
             $pass1Cost = $this->calculatePathCost($pass1Selections, $allChords, $pass1Context);
 
             // Run Pass 2 (vlLevel = 2, with extensions and named resolutions)
@@ -441,7 +473,7 @@ class ProgressionBuilder
                 'weight_overrides' => $options['weight_overrides'] ?? [],
                 'position_hints' => $positionHints,
             ];
-            $pass2Selections = $this->viterbiSearchWithRelaxation($lattice, $pass2Context, $style, $diagnostics, $allChords);
+            $pass2Selections = $this->searchWithPedagogicalFallback($lattice, $pass2Context, $style, $diagnostics, $allChords);
             $pass2Result = $this->calculatePathCostWithResolutions($pass2Selections, $allChords, $pass2Context);
             $pass2Cost = $pass2Result['cost'];
             $pass2FiredResolutions = $pass2Result['fired_resolutions'];
@@ -473,12 +505,16 @@ class ProgressionBuilder
                 'weight_overrides' => $options['weight_overrides'] ?? [],
                 'position_hints' => $positionHints,
             ];
-            $selections = $this->viterbiSearchWithRelaxation($lattice, $context, $style, $diagnostics, $allChords);
+            $selections = $this->searchWithPedagogicalFallback($lattice, $context, $style, $diagnostics, $allChords);
             if (empty($selections)) {
                 $selections = array_fill(0, $n, null);
             }
             $selections = $this->applyRepeatedChordReuse($selections, $allChords, $options);
         }
+
+        // Requirement state must not leak into a later build on this instance.
+        $this->activeEdgeRequirements = null;
+        $this->edgeRequirementMemo = [];
 
         // Compute VL scores between adjacent selections
         $vlScores = [];
@@ -486,8 +522,11 @@ class ProgressionBuilder
         $actualVlLevel = ($runPass2 && $selections === $pass2Selections) ? 2 : 1;
         // Per-edge fired named resolutions — indexed by source slot i.
         // Used by the frontend to draw accurate guide-tone arrows rather than
-        // the proximity heuristic.
+        // the proximity heuristic. The detail variant carries the exact
+        // string/fret pair per fired resolution and is evaluated for EVERY
+        // category and pass (display concern — the cost bonus stays gated).
         $edgeFiredResolutions = [];
+        $edgeFiredDetails = [];
 
         for ($i = 0; $i < $n - 1; $i++) {
             $sel1 = $selections[$i] ?? null;
@@ -508,10 +547,17 @@ class ProgressionBuilder
                 ], $breakdown);
                 $pathCost += $breakdown['total'];
                 $diagnostics['observed_raw_vl_max'] = max($diagnostics['observed_raw_vl_max'], $breakdown['raw_voice_leading']);
-                $edgeFiredResolutions[$i] = $breakdown['fired_named_resolutions'] ?? [];
+
+                $details = $this->describeFiredResolutions($sel1, $sel2, [
+                    'source_chord' => $allChords[$i] ?? null,
+                    'target_chord' => $allChords[$i + 1] ?? null,
+                ]);
+                $edgeFiredDetails[$i] = $details;
+                $edgeFiredResolutions[$i] = array_column($details, 'id');
             } else {
                 $vlScores[] = null;
                 $edgeFiredResolutions[$i] = [];
+                $edgeFiredDetails[$i] = [];
             }
         }
         $diagnostics['path_cost'] = round($pathCost, 4);
@@ -530,6 +576,9 @@ class ProgressionBuilder
                 // Named resolutions fired on the edge FROM this slot to the next.
                 // Empty array for the last slot (no outgoing edge).
                 'fired_resolutions' => $edgeFiredResolutions[$i] ?? [],
+                // Detail variant: id/core/same_string/semitones + exact
+                // from/to {string, fret, midi, tone} per fired resolution.
+                'fired_resolution_details' => $edgeFiredDetails[$i] ?? [],
             ];
         }
 
@@ -581,7 +630,8 @@ class ProgressionBuilder
         bool $explicitQuality = false,
         string $tonality = 'major',
         ?int $bassStringMin = null,
-        ?int $bassStringMax = null
+        ?int $bassStringMax = null,
+        bool $widenArchetype = false
     ): array {
         if (!$root) return [];
 
@@ -608,6 +658,16 @@ class ProgressionBuilder
         // the result to only the shapes that actually carry the requested tone.
         if ($extension !== '' && $explicitQuality) {
             $pool = array_values(array_unique(array_merge($pool, ['archetype', 'closed', 'closed_triads', 'triad'])));
+        }
+
+        // Cadence-requirement edges (§6.6): some category pools (e.g. classical
+        // dominant 7ths) carry only one shape, starving the same-string
+        // guide-tone search of a textbook pair (open G7 320001 → C x32010).
+        // Widen with the archetype pool so the requirement search has real
+        // candidates; the requirement/discipline checks still gate which
+        // pair actually gets picked.
+        if ($widenArchetype) {
+            $pool = array_values(array_unique(array_merge($pool, ['archetype'])));
         }
 
         // Check if style is outside category pool
@@ -1710,7 +1770,7 @@ class ProgressionBuilder
      * @param bool $extensionsEnabled Whether extensions are enabled in options
      * @return array Modified context with Phase E upgrades applied
      */
-    private function applyPhaseEExtensionUpgrade(array $context, bool $extensionsEnabled): array
+    private function applyPhaseEExtensionUpgrade(array $context, bool $extensionsEnabled, array $requirementSlots = []): array
     {
         if (!isset($context['sections'])) {
             return $context;
@@ -1761,6 +1821,15 @@ class ProgressionBuilder
                 // Hardcoded extensions are already flagged above and we never
                 // overwrite them with Phase E option-tone selection.
                 if (!empty($chord['phase_e_hardcoded'])) {
+                    continue;
+                }
+
+                // Cadence-requirement edges (§6.6) fetch their voicing pools
+                // under the plain quality — decorating first would restrict
+                // fetchVoicingsForChord to tension-carrying shapes that the
+                // discipline check then rejects for lack of a justifying
+                // resolution, silently dropping the edge to same_voice/dropped.
+                if (!empty($requirementSlots[$globalIdx])) {
                     continue;
                 }
 
@@ -1872,6 +1941,13 @@ class ProgressionBuilder
                 return $quality === '6' || $quality === '69' ? 'I6' : 'Imaj7';
             } elseif ($degree === 4) {
                 return 'IVmaj7';
+            }
+            // Borrowed flat-submediant (minor blues cadence: bVImaj7 → V7).
+            // Without its own role it fell into the Imaj7 fallback, so no
+            // voice-leading rule could ever target the bVI → V planing move.
+            // bVI is a substring of bVII — exclude the latter explicitly.
+            if (str_contains($romanNumeral, 'bVI') && !str_contains($romanNumeral, 'bVII')) {
+                return 'bVImaj7';
             }
             return 'Imaj7';
         }
@@ -2640,6 +2716,521 @@ class ProgressionBuilder
     }
 
     /**
+     * Describe every named resolution that fires on a chosen edge, with the
+     * exact note pair involved — the display-layer companion of
+     * evaluateNamedResolutions. Runs for EVERY category and pass (the cost
+     * bonus stays Pass-2/jazz-latin-only; this is diagnostics for the
+     * frontend, which draws the guide-tone motion from these details).
+     *
+     * Each entry:
+     *   id           — named resolution ID
+     *   core         — bool, bedrock guide-tone motion (YAML `core` flag)
+     *   same_string  — bool, motion happens on one string
+     *   semitones    — signed motion
+     *   from / to    — ['string' (1-based, low E = 1), 'fret', 'midi', 'tone']
+     */
+    private function describeFiredResolutions(object $v1, object $v2, array $context): array
+    {
+        $sourceChord = $context['source_chord'] ?? null;
+        $targetChord = $context['target_chord'] ?? null;
+        if (!$sourceChord || !$targetChord) {
+            return [];
+        }
+
+        $sourceNotes = $this->getVoicingMidiNotes($v1);
+        $targetNotes = $this->getVoicingMidiNotes($v2);
+        if (empty($sourceNotes) || empty($targetNotes)) {
+            return [];
+        }
+
+        $sourceRootPc = $this->noteNameToPitchClass($sourceChord['root'] ?? 'C');
+        $targetRootPc = $this->noteNameToPitchClass($targetChord['root'] ?? 'C');
+        // Localized roles: a tonicizing dominant's target reads as a local
+        // tonic so the minor remap (3 → b3) applies on e.g. III7 → VIm.
+        [$sourceRole, $targetRole] = $this->localizedEdgeRoles(
+            $sourceChord, $targetChord, ($targetRootPc - $sourceRootPc + 12) % 12
+        );
+
+        $details = [];
+        foreach (ExtensionTable::getNamedResolutions() as $resolution) {
+            // Prefer the same-string reading; fall back to nearest-voice.
+            $result = $this->testNamedResolutionWithDebug($resolution, $sourceNotes, $targetNotes,
+                                                          $sourceRootPc, $targetRootPc,
+                                                          $sourceRole, $targetRole, 'same_string');
+            if (!$result['fired']) {
+                $result = $this->testNamedResolutionWithDebug($resolution, $sourceNotes, $targetNotes,
+                                                              $sourceRootPc, $targetRootPc,
+                                                              $sourceRole, $targetRole);
+            }
+            if (!$result['fired'] || empty($result['pair'])) {
+                continue;
+            }
+
+            $pair = $result['pair'];
+            // Mirror the minor-tonic display remap (3 → b3) the tester applies.
+            $targetTone = (string) $resolution['target']['tone'];
+            if ($targetTone === '3' && $this->isMinorTonicRole($targetRole)) {
+                $targetTone = 'b3';
+            }
+            $details[] = [
+                'id'          => $resolution['id'],
+                'core'        => (bool) ($resolution['core'] ?? false),
+                'same_string' => (bool) $pair['same_string'],
+                'semitones'   => $pair['target_midi'] - $pair['source_midi'],
+                'from' => [
+                    'string' => $pair['source_string'] + 1,
+                    'fret'   => $pair['source_midi'] - self::OPEN_MIDI[$pair['source_string'] + 1],
+                    'midi'   => $pair['source_midi'],
+                    'tone'   => $resolution['source']['tone'],
+                ],
+                'to' => [
+                    'string' => $pair['target_string'] + 1,
+                    'fret'   => $pair['target_midi'] - self::OPEN_MIDI[$pair['target_string'] + 1],
+                    'midi'   => $pair['target_midi'],
+                    'tone'   => $targetTone,
+                ],
+            ];
+        }
+
+        return $details;
+    }
+
+    // =========================================================================
+    // PEDAGOGICAL CADENCE ENFORCEMENT
+    // =========================================================================
+    //
+    // When buildVoicings runs with `pedagogical_vl: true` (the progression
+    // library display surface), edges whose role pair matches a YAML
+    // `cadence_requirements` entry get their required named resolutions
+    // enforced as HARD edge admissibility in Viterbi — the picked voicing
+    // pair must demonstrate the guide-tone motion (7→3, ti→do, …) the edu
+    // prose describes, ideally on a single string.
+    //
+    // Each edge relaxes independently through: same_string → same_voice
+    // (nearest voice, may cross strings) → dropped. The level is decided by a
+    // feasibility pre-scan over the candidate pools, so one unsatisfiable
+    // edge never drags down enforcement on the others.
+
+    /** Active per-edge cadence requirements for the current search (keyed by source-slot index), or null. */
+    private ?array $activeEdgeRequirements = null;
+
+    /** Memo for per-pair requirement tests, keyed "edge:objIdFrom:objIdTo". */
+    private array $edgeRequirementMemo = [];
+
+    /**
+     * Match cadence-requirement edges against the flattened chord list and
+     * pre-scan each matched edge's candidate pools for the strictest
+     * satisfiable enforcement level.
+     */
+    private function computeEdgeRequirements(array $allChords, array $lattice, string $category = self::CATEGORY_DEFAULT): array
+    {
+        $edgeReqs = $this->computeEdgeRequirementDefs($allChords, $category);
+
+        // Per-edge feasibility: relax each edge independently to the
+        // strictest level at least one candidate pair can satisfy.
+        foreach ($edgeReqs as $i => &$req) {
+            $poolA = $lattice[$i] ?? [];
+            $poolB = $lattice[$i + 1] ?? [];
+            foreach (['same_string', 'same_voice'] as $level) {
+                $req['level'] = $level;
+                if ($this->edgeHasSatisfiablePair($req, $poolA, $poolB)) {
+                    continue 2;
+                }
+            }
+            $req['level'] = 'dropped';
+        }
+        unset($req);
+
+        return $edgeReqs;
+    }
+
+    /**
+     * Role/interval matching half of requirement computation — no lattice
+     * access, so it can run before voicing pools exist. Used both by
+     * computeEdgeRequirements() (post-lattice, adds feasibility levels) and by
+     * the pre-Phase-E scan that tells applyPhaseEExtensionUpgrade() which
+     * slots sit on a requirement edge and must not be decorated with option
+     * tones before the requirement pools are fetched (§6.6 discipline would
+     * otherwise reject the decorated voicing and drop the edge).
+     */
+    private function computeEdgeRequirementDefs(array $allChords, string $category = self::CATEGORY_DEFAULT): array
+    {
+        $requirements = ExtensionTable::getCadenceRequirements();
+        if (empty($requirements)) {
+            return [];
+        }
+
+        $edgeReqs = [];
+        $n = count($allChords);
+        for ($i = 0; $i < $n - 1; $i++) {
+            $source = $allChords[$i];
+            $target = $allChords[$i + 1];
+
+            $srcPc = $this->noteNameToPitchClass($source['root'] ?? 'C');
+            $tgtPc = $this->noteNameToPitchClass($target['root'] ?? 'C');
+            // A static root is never a resolution (II7 → IIm7) — don't bind.
+            if ($srcPc === $tgtPc) {
+                continue;
+            }
+            $rootInterval = ($tgtPc - $srcPc + 12) % 12;
+
+            [$sourceRole, $targetRole] = $this->localizedEdgeRoles($source, $target, $rootInterval);
+
+            $requiredIds = [];
+            $oneOfIds = [];
+            $rootPosition = [];
+            $bassSemitones = null;
+            $matchedReq = null;
+            foreach ($requirements as $req) {
+                // Optional root-interval guard: (target - source) mod 12.
+                // Keeps e.g. cad.deceptive from binding a tonicizing III7→VIm
+                // (that edge is an authentic cadence into the local minor).
+                if (isset($req['edge']['interval']) && (int) $req['edge']['interval'] !== $rootInterval) continue;
+                $srcRule = $req['edge']['source_role'] ?? '';
+                $tgtRule = $req['edge']['target_role'] ?? '';
+                if ($srcRule !== 'any' && !$this->resolutionRoleMatches($srcRule, $sourceRole)) continue;
+                if (!$this->requirementTargetMatches($tgtRule, $targetRole)) continue;
+                $matchedReq = $req['id'];
+                foreach ($req['require'] ?? [] as $id) {
+                    $requiredIds[] = $id;
+                }
+                foreach ($req['require_one_of'] ?? [] as $id) {
+                    $oneOfIds[] = $id;
+                }
+                foreach ($req['root_position'] ?? [] as $side) {
+                    $rootPosition[] = $side;
+                }
+                if (isset($req['bass_semitones'])) {
+                    $bassSemitones = (int) $req['bass_semitones'];
+                }
+            }
+            if (empty($requiredIds) && empty($oneOfIds) && empty($rootPosition) && $bassSemitones === null) {
+                continue;
+            }
+
+            $lookup = function (array $ids): array {
+                $out = [];
+                foreach (array_unique($ids) as $id) {
+                    $res = ExtensionTable::getNamedResolution($id);
+                    if ($res) {
+                        $out[$id] = $res;
+                    }
+                }
+                return $out;
+            };
+            $resolutions = $lookup($requiredIds);
+            $oneOf = $lookup($oneOfIds);
+
+            // Every named resolution whose roles match this edge — used to
+            // justify extension tones (§6.6 discipline): a tension is only
+            // admissible when it carries a voice-leading story on this edge.
+            $candidates = [];
+            foreach (ExtensionTable::getNamedResolutions() as $res) {
+                $srcMatch = $this->resolutionRoleMatches($res['source']['role'], $sourceRole);
+                $tgtMatch = $res['target']['role'] === 'any_tonic'
+                    || $this->resolutionRoleMatches($res['target']['role'], $targetRole);
+                if ($srcMatch && $tgtMatch) {
+                    $candidates[$res['id']] = $res;
+                }
+            }
+
+            $edgeReqs[$i] = [
+                'requirement_id' => $matchedReq,
+                'resolutions'    => $resolutions,
+                'one_of'         => $oneOf,
+                'candidates'     => $candidates,
+                'root_position'  => array_values(array_unique($rootPosition)),
+                'bass_semitones' => $bassSemitones,
+                // Plain-only categories never take tensions on cadence edges.
+                'plain_only'     => in_array($category, ['classical', 'pop'], true),
+                'source_root_pc' => $srcPc,
+                'target_root_pc' => $tgtPc,
+                'source_role'    => $sourceRole,
+                'target_role'    => $targetRole,
+                'level'          => 'same_string',
+            ];
+        }
+
+        return $edgeReqs;
+    }
+
+    /**
+     * Localize an edge's functional roles for guide-tone testing.
+     *
+     * A dominant that resolves down a fifth (root interval +5) tonicizes the
+     * next chord — the ear hears that chord as a LOCAL tonic no matter what
+     * global degree it sits on. III7 → VIm is an authentic cadence into the
+     * relative minor, not a deceptive cadence; the minor-tonic remap
+     * (3 → b3) and the tonic-family requirement matching must both apply.
+     */
+    private function localizedEdgeRoles(array $source, array $target, int $rootInterval): array
+    {
+        $sourceRole = $this->determineFunctionalRole($source);
+        $targetRole = $this->determineFunctionalRole($target);
+
+        if ($sourceRole === 'V7' && $rootInterval === 5) {
+            $localTonic = match ($target['quality'] ?? '') {
+                'maj7', 'maj9', 'maj13', 'maj' => 'Imaj7',
+                '6', '69', 'maj6'              => 'I6',
+                'm', 'min', 'm7', 'min7', 'mMin7' => 'Im7',
+                'm6', 'min6'                   => 'Im6',
+                'mMaj7'                        => 'ImMaj7',
+                default                        => null,
+            };
+            if ($localTonic !== null) {
+                $targetRole = $localTonic;
+            }
+        }
+
+        return [$sourceRole, $targetRole];
+    }
+
+    /**
+     * Requirement target-role match. `any_tonic` here means the strict tonic
+     * families only — NOT the loose match-anything wildcard the
+     * named_resolutions tester uses (a blues I7→IV7 edge must not bind).
+     */
+    private function requirementTargetMatches(string $ruleRole, string $actualRole): bool
+    {
+        if ($ruleRole === 'any') {
+            return true;
+        }
+        if ($ruleRole === 'any_tonic') {
+            return in_array($actualRole, ['Imaj7', 'I6', 'Im', 'Im7', 'Im6', 'ImMaj7'], true);
+        }
+        return $this->resolutionRoleMatches($ruleRole, $actualRole);
+    }
+
+    private function edgeHasSatisfiablePair(array $req, array $poolA, array $poolB): bool
+    {
+        foreach ($poolA as $vA) {
+            foreach ($poolB as $vB) {
+                if ($this->requirementPairSatisfied($req, $vA, $vB)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Full per-pair admissibility for a requirement edge at its enforcement
+     * level:
+     *
+     *   1. bass_semitones — literal signed bass motion (passing-dim7 climb)
+     *   2. root_position  — required sides must have the chord root in the
+     *                       bass (no 6/4 tonic landings, no random inversions)
+     *   3. require / require_one_of resolutions fire (same-string at level 1)
+     *   4. extension discipline — every non-chord tone must be justified by
+     *      a fired resolution on this edge; plain-only categories (classical,
+     *      pop) take no tensions at all on cadence edges
+     */
+    private function requirementPairSatisfied(array $req, object $vA, object $vB): bool
+    {
+        if ($req['level'] === 'dropped') {
+            return true;
+        }
+        $mode = $req['level'] === 'same_string' ? 'same_string' : null;
+
+        $sourceNotes = $this->getVoicingMidiNotes($vA);
+        $targetNotes = $this->getVoicingMidiNotes($vB);
+        if (empty($sourceNotes) || empty($targetNotes)) {
+            return false;
+        }
+
+        // 1. Literal bass motion (chromatic passing lines)
+        if (($req['bass_semitones'] ?? null) !== null) {
+            $b1 = $this->getBassNote($vA);
+            $b2 = $this->getBassNote($vB);
+            if ($b1 === null || $b2 === null || ($b2 - $b1) !== $req['bass_semitones']) {
+                return false;
+            }
+        }
+
+        // 2. Root-position anchors
+        $rootPos = $req['root_position'] ?? [];
+        if (in_array('source', $rootPos, true) && !$this->bassIsRoot($vA, $req['source_root_pc'])) {
+            return false;
+        }
+        if (in_array('target', $rootPos, true) && !$this->bassIsRoot($vB, $req['target_root_pc'])) {
+            return false;
+        }
+
+        // 3. Resolution firing — evaluate the edge's full candidate set once;
+        //    fired tones double as the justification list for step 4.
+        $fired = [];
+        foreach ($req['candidates'] ?? [] as $id => $resolution) {
+            $result = $this->testNamedResolutionWithDebug(
+                $resolution, $sourceNotes, $targetNotes,
+                $req['source_root_pc'], $req['target_root_pc'],
+                $req['source_role'], $req['target_role'], $mode
+            );
+            if ($result['fired']) {
+                $fired[$id] = $resolution;
+            }
+        }
+
+        foreach (array_keys($req['resolutions']) as $id) {
+            if (!isset($fired[$id])) {
+                return false;
+            }
+        }
+        if (!empty($req['one_of'])) {
+            $anyFired = false;
+            foreach (array_keys($req['one_of']) as $id) {
+                if (isset($fired[$id])) {
+                    $anyFired = true;
+                    break;
+                }
+            }
+            if (!$anyFired) {
+                return false;
+            }
+        }
+
+        // 4. Extension discipline
+        return $this->extensionDisciplineSatisfied($req, $vA, $vB, $fired);
+    }
+
+    /**
+     * Is the voicing's lowest sounded note the chord root?
+     */
+    private function bassIsRoot(object $v, int $rootPc): bool
+    {
+        $bass = $this->getBassNote($v);
+        return $bass !== null && ($bass % 12) === $rootPc;
+    }
+
+    /**
+     * §6.6 extension discipline.
+     *
+     * Non-chord tones are detected from interval_labels — NOT the
+     * `extensions` column, which is empty on some tension-carrying shapes
+     * (e.g. a G7#5 stored as plain dom7). In plain-only categories any
+     * tension disqualifies the pair. Otherwise each tension must be
+     * justified by a fired resolution on this edge: a source tension must be
+     * some fired resolution's source tone (it leaves via voice leading), a
+     * target tension must be some fired resolution's target tone (it arrived
+     * via voice leading). Tensions with no voice-leading story — the
+     * dom7(b13,#9) on a classical cadence — are inadmissible.
+     */
+    private function extensionDisciplineSatisfied(array $req, object $vA, object $vB, array $fired): bool
+    {
+        $srcTensions = $this->voicingTensionOffsets($vA);
+        $tgtTensions = $this->voicingTensionOffsets($vB);
+
+        if (empty($srcTensions) && empty($tgtTensions)) {
+            return true;
+        }
+        if (!empty($req['plain_only'])) {
+            return false;
+        }
+
+        $firedSrcOffsets = [];
+        $firedTgtOffsets = [];
+        foreach ($fired as $resolution) {
+            $firedSrcOffsets[] = Interval::offset((string) $resolution['source']['tone']) % 12;
+            $tgtTone = (string) $resolution['target']['tone'];
+            if ($tgtTone === '3' && $this->isMinorTonicRole($req['target_role'])) {
+                $tgtTone = 'b3';
+            }
+            $firedTgtOffsets[] = Interval::offset($tgtTone) % 12;
+        }
+
+        foreach ($srcTensions as $offset) {
+            if (!in_array($offset, $firedSrcOffsets, true)) {
+                return false;
+            }
+        }
+        foreach ($tgtTensions as $offset) {
+            if (!in_array($offset, $firedTgtOffsets, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Semitone offsets (0–11 from the chord root) of every tension tone in
+     * the voicing, read from interval_labels. Chord tones (R/3/b3/5/b5/7ths)
+     * are never tensions; 6 counts as a chord tone on 6-family qualities,
+     * #5 on augmented, 2/4 on sus chords. Everything else (9/b9/#9/11/#11/
+     * 13/b13, or a 6/#5 on a non-matching quality) is a tension.
+     */
+    private function voicingTensionOffsets(object $v): array
+    {
+        $labels = array_map('trim', explode(',', (string) ($v->interval_labels ?? '')));
+        $quality = strtolower((string) ($v->quality ?? ''));
+
+        $allowed = ['', 'x', 'r', '1', '3', 'b3', '5', 'b5', '7', 'b7', 'maj7', 'bb7'];
+        if (str_contains($quality, '6')) {
+            $allowed[] = '6';
+        }
+        if (str_contains($quality, 'aug') || str_contains($quality, '+')) {
+            $allowed[] = '#5';
+        }
+        if (str_contains($quality, 'sus')) {
+            $allowed[] = '2';
+            $allowed[] = '4';
+            $allowed[] = 'sus2';
+            $allowed[] = 'sus4';
+        }
+
+        $tensions = [];
+        foreach ($labels as $label) {
+            if (in_array(strtolower($label), $allowed, true)) {
+                continue;
+            }
+            // Interval::offset throws on non-tone labels — skip what we
+            // can't classify rather than reject the voicing.
+            if (!Interval::isValid($label)) {
+                continue;
+            }
+            $tensions[] = Interval::offset($label) % 12;
+        }
+
+        return array_values(array_unique($tensions));
+    }
+
+    /**
+     * Memoized per-edge admissibility check used inside Viterbi.
+     */
+    private function edgeRequirementSatisfied(int $edgeIdx, object $from, object $to): bool
+    {
+        $req = $this->activeEdgeRequirements[$edgeIdx] ?? null;
+        if ($req === null || $req['level'] === 'dropped') {
+            return true;
+        }
+
+        $key = $edgeIdx . ':' . spl_object_id($from) . ':' . spl_object_id($to);
+        if (!array_key_exists($key, $this->edgeRequirementMemo)) {
+            $this->edgeRequirementMemo[$key] = $this->requirementPairSatisfied($req, $from, $to);
+        }
+        return $this->edgeRequirementMemo[$key];
+    }
+
+    /**
+     * viterbiSearchWithRelaxation plus a last-resort pedagogical fallback:
+     * if no global path satisfies the (already per-edge-relaxed) cadence
+     * requirements, abandon enforcement rather than return nothing.
+     */
+    private function searchWithPedagogicalFallback(array $lattice, array $context, ?string $group, ?array &$diagnostics, array $allChords): array
+    {
+        $path = $this->viterbiSearchWithRelaxation($lattice, $context, $group, $diagnostics, $allChords);
+        if (!empty($path) || $this->activeEdgeRequirements === null) {
+            return $path;
+        }
+
+        // Not restored afterwards: a later pass must search the same space
+        // as the one it is cost-compared against.
+        $this->activeEdgeRequirements = null;
+        $diagnostics['pedagogical_vl_abandoned'] = true;
+
+        return $this->viterbiSearchWithRelaxation($lattice, $context, $group, $diagnostics, $allChords);
+    }
+
+    /**
      * Test if a specific named resolution fires on this transition
      */
     private function testNamedResolution(array $resolution, array $sourceNotes, array $targetNotes,
@@ -2651,9 +3242,20 @@ class ProgressionBuilder
         return $result['fired'];
     }
 
+    /**
+     * @param string|null $motionMode Override for the motion test:
+     *   - null           — YAML semantics (same_voice ⇒ nearest-voice test)
+     *   - 'same_string'  — the motion must happen on ONE string (pedagogical
+     *                      enforcement: the dot visibly slides on the diagram)
+     *
+     * When the resolution fires, the returned array carries a 'pair' with the
+     * exact note pair that satisfied the motion (0-based string indices,
+     * low E = 0) so callers can point at the two dots involved.
+     */
     private function testNamedResolutionWithDebug(array $resolution, array $sourceNotes, array $targetNotes,
-                                                 int $sourceRootPc, int $targetRootPc, 
-                                                 string $sourceRole, string $targetRole): array
+                                                 int $sourceRootPc, int $targetRootPc,
+                                                 string $sourceRole, string $targetRole,
+                                                 ?string $motionMode = null): array
     {
         // Check role matching (support 'any_tonic' wildcard)
         $sourceMatch = $this->resolutionRoleMatches($resolution['source']['role'], $sourceRole);
@@ -2673,7 +3275,9 @@ class ProgressionBuilder
         // Remap "3" → "b3" and shift the expected motion by one extra semitone
         // down so vl.dom.b7_to_3 (and friends) fire into minor as the YAML
         // comment promises ("3 of major or b3 of minor").
-        if ($this->isMinorTonicRole($targetRole) && ($resolution['target']['tone'] ?? '') === '3') {
+        // NB: YAML parses a bare `tone: 3` as an integer — compare as string,
+        // or the remap silently never fires.
+        if ($this->isMinorTonicRole($targetRole) && (string) ($resolution['target']['tone'] ?? '') === '3') {
             $resolution['target']['tone'] = 'b3';
             $resolution['motion']['semitones'] = ($resolution['motion']['semitones'] ?? 0) - 1;
         }
@@ -2694,19 +3298,27 @@ class ProgressionBuilder
         $expectedSemitones = $resolution['motion']['semitones'];
         $sameVoice = $resolution['motion']['same_voice'];
 
-        if ($sameVoice) {
-            // Same voice constraint: same pitch rank in both voicings
-            $motionResult = $this->testSameVoiceMotion($sourceNotes, $targetNotes, 
-                                                      $sourceRootPc, $targetRootPc,
-                                                      $sourceTone, $targetTone, $expectedSemitones);
-            return ['fired' => $motionResult, 'reason' => $motionResult ? "fired" : "same_voice_mismatch"];
-        } else {
-            // Any voice pair constraint (not currently used in YAML)
-            $motionResult = $this->testAnyVoiceMotion($sourceNotes, $targetNotes,
-                                                     $sourceRootPc, $targetRootPc,
-                                                     $sourceTone, $targetTone, $expectedSemitones);
-            return ['fired' => $motionResult, 'reason' => $motionResult ? "fired" : "motion_mismatch"];
+        if ($motionMode === 'same_string') {
+            // Pedagogical enforcement: the motion must land on the same string.
+            $pair = $this->findSameStringMotionPair($sourceNotes, $targetNotes,
+                                                    $sourceRootPc, $targetRootPc,
+                                                    $sourceTone, $targetTone, $expectedSemitones);
+            return ['fired' => $pair !== null, 'reason' => $pair ? 'fired' : 'same_string_mismatch', 'pair' => $pair];
         }
+
+        if ($sameVoice) {
+            // Same voice constraint: nearest-voice motion (see findSameVoiceMotionPair)
+            $pair = $this->findSameVoiceMotionPair($sourceNotes, $targetNotes,
+                                                   $sourceRootPc, $targetRootPc,
+                                                   $sourceTone, $targetTone, $expectedSemitones);
+            return ['fired' => $pair !== null, 'reason' => $pair ? 'fired' : 'same_voice_mismatch', 'pair' => $pair];
+        }
+
+        // Any voice pair constraint (not currently used in YAML)
+        $motionResult = $this->testAnyVoiceMotion($sourceNotes, $targetNotes,
+                                                 $sourceRootPc, $targetRootPc,
+                                                 $sourceTone, $targetTone, $expectedSemitones);
+        return ['fired' => $motionResult, 'reason' => $motionResult ? "fired" : "motion_mismatch", 'pair' => null];
     }
 
     /**
@@ -2727,6 +3339,10 @@ class ProgressionBuilder
         $families = [
             'Im'    => ['Im', 'Im7', 'Im6', 'ImMaj7'],
             'Imaj7' => ['Imaj7', 'I6'],
+            // The half-diminished ii is the minor-key member of the ii family —
+            // its b7→3 descent into V7 is identical to IIm7's, so the ii–V
+            // guide-tone entries (and cad.ii_v enforcement) apply to both.
+            'IIm7'  => ['IIm7', 'IIm7b5'],
         ];
 
         return isset($families[$ruleRole]) && in_array($actualRole, $families[$ruleRole], true);
@@ -2741,42 +3357,92 @@ class ProgressionBuilder
     }
 
     /**
-     * Test same_voice motion constraint
+     * Find a nearest-voice motion pair satisfying the resolution, or null.
+     *
+     * NEAREST-VOICE motion (supersedes the original pitch-rank model).
+     *
+     * The pitch-rank definition (source tone and target tone must occupy the
+     * SAME index in each voicing's bass-up sort) was chosen in the original
+     * spec but proved too strict for guitar: in a real V7->I drop voicing the
+     * target's 3rd routinely sits BELOW where the dominant's b7 was, so the
+     * ranks cross and the bedrock b7->3 resolution never fires. Guitarists
+     * (and the ear) hear it as one voice regardless of where it lands on the
+     * staff. We therefore fire when the source tone moves to the target tone
+     * by the expected signed interval via the CLOSEST actual note pair —
+     * voicing-shape-agnostic, but still pinned to the exact interval (so it
+     * is not the looser any-voice / pitch-class-only test).
+     *
+     * Among equally valid pairs, a same-string pair wins so the returned dots
+     * describe the clearest visual motion available.
+     *
+     * @return array|null ['source_string','target_string' (0-based, low E = 0),
+     *                     'source_midi','target_midi','same_string']
      */
-    private function testSameVoiceMotion(array $sourceNotes, array $targetNotes,
-                                       int $sourceRootPc, int $targetRootPc,
-                                       string $sourceTone, string $targetTone, int $expectedSemitones): bool
+    private function findSameVoiceMotionPair(array $sourceNotes, array $targetNotes,
+                                             int $sourceRootPc, int $targetRootPc,
+                                             string $sourceTone, string $targetTone, int $expectedSemitones): ?array
     {
-        // NEAREST-VOICE motion (supersedes the original pitch-rank model).
-        //
-        // The pitch-rank definition (source tone and target tone must occupy the
-        // SAME index in each voicing's bass-up sort) was chosen in the original
-        // spec but proved too strict for guitar: in a real V7->I drop voicing the
-        // target's 3rd routinely sits BELOW where the dominant's b7 was, so the
-        // ranks cross and the bedrock b7->3 resolution never fires. Guitarists
-        // (and the ear) hear it as one voice regardless of where it lands on the
-        // staff. We therefore fire when the source tone moves to the target tone
-        // by the expected signed interval via the CLOSEST actual note pair —
-        // voicing-shape-agnostic, but still pinned to the exact interval (so it
-        // is not the looser any-voice / pitch-class-only test).
-        $soundedSource = array_values(array_filter($sourceNotes, fn($n) => $n !== -1));
-        $soundedTarget = array_values(array_filter($targetNotes, fn($n) => $n !== -1));
-
         $sourceTargetPc = ($sourceRootPc + Interval::offset($sourceTone)) % 12;
         $targetTargetPc = ($targetRootPc + Interval::offset($targetTone)) % 12;
 
-        $bestDist = PHP_INT_MAX;
-        foreach ($soundedSource as $s) {
-            if (($s % 12) !== $sourceTargetPc) continue;
-            foreach ($soundedTarget as $t) {
-                if (($t % 12) !== $targetTargetPc) continue;
+        $best = null;
+        $bestRank = PHP_INT_MAX;
+        foreach ($sourceNotes as $si => $s) {
+            if ($s === -1 || ($s % 12) !== $sourceTargetPc) continue;
+            foreach ($targetNotes as $ti => $t) {
+                if ($t === -1 || ($t % 12) !== $targetTargetPc) continue;
                 if (($t - $s) !== $expectedSemitones) continue;
-                $dist = abs($t - $s);
-                if ($dist < $bestDist) $bestDist = $dist;
+                // Same-string pairs outrank cross-string pairs; then closer wins.
+                $rank = abs($t - $s) + ($si === $ti ? 0 : 100);
+                if ($rank < $bestRank) {
+                    $bestRank = $rank;
+                    $best = [
+                        'source_string' => $si,
+                        'target_string' => $ti,
+                        'source_midi'   => $s,
+                        'target_midi'   => $t,
+                        'same_string'   => $si === $ti,
+                    ];
+                }
             }
         }
 
-        return $bestDist !== PHP_INT_MAX;
+        return $best;
+    }
+
+    /**
+     * Find a SAME-STRING motion pair satisfying the resolution, or null.
+     *
+     * The pedagogical variant of findSameVoiceMotionPair: source and target
+     * tone must sound on the same string, so the diagram shows one dot
+     * sliding by the exact interval — the clearest possible picture of the
+     * guide-tone motion for a student.
+     */
+    private function findSameStringMotionPair(array $sourceNotes, array $targetNotes,
+                                              int $sourceRootPc, int $targetRootPc,
+                                              string $sourceTone, string $targetTone, int $expectedSemitones): ?array
+    {
+        $sourceTargetPc = ($sourceRootPc + Interval::offset($sourceTone)) % 12;
+        $targetTargetPc = ($targetRootPc + Interval::offset($targetTone)) % 12;
+
+        for ($i = 0; $i < 6; $i++) {
+            $s = $sourceNotes[$i] ?? -1;
+            $t = $targetNotes[$i] ?? -1;
+            if ($s === -1 || $t === -1) continue;
+            if (($s % 12) !== $sourceTargetPc) continue;
+            if (($t % 12) !== $targetTargetPc) continue;
+            if (($t - $s) !== $expectedSemitones) continue;
+
+            return [
+                'source_string' => $i,
+                'target_string' => $i,
+                'source_midi'   => $s,
+                'target_midi'   => $t,
+                'same_string'   => true,
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -3328,6 +3994,13 @@ class ProgressionBuilder
                     }
 
                     if (!$this->isEdgeAdmissible($cPrev, $cCurr, $positionLimit)) {
+                        continue;
+                    }
+
+                    // Pedagogical cadence enforcement: the required guide-tone
+                    // motion is a hard edge filter, not a bonus.
+                    if ($this->activeEdgeRequirements !== null
+                        && !$this->edgeRequirementSatisfied($i - 1, $cPrev, $cCurr)) {
                         continue;
                     }
 
