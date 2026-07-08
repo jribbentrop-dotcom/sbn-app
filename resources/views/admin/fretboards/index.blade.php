@@ -27,7 +27,6 @@
                     <th>Title</th>
                     <th>Slug</th>
                     <th>Mode</th>
-                    <th>Theme</th>
                     <th>Frames</th>
                     <th style="width:120px;"></th>
                 </tr>
@@ -54,9 +53,6 @@
                         <span class="sbn-badge sbn-badge-{{ $fb->display_mode === 'chord' ? 'blue' : ($fb->display_mode === 'scale' ? 'green' : 'purple') }}">
                             {{ ucfirst($fb->display_mode) }}
                         </span>
-                    </td>
-                    <td>
-                        <span style="font-size:12px;color:var(--clr-text-dim);">{{ ucfirst($fb->theme) }}</span>
                     </td>
                     <td style="font-size:13px;color:var(--clr-text-dim);">
                         {{ count($fb->voicings ?? []) }}

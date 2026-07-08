@@ -20,7 +20,6 @@ class AdminFretboardController extends Controller
         $fretboard = new Fretboard([
             'display_mode'    => 'chord',
             'root_note'       => null,
-            'theme'           => 'dark',
             'fret_count'      => 12,
             'start_fret'      => 1,
             'show_guide_tones' => false,
@@ -58,7 +57,7 @@ class AdminFretboardController extends Controller
 
         $fretboard->update($data);
 
-        return redirect()->route('admin.fretboards.index')
+        return redirect()->route('admin.fretboards.edit', $fretboard)
             ->with('success', 'Fretboard updated.');
     }
 
@@ -113,7 +112,6 @@ class AdminFretboardController extends Controller
             'root_note'        => $fb->root_note,
             'description'      => $fb->description,
             'display_mode'     => $fb->display_mode,
-            'theme'            => $fb->theme,
             'fret_count'       => $fb->fret_count,
             'start_fret'       => $fb->start_fret,
             'show_guide_tones' => $fb->show_guide_tones,
@@ -134,7 +132,6 @@ class AdminFretboardController extends Controller
             'slug'             => 'nullable|string|max:120',
             'description'      => 'nullable|string|max:1000',
             'display_mode'     => 'required|in:chord,scale,sequence,positions',
-            'theme'            => 'required|in:dark,light',
             'fret_count'       => 'required|integer|min:4|max:24',
             'start_fret'       => 'required|integer|min:1|max:20',
             'show_guide_tones' => 'nullable|boolean',

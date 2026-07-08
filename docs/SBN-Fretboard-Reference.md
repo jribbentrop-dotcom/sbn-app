@@ -1,7 +1,7 @@
 # SBN Fretboard Reference
 
 > **Purpose:** Single source of truth for the interactive fretboard system — admin CRUD, storage format, Vue SVG renderer, course tag, and TipTap editor integration. Load at the start of any session touching fretboards.
-> **Last updated:** 2026-07-08 (positions-mode transposition via `root_note` + course tag `key="…"` override, plus the earlier `position="N"` start-window override — see §2, §6)
+> **Last updated:** 2026-07-08 (admin editor: removed the unused `theme` field, save now stays on the edit page + header Save button, Title/Description moved around the fretboard preview — see §2, §7)
 
 ---
 
@@ -32,7 +32,6 @@ Three display modes are supported:
 | `root_note` | varchar(3) nullable | The key this record is authored in (e.g. `"E"` for an E minor pentatonic scale), added 2026-07-08. Required for the course tag's `key="…"` transposition override (§6) to do anything — null means "not transposable." |
 | `description` | text nullable | Optional admin note |
 | `display_mode` | string `chord\|scale\|sequence\|positions` | Controls render path. **Was an enum; relaxed to a plain string in the 2026-07-01 migration** so `positions` is accepted (the old CHECK constraint was dropped). |
-| `theme` | enum `dark\|light` | CSS theme scope |
 | `fret_count` | tinyint (4–24, default 12) | Number of fret columns shown |
 | `start_fret` | tinyint (1–20, default 1) | First fret column shown |
 | `show_guide_tones` | boolean (default false) | Colours b7/3/R/9/5 dots |
@@ -46,6 +45,8 @@ Three display modes are supported:
 > **Deploy note (2026-07-07):** migration `2026_07_07_000000_add_start_window_to_fretboards.php` adds `start_window` (unsigned tinyint, default 0). Apply to prod with `ALTER TABLE fretboards ADD COLUMN start_window INTEGER NOT NULL DEFAULT 0;` — no table rebuild needed (plain column add). The local `sbn.db` already has it applied.
 
 > **Deploy note (2026-07-08):** migration `2026_07_08_000000_add_root_note_to_fretboards.php` adds `root_note` (nullable varchar(3)). Apply to prod with `ALTER TABLE fretboards ADD COLUMN root_note varchar(3) NULL;` — plain column add, no rebuild needed. The local `sbn.db` already has it applied.
+
+> **`theme` column removed from the app layer (2026-07-08):** it never had any effect on the published `<sbn-fretboard>` render (confirmed zero references in `SbnFretboard.vue`/`FretboardNeck.vue`/`fretboard.css`) — it only toggled the admin editor's own grid colors while clicking dots. Dropped from `$fillable`, controller validation/defaults/`apiShow`, and the admin index/edit views. The DB column itself is left in place (unused, nullable, costs nothing) — no migration needed.
 | `created_at` / `updated_at` | timestamps | |
 
 **Model:** [`app/Models/Fretboard.php`](../app/Models/Fretboard.php)
@@ -228,8 +229,10 @@ Controller: [`AdminFretboardController::apiShow`](../app/Http/Controllers/Admin/
 **Index view** ([`admin/fretboards/index.blade.php`](../resources/views/admin/fretboards/index.blade.php)) — table of all fretboards with mode badge, frame count, and a one-click "copy tag" button that puts `<sbn-fretboard slug="…">` on the clipboard.
 
 **Edit view** ([`admin/fretboards/edit.blade.php`](../resources/views/admin/fretboards/edit.blade.php)) — two-column layout:
-- **Left sidebar (300px):** Properties (title, root note, slug, mode, description, fret count, start fret, theme, guide tones toggle, RH fingers toggle) + Frames list (add/remove/reorder, active frame label field). **Root note** is a plain `<select name="root_note">` (— none — or one of the 12 notes); it only matters for positions-mode records where it enables the course tag's `key="…"` transposition (§6).
-- **Right panel (sticky):** Interactive click-to-place fretboard grid. Click a cell to toggle a dot; right-click to assign a finger (1/2/3/4/T/●). Clear button to wipe the current frame. Fret string + fingers readout for chord/sequence mode.
+- **Left sidebar (300px):** Properties (root note, slug, mode, fret count, start fret, guide tones toggle, RH fingers toggle) + Frames list (add/remove/reorder, active frame label field). **Root note** is a plain `<select name="root_note">` (— none — or one of the 12 notes); it only matters for positions-mode records where it enables the course tag's `key="…"` transposition (§6). **Title** and **Description** are no longer in this sidebar — they moved to the right panel (below) so they sit next to the thing they describe; the sidebar still submits them via hidden inputs bound to the same Alpine `meta.title`/`meta.description` state.
+- **Right panel (sticky):** **Title** (large inline-editable heading) directly above the interactive fretboard grid. Click a cell to toggle a dot; right-click to assign a finger (1/2/3/4/T/●). Clear button to wipe the current frame, plus **Shift ‹/›** buttons to shift every dot on the active frame one fret (all-or-nothing — refuses if any dot would land off the neck). Fret string + fingers readout for chord/sequence mode (hidden in positions mode, where the frame stores `dots[]` instead — see §3). **Description** (plain textarea) sits below the readout.
+- Fields removed: **Theme** (dark/light) was dropped 2026-07-08 — it never affected the published diagram, only the admin grid's own colors; see the deploy-note above.
+- **Save UX (2026-07-08):** `PUT` update now redirects back to the same edit page (not the index list) so multi-step editing (windows, frames, dots) doesn't get interrupted by a full navigation; the existing global flash banner shows "Fretboard updated." there. A **Save** button also lives in the sticky top action bar (next to "← Back"), wired to `document.getElementById('sbnFbeForm').requestSubmit()` since that bar renders outside the `<form>` — so Save is reachable without scrolling to the bottom of a long sidebar (e.g. a positions-mode record with many windows). The original bottom-of-sidebar Save button is unchanged and still works.
 
 The editor is an **Alpine component** (`fretboardEditor()`). State:
 - `frames[]` — the voicings array being edited.

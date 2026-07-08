@@ -12,7 +12,6 @@ class Fretboard extends Model
         'root_note',
         'description',
         'display_mode',
-        'theme',
         'fret_count',
         'start_fret',
         'show_guide_tones',

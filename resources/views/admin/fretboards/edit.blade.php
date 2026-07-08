@@ -4,6 +4,10 @@
 
 @section('actions')
     <a href="{{ route('admin.fretboards.index') }}" class="sbn-btn sbn-btn-secondary">← Back</a>
+    <button type="button" class="sbn-btn sbn-btn-primary"
+            onclick="document.getElementById('sbnFbeForm').requestSubmit()">
+        {{ $isNew ? 'Create' : 'Update' }}
+    </button>
 @endsection
 
 @push('styles')
@@ -165,6 +169,34 @@
     display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 
+/* Title above the fretboard */
+.sbn-fbe-title-input {
+    width: 100%;
+    font-size: 20px; font-weight: 700; color: var(--clr-text);
+    background: transparent; border: 1px solid transparent;
+    border-radius: 6px; padding: 4px 8px; margin: 0 0 4px -8px;
+    transition: border-color .12s, background .12s;
+}
+.sbn-fbe-title-input:hover { border-color: var(--clr-border); }
+.sbn-fbe-title-input:focus {
+    outline: none; border-color: var(--clr-accent);
+    background: var(--clr-bg); box-shadow: 0 0 0 3px rgba(var(--clr-accent-rgb,232,93,59),.1);
+}
+.sbn-fbe-title-input::placeholder { color: var(--clr-text-dim); font-weight: 600; }
+
+/* Description below the fretboard */
+.sbn-fbe-description-input {
+    width: 100%;
+    font-size: 13px; color: var(--clr-text);
+    background: var(--clr-bg); border: 1px solid var(--clr-border);
+    border-radius: 6px; padding: 8px 10px; resize: vertical;
+    font-family: inherit;
+}
+.sbn-fbe-description-input:focus {
+    outline: none; border-color: var(--clr-accent);
+    box-shadow: 0 0 0 3px rgba(var(--clr-accent-rgb,232,93,59),.1);
+}
+
 /* Frame list */
 .sbn-fb-frame-list { display: flex; flex-direction: column; gap: 6px; }
 .sbn-fb-frame-item {
@@ -236,6 +268,7 @@
 @endif
 
 <form
+    id="sbnFbeForm"
     method="POST"
     action="{{ $isNew ? route('admin.fretboards.store') : route('admin.fretboards.update', $fretboard) }}"
     x-data="fretboardEditor()"
@@ -259,15 +292,11 @@
             <div class="sbn-edit-section">
                 <div class="sbn-edit-section-header"><h2>Properties</h2></div>
 
-                <div class="sbn-edit-field">
-                    <label>Title</label>
-                    <input type="text" name="title"
-                           x-model="meta.title"
-                           value="{{ old('title', $fretboard->title ?? '') }}"
-                           required placeholder="e.g. Am7 Drop-2 Voice Leading">
-                </div>
+                {{-- Title now lives above the fretboard (right column) — hidden
+                     input here keeps it in the same form submit. --}}
+                <input type="hidden" name="title" x-model="meta.title">
 
-                <div class="sbn-edit-grid sbn-edit-grid-2" style="margin-top:10px;">
+                <div class="sbn-edit-grid sbn-edit-grid-2">
                     <div class="sbn-edit-field">
                         <label>Slug</label>
                         <input type="text" name="slug"
@@ -298,12 +327,9 @@
                     <span class="sbn-edit-hint">The key this record is authored in — enables <code>&lt;sbn-fretboard key="…"&gt;</code> transposition on the course tag.</span>
                 </div>
 
-                <div class="sbn-edit-field" style="margin-top:10px;">
-                    <label>Description</label>
-                    <input type="text" name="description"
-                           value="{{ old('description', $fretboard->description ?? '') }}"
-                           placeholder="Optional notes">
-                </div>
+                {{-- Description now lives below the fretboard (right column) —
+                     hidden input here keeps it in the same form submit. --}}
+                <input type="hidden" name="description" x-model="meta.description">
 
                 <div class="sbn-edit-grid sbn-edit-grid-2" style="margin-top:10px;">
                     <div class="sbn-edit-field">
@@ -322,30 +348,21 @@
                     </div>
                 </div>
 
-                <div class="sbn-edit-grid sbn-edit-grid-2" style="margin-top:10px;">
-                    <div class="sbn-edit-field">
-                        <label>Theme</label>
-                        <select name="theme" x-model="meta.theme" @change="render()">
-                            <option value="dark">Dark (Ebony)</option>
-                            <option value="light">Light (Maple)</option>
-                        </select>
-                    </div>
-                    <div class="sbn-edit-field" style="display:flex;align-items:end;gap:12px;flex-wrap:wrap;">
-                        <label class="sbn-edit-checkbox">
-                            <input type="hidden" name="show_guide_tones" value="0">
-                            <input type="checkbox" name="show_guide_tones" value="1"
-                                   x-model="meta.show_guide_tones" @change="render()"
-                                   @checked(old('show_guide_tones', $fretboard->show_guide_tones ?? false))>
-                            <span>Guide tones</span>
-                        </label>
-                        <label class="sbn-edit-checkbox">
-                            <input type="hidden" name="show_rh_fingers" value="0">
-                            <input type="checkbox" name="show_rh_fingers" value="1"
-                                   x-model="meta.show_rh_fingers" @change="render()"
-                                   @checked(old('show_rh_fingers', $fretboard->show_rh_fingers ?? false))>
-                            <span>RH fingers</span>
-                        </label>
-                    </div>
+                <div class="sbn-edit-field" style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">
+                    <label class="sbn-edit-checkbox">
+                        <input type="hidden" name="show_guide_tones" value="0">
+                        <input type="checkbox" name="show_guide_tones" value="1"
+                               x-model="meta.show_guide_tones" @change="render()"
+                               @checked(old('show_guide_tones', $fretboard->show_guide_tones ?? false))>
+                        <span>Guide tones</span>
+                    </label>
+                    <label class="sbn-edit-checkbox">
+                        <input type="hidden" name="show_rh_fingers" value="0">
+                        <input type="checkbox" name="show_rh_fingers" value="1"
+                               x-model="meta.show_rh_fingers" @change="render()"
+                               @checked(old('show_rh_fingers', $fretboard->show_rh_fingers ?? false))>
+                        <span>RH fingers</span>
+                    </label>
                 </div>
             </div>
 
@@ -458,6 +475,12 @@
              ══════════════════════════════════════════════════════ --}}
         <div class="sbn-fbe-wrap">
 
+            {{-- Title --}}
+            <input type="text"
+                   class="sbn-fbe-title-input"
+                   x-model="meta.title"
+                   required placeholder="Title — e.g. Am7 Drop-2 Voice Leading">
+
             <div class="sbn-fbe-label">
                 Click strings to place/remove dots &nbsp;·&nbsp;
                 Click open column to cycle muted(×) → open(○) → normal &nbsp;·&nbsp;
@@ -467,6 +490,13 @@
             {{-- Controls --}}
             <div class="sbn-fbe-controls">
                 <button type="button" class="sbn-btn sbn-btn-secondary" @click="clearFrame()">Clear</button>
+                <div style="display:flex;gap:4px;align-items:center;">
+                    <span style="font-size:12px;color:var(--clr-text-dim);">Shift:</span>
+                    <button type="button" class="sbn-btn sbn-btn-secondary" title="Shift all dots one fret down"
+                            @click="shiftFrame(-1)">&#x2039; Fret</button>
+                    <button type="button" class="sbn-btn sbn-btn-secondary" title="Shift all dots one fret up"
+                            @click="shiftFrame(1)">Fret &#x203a;</button>
+                </div>
                 <div style="display:flex;gap:6px;align-items:center;">
                     <span style="font-size:12px;color:var(--clr-text-dim);">Active finger:</span>
                     <template x-for="f in [1,2,3,4,'T']" :key="f">
@@ -489,12 +519,12 @@
             </div>
 
             {{-- The interactive grid --}}
-            <div class="sbn-fbe-grid" :class="'theme-' + meta.theme" id="sbnFbeGrid">
+            <div class="sbn-fbe-grid" id="sbnFbeGrid">
                 {{-- rendered by JS --}}
             </div>
 
-            {{-- Interval labels row --}}
-            <div>
+            {{-- Interval labels row — not used in positions mode (per-dot `iv` in JSON instead) --}}
+            <div x-show="!isPositionsMode()" x-cloak>
                 <div class="sbn-fbe-iv-label">Interval labels (low E → high e, comma-separated or one per cell)</div>
                 <div class="sbn-fbe-iv-row" id="sbnFbeIvRow">
                     <template x-for="(iv, idx) in ivLabels" :key="idx">
@@ -510,12 +540,23 @@
                 </div>
             </div>
 
-            {{-- Fret string readout --}}
-            <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--clr-text-dim);">
+            {{-- Fret string readout — meaningless in positions mode (frame stores dots[], not frets/fingers) --}}
+            <div x-show="!isPositionsMode()" x-cloak
+                 style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--clr-text-dim);">
                 <span>Fret string:</span>
                 <code x-text="currentFrame.frets" style="font-size:12px;background:var(--clr-bg-subtle);padding:2px 8px;border-radius:4px;border:1px solid var(--clr-border);"></code>
                 <span>Fingers:</span>
                 <code x-text="currentFrame.fingers" style="font-size:12px;background:var(--clr-bg-subtle);padding:2px 8px;border-radius:4px;border:1px solid var(--clr-border);"></code>
+            </div>
+
+            {{-- Description --}}
+            <div class="sbn-edit-field" style="margin-top:6px;">
+                <label>Description</label>
+                <textarea
+                    class="sbn-fbe-description-input"
+                    x-model="meta.description"
+                    rows="2"
+                    placeholder="Optional notes"></textarea>
             </div>
 
         </div>{{-- /fbe-wrap --}}
@@ -562,10 +603,10 @@ function fretboardEditor() {
 
         meta: {
             title:            @json(old('title', $fretboard->title ?? '')),
+            description:      @json(old('description', $fretboard->description ?? '')),
             root_note:        @json(old('root_note', $fretboard->root_note ?? '')),
             slug:             @json(old('slug',  $fretboard->slug  ?? '')),
             display_mode:     @json(old('display_mode', $fretboard->display_mode ?? 'chord')),
-            theme:            @json(old('theme',        $fretboard->theme        ?? 'dark')),
             fret_count:       {{ old('fret_count',  $fretboard->fret_count  ?? 12) }},
             start_fret:       {{ old('start_fret',  $fretboard->start_fret  ?? 1)  }},
             show_guide_tones: {{ ($fretboard->show_guide_tones ?? false) ? 'true' : 'false' }},
@@ -770,6 +811,8 @@ function fretboardEditor() {
         },
 
         cycleOpen(stringIdx) {
+            // Chord/sequence mode only — see render()'s open-col gating.
+            if (this.isScaleMode()) return;
             // normal → muted → open → normal
             const isMuted = this.mutedStrings.has(stringIdx);
             const isOpen  = this.openStrings.has(stringIdx);
@@ -796,6 +839,32 @@ function fretboardEditor() {
             this.syncFrame();
         },
 
+        // Shift every fretted dot on the active frame by one fret (dir = -1 or 1).
+        // Open/muted strings (chord mode) are left alone — there's no fret to
+        // shift. Refuses the whole move if any dot would land below fret 1 or
+        // above 24, so a shift is all-or-nothing rather than clipping some dots.
+        shiftFrame(dir) {
+            const entries = Object.entries(this.dotMap);
+            if (!entries.length) return;
+
+            for (const [key] of entries) {
+                const f = parseInt(key.split('_')[1]);
+                const nf = f + dir;
+                if (nf < 1 || nf > 24) {
+                    sbnToast('Cannot shift — a dot would go past the edge of the neck', 'error');
+                    return;
+                }
+            }
+
+            const shifted = {};
+            for (const [key, finger] of entries) {
+                const [s, f] = key.split('_').map(Number);
+                shifted[s + '_' + (f + dir)] = finger;
+            }
+            this.dotMap = shifted;
+            this.syncFrame();
+        },
+
         // ── render ─────────────────────────────────────────────────
 
         render() {
@@ -804,9 +873,6 @@ function fretboardEditor() {
 
             const sf       = this.meta.start_fret;
             const numFrets = this.meta.fret_count;
-
-            // Update theme class
-            el.className = 'sbn-fbe-grid theme-' + this.meta.theme;
 
             let h = '';
 
@@ -818,19 +884,25 @@ function fretboardEditor() {
             }
             h += '</div>';
 
-            // Open/mute column
-            h += '<div class="sbn-fbe-open-col">';
-            for (let di = 0; di < 6; di++) {
-                const si = 5 - di;
-                const isMuted = this.mutedStrings.has(si);
-                const isOpen  = this.openStrings.has(si);
-                let cls = 'sbn-fbe-open-cell';
-                if (isMuted) cls += ' is-muted';
-                if (isOpen)  cls += ' is-open';
-                const label = isMuted ? '×' : (isOpen ? '○' : '');
-                h += `<div class="${cls}" data-string="${si}" data-action="open">${label}</div>`;
+            // Open/mute column — chord/sequence mode only. Scale/positions mode
+            // allows multiple dots per string and has no open-string render path
+            // downstream, so this column is hidden there (was previously always
+            // shown and its cycleOpen() action silently wiped all fretted dots
+            // on the string when clicked in scale/positions mode).
+            if (!this.isScaleMode()) {
+                h += '<div class="sbn-fbe-open-col">';
+                for (let di = 0; di < 6; di++) {
+                    const si = 5 - di;
+                    const isMuted = this.mutedStrings.has(si);
+                    const isOpen  = this.openStrings.has(si);
+                    let cls = 'sbn-fbe-open-cell';
+                    if (isMuted) cls += ' is-muted';
+                    if (isOpen)  cls += ' is-open';
+                    const label = isMuted ? '×' : (isOpen ? '○' : '');
+                    h += `<div class="${cls}" data-string="${si}" data-action="open">${label}</div>`;
+                }
+                h += '</div>';
             }
-            h += '</div>';
 
             // Nut (only show when start_fret = 1)
             if (sf === 1) h += '<div class="sbn-fbe-nut"></div>';
