@@ -18,6 +18,7 @@ class Fretboard extends Model
         'show_rh_fingers',
         'voicings',
         'windows',
+        'start_window',
     ];
 
     protected $casts = [
@@ -27,6 +28,7 @@ class Fretboard extends Model
         'show_rh_fingers'  => 'boolean',
         'fret_count'      => 'integer',
         'start_fret'      => 'integer',
+        'start_window'    => 'integer',
     ];
 
     /**

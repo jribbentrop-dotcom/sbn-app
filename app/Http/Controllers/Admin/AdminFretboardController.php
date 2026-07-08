@@ -27,6 +27,7 @@ class AdminFretboardController extends Controller
             'voicings'        => [
                 ['label' => '', 'frets' => 'xxxxxx', 'fingers' => '000000', 'interval_labels' => ''],
             ],
+            'start_window'    => 0,
         ]);
         $isNew = true;
         return view('admin.fretboards.edit', compact('fretboard', 'isNew'));
@@ -113,6 +114,7 @@ class AdminFretboardController extends Controller
             'show_rh_fingers'  => $fb->show_rh_fingers,
             'voicings'         => $fb->voicings ?? [],
             'windows'          => $fb->windows ?? [],
+            'start_window'     => $fb->start_window ?? 0,
         ]);
     }
 
@@ -132,6 +134,7 @@ class AdminFretboardController extends Controller
             'show_rh_fingers'  => 'nullable|boolean',
             'voicings'         => 'nullable|string', // JSON string from hidden field
             'windows'          => 'nullable|string', // JSON string from hidden field (positions mode)
+            'start_window'     => 'nullable|integer|min:0|max:255',
         ]);
 
         // Checkboxes arrive as '1' or absent; cast to bool
@@ -147,6 +150,13 @@ class AdminFretboardController extends Controller
         $raw['windows'] = ($raw['windows'] ?? null)
             ? json_decode($raw['windows'], true) ?? []
             : [];
+
+        // Clamp start_window to a valid index into windows[] (0 when out of range)
+        $windowCount = count($raw['windows']);
+        $startWindow = (int) ($raw['start_window'] ?? 0);
+        $raw['start_window'] = ($windowCount > 0 && $startWindow >= 0 && $startWindow < $windowCount)
+            ? $startWindow
+            : 0;
 
         // Default slug from title if blank
         if (empty($raw['slug'])) {

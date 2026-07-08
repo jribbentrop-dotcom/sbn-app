@@ -62,6 +62,7 @@ interface FretboardRecord {
     show_rh_fingers: boolean;
     voicings: FretboardVoicing[];
     windows?: FretWindow[];
+    start_window?: number;
 }
 
 const props = defineProps<{ data: FretboardRecord }>();
@@ -100,7 +101,14 @@ const windows = computed((): FretWindow[] => {
     return ws.filter(w => w && Number.isFinite(w.from) && Number.isFinite(w.to));
 });
 
-const activeWindowIdx = ref(0);
+// Author-configured opening window (defaults to 0 = first position), clamped
+// against the actual windows list in case of stale/out-of-range data.
+const initialWindowIdx = computed(() => {
+    const n = props.data.start_window ?? 0;
+    return (n >= 0 && n < windows.value.length) ? n : 0;
+});
+
+const activeWindowIdx = ref(initialWindowIdx.value);
 const activeWindow = computed((): FretWindow | null =>
     windows.value[activeWindowIdx.value] ?? windows.value[0] ?? null);
 
@@ -159,7 +167,7 @@ function animateX(target: number) {
     rafId = requestAnimationFrame(step);
 }
 
-// Initialise camera on window 0 (no slide-in on mount).
+// Initialise camera on the starting window (no slide-in on mount).
 smoothX.value = windowTargetX(activeWindow.value);
 
 watch([activeWindow, posExcerptVW], ([w]) => animateX(windowTargetX(w as FretWindow | null)));

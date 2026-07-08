@@ -246,6 +246,7 @@
     @unless($isNew) @method('PUT') @endunless
     <input type="hidden" name="voicings" :value="JSON.stringify(voicings)">
     <input type="hidden" name="windows" :value="JSON.stringify(windows)">
+    <input type="hidden" name="start_window" :value="meta.start_window">
 
     <div class="sbn-fb-edit-layout">
 
@@ -376,6 +377,15 @@
                 <div class="sbn-edit-section-header">
                     <h2>Position Windows</h2>
                     <p>Place all scale notes in one frame, then define the fret windows the camera slides between.</p>
+                </div>
+
+                <div class="sbn-edit-field" x-show="windows.length > 0" style="margin-bottom:10px;">
+                    <label>Starting position</label>
+                    <select x-model.number="meta.start_window">
+                        <template x-for="(win, idx) in windows" :key="idx">
+                            <option :value="idx" x-text="(win.label || ('Position ' + (idx + 1)))"></option>
+                        </template>
+                    </select>
                 </div>
 
                 <div class="sbn-fb-frame-list" style="margin-bottom:10px;">
@@ -548,6 +558,7 @@ function fretboardEditor() {
             start_fret:       {{ old('start_fret',  $fretboard->start_fret  ?? 1)  }},
             show_guide_tones: {{ ($fretboard->show_guide_tones ?? false) ? 'true' : 'false' }},
             show_rh_fingers:  {{ ($fretboard->show_rh_fingers  ?? false) ? 'true' : 'false' }},
+            start_window:     {{ old('start_window', $fretboard->start_window ?? 0) }},
         },
 
         voicings: @json($initialVoicings),
@@ -618,6 +629,9 @@ function fretboardEditor() {
         },
         deleteWindow(idx) {
             this.windows.splice(idx, 1);
+            if (this.meta.start_window >= this.windows.length) {
+                this.meta.start_window = Math.max(0, this.windows.length - 1);
+            }
         },
         moveWindow(idx, dir) {
             const j = idx + dir;
