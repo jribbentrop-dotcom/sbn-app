@@ -92,7 +92,7 @@ const year = new Date().getFullYear();
     display: inline-flex;
     align-items: center;
     gap: 10px;
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-weight: 600;
     font-size: 1.18rem;
     letter-spacing: -.01em;

@@ -64,25 +64,21 @@ const letters = computed(() => groups.value.map(([l]) => l));
         <meta property="og:type" content="website" />
     </Head>
 
-    <div class="skill-glossary">
-        <header class="skgl-hero">
-            <div class="home-wrap">
-                <div class="eyebrow">Reference</div>
-                <h1>Skills Glossary</h1>
-                <p class="skgl-lead">
-                    Every skill in the curriculum, plainly defined — from your first open chord
-                    to rootless jazz voicings. Browse the map of what there is to learn.
-                </p>
-            </div>
+    <div class="sbn-page skill-glossary">
+        <header class="sbn-library-header">
+            <h1 class="sbn-library-title">Skills Glossary</h1>
+            <p class="sbn-library-subtitle">
+                Every skill in the curriculum, plainly defined — from your first open chord
+                to rootless jazz voicings. Browse the map of what there is to learn.
+            </p>
         </header>
 
-        <div class="home-wrap">
-            <!-- A–Z quick jump -->
-            <nav class="skgl-az" aria-label="Jump to letter">
-                <a v-for="l in letters" :key="l" :href="`#letter-${l}`" class="skgl-az-link">{{ l }}</a>
-            </nav>
+        <!-- A–Z quick jump -->
+        <nav class="skgl-az" aria-label="Jump to letter">
+            <a v-for="l in letters" :key="l" :href="`#letter-${l}`" class="skgl-az-link">{{ l }}</a>
+        </nav>
 
-            <div class="skgl-groups">
+        <div class="skgl-groups">
                 <section v-for="[letter, entries] in groups" :key="letter" class="skgl-group">
                     <h2 :id="`letter-${letter}`" class="skgl-letter">{{ letter }}</h2>
                     <ul class="skgl-list">
@@ -92,7 +88,7 @@ const letters = computed(() => groups.value.map(([l]) => l));
                                     :icon-path="entry.iconPath"
                                     :icon-key="entry.iconKey"
                                     :branch="entry.branch"
-                                    :size="26"
+                                    :size="40"
                                 />
                             </div>
                             <div class="skgl-entry-body">
@@ -111,31 +107,16 @@ const letters = computed(() => groups.value.map(([l]) => l));
                 </section>
             </div>
         </div>
-    </div>
 </template>
 
 <style scoped>
-.skgl-hero {
-    padding: 56px 0 24px;
-    text-align: center;
-}
-.skgl-hero .eyebrow {
-    font-size: .78rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .1em;
-    color: var(--clr-accent, #b8860b);
-    margin-bottom: 10px;
-}
-.skgl-hero h1 {
-    font-size: 2.6rem;
-    margin: 0 0 12px;
-}
-.skgl-lead {
+/* Header uses the shared .sbn-library-header/-title/-subtitle chrome (same as
+   the Theory / Chords / Rhythms index pages) — defined globally, no local
+   overrides needed. Only the subtitle's reading width is constrained here. */
+.skill-glossary :deep(.sbn-library-subtitle) {
     max-width: 560px;
-    margin: 0 auto;
-    color: var(--clr-text-muted, #666);
-    line-height: 1.6;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 /* A–Z jump bar */
@@ -149,9 +130,9 @@ const letters = computed(() => groups.value.map(([l]) => l));
     justify-content: center;
     padding: 12px 0;
     margin-bottom: 24px;
-    background: color-mix(in srgb, var(--clr-surface-1, #fff) 92%, transparent);
+    background: color-mix(in srgb, var(--clr-surface) 92%, transparent);
     backdrop-filter: blur(6px);
-    border-bottom: 1px solid var(--clr-border, #e5e5e5);
+    border-bottom: 1px solid var(--clr-border);
 }
 .skgl-az-link {
     display: inline-flex;
@@ -163,12 +144,12 @@ const letters = computed(() => groups.value.map(([l]) => l));
     font-size: .82rem;
     font-weight: 700;
     text-decoration: none;
-    color: var(--clr-text-muted, #888);
+    color: var(--clr-text-muted);
     transition: background .12s, color .12s;
 }
 .skgl-az-link:hover {
-    background: color-mix(in srgb, var(--clr-accent, #b8860b) 12%, transparent);
-    color: var(--clr-accent, #b8860b);
+    background: color-mix(in srgb, var(--clr-accent) 12%, transparent);
+    color: var(--clr-accent);
 }
 
 .skgl-groups {
@@ -179,9 +160,10 @@ const letters = computed(() => groups.value.map(([l]) => l));
 .skgl-group + .skgl-group { margin-top: 32px; }
 
 .skgl-letter {
+    font-family: var(--font-heading);
     font-size: 1.4rem;
-    color: var(--clr-accent, #b8860b);
-    border-bottom: 2px solid color-mix(in srgb, var(--clr-accent, #b8860b) 25%, transparent);
+    color: var(--clr-accent);
+    border-bottom: 2px solid color-mix(in srgb, var(--clr-accent) 25%, transparent);
     padding-bottom: 4px;
     margin: 0 0 16px;
     scroll-margin-top: 64px;
@@ -198,32 +180,32 @@ const letters = computed(() => groups.value.map(([l]) => l));
 
 .skgl-entry {
     display: flex;
+    align-items: flex-start;
     gap: 14px;
     scroll-margin-top: 72px;
     border-radius: 10px;
     transition: background .3s;
 }
 .skgl-entry.is-highlighted {
-    background: color-mix(in srgb, var(--clr-accent, #b8860b) 14%, transparent);
-    box-shadow: 0 0 0 8px color-mix(in srgb, var(--clr-accent, #b8860b) 14%, transparent);
+    /* padded tint block (no shadow) so the deep-link target flashes without
+       a glow ring; negative margin keeps the row from shifting when it lands */
+    background: color-mix(in srgb, var(--clr-accent) 14%, transparent);
+    padding: 8px;
+    margin: -8px;
 }
 .skgl-entry-icon {
-    --_branch-clr: var(--clr-text-muted, #888);
+    --_branch-clr: var(--clr-text-muted);
     flex: 0 0 auto;
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
     display: grid;
     place-items: center;
     color: var(--_branch-clr);
-    background: color-mix(in srgb, var(--_branch-clr) 10%, transparent);
 }
-.skgl-entry-icon[data-branch="harmony"]        { --_branch-clr: #f39c12; }
-.skgl-entry-icon[data-branch="rhythm"]         { --_branch-clr: #3b82f6; }
-.skgl-entry-icon[data-branch="melody"]         { --_branch-clr: #ec4899; }
-.skgl-entry-icon[data-branch="technique"]      { --_branch-clr: #10b981; }
-.skgl-entry-icon[data-branch="ear-training"]   { --_branch-clr: #8b5cf6; }
-.skgl-entry-icon[data-branch="reading-theory"] { --_branch-clr: #64748b; }
+.skgl-entry-icon[data-branch="harmony"]        { --_branch-clr: var(--clr-branch-harmony); }
+.skgl-entry-icon[data-branch="rhythm"]         { --_branch-clr: var(--clr-branch-rhythm); }
+.skgl-entry-icon[data-branch="melody"]         { --_branch-clr: var(--clr-branch-melody); }
+.skgl-entry-icon[data-branch="technique"]      { --_branch-clr: var(--clr-branch-technique); }
+.skgl-entry-icon[data-branch="ear-training"]   { --_branch-clr: var(--clr-branch-ear-training); }
+.skgl-entry-icon[data-branch="reading-theory"] { --_branch-clr: var(--clr-branch-reading-theory); }
 
 .skgl-entry-body { flex: 1 1 auto; min-width: 0; }
 .skgl-entry-head {
@@ -235,14 +217,15 @@ const letters = computed(() => groups.value.map(([l]) => l));
 }
 .skgl-entry-title {
     font-size: 1.05rem;
+    font-weight: 700;
     margin: 0;
     line-height: 1.25;
 }
 .skgl-entry-grade {
     font-size: .72rem;
     font-weight: 700;
-    color: var(--clr-accent, #b8860b);
-    background: color-mix(in srgb, var(--clr-accent, #b8860b) 14%, transparent);
+    color: var(--clr-accent);
+    background: color-mix(in srgb, var(--clr-accent) 14%, transparent);
     padding: 1px 6px;
     border-radius: 999px;
 }
@@ -250,16 +233,13 @@ const letters = computed(() => groups.value.map(([l]) => l));
     font-size: .72rem;
     text-transform: uppercase;
     letter-spacing: .05em;
-    color: var(--clr-text-muted, #999);
+    color: var(--clr-text-muted);
 }
 .skgl-entry-desc {
     margin: 0;
     font-size: .92rem;
     line-height: 1.5;
-    color: var(--clr-text, #333);
+    color: var(--clr-text);
 }
 
-@media (max-width: 600px) {
-    .skgl-hero h1 { font-size: 2rem; }
-}
 </style>

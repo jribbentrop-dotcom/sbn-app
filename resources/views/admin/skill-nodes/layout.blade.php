@@ -14,29 +14,34 @@
         margin-bottom: 12px; font-size: 13px; color: var(--clr-text-dim);
     }
     .skt-toolbar .skt-status { margin-left: auto; font-weight: 600; }
-    .skt-status.is-dirty { color: var(--clr-danger, #c0392b); }
-    .skt-status.is-saved { color: var(--clr-success, #2e7d32); }
+    .skt-status.is-dirty { color: var(--clr-danger); }
+    .skt-status.is-saved { color: var(--clr-success); }
 
     .skt-canvas-wrap {
         position: relative; width: 100%;
-        background: var(--clr-surface-2, #f7f7f5);
-        border: 1px solid var(--clr-border, #e3e3e0);
+        background: var(--clr-surface-2);
+        border: 1px solid var(--clr-border);
         border-radius: 12px; overflow: hidden;
         /* keep the design-space aspect square-ish; 1000x1000 units */
         aspect-ratio: 1 / 1; max-height: 78vh;
     }
     .skt-edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    #skt-arrow path { stroke: var(--clr-text-muted); }
+    /* edge stroke colour/style, driven by class so it stays on-token */
+    .skt-edges line.skt-edge-same  { stroke: var(--clr-text-muted); stroke-width: 1.4; }
+    .skt-edges line.skt-edge-cross { stroke: var(--clr-primary); stroke-width: 2; stroke-dasharray: 6 5; }
+    .skt-edges line.skt-edge-draw  { stroke: var(--clr-primary); stroke-width: 2; stroke-dasharray: 4 4; }
     /* real edges become clickable (to delete); the drag preview never is */
     .skt-edges line.skt-edge-hit { pointer-events: stroke; cursor: pointer; }
     .skt-edges line.skt-edge-draw { pointer-events: none; }
     /* hovering an edge signals it's clickable-to-delete (toggled from JS since
        the hit-line and visible line are separate SVG elements) */
-    .skt-edges line.skt-edge-hover { stroke: var(--clr-danger, #c0392b) !important; stroke-width: 3 !important; }
+    .skt-edges line.skt-edge-hover { stroke: var(--clr-danger) !important; stroke-width: 3 !important; }
     .skt-canvas-wrap.is-linking .skt-tile { cursor: crosshair; }
-    .skt-tile.is-link-target .skt-tile-shape { box-shadow: 0 0 0 3px var(--clr-style-bossa, #BA7517); }
+    .skt-tile.is-link-target .skt-tile-shape { box-shadow: 0 0 0 3px var(--clr-primary); }
     .skt-tier-lbl {
         position: absolute; left: 8px; font-size: 11px; font-weight: 600;
-        color: var(--clr-text-muted, #9a9a95); transform: translateY(-50%);
+        color: var(--clr-text-muted); transform: translateY(-50%);
         pointer-events: none; user-select: none;
     }
 
@@ -50,7 +55,7 @@
     .skt-tile-shape {
         width: 40px; height: 40px; border-radius: 9px;
         display: flex; align-items: center; justify-content: center;
-        background: #fff; border: 2px solid #888;
+        background: var(--clr-white); border: 2px solid var(--clr-text-muted);
         box-shadow: 0 1px 3px rgba(0,0,0,0.12);
         transition: box-shadow 0.12s;
     }
@@ -59,7 +64,7 @@
     .skt-tile-name {
         position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
         margin-top: 2px; white-space: nowrap; font-size: 10px;
-        color: var(--clr-text-dim, #555); pointer-events: none; user-select: none;
+        color: var(--clr-text-dim); pointer-events: none; user-select: none;
         max-width: 120px; overflow: hidden; text-overflow: ellipsis;
     }
     .skt-legend {
@@ -82,7 +87,7 @@
     <svg class="skt-edges" id="skt-edges" viewBox="0 0 1000 1000" preserveAspectRatio="none">
         <defs>
             <marker id="skt-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                <path d="M2 1L8 5L2 9" fill="none" stroke="#9a9a95" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M2 1L8 5L2 9" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </marker>
         </defs>
     </svg>
@@ -90,10 +95,12 @@
 </div>
 
 <div class="skt-legend">
-    <span><i class="skt-swatch" style="background:var(--clr-style-bossa)"></i> Bossa</span>
-    <span><i class="skt-swatch" style="background:var(--clr-style-jazz)"></i> Jazz</span>
-    <span><i class="skt-swatch" style="background:var(--clr-style-classical)"></i> Classical</span>
-    <span><i class="skt-swatch" style="background:var(--clr-style-pop)"></i> Pop</span>
+    <span><i class="skt-swatch" style="background:var(--clr-branch-harmony)"></i> Harmony</span>
+    <span><i class="skt-swatch" style="background:var(--clr-branch-rhythm)"></i> Rhythm</span>
+    <span><i class="skt-swatch" style="background:var(--clr-branch-melody)"></i> Melody</span>
+    <span><i class="skt-swatch" style="background:var(--clr-branch-technique)"></i> Technique</span>
+    <span><i class="skt-swatch" style="background:var(--clr-branch-reading-theory)"></i> Reading &amp; Theory</span>
+    <span><i class="skt-swatch" style="background:var(--clr-branch-ear-training)"></i> Ear Training</span>
     <span style="color:var(--clr-text-muted)">— solid edge = same branch · dashed = cross-branch</span>
 </div>
 
@@ -112,13 +119,17 @@
 
     // Branch → colour (the tile colour encodes branch here; the student tree
     // will use style colour, but for the editor branch is the more useful key).
+    // Sourced from the --clr-branch-* design tokens so the palette stays in one
+    // place; the hex fallbacks only bite if a token fails to resolve.
+    const css = getComputedStyle(document.documentElement);
+    const token = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
     const BRANCH_COLOR = {
-        'harmony':        getComputedStyle(document.documentElement).getPropertyValue('--clr-style-jazz').trim() || '#3b82f6',
-        'rhythm':         getComputedStyle(document.documentElement).getPropertyValue('--clr-style-bossa').trim() || '#f39c12',
-        'technique':      '#8b5cf6',
-        'melody':         getComputedStyle(document.documentElement).getPropertyValue('--clr-style-classical').trim() || '#10b981',
-        'reading-theory': '#64748b',
-        'ear-training':   getComputedStyle(document.documentElement).getPropertyValue('--clr-style-pop').trim() || '#ec4899',
+        'harmony':        token('--clr-branch-harmony',        '#3b82f6'),
+        'rhythm':         token('--clr-branch-rhythm',         '#f39c12'),
+        'melody':         token('--clr-branch-melody',         '#10b981'),
+        'ear-training':   token('--clr-branch-ear-training',   '#ec4899'),
+        'technique':      token('--clr-branch-technique',      '#8b5cf6'),
+        'reading-theory': token('--clr-branch-reading-theory', '#64748b'),
     };
 
     // Heroicon outline paths per branch (mirrors SkillIcon.vue BRANCH_ICONS).
@@ -219,9 +230,7 @@
         hit.setAttribute('stroke-width', '12');
 
         const line = document.createElementNS(SVGNS, 'line');
-        line.setAttribute('stroke', crossBranch ? 'var(--clr-style-bossa, #BA7517)' : '#9a9a95');
-        line.setAttribute('stroke-width', crossBranch ? '2' : '1.4');
-        if (crossBranch) line.setAttribute('stroke-dasharray', '6 5');
+        line.setAttribute('class', crossBranch ? 'skt-edge-cross' : 'skt-edge-same');
         line.setAttribute('marker-end', 'url(#skt-arrow)');
         line.style.pointerEvents = 'none';
 
@@ -291,9 +300,6 @@
     function startLink(ev, sourceId) {
         const preview = document.createElementNS(SVGNS, 'line');
         preview.setAttribute('class', 'skt-edge-draw');
-        preview.setAttribute('stroke', 'var(--clr-style-bossa, #BA7517)');
-        preview.setAttribute('stroke-width', '2');
-        preview.setAttribute('stroke-dasharray', '4 4');
         preview.setAttribute('marker-end', 'url(#skt-arrow)');
         const a = pos.get(sourceId);
         preview.setAttribute('x1', a.x); preview.setAttribute('y1', a.y);

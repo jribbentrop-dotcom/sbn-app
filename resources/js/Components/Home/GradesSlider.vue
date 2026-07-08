@@ -149,7 +149,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
     margin: 0 auto 48px;
 }
 .gs-head h2 {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-weight: 600;
     font-size: clamp(2rem, 3.6vw, 2.8rem);
     letter-spacing: -.02em;
@@ -259,7 +259,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
     opacity: 0;
 }
 .vert-num {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-size: 2rem;
     font-weight: 600;
     color: #fff;
@@ -316,7 +316,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
 }
 
 .gs-title {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-size: clamp(1.4rem, 2.2vw, 1.8rem);
     font-weight: 600;
     color: #fff;

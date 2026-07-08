@@ -149,6 +149,45 @@ Do not use `--radius-md` — it was removed. The mid-size token is `--radius`.
 | `--clr-style-classical` | slate `#64748b` | Classical |
 | `--clr-style-gold` | gold `#d69e2e` | Featured / Iconic |
 
+### Skill Branch Colors
+Skill-tree **branches** are a separate axis from music styles (6 branches vs. the style
+palette). Use these tokens — **not** hardcoded hexes — anywhere a `data-branch` maps to a
+colour (glossary entries, the compact skills hero strip, the admin skill-tree editor):
+
+| Variable | Resolves to | Branch |
+|---|---|---|
+| `--clr-branch-harmony` | `--clr-style-jazz` (blue) | Harmony |
+| `--clr-branch-rhythm` | `--clr-style-bossa` (orange) | Rhythm |
+| `--clr-branch-melody` | `--clr-style-classical` (green) | Melody |
+| `--clr-branch-ear-training` | `--clr-style-pop` (pink) | Ear Training |
+| `--clr-branch-technique` | purple `#8b5cf6` | Technique |
+| `--clr-branch-reading-theory` | slate `#64748b` | Reading & Theory |
+
+> These three `data-branch → --clr-branch-*` mappings (glossary / hero strip / admin tree)
+> were historically hand-copied and drifted out of sync (permuted colours). They now all
+> reference the tokens; keep it that way — a future consolidation into one shared rule/mixin
+> would prevent re-drift.
+
+### Semantic Soft Tints
+Low-saturation `bg` + matching dark `text` pairs for status chips (coverage counts, dashboard
+health counts, order status pills). Use the token pair, not hardcoded fallbacks:
+
+| Variable | Value |
+|---|---|
+| `--clr-success-bg` / `--clr-success-text` | `#d1fae5` / `#065f46` |
+| `--clr-warning-bg` / `--clr-warning-text` | `#fef3c7` / `#92400e` |
+| `--clr-danger-bg` / `--clr-danger-text` | `#fee2e2` / `#991b1b` |
+
+### Heading Font Switch (`--font-heading`)
+The site currently uses the **body font everywhere** for headings. Display headings (home
+hero + sections, account page titles, glossary titles, skill popover, the global `h1, h2`
+rule) route their `font-family` through **`--font-heading`**, which defaults to
+`var(--font-body)`. `--font-display` (Fraunces) is **not** applied directly by these — it is
+loaded and available. To bring the Fraunces display voice back across the whole site at once:
+set `--font-heading: var(--font-display);` **and** re-add the Fraunces webfont `<link>` to
+`layouts/admin.blade.php` (`app.blade.php` already loads it for the frontend). PDF templates
+use `--font-display` directly and are unaffected by the switch.
+
 ### Token namespace
 
 `--sbn-*` names in `resources/css/frontend/base.css` are **aliases only** — they point to `--clr-*` tokens. Do not add new `--sbn-*` tokens. All new tokens go under `--clr-*`, `--radius-*`, `--font-*`, or `--ease`.

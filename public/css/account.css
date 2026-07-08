@@ -25,8 +25,8 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4, 1rem);
-    padding: var(--space-5, 1.25rem);
-    background: var(--clr-surface-2);
+    padding: var(--space-4, 1rem);
+    background: var(--clr-white);
     border: 1px solid var(--clr-border);
     border-radius: var(--radius);
 }
@@ -37,7 +37,10 @@
 }
 
 .sbn-account-greeting {
+    font-family: var(--font-heading);
     font-weight: 600;
+    font-size: 1.05rem;
+    letter-spacing: -0.01em;
     color: var(--clr-text);
 }
 
@@ -55,28 +58,40 @@
 }
 
 .sbn-account-nav-link {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
     border-radius: var(--radius-sm, 6px);
-    color: var(--clr-text);
+    color: var(--clr-text-dim);
     text-decoration: none;
-    transition: background 0.15s var(--ease, ease);
+    transition: background 0.15s var(--ease, ease), color 0.15s var(--ease, ease);
 }
 
 .sbn-account-nav-link:hover {
-    background: var(--clr-surface-3);
+    background: var(--clr-surface-2);
+    color: var(--clr-text);
 }
 
+/* Solid orange→red gradient fill with white text — the same active-item
+   treatment the main site menu uses (.main-navigation .current-menu-item > a). */
 .sbn-account-nav-link.is-active {
-    background: var(--clr-surface-3);
-    color: var(--clr-accent);
+    background: var(--clr-gradient);
+    color: var(--clr-white);
     font-weight: 600;
+}
+.sbn-account-nav-link.is-active:hover {
+    background: var(--clr-gradient-hover);
+    color: var(--clr-white);
 }
 
 .sbn-account-nav-link--muted {
     color: var(--clr-text-muted);
+}
+.sbn-account-nav-link--muted:hover {
+    color: var(--clr-danger);
+    background: color-mix(in srgb, var(--clr-danger) 8%, var(--clr-white));
 }
 
 .sbn-account-badge {
@@ -85,12 +100,18 @@
     padding: 0 7px;
     border-radius: 999px;
     background: var(--clr-accent);
-    color: var(--clr-bg);
+    color: var(--clr-white);
     font-size: 0.75rem;
     font-weight: 600;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+}
+/* On the active (gradient-filled) link, flip the badge to solid white so it
+   stays legible instead of orange-on-orange. */
+.sbn-account-nav-link.is-active .sbn-account-badge {
+    background: var(--clr-white);
+    color: var(--clr-accent-dim);
 }
 
 .sbn-account-sidebar-footer {
@@ -117,8 +138,32 @@
     flex-wrap: wrap;
 }
 
+/* ───── Typography ─────
+   Restrained app-interface heading scale. Font-family routes through
+   --font-heading (body sans by default; flip that token in the design system
+   to re-enable the Fraunces display voice — see its definition). */
 .sbn-account-pageheader h1 {
     margin: 0 0 var(--space-2, 0.5rem);
+    font-family: var(--font-heading);
+    font-weight: 600;
+    font-size: clamp(1.7rem, 2.4vw, 2.1rem);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--clr-text);
+}
+
+.sbn-account-section > h2,
+.sbn-account-section-header h2 {
+    margin: 0;
+    font-family: var(--font-heading);
+    font-weight: 600;
+    font-size: 1.2rem;
+    letter-spacing: -0.01em;
+    color: var(--clr-text);
+}
+
+.sbn-account-section > h2 {
+    margin-bottom: var(--space-4, 1rem);
 }
 
 .sbn-account-subtle {
@@ -159,18 +204,32 @@
 
 .sbn-account-empty {
     padding: var(--space-8, 2rem);
-    background: var(--clr-surface-2);
-    border: 1px dashed var(--clr-border);
+    background: var(--clr-white);
+    border: 1px solid var(--clr-border);
     border-radius: var(--radius);
     text-align: center;
     color: var(--clr-text-muted);
 }
+.sbn-account-empty > p { margin: 0; }
 
+/* Solid gradient button — the app's primary-action treatment — instead of
+   bare orange text floating on the card. Block + centred so it always drops
+   onto its own line below the empty-state message (the message is sometimes a
+   bare text node, sometimes a <p>, so inline-block wouldn't reliably break). */
 .sbn-account-empty-cta {
-    display: inline-block;
-    margin-top: var(--space-3, 0.75rem);
-    color: var(--clr-accent);
+    display: block;
+    width: fit-content;
+    margin: var(--space-4, 1rem) auto 0;
+    padding: 0.6rem 1.25rem;
+    border-radius: var(--radius-sm, 6px);
+    background: var(--clr-gradient);
+    color: var(--clr-white);
+    font-weight: 600;
     text-decoration: none;
+    transition: background 0.15s var(--ease, ease);
+}
+.sbn-account-empty-cta:hover {
+    background: var(--clr-gradient-hover);
 }
 
 /* ───── Tables ───── */
@@ -178,7 +237,7 @@
 .sbn-account-table {
     width: 100%;
     border-collapse: collapse;
-    background: var(--clr-surface-2);
+    background: var(--clr-white);
     border: 1px solid var(--clr-border);
     border-radius: var(--radius);
     overflow: hidden;
@@ -194,7 +253,7 @@
 .sbn-account-table tr:last-child td { border-bottom: none; }
 
 .sbn-account-table th {
-    background: var(--clr-surface-3);
+    background: var(--clr-surface-2);
     font-size: 0.85rem;
     color: var(--clr-text-muted);
     text-transform: uppercase;
@@ -203,15 +262,23 @@
 
 .sbn-account-status {
     display: inline-block;
-    padding: 2px 8px;
+    padding: 2px 10px;
     border-radius: 999px;
     font-size: 0.8rem;
+    font-weight: 600;
     background: var(--clr-surface-3);
     color: var(--clr-text-muted);
 }
 
-.sbn-account-status.is-paid { color: var(--clr-success, var(--clr-accent)); }
-.sbn-account-status.is-pending_stub { color: var(--clr-warning, var(--clr-text-muted)); }
+/* Cohesive tinted pills (soft bg + matching dark text) rather than grey-with-colored-text */
+.sbn-account-status.is-paid {
+    background: var(--clr-success-bg);
+    color: var(--clr-success-text);
+}
+.sbn-account-status.is-pending_stub {
+    background: var(--clr-warning-bg);
+    color: var(--clr-warning-text);
+}
 
 /* ───── Lists ───── */
 

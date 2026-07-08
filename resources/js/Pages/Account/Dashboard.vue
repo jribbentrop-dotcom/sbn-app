@@ -25,7 +25,7 @@ defineProps<{
                     <Link href="/account/courses" class="sbn-account-section-link">All courses →</Link>
                 </div>
                 <div v-if="recentCourses.length === 0" class="sbn-account-empty">
-                    You don't have any courses yet.
+                    <p>You don't have any courses yet.</p>
                     <Link href="/shop" class="sbn-account-empty-cta">Browse the shop →</Link>
                 </div>
                 <div v-else class="sbn-account-shelf">

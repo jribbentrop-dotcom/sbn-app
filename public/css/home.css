@@ -146,7 +146,7 @@
 }
 
 .home-hero h1 {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-weight: 600;
     font-size: clamp(2.6rem, 5.2vw, 4.1rem);
     line-height: 1.02;
@@ -179,7 +179,7 @@
     margin-top: 40px;
 }
 .stat-n {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-weight: 600;
     font-size: 1.7rem;
 }
@@ -199,7 +199,7 @@
 }
 .section-head .eyebrow { justify-content: center; }
 .section-head h2 {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-weight: 600;
     font-size: clamp(2rem, 3.6vw, 2.8rem);
     letter-spacing: -.02em;
@@ -224,7 +224,7 @@
     margin-bottom: 22px;
 }
 .rhythm-card-header h3 {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-weight: 600;
     font-size: 1.3rem;
 }
@@ -314,7 +314,7 @@
 }
 
 .chord-rain-copy h2 {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-weight: 600;
     font-size: clamp(2.4rem, 5vw, 4rem);
     letter-spacing: -.025em;
@@ -354,7 +354,7 @@
 }
 
 .rain-stat-n {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-weight: 600;
     font-size: 1.5rem;
     display: block;
@@ -379,7 +379,7 @@
     background: #fff;
 }
 .grades-hero h1 {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-weight: 600;
     font-size: clamp(2.6rem, 5.2vw, 4.1rem);
     line-height: 1.05;
@@ -413,7 +413,7 @@
     margin: 0 auto 48px;
 }
 .grades-intro h2 {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-weight: 600;
     font-size: clamp(2rem, 3.6vw, 2.8rem);
     letter-spacing: -.02em;
@@ -592,7 +592,7 @@
     background: color-mix(in srgb, var(--grade-clr) 12%, var(--clr-bg-elev));
 }
 .grade-img-placeholder span {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-size: .95rem;
     font-weight: 600;
     letter-spacing: .04em;
@@ -625,7 +625,7 @@
 }
 
 .grade-text h3 {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-weight: 600;
     font-size: clamp(1.7rem, 2.6vw, 2.3rem);
     letter-spacing: -.02em;
@@ -653,7 +653,7 @@
     margin-bottom: 28px;
 }
 .chord-chip {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-size: .82rem;
     font-weight: 600;
     padding: 4px 12px;
@@ -716,7 +716,7 @@
 .feature-card:hover::after { opacity: .12; }
 .card-icon { font-size: 1.7rem; margin-bottom: 16px; }
 .feature-card h3 {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-weight: 600;
     font-size: 1.25rem;
     margin-bottom: 8px;

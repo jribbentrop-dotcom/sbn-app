@@ -709,7 +709,7 @@ defineExpose({ play: audioPlay, stop: audioStop, toggle: togglePlay, isPlaying }
 .board[data-role="next"]   .board-label { opacity: 1; color: var(--clr-accent); }
 
 .board-name {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-size: 1.9rem;
     font-weight: 600;
     margin-bottom: 4px;

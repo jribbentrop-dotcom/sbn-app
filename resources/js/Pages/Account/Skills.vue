@@ -316,7 +316,7 @@ const visibleClasses = computed(() => liveClasses.value.filter(c => c.total > 0)
 .skill-tree-link {
     display: inline-block;
     margin-top: 0.5rem;
-    color: var(--sbn-accent, #b8860b);
+    color: var(--clr-accent);
     font-weight: 600;
     text-decoration: none;
 }
@@ -330,9 +330,9 @@ const visibleClasses = computed(() => liveClasses.value.filter(c => c.total > 0)
     flex-wrap: wrap;
     padding: 1.25rem 1.5rem;
     margin-top: 1.25rem;
-    border: 1px solid var(--sbn-border, #e5e5e5);
+    border: 1px solid var(--clr-border);
     border-radius: 12px;
-    background: var(--sbn-card-bg, #fff);
+    background: var(--clr-white);
 }
 .skill-grade-level {
     display: flex;
@@ -346,8 +346,8 @@ const visibleClasses = computed(() => liveClasses.value.filter(c => c.total > 0)
     width: 56px;
     height: 56px;
     border-radius: 14px;
-    background: var(--sbn-accent, #b8860b);
-    color: #fff;
+    background: var(--clr-accent);
+    color: var(--clr-white);
     font-size: 1.75rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
@@ -357,7 +357,7 @@ const visibleClasses = computed(() => liveClasses.value.filter(c => c.total > 0)
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--sbn-muted, #888);
+    color: var(--clr-text-muted);
 }
 .skill-grade-level-name { font-size: 1.05rem; font-weight: 600; }
 
@@ -378,31 +378,31 @@ const visibleClasses = computed(() => liveClasses.value.filter(c => c.total > 0)
 .skill-grade-bar-name { font-size: 0.78rem; font-weight: 600; }
 .skill-grade-bar-count {
     font-size: 0.72rem;
-    color: var(--sbn-muted, #888);
+    color: var(--clr-text-muted);
     font-variant-numeric: tabular-nums;
 }
 .skill-grade-bar-track {
     position: relative;
     height: 7px;
     border-radius: 999px;
-    background: var(--sbn-track, #ececec);
+    background: var(--clr-surface-3);
     overflow: hidden;
 }
 .skill-grade-bar-fill {
     height: 100%;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--sbn-accent, #b8860b) 55%, #ccc);
+    background: color-mix(in srgb, var(--clr-accent) 55%, var(--clr-border));
     transition: width 0.25s ease;
 }
-.skill-grade-bar.is-cleared .skill-grade-bar-fill { background: var(--sbn-accent, #b8860b); }
-.skill-grade-bar.is-current .skill-grade-bar-name { color: var(--sbn-accent, #b8860b); }
+.skill-grade-bar.is-cleared .skill-grade-bar-fill { background: var(--clr-accent); }
+.skill-grade-bar.is-current .skill-grade-bar-name { color: var(--clr-accent); }
 /* threshold tick — the % needed to "clear" this grade */
 .skill-grade-bar-threshold {
     position: absolute;
     top: 0;
     bottom: 0;
     width: 2px;
-    background: var(--sbn-text, #1a1a1a);
+    background: var(--clr-text);
     opacity: 0.4;
 }
 
@@ -420,18 +420,18 @@ const visibleClasses = computed(() => liveClasses.value.filter(c => c.total > 0)
     gap: 0.75rem;
 }
 .skill-class-card {
-    --_class-clr: var(--sbn-accent, #b8860b);
+    --_class-clr: var(--clr-accent);
     padding: 0.75rem 0.9rem;
-    border: 1px solid var(--sbn-border, #e5e5e5);
+    border: 1px solid var(--clr-border);
     border-radius: 10px;
-    background: var(--sbn-card-bg, #fff);
+    background: var(--clr-white);
 }
-.skill-class-card[data-style="bossa-nova"] { --_class-clr: var(--clr-style-bossa, #f39c12); }
-.skill-class-card[data-style="jazz"]       { --_class-clr: var(--clr-style-jazz, #3b82f6); }
-.skill-class-card[data-style="classical"]  { --_class-clr: var(--clr-style-classical, #10b981); }
-.skill-class-card[data-style="pop"]        { --_class-clr: var(--clr-style-pop, #ec4899); }
+.skill-class-card[data-style="bossa-nova"] { --_class-clr: var(--clr-style-bossa); }
+.skill-class-card[data-style="jazz"]       { --_class-clr: var(--clr-style-jazz); }
+.skill-class-card[data-style="classical"]  { --_class-clr: var(--clr-style-classical); }
+.skill-class-card[data-style="pop"]        { --_class-clr: var(--clr-style-pop); }
 .skill-class-card.is-awarded {
-    background: color-mix(in srgb, var(--_class-clr) 8%, var(--sbn-card-bg, #fff));
+    background: color-mix(in srgb, var(--_class-clr) 8%, var(--clr-white));
     border-color: color-mix(in srgb, var(--_class-clr) 40%, transparent);
 }
 .skill-class-card-head {
@@ -449,29 +449,29 @@ const visibleClasses = computed(() => liveClasses.value.filter(c => c.total > 0)
     font-weight: 800;
     font-size: 0.85rem;
 }
-.skill-class-card .skill-grade-bar-track { background: var(--sbn-track, #ececec); }
-.skill-class-card .skill-grade-bar-fill { background: color-mix(in srgb, var(--_class-clr) 55%, #ccc); }
+.skill-class-card .skill-grade-bar-track { background: var(--clr-surface-3); }
+.skill-class-card .skill-grade-bar-fill { background: color-mix(in srgb, var(--_class-clr) 55%, var(--clr-border)); }
 .skill-class-card.is-awarded .skill-grade-bar-fill { background: var(--_class-clr); }
 .skill-class-card-count {
     display: block;
     margin-top: 0.3rem;
     font-size: 0.72rem;
-    color: var(--sbn-muted, #888);
+    color: var(--clr-text-muted);
     font-variant-numeric: tabular-nums;
 }
 
 .skill-recommended {
     margin-top: 1.75rem;
     padding: 1.1rem 1.25rem;
-    border: 1px dashed var(--sbn-accent, #b8860b);
+    border: 1px dashed var(--clr-accent);
     border-radius: 12px;
-    background: color-mix(in srgb, var(--sbn-accent, #b8860b) 5%, transparent);
+    background: color-mix(in srgb, var(--clr-accent) 5%, transparent);
 }
 .skill-recommended-title {
     font-size: 0.9rem;
     font-weight: 600;
     margin: 0 0 0.75rem;
-    color: var(--sbn-accent, #b8860b);
+    color: var(--clr-accent);
 }
 
 .skill-recommended-grid {
@@ -516,7 +516,7 @@ const visibleClasses = computed(() => liveClasses.value.filter(c => c.total > 0)
 }
 
 .skill-branch-icon {
-    color: var(--sbn-accent, #b8860b);
+    color: var(--clr-accent);
     flex-shrink: 0;
     display: flex;
 }
@@ -531,7 +531,7 @@ const visibleClasses = computed(() => liveClasses.value.filter(c => c.total > 0)
 .skill-branch-progress {
     margin-left: auto;
     font-size: 0.8rem;
-    color: var(--sbn-muted, #888);
+    color: var(--clr-text-muted);
     font-variant-numeric: tabular-nums;
 }
 
@@ -552,13 +552,13 @@ const visibleClasses = computed(() => liveClasses.value.filter(c => c.total > 0)
     align-items: center;
     gap: 0.625rem;
     padding: 0.625rem 1.9rem 0.625rem 0.75rem; /* room for the info link */
-    border: 1px solid var(--sbn-border, #e5e5e5);
+    border: 1px solid var(--clr-border);
     border-radius: 8px;
-    background: var(--sbn-card-bg, #fff);
+    background: var(--clr-white);
     cursor: pointer;
     text-align: left;
     transition: border-color 0.15s, background 0.15s, opacity 0.1s;
-    color: var(--sbn-text, #1a1a1a);
+    color: var(--clr-text);
 }
 
 .skill-node-details {
@@ -574,21 +574,21 @@ const visibleClasses = computed(() => liveClasses.value.filter(c => c.total > 0)
     border-radius: 50%;
     font-size: 0.85rem;
     line-height: 1;
-    color: var(--sbn-muted, #888);
+    color: var(--clr-text-muted);
     text-decoration: none;
 }
 .skill-node-details:hover {
-    color: var(--sbn-accent, #b8860b);
-    background: color-mix(in srgb, var(--sbn-accent, #b8860b) 12%, transparent);
+    color: var(--clr-accent);
+    background: color-mix(in srgb, var(--clr-accent) 12%, transparent);
 }
 
 .skill-node-card:hover {
-    border-color: var(--sbn-accent, #b8860b);
+    border-color: var(--clr-accent);
 }
 
 .skill-node-card.is-done {
-    background: color-mix(in srgb, var(--sbn-accent, #b8860b) 8%, transparent);
-    border-color: color-mix(in srgb, var(--sbn-accent, #b8860b) 40%, transparent);
+    background: color-mix(in srgb, var(--clr-accent) 8%, transparent);
+    border-color: color-mix(in srgb, var(--clr-accent) 40%, transparent);
 }
 
 .skill-node-card.is-pending {
@@ -598,12 +598,12 @@ const visibleClasses = computed(() => liveClasses.value.filter(c => c.total > 0)
 
 .skill-node-icon {
     flex-shrink: 0;
-    color: var(--sbn-muted, #888);
+    color: var(--clr-text-muted);
     display: flex;
 }
 
 .skill-node-card.is-done .skill-node-icon {
-    color: var(--sbn-accent, #b8860b);
+    color: var(--clr-accent);
 }
 
 .skill-node-title {
@@ -619,6 +619,6 @@ const visibleClasses = computed(() => liveClasses.value.filter(c => c.total > 0)
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--sbn-accent, #b8860b);
+    color: var(--clr-accent);
 }
 </style>

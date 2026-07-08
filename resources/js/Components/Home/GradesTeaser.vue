@@ -124,7 +124,7 @@ onUnmounted(() => {
     padding-bottom: 0;
 }
 .gt-section-head h2 {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-weight: 600;
     font-size: clamp(2rem, 3.6vw, 2.8rem);
     letter-spacing: -.02em;
@@ -191,7 +191,7 @@ onUnmounted(() => {
 
 /* ── Text panel ── */
 .gt-counter {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-size: clamp(4rem, 7vw, 7rem);
     font-weight: 600;
     line-height: 1;
@@ -205,7 +205,7 @@ onUnmounted(() => {
 }
 
 .gt-label {
-    font-family: var(--font-display);
+    font-family: var(--font-heading);
     font-size: clamp(1.4rem, 2.4vw, 2rem);
     font-weight: 600;
     letter-spacing: -.02em;
