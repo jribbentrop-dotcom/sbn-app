@@ -11,7 +11,8 @@
  *   <sbn-song           slug="…" bars="5-8">    ← leadsheet excerpt → SheetMiniPlayer
  *   <sbn-youtube        id="…" start="…">          ← attrs only, no fetch
  *   <sbn-widget         slug="…" …attrs>           ← edu interactive, no fetch
- *   <sbn-fretboard      slug="…">                  ← vanilla JS hydration via chords.js
+ *   <sbn-fretboard      slug="…" position="3">      ← vanilla JS hydration via chords.js
+ *                                                     position overrides stored start_window (1-indexed)
  *   <sbn-synced-player  slug="…" type="leadsheet"  ← chord+rhythm player, fetch from API
  *                        start="0" end="7"
  *                        autoplay="false">
@@ -93,7 +94,18 @@ const propsFor: Record<NodeType, (data: any, el: HTMLElement) => Record<string, 
     interactive:  true,
   }),
   sheet:       (d, el) => ({ exercise: d, onChordSelect: (el as any).__onChordSelect ?? null, videoSync: d.videoSync ?? null }),
-  fretboard:   (d) => ({ data: d }),
+  // `position="3"` (1-indexed, matches the admin's window labels) overrides
+  // the record's stored start_window per-embed, so one positions-mode
+  // fretboard (e.g. all 5 pentatonic boxes) can open on a different window
+  // in each lesson it's embedded in. Data is fetched once per slug and
+  // cached, so we clone rather than mutate the shared payload.
+  fretboard:   (d, el) => {
+    const position = el.getAttribute('position');
+    if (position === null) return { data: d };
+    const idx = Number(position) - 1;
+    if (!Number.isInteger(idx) || idx < 0) return { data: d };
+    return { data: { ...d, start_window: idx } };
+  },
 };
 
 // ── Per-type query string from element attrs ────────────────────────────────

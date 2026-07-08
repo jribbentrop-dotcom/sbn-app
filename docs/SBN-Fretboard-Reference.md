@@ -38,7 +38,7 @@ Three display modes are supported:
 | `show_rh_fingers` | boolean (default false) | Shows p/i/m/a labels |
 | `voicings` | JSON | Array of frame objects (see §3) |
 | `windows` | JSON nullable | **Positions mode only:** array of `{label, from, to}` camera windows (added 2026-07-01) |
-| `start_window` | tinyint unsigned (default 0) | **Positions mode only:** 0-indexed entry into `windows[]` the camera opens on (added 2026-07-07). Clamped server-side to a valid index; out-of-range or missing values fall back to `0`. |
+| `start_window` | tinyint unsigned (default 0) | **Positions mode only:** 0-indexed entry into `windows[]` the camera opens on (added 2026-07-07). Clamped server-side to a valid index; out-of-range or missing values fall back to `0`. Can be overridden per-embed via the course tag's `position` attr (1-indexed) — see §6. |
 
 > **Deploy note (2026-07-01):** migration `2026_07_01_000000_add_windows_to_fretboards.php` adds `windows` and drops the `display_mode` CHECK constraint (SQLite rebuilds the table). Prod DB is scp'd and does **not** run create/alter migrations automatically — apply the same change to prod: `ALTER TABLE fretboards ADD COLUMN windows text;` plus a table rebuild to drop the old `CHECK (display_mode IN ('chord','scale','sequence'))`, otherwise inserting a `positions` row fails. The local `sbn.db` already has both applied.
 
@@ -111,7 +111,7 @@ Each entry in the `voicings` JSON array is one "frame" — a single fretboard st
 
 - **The entire scale lives in `voicings[0].dots[]`** — one coherent neck-wide dot set (same `{s,f,finger}` shape as scale mode, plus optional `iv`). Only `voicings[0]` is used; extra frames are ignored in positions mode.
 - **`windows[]`** are named fret ranges the camera pans between (1-indexed frets, inclusive `from`/`to`). The student steps between them via arrow buttons or by clicking/dragging/swiping the board; **dots don't move — the camera does.** Dots inside the active window render solid; dots outside fade out (`.is-hidden` opacity) but stay in place.
-- **`start_window`** picks which window the camera opens on (0-indexed into `windows[]`), for cases where a lesson is specifically about e.g. "Position 3" and shouldn't force the student to step through 1 and 2 first. Defaults to `0` (first window). Set via the **Starting position** dropdown in the admin's Position Windows section.
+- **`start_window`** picks which window the camera opens on (0-indexed into `windows[]`), for cases where a lesson is specifically about e.g. "Position 3" and shouldn't force the student to step through 1 and 2 first. Defaults to `0` (first window). Set via the **Starting position** dropdown in the admin's Position Windows section, or overridden per-embed with the course tag's `position="3"` attr (1-indexed) — see §6 — so the same record can open on a different window in each lesson it's embedded in.
 - **`dots[].iv`** (optional interval token — `R,b3,3,4,5,b7,…`) drives per-dot guide-tone color when `show_guide_tones` is set. This is independent of the comma-indexed `interval_labels` (which can't cleanly address N dots). `iv` is authored in the JSON; there's no per-dot `iv` UI in the admin grid yet (see §7).
 - `f:0` open-string dots are skipped (fretted-neck view, like scale mode). `start_fret`/`fret_count` are ignored — positions mode computes a full-neck geometry from fret 1 to `max(15, highest dot/window fret)` (capped at 24).
 
@@ -170,9 +170,12 @@ Each entry in the `voicings` JSON array is one "frame" — a single fretboard st
 
 ```html
 <sbn-fretboard slug="dm7-drop2-voice-leading"></sbn-fretboard>
+
+<!-- positions mode: open on window 3 (1-indexed) instead of the record's default -->
+<sbn-fretboard slug="pentatonic-5-positions" position="3"></sbn-fretboard>
 ```
 
-Attrs: `slug` (required). No other attrs — all display options are baked into the stored record.
+Attrs: `slug` (required). `position` (optional, **positions mode only**) — 1-indexed window number to open the camera on for this embed, overriding the record's stored `start_window`. Lets one positions-mode record (e.g. the 5 pentatonic boxes) be embedded once per position across a course, each opening on a different window. Out-of-range or non-numeric values are ignored (falls back to the record's `start_window`). No other attrs — all other display options are baked into the stored record.
 
 Always use explicit closing tags — HTML parsers do not honor self-closing on custom elements.
 
@@ -180,8 +183,8 @@ Always use explicit closing tags — HTML parsers do not honor self-closing on c
 
 **`mountSbnNodes.ts`** handles `<sbn-fretboard>` via the standard Vue mount path (same as `<sbn-chord>`, `<sbn-rhythm>`, etc.):
 
-1. Fetches `GET /api/sbn/fretboards/{slug}`.
-2. Dynamically imports `SbnFretboard.vue` and mounts it with `{ data: fullRecord }` prop.
+1. Fetches `GET /api/sbn/fretboards/{slug}` (cached per-slug, since the fetch is unaffected by the per-embed `position` attr).
+2. Dynamically imports `SbnFretboard.vue` and mounts it with `{ data: fullRecord }`, cloning `fullRecord` with `start_window` overridden to `position - 1` when a valid `position` attr is present.
 3. On error: renders an `.sbn-node-error` span with the slug.
 
 **Phase 3 change:** the bespoke vanilla-JS `sbnHydrateFretboard` block was deleted from `mountSbnNodes.ts`. Fretboard is now a first-class member of the `components` registry in that file.
@@ -242,7 +245,7 @@ The lesson editor ([`LessonEditor.vue`](../resources/js/admin/LessonEditor.vue))
 
 Keyboard shortcut: **Ctrl+Shift+F** opens the palette to the Fretboard tab.
 
-The palette ([`LessonPalette.vue`](../resources/js/admin/LessonPalette.vue)) has a **Fretboard** tab that searches `/api/sbn/fretboards?q=…`. Results show title + mode. Clicking a result inserts `<sbn-fretboard slug="…">` at the cursor with no additional config step.
+The palette ([`LessonPalette.vue`](../resources/js/admin/LessonPalette.vue)) has a **Fretboard** tab that searches `/api/sbn/fretboards?q=…`. Results show title + mode. For chord/scale/sequence-mode results, clicking inserts `<sbn-fretboard slug="…">` straight away. For **positions**-mode results, the search response also carries `windows` (added alongside `start_window`, §7), so clicking opens a **Start position** dropdown (record default, or any named window, 1-indexed) before inserting — this stamps a `position="N"` attr on the tag (§6). Use the chip's ✎ edit button to change slug or position later.
 
 Slash command: typing `/fretboard` (or `/f…`) in the editor body triggers the slash popup and delegates to the palette on selection.
 

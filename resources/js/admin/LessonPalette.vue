@@ -13,6 +13,8 @@ interface PaletteItem {
     root?: string;
     url?: string;
     snippets?: SnippetRef[];
+    /** Positions-mode fretboard window labels; null/omitted for other modes. */
+    windows?: { label?: string; from?: number; to?: number }[] | null;
 }
 
 const TABS: { type: NodeType; label: string }[] = [
@@ -61,6 +63,9 @@ const configSyncedEnd    = ref('');
 // Video-example picker — holds the chosen snippet id ('' = none).
 const configSnippet      = ref('');
 const configSnippetList  = ref<SnippetRef[]>([]);
+// Positions-mode fretboard — which window to open on (1-indexed, '' = record default).
+const configPosition     = ref('');
+const configPositionList = ref<{ label?: string; from?: number; to?: number }[]>([]);
 
 const ROOTS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
@@ -169,9 +174,26 @@ watch(configSyncedType, () => { results.value = []; selectedSlug.value = null; d
 // ── Insert ────────────────────────────────────────────────────────────────────
 
 function insert(item: PaletteItem) {
-    // Media, Exercise, Widget, and Fretboard have no config — insert straight away.
-    if (activeTab.value === 'media' || activeTab.value === 'sheet' || activeTab.value === 'widget' || activeTab.value === 'fretboard') {
+    // Media, Exercise, and Widget have no config — insert straight away.
+    if (activeTab.value === 'media' || activeTab.value === 'sheet' || activeTab.value === 'widget') {
         doInsert(item.slug);
+        return;
+    }
+
+    // Fretboard: positions-mode records offer a "which position?" picker;
+    // chord/scale/sequence-mode records have no windows, so insert straight away.
+    if (activeTab.value === 'fretboard') {
+        if (!item.windows?.length) {
+            doInsert(item.slug);
+            return;
+        }
+        if (selectedSlug.value === item.slug) {
+            selectedSlug.value = null;
+        } else {
+            selectedSlug.value = item.slug;
+            configPosition.value = '';
+            configPositionList.value = item.windows;
+        }
         return;
     }
 
@@ -223,6 +245,7 @@ function doConfirmInsert() {
     const extras: Record<string, string> = {};
     if (activeTab.value === 'chord')          extras.root  = configRoot.value;
     if (activeTab.value === 'song')           extras.bars  = configBars.value;
+    if (activeTab.value === 'fretboard' && configPosition.value !== '') extras.position = configPosition.value;
     if (activeTab.value === 'synced-player') {
         if (configSyncedType.value === 'exercise') extras.type = 'exercise';
         if (configSyncedStart.value !== '') extras.start = configSyncedStart.value;
@@ -372,6 +395,13 @@ function onDragStart(e: DragEvent, item: PaletteItem) {
             <select v-model="configSnippet" class="sbn-search-input" style="height:28px; flex:1; font-size:12px;">
               <option value="">None</option>
               <option v-for="s in configSnippetList" :key="s.id" :value="s.id">{{ s.label }}</option>
+            </select>
+          </div>
+          <div v-if="activeTab === 'fretboard'" class="sbn-palette-config-row">
+            <label>Start position:</label>
+            <select v-model="configPosition" class="sbn-search-input" style="height:28px; flex:1; font-size:12px;">
+              <option value="">Record default</option>
+              <option v-for="(w, i) in configPositionList" :key="i" :value="String(i + 1)">{{ w.label || `Position ${i + 1}` }}</option>
             </select>
           </div>
           <button type="button" class="sbn-btn sbn-btn-primary sbn-btn-sm" style="height:28px;" @click="doConfirmInsert">Insert</button>

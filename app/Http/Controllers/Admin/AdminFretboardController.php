@@ -86,9 +86,12 @@ class AdminFretboardController extends Controller
         }
 
         $results = $query->orderBy('title')->limit(30)->get()->map(fn (Fretboard $fb) => [
-            'slug'  => $fb->slug,
-            'label' => $fb->title,
-            'meta'  => $fb->display_mode,
+            'slug'    => $fb->slug,
+            'label'   => $fb->title,
+            'meta'    => $fb->display_mode,
+            // Positions-mode window labels, so the palette can offer a
+            // "which position?" picker without a second round-trip.
+            'windows' => $fb->display_mode === 'positions' ? ($fb->windows ?? []) : null,
         ]);
 
         return response()->json(['results' => $results]);
