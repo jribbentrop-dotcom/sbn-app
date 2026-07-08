@@ -68,6 +68,11 @@ interface RhythmPatternWithMeta extends RhythmPatternData {
 Pattern encoding: `'X'` = accent (full velocity), `'x'` = soft hit (0.85 velocity), `'.'` = rest.  
 Step duration by grid type: `eighth` = 0.5 beats, `sixteenth` = 0.25 beats, `triplet` = 1/3 beats.
 
+**6/8 beat-label counting convention:** in `timeSignature: '6/8'` patterns, the 8th-note grid
+is counted straight through as `1 2 3 4 5 6` (one number per 8th, not `1 2 3` `1 2 3` per
+dotted-quarter group). Only the 16th-note subdivision within a 6/8 pattern introduces the
+`+` symbol, counted `1 + 2 + 3 + 4 + 5 + 6 +`. Don't reuse the 4/4-style `1 e + a` scheme for 6/8.
+
 ---
 
 ## 3. RhythmStrip

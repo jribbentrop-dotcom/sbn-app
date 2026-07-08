@@ -124,9 +124,14 @@ const fingersArray = computed(() => (props.pattern.fingers || '').padEnd(props.p
 
 const beatLabels = computed(() => {
   const labels: string[] = [];
-  const bpb = parseInt((props.pattern.timeSignature || '4/4').split('/')[0]) || 4;
-  const sub = props.pattern.gridType === 'eighth' ? 2 :
-               props.pattern.gridType === 'triplet' ? 3 : 4;
+  const [numStr, denStr] = (props.pattern.timeSignature || '4/4').split('/');
+  const bpb = parseInt(numStr) || 4;
+  const den = parseInt(denStr) || 4;
+  // Compound meter (6/8, 9/8, 12/8): the counted pulse is the eighth note itself,
+  // and the numerator already counts those pulses — don't double it like simple meters.
+  const isCompound = den === 8 && bpb % 3 === 0;
+  const pulseBeats = isCompound ? 0.5 : 1;
+  const sub = Math.max(1, Math.round(pulseBeats / stepDuration.value));
   const cpb = bpb * sub;
 
   for (let i = 0; i < props.pattern.beats; i++) {
@@ -135,7 +140,7 @@ const beatLabels = computed(() => {
     const s = pos % sub;
     if (s === 0) labels.push(String(beat));
     else if (props.pattern.gridType === 'triplet') labels.push(s === 1 ? 'trip' : 'let');
-    else if (props.pattern.gridType === 'eighth') labels.push('+');
+    else if (sub === 2) labels.push('+');
     else labels.push(['e', '+', 'a'][s - 1] || '');
   }
   return labels;

@@ -522,10 +522,23 @@
         setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3000);
     }
 
+    // Steps-per-counted-pulse for a given (timeSig, gridType) pair. Compound meters
+    // (6/8, 9/8, 12/8) count the eighth note itself as the pulse, so the numerator
+    // already counts pulses — don't multiply it like simple meters (4/4, 3/4).
+    function sbnGridSub(timeSig, gridType) {
+        const [numStr, denStr] = (timeSig || '4/4').split('/');
+        const den = parseInt(denStr) || 4;
+        const bpb = parseInt(numStr) || 4;
+        const isCompound = den === 8 && bpb % 3 === 0;
+        const pulseBeats = isCompound ? 0.5 : 1;
+        const stepBeats = gridType === 'eighth' ? 0.5 : gridType === 'triplet' ? (1 / 3) : 0.25;
+        return Math.max(1, Math.round(pulseBeats / stepBeats));
+    }
+
     function sbnBeatLabels(beats, timeSig, gridType) {
         const labels = [];
         const bpb = parseInt((timeSig || '4/4').split('/')[0]) || 4;
-        const sub = gridType === 'eighth' ? 2 : gridType === 'triplet' ? 3 : 4;
+        const sub = sbnGridSub(timeSig, gridType);
         const cpb = bpb * sub;
         for (let i = 0; i < beats; i++) {
             const pos = i % cpb;
@@ -533,7 +546,7 @@
             const s = pos % sub;
             if (s === 0) labels.push(String(beat));
             else if (gridType === 'triplet') labels.push(s === 1 ? 'trip' : 'let');
-            else if (gridType === 'eighth') labels.push('+');
+            else if (sub === 2) labels.push('+');
             else labels.push(['e', '+', 'a'][s - 1] || '');
         }
         return labels;
@@ -609,8 +622,7 @@
 
                 @if(!$isNew)
                     const bpb = parseInt(this.form.time_signature.split('/')[0]) || 4;
-                    const sub = this.form.grid_type === 'eighth' ? 2 : this.form.grid_type === 'triplet' ? 3 : 4;
-                    const cpb = bpb * sub;
+                    const cpb = bpb * sbnGridSub(this.form.time_signature, this.form.grid_type);
                     this.bars = Math.max(1, Math.round(({{ $pattern->beats ?? 8 }}) / cpb));
                 @endif
                 this.rebuildGrid();
@@ -618,7 +630,7 @@
 
             get totalBeats() {
                 const bpb = parseInt((this.form.time_signature || '4/4').split('/')[0]) || 4;
-                const sub = this.form.grid_type === 'eighth' ? 2 : this.form.grid_type === 'triplet' ? 3 : 4;
+                const sub = sbnGridSub(this.form.time_signature, this.form.grid_type);
                 return bpb * sub * (parseInt(this.bars) || 1);
             },
 
