@@ -61,7 +61,8 @@ Migration `2026_06_27_000001_create_sbn_pdf_documents_table.php`.
   - `buildData($doc)`: branches → `buildComposedData` (pages set) → which calls `buildTop10Data`
     (the rich builder) and injects `$pages`. Legacy `top10`/chord-book branches still exist for old docs.
   - `buildTop10Data` does the DB work: per chord item renders the **color** diagram SVG, slices the
-    practice-TAB leadsheet (`practice_tab_slug`, 1-indexed `tab_bars`), and fetches rhythm pattern
+    practice-TAB source (`practice_tab_slug`, 1-indexed `tab_bars`) — tries `sbn_leadsheets` first,
+    falls back to `sbn_exercises` (both have a `tab_xml` column) — and fetches rhythm pattern
     strings; per song slices the leadsheet and renders TAB rows with inline chord diagrams.
 
 ### Routes (`routes/web.php`, admin group `auth`+`instructor`)
@@ -74,7 +75,7 @@ DELETE /admin/pdf/{document}          pdf.destroy
 GET    /admin/pdf/preview/{slug}      pdf.preview      ← declared BEFORE {document} wildcard
 GET    /admin/pdf/download/{slug}     pdf.download
 # api/admin group:
-GET    /api/admin/pdf/search-chords|search-rhythms|search-songs
+GET    /api/admin/pdf/search-chords|search-rhythms|search-songs|search-tab-sources
 ```
 ⚠️ **Route order:** the static `preview`/`download` routes are intentionally before `/pdf/{document}/edit`
 so "preview"/"download" don't bind as a `{document}`. Keep that order.
@@ -90,6 +91,7 @@ Schema-driven Alpine form. Walks `editorSchema()['fields']` and renders one widg
 | `richtext` | TipTap (description-editor) — **top-level fields only**, NOT inside repeaters |
 | `number` / `range` | number input / two number inputs `[from,to]` |
 | `chord-slug` / `rhythm-slug` / `song-slug` (`multiple:true` ⇒ chip list) | debounced autocomplete dropdown |
+| `tab-source-slug` | same, but searches `sbn_leadsheets` + `sbn_exercises` together (dropdown shows a `· leadsheet`/`· exercise` tag) — used only by `practice_tab_slug` |
 | `repeater` | add/remove/reorder list of sub-field groups; sub-fields support text/textarea/number/range/slug (**no richtext, no nested repeater**) |
 
 Top bar: status select · Save (AJAX PUT) · Preview ↗ (save-then-open) · Download.
@@ -141,7 +143,7 @@ The rich method-book page. Repeater `chords[]`, each item:
 | step-1 rhythm grid | `.rhythm-grid` cells | **DB** `rhythm_slug` → `rhythm_pattern`/`thumb_pattern` (`x`/`X`=hit, `.`=rest); labels from time sig |
 | `rhythm_meta` | step-1 meta line | authored |
 | `practice_label` / `practice_meta` | step-2 label/meta | authored (label HTML ok) |
-| `practice_tab_slug` + `tab_bars` (1-indexed) + `tab_bars_per_row` | `.pattern-tab` SVG | **DB** slice leadsheet → `render-tab.cjs` |
+| `practice_tab_slug` + `tab_bars` (1-indexed) + `tab_bars_per_row` | `.pattern-tab` SVG | **DB** slice leadsheet or exercise (leadsheet checked first) → `render-tab.cjs` |
 
 ### `songs` → `partials/_song-example.blade.php` (one page per repeater item)
 Repertoire/excerpt page. Repeater `songs[]`, each item:

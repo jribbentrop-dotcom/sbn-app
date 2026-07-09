@@ -4,29 +4,21 @@
 
 @section('actions')
     <a href="{{ route('admin.pdf.index') }}" class="sbn-btn sbn-btn-secondary">← Back</a>
+    {{-- x-teleport target: the Save/Preview/Download controls (rendered inside the
+         x-data="pdfEditor()" scope in @section('content') below) get physically moved
+         here at runtime, so they stay in the same Alpine component/scope as everything
+         else — no cross-scope store wiring needed. --}}
+    <span id="pdf-topbar-actions"></span>
 @endsection
 
 @push('styles')
 <style>
 [x-cloak] { display: none !important; }
 
-.pdf-editor-topbar {
+.pdf-editor-actions {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 14px 20px;
-    background: var(--clr-surface);
-    border: 1px solid var(--clr-border);
-    border-radius: 10px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-}
-.pdf-editor-topbar h2 {
-    flex: 1;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--clr-text);
-    margin: 0;
 }
 .pdf-field-section {
     margin-bottom: 24px;
@@ -201,35 +193,37 @@
 
 @section('content')
 
-<div x-data="pdfEditor()" x-init="init()">
+<div x-data="pdfEditor()" x-init="init()"
+     @keydown.window.prevent.ctrl.s="save()" @keydown.window.prevent.cmd.s="save()">
 
-    {{-- Top action bar --}}
-    <div class="pdf-editor-topbar">
-        <h2>{{ $document->title ?? $document->slug }}</h2>
+    {{-- Top action bar — teleported into the app topbar (@section('actions') above),
+         next to "← Back" and the account menu. Stays inside this x-data scope. --}}
+    <template x-teleport="#pdf-topbar-actions">
+        <div class="pdf-editor-actions">
+            <span x-show="dirty" class="pdf-dirty-badge" x-cloak>Unsaved changes</span>
 
-        <span x-show="dirty" class="pdf-dirty-badge" x-cloak>Unsaved changes</span>
+            <select x-model="meta.status" class="sbn-select">
+                <option value="draft">Draft</option>
+                <option value="publish">Published</option>
+            </select>
 
-        <select x-model="meta.status" class="sbn-search-input" style="width:auto;padding-left:12px;">
-            <option value="draft">Draft</option>
-            <option value="publish">Published</option>
-        </select>
+            <button type="button" class="sbn-btn sbn-btn-primary" @click="save()" :disabled="saving">
+                <span x-text="saving ? 'Saving…' : 'Save'"></span>
+            </button>
 
-        <button type="button" class="sbn-btn sbn-btn-primary" @click="save()" :disabled="saving">
-            <span x-text="saving ? 'Saving…' : 'Save'"></span>
-        </button>
+            <a href="{{ route('admin.pdf.preview', $document->slug) }}"
+               class="sbn-btn sbn-btn-secondary" target="_blank"
+               @click.prevent="saveAndOpen('{{ route('admin.pdf.preview', $document->slug) }}')">
+                Preview ↗
+            </a>
 
-        <a href="{{ route('admin.pdf.preview', $document->slug) }}"
-           class="sbn-btn sbn-btn-secondary" target="_blank"
-           @click.prevent="saveAndOpen('{{ route('admin.pdf.preview', $document->slug) }}')">
-            Preview ↗
-        </a>
-
-        <a href="{{ route('admin.pdf.download', $document->slug) }}"
-           class="sbn-btn sbn-btn-secondary"
-           @click.prevent="saveAndOpen('{{ route('admin.pdf.download', $document->slug) }}')">
-            Download PDF
-        </a>
-    </div>
+            <a href="{{ route('admin.pdf.download', $document->slug) }}"
+               class="sbn-btn sbn-btn-secondary"
+               @click.prevent="saveAndOpen('{{ route('admin.pdf.download', $document->slug) }}')">
+                Download PDF
+            </a>
+        </div>
+    </template>
 
     {{-- Flash message --}}
     @if(session('success'))
@@ -308,11 +302,13 @@
                         @case('chord-slug')
                         @case('rhythm-slug')
                         @case('song-slug')
+                        @case('tab-source-slug')
                             @php
                                 $endpoint = match($type) {
-                                    'chord-slug'  => route('api.admin.pdf.search-chords'),
-                                    'rhythm-slug' => route('api.admin.pdf.search-rhythms'),
-                                    'song-slug'   => route('api.admin.pdf.search-songs'),
+                                    'chord-slug'      => route('api.admin.pdf.search-chords'),
+                                    'rhythm-slug'     => route('api.admin.pdf.search-rhythms'),
+                                    'song-slug'       => route('api.admin.pdf.search-songs'),
+                                    'tab-source-slug' => route('api.admin.pdf.search-tab-sources'),
                                 };
                                 $multiple = !empty($field['multiple']);
                             @endphp
@@ -397,6 +393,7 @@
                                                             'chord-slug' => route('api.admin.pdf.search-chords'),
                                                             'rhythm-slug' => route('api.admin.pdf.search-rhythms'),
                                                             'song-slug' => route('api.admin.pdf.search-songs'),
+                                                            'tab-source-slug' => route('api.admin.pdf.search-tab-sources'),
                                                             default => '',
                                                         };
                                                     @endphp
@@ -432,6 +429,7 @@
                                                             @case('chord-slug')
                                                             @case('rhythm-slug')
                                                             @case('song-slug')
+                                                            @case('tab-source-slug')
                                                                 <div x-data="slugPicker('{{ $subEndpoint }}', item, '{{ $sName }}', false)"
                                                                      @click.outside="open = false">
                                                                     <div class="pdf-slug-field">
@@ -444,6 +442,7 @@
                                                                                 <div class="pdf-slug-dropdown-item" @click="selectSingle(r)">
                                                                                     <span x-text="r.slug"></span>
                                                                                     <small x-text="r.label"></small>
+                                                                                    <small x-show="r.kind" x-text="r.kind ? ' · ' + r.kind : ''" style="opacity:0.7;"></small>
                                                                                 </div>
                                                                             </template>
                                                                         </div>

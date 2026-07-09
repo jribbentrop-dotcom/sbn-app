@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ChordDiagram;
+use App\Models\Exercise;
 use App\Models\Leadsheet;
 use App\Models\PdfDocument;
 use App\Models\RhythmPattern;
@@ -393,11 +394,14 @@ class PdfController extends Controller
             // Chord diagram SVG (color — no --bw flag)
             $diagramSvg = $this->renderDiagramSvg($item['slug']);
 
-            // Practice TAB — slice from the item's own leadsheet (defaults to top10)
+            // Practice TAB — slice from the item's own leadsheet, or an exercise (defaults to top10)
             $tabSvg  = '';
             $tabSlug = $item['practice_tab_slug'] ?? 'top10';
             $tabBars = $item['tab_bars'] ?? [0, 3];
             $barsPerRow = (int)($item['tab_bars_per_row'] ?? 4);
+
+            $tabXml        = null;
+            $chordNamesMap = [];
 
             $ls = Leadsheet::where('slug', $tabSlug)->first();
             if ($ls) {
@@ -405,18 +409,25 @@ class PdfController extends Controller
                 $tabXml  = ($item['tab_layer'] ?? 'melody') === 'chord'
                     ? ($version?->chord_tab_xml)
                     : ($version?->melody_tab_xml ?: $ls->tab_xml);
-                if ($tabXml) {
-                    $parser         = new TabXmlParser();
-                    $chordNamesMap  = self::chordNamesMapFromLeadsheet($ls);
-                    $tabData        = $parser->parse($tabXml, $chordNamesMap);
-                    $allMeasures    = $tabData['measures'] ?? [];
-                    // tab_bars are 1-indexed (bar 1 = first bar); convert to 0-indexed array offset
-                    [$from, $to] = [intval($tabBars[0] ?? 1) - 1, intval($tabBars[1] ?? 4) - 1];
-                    $sliced = array_slice($allMeasures, $from, $to - $from + 1);
-                    foreach ($sliced as $k => &$m) { $m['index'] = $k; }
-                    unset($m);
-                    $tabSvg = self::renderTabSvg($sliced, $tabData['timeSig'] ?? '4/4', $barsPerRow);
+                $chordNamesMap = self::chordNamesMapFromLeadsheet($ls);
+            } else {
+                $ex = Exercise::where('slug', $tabSlug)->first();
+                if ($ex) {
+                    $tabXml        = $ex->tab_xml;
+                    $chordNamesMap = self::chordNamesMapFromExercise($ex);
                 }
+            }
+
+            if ($tabXml) {
+                $parser      = new TabXmlParser();
+                $tabData     = $parser->parse($tabXml, $chordNamesMap);
+                $allMeasures = $tabData['measures'] ?? [];
+                // tab_bars are 1-indexed (bar 1 = first bar); convert to 0-indexed array offset
+                [$from, $to] = [intval($tabBars[0] ?? 1) - 1, intval($tabBars[1] ?? 4) - 1];
+                $sliced = array_slice($allMeasures, $from, $to - $from + 1);
+                foreach ($sliced as $k => &$m) { $m['index'] = $k; }
+                unset($m);
+                $tabSvg = self::renderTabSvg($sliced, $tabData['timeSig'] ?? '4/4', $barsPerRow);
             }
 
             // Rhythm grid — fetch pattern strings for Blade
@@ -543,6 +554,21 @@ class PdfController extends Controller
                 ));
                 if ($names) $map[$i] = $names;
             }
+        }
+        return $map;
+    }
+
+    // sbn_exercises.content_json shape varies by exercise `type` — only exercises with a
+    // top-level measures[].chords[] array (e.g. tab_exercise) carry chord names this way.
+    private static function chordNamesMapFromExercise(\App\Models\Exercise $ex): array
+    {
+        $map = [];
+        $json = $ex->content_json ?? [];
+        foreach ($json['measures'] ?? [] as $i => $m) {
+            $names = array_values(array_filter(
+                array_map(fn($c) => $c['name'] ?? '', $m['chords'] ?? [])
+            ));
+            if ($names) $map[$i] = $names;
         }
         return $map;
     }

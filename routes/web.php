@@ -357,6 +357,7 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
     Route::get('/pdf/search-chords',  [\App\Http\Controllers\Admin\PdfDocumentController::class, 'searchChords'])->name('pdf.search-chords');
     Route::get('/pdf/search-rhythms', [\App\Http\Controllers\Admin\PdfDocumentController::class, 'searchRhythms'])->name('pdf.search-rhythms');
     Route::get('/pdf/search-songs',   [\App\Http\Controllers\Admin\PdfDocumentController::class, 'searchSongs'])->name('pdf.search-songs');
+    Route::get('/pdf/search-tab-sources', [\App\Http\Controllers\Admin\PdfDocumentController::class, 'searchTabSources'])->name('pdf.search-tab-sources');
 });
 
 /*

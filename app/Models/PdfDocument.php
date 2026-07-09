@@ -56,7 +56,7 @@ class PdfDocument extends Model
                         ['name' => 'practice_meta',    'type' => 'text',       'label' => 'Practice step-2 meta line'],
                         ['name' => 'rhythm_slug',      'type' => 'rhythm-slug','label' => 'Rhythm (step-1 grid)'],
                         ['name' => 'rhythm_meta',      'type' => 'text',       'label' => 'Rhythm meta'],
-                        ['name' => 'practice_tab_slug','type' => 'song-slug',  'label' => 'Practice TAB leadsheet'],
+                        ['name' => 'practice_tab_slug','type' => 'tab-source-slug', 'label' => 'Practice TAB source (leadsheet or exercise)'],
                         ['name' => 'tab_bars',         'type' => 'range',      'label' => 'Practice TAB bars (1-indexed)', 'base' => 1],
                         ['name' => 'tab_bars_per_row', 'type' => 'number',     'label' => 'Bars per row', 'default' => 4],
                     ]],

@@ -39,7 +39,8 @@ return [
             ['name' => 'rhythm_slug',    'type' => 'rhythm-slug','label' => 'Rhythm (step-1 grid)'],
             ['name' => 'rhythm_meta',    'type' => 'text',       'label' => 'Rhythm meta (e.g. "Gilberto Rhythm · 2/4 · sixteenth-note grid")'],
             // Practice TAB source: usually the `top10` leadsheet, but items 6 & 7 use other leadsheets.
-            ['name' => 'practice_tab_slug', 'type' => 'song-slug', 'label' => 'Practice TAB leadsheet (default: top10)'],
+            // Can also point at an sbn_exercises row (searched together via tab-source-slug).
+            ['name' => 'practice_tab_slug', 'type' => 'tab-source-slug', 'label' => 'Practice TAB source (leadsheet or exercise, default: top10)'],
             ['name' => 'tab_bars',           'type' => 'range',   'label' => 'Practice TAB bars (from–to, 1-indexed)', 'base' => 1],
             ['name' => 'tab_bars_per_row',   'type' => 'number',  'label' => 'Practice bars per row', 'default' => 4],
         ]],

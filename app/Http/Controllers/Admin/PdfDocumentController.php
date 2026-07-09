@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ChordDiagram;
+use App\Models\Exercise;
 use App\Models\Leadsheet;
 use App\Models\PdfDocument;
 use App\Models\RhythmPattern;
@@ -125,5 +126,28 @@ class PdfDocumentController extends Controller
             ->get(['slug', 'title']);
 
         return response()->json($rows->map(fn ($r) => ['slug' => $r->slug, 'label' => $r->title]));
+    }
+
+    // Practice TAB source picker: searches leadsheets AND exercises together,
+    // since practice_tab_slug can slice bars from either (both have tab_xml).
+    public function searchTabSources(Request $request)
+    {
+        $q = $request->input('q', '');
+
+        $songs = Leadsheet::where('slug', 'like', "%{$q}%")
+            ->orWhere('title', 'like', "%{$q}%")
+            ->orderBy('slug')
+            ->limit(20)
+            ->get(['slug', 'title'])
+            ->map(fn ($r) => ['slug' => $r->slug, 'label' => $r->title, 'kind' => 'leadsheet']);
+
+        $exercises = Exercise::where('slug', 'like', "%{$q}%")
+            ->orWhere('title', 'like', "%{$q}%")
+            ->orderBy('slug')
+            ->limit(20)
+            ->get(['slug', 'title'])
+            ->map(fn ($r) => ['slug' => $r->slug, 'label' => $r->title, 'kind' => 'exercise']);
+
+        return response()->json($songs->concat($exercises)->sortBy('slug')->values());
     }
 }
