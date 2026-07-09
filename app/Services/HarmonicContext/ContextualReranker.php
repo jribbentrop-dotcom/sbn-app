@@ -21,6 +21,23 @@ class ContextualReranker implements IContextualReranker
     // Diatonicity bonus for chords in the song key
     private const DIATONICITY_BONUS = 2.0;
 
+    /**
+     * Sub-pass commitments that assert a SEQUENCE claim (this chord makes sense
+     * given its neighbours). Viterbi (2f) makes the same claim with strictly more
+     * context — a whole-path search over a second-order model — so these must stay
+     * challengeable: their winner keeps pole position in the pool, but Viterbi may
+     * route past it.
+     *
+     * Every other reason is STRUCTURAL: it asserts a voicing-level fact Viterbi
+     * cannot re-derive from transition statistics (a pedal point; a dim7 that is
+     * really a rootless V7b9). Those collapse the pool to a single candidate.
+     *
+     * Classified by reason rather than by a flag each sub-pass must remember to
+     * set — a new structural pass is then locked by default, which is the safe
+     * direction to fail.
+     */
+    private const SEQUENTIAL_REINTERPRET_REASONS = ['cadence', 'bigram'];
+
     // Root motion bonuses (from VoicingCrossref context pass)
     private const ROOT_MOTION_BONUS = [
         5  => 3,   // ascending P4 / descending P5 (V→I, ii→V)
@@ -396,14 +413,31 @@ class ContextualReranker implements IContextualReranker
                 $pools[$i] = [['name' => $results[$i]['name'] ?? '', '_score' => 1.0, '_fallback' => true]];
                 continue;
             }
-            // A slot already reinterpreted by an upstream sub-pass (2a/2c/2d/2e)
-            // is a COMMITTED decision. Its pool must collapse to that single
-            // winner — otherwise Viterbi can route a neighbour's transition
-            // through a candidate name this slot already rejected, producing a
-            // path inconsistent with the slot's own displayed chord (e.g. slot
-            // shows Dm6 but the path into the next slot goes via its discarded
-            // G7/D candidate, pulling the next slot to the wrong reading).
-            if ($results[$i]['reinterpreted'] ?? false) {
+            // A slot reinterpreted by a STRUCTURAL sub-pass (2a pedal, 2c/2c′ dim)
+            // is a COMMITTED decision. Its pool collapses to that single winner —
+            // otherwise Viterbi can route a neighbour's transition through a
+            // candidate name this slot already rejected, producing a path
+            // inconsistent with the slot's own displayed chord (e.g. slot shows
+            // Dm6 but the path into the next slot goes via its discarded G7/D
+            // candidate, pulling the next slot to the wrong reading).
+            //
+            // A SEQUENTIAL commitment (2d cadence, 2e bigram) gets no such
+            // veto. Those passes are greedy and first-order: 2e reweights by
+            // P(curr | previous WINNER) alone, so it chains off whatever the
+            // slot before it happened to pick. Viterbi answers the same question
+            // over the whole path with a second-order model, so letting the
+            // weaker pass lock the pool inverts the information ordering. Its
+            // winner stays first (pole position for the `$pools[$i][0]`
+            // fallbacks) but the alternatives remain reachable; the promotion
+            // loop below re-syncs `name` to whatever the path chooses, so the
+            // display/path consistency the collapse protects is preserved anyway.
+            $reinterpretedBy = ($results[$i]['reinterpreted'] ?? false)
+                ? ($results[$i]['reinterpret_reason'] ?? '')
+                : null;
+            $isSequential = $reinterpretedBy !== null
+                && in_array($reinterpretedBy, self::SEQUENTIAL_REINTERPRET_REASONS, true);
+
+            if ($reinterpretedBy !== null && !$isSequential) {
                 $winnerName = $results[$i]['name'] ?? '';
                 $winnerCand = null;
                 foreach ($cands as $c) {
@@ -414,10 +448,27 @@ class ContextualReranker implements IContextualReranker
                 $pools[$i] = [$winnerCand + ['_score' => $s]];
                 continue;
             }
-            $pools[$i] = array_map(function ($c) {
+
+            $pool = array_map(function ($c) {
                 $s = max(0.001, (float)($c['score'] ?? 1.0));
                 return $c + ['_score' => $s];
             }, $cands);
+
+            // Float a sequential winner to the head of its pool without dropping
+            // the rest, so index 0 remains the upstream pick everywhere it is
+            // used as a fallback.
+            if ($isSequential) {
+                $winnerName = $results[$i]['name'] ?? '';
+                foreach ($pool as $idx => $c) {
+                    if (($c['name'] ?? '') === $winnerName && $idx !== 0) {
+                        array_splice($pool, $idx, 1);
+                        array_unshift($pool, $c);
+                        break;
+                    }
+                }
+            }
+
+            $pools[$i] = $pool;
         }
 
         $INF = 1e18;
