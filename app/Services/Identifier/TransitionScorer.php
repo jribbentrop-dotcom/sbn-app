@@ -173,6 +173,48 @@ class TransitionScorer
      * two-chord context was never seen (caller backs off), otherwise a Laplace
      * add-K probability. $vocab is the tier's "next-token" vocabulary size.
      */
+    /**
+     * P(curr | prev2, prev1) from the FUNCTIONAL trigram tier ONLY — no backoff.
+     *
+     * trigramProbability() returns a bare float and hides which tier answered; its
+     * tier-3 fallback is a plain bigram. A caller that wants to overrule a strong,
+     * complete Pass-1 reading on sequence evidence alone cannot accept that: a
+     * high bigram probability would be indistinguishable from decisive functional
+     * evidence, and the guard would be vacuous.
+     *
+     * Returns null when the key is unknown, any chord fails to place as a numeral,
+     * or the 2-numeral context was never observed. Callers must treat null as
+     * "no evidence", never as "weak evidence".
+     */
+    public function functionalTrigramProbability(
+        string $prev2,
+        string $prev1,
+        string $curr,
+        ?string $songKey,
+    ): ?float {
+        if ($songKey === null || $songKey === '') return null;
+        $data = $this->loadData();
+        if ($data === null || empty($data['functional_trigrams'])) return null;
+
+        $d2 = $this->numeralToken($prev2, $songKey);
+        $d1 = $this->numeralToken($prev1, $songKey);
+        $dc = $this->numeralToken($curr,  $songKey);
+        if ($d2 === null || $d1 === null || $dc === null) return null;
+
+        return $this->triLookup(
+            $data['functional_trigrams'],
+            $data['functional_tri_totals'] ?? [],
+            $d2 . self::SEP . $d1, $dc, $this->functionalTriVocab
+        );
+    }
+
+    /** Vocab size of the functional trigram tier (for uniform-probability bars). */
+    public function functionalTriVocabSize(): int
+    {
+        $this->loadData();
+        return max($this->functionalTriVocab, 1);
+    }
+
     private function triLookup(array $table, array $totals, string $ctx, string $next, int $vocab): ?float
     {
         $ctxTotal = $totals[$ctx] ?? 0;

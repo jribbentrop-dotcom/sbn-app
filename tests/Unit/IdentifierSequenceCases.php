@@ -47,8 +47,8 @@ final class IdentifierSequenceCases
             'song_key' => 'F',
             'why' => 'chromatic passing dim: bass F→F#→G fixes F#°7 as a passing dim, not a rootless dom',
             'slots' => [
-                // Identifier normalizes maj6 display as 'Fmaj6' (not 'F6').
-                ['frets' => '1x021x', 'isolated' => 'F6',   'expected' => 'Fmaj6'],
+                // Identifier normalizes maj6 display as '6' (not 'maj6').
+                ['frets' => '1x021x', 'isolated' => 'F6',   'expected' => 'F6'],
                 ['frets' => '1x221x', 'isolated' => 'Fmaj7','expected' => 'Fmaj7'],
                 // {C,Eb,Gb,A} symmetric dim. Currently resolves to Gbo7 (a valid
                 // dim-family spelling); pinning the exact passing-dim spelling
@@ -74,24 +74,30 @@ final class IdentifierSequenceCases
     public const TIER1_TRIGRAM = [
         'ipanema_bpart_II7_V7_I' => [
             'song_key' => 'Db',
-            // PENDING: the trigram scorer + Viterbi override are in place and
-            // proven (I→II7→V7 beats I→VIm6→V7 ~10×), but Pass-1 never generates
-            // the rootless II-V-I candidates for these pedal voicings — it emits
-            // wrong-root garbage (e.g. 4x334x → B6(9)). Blocked on the Pass-1
-            // absent-root scoring fix. Un-skip once candidates exist.
-            'pending' => 'pass1-absent-root',
             'why' => "6x566x = {Db,F,G,Bb} is Bbm6 AND Eb7(9)/Bb (identical PCs). In the B-part it's the II7 of II7→V7→I (Eb7→Ab7→Db). The trigram must pick the Eb7 (dominant) reading, NOT Bbm6.",
             // Real Ipanema B-part (bars 7→11), verified frets from the leadsheet:
             //   6x566x Eb7(9)/Bb [II7] → 6x466x Ebm7(9)/Bb → 5x456x Ab7(b9,13)/A [V7] → 4x334x Db6(9)/Ab [I]
+            //
+            // Resolved end-to-end once (a) the greedy sequential sub-passes stopped
+            // vetoing Viterbi, (b) identifyWithPinnedRoot() let the progression
+            // construct Ebm7(9)/Bb — a name Pass 1 never emits for these pcs — and
+            // (c) the forward warrant let slot0's II7 beat the root-in-bass Bbm6,
+            // whose 7200 Pass-1 score is a bass-position artifact, not evidence.
             'slots' => [
                 ['frets' => '6x566x', 'want_root' => 'Eb', 'want_quality' => 'dom7',
+                 'want_name' => 'Eb7(9)/Bb',
                  // THE disambiguation claim: resolves toward the II7 (Eb7…), never
                  // the vi/iim6 (Bbm6). Bbm6 is the identical-PC alternative the
                  // trigram must reject; the others guard against wrong-root reads.
                  'not' => ['Bbm6', 'Gm7', 'Gm', 'Bb', 'Bbmaj7']],
-                ['frets' => '6x466x', 'want_root' => 'Eb', 'want_quality' => 'm7',  'not' => ['']],
-                ['frets' => '5x456x', 'want_root' => 'Ab', 'want_quality' => 'dom7','not' => ['']],
-                ['frets' => '4x334x', 'want_root' => 'Db', 'want_quality' => null,  'not' => ['']],
+                // Bass-alternation shell (5–b3–b7–9): an exact, COMPLETE Gbmaj7/Bb
+                // in isolation. Only the progression can supply the absent Eb.
+                ['frets' => '6x466x', 'want_root' => 'Eb', 'want_quality' => 'm7',
+                 'want_name' => 'Ebm7(9)/Bb', 'not' => ['Gbmaj7/Bb']],
+                ['frets' => '5x456x', 'want_root' => 'Ab', 'want_quality' => 'dom7',
+                 'want_name' => 'Ab7(b9,13)/A', 'not' => ['Ao7(b13)', 'Am6(b13)']],
+                ['frets' => '4x334x', 'want_root' => 'Db', 'want_quality' => null,
+                 'want_name' => 'Db6(9)/Ab', 'not' => ['Absus2(13)']],
             ],
         ],
     ];

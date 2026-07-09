@@ -120,14 +120,22 @@ class IdentifierSequenceTest extends TestCase
                         "[$name] slot$i {$slot['frets']} root should be {$slot['want_root']}, got '" . ($r['root'] ?? 'null') . "' (resolved '$resolved')"
                     );
                 }
+
+                // Exact spelling, where the sequence has been verified end-to-end.
+                // Option tones are always parenthesised: `Ebm7(9)/Bb`, never `Ebm9/Bb`.
+                if (($slot['want_name'] ?? null) !== null) {
+                    $this->assertSame(
+                        $slot['want_name'], $resolved,
+                        "[$name] slot$i {$slot['frets']} should spell as {$slot['want_name']}, got '$resolved' ({$case['why']})"
+                    );
+                }
             }
         }
 
         if ($ran === 0) {
             $this->markTestIncomplete(
-                'All TIER1_TRIGRAM cases are pending the Pass-1 absent-root fix — '
-                . 'trigram scorer + Viterbi override are in place; un-skip once Pass-1 '
-                . 'generates the rootless II-V-I candidates. See project_identifier_trigram memo.'
+                'All TIER1_TRIGRAM cases are pending — un-skip as they resolve. '
+                . 'See project_identifier_trigram memo.'
             );
         }
     }

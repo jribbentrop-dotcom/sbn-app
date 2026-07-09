@@ -39,7 +39,11 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(\App\Services\HarmonicContext\DiminishedResolver::class),
                 $app->make(\App\Services\HarmonicContext\PedalDetector::class),
                 $app->make(\App\Services\HarmonicContext\HarmonicPatternMatcher::class),
-                $app->make(\App\Services\HarmonicContext\DiminishedAsDominantResolver::class)
+                $app->make(\App\Services\HarmonicContext\DiminishedAsDominantResolver::class),
+                $app->make(\App\Services\Identifier\TransitionScorer::class),
+                // Lazy: VoicingCrossref resolves this reranker, so a direct
+                // dependency would be circular. Same pattern as PedalDetector above.
+                fn(...$args) => $app->make(\App\Services\VoicingCrossref::class)->identifyWithPinnedRoot(...$args)
             );
         });
     }

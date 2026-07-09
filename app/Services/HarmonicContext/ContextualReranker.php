@@ -10,11 +10,22 @@ namespace App\Services\HarmonicContext;
  * - 2c′: DiminishedAsDominantResolver
  * - 2c: DiminishedResolver
  * - 2d: Diatonicity-based re-ranking
+ * - 2e: Bigram transition rescore
+ * - 2f: Viterbi sequence search (second-order)
+ * - 2g: Root-pinned candidate injection, then 2f again
  *
  * Note: HarmonicPatternMatcher (2b) works with Roman numerals and is
  * integrated at a higher level via HarmonicContext/ProgressionDetector.
  *
- * Pure function: no DB access at runtime, no I/O, no state.
+ * 2a–2f all CHOOSE among the names Phase 1 emitted. 2g is the one pass that can
+ * CONSTRUCT a name Phase 1 never produced, for voicings that do not carry their
+ * own root (a bass alternation, where the root is absent for one beat and its
+ * identity belongs to the bar rather than the shape). It does so only when the
+ * functional trigram decisively demands it.
+ *
+ * Pure function: no DB access at runtime, no I/O, no state. (2g's injected
+ * identifier is a callable into VoicingCrossref::identifyWithPinnedRoot, which
+ * reads only class constants — the purity invariant holds.)
  */
 class ContextualReranker implements IContextualReranker
 {
@@ -38,6 +49,17 @@ class ContextualReranker implements IContextualReranker
      */
     private const SEQUENTIAL_REINTERPRET_REASONS = ['cadence', 'bigram'];
 
+    /**
+     * How decisively a challenger must beat the incumbent on the SAME functional
+     * trigram context before sequence evidence may overrule a stronger Pass-1
+     * reading. Relative, not absolute: with a ~115-token functional vocabulary a
+     * "k × uniform" bar is cleared even by plainly wrong readings
+     * (P(Imaj7 | IVmaj7, V7) = 0.19 ≈ 21 × uniform), so only the margin over the
+     * incumbent separates truth from plausibility. Ipanema: II7 beats VIm6 by 13.9×
+     * and IIm7 beats IVmaj7 by 2.95×.
+     */
+    private const FORWARD_WARRANT_MIN_EDGE = 2.0;
+
     // Root motion bonuses (from VoicingCrossref context pass)
     private const ROOT_MOTION_BONUS = [
         5  => 3,   // ascending P4 / descending P5 (V→I, ii→V)
@@ -58,6 +80,12 @@ class ContextualReranker implements IContextualReranker
         private HarmonicPatternMatcher $patternMatcher,
         private DiminishedAsDominantResolver $dimAsDomResolver,
         private ?\App\Services\Identifier\TransitionScorer $transitionScorer = null,
+        // Optional: enables root-pinned candidate injection (2f). A callable, not
+        // the service — VoicingCrossref resolves ContextualReranker, so a direct
+        // dependency would be circular. Mirrors how PedalDetector receives
+        // identifyPhase1Only. Left null in DI-light constructions and unit tests,
+        // which then simply skip injection.
+        private $pinnedRootIdentifier = null,
     ) {
         // Lazy-default so DI-light constructions still work.
         $this->transitionScorer ??= new \App\Services\Identifier\TransitionScorer();
@@ -111,6 +139,24 @@ class ContextualReranker implements IContextualReranker
         // locally-stronger candidate when the alternative produces idiomatic
         // continuations through multiple slots.
         $results = $this->applyViterbiRescore($results, $songKey);
+
+        // Sub-pass 2g: root-pinned injection, then re-run the search.
+        //
+        // Injection reads the SETTLED downstream reading to decide what a slot's
+        // root must be, so it cannot run before 2f — ahead of the search the
+        // downstream slots still carry the greedy passes' mistakes, which usually
+        // do not place as numerals at all (every probability comes back null and
+        // nothing is injected). Running it after 2f gives it real context; the
+        // second 2f then routes the path through whatever was injected.
+        //
+        // Monotone: each round only appends candidates, never removes or renames,
+        // so the loop terminates. Capped anyway — a corpus pathology must not turn
+        // into an unbounded loop on a user's chord chart.
+        for ($round = 0; $round < 2; $round++) {
+            $results = $this->injectRootPinnedCandidates($results, $songKey, $injected);
+            if (!$injected) break;
+            $results = $this->applyViterbiRescore($results, $songKey);
+        }
 
         return $results;
     }
@@ -382,6 +428,122 @@ class ContextualReranker implements IContextualReranker
      *     bigram transitions.
      *   - Same slash-chord guard as 2d/2e (no `X/X` bass-equals-root names).
      */
+    /**
+     * Inject root-pinned candidates the sequence demands but Pass 1 never emitted.
+     *
+     * Every other Phase-2 mechanism CHOOSES among names Pass 1 produced. That is
+     * fatal for a voicing that does not carry its own root: Ipanema's 6x466x
+     * {Bb,Gb,Db,F} is an exact, complete Gbmaj7/Bb in isolation, and the Ebm7(9)
+     * reading it needs never enters the pool (it scores 735 and is cut by the
+     * top-5 slice). So here we CONSTRUCT the missing name once the progression
+     * says what the root must be.
+     *
+     * Evidence rule. For each of the 12 possible roots, ask VoicingCrossref for the
+     * forced spelling of these exact pitch classes under that root; most roots
+     * yield nothing. Score each survivor against the slot's two SUCCESSORS on the
+     * functional trigram — the slot itself sits in the prev2 position, so a single
+     * settled pair downstream is enough, and we need no settled predecessor.
+     *
+     * The gate is RELATIVE, deliberately. An absolute "beats k×uniform" bar is
+     * vacuous here: the functional vocabulary is ~115 tokens, so 5×uniform ≈ 0.043
+     * and even a plainly wrong reading clears it (P(Imaj7 | IVmaj7, V7) = 0.188,
+     * 21×uniform). What separates truth from plausibility is that the challenger
+     * beats THE INCUMBENT on the SAME context by a wide margin. For Ipanema slot1:
+     * IIm7 scores 0.556 vs IVmaj7's 0.188 — a 2.95× edge.
+     *
+     * Functional tier only, with no bigram backoff. trigramProbability() would fall
+     * back to P(curr|prev1) and hide that it had done so, making the guard
+     * meaningless; functionalTrigramProbability() returns null instead, and null
+     * means "no evidence", never "weak evidence".
+     *
+     * Chicken-and-egg. The context this needs is the SETTLED downstream reading, and
+     * before Viterbi runs the downstream slots may still hold the greedy passes'
+     * mistakes — which typically do not even place as numerals, so every probability
+     * comes back null and nothing is injected. Hence the caller alternates
+     * Viterbi → inject → Viterbi (see rerank()). Each round only ever APPENDS
+     * candidates, so the iteration is monotone and terminates.
+     *
+     * Sets $injected true when it appended anything.
+     */
+    private function injectRootPinnedCandidates(array $results, ?string $songKey, ?bool &$injected = null): array
+    {
+        $injected = false;
+        if ($this->pinnedRootIdentifier === null || $this->transitionScorer === null) return $results;
+        if ($songKey === null || $songKey === '') return $results;
+
+        $minEdge = self::FORWARD_WARRANT_MIN_EDGE;
+        $n = count($results);
+
+        for ($i = 0; $i + 2 < $n; $i++) {
+            // Structural commitments are not re-openable (see pool-collapse note).
+            $reason = ($results[$i]['reinterpreted'] ?? false)
+                ? ($results[$i]['reinterpret_reason'] ?? '')
+                : null;
+            if ($reason !== null && !in_array($reason, self::SEQUENTIAL_REINTERPRET_REASONS, true)) {
+                continue;
+            }
+
+            $pcs = $results[$i]['pcs'] ?? [];
+            if (count($pcs) < 3) continue;   // too little evidence to re-spell
+
+            $incumbent = $results[$i]['name'] ?? '';
+            $p1 = $results[$i + 1]['name'] ?? '';
+            $c  = $results[$i + 2]['name'] ?? '';
+            if ($incumbent === '' || $p1 === '' || $c === '') continue;
+
+            $pIncumbent = $this->transitionScorer
+                ->functionalTrigramProbability($incumbent, $p1, $c, $songKey);
+            if ($pIncumbent === null || $pIncumbent <= 0.0) continue;
+
+            $bassName = $results[$i]['bass_note'] ?? null;
+            $bassPc   = $bassName !== null ? $this->noteNameToPc($bassName) : null;
+
+            $bestName = null;
+            $bestP    = $pIncumbent * $minEdge;   // must clear the bar to win
+
+            for ($root = 0; $root < 12; $root++) {
+                $pinned = ($this->pinnedRootIdentifier)($pcs, $root, $bassPc, $songKey);
+                if ($pinned === null) continue;
+                if ($pinned['name'] === $incumbent) continue;
+
+                $p = $this->transitionScorer
+                    ->functionalTrigramProbability($pinned['name'], $p1, $c, $songKey);
+                if ($p === null) continue;       // unplaceable ⇒ no evidence
+
+                if ($p > $bestP) {
+                    $bestP    = $p;
+                    $bestName = $pinned;
+                }
+            }
+
+            if ($bestName === null) continue;
+
+            // Append as a candidate. Its score sits just under the incumbent's so
+            // it cannot win on local score alone — only the path may promote it.
+            $cands = $results[$i]['candidates'] ?? [];
+            $incumbentScore = $this->findCandidateScore($cands, $incumbent);
+            if ($incumbentScore <= 0) continue;
+
+            foreach ($cands as $existing) {
+                if (($existing['name'] ?? '') === $bestName['name']) continue 2;
+            }
+
+            $cands[] = [
+                'name'       => $bestName['name'],
+                'root'       => $bestName['root'],
+                'quality'    => $bestName['quality'],
+                'extensions' => $bestName['extensions'],
+                'bass_note'  => $bestName['bass_note'],
+                'score'      => $incumbentScore * 0.99,
+                'injected'   => true,
+            ];
+            $results[$i]['candidates'] = $cands;
+            $injected = true;
+        }
+
+        return $results;
+    }
+
     private function applyViterbiRescore(array $results, ?string $songKey = null): array
     {
         if ($this->transitionScorer === null) return $results;
@@ -565,6 +727,52 @@ class ContextualReranker implements IContextualReranker
         }
         ksort($path);
 
+        // ── Forward re-pick for the head of the sequence ──
+        // The seed cost is -log(local_score), which treats a Pass-1 score as
+        // evidence about the notes. Between rival readings of the SAME pitch
+        // classes it is not: Bbm6 outscores Eb7(9)/Bb 7200:1062 purely because its
+        // root sits in the bass (bassBoost ×4 · exactBonus ×3). That 1.91 of seed
+        // advantage swamps the 0.79 the trigram can return through $edgeWeight, so
+        // the search never puts the II7 reading on the path — even though the
+        // functional trigram prefers it seven-fold (0.754 vs 0.054).
+        //
+        // Slots 0 and 1 cannot be rescued afterwards either, because the
+        // strong-trigram override needs two predecessors. They are also precisely
+        // where a bass-alternation voicing hides. So for those slots, consult the
+        // pool directly against FORWARD context and let a decisive challenger take
+        // the path slot; the promotion rails below then apply as usual.
+        //
+        // Deliberately narrow: only the head, only the strict functional tier, only
+        // on a wide relative margin over the path's own pick.
+        if ($songKey !== null) {
+            for ($i = 0; $i < min(2, $n); $i++) {
+                if ($i + 2 >= $n) break;
+                if (!isset($path[$i]) || !empty($path[$i]['_fallback'])) continue;
+                if (count($pools[$i]) < 2) continue;
+
+                $s1 = $path[$i + 1]['name'] ?? '';
+                $s2 = $path[$i + 2]['name'] ?? '';
+                if ($s1 === '' || $s2 === '') continue;
+
+                $incumbentName = $path[$i]['name'] ?? '';
+                $pIncumbent = $this->transitionScorer
+                    ->functionalTrigramProbability($incumbentName, $s1, $s2, $songKey);
+                if ($pIncumbent === null || $pIncumbent <= 0.0) continue;
+
+                $bestCand = null;
+                $bestP    = $pIncumbent * self::FORWARD_WARRANT_MIN_EDGE;
+                foreach ($pools[$i] as $cand) {
+                    $cn = $cand['name'] ?? '';
+                    if ($cn === '' || $cn === $incumbentName) continue;
+                    $p = $this->transitionScorer
+                        ->functionalTrigramProbability($cn, $s1, $s2, $songKey);
+                    if ($p === null) continue;
+                    if ($p > $bestP) { $bestP = $p; $bestCand = $cand; }
+                }
+                if ($bestCand !== null) $path[$i] = $bestCand;
+            }
+        }
+
         // Promote winners that differ from upstream, with safety rails.
         foreach ($path as $i => $pick) {
             if (!empty($pick['_fallback'])) continue;
@@ -594,6 +802,32 @@ class ContextualReranker implements IContextualReranker
                     // Decisive = well above chance. 5×uniform mirrors the
                     // scoreMultiplier calibration's "strongly promoting" band.
                     $strongTrigram = ($tp >= 5.0 * $uniform);
+                }
+            }
+
+            // ── Forward-looking warrant, for slots with no two predecessors ──
+            // The rule above needs (i-2, i-1), so slots 0 and 1 can never earn it —
+            // yet slot 0 is exactly where a bass-alternation voicing hides. Ipanema's
+            // 6x566x is Bbm6 (root in bass, 7200) and Eb7(9)/Bb (1062) over identical
+            // pitch classes; the II7 reading is legible only from what FOLLOWS.
+            //
+            // Score the pick as prev2 of its own two successors. The bar is RELATIVE
+            // (challenger must beat the incumbent on the SAME context by $minEdge),
+            // never absolute: the functional vocabulary is ~115 tokens, so a k×uniform
+            // bar is cleared by plainly wrong readings too. Functional tier only —
+            // trigramProbability() silently backs off to a plain bigram, which would
+            // make this vacuous; null means "no evidence", never "weak evidence".
+            if (!$strongTrigram && $i + 2 < $n && $songKey !== null) {
+                $s1 = $path[$i + 1]['name'] ?? '';
+                $s2 = $path[$i + 2]['name'] ?? '';
+                if ($s1 !== '' && $s2 !== '' && $currentName !== '') {
+                    $pNew = $this->transitionScorer
+                        ->functionalTrigramProbability($pick['name'], $s1, $s2, $songKey);
+                    $pOld = $this->transitionScorer
+                        ->functionalTrigramProbability($currentName, $s1, $s2, $songKey);
+                    if ($pNew !== null && $pOld !== null && $pOld > 0.0) {
+                        $strongTrigram = ($pNew >= self::FORWARD_WARRANT_MIN_EDGE * $pOld);
+                    }
                 }
             }
 

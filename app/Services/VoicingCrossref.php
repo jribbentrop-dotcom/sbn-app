@@ -1374,6 +1374,13 @@ class VoicingCrossref
         'm'     => [0, 3, 7],
     ];
 
+    /**
+     * Altered tensions: only a dominant chord carries these. Used to stop a pinned
+     * root from absorbing its misfit notes as fake alterations (see
+     * identifyWithPinnedRoot). b9 = 1, #9 = 3, b13 = 8.
+     */
+    private const ALTERED_TENSION_INTERVALS = [1, 3, 8];
+
     /** Interval (semitones above root) → extension label. */
     private const IDENTIFY_EXTENSION_INTERVALS = [
         1 => 'b9',
@@ -2163,13 +2170,23 @@ class VoicingCrossref
             // which the sequence layer must never be offered.
             if ($rootAbsent && $matched < 2) continue;
 
-            // Every leftover must be a nameable extension.
+            // Every leftover must be a nameable extension — and one this quality
+            // can actually carry. The altered tensions (b9, #9, b13) are
+            // dominant-function tones; a `maj7` or a `°7` cannot take them. Without
+            // this, a wrong root absorbs its misfit notes as fake alterations and
+            // produces formally-legal garbage: pinning {Bb,G,Db,F} to Gb yields
+            // `Gbmaj7(b9)`, and to E yields `Eo7(b9)`. Both then compete for
+            // injection against the true `Eb7(9)`.
+            $isDominant = ($quality === 'dom7' || $quality === '7');
             $leftover = array_diff($pcSet, $tones);
             $labels   = [];
             $ok       = true;
             foreach ($leftover as $lpc) {
                 $iv = ($lpc - $rootPc + 12) % 12;
                 if (!isset(self::IDENTIFY_EXTENSION_INTERVALS[$iv])) { $ok = false; break; }
+                if (!$isDominant && in_array($iv, self::ALTERED_TENSION_INTERVALS, true)) {
+                    $ok = false; break;
+                }
                 $labels[$iv] = self::IDENTIFY_EXTENSION_INTERVALS[$iv];
             }
             if (!$ok) continue;
