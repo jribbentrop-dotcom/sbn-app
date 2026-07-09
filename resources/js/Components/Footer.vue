@@ -10,8 +10,8 @@ const year = new Date().getFullYear();
 
             <!-- Brand -->
             <div class="footer-brand">
-                <Link href="/" class="footer-logo">
-                    <span class="footer-mark">S</span> Soul Bossa Nova
+                <Link href="/" class="footer-logo" aria-label="Soul Bossa Nova — home">
+                    <img src="/images/soulbossanova.png" alt="Soul Bossa Nova">
                 </Link>
                 <p>An online teaching hub for the art of bossa nova and jazz guitar.</p>
             </div>
@@ -23,6 +23,8 @@ const year = new Date().getFullYear();
                 <Link href="/library/chords">Chord Library</Link>
                 <Link href="/library/progressions">Progression Builder</Link>
                 <a href="#">Analysis</a>
+                <Link href="/library/chords/rain">Chord Rain (parked)</Link>
+                <Link href="/grades/slider">Grades Slider (parked)</Link>
             </div>
 
             <!-- Learn -->
@@ -91,26 +93,11 @@ const year = new Date().getFullYear();
 .footer-logo {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
-    font-family: var(--font-heading);
-    font-weight: 600;
-    font-size: 1.18rem;
-    letter-spacing: -.01em;
-    color: var(--clr-text);
     text-decoration: none;
 }
-
-.footer-mark {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, var(--clr-accent), var(--clr-fifth, #1f9e85));
-    display: grid;
-    place-items: center;
-    color: #fff;
-    font-weight: 700;
-    font-family: var(--font-body);
-    font-size: .95rem;
+.footer-logo img {
+    height: 70px;
+    width: auto;
 }
 
 .footer-columns h5 {

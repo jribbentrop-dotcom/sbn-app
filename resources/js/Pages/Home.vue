@@ -4,22 +4,59 @@ import { Link, Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import type { RhythmPatternData } from '@/Components/Library/RhythmPattern.vue';
 import type { LeadsheetBar } from '@/Components/SyncedPlayer/SyncedPlayer.vue';
-import type { ChordShape } from '@/Components/Home/ChordRain.vue';
+import type { ProgressionChord } from '@/Components/Library/ChordProgressionViewer.vue';
 
 const SyncedHero    = defineAsyncComponent(() => import('@/Components/Home/SyncedHero.vue'));
-const ChordRain     = defineAsyncComponent(() => import('@/Components/Home/ChordRain.vue'));
-const GradesTeaser  = defineAsyncComponent(() => import('@/Components/Home/GradesTeaser.vue'));
-const GradesSlider  = defineAsyncComponent(() => import('@/Components/Home/GradesSlider.vue'));
 const SkillPathSection = defineAsyncComponent(() => import('@/Components/Home/SkillPathSection.vue'));
+const RhythmPattern   = defineAsyncComponent(() => import('@/Components/Library/RhythmPattern.vue'));
+const ChordProgressionViewer = defineAsyncComponent(() => import('@/Components/Library/ChordProgressionViewer.vue'));
+const CircleOfFifths  = defineAsyncComponent(() => import('@/edu/widgets/CircleOfFifths.vue'));
 
 defineOptions({ layout: PublicLayout });
+
+interface LibraryChord {
+    name: string;
+    frets: string;
+    intervalLabels: string;
+    position: number;
+}
+
+interface LibraryBoxes {
+    chordCount: number;
+    chords: LibraryChord[];
+    songCount: number;
+    songs: { title: string; cover: string }[];
+    rhythmCount: number;
+    rhythm: RhythmPatternData | null;
+    progressionCount: number;
+    progression: { name: string; chords: ProgressionChord[] } | null;
+    courseCount: number;
+    courses: { title: string; cover: string }[];
+}
 
 const props = defineProps<{
     rhythmPattern: RhythmPatternData | null;
     heroBars: LeadsheetBar[] | null;
     heroRhythm: RhythmPatternData | null;
-    rainChords: ChordShape[];
+    heroRhythmSlug: string | null;
+    heroRhythmCaption: string | null;
+    heroCitation: string | null;
+    libraryBoxes: LibraryBoxes;
 }>();
+
+function chordDiagramSvg(chord: LibraryChord): string {
+    const fn = (window as any).sbnRenderDiagramSVG;
+    if (!fn) return '';
+    return fn(
+        { frets: chord.frets, position: chord.position },
+        { showFingers: false, intervalLabels: chord.intervalLabels },
+    );
+}
+
+function chordNameHtml(name: string): string {
+    const fn = (window as any).sbnFormatChordHtml;
+    return fn ? fn(name) : name;
+}
 
 // JSON-LD: Organization + WebSite, so Google can build a knowledge panel and
 // sitelinks searchbox for brand-name queries ("Soul Bossa Nova").
@@ -72,8 +109,7 @@ const orgJsonLd = JSON.stringify({
                         for the way the music actually feels — not just how it looks on paper.
                     </p>
                     <div class="hero-cta reveal d4">
-                        <Link href="/register" class="btn btn-solid btn-lg">Start playing free →</Link>
-                        <a href="#" class="btn btn-ghost btn-lg">▶ Watch the tour</a>
+                        <Link href="/top10/bossa-nova-songs" class="btn btn-solid btn-lg">Explore the most popular songs →</Link>
                     </div>
                     <div class="hero-stats reveal d5">
                         <div class="stat"><div class="stat-n">240+</div><div class="stat-l">Voicings mapped</div></div>
@@ -88,6 +124,9 @@ const orgJsonLd = JSON.stringify({
                         :bars="props.heroBars ?? undefined"
                         :rhythm-pattern="props.heroRhythm ?? undefined"
                         :muted="true"
+                        :rhythm-caption="props.heroRhythmCaption ?? undefined"
+                        :rhythm-link="props.heroRhythmSlug ? `/library/rhythms/${props.heroRhythmSlug}` : undefined"
+                        :citation="props.heroCitation ?? undefined"
                     />
                 </div>
             </div>
@@ -96,9 +135,6 @@ const orgJsonLd = JSON.stringify({
         <!-- ── Grades teaser (retired) ───────────────────── -->
         <!-- <GradesTeaser /> -->
 
-        <!-- ── Chord rain ─────────────────────────────────── -->
-        <ChordRain v-if="rainChords?.length" :chords="rainChords" />
-
         <!-- ── Rhythm strip (hidden) ─────────────────────── -->
         <!--
         <section class="home-section">
@@ -106,38 +142,104 @@ const orgJsonLd = JSON.stringify({
         </section>
         -->
 
-        <!-- ── Grades slider ─────────────────────────────── -->
-        <GradesSlider />
-
         <!-- ── Skill path ──────────────────────────────────── -->
         <SkillPathSection />
 
-        <!-- ── Feature cards ──────────────────────────────── -->
+        <!-- ── Library showcase ─────────────────────────────── -->
         <section class="home-section" style="padding-top:0">
             <div class="home-wrap">
                 <div class="section-head">
-                    <div class="eyebrow">Everything in one place</div>
-                    <h2>Built for teachers and students</h2>
+                    <div class="eyebrow">Explore the library</div>
+                    <h2>Everything you need to play</h2>
                 </div>
-                <div class="feature-cards">
-                    <Link href="/admin/leadsheets" class="feature-card">
-                        <div class="card-icon">🎼</div>
-                        <h3>Interactive Tab Editor</h3>
-                        <p>A Soundslice-style canvas where the chart, the tab, and the audio stay in sync as you edit.</p>
-                        <span class="card-more">Explore the editor →</span>
-                    </Link>
-                    <Link href="/library/chords" class="feature-card">
-                        <div class="card-icon">🗂️</div>
-                        <h3>Every chord, every context</h3>
-                        <p>Follow any chord through its inversions, transpose it to any key, and see exactly where it lives in the repertoire.</p>
+                <div class="lib-boxes">
+
+                    <Link href="/library/chords" class="lib-box lib-box-chord">
+                        <div class="lib-box-preview lib-chord-hero-row sbn-synced-hero-card">
+                            <div
+                                v-for="(chord, i) in libraryBoxes.chords"
+                                :key="chord.name"
+                                class="lib-chord-slot"
+                                :class="i === 2 ? 'is-hero' : (i === 1 || i === 3) ? 'is-inner' : 'is-outer'"
+                            >
+                                <div class="lib-chord-name" v-html="chordNameHtml(chord.name)"></div>
+                                <div class="lib-chord-svg" v-html="chordDiagramSvg(chord)"></div>
+                            </div>
+                        </div>
+                        <h3>Chord Library</h3>
+                        <p>{{ libraryBoxes.chordCount }}+ voicings, mapped through every inversion and key.</p>
                         <span class="card-more">Browse voicings →</span>
                     </Link>
-                    <a href="#" class="feature-card">
-                        <div class="card-icon">📊</div>
-                        <h3>Analysis Panel</h3>
-                        <p>Automatic function labelling, key-fit scoring and ii–V detection that explains <em>why</em> a progression works.</p>
-                        <span class="card-more">See it work →</span><!-- TODO: wire to analysis route -->
-                    </a>
+
+                    <Link href="/library/songs" class="lib-box lib-box-song">
+                        <div class="lib-box-preview lib-song-filmstrip">
+                            <img
+                                v-for="s in libraryBoxes.songs"
+                                :key="s.title"
+                                :src="s.cover"
+                                :alt="s.title"
+                                loading="lazy"
+                            />
+                        </div>
+                        <h3>Song Library</h3>
+                        <p>{{ libraryBoxes.songCount }}+ annotated leadsheets, from first standards to advanced arrangements.</p>
+                        <span class="card-more">Browse songs →</span>
+                    </Link>
+
+                    <Link href="/library/rhythms" class="lib-box lib-box-rhythm">
+                        <div class="lib-box-preview lib-box-preview-widget sbn-synced-hero-card">
+                            <RhythmPattern
+                                v-if="libraryBoxes.rhythm"
+                                :pattern="libraryBoxes.rhythm"
+                                :playable="false"
+                            />
+                        </div>
+                        <h3>Rhythm Patterns</h3>
+                        <p>{{ libraryBoxes.rhythmCount }}+ strumming and fingerpicking patterns, from bossa to samba to swing.</p>
+                        <span class="card-more">Browse rhythms →</span>
+                    </Link>
+
+                    <!-- Not a <Link> — ChordProgressionViewer renders its own <button> chord
+                         chips, which can't legally nest inside an <a>. -->
+                    <div class="lib-box lib-box-progression">
+                        <div class="lib-box-preview lib-box-preview-widget">
+                            <ChordProgressionViewer
+                                v-if="libraryBoxes.progression"
+                                :chords="libraryBoxes.progression.chords"
+                                :name="libraryBoxes.progression.name"
+                                :interactive="false"
+                                compact
+                            />
+                        </div>
+                        <h3>Progressions</h3>
+                        <p>{{ libraryBoxes.progressionCount }}+ chord progressions, explained and mapped to real songs.</p>
+                        <Link href="/library/progressions" class="card-more">Browse progressions →</Link>
+                    </div>
+
+                    <Link href="/theory" class="lib-box lib-box-theory">
+                        <div class="lib-box-preview lib-box-preview-widget">
+                            <CircleOfFifths />
+                        </div>
+                        <h3>Theory &amp; Analysis</h3>
+                        <p>Interactive lessons on scales, harmony and function — the why behind every chord you play.</p>
+                        <span class="card-more">Explore theory →</span>
+                    </Link>
+
+                    <Link href="/learn" class="lib-box lib-box-course">
+                        <div class="lib-box-preview lib-song-filmstrip">
+                            <img
+                                v-for="c in libraryBoxes.courses"
+                                :key="c.title"
+                                :src="c.cover"
+                                :alt="c.title"
+                                loading="lazy"
+                            />
+                        </div>
+                        <h3>Courses</h3>
+                        <p>{{ libraryBoxes.courseCount }}+ structured courses, from first chords to advanced repertoire.</p>
+                        <span class="card-more">Browse courses →</span>
+                    </Link>
+
                 </div>
             </div>
         </section>

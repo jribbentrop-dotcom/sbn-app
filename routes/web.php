@@ -369,6 +369,7 @@ Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(functi
 Route::middleware('auth')->group(function () {
     Route::get('/library/chords', [ChordLibraryController::class, 'index'])->name('library.chords.index');
     Route::get('/library/chords/search', [ChordLibraryController::class, 'search'])->name('library.chords.search');
+    Route::get('/library/chords/rain', [ChordLibraryController::class, 'showcase'])->name('library.chords.rain');
     Route::get('/library/chords/{slug}', [ChordLibraryController::class, 'show'])->name('library.chords.show');
 
     Route::get('/library/rhythms', [RhythmLibraryController::class, 'index'])->name('library.rhythms.index');
@@ -470,6 +471,7 @@ if (! app()->environment('production')) {
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/grades', [GradesController::class, 'index'])->name('grades.index');
+Route::get('/grades/slider', [GradesController::class, 'slider'])->name('grades.slider');
 Route::get('/skills', [\App\Http\Controllers\SkillGlossaryController::class, 'index'])->name('skills.glossary');
 
 Route::get('/hello', function () {

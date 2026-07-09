@@ -72,7 +72,6 @@
 .home-page .btn-solid:hover {
     transform: translateY(-1px);
     background: var(--clr-gradient-hover);
-    box-shadow: 0 8px 24px -8px #e74c3c;
 }
 .home-page .btn-lg { padding: 14px 26px; font-size: 1rem; }
 
@@ -687,54 +686,231 @@
 }
 .grade-cta:hover { opacity: .75; }
 
-/* ── Feature cards ─────────────────────────────────────────── */
-.feature-cards {
+/* ── Library showcase boxes ────────────────────────────────── */
+.lib-boxes {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 20px;
 }
-.feature-card {
+.lib-box {
     background: var(--clr-bg-card);
     border: 1px solid var(--clr-line);
     border-radius: var(--radius-lg);
-    padding: 28px;
-    transition: .2s;
+    padding: 24px;
+    transition: border-color .2s;
     position: relative;
     overflow: hidden;
     text-decoration: none;
     color: var(--clr-text);
     display: block;
 }
-.feature-card:hover {
-    transform: translateY(-4px);
+.lib-box:hover {
     border-color: var(--clr-accent);
 }
-.feature-card::after {
+.lib-box-progression .card-more {
+    text-decoration: none;
+}
+.lib-box-progression .card-more:hover {
+    text-decoration: underline;
+}
+
+.lib-box-preview {
+    height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    border-radius: calc(var(--radius-lg) - 6px);
+    background: var(--clr-bg);
+    overflow: hidden;
+}
+
+/* Song box — a filmstrip of covers reflecting catalog size rather than one
+   item, contained in its own preview area like Rhythm rather than a
+   full-bleed background (several competing photos behind text would hurt
+   legibility). Hover-grow is the same cheap CSS flex-basis transition
+   GradesSlider uses, no JS. */
+.lib-song-filmstrip {
+    flex-direction: row;
+    gap: 6px;
+    padding: 12px;
+    overflow: hidden;
+}
+.lib-song-filmstrip img {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: 6px;
+    transition: flex .7s cubic-bezier(.3,1,.3,1);
+}
+.lib-song-filmstrip:hover img {
+    flex: 0.6 1 0;
+}
+.lib-song-filmstrip img:hover {
+    flex: 3 1 0;
+}
+
+/* Chord box — SyncedHero-style composition: one sharp hero voicing in the
+   center, two layers of progressively smaller/fainter neighbors receding
+   either side. Static (no carousel/audio clock like the real SyncedPlayer)
+   — just a fixed 5-up layout. Negative margins pull the layers close/
+   slightly overlapping so it reads as one composition, not a row of
+   separate cards. Framed like the homepage SyncedHero card — override
+   background/radius explicitly since sbn-design-system.css loads before
+   home.css and would otherwise lose the cascade. */
+.lib-chord-hero-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    background: var(--clr-white);
+    border-radius: var(--radius-lg);
+}
+.lib-chord-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+.lib-chord-slot.is-hero {
+    position: relative;
+    z-index: 2;
+}
+.lib-chord-slot.is-inner {
+    position: relative;
+    z-index: 1;
+    opacity: .5;
+    filter: blur(.4px);
+    transform: scale(.8);
+    margin: 0 -14px;
+}
+.lib-chord-slot.is-outer {
+    opacity: .2;
+    filter: blur(.6px);
+    transform: scale(.62);
+    margin: 0 -20px;
+}
+.lib-chord-slot .lib-chord-svg svg {
+    height: 150px;
+    width: auto;
+}
+.lib-chord-slot.is-inner .lib-chord-svg svg,
+.lib-chord-slot.is-outer .lib-chord-svg svg {
+    height: 120px;
+}
+.lib-chord-slot .lib-chord-name {
+    margin-bottom: 4px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--clr-text);
+    white-space: nowrap;
+}
+.lib-chord-slot.is-inner .lib-chord-name,
+.lib-chord-slot.is-outer .lib-chord-name {
+    font-size: .95rem;
+}
+
+/* Live-widget previews (RhythmPattern / CircleOfFifths) — these render their
+   own real DOM, so the box just needs to contain and scale them rather than
+   lay out a hand-built glyph. Text sits below, like Chord/Rhythm. */
+.lib-box-preview-widget {
+    padding: 12px;
+    align-items: stretch;
+    justify-content: center;
+}
+/* RhythmPattern is the full component (header + two hand-rows), taller than
+   a mini strip — give it more room than the default 200px preview height.
+   Framed like the homepage SyncedHero card (.sbn-synced-hero-card in
+   sbn-design-system.css) — override background/radius explicitly since that
+   stylesheet loads before home.css and would otherwise lose the cascade. */
+.lib-box-rhythm .lib-box-preview {
+    height: auto;
+    min-height: 200px;
+    background: var(--clr-white);
+    border-radius: var(--radius-lg);
+}
+.lib-box-rhythm .lib-box-preview-widget { padding: 16px 12px; }
+/* ChordProgressionViewer brings its own white card frame (.sbn-prog-viewer)
+   — don't double-frame the background/border, just give the box room to fit
+   it without cropping and match Rhythm's elevation shadow. */
+.lib-box-progression .lib-box-preview {
+    height: auto;
+    min-height: 200px;
+}
+.lib-box-progression .sbn-prog-viewer {
+    box-shadow: 0 30px 60px -28px rgba(80,60,20,.18);
+}
+.lib-box-progression .lib-box-preview-widget {
+    padding: 8px;
+    overflow-x: auto;
+}
+
+/* Slight lift on the framed component cards themselves (not the whole
+   outer box, which no longer lifts) — Chord + Rhythm's .sbn-synced-hero-card,
+   Progressions' own .sbn-prog-viewer. */
+.lib-box .sbn-synced-hero-card,
+.lib-box-progression .lib-box-preview .sbn-prog-viewer {
+    transition: transform .45s cubic-bezier(.22,1,.36,1) !important;
+}
+.lib-box:hover .sbn-synced-hero-card,
+.lib-box-progression:hover .sbn-prog-viewer {
+    transform: translateY(-3px) scale(1.04);
+}
+/* CircleOfFifths is taller than the 200px preview area, so the default
+   vertical-centering on .lib-box-preview cropped it evenly top/bottom.
+   Anchor to the top instead and fade the cut-off edge with a scrim, rather
+   than a hard crop. */
+.lib-box-theory .lib-box-preview {
+    align-items: flex-start;
+    justify-content: flex-start;
+    position: relative;
+}
+.lib-box-theory .lib-box-preview-widget {
+    align-items: flex-start;
+    width: 100%;
+}
+.lib-box-theory .lib-box-preview-widget svg {
+    width: 100%;
+    height: auto;
+    max-height: 180px;
+}
+.lib-box-theory .lib-box-preview::after {
     content: "";
     position: absolute;
-    top: 0; right: 0;
-    width: 120px; height: 120px;
-    background: radial-gradient(circle at top right, var(--clr-accent), transparent 70%);
-    opacity: 0;
-    transition: .3s;
+    z-index: 1;
+    left: 0; right: 0; bottom: 0;
+    height: 48px;
+    background: linear-gradient(to top, var(--clr-bg) 0%, transparent 100%);
+    pointer-events: none;
 }
-.feature-card:hover::after { opacity: .12; }
-.card-icon { font-size: 1.7rem; margin-bottom: 16px; }
-.feature-card h3 {
+
+.card-icon { font-size: 2.6rem; }
+.lib-box h3 {
     font-family: var(--font-heading);
     font-weight: 600;
-    font-size: 1.25rem;
-    margin-bottom: 8px;
+    font-size: 1.15rem;
+    margin-bottom: 6px;
 }
-.feature-card p { color: var(--clr-text-dim); font-size: .93rem; }
+.lib-box p { color: var(--clr-text-dim); font-size: .9rem; line-height: 1.5; }
 .card-more {
     display: inline-flex;
     gap: 6px;
     align-items: center;
-    margin-top: 16px;
+    margin-top: 14px;
     font-size: .85rem;
     font-weight: 600;
     color: var(--clr-accent);
+}
+
+@media (max-width: 900px) {
+    .lib-boxes { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+    .lib-boxes { grid-template-columns: 1fr; }
 }
 
 
@@ -742,7 +918,6 @@
 @media (max-width: 900px) {
     .hero-inner { grid-template-columns: 1fr; }
     .hero-inner > div:last-child { order: -1; }
-    .feature-cards { grid-template-columns: 1fr; }
     .home-foot { grid-template-columns: 1fr 1fr; }
     .foot-brand { grid-column: 1 / -1; }
     .grade-block { grid-template-columns: 1fr; }

@@ -41,6 +41,16 @@ class GradesController extends Controller
     }
 
     /**
+     * Parked here off the homepage while its placement is decided — the
+     * GradesSlider component needs no props, this route just gives it a
+     * reachable home (linked from the footer) in the meantime.
+     */
+    public function slider()
+    {
+        return Inertia::render('Grades/Slider');
+    }
+
+    /**
      * Skill nodes that belong to this grade — the actual skills a student works
      * toward at this level. Surfaced as icons on the grade panel (not capped like
      * the library sections; a grade has ≤~23 nodes and they're the defining thing).

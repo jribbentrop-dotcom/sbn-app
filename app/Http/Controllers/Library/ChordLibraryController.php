@@ -1098,4 +1098,119 @@ class ChordLibraryController extends Controller
 
 		return response()->json($payload);
 	}
+
+	// ── Chord rain showcase (moved off the homepage; parked here until its
+	// homepage placement is decided — see /library/chords/rain) ───────────
+
+	public function showcase()
+	{
+		return Inertia::render('Library/ChordRainShowcase', [
+			'rainChords' => $this->buildRainChords(),
+		]);
+	}
+
+	/**
+	 * Build a curated set of chord shapes for the ChordRain section.
+	 * Returns up to 25 diverse voicings with real fret/interval data.
+	 */
+	private function buildRainChords(): array
+	{
+		$chords = ChordDiagram::whereNotNull('diagram_data')
+			->whereNotNull('interval_labels')
+			->where('interval_labels', '!=', '')
+			->whereNotNull('name')
+			->orderByDesc('popularity')
+			->limit(60)
+			->get(['id', 'name', 'root_note', 'quality', 'extensions', 'start_fret', 'diagram_data', 'interval_labels', 'voicing_category']);
+
+		$result = [];
+		foreach ($chords as $chord) {
+			$data = json_decode($chord->diagram_data ?? '{}', true);
+			if (empty($data)) {
+				continue;
+			}
+
+			$frets = $this->diagramDataToFretString($data);
+			if ($frets === 'xxxxxx') {
+				continue;
+			}
+
+			$result[] = [
+				'name'           => $this->chordDisplayName($chord->root_note, $chord->quality, $chord->extensions ?? null),
+				'frets'          => $frets,
+				'position'       => $chord->start_fret ?? 1,
+				'intervalLabels' => $chord->interval_labels,
+			];
+
+			if (count($result) >= 25) {
+				break;
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Build the chord symbol string that sbnFormatChordHtml() will parse:
+	 * root + quality symbol + extensions (e.g. "Cm7", "G7", "Fmaj7", "Bb7b9").
+	 */
+	private function chordDisplayName(string $root, string $quality, ?string $extensions): string
+	{
+		$qualitySymbols = [
+			'maj'   => '',
+			'min'   => 'm',
+			'aug'   => 'aug',
+			'dim'   => 'dim',
+			'5'     => '5',
+			'sus4'  => 'sus4',
+			'sus2'  => 'sus2',
+			'add9'  => 'add9',
+			'madd9' => 'madd9',
+			'maj7'  => 'maj7',
+			'm7'    => 'm7',
+			'dom7'  => '7',
+			'm7b5'  => 'm7b5',
+			'o7'    => '°7',
+			'maj6'  => 'maj6',
+			'm6'    => 'm6',
+			'mMaj7' => 'mMaj7',
+			'aug7'  => 'aug7',
+			'7sus4'   => '7sus4',
+			'quartal' => 'quartal',
+		];
+
+		$sym = $qualitySymbols[$quality] ?? $quality;
+		$ext = $extensions ? trim($extensions) : '';
+
+		return $root . $sym . ($ext ? $ext : '');
+	}
+
+	/**
+	 * Convert diagram_data positions/open/muted to a 6-char fret string
+	 * compatible with sbnRenderDiagramSVG (e.g. "x32010").
+	 */
+	private function diagramDataToFretString(array $data): string
+	{
+		$frets = ['x', 'x', 'x', 'x', 'x', 'x'];
+
+		foreach ($data['open'] ?? [] as $s) {
+			if ($s >= 1 && $s <= 6) {
+				$frets[$s - 1] = '0';
+			}
+		}
+		foreach ($data['positions'] ?? [] as $pos) {
+			$s = $pos['string'] ?? 0;
+			$f = $pos['fret']   ?? 0;
+			if ($s >= 1 && $s <= 6) {
+				$frets[$s - 1] = dechex($f);
+			}
+		}
+		foreach ($data['muted'] ?? [] as $s) {
+			if ($s >= 1 && $s <= 6) {
+				$frets[$s - 1] = 'x';
+			}
+		}
+
+		return implode('', $frets);
+	}
 }

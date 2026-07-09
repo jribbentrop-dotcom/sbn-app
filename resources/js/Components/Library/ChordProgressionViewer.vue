@@ -52,7 +52,7 @@ function chordDisplayHtml(chord: ProgressionChord): string {
     const [qual, core] = QUALITY_MAP[d.quality] ?? ['', d.quality ?? ''];
     const ext = (d.extensions ?? '').replace(/#/g, '♯').replace(/b(?=[0-9])/g, '♭');
     const bass = d.bass_note ? '/' + d.bass_note.replace(/#/g, '♯').replace(/b/g, '♭') : '';
-    const inv = (!bass && d.inversion_label && d.inversion_label !== 'Root position')
+    const inv = (!bass && d.inversion_label && d.inversion_label !== 'Root Position')
         ? `<span class="chord-inv">${d.inversion_label}</span>`
         : '';
 
@@ -716,6 +716,18 @@ function onFocusOut(e: FocusEvent) {
     --stage-gap: 8px;
 }
 
+/* Header title + numeral chips don't live inside .sbn-prog-inner (whose
+   --ribbon-* vars only drive the fretboard/ribbon), so the ResizeObserver-
+   driven [data-size] never scaled them — they stayed full-size (18px title,
+   12px chips) even when the fretboard shrank to fit a narrow container,
+   making them look oversized next to it. Scale them down at the same
+   xs/sm breakpoints the fretboard already uses. */
+.sbn-prog-viewer[data-size="sm"] .head-title { font-size: 15px; }
+.sbn-prog-viewer[data-size="sm"] .sbn-numeral-chip { font-size: 11px; padding: 2px 7px; }
+.sbn-prog-viewer[data-size="xs"] .head-title { font-size: 13px; }
+.sbn-prog-viewer[data-size="xs"] .head-meta .sbn-badge { font-size: 10px; padding: 2px 6px; }
+.sbn-prog-viewer[data-size="xs"] .sbn-numeral-chip { font-size: 10px; padding: 2px 6px; }
+
 
 .sbn-prog-viewer--compact {
     padding: 18px 20px 16px;
@@ -794,6 +806,22 @@ function onFocusOut(e: FocusEvent) {
     border-left: 1px solid var(--clr-border-dim, #eef1f5);
     margin-left: 4px;
 }
+/* The 80px min-width floor keeps the chord card oversized next to a
+   shrunken fretboard in narrow containers — relax it at the same
+   ResizeObserver-driven xs/sm breakpoints used elsewhere in this file. */
+.sbn-prog-viewer[data-size="sm"] .chord-card-aside {
+    flex-basis: 20%;
+    max-width: 100px;
+    min-width: 56px;
+    padding-left: 8px;
+}
+.sbn-prog-viewer[data-size="xs"] .chord-card-aside {
+    flex-basis: 16%;
+    max-width: 70px;
+    min-width: 40px;
+    padding-left: 6px;
+    gap: 2px;
+}
 .aside-chord-name {
     font-family: var(--font-chord, 'Crimson Text', Georgia, serif);
     font-size: 16px;
@@ -805,6 +833,8 @@ function onFocusOut(e: FocusEvent) {
     align-items: baseline;
     gap: 1px;
 }
+.sbn-prog-viewer[data-size="sm"] .aside-chord-name { font-size: 13px; }
+.sbn-prog-viewer[data-size="xs"] .aside-chord-name { font-size: 11px; }
 .aside-chord-name :deep(.sbn-chord-root)      { font-weight: 700; font-size: 1.05em; }
 .aside-chord-name :deep(.sbn-chord-quality)   { font-size: 0.82em; }
 .aside-chord-name :deep(.sbn-chord-ext)       { font-size: 0.72em; font-weight: 600; vertical-align: super; line-height: 0; }

@@ -31,9 +31,9 @@ onUnmounted(() => {
         <header class="site-header" ref="headerRef">
             <div class="header-inner">
                 <div class="site-branding">
-                    <h1 class="site-title">
-                        <Link href="/">Soul Bossa Nova</Link>
-                    </h1>
+                    <Link href="/" aria-label="Soul Bossa Nova — home">
+                        <img src="/images/soulbossanova.png" alt="Soul Bossa Nova">
+                    </Link>
                 </div>
                 
                 <MegaMenu />

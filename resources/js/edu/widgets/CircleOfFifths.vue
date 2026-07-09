@@ -222,18 +222,20 @@ const infoText = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
   gap: 8px;
   padding: 1.75rem 1.5rem 1.5rem;
   background: #0f0f17;
   border-radius: var(--radius, 10px);
   font-family: var(--font-body, system-ui, sans-serif);
   user-select: none;
+  box-sizing: border-box;
 }
 
 .cof-header { width: 100%; display: flex; align-items: center; justify-content: space-between; }
 .cof-label { font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: #ffffff; }
 
-.cof-svg { max-width: 420px; cursor: pointer; display: block; }
+.cof-svg { width: 100%; max-width: 420px; cursor: pointer; display: block; }
 
 .cof-seg {
   fill: rgba(255,255,255,0.05);

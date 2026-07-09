@@ -6,6 +6,10 @@ defineProps<{
     bars?: LeadsheetBar[];
     rhythmPattern?: RhythmPatternData;
     muted?: boolean;
+    rhythmCaption?: string;
+    rhythmLink?: string;
+    citation?: string;
+    startChordName?: string;
 }>();
 </script>
 
@@ -17,6 +21,11 @@ defineProps<{
             :rhythm-pattern="rhythmPattern"
             :autoplay="false"
             :muted="muted"
+            :loop="true"
+            :rhythm-caption="rhythmCaption"
+            :rhythm-link="rhythmLink"
+            :citation="citation"
+            :start-chord-name="startChordName"
         />
     </div>
 </template>

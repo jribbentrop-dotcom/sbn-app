@@ -1677,14 +1677,35 @@ class VoicingCrossref
                     }
                 }
 
+                // Legit rootless shape: the ONLY missing template tone is the
+                // root itself and every leftover is a named extension — the
+                // sounding tones are contiguous chord tones (3-5-7, 3-5-6-9…).
+                // The root is the one tone jazz voicings legitimately omit, so
+                // this partial doesn't pay the -50 incompleteness penalty.
+                $rootPresent    = in_array($rootPc, $pcSet, true);
+                $legitRootless  = !$rootPresent && $matched === $total - 1 && $unexplained === 0;
+
                 if ($matched === $total) {
                     $raw = $total * 100 - $unexplained * 50;
                     // Exact bonus only for 7th chords (4+ tones); triads excluded
                     if ($total >= 4) $raw *= $exactBonus;
+                } elseif ($legitRootless && $matched >= 2) {
+                    $raw = $matched * 100;
                 } elseif ($matched >= 2 && $matched >= $total - 1) {
                     $raw = $matched * 100 - 50 - $unexplained * 50;
                 } else {
                     continue;
+                }
+
+                // Absent-root scoring: a legit rootless reading keeps its score
+                // minus a hair (it must never outrank an equal-score complete
+                // root-present reading — Bb/F beats rootless Gm7/F on {D,F,Bb});
+                // any other root-absent candidate is a coincidental wrong-root
+                // map propped up by partial-match + extension-absorption
+                // (4x334x = {Ab,Bb,Eb,F} must not read as B-anything) and is
+                // penalized hard.
+                if (!$rootPresent) {
+                    $raw *= $legitRootless ? 0.98 : 0.35;
                 }
 
                 // Suspended chords are defined by the ABSENCE of a 3rd — the
@@ -1697,6 +1718,17 @@ class VoicingCrossref
                     && (in_array(($rootPc + 3) % 12, $pcSet, true)
                         || in_array(($rootPc + 4) % 12, $pcSet, true))) {
                     continue;
+                }
+
+                // Bass-as-2nd guard: add9/madd9/sus2 are defined by an ADDED
+                // 2nd/9th sounding above the triad. When that very tone is the
+                // BASS, the voicing is a pedal-bass slash (Bb/C, F/G), not an
+                // added-tone chord — x3333x {C,D,F,Bb}/C is Bb/C, never
+                // Bbadd9/C. Penalize so the slash reading (or DB hit) wins.
+                if ($bassPc !== null
+                    && in_array($quality, ['add9', 'madd9', 'sus2'], true)
+                    && (($bassPc - $rootPc + 12) % 12) === 2) {
+                    $raw *= 0.4;
                 }
 
                 // Slash-chord candidate check: bass is chord tone (3rd, 5th, 7th, maj7th)
@@ -1738,8 +1770,11 @@ class VoicingCrossref
                 if ($isBass) {
                     $score *= $bassBoost;
                 } elseif ($isSlashCandidate) {
-                    // Two-tier slash bonus: higher for 7th chords, lower for triads
-                    $slashBonus = ($total >= 4) ? $slashBonus7th : $slashBonusTriad;
+                    // Two-tier slash bonus: higher for COMPLETE 7th chords,
+                    // lower for triads and partials. A partial 7th must not
+                    // out-tier an exact triad over the same bass ({D,F,Bb}/F is
+                    // Bb/F, not Bbmaj7/F with a hallucinated A).
+                    $slashBonus = ($total >= 4 && $matched === $total) ? $slashBonus7th : $slashBonusTriad;
                     $score *= $slashBonus;
                 }
 
@@ -2055,6 +2090,133 @@ class VoicingCrossref
     }
 
     /**
+     * Re-identify a voicing with the ROOT PINNED by an external authority
+     * (the progression), rather than inferred from the sounding pitch classes.
+     *
+     * Motivation. Some voicings do not carry their own root. João Gilberto
+     * alternates his bass between R and 5; on the 5 beat a shape like
+     * `5 – b3 – b7 – 9` sounds (Ipanema's Ebm7(9) as 6x466x = {Bb,Gb,Db,F}).
+     * Those four notes are an exact, complete Gbmaj7/Bb in isolation, and Pass 1
+     * is right to say so. The Eb is absent for one beat of a bass alternation —
+     * its identity is a property of the BAR, not of the shape. This is not a
+     * rootless voicing in the jazz sense (Jim Hall's `xx b3 b7 9 x` omits R *and*
+     * 5); no amount of template-widening recovers it, because the information
+     * simply is not in the pitch classes.
+     *
+     * So: let the sequence layer supply the root, and ask Pass 1 only the narrow,
+     * well-posed question it can actually answer — "given these pcs and THIS root,
+     * what is the chord?" With the root fixed the scoring contest collapses and
+     * the answer is forced.
+     *
+     * Accepts a quality when either every template tone sounds, or the ONLY
+     * missing template tone is the pinned root itself; in both cases every
+     * leftover pc must be a nameable extension (no hallucinated tones, and no
+     * unexplained ones). Returns null when nothing fits — the caller then leaves
+     * the slot alone.
+     *
+     * Ranking, when several qualities fit: most base tones matched first, then
+     * fewest leftovers, then the main pass's longest-first specificity order.
+     *
+     * Spelling (flat/sharp) and the `(ext)` rendering are delegated to the same
+     * helpers the main path uses, so this cannot drift from the single spelling
+     * authority. Extensions are always parenthesised and interval-sorted:
+     * `Ebm7(9)/Bb`, never `Ebm9/Bb`.
+     *
+     * @param  array    $pcSet   Unique pitch classes (0–11) actually sounding
+     * @param  int      $rootPc  The root the progression asserts (0–11)
+     * @param  int|null $bassPc  Pitch class of the lowest note, for the slash
+     * @param  string|null $songKey  Passed to the spelling authority
+     * @return array{name:string,root:string,quality:string,extensions:string,bass_note:?string,rootless:bool}|null
+     */
+    public function identifyWithPinnedRoot(
+        array $pcSet,
+        int $rootPc,
+        ?int $bassPc = null,
+        ?string $songKey = null,
+    ): ?array {
+        $pcSet = array_values(array_unique($pcSet));
+        if (empty($pcSet)) return null;
+        $rootPc %= 12;
+
+        // Longest-first: a 4-tone quality outranks a 3-tone one that also fits.
+        $qualities = self::IDENTIFY_QUALITY_INTERVALS;
+        uasort($qualities, fn($a, $b) => count($b) - count($a));
+
+        $best = null;
+        $specificity = 0;
+        foreach ($qualities as $quality => $intervals) {
+            $specificity++;
+            $tones   = array_map(fn($iv) => ($rootPc + $iv) % 12, $intervals);
+            $matched = count(array_intersect($tones, $pcSet));
+            $total   = count($tones);
+            $missing = array_values(array_diff($tones, $pcSet));
+
+            // Complete, or missing only the pinned root itself.
+            $rootAbsent = !in_array($rootPc, $pcSet, true);
+            $complete   = ($matched === $total);
+            $rootOnly   = ($missing === [$rootPc]);
+            if (!$complete && !($rootAbsent && $rootOnly)) continue;
+
+            // A root-absent reading needs real evidence: at least two sounding
+            // template tones. Otherwise a single note satisfies the '5' template
+            // (root missing, 5th present) and yields a contentless `Eb5/Bb`,
+            // which the sequence layer must never be offered.
+            if ($rootAbsent && $matched < 2) continue;
+
+            // Every leftover must be a nameable extension.
+            $leftover = array_diff($pcSet, $tones);
+            $labels   = [];
+            $ok       = true;
+            foreach ($leftover as $lpc) {
+                $iv = ($lpc - $rootPc + 12) % 12;
+                if (!isset(self::IDENTIFY_EXTENSION_INTERVALS[$iv])) { $ok = false; break; }
+                $labels[$iv] = self::IDENTIFY_EXTENSION_INTERVALS[$iv];
+            }
+            if (!$ok) continue;
+
+            $rank = [$matched, -count($labels), -$specificity];
+            if ($best === null || $rank > $best['rank']) {
+                ksort($labels);
+                $best = [
+                    'rank'    => $rank,
+                    // PHP coerces numeric array keys ('5') to int; keep it a string.
+                    'quality' => (string) $quality,
+                    'labels'  => $labels,
+                    'rootAbsent' => $rootAbsent,
+                ];
+            }
+        }
+
+        if ($best === null) return null;
+
+        $quality       = $best['quality'];
+        $extensionsStr = !empty($best['labels'])
+            ? '(' . implode(',', $best['labels']) . ')'
+            : '';
+
+        $rootName     = $this->pcToNoteName($rootPc, $quality, $songKey);
+        $bassNoteName = $bassPc !== null ? $this->pcToNoteName($bassPc, $quality, $songKey) : null;
+        $slashSuffix  = ($bassPc !== null && $bassPc !== $rootPc) ? '/' . $bassNoteName : '';
+
+        $displayQuality = match ($quality) {
+            'dom7' => '7',
+            'min', 'm' => 'm',
+            'maj' => '',
+            'maj6' => '6',
+            default => $quality,
+        };
+
+        return [
+            'name'       => $rootName . $displayQuality . $extensionsStr . $slashSuffix,
+            'root'       => $rootName,
+            'quality'    => $quality,
+            'extensions' => $extensionsStr ? trim($extensionsStr, '()') : '',
+            'bass_note'  => $bassNoteName,
+            'rootless'   => $best['rootAbsent'],
+        ];
+    }
+
+    /**
      * Run Phase 1 only: score (root, quality) pairs and return best match.
      *
      * This is used by contextual analyzers (e.g., PedalDetector) to re-identify
@@ -2155,11 +2317,21 @@ class VoicingCrossref
         // Sort by score descending
         usort($rawCandidates, fn($a, $b) => $b[2] <=> $a[2]);
 
-        // Deduplicate by (rootPc, quality) — keep highest score
+        // Deduplicate by (rootPc, display quality) — keep highest score.
+        // Normalizing the quality collapses alias pairs ('7'/'dom7',
+        // 'dim7'/'o7', 'min'/'m') that name the identical chord; without this
+        // a duplicated top candidate wastes a top-K slot and squeezes real
+        // alternatives (e.g. the rootless V7 reading) out of the pool.
         $seen = [];
         $deduped = [];
         foreach ($rawCandidates as $c) {
-            $key = $c[0] . '|' . $c[1];
+            $normQuality = match ($c[1]) {
+                'dom7'     => '7',
+                'dim7'     => 'o7',
+                'min'      => 'm',
+                default    => $c[1],
+            };
+            $key = $c[0] . '|' . $normQuality;
             if (!isset($seen[$key])) {
                 $seen[$key] = true;
                 $deduped[] = $c;
@@ -2199,11 +2371,14 @@ class VoicingCrossref
                 $slashSuffix  = '/' . $bassNoteName;
             }
 
-            // Assemble name
+            // Assemble name (same normalization as the main result path —
+            // 'maj6' must display as '6' so candidate names line up with DB
+            // hit names in maybeApplyDbEvidence's reweight table)
             $displayQuality = match($quality) {
                 'dom7' => '7',
                 'min', 'm' => 'm',
                 'maj' => '',
+                'maj6' => '6',
                 default => $quality
             };
             $chordName = $rootName . $displayQuality . $extensionsStr . $slashSuffix;
@@ -2718,7 +2893,12 @@ class VoicingCrossref
         $strongHits = [];
         foreach ($lookup['hits'] as $h) {
             $mult = 1.0;
-            $isStrongInv = $h['bass_match'] && in_array($h['inversion'], ['inv1','inv2','inv3'], true);
+            // Slash/inversion status is DERIVED from the hit's actual root vs
+            // bass pcs, not the stored `inversion` column — that column is a
+            // known-unreliable DB trap (docs Appendix A); e.g. the F-over-G
+            // shape id 193 is filed as inversion='root'.
+            $isStrongInv = $h['bass_match']
+                && ($h['bass_pc'] !== null && $h['root_pc'] !== $h['bass_pc']);
             $isStrongRP  = $h['bass_match'] && $h['root_bass_aligned'];
             if (($isStrongInv || $isStrongRP) && $h['popularity'] >= 1) {
                 $mult = 1.5;
