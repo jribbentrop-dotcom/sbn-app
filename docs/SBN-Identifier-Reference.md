@@ -560,3 +560,75 @@ Current: **68 tests / 6015 assertions**, no skips.
 - **`mappingsByPosition` tests for bigram corpus**: AABA fixture, "more marks than passes", mark for a gi not in the sequence.
 - **Diatonicity check deduplication**: The diatonic-candidate test in `ContextualReranker` and `ProgressionBuilder` share the same logic; extract to a shared utility.
 - **Rootless candidates with explicit intervals**: `buildCandidateList` derives a candidate's `basePcs` from `IDENTIFY_QUALITY_INTERVALS[$quality]`, so it can only represent rootless qualities present in that table (§3.3). To also surface `7(#9)`/`7(b9)`/`7(#11)`/`6` rootless readings as candidates, let a candidate optionally carry an explicit interval set + `rootless` flag, and have `buildCandidateList` use it instead of the table lookup. Touches the candidate-tuple model.
+
+**Open tasks — partial voicings & slash chords (raised 2026-07-09):**
+
+- **One-tone-omission rule for partial voicings (MEDIUM, open).** Classical/fingerstyle
+  music routinely picks 3 of 6 strings, so a 4-tone quality arrives with only 3 pitch
+  classes. `matchVoicing`'s `isSubsetMatch` already handles "leadsheet omits strings the
+  library shape has" — but it is *name-driven*, so it only fires once the chord name has
+  retrieved the right shapes. The gap is in the **identifier**, where a fragment must be
+  scored without a name.
+
+  Measured over the 53 pending `sbn_voicing_drafts` (2026-07-09): **37 are complete chords**
+  — they carry every tone their quality requires and fail for shape-lookup or
+  missing-library reasons (`F xx333x`, `F# xx444x` are closed triads on inner strings: a
+  `closed_triads` library gap, not a subset problem). Only **12 are true fragments**
+  (`Gm7/D x5533x` = {D,G,Bb}, 7th dropped; `C#m7 x4245x`; `Bbm7b5 xx899c`; `G6 xx5450`).
+  Scope the feature accordingly — it is much narrower than "match partial chords".
+
+  *Proposed rule:* allow a candidate whose **only** missing template tone is the root **or**
+  the 5th, on 7th-chords, with `$unexplained === 0`. This is a direct widening of the
+  existing `$legitRootless` gate in Pass 1 (§3.1, `VoicingCrossref` ~L1720) — which already
+  encodes "the root is the one tone jazz voicings legitimately omit" — to the 5th, the other
+  tone players actually drop. It can never hallucinate a 3rd (the quality) or a 7th (the
+  extension), which is where fragment ambiguity lives. Score near `0.95`: a dropped 5th is
+  *more* ordinary than a dropped root (`0.98`). Non-legit root-absent readings keep the hard
+  `0.35` penalty.
+
+  *Why the identifier, not `matchVoicing`:* a 3-note fragment is a subset of many shapes, so
+  choosing among them is a **ranking** problem. The identifier owns the ranker (key fit, DB
+  evidence, bigram/Viterbi context, pinned root); `matchVoicing` has only a name and an
+  extra-string count. Since `matchByIdentification()` now backstops both of `matchVoicing`'s
+  failure exits, any identifier improvement reaches the crossref engine for free.
+
+  *Do NOT lower the `count($pcSet) < 3` floor.* Two pitch classes cannot determine a chord
+  (`Bbsus2 xx85xx` = {Bb,F} is Bb5 / Bbsus2 / F5sus4 / the shell of ~9 others). Leaving
+  dyads in drafts is correct; the existing dyad guard (§B.1) says so and is right.
+
+  *Risk:* widening the gate expands the candidate space for **every** voicing, not just
+  fragments — a complete `Cmaj7` also matches "Em with missing 5th + extensions" more easily.
+  The `0.35` penalty and `$unexplained` counter are what hold that line, and whether they
+  hold at the new width is a **measurement, not an argument**. Land behind
+  `sbn:audit-identifier-sequences` + `IdentifierRegressionCases` and look at what moves.
+
+- **Slash chords as a generated primitive, not stored shapes (MEDIUM, open).** Triad-over-bass
+  voicings should not each be filed as a `sbn_chord_diagrams` row (`maj-slash-rootd-inv2` and
+  friends) — a triad shape plus a bass string is *derivable*, and
+  `ChordShapeCalculator::calculateFretsWithBass()` already derives it.
+
+  *Proposed:* a shared `SlashVoicing::generate(triadShape, bassPc)` primitive, structurally
+  identical to `HarmonicContext\DiminishedSymmetry` — one primitive consumed by identifier,
+  matcher, builder and library, the architecture already locked for dim7. Feed the generated
+  combinations into `DbVoicingMatcher::shapes()` as **virtual** shapes so `lookup()` sees
+  triad-over-bass without any of them being stored.
+
+  *Explicitly rejected: a "12 chromatic basses × triad ⇒ chord name" lookup table.* Naming a
+  triad-over-bass is a **derivation with a context-dependent choice**, not a fact, so it
+  cannot live in a table cell. `C/D` is `D9sus4` in a ii–V but plain `C/D` over a Jobim pedal;
+  `C/Bb` is `Bb∆#11` modally but a passing bass line otherwise; `C/A` is not a slash chord at
+  all — it is a complete `Am7` (4 tones, nothing omitted). Baking one answer per cell would
+  re-create exactly the rigidity that froze `665785` as `Gmadd9(b13)` (§B.1, Days of Wine and
+  Roses). Naming already belongs to `identifyFromPcSetFull`, which scores all 12 candidate
+  roots against the full PC set and has `KeyFitWeigher` + DB evidence to break ties. It does
+  not need a table; it needs the **shapes** to exist so it can match them.
+
+  Note `ChordShapeCalculator::SLASH_CHORD_TONES` already covers the 3 chord-tone intervals per
+  quality (→ `inv1`/`inv2`/`inv3`); the other 9 fall through to `type => 'slash'`. That table
+  is about **inversion identity**, not naming, and should stay as-is.
+
+  *Risk / unmeasured:* 12 basses × every triad shape multiplies the shape cache, and `lookup()`
+  is already an `O(shapes × 12)` scan. Measure before committing. Also unverified: the claim
+  that `Am/E 0xx5x5` and `C6/E 0xx0x5` fail for *shape-lookup* rather than *naming* reasons —
+  trace one through `matchVoicing` first, since it decides whether this work is really about
+  shapes at all.

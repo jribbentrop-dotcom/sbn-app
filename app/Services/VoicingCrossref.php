@@ -359,12 +359,21 @@ class VoicingCrossref
         }
 
         if ($shapes->isEmpty()) {
-            return false;
+            // No shapes filed under this quality at all (e.g. 'madd9', or a
+            // garbage quality like '(b9)'). The name can't lead us anywhere —
+            // ask the identifier what the frets actually spell.
+            return $this->matchByIdentification($voicing);
         }
 
-        // Parse target fret array
+        // Parse target fret array. Library shapes are always anchored in the
+        // lowest playable octave (calculateTargetFret returns 0-11), so a voicing
+        // played above the 12th fret can never compare equal to its own archetype.
+        // Fold it down first — before open-equivalent normalisation, which only
+        // becomes applicable once the frets are in the low register.
         $targetFretArray = $this->normalizeOpenEquivalents(
-            $this->parseFretString($voicing['fret_string'], $voicing['position'] ?? 1)
+            $this->foldOctaveDown(
+                $this->parseFretString($voicing['fret_string'], $voicing['position'] ?? 1)
+            )
         );
 
         // Slash chord analysis
@@ -664,7 +673,118 @@ class VoicingCrossref
             }
         }
 
+        // NB: no identifier fallback here. If the written quality DID retrieve
+        // shapes and none fit, the name is trustworthy and the *shape* is what's
+        // missing — a library gap, and a draft is the right outcome. Re-identifying
+        // at this point overrules good names: `F# xx444x` becomes `Bmaj` and
+        // `Bm7 2x122x` becomes `Gbm6`, because a 3-note voicing verifies against
+        // several roots of the same diagram. Only an unknown *quality* (handled at
+        // the $shapes->isEmpty() branch above) makes the name itself suspect.
         return $bestMatch ?: false;
+    }
+
+    /**
+     * Last resort: identify the voicing from its FRETS and match on that.
+     *
+     * matchVoicing() is name-driven — it queries shapes by the chord name parsed
+     * out of the leadsheet, so a wrong or unknown name can hide a shape we hold.
+     * Days of Wine and Roses spells 665785 as "Gmadd9(b13)/Bb"; no `madd9` shape
+     * exists, so the lookup returned nothing. The same frets are on file as
+     * diagram 273, Ebmaj7(#11)/Bb — the identical pitch-class set read from Eb.
+     *
+     * identifyFromFrets() works purely from sounding pitches, so it finds it.
+     * It never calls back into matchVoicing(), so there is no recursion.
+     *
+     * The name is a hint here, not an authority; the pitches are the authority.
+     * We only accept the identification when it names a concrete diagram whose
+     * frets we can verify against the target, so a low-confidence guess can never
+     * attach a shape that doesn't reflect the TAB.
+     */
+    private function matchByIdentification(array $voicing): array|false
+    {
+        $frets = $voicing['fret_string'] ?? '';
+        if (strlen($frets) !== 6) {
+            return false;
+        }
+
+        try {
+            $ident = $this->identifyFromFrets($frets, $voicing['position'] ?? 1);
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        $diagramId = $ident['diagram_id'] ?? null;
+        if ($diagramId === null) {
+            return false;
+        }
+
+        // Only accept a COMPLETE reading. A partial one is ambiguous — the same
+        // frets verify against several roots of the same diagram, so the
+        // fret-check below cannot disambiguate and we would silently re-file the
+        // chord under whichever root the identifier happened to rank first.
+        if (($ident['confidence'] ?? '') !== 'exact') {
+            return false;
+        }
+        $template = self::CHORD_TONES[$ident['quality'] ?? ''] ?? null;
+        if ($template === null || count($ident['pcs'] ?? []) < count($template)) {
+            return false;
+        }
+
+        $shape = ChordDiagram::find($diagramId);
+        if (!$shape) {
+            return false;
+        }
+
+        // Verify rather than trust: transpose the named shape to the identified
+        // root and confirm it actually reproduces the target frets.
+        $identRoot = $ident['root'] ?? '';
+        if ($identRoot === '') {
+            return false;
+        }
+
+        $calculated = $this->calculator->calculateFrets($shape, $identRoot);
+        if (!$calculated || empty($calculated['diagram_data'])) {
+            return false;
+        }
+
+        $calcFretArray = $this->normalizeOpenEquivalents(
+            $this->diagramToFretArray($calculated['diagram_data'])
+        );
+        if (!$this->hasValidFrets($calcFretArray)) {
+            return false;
+        }
+
+        $targetFretArray = $this->normalizeOpenEquivalents(
+            $this->foldOctaveDown($this->parseFretString($frets, $voicing['position'] ?? 1))
+        );
+
+        $matchType = null;
+        if ($this->fretArraysMatch($calcFretArray, $targetFretArray)) {
+            $matchType = 'exact';
+        } elseif ($this->isSubsetMatch($targetFretArray, $calcFretArray) !== false) {
+            $matchType = 'subset';
+        }
+
+        if ($matchType === null) {
+            // The identifier named a diagram we can't reproduce from the frets.
+            // Refuse rather than record a shape that doesn't match the TAB.
+            return false;
+        }
+
+        $result = $this->buildMatchResult($shape, $matchType, $calcFretArray);
+
+        // The leadsheet's spelling lost to the pitches. Carry the identified
+        // root/quality so storeMatch() files this under what the chord IS, not
+        // under the name that failed to find it. `chord_name` still preserves
+        // the chart's own text.
+        $result['identified'] = [
+            'root'       => $identRoot,
+            'quality'    => $ident['quality'] ?? '',
+            'extensions' => $ident['extensions'] ?? '',
+            'bass_note'  => $ident['bass_note'] ?? '',
+        ];
+
+        return $result;
     }
 
     // =========================================================================
@@ -691,6 +811,27 @@ class VoicingCrossref
             $frets[0] = 'x';
         }
         return $frets;
+    }
+
+    /**
+     * Fold a voicing played above the 12th fret down one octave.
+     *
+     * Library shapes are stored/transposed into the lowest playable octave, so
+     * an octave-up restatement of an archetype (e.g. Dm7 xxcedd = m7-drop2-rootd
+     * twelve frets higher) is the same shape and must compare equal.
+     *
+     * Guard: only fold when EVERY sounding string is at fret 12 or above. A
+     * voicing containing an open string is a genuinely different voicing —
+     * shifting it would invent a fretted note that the player never stopped.
+     */
+    private function foldOctaveDown(array $frets): array
+    {
+        $sounding = array_filter($frets, fn($v) => $v !== 'x');
+        if (empty($sounding)) return $frets;
+
+        if (min($sounding) < 12) return $frets;
+
+        return array_map(fn($v) => $v === 'x' ? 'x' : $v - 12, $frets);
     }
 
     private function fretArraysMatch(array $a, array $b): bool
@@ -1204,17 +1345,34 @@ class VoicingCrossref
 
     private function storeMatch(int $leadsheetId, array $voicing, array $match, ?int $versionId = null): void
     {
-        $qualityParts = $this->splitQualityExtensions($voicing['quality']);
+        // When the match came from matchByIdentification(), the leadsheet's own
+        // root/quality are the spelling that FAILED to find the shape — filing
+        // the usage under them would tell the chord library that an Ebmaj7#11
+        // diagram is a 'G madd9'. Prefer the identified spelling; `chord_name`
+        // below still records the chart's text verbatim.
+        $ident    = $match['identified'] ?? null;
+        $rootNote = $ident['root']      ?? $voicing['root'];
+        $quality  = $ident['quality']   ?? $voicing['quality'];
+        $bassNote = $ident['bass_note'] ?? ($voicing['bass_note'] ?? '');
+
+        $qualityParts = $this->splitQualityExtensions($quality);
+        // identifyFromFrets() returns extensions separately from quality; the
+        // name-driven path folds them into the quality string and splits here.
+        $extensions = $ident !== null
+            ? ($ident['extensions'] ?? '')
+            : $qualityParts['extensions'];
 
         // Classify extra notes
         $addedNotes = '';
         if (!empty($match['calculated_frets']) && $match['match_type'] !== 'exact' && $match['match_type'] !== 'subset') {
             $targetFretArray = $this->normalizeOpenEquivalents(
-                $this->parseFretString($voicing['fret_string'], $voicing['position'] ?? 1)
+                $this->foldOctaveDown(
+                    $this->parseFretString($voicing['fret_string'], $voicing['position'] ?? 1)
+                )
             );
             $addedNotes = $this->classifyExtraNotes(
                 $targetFretArray, $match['calculated_frets'],
-                $voicing['root'], $qualityParts['base'], $match['match_type']
+                $rootNote, $qualityParts['base'], $match['match_type']
             );
         }
 
@@ -1228,14 +1386,14 @@ class VoicingCrossref
                 'version_id'       => $versionId,
                 'chord_diagram_id' => $match['diagram_id'],
                 'position'         => $voicing['position'],
-                'root_note'        => $voicing['root'],
-                'quality'          => $voicing['quality'],
+                'root_note'        => $rootNote,
+                'quality'          => $quality,
                 'base_quality'     => $qualityParts['base'],
-                'extensions'       => $qualityParts['extensions'],
+                'extensions'       => $extensions,
                 'voicing_category' => $match['voicing_category'],
                 'root_string'      => $match['root_string'],
                 'inversion'        => $match['inversion'],
-                'bass_note'        => $voicing['bass_note'] ?? '',
+                'bass_note'        => $bassNote,
                 'added_notes'      => $addedNotes,
             ]
         );
