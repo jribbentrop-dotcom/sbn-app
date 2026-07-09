@@ -93,7 +93,7 @@ class ContextualReranker implements IContextualReranker
         // the WHOLE sequence — a chain of strong transitions can overcome a
         // locally-stronger candidate when the alternative produces idiomatic
         // continuations through multiple slots.
-        $results = $this->applyViterbiRescore($results);
+        $results = $this->applyViterbiRescore($results, $songKey);
 
         return $results;
     }
@@ -342,12 +342,16 @@ class ContextualReranker implements IContextualReranker
     }
 
     /**
-     * Sub-pass 2f (Phase 3.4): Viterbi sequence search.
+     * Sub-pass 2f (Phase 3.4 / 3.4c): second-order Viterbi sequence search.
      *
      * Per-slot multipliers compound locally; Viterbi compounds across the entire
-     * sequence. Each path is scored as the sum of per-slot negative-log-likelihood
-     * costs plus per-edge negative-log-likelihood bigram costs. The minimum-cost
-     * path wins.
+     * sequence. The DP state is a PAIR (prev-slot cand, curr-slot cand) so each
+     * edge scores the TRIGRAM P(curr | prev2, prev1) — widening the viewport from
+     * one predecessor to two. This is what makes functional patterns like
+     * II7→V7→I win as a unit (a bigram can't see the three-chord shape). The
+     * trigram backs off functional → surface-tri → surface-bigram, so short or
+     * out-of-corpus sequences degrade to the original first-order behaviour.
+     * Slot 1's edge is a plain bigram (no third predecessor exists yet).
      *
      * Structurally mirrors ProgressionBuilder::viterbiSearch (Phase D builder).
      * Spec: docs/SBN-Identifier-Reference.md §5.3.
@@ -361,7 +365,7 @@ class ContextualReranker implements IContextualReranker
      *     bigram transitions.
      *   - Same slash-chord guard as 2d/2e (no `X/X` bass-equals-root names).
      */
-    private function applyViterbiRescore(array $results): array
+    private function applyViterbiRescore(array $results, ?string $songKey = null): array
     {
         if ($this->transitionScorer === null) return $results;
         $n = count($results);
@@ -418,68 +422,97 @@ class ContextualReranker implements IContextualReranker
 
         $INF = 1e18;
 
-        // Per-slot cost arrays + back-pointers
-        $costs = [];
-        $prev  = [];
-        // Slot 0: just seed costs
-        $costs[0] = [];
-        foreach ($pools[0] as $k => $cand) {
-            $costs[0][$k] = -log((float)$cand['_score']);
-        }
-        $prev[0] = array_fill(0, count($pools[0]), null);
+        // ── Second-order Viterbi (Phase 3.4c) ──
+        // The DP state is a PAIR (prev-slot candidate, curr-slot candidate) so
+        // each transition sees TWO predecessors and can score the trigram
+        // P(curr | prev2, prev1). This is what lets II7→V7→I win as a unit; a
+        // first-order chain only ever sees one predecessor per edge.
+        //
+        // State encoding: "j,k" where j = candidate index at slot i-1 and
+        // k = candidate index at slot i. Pools are ~5 candidates, so ~25
+        // states/slot — negligible cost.
+        $seed = fn($i, $k) => -log((float)$pools[$i][$k]['_score']);
+        $edge = function ($p) use ($edgeWeight) {
+            return -log(max($p, 1e-6)) * $edgeWeight;
+        };
+        $key  = fn($j, $k) => $j . ',' . $k;
 
-        for ($i = 1; $i < $n; $i++) {
+        // Slot 1: initialize pair-states (j@0, k@1) with a BIGRAM edge — there is
+        // no third predecessor yet.
+        $costs = []; // costs[i]["j,k"] = best cost of a path ending at that pair
+        $back  = []; // back[i]["j,k"]  = predecessor j' (candidate index at slot i-2)
+        $costs[1] = [];
+        $back[1]  = [];
+        foreach ($pools[1] as $k => $cCurr) {
+            foreach ($pools[0] as $j => $cPrev) {
+                $pn = $cPrev['name'] ?? ''; $cn = $cCurr['name'] ?? '';
+                if ($pn === '' || $cn === '') continue;
+                $p = $this->transitionScorer->probability($pn, $cn);
+                $c = $seed(0, $j) + $edge($p) + $seed(1, $k);
+                $costs[1][$key($j, $k)] = $c;
+                $back[1][$key($j, $k)]  = null;
+            }
+        }
+
+        // Slots ≥2: extend each pair (j,k) from a predecessor pair (m,j), scoring
+        // the trigram over pool tokens at (i-2, i-1, i).
+        for ($i = 2; $i < $n; $i++) {
             $costs[$i] = [];
-            $prev[$i]  = [];
+            $back[$i]  = [];
             foreach ($pools[$i] as $k => $cCurr) {
-                $best = $INF;
-                $bestPrev = null;
-                $seedCost = -log((float)$cCurr['_score']);
-                foreach ($pools[$i - 1] as $j => $cPrev) {
-                    $prevName = $cPrev['name'] ?? '';
-                    $currName = $cCurr['name'] ?? '';
-                    if ($prevName === '' || $currName === '') continue;
-                    $p = $this->transitionScorer->probability($prevName, $currName);
-                    // -log(p); guard against 0 with a floor (treat as 1e-6).
-                    $edgeCost = -log(max($p, 1e-6)) * $edgeWeight;
-                    $total = $costs[$i - 1][$j] + $edgeCost + $seedCost;
-                    if ($total < $best) {
-                        $best = $total;
-                        $bestPrev = $j;
+                $cn = $cCurr['name'] ?? '';
+                $seedK = $seed($i, $k);
+                foreach ($pools[$i - 1] as $j => $cMid) {
+                    $mn = $cMid['name'] ?? '';
+                    $best = $INF; $bestM = null;
+                    foreach ($pools[$i - 2] as $m => $cPrev2) {
+                        $pk = $key($m, $j);
+                        if (!isset($costs[$i - 1][$pk])) continue;
+                        $p2n = $cPrev2['name'] ?? '';
+                        if ($p2n === '' || $mn === '' || $cn === '') continue;
+                        $p = $this->transitionScorer->trigramProbability($p2n, $mn, $cn, $songKey);
+                        $total = $costs[$i - 1][$pk] + $edge($p) + $seedK;
+                        if ($total < $best) { $best = $total; $bestM = $m; }
                     }
+                    if ($bestM === null) continue; // no admissible predecessor pair
+                    $costs[$i][$key($j, $k)] = $best;
+                    $back[$i][$key($j, $k)]  = $bestM;
                 }
-                if ($bestPrev === null) {
-                    // No admissible predecessor — disconnected slot. Use seed-only cost.
-                    $best = $seedCost;
-                }
-                $costs[$i][$k] = $best;
-                $prev[$i][$k]  = $bestPrev;
             }
+            // Disconnected slot (no pair survived): bail to upstream picks. Rare;
+            // happens only if a slot's whole pool has empty names.
+            if (empty($costs[$i])) return $results;
         }
 
-        // Reconstruct best path
-        $idx = null;
-        $bestFinal = $INF;
-        foreach ($costs[$n - 1] as $k => $c) {
-            if ($c < $bestFinal) {
-                $bestFinal = $c;
-                $idx = $k;
-            }
+        // Reconstruct: find the best terminal pair at slot n-1, then walk back.
+        $lastPair = null; $bestFinal = $INF;
+        foreach ($costs[$n - 1] as $pk => $c) {
+            if ($c < $bestFinal) { $bestFinal = $c; $lastPair = $pk; }
         }
-        if ($idx === null) return $results;
+        if ($lastPair === null) return $results;
+
         $path = [];
-        for ($i = $n - 1; $i >= 0; $i--) {
-            if (!isset($pools[$i][$idx])) return $results; // safety
-            $path[$i] = $pools[$i][$idx];
-            $idx = $prev[$i][$idx];
-            if ($idx === null && $i > 0) {
-                // Disconnected — preserve upstream picks for the rest
-                for ($j = $i - 1; $j >= 0; $j--) {
-                    $path[$j] = $pools[$j][0]; // first (best) candidate
-                }
+        // Decode the terminal pair "j,k": k is slot n-1's pick, j is slot n-2's.
+        [$j, $k] = array_map('intval', explode(',', $lastPair));
+        $path[$n - 1] = $pools[$n - 1][$k];
+        for ($i = $n - 1; $i >= 2; $i--) {
+            // At slot i the pair is (j,k); its predecessor candidate at i-2 is back.
+            $pk = $key($j, $k);
+            $m  = $back[$i][$pk] ?? null;
+            $path[$i - 1] = $pools[$i - 1][$j];
+            if ($m === null) {
+                // Disconnected before slot i-2: preserve upstream for the rest.
+                for ($t = $i - 2; $t >= 0; $t--) $path[$t] = $pools[$t][0];
+                $j = null;
                 break;
             }
+            $k = $j; $j = $m; // shift the window down one slot
         }
+        if ($j !== null) {
+            // Reached slot 1's pair (j@0, k@1); j is slot 0's pick.
+            $path[0] = $pools[0][$j];
+        }
+        ksort($path);
 
         // Promote winners that differ from upstream, with safety rails.
         foreach ($path as $i => $pick) {
@@ -487,13 +520,37 @@ class ContextualReranker implements IContextualReranker
             $currentName = $results[$i]['name'] ?? '';
             if ($pick['name'] === $currentName) continue;
 
-            // Safety: only promote when Viterbi winner is within reasonable distance
-            // of the current local winner's score. Without this, a sequence of
-            // weak Pass 1 candidates can hijack a slot whose local reading was
-            // strong but happens to have a poor bigram chain.
             $currentScore = $this->findCandidateScore($results[$i]['candidates'] ?? [], $currentName);
             $newScore = (float)$pick['_score'];
-            if ($currentScore > 0 && $newScore / $currentScore < $minScoreRatio) continue;
+
+            // ── Strong-trigram override (Phase 3.4c) ──
+            // The local-score guards below exist to stop a genuinely weaker
+            // reading from hijacking a strong one via a chain of weak bigrams.
+            // But every candidate for a slot describes the SAME pitch classes —
+            // so a large Pass-1 gap between two candidates is a voicing-position
+            // artifact (root-in-bass bonus), NOT evidence about the notes. When
+            // the promoted reading is backed by a DECISIVE trigram in its chosen
+            // context, that sequence evidence should win over the local artifact.
+            // This is the Ipanema case: Bbm6 (root in bass, score 7200) vs
+            // Eb7(9)/Bb (rootless slash, 1062) — identical PCs; II7→V7→I resolves it.
+            $strongTrigram = false;
+            if ($i >= 2 && $songKey !== null) {
+                $p2 = $path[$i - 2]['name'] ?? '';
+                $p1 = $path[$i - 1]['name'] ?? '';
+                if ($p2 !== '' && $p1 !== '') {
+                    $tp = $this->transitionScorer->trigramProbability($p2, $p1, $pick['name'], $songKey);
+                    $uniform = 1.0 / max($this->transitionScorer->vocabSize(), 1);
+                    // Decisive = well above chance. 5×uniform mirrors the
+                    // scoreMultiplier calibration's "strongly promoting" band.
+                    $strongTrigram = ($tp >= 5.0 * $uniform);
+                }
+            }
+
+            // Safety: only promote when Viterbi winner is within reasonable distance
+            // of the current local winner's score — UNLESS a decisive trigram
+            // vouches for it (equal-PC alternative, artifactual local gap).
+            if (!$strongTrigram
+                && $currentScore > 0 && $newScore / $currentScore < $minScoreRatio) continue;
 
             // Slash-chord guards (same as 2d/2e).
             $newName = $pick['name'];
@@ -503,7 +560,8 @@ class ContextualReranker implements IContextualReranker
             }
             $currentHasSlash = str_contains($currentName, '/');
             $newHasSlash = str_contains($newName, '/');
-            if ($newHasSlash && !$currentHasSlash && ($newScore / max($currentScore, 0.001)) < 0.50) continue;
+            if (!$strongTrigram
+                && $newHasSlash && !$currentHasSlash && ($newScore / max($currentScore, 0.001)) < 0.50) continue;
 
             $results[$i] = array_merge($results[$i], [
                 'name'               => $pick['name'],

@@ -188,7 +188,13 @@ Dominant 7 chords get the secondary-dominant reading first (functional precedenc
 
 #### Sub-pass 2e: surface bigram (`TransitionScorer`)
 
-The bigram table is built from 1,382 jazz standards (oliphant/iReal Pro, 48,930 bigrams including self-transitions). Seeded via `php artisan sbn:reseed-transitions` to `storage/app/harmonic-transitions.generated.php`. **This file must be committed to git.**
+The transition tables are built from 1,382 jazz standards (oliphant/iReal Pro, 48,930 bigrams incl. self-transitions; 47,548 surface trigrams; 39,163 functional trigrams over the 1,149 keyed standards). Seeded via `php artisan sbn:reseed-transitions` to `storage/app/harmonic-transitions.generated.php`.
+
+> **NB (2026-07-09):** the doc says this file "must be committed", but it is
+> currently **gitignored** (same as `harmonic-fragments.generated.php`) — so it
+> does NOT travel with a commit; a fresh checkout must run `sbn:reseed-transitions`.
+> Reconcile the policy: either drop the ignore + force-add both generated files,
+> or keep them local and document the reseed-on-checkout requirement. Unresolved.
 
 Multiplier curve: `1 + 0.7 × log10(P / uniform)`, clamped to [0.4, 3.0]. A transition 5× more common than uniform yields ≈×2.0 promotion.
 
@@ -202,14 +208,58 @@ Runs a min-cost Viterbi DP across all slots simultaneously:
 cost[i][k] = min_j( cost[i-1][j] + edgeWeight × -log(P(cand_k | prev_j)) ) + -log(score_k)
 ```
 
-- `edgeWeight = 0.3` — seed costs dominate; a weak-bigram chain can't override strong local evidence.
-- `minScoreRatio = 0.85` — Viterbi winner must score ≥85% of the current slot winner. Tie-breaking only, not dominant-winner overrides.
+- `edgeWeight = 0.3` — seed costs dominate; a weak-transition chain can't override strong local evidence.
+- `minScoreRatio = 0.85` — Viterbi winner must score ≥85% of the current slot winner. Tie-breaking only, EXCEPT the strong-trigram override below.
 
-### 5.4 Architectural limit: enharmonic PC ambiguity
+#### Sub-pass 2f is second-order (Phase 3.4c): trigram viewport
 
-The Ipanema chord 2 case (`6x566x`) demonstrates a hard limit: the PC set `{Bb, G, Db, F}` is genuinely ambiguous between `Bbm6` and `Eb7(9)/Bb`. Both names are correct representations of the same pitches. No combination of DB lookup, key-fit, bigram, or Viterbi can resolve this without an external reference to the *expected* chord name.
+`applyViterbiRescore` is a **second-order** Viterbi: the DP state is a pair
+`(prev-slot cand, curr-slot cand)`, so each edge scores the **trigram**
+`P(curr | prev2, prev1)` instead of a bigram. This widens the viewport enough to
+see functional units like **II7→V7→I** as a whole — a bigram can only ever see
+one predecessor per edge and cannot represent a three-chord shape.
 
-**Pass 1+Layer1** scores `Bbm6` at 7200 vs `Eb7(9)/Bb` at 1062 (6.8× gap). Viterbi's `minScoreRatio = 0.85` correctly blocks the flip — the bigram is working as designed, it just can't overcome a 6.8× local-evidence gap. Resolution requires Appendix B.2 (expected-chord priors from a reference leadsheet).
+`TransitionScorer::trigramProbability($prev2, $prev1, $curr, $songKey)` backs off:
+
+1. **functional trigram** — key-relative numeral triple (e.g. `II7|V7|Imaj7`),
+   so every II-V-I in any key reinforces the same entry. The functional token
+   comes from `ProgressionDetector::chordToNumeral` with the **slash-bass degree
+   stripped** (a pedal/inversion bass doesn't change a chord's function, and the
+   iReal corpus is slash-less — keeping `/VI` makes every pedal voicing miss the
+   table). Requires `song_key`.
+2. **surface trigram** — exact chord-name triple.
+3. **surface bigram** — the original first-order behaviour (§2e), the floor.
+
+Both trigram tables are emitted by `sbn:reseed-transitions` alongside the bigram.
+
+**Strong-trigram override:** because every candidate for one slot describes the
+*same* pitch classes, a large Pass-1 score gap between two candidates is a
+voicing-position artifact (root-in-bass bonus), not evidence about the notes.
+When the promoted reading's in-context trigram is decisive (≥5× uniform), the
+`minScoreRatio` and slash guards are bypassed for that slot — so a strong
+functional trigram *can* override a locally-dominant but functionally-wrong
+reading. This is the mechanism intended to resolve Ipanema chord 2 (§5.4).
+
+### 5.4 Enharmonic PC ambiguity — now a candidate-generation problem, not a hard limit
+
+The Ipanema chord 2 case (`6x566x`): the PC set `{Bb, G, Db, F}` is genuinely
+ambiguous between `Bbm6` and `Eb7(9)/Bb` — same pitches, both valid names. This
+was previously documented as an architectural hard limit. **It is not.** As the
+**II7** of `II7→V7→I` (Eb7→Ab7→Db in Db), the trigram resolves it decisively —
+the functional trigram `I→II7→V7` outscores `I→VIm6→V7` by ~10× at the scorer
+level, and the strong-trigram override (above) is designed to act on it.
+
+**The real, remaining blocker is upstream in Pass 1 (candidate generation):**
+the rootless II-V-I readings for these pedal voicings are never generated, or are
+generated with wrong roots. Pass 1 gives **no penalty when a candidate's root is
+absent from the pitch-class set**, so a scattered wrong-root template
+(`4x334x = {Ab,Bb,Eb,F}` → `B6(9)`, which shares zero notes) can outrank the
+contiguous rootless reading (`Db6(9)`). Until Pass 1 prefers rootless readings
+whose tones are contiguous chord tones — and thus puts `Eb7`/`Ab7`/`Db` into the
+candidate pools — the trigram has nothing correct to rank. See Appendix B.1
+(Pass-1 absent-root scoring) and the regression suites
+`IdentifierRegressionTest` / `IdentifierSequenceTest` (the `pending`
+`pass1-absent-root` cases pin this exact gap).
 
 ---
 
@@ -301,11 +351,26 @@ The core audit corpus resides in `docs/*.musicxml` and their expectations are en
 
 ### B.1 Known Bugs
 
-- **Slash chord over-eagerness on `7sus4` shapes**: Voicings like `x3338x` = {C,F,G,Bb}/C name as `Cm7(11)` (or slash chords) instead of `C7sus4`. *Attempted & reverted (2026-07-02):* adding `'7sus4' => [0,5,7,10]` to `IDENTIFY_QUALITY_INTERVALS` (+ extending the sus 3rd-guard) did NOT fix it — a partial `Cm7` match (4th read as `11`) still out-scores the exact `7sus4` in Pass 1, for reasons not fully traced without a running PHP env. The interval-table entry alone is insufficient; the real fix needs a Pass 1 scoring change (why does a partial-3-of-4 minor beat an exact-4-of-4 sus?). Skipped placeholder test: `VoicingCrossrefSlashChordTest::test_complete_7sus4_names_as_7sus4_not_slash`.
-- **`VoicingCrossrefSlashChordTest` was never runnable + has drifted cases (found 2026-07-02):** the file used the schema-less `:memory:` connection so all cases threw `no such table: sbn_chord_diagrams` (0 assertions, silent). Fixed to point at real `sbn.db` (mirrors `DbVoicingMatcherTest`). Running it then exposed **pre-existing drift** — the identifier's actual output diverged from expectations frozen in 2026-05, unnoticed because the test never ran. Skipped-with-notes, needing triage:
-  - `0xx558` {E,C}/E → `C/E`, expected `Eaug`. **Regresses a shipped 2026-05 fix** (`test_augmented_with_sharp_five_present_stays_aug`, Maria Luisa). Highest priority — an intentional behavior silently reverted.
-  - `xx333x` {F,Bb,D}/F → bare `F`, expected `Bb/F`. Complete Bb triad reading lost.
-  - `xx799a` {A,E,Ab,D}/A → `Amaj7(11)`, expected `E7(11)/A`. Possibly a defensible reinterpretation; needs a human call.
+- **Pass-1 absent-root scoring (2026-07-09, HIGH — the current top blocker):**
+  `identifyFromPcSetFull` applies no penalty when a candidate's ROOT is absent
+  from the pitch-class set. A scattered wrong-root template, propped up by
+  partial-match + extension-absorption, can outrank the contiguous rootless
+  reading — e.g. `4x334x = {Ab,Bb,Eb,F}` returns `B6(9)` (which shares ZERO notes
+  with the voicing) instead of the correct rootless `Db6(9)`. Also names complete
+  triads-with-bass as their bare incomplete root (`xx333x {D,F,Bb}` → `F` not
+  `Bb/F`; `8xaaax {C,F,A}` → `C` not `F/C`). *Fix direction:* penalize an absent
+  root unless the voicing is a legitimate rootless shape (tones are contiguous
+  chord tones — 3-5-7, 3-5-6-9, etc.), so rootless readings with real chord-tone
+  structure beat coincidental wrong-root maps, AND so rootless II-V-I readings
+  ENTER the candidate pools (prerequisite for the trigram to resolve Ipanema,
+  §5.4). Wide blast radius — every identification. Pinned by the `pending`
+  `pass1-absent-root` cases in `IdentifierRegressionTest`/`IdentifierSequenceTest`.
+- **Regression suite rebuilt (2026-07-09):** the old `VoicingCrossrefSlashChordTest` had frozen expectations from 2026-05 that had drifted — and several were **musically wrong for their input**, discovered by computing the pitch classes rather than trusting the frozen name. Canonical example: `0xx558` = **{C,E}** (a two-note dyad) was frozen as `Eaug`, but {C,E} contains no G#, so it cannot be `Eaug` (nor `C/E` — no G). The "expected `Eaug`" was the bug, not the identifier. Fixes shipped:
+  - **Dyad guard on `identifyFromFrets`**: a fret voicing with < 3 unique pitch classes now returns `noResult()` (symmetric with `identifyFromMidi`). Refuses to hallucinate a missing third tone into a triad. Retires the contradictory `x0x225`/`xxx225` (`{A,C#}`→`A`) and `x31xxx` (`{C,Eb}`→`Cm`) expectations — those also over-named dyads.
+  - **New verified suite** `IdentifierRegressionTest` + `IdentifierRegressionCases` (three tiers: mechanical / verified-voicing / context-dependent). Every expectation is computed + human-verified with a `why`. This is now the source of truth; `VoicingCrossrefSlashChordTest` is narrowed to slash-name display formatting only.
+  - `xx333x` `{D,F,Bb}`→`Bb/F` and `x9799x` `{E,F#,G#,A}`→`F#m7(9)` are Tier-1/Tier-2 verified. `x3338x` `{C,F,G,Bb}`→`C7sus4` is Tier-2 (see the `7sus4` bug below — currently returns `Cm7(11)`, so this Tier-2 case fails until that Pass-1 fix lands).
+  - `xx799a` `{D,E,G#,A}` is **genuinely unsolvable without context** (`E7(11)/A` vs `Asus4(maj7)` both defensible) → Tier-3, tested for stability only, never a pinned name.
+- **Slash chord over-eagerness on `7sus4` shapes**: Voicings like `x3338x` = {C,F,G,Bb}/C name as `Cm7(11)` (or slash chords) instead of `C7sus4`. *Attempted & reverted (2026-07-02):* adding `'7sus4' => [0,5,7,10]` to `IDENTIFY_QUALITY_INTERVALS` (+ extending the sus 3rd-guard) did NOT fix it — a partial `Cm7` match (4th read as `11`) still out-scores the exact `7sus4` in Pass 1, for reasons not fully traced without a running PHP env. The interval-table entry alone is insufficient; the real fix needs a Pass 1 scoring change (why does a partial-3-of-4 minor beat an exact-4-of-4 sus?). Guarded by `IdentifierRegressionCases::TIER2_VERIFIED` (`x3338x`).
 - **`noteNameToPc` maps unknown to 0**: `PedalDetector` and the diminished resolvers treat unrecognized note strings as C (0). This is a latent bug if Phase 1 ever emits non-standard names. *Fix shape:* Return `null` and skip gracefully. (Note: the two diminished resolvers now delegate `noteNameToPc`/`pcToNoteName`/symmetric-root math to the shared `App\Services\HarmonicContext\DiminishedSymmetry` primitive — fixing it there fixes both at once.)
 
 ### B.2 Planned Improvements

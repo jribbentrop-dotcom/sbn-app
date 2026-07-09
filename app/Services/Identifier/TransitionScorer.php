@@ -23,10 +23,18 @@ class TransitionScorer
     /** Default Laplace smoothing additive K. */
     private const DEFAULT_SMOOTHING_K = 0.5;
 
+    /** Composite-context separator; mirrors ReseedTransitions ($SEP). */
+    private const SEP = "\x1f";
+
     private ?array $data = null;
     private string $dataPath;
     private float $smoothingK;
     private int $vocabSize = 0;
+    private int $surfaceTriVocab = 0;
+    private int $functionalTriVocab = 0;
+
+    /** Lazily-resolved numeral tokenizer (functional tier). Null until first use. */
+    private ?\App\Services\ProgressionDetector $detector = null;
 
     public function __construct(?string $dataPath = null, float $smoothingK = self::DEFAULT_SMOOTHING_K)
     {
@@ -87,6 +95,110 @@ class TransitionScorer
 
         // Neither prev nor any of its backoff forms exists → uniform fallback
         return 1.0 / $V;
+    }
+
+    /**
+     * P(curr | prev2, prev1) — the trigram probability, widening the viewport so
+     * functional patterns like II7→V7→I are visible as a unit (a bigram can't see
+     * them). Backoff lattice, most-specific first:
+     *
+     *   1. functional trigram  — key-relative numeral triple (needs $songKey).
+     *      Generalizes across all 12 keys, so every II-V-I in the corpus
+     *      reinforces the same entry. This is where the Ipanema II7 disambiguation
+     *      lands.
+     *   2. surface trigram     — exact chord-name triple.
+     *   3. surface bigram      — falls through to probability($prev1, $curr).
+     *
+     * Each tier uses Laplace add-K against its own vocab size, so a tier that
+     * saw the context returns a smoothed conditional; an unseen context defers to
+     * the next tier rather than collapsing to uniform prematurely.
+     *
+     * Returns a probability in (0, 1]; never 0 (the bigram floor guarantees it).
+     */
+    public function trigramProbability(string $prev2, string $prev1, string $curr, ?string $songKey = null): float
+    {
+        $data = $this->loadData();
+        if ($data === null) return 0.0;
+
+        // ── Tier 1: functional trigram ──
+        if ($songKey !== null && $songKey !== ''
+            && !empty($data['functional_trigrams'])) {
+            $d2 = $this->numeralToken($prev2, $songKey);
+            $d1 = $this->numeralToken($prev1, $songKey);
+            $dc = $this->numeralToken($curr,  $songKey);
+            if ($d2 !== null && $d1 !== null && $dc !== null) {
+                $p = $this->triLookup(
+                    $data['functional_trigrams'],
+                    $data['functional_tri_totals'] ?? [],
+                    $d2 . self::SEP . $d1, $dc, $this->functionalTriVocab
+                );
+                if ($p !== null) return $p;
+            }
+        }
+
+        // ── Tier 2: surface trigram ──
+        if (!empty($data['surface_trigrams'])) {
+            $p = $this->triLookup(
+                $data['surface_trigrams'],
+                $data['surface_tri_totals'] ?? [],
+                $prev2 . self::SEP . $prev1, $curr, $this->surfaceTriVocab
+            );
+            if ($p !== null) return $p;
+        }
+
+        // ── Tier 3: surface bigram (existing) ──
+        return $this->probability($prev1, $curr);
+    }
+
+    /**
+     * Bounded score multiplier for the trigram, analogous to scoreMultiplier but
+     * consuming two predecessors. Same log10 calibration so trigram and bigram
+     * multipliers are comparable when the Viterbi combines them.
+     */
+    public function trigramMultiplier(string $prev2, string $prev1, string $curr, ?string $songKey = null): float
+    {
+        $data = $this->loadData();
+        if ($data === null || $this->vocabSize === 0) return 1.0;
+
+        $p = $this->trigramProbability($prev2, $prev1, $curr, $songKey);
+        $uniform = 1.0 / $this->vocabSize;
+        if ($p <= 0) return 0.7;
+        $ratio = $p / $uniform;
+        $mult = 1.0 + 0.7 * log10(max($ratio, 0.01));
+        return max(0.4, min(3.0, $mult));
+    }
+
+    /**
+     * Smoothed conditional lookup for one trigram tier. Returns null when the
+     * two-chord context was never seen (caller backs off), otherwise a Laplace
+     * add-K probability. $vocab is the tier's "next-token" vocabulary size.
+     */
+    private function triLookup(array $table, array $totals, string $ctx, string $next, int $vocab): ?float
+    {
+        $ctxTotal = $totals[$ctx] ?? 0;
+        if ($ctxTotal === 0) return null; // unseen context → back off
+        $V = max($vocab, 1);
+        $count = $table[$ctx][$next] ?? 0;
+        return ($count + $this->smoothingK) / ($ctxTotal + $this->smoothingK * $V);
+    }
+
+    /**
+     * Key-relative numeral token for a chord (functional tier). Mirrors the
+     * seeder's tokenization by delegating to ProgressionDetector::chordToNumeral,
+     * so scorer and corpus agree. Returns null when the chord can't be placed.
+     */
+    private function numeralToken(string $chord, string $songKey): ?string
+    {
+        $this->detector ??= app(\App\Services\ProgressionDetector::class);
+        $n = $this->detector->chordToNumeral($chord, $songKey);
+        if ($n === null || $n === '') return null;
+        // Strip the slash-bass degree so a pedal/inversion voicing matches the
+        // slash-less corpus token (must mirror ReseedTransitions::functionalToken).
+        if (str_contains($n, '/')) {
+            $n = explode('/', $n, 2)[0];
+        }
+        if ($n === '' || str_starts_with($n, 'chr')) return null;
+        return $n;
     }
 
     /**
@@ -191,6 +303,13 @@ class TransitionScorer
         return $out;
     }
 
+    /** Surface-bigram vocabulary size V (for callers computing 1/V uniform baselines). */
+    public function vocabSize(): int
+    {
+        $this->loadData();
+        return $this->vocabSize;
+    }
+
     /** Meta info from the generator. */
     public function meta(): array
     {
@@ -211,6 +330,22 @@ class TransitionScorer
             foreach ($nexts as $next => $_) $vocab[$next] = true;
         }
         $this->vocabSize = count($vocab);
+
+        // Trigram "next-token" vocab sizes for per-tier Laplace smoothing. Union
+        // of all distinct curr tokens appearing in each trigram table.
+        $this->surfaceTriVocab    = $this->countNextVocab($payload['surface_trigrams'] ?? []);
+        $this->functionalTriVocab = $this->countNextVocab($payload['functional_trigrams'] ?? []);
+
         return $this->data;
+    }
+
+    /** Distinct "next" tokens across a trigram table (for Laplace V). */
+    private function countNextVocab(array $table): int
+    {
+        $seen = [];
+        foreach ($table as $nexts) {
+            foreach ($nexts as $next => $_) $seen[$next] = true;
+        }
+        return count($seen);
     }
 }

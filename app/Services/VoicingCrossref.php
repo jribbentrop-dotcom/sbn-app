@@ -1591,6 +1591,15 @@ class VoicingCrossref
         $pcSet      = array_values(array_unique($pitchClasses));
         $noteCount  = strlen(str_replace('x', '', strtolower($frets)));
 
+        // Minimum-note guard: a single note or a bare dyad is not a chord. Two
+        // pitch classes (e.g. {C,E} from 0xx558) are genuinely ambiguous — the
+        // third is equally the 5th of one triad or the root of another — so the
+        // identifier must refuse rather than hallucinate a missing tone into a
+        // full triad name. Mirrors the ≥3-unique-PC guard on identifyFromMidi().
+        if (count($pcSet) < 3) {
+            return $this->noResult();
+        }
+
         return $this->identifyFromPcSetFull($pcSet, $bassPc, $noteCount, $frets, $position, $songKey, $tuning);
     }
 
@@ -2017,9 +2026,18 @@ class VoicingCrossref
         $confidence  = ($baseMatched === count($basePcs)) ? 'exact' : 'partial';
 
         // ── Pass 6: DB diagram lookup (skipped for MIDI path — no real fret string) ──
-        $diagramId = ($frets !== null)
-            ? $this->findDiagramByFrets($frets, $position, $rootName, $bestQuality, $inversion, $bassNoteName ?? '')
-            : null;
+        // When a DB-evidence hit won, its shape id already matched the frets under
+        // transposition — use it directly. Re-deriving via findDiagramByFrets would
+        // transpose generic shapes to the injected root, which for a rootless or
+        // symmetric-dim reading isn't the fretted root, and the loose subset fallback
+        // would then attach a shape that doesn't reflect the TAB.
+        if ($dbInjection !== null && !empty($dbInjection['db_id'])) {
+            $diagramId = $dbInjection['db_id'];
+        } else {
+            $diagramId = ($frets !== null)
+                ? $this->findDiagramByFrets($frets, $position, $rootName, $bestQuality, $inversion, $bassNoteName ?? '')
+                : null;
+        }
 
         return [
             'name'       => $chordName,
@@ -2764,6 +2782,11 @@ class VoicingCrossref
                     'bass_pc'    => $h['bass_pc'],
                     'name'       => $h['name'],
                     'score'      => $injectScore,
+                    // The matcher already proved this shape's pitch classes match the
+                    // target frets; carry its id so the diagram is taken from the exact
+                    // matched shape rather than re-derived from the (possibly rootless /
+                    // symmetric) injected root by findDiagramByFrets. See §5.1.
+                    'db_id'      => $h['db_id'],
                 ];
             }
         }

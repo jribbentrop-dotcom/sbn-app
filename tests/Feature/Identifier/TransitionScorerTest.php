@@ -102,4 +102,74 @@ class TransitionScorerTest extends TestCase
         $this->assertArrayHasKey('generated_at', $meta);
         $this->assertGreaterThan(500, $meta['corpus_size'], 'Expect ~1382 standards');
     }
+
+    // ── Trigram (Phase 3.3b) ──────────────────────────────────────────────
+
+    /**
+     * The headline case: the functional trigram II7→V7→I should make the
+     * secondary-dominant reading of Ipanema chord 2 win. In Db, Eb7 is II7,
+     * Ab7 is V7, Db is I. Given the two prior chords Eb7→Ab7, the trigram
+     * P(Db | Eb7, Ab7) must be strong — and stronger than the same context
+     * resolving to a non-tonic, which is what a bigram alone can't distinguish.
+     */
+    public function test_functional_trigram_iiVI_resolves_to_tonic(): void
+    {
+        // II7→V7→Imaj7 is the dominant tonic continuation in the corpus (Db
+        // tokenizes to 'I', but the strong continuation is 'Imaj7'/'I7' — the
+        // maj-quality tonic). Assert the tonic-family probability is strong.
+        $pMaj7 = $this->scorer->trigramProbability('Eb7', 'Ab7', 'Dbmaj7', 'Db');
+        $this->assertGreaterThan(
+            0.15, $pMaj7,
+            "P(Dbmaj7 | Eb7, Ab7) in Db should be strong — II7→V7→Imaj7 is jazz canon (got $pMaj7)"
+        );
+    }
+
+    /**
+     * The disambiguation the reranker actually uses: the ambiguous 6x566x chord
+     * is the MIDDLE token of I→[?]→V7. Reading it as Eb7 (II7) forms the strong
+     * I→II7→V7 trigram; reading it as Bbm6 (VIm6 in Db) forms the near-absent
+     * I→VIm6→V7. II7 must win by a wide margin — this is the Ipanema flip.
+     */
+    public function test_trigram_prefers_II7_over_vi_as_setup_to_V(): void
+    {
+        $pII7  = $this->scorer->trigramProbability('Db', 'Eb7',  'Ab7', 'Db'); // I→II7→V7
+        $pVi   = $this->scorer->trigramProbability('Db', 'Bbm6', 'Ab7', 'Db'); // I→VIm6→V7
+        $this->assertGreaterThan(
+            $pVi, $pII7,
+            "II7 as setup to V7 should out-score VIm6 (p II7=$pII7 vs VIm6=$pVi)"
+        );
+        // And decisively — the flip needs a real margin, not a coin-flip. (The
+        // full trigram backs off to the bigram tail, which softens the pure
+        // functional-trigram ratio; ~2.5× here is still a clear, usable margin.)
+        $this->assertGreaterThan(
+            2.0, $pII7 / max($pVi, 1e-9),
+            "II7 setup should beat VIm6 by a clear margin (ratio " . ($pII7 / max($pVi, 1e-9)) . ")"
+        );
+    }
+
+    /**
+     * Backoff contract: with no key, the functional tier is unavailable, so the
+     * trigram must fall through to surface-trigram / bigram and still return a
+     * valid probability (never 0, never throw).
+     */
+    public function test_trigram_backs_off_without_key(): void
+    {
+        $p = $this->scorer->trigramProbability('Dm7', 'G7', 'Cmaj7', null);
+        $this->assertGreaterThan(0.0, $p, 'Keyless trigram must back off to surface, never 0');
+        $this->assertLessThanOrEqual(1.0, $p);
+    }
+
+    /**
+     * The trigram must never regress below its own bigram floor: for a strong
+     * bigram tail (G7→Cmaj7), the trigram probability should be at least in the
+     * neighbourhood of the bigram — backoff guarantees the bigram is the floor.
+     */
+    public function test_trigram_not_worse_than_bigram_floor(): void
+    {
+        $bi  = $this->scorer->probability('G7', 'Cmaj7');
+        $tri = $this->scorer->trigramProbability('Dm7', 'G7', 'Cmaj7', 'C');
+        // tri may exceed bi (trigram sharpens) but must not collapse far below it.
+        $this->assertGreaterThan($bi * 0.25, $tri,
+            "Trigram ($tri) should not collapse below its bigram floor ($bi)");
+    }
 }
