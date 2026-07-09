@@ -349,7 +349,10 @@ class TabXmlTransposer
 
     /**
      * Shift a note name (e.g. 'C', 'Bb', 'F#') by semitones.
-     * Returns the sharp spelling by default (caller re-spells via HarmonicContext).
+     * Returns the raw sharp spelling; callers re-spell via HarmonicContext for
+     * house style. ($rawSharp is retained for call-site clarity — both branches
+     * return the sharp name, since this helper is chroma-only and never decides
+     * flat vs sharp itself. The spelling authority owns that.)
      *
      * @param  bool $rawSharp  Return the raw CHROMA sharp name (for key detection)
      */
@@ -358,6 +361,6 @@ class TabXmlTransposer
         $semi = self::NOTE_TO_SEMI[$note] ?? null;
         if ($semi === null) return $note;
         $newSemi = (($semi + $semitones) % 12 + 12) % 12;
-        return $rawSharp ? self::SEMI_TO_NOTE_SHARP[$newSemi] : self::SEMI_TO_NOTE_SHARP[$newSemi];
+        return self::SEMI_TO_NOTE_SHARP[$newSemi];
     }
 }

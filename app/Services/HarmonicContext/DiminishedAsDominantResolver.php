@@ -166,9 +166,13 @@ class DiminishedAsDominantResolver
         return $this->symmetry->toPc($name);
     }
 
-    /** Pitch class → note name, sharp-biased (preserves historical behavior). */
+    /**
+     * Pitch class → note name, flat-biased. A dim7 reinterpreted as a rootless
+     * dominant 7(b9) spells its root flat by jazz convention (F7(b9), not
+     * E#7(b9)). Delegates to the shared symmetry primitive's flat spelling.
+     */
     private function pcToNoteName(int $pc): string
     {
-        return $this->symmetry->spellSharp($pc);
+        return $this->symmetry->spellRoot($pc);
     }
 }

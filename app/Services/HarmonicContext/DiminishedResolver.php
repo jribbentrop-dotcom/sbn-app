@@ -61,26 +61,28 @@ class DiminishedResolver
 
             $symmetricRoots = $this->symmetry->symmetricRoots($currentPc);
 
-            // D1: Ascending passing diminished
+            // D1: Ascending passing diminished — spells SHARP (the dim rises by
+            // semitone into the next chord, an upward chromatic neighbour: C#°7).
             if ($prevPc !== null && $nextPc !== null) {
                 $ascendingStep = ($nextPc - $prevPc + 12) % 12 === 2;
                 if ($ascendingStep) {
                     $expectedRoot = ($prevPc + 1) % 12;
                     if (in_array($expectedRoot, $symmetricRoots, true)) {
                         $results[$i] = $this->applyResolution(
-                            $results[$i], $expectedRoot, 'dim_passing_ascending'
+                            $results[$i], $expectedRoot, 'dim_passing_ascending', false
                         );
                         continue;
                     }
                 }
 
-                // D2: Descending passing diminished
+                // D2: Descending passing diminished — spells FLAT (the dim falls by
+                // semitone, a downward chromatic neighbour: Db°7).
                 $descendingStep = ($prevPc - $nextPc + 12) % 12 === 2;
                 if ($descendingStep) {
                     $expectedRoot = ($prevPc - 1 + 12) % 12;
                     if (in_array($expectedRoot, $symmetricRoots, true)) {
                         $results[$i] = $this->applyResolution(
-                            $results[$i], $expectedRoot, 'dim_passing_descending'
+                            $results[$i], $expectedRoot, 'dim_passing_descending', true
                         );
                         continue;
                     }
@@ -102,11 +104,11 @@ class DiminishedResolver
                 }
             }
 
-            // D4: Voice-leading default
+            // D4: Voice-leading default — no clear direction, so FLAT (jazz lean).
             $bestRoot = $this->pickVoiceLeadingRoot($symmetricRoots, $prevPc, $nextPc);
             if ($bestRoot !== null && $bestRoot !== $currentPc) {
                 $results[$i] = $this->applyResolution(
-                    $results[$i], $bestRoot, 'dim_voice_leading'
+                    $results[$i], $bestRoot, 'dim_voice_leading', true
                 );
             }
         }
@@ -172,11 +174,13 @@ class DiminishedResolver
      * @param  array  $result
      * @param  int    $newRootPc
      * @param  string $reason
+     * @param  bool   $useFlats  Directional spelling: ascending passing dims spell
+     *                           sharp (false); descending + ambiguous spell flat (true).
      * @return array
      */
-    private function applyResolution(array $result, int $newRootPc, string $reason): array
+    private function applyResolution(array $result, int $newRootPc, string $reason, bool $useFlats): array
     {
-        $newRootName = $this->pcToNoteName($newRootPc);
+        $newRootName = $this->pcToNoteName($newRootPc, $useFlats);
 
         // Don't create slash chords where root equals bass (e.g., "Ddim/D")
         // These are redundant and not musically useful
@@ -216,9 +220,13 @@ class DiminishedResolver
         return $this->symmetry->toPc($name);
     }
 
-    /** Pitch class → note name, sharp-biased (preserves historical behavior). */
-    private function pcToNoteName(int $pc): string
+    /**
+     * Pitch class → note name, direction-aware. Ascending passing dims spell
+     * sharp (upward chromatic neighbour); descending + ambiguous dims spell flat
+     * (jazz lean). Both delegate to the shared symmetry primitive.
+     */
+    private function pcToNoteName(int $pc, bool $useFlats): string
     {
-        return $this->symmetry->spellSharp($pc);
+        return $useFlats ? $this->symmetry->spellRoot($pc) : $this->symmetry->spellSharp($pc);
     }
 }

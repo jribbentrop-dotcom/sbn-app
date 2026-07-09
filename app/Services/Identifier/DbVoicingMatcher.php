@@ -272,14 +272,15 @@ class DbVoicingMatcher
     }
 
     /**
-     * Heuristic: flat-keyed song → prefer flat spelling for output names.
+     * Flat vs sharp for DB-hit output names — defers to the app's single spelling
+     * authority (HarmonicContext::spellingUsesFlats) so this matcher never carries
+     * its own house-style rule. House style is flats-by-default: a null/neutral key
+     * spells flat, only the genuine sharp keys (G D A E B F# C# + rel. minors) sharp.
+     * VoicingCrossref re-spells the injected candidate's root/bass per-quality via
+     * pcToNoteName afterwards, so this only needs the key-layer decision.
      */
     private function preferFlats(?string $songKey): bool
     {
-        if ($songKey === null || $songKey === '') return false;
-        $root = strtoupper(substr(trim($songKey), 0, 2));
-        // Match: starts with Db, Eb, Gb, Ab, Bb, or F (F is conventionally flat-keyed in jazz)
-        return in_array($root, ['DB','EB','GB','AB','BB'], true)
-            || strtoupper(trim($songKey)) === 'F';
+        return \App\Services\HarmonicContext::spellingUsesFlats($songKey ?? '');
     }
 }

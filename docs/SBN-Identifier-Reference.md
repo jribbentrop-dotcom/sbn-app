@@ -54,6 +54,54 @@ At import time, **key inference** (§5.5) runs *before* the pipeline: a keyless 
 - The two-tier slash-bonus values (`slashBonus7th = 3.5`, `slashBonusTriad = 2.5`).
 - Phase 3 tuning knobs: `dbBonus = 1.5` (bass+root confirmed), `dbBonusBassOnly = 1.15`, `noDbPenalty = 0.85`. Key-fit range `[1.00, 1.20]`. Viterbi `edgeWeight = 0.3`, `minScoreRatio = 0.85`.
 
+### 2.3 Enharmonic spelling — one authority (consolidated 2026-07-09)
+
+The identifier does **not** own a flat/sharp policy. `IDENTIFY_NOTE_SHARP`/`_FLAT`
+are lookup tables only; the flat-vs-sharp *decision* for every root/bass it emits
+routes through the single spelling authority `HarmonicContext::spellingUsesFlats($songKey)`
+(via `pcToNoteName`). `$songKey` — already threaded from the import blade →
+`identify-voicings` → `identifyFromPcSetFull` — drives the key family; with no key,
+the authority's **flats-by-default** house style applies. `DbVoicingMatcher::preferFlats`
+delegates to the same authority. This means "sharps where flats should be" is tuned
+in **one place** (`HarmonicContext`), not per-service. Guarded by
+`tests/Unit/VoicingCrossrefSpellingTest.php`.
+
+- `pcToNoteName` spells **roots and basses only**, never inner chord tones (the
+  quality/extension strings are assembled separately), so it needs only the
+  key-family decision, not the per-quality flat-lean.
+- The dim7 symmetric-root path (`DiminishedSymmetry::spellRoot`) is a deliberate
+  reading-aware carve-out and is **not** routed through `spellingUsesFlats` (§2.1).
+- The Tab-import path re-spells the identifier's returned name once more through
+  the JS twin `sbnSpellChordName` (belt-and-braces vs. PHP/JS drift), mirroring
+  the `<harmony>` path.
+- **Authority fix made here:** `spellingUsesFlats` now honours a written flat in
+  the key root (`Db`, `Gb`, `Bbm`…) instead of normalising to its enharmonic sharp
+  twin (`C#`, `F#`) and mis-reading it as a sharp key. Only sharp-written/natural
+  roots consult the `SHARP_KEYS` allowlist. (Mirrored in JS `_keyUsesFlats`.)
+
+**Flat-default is scoped to SYNTHESIS, not stored data.** The identifier builds
+names from pitch classes with no author accidental to honour, so no-key → jazz
+flats (`Bbm`, `Eb`). But the chord-rule fallback `useFlatsForQuality` (used by the
+chord library / voicing serialization to spell *stored* chords) still keeps a
+sharp-written root sharp — a genuine `F#m7`/`C#m7`/`D/F#` from a sharp key (D, E, G
+major) must keep its DB spelling. **Respect the DB.** So "Bb all the way" holds for
+generated names; deliberately sharp-named chords in the DB are preserved.
+
+**Diminished chords spell by resolution DIRECTION** (2026-07-09). `DiminishedResolver`
+already detects passing direction; the spelling now follows it:
+- **Ascending** passing dim (rises a semitone into the next chord — upward chromatic
+  neighbour) → **sharp** (`C#°7` in `C → C#°7 → Dm`). `dim_passing_ascending`.
+- **Descending** passing dim (falls a semitone — downward neighbour) → **flat**
+  (`Db°7` in `Dm → Db°7 → C`). `dim_passing_descending`.
+- **Ambiguous** (common-tone D3, voice-leading-default D4) → **flat** (jazz lean).
+- `DiminishedAsDominantResolver`: a dim7 renamed to a rootless dominant `7(b9)`
+  spells its root **flat** (`F7(b9)`, never `E#7(b9)`).
+
+Mechanism: `applyResolution(..., bool $useFlats)` picks `spellRoot` (flat) vs
+`spellSharp` per direction; both from the shared `DiminishedSymmetry` primitive.
+Guarded by `tests/Unit/DiminishedResolverDirectionTest.php`. PHP-only (no JS twin —
+dim resolution runs server-side at identify time).
+
 ---
 
 ## 3. Phase 1: Local Scoring Mechanics

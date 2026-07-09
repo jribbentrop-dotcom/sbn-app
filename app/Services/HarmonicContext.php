@@ -451,9 +451,15 @@ class HarmonicContext
         $keyRoot = preg_replace('/[mM].*$/', '', $key);
         $isMinor = (bool) preg_match('/[mM]/', $key);
 
+        // Honour the written accidental of the key root: a key spelled with a
+        // flat (Db, Gb, Bbm…) is a FLAT key regardless of its enharmonic sharp
+        // twin. Only when the root is written sharp do we consult the SHARP_KEYS
+        // allowlist — this keeps genuine sharp keys (C#, F#…) sharp while letting
+        // their flat spellings (Db, Gb…) spell flat. Naturals fall through to the
+        // allowlist too (house flat-default for everything not listed).
+        if (str_contains($keyRoot, 'b')) return true;
+
         if ($isMinor) {
-            // Normalise the minor key (root may be written sharp or flat) to a
-            // canonical minor token, then test against the sharp-minor list.
             $semi = self::NOTE_TO_SEMI[$keyRoot] ?? null;
             if ($semi === null) return true; // unknown ⇒ flats
             $sharpMinor = self::SEMI_TO_NOTE_SHARP[$semi] . 'm';

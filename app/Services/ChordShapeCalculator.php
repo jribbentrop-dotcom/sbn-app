@@ -713,7 +713,8 @@ class ChordShapeCalculator
      * Flat roots and b-accidental roots always use flats.
      * For natural roots, checks whether any chord tone of the quality lands on
      * a flat-side pitch class (Db Eb Gb Ab Bb) — if so, use flats.
-     * Sharp roots (#) always use sharps.
+     * Sharp roots (#) always use sharps — a chord written F#m7 (e.g. from D major)
+     * is a genuine sharp chord and must keep its spelling. RESPECT THE DB.
      */
     public static function useFlatsForQuality(string $rootNote, string $quality): bool
     {

@@ -3504,17 +3504,25 @@ function leadsheetEditor() {
                     Object.keys(data.results).forEach(tabName => {
                         const r = data.results[tabName];
                         if (!r.name || r.confidence === 'none') return;
+                        // Re-spell through the single spelling authority (key-aware),
+                        // mirroring the <harmony> import path. Belt-and-braces: the
+                        // server already spells via HarmonicContext, but this keeps the
+                        // saved name in house style even if the two ever drift.
+                        let name = r.name;
+                        if (typeof window.sbnSpellChordName === 'function') {
+                            name = window.sbnSpellChordName(name, key || '');
+                        }
                         // Tab* slots have no written harmony — auto-apply the identifier result.
                         const voicing = this.parsed.chordVoicings[tabName];
                         if (voicing) {
-                            this.parsed.chordVoicings[r.name] = voicing;
+                            this.parsed.chordVoicings[name] = voicing;
                             delete this.parsed.chordVoicings[tabName];
                         }
                         this.parsed.sections.forEach(s => (s.measures||[]).forEach(m => m.chords.forEach(c => {
-                            if (c.name === tabName) c.name = r.name;
+                            if (c.name === tabName) c.name = name;
                         })));
                         this._importLog(
-                            tabName + ' → ' + r.name + ' (' + (r.confidence || '?') + ')',
+                            tabName + ' → ' + name + ' (' + (r.confidence || '?') + ')',
                             r.confidence === 'exact' ? 'info' : 'warn'
                         );
                     });

@@ -152,6 +152,10 @@
         return '';
     }
 
+    // Flat/sharp for a root+quality (no-key fallback). Flat roots → flats,
+    // sharp roots → sharps (a genuine F#m7 from D major keeps its spelling),
+    // naturals → quality-tone lean. Mirror of
+    // ChordShapeCalculator::useFlatsForQuality().
     function _useFlatsForQuality(rootNote, quality) {
         if (_FLAT_ROOT_NOTES.includes(rootNote) || /b/.test(rootNote)) return true;
         if (/#/.test(rootNote)) return false;
@@ -162,11 +166,13 @@
     }
 
     // House style: flats by default. Only genuine sharp keys spell with sharps;
-    // flat keys AND neutral C/Am use flats. Mirror of
-    // HarmonicContext::spellingUsesFlats().
+    // flat keys AND neutral C/Am use flats. A flat-WRITTEN key root (Db, Gb, Bbm)
+    // is a flat key regardless of its enharmonic sharp twin — honour it before the
+    // SHARP_KEYS test. Mirror of HarmonicContext::spellingUsesFlats().
     function _keyUsesFlats(key) {
         key = (key || '').trim();
         const keyRoot = key.replace(/[mM].*$/, '');
+        if (/b/.test(keyRoot)) return true;             // flat-written ⇒ flats
         const semi = _SEMI[keyRoot];
         if (semi === undefined) return true;            // unknown ⇒ flats
         if (/[mM]/.test(key)) {

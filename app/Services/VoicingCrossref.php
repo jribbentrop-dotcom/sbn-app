@@ -1385,9 +1385,10 @@ class VoicingCrossref
         9 => '13',
     ];
 
+    // pc→name lookup tables only. The flat/sharp *policy* lives in the single
+    // spelling authority (HarmonicContext::useFlatsFor) — see pcToNoteName().
     private const IDENTIFY_NOTE_SHARP = [0=>'C',1=>'C#',2=>'D',3=>'D#',4=>'E',5=>'F',6=>'F#',7=>'G',8=>'G#',9=>'A',10=>'A#',11=>'B'];
     private const IDENTIFY_NOTE_FLAT  = [0=>'C',1=>'Db',2=>'D',3=>'Eb',4=>'E',5=>'F',6=>'Gb',7=>'G',8=>'Ab',9=>'A',10=>'Bb',11=>'B'];
-    private const IDENTIFY_FLAT_ROOTS = ['F','Bb','Eb','Ab','Db','Gb'];
 
     /**
      * Rootless voicing templates: interval sets from an ABSENT root.
@@ -1910,7 +1911,7 @@ class VoicingCrossref
         }
 
         // ── Build top-K candidates list ──
-        $candidates = $this->buildCandidateList($allCandidates, $pcSet, $bassPc, $frets, $position);
+        $candidates = $this->buildCandidateList($allCandidates, $pcSet, $bassPc, $frets, $position, $songKey);
 
         // ── Phase 3.1/3.2: DB shape evidence + key-fit weighting ──
         // See docs/SBN-Identifier-Reference.md §5.1 (Layer 1) and §5.2 (Layer 2).
@@ -1938,11 +1939,11 @@ class VoicingCrossref
                 if (!$alreadyPresent) {
                     array_unshift($candidates, [
                         'name'       => $dbInjection['name'],
-                        'root'       => self::IDENTIFY_NOTE_SHARP[$dbInjection['root_pc']],
+                        'root'       => $this->pcToNoteName($dbInjection['root_pc'], $dbInjection['quality'], $songKey),
                         'quality'    => $dbInjection['quality'],
                         'extensions' => $dbInjection['extensions'],
                         'bass_note'  => $dbInjection['bass_pc'] !== null
-                            ? self::IDENTIFY_NOTE_SHARP[$dbInjection['bass_pc']]
+                            ? $this->pcToNoteName($dbInjection['bass_pc'], $dbInjection['quality'], $songKey)
                             : null,
                         'score'      => $dbInjection['score'],
                     ]);
@@ -1985,7 +1986,7 @@ class VoicingCrossref
         $inversion    = '';
 
         if ($bassPc !== null) {
-            $bassNoteName  = $this->pcToNoteName($bassPc, $bestQuality);
+            $bassNoteName  = $this->pcToNoteName($bassPc, $bestQuality, $songKey);
             if ($bassPc !== $bestRootPc) {
                 $slashSuffix   = '/' . $bassNoteName;
                 $bassInterval  = ($bassPc - $bestRootPc + 12) % 12;
@@ -2001,7 +2002,7 @@ class VoicingCrossref
         }
 
         // ── Step 5: Assemble name ──
-        $rootName    = $this->pcToNoteName($bestRootPc, $bestQuality);
+        $rootName    = $this->pcToNoteName($bestRootPc, $bestQuality, $songKey);
         // Normalize quality for display: 'dom7' → '7', 'min'/'m' → 'm', 'maj' → '' (leadsheet convention)
         $displayQuality = match($bestQuality) {
             'dom7' => '7',
@@ -2106,8 +2107,9 @@ class VoicingCrossref
             return $this->noResult();
         }
 
-        // Build chord name from root + quality
-        $rootName = self::IDENTIFY_NOTE_SHARP[$bestRootPc];
+        // Build chord name from root + quality. No song key in this context-free
+        // re-scorer (used by PedalDetector); the chord-rule lean still applies.
+        $rootName = $this->pcToNoteName($bestRootPc, $bestQuality);
         $chordName = $rootName . $bestQuality;
 
         return [
@@ -2115,7 +2117,7 @@ class VoicingCrossref
             'root' => $rootName,
             'quality' => $bestQuality,
             'extensions' => '',
-            'bass_note' => $bassPc !== null ? self::IDENTIFY_NOTE_SHARP[$bassPc] : null,
+            'bass_note' => $bassPc !== null ? $this->pcToNoteName($bassPc, $bestQuality) : null,
             'inversion' => null,
             'diagram_id' => null,
             'confidence' => $bestScore,
@@ -2130,7 +2132,7 @@ class VoicingCrossref
      * Sorts by score descending, deduplicates by (rootPc, quality), takes top K=5,
      * and assembles full result entries (name, root, quality, extensions, bass_note, score).
      */
-    private function buildCandidateList(array $rawCandidates, array $pcSet, ?int $bassPc, ?string $frets, int $position): array
+    private function buildCandidateList(array $rawCandidates, array $pcSet, ?int $bassPc, ?string $frets, int $position, ?string $songKey = null): array
     {
         // Sort by score descending
         usort($rawCandidates, fn($a, $b) => $b[2] <=> $a[2]);
@@ -2151,7 +2153,7 @@ class VoicingCrossref
 
         $candidates = [];
         foreach ($top as [$rootPc, $quality, $score, $matched, $total]) {
-            $rootName = $this->pcToNoteName($rootPc, $quality);
+            $rootName = $this->pcToNoteName($rootPc, $quality, $songKey);
 
             // Extension detection for this candidate
             $basePcs = array_map(
@@ -2175,7 +2177,7 @@ class VoicingCrossref
             $bassNoteName = null;
             $slashSuffix  = '';
             if ($bassPc !== null && $bassPc !== $rootPc) {
-                $bassNoteName = $this->pcToNoteName($bassPc, $quality);
+                $bassNoteName = $this->pcToNoteName($bassPc, $quality, $songKey);
                 $slashSuffix  = '/' . $bassNoteName;
             }
 
@@ -2816,15 +2818,29 @@ class VoicingCrossref
     }
 
     /**
-     * Convert pitch class to note name, preferring flat spelling for flat-key qualities.
+     * Convert a pitch class to a ROOT or BASS note name, deferring the flat/sharp
+     * decision to the app's single spelling authority
+     * (HarmonicContext::spellingUsesFlats).
+     *
+     * The identifier owns only the pc→name lookup tables; the *policy* (key
+     * family, house flats-by-default) lives in one place so it can be tuned
+     * without touching the identifier. When $songKey is known it drives the
+     * family; with no key the authority's flats-by-default applies.
+     *
+     * This spells roots/basses only — never inner chord tones — so the note's own
+     * quality-lean is not consulted here (the quality/extension strings are built
+     * separately). $quality is accepted for call-site symmetry and future use.
+     *
+     * (The dim7 symmetric-root path stays on DiminishedSymmetry::spellRoot —
+     * a deliberate reading-aware carve-out; see SBN-Identifier-Reference §2.1.)
      */
-    private function pcToNoteName(int $pc, string $quality = ''): string
+    private function pcToNoteName(int $pc, string $quality = '', ?string $songKey = null): string
     {
         $sharp = self::IDENTIFY_NOTE_SHARP[$pc];
         $flat  = self::IDENTIFY_NOTE_FLAT[$pc];
         if ($sharp === $flat) return $sharp;
-        if (in_array($flat, self::IDENTIFY_FLAT_ROOTS, true)) return $flat;
-        return $sharp;
+
+        return HarmonicContext::spellingUsesFlats($songKey ?? '') ? $flat : $sharp;
     }
 
     private function getQualityDisplayName(string $quality): string
