@@ -4,11 +4,10 @@ The public homepage at `GET /` is the marketing and entry point for the app.
 It is a pure Inertia page (no auth required), composed in `Home.vue` from
 several Vue components plus a static CSS layer for everything else.
 
-> **⚠ Re-layout planned (next session, as of 2026-07-09).** The section order
-> and mix below is not final — several sections were already discarded from
-> the visible page but their code is still present (see §1a). Before adding
-> anything new, decide what actually stays; don't assume every component
-> listed here belongs in the eventual layout.
+Re-layout completed 2026-07-09 (this document supersedes all earlier
+versions). ChordRain, GradesSlider/GradesTeaser, and the old 3-card feature
+grid were removed from the live page — see §5 for where the first two ended
+up.
 
 ---
 
@@ -19,320 +18,434 @@ several Vue components plus a static CSS layer for everything else.
 | `app/Http/Controllers/HomeController.php` | Feeds all page data; no auth guard |
 | `resources/js/Pages/Home.vue` | Inertia page — section composition |
 | `resources/js/Components/Home/SyncedHero.vue` | Chord+rhythm synced demo (hero right column) |
-| `resources/js/Components/Home/ChordRain.vue` | Chord card rain section |
-| `resources/js/Components/Home/GradesSlider.vue` | Drag/keyboard carousel, "Five grades" section — **currently live** |
-| `resources/js/Components/Home/GradesTeaser.vue` | Sticky scroll-scrub grade counter — **dead, see §1a** |
-| `resources/js/Components/Home/SkillPathSection.vue` | Animated skill-tree scroll section — **currently live**, added 2026-07-09 |
-| `resources/js/Components/Home/useClock.ts` | Retained, unused (future consumers) |
+| `resources/js/Components/Home/SkillPathSection.vue` | Animated skill-tree scroll section |
+| `resources/js/Components/Library/RhythmPattern.vue` | Full rhythm-pattern widget, mounted in the Rhythm box |
+| `resources/js/Components/Library/ChordProgressionViewer.vue` | Progression viewer, mounted in the Progressions box |
+| `resources/js/edu/widgets/CircleOfFifths.vue` | Theory widget, mounted in the Theory box |
 | `public/css/home.css` | All homepage CSS — scoped to `.home-page` |
 | `resources/views/app.blade.php` | Loads `home.css` globally via `<link>` |
 
-### 1a. Dead / invisible sections (as of 2026-07-09)
+### 1a. Where the old sections went
 
-These exist in the codebase but do **not** render on the live page. Flagging
-so the re-layout session either revives or deletes them deliberately, instead
-of rediscovering them mid-task:
-
-- **`GradesTeaser`** — imported in `Home.vue` but its usage is commented out
-  (`<!-- <GradesTeaser /> -->`). This was the original sticky scroll-scrub
-  "grade counter" section (tall outer container + pinned inner viewport,
-  progress computed from `window.scroll`). `GradesSlider` (a drag carousel,
-  not scroll-driven) replaced it as the live "Five grades" section.
-  `SkillPathSection`'s pinned scroll-reveal pattern was modeled on
-  `GradesTeaser`'s CSS/JS shape, not `GradesSlider`'s — worth knowing if
-  `GradesTeaser` gets deleted, since it's the reference implementation.
-- **"Rhythm strip"** — an empty HTML comment block in `Home.vue` between
-  `ChordRain` and `GradesSlider`. No component reference survives (already a
-  bare comment shell), so there's nothing to restore — safe to delete
-  outright. (§2.2 below describes what this section used to be, kept for
-  history; it does not reflect current `HomeController` output.)
-- No homepage "progressions" section was found anywhere in code or git
-  history as of this note — if that's remembered from a past session, it may
-  have been an idea discussed but never built, or confusion with the
-  standalone `/library/progressions` page.
+- **ChordRain** — the CPU-heavy `requestAnimationFrame` card-rain section
+  (§4–§6 of the old doc revision) was cut for performance reasons (continuous
+  per-frame DOM writes on ~60 SVG-containing elements pinned a CPU core).
+  Parked, not deleted: `resources/js/Pages/Library/ChordRainShowcase.vue` at
+  `/library/chords/rain` (behind `auth`, `ChordLibraryController::showcase()`
+  builds the data). Linked from the footer's "Tools" column as "Chord Rain
+  (parked)".
+- **GradesSlider** (drag/keyboard carousel over the 5 grade tiers) — parked
+  at `resources/js/Pages/Grades/Slider.vue`, route `/grades/slider`
+  (`GradesController::slider()`, public). Linked from the footer as "Grades
+  Slider (parked)". `GradesTeaser` (the sticky scroll-scrub predecessor
+  GradesSlider replaced) was already dead before this pass and stays dead —
+  its commented-out `<!-- <GradesTeaser /> -->` line is still in `Home.vue`
+  as a historical marker.
+- **3-card feature grid** ("Interactive Tab Editor" / "Every chord, every
+  context" / "Analysis Panel") — replaced outright by the 6-box library
+  showcase in §3.
 
 ---
 
 ## 2. Page sections (top → bottom, as currently composed in `Home.vue`)
 
 1. **Hero** (`home-hero`) — see §2.1
-2. **Chord rain** (`ChordRain`, conditional on `rainChords` data) — see §4
-3. *("Rhythm strip" — dead comment block, see §1a)*
-4. **Grades slider** (`GradesSlider`) — drag/keyboard carousel over the 5
-   grade tiers (`useGrades.ts`), each card links to `/grades`
-5. **Skill path** (`SkillPathSection`) — added 2026-07-09, see §2.5
-6. **Feature cards** (`home-section`) — static three-column tool grid
+2. **Skill path** (`SkillPathSection`) — animated branching skill-tree
+   section; unchanged by this pass, see prior doc revisions or
+   `docs/SBN-Skill-System-Reference.md` for its own detail
+3. **Library showcase** (`home-section`, `.lib-boxes`) — 6-box grid, see §3
 
 ### 2.1 Hero (`home-hero`)
 
 Two-column grid: copy left, `SyncedHero` right. Animated blob background
-(pure CSS, three `.blob` divs with `@keyframes blob-float`). Staggered
-`.reveal .d1–.d5` entrance animation on text.
+(pure CSS). Staggered `.reveal .d1–.d5` entrance animation on text.
 
-**Controller data (current, `HomeController::index()`):**
-- `heroBars` / `heroRhythm` — sliced bars (`HERO_START`..`HERO_END`) from the
-  Girl from Ipanema leadsheet, built by `buildHeroBars()` (mirrors
-  `SyncedPlayerController::apiShow()` so tempo/rhythm match the Top10 demo)
-- `rhythmPattern` — first bossa-nova `RhythmPattern` ordered by `default_bpm`
-- `rainChords` — see §5.1
+**CTA**: single button, "Explore the most popular songs →", links to
+`/top10/bossa-nova-songs` (public, no auth gate — the site's
+highest-traffic/best-SEO page). Previously linked to `/register`; changed
+because a first-time visitor benefits from seeing real content before being
+asked to sign up, and a second "Watch the tour" ghost button was removed
+entirely (`href="#"`, no tour content ever existed to point it at).
 
-**SyncedHero** is documented in full in `docs/SBN-SyncedPlayer-Reference.md`.
+**Controller data (`HomeController::index()`):**
+- `heroBars` / `heroRhythm` — sliced bars (`HERO_START..HERO_END`, currently
+  `5..12`) from the Girl from Ipanema leadsheet (`HERO_SLUG =
+  'the-girl-from-ipanema-1'` — **note the `-1` suffix**; the leadsheet's
+  actual DB slug, not the Top10 config's array key, which is the bare
+  `'the-girl-from-ipanema'` without a suffix — these are two different
+  identifier spaces and mixing them up silently no-ops the whole hero, see
+  the bug note below), built by `buildHeroBars()`
+- `heroRhythmSlug` / `heroRhythmCaption` / `heroCitation` — sourced from
+  `config/top10/bossa-nova-songs.php`'s `'the-girl-from-ipanema'` entry
+  (`rhythmSlug`, `rhythmCaption`, `rhythmCitation` fields) and forwarded into
+  `SyncedHero` → `SyncedPlayer`'s `rhythmLink`/`rhythmCaption`/`citation`
+  props — these props were added to `SyncedPlayer` after the hero was first
+  built and had never been wired through until this pass
+- `rhythmPattern` — the `gilberto-rhythm` pattern by exact slug (used only by
+  `libraryBoxes.rhythm`, see §3; the prop itself is otherwise unused in the
+  template — a historical leftover, harmless)
+- `libraryBoxes` — see §3
 
----
+**Bug fixed this pass**: `HERO_SLUG` was `'the-girl-from-ipanema'` (missing
+the `-1`) for an unknown prior period — `Leadsheet::where('slug',
+HERO_SLUG)->first()` always returned null, so `buildHeroBars()` always
+short-circuited to `[null, null]` and the hero silently rendered with no
+bars/rhythm. Any chord-resolution logic downstream of that call was
+therefore dead code regardless of correctness. Fixed to
+`'the-girl-from-ipanema-1'`, matching the real DB row (id 551) and the Top10
+config's own `syncedPlayer.slug` field.
 
-### 2.2 Rhythm strip (`home-section`) — historical, not currently rendered
+**Chord-card resolution** (`resolveHeroCard()`, private method) mirrors
+`SyncedPlayerController::resolveCard()` exactly: curated leadsheet voicing
+first (via `LeadsheetViewerService::synthesizeMinimalCard()`, with a
+DB-fingering overlay only if the voicing's own `fingers` are all zero, plus
+computed interval labels), DB search (`ChordVoicingSearch::searchByName()`)
+only as fallback when no curated voicing exists for that chord/slot. An
+earlier version of this method inverted that priority (DB search first,
+curated voicing only as last resort) — that's a second, independent reason
+the hero's shapes drifted from what the real Top10 page shows; both bugs had
+to be fixed together since the slug bug alone masked the priority bug (it
+never got a chance to execute).
 
-Originally a static section with `<RhythmStrip :pattern="rhythmPattern" :playable="true" />`.
-Now just an empty comment block in `Home.vue` (see §1a) — kept here only so
-the description isn't lost if it's ever revived.
-
----
-
-### 2.3 Chord rain (`chord-rain-section`)
-
-Full-viewport section (`height: 100vh`) where chord diagram cards fall in
-columns. See §4 below for the full spec.
-
----
-
-### 2.4 Feature cards (`home-section`)
-
-Three-column grid of tool cards (pure Blade/CSS). Links to tab editor, chord
-library, and a placeholder analysis panel.
-
----
-
-### 2.5 Skill path (`SkillPathSection`) — added 2026-07-09
-
-Animated branching skill-tree section promoting the skill node system
-(`docs/SBN-Skill-System-Reference.md`). 9 hand-curated real nodes (verified
-against `sbn_skill_nodes` / `sbn_skill_node_prerequisites` — not illustrative
-placeholders), a coherent bossa/jazz comping path from `the-basic-8` (grade 1)
-through `chord-melody` (grade 5), rendered with real per-node icons via
-`SkillIcon.vue`.
-
-**Layout/animation pattern** — sticky scroll-scrub, modeled on `GradesTeaser`
-(see §1a), not `GradesSlider`:
-- `.sps-outer` — tall scroll container; height is set **inline via JS**
-  (`stickyRef.offsetHeight + 100vh`), not a fixed CSS value, because the
-  sticky panel's own height is viewport-responsive (see below) and the two
-  must stay in sync or the reveal either finishes early (dead scroll space
-  after) or never finishes (cut off before the last row).
-- `.sps-sticky` — pinned inner viewport holding both the heading and the tree
-  canvas together (heading intentionally moved inside the sticky block so it
-  doesn't scroll away before pinning starts). Height:
-  `min(800px, 100vh - header - 64px)`, raised to `min(980px, …)` at
-  `≥1200px` — caps on tall/wide desktop screens, shrinks on short viewports
-  so it's never cut off.
-- Reveal progress (`onScroll()`) blends two phases into one `pct`: an
-  "approach" ramp (first ~25%) while the section is still scrolling into
-  view (before pinning engages), then the classic pinned-range scrub —
-  so the first row or two start animating before the user reaches the fully
-  pinned state, instead of waiting for pin to engage.
-- Row reveal uses `Math.round(pct * (ROW_COUNT - 1))` (not `ROW_COUNT`) so the
-  **last** row lands exactly at `pct === 1` — dividing by `ROW_COUNT` instead
-  left the final ~15-20% of the pinned range idle after the last node
-  appeared.
-- Node icon size (`iconSize` ref, 22px mobile / 34px ≥701px) is bound via
-  Vue's `v-bind()` in `<style>` to a scoped `:deep(img)` override — required
-  because `SkillIcon`'s custom-SVG branch renders a plain `<img width height>`,
-  and the global `img { max-width:100%; height:auto }` reset in
-  `resources/css/frontend/base.css` silently overrides those attributes
-  otherwise.
-- Node circle size uses a `--node-size` custom property (44px mobile / 58px
-  desktop) so the tag label's vertical offset (`calc(var(--node-size) + 8px)`)
-  scales with it — a hardcoded tag offset caused icon/label overlap when the
-  node size changed at the breakpoint.
-
-**Known site-wide CSS footgun found (and fixed) while building this section:**
-`body` and `.home-page` both had a lone `overflow-x: hidden` with no
-`overflow-y` set. Per CSS spec, a non-`visible` value on one overflow axis
-forces the other axis to compute as `auto` too — so both silently became
-scroll containers, breaking `position: sticky` for *any* descendant (it pins
-against the nearest scrolling ancestor, not necessarily the window). Removed
-both declarations — nothing actually needed them: `.home-hero` and
-`.chord-rain-section` already clip their own bleeding decorations (blobs,
-rain cards) locally with their own `overflow: hidden`. If a future section
-reintroduces `overflow-x: hidden` on `body` or `.home-page`, re-check this —
-it will re-break sticky sitewide, not just locally.
+**SyncedHero/SyncedPlayer props**: SyncedPlayer is documented in full in
+`docs/SBN-SyncedPlayer-Reference.md`. `SyncedHero.vue` is a thin wrapper —
+just forwards `bars`, `rhythmPattern`, `muted`, `loop` (hardcoded `true`,
+matches SyncedPlayer's own default), `rhythmCaption`, `rhythmLink`,
+`citation`, `startChordName` (accepted but currently unused by the homepage
+call — the hero's bars are already pre-sliced to start at the target chord,
+so `startChordName` would be a no-op here; kept on the wrapper for a future
+caller that needs it).
 
 ---
 
-## 3. CSS — `public/css/home.css`
+## 3. Library showcase (`.lib-boxes`, 6 boxes)
+
+Section eyebrow/h2: "Explore the library" / "Everything you need to play".
+Grid: `repeat(3, 1fr)`, 2 rows of 3. All six boxes are static previews (no
+`requestAnimationFrame`, no continuous animation) — this was the core design
+constraint carried over from cutting ChordRain (see §1a): real components are
+fine to mount as long as nothing runs a continuous per-frame loop at rest.
+
+Hover: outer `.lib-box` cards do **not** lift or glow on hover (both removed
+— see "CSS gotchas" below). Instead, the *inner framed component* (the white
+card holding the chord/rhythm/progression content) lifts + scales slightly
+on hover: `translateY(-3px) scale(1.04)`, `.45s cubic-bezier(.22,1,.36,1)`.
+
+| Box | Link | Content | Component/data |
+|---|---|---|---|
+| Chord Library | `/library/chords` | 5 real voicings, SyncedHero-style composition | See §3.1 |
+| Song Library | `/library/songs` | 8 random cover photos, filmstrip | See §3.2 |
+| Rhythm Patterns | `/library/rhythms` | Full `RhythmPattern` widget (non-interactive) | See §3.3 |
+| Progressions | `/library/progressions` | Full `ChordProgressionViewer` (non-interactive) | See §3.4 |
+| Theory & Analysis | `/theory` | `CircleOfFifths` edu widget | See §3.5 |
+| Courses | `/learn` | 8 random course cover photos, filmstrip | See §3.6 (same pattern as §3.2) |
+
+### 3.1 Chord Library box
+
+**Not** a filmstrip of Top10 product photos (tried, rejected — "the chord
+pics are too similar" side by side) and **not** rendered SVG diagrams in a
+filmstrip either (tried, rejected — "doesn't look good," diagrams too small
+to read at filmstrip scale). Current design: a fixed 5-up composition
+modeled visually on `SyncedHero`'s card frame — one sharp hero voicing
+center, two layers of neighbors receding either side (`.is-hero` /
+`.is-inner` / `.is-outer` slot classes), each rendered as a real SVG via
+`sbnRenderDiagramSVG()` + `sbnFormatChordHtml()` (both on `window`, loaded
+globally via `public/js/chords.js`).
+
+Slugs, hardcoded in `HomeController::buildLibraryBoxes()` (not
+randomized — deliberately curated):
+```
+m7b5-drop2-roota                    outer-left
+maj6-shell-roota-9                  inner-left
+maj6-custom-roote-inv2-9-overAb     center hero — Top10 Bossa Nova Chords #1 (Db6/9/Ab)
+dom7-drop3-roote-13                 inner-right
+o7-drop2-roota                      outer-right
+```
+The center slug is the site's flagship voicing (see
+`config/top10/bossa-nova-chords.php`'s first entry) — the opening chord of
+Ipanema on the Getz/Gilberto recording. Its display name is hardcoded to
+`'Db6/9/Ab'` rather than derived from `chordDisplayName()`, since the raw
+`root_note`/`quality` columns on that row don't reconstruct the musically
+correct symbol.
+
+CSS: `.lib-chord-hero-row` + `.lib-chord-slot` (`public/css/home.css`).
+Negative margins (`-14px` inner, `-20px` outer) pull the layers into a
+tucked/overlapping composition rather than an evenly-spaced row. Chord name
+renders **above** the diagram for all 5 slots (moved there and extended to
+side slots per explicit request — was hero-only, name-below originally).
+Framed with `.sbn-synced-hero-card` (shared class, `sbn-design-system.css` —
+white bg, border, `box-shadow: 0 30px 60px -28px rgba(80,60,20,.18)`).
+
+### 3.2 Song Library box
+
+Filmstrip of up to 8 covers, `inRandomOrder()`, reshuffled every page load
+(`Leadsheet::published()`, requires non-empty `cover_image_path`) — reflects
+catalog size (70 published, 61 with covers) rather than one favorite.
+`Leadsheet::cover_image_url` accessor prefixes `/images/songs/`.
+
+CSS: `.lib-song-filmstrip img` — `flex: 1 1 0`, `aspect-ratio: 1/1` (covers
+are 1024×1024; an earlier short/wide preview box cropped them badly on the
+sides — fixed by making the strip itself the right shape). Hover-grow
+(GradesSlider-inspired, pure CSS `flex-basis` transition, no JS): hovering
+the strip shrinks all thumbnails to `flex: 0.6`, hovering one individual
+thumbnail grows it to `flex: 3`. Transition `.7s cubic-bezier(.3,1,.3,1)` —
+slowed from an initial `.4s` per explicit "feels hectic" feedback.
+
+### 3.3 Rhythm Patterns box
+
+Mounts the real `RhythmPattern.vue` (the full widget — header + two
+hand-rows — not the compact `RhythmStrip.vue` used elsewhere), `:playable="false"`.
+Confirmed safe to mount live: no `requestAnimationFrame`/`setInterval`/
+continuous CSS keyframes; its one `<button>` (play/pause) is
+`v-if="playable"`-gated, so it doesn't render at all here — safe to nest
+inside the box's `<Link>` (an `<a>`), since browsers forbid interactive
+controls nested inside `<a>`.
+
+Pattern: `gilberto-rhythm` by exact slug (the site's signature groove — was
+briefly `jazz-bossa-nova`, changed on request). Framed with
+`.sbn-synced-hero-card`; since the full component is taller than the default
+`200px` preview height, `.lib-box-rhythm .lib-box-preview` overrides to
+`height: auto; min-height: 200px` and re-applies the frame's
+background/radius explicitly (`sbn-design-system.css` loads *before*
+`home.css`, so a plain-specificity override there would lose the cascade —
+this pattern repeats for every box that reuses `.sbn-synced-hero-card`,
+watch for it if adding another).
+
+### 3.4 Progressions box
+
+**Not a `<Link>`** — a plain `<div class="lib-box lib-box-progression">`
+with its own inner `<Link class="card-more">Browse progressions →</Link>`.
+`ChordProgressionViewer` always renders real `<button>` chord chips (the
+numeral-selector row) regardless of `:interactive="false"` — only the
+audio-preview *behavior* is suppressed, not the buttons themselves — so it
+can't legally nest inside an `<a>`. This constraint is why the box's outer
+frame doesn't lift/glow like the other 5: `.lib-box-progression` only shows
+hover affordance on its own `card-more` link, not the whole card.
+
+**Content history** (2 rejected iterations before landing here):
+1. First: numeral→chord-name only via `HarmonicContext::numeralToChordName()`,
+   `diagramData: null` — rendered chord chips with **no fretboard dots**,
+   since `ChordProgressionViewer` needs real `diagram_data` to draw anything.
+2. Second: static roman-numeral watermark card (mega-menu TOP10 CTA visual
+   language — huge faded text behind a gradient card) — dropped per explicit
+   "put the component back" request.
+3. Current: real voicings. "The Authentic Cadence" (`V7 → I`, DB slug
+   `perfect-authentic-cadence-2`) — `dom7-shell-roote` transposed to G via
+   `ChordSerializer::serialize($chord, 'G')`, `maj7-shell-roota` (already
+   rooted at C, no override needed). Chosen over the full
+   `ProgressionBuilder`/`HarmonicContext` voice-leading pipeline
+   (`ProgressionLibraryController::buildChordsFor()`) deliberately — two
+   direct `ChordDiagram` lookups is enough for a 2-chord non-interactive
+   preview and avoids pulling in the Viterbi voicing-selection machinery.
+
+**Bug found and fixed while building this** (app-wide, not homepage-local):
+`ChordDiagram::getInversionLabelAttribute()` defaults to `'Root Position'`
+(title case, matches its own `INVERSIONS` map), but
+`ChordProgressionViewer.vue`'s suppression check compared against
+`'Root position'` (lowercase p) — the casing mismatch meant "Root Position"
+always leaked into the chord-name display, everywhere this component
+renders a root-position chord, not just here. Fixed the comparison string in
+the component. A second instance of the same bug was found in
+`LeadsheetViewerService::synthesizeMinimalCard()` (emitted lowercase
+`'Root position'` too) and fixed to match.
+
+**Small-container typography/sizing gap found and fixed** (also app-wide):
+`ChordProgressionViewer` already had a `ResizeObserver`-driven
+`[data-size="xs"/"sm"/"lg"]` system (element `sizeAttr`, thresholds `≤360px`
+→ `xs`, `≤500px` → `sm`) that shrinks the fretboard/ribbon rendering
+(`--ribbon-name`/`--ribbon-num`/`--stage-gap` CSS vars scoped to
+`.sbn-prog-inner`) when the component sits in a narrow container — but it
+never touched `.head-title` (fixed `18px`), the numeral chips
+(`.sbn-numeral-chip`, fixed `12px`), or `.chord-card-aside` (fixed `min-width:
+80px` floor). At the homepage box's ~340px width the fretboard shrank but the
+header/chips/chord-card stayed full-size, reading as oversized. Extended the
+same `xs`/`sm` breakpoints to scale all three — reuses the existing
+ResizeObserver rather than adding a second mechanism; benefits every other
+embed of this component at narrow widths, not just this box.
+
+Framed with `.sbn-prog-viewer`'s **own** white card styling (the component
+already supplies `background`/`border`/`radius` in its scoped styles) — the
+homepage does *not* double-frame it with `.sbn-synced-hero-card` (tried,
+looked wrong: two nested white cards read as "still grey," since the outer
+frame was invisible behind the identical-looking inner one). Only the
+elevation shadow is borrowed: `.lib-box-progression .sbn-prog-viewer { box-shadow:
+0 30px 60px -28px rgba(80,60,20,.18); }` — same value as
+`.sbn-synced-hero-card`, applied directly rather than via the shared class.
+
+### 3.5 Theory & Analysis box
+
+Mounts `resources/js/edu/widgets/CircleOfFifths.vue` (no props required,
+fully self-contained, static-at-rest — click-to-select SVG, no
+RAF/interval). Chosen over `CagedWidget.vue` (also verified safe) for being
+"a more classic 'music theory' visual."
+
+**Layout**: contained inset preview (`.lib-box-preview-widget`), **not**
+full-bleed-behind-text (tried, reverted — "lets go back to text below" per
+explicit request; the full-bleed version used a bottom scrim gradient
+fading into `--clr-bg-card`, since removed). The widget's own `.cof-header`
+("Circle of Fifths" label) — briefly hidden as "redundant with the box's own
+`<h3>`" — was **restored**; it names the specific widget, distinct from the
+box's "Theory & Analysis" section label.
+
+**Real bug found and fixed**: `.cof-widget` (the component's own root) had
+no explicit `width` — as a flex column with `align-items: center` it
+shrink-wrapped to its content (the SVG, itself capped at
+`max-width: 420px`) instead of stretching to fill its parent, so it sat
+narrower than the box with visible empty space beside it ("component sits
+left with space to right"). Fixed: added `width: 100%; box-sizing:
+border-box` to `.cof-widget` and `width: 100%` to `.cof-svg` (keeping the
+`420px` cap, since this is a shared widget also used on real theory/lesson
+pages where an unbounded circle could grow uncomfortably large).
+
+Vertical alignment: `.lib-box-theory .lib-box-preview` anchors
+`flex-start`/`flex-start` (not the default `center`) — the SVG is taller
+than the `200px` preview area, and center-alignment cropped it evenly
+top/bottom; a bottom gradient scrim (`.lib-box-theory .lib-box-preview::after`,
+fades to `var(--clr-bg)`) softens the resulting clip edge into the box
+background instead of a hard cutoff.
+
+### 3.6 Courses box
+
+Identical pattern to §3.2 (Song Library) — reuses `.lib-song-filmstrip`
+directly, no new CSS. `Course::published()`, requires non-empty
+`featured_image_path`, `inRandomOrder()`, limit 8. Unlike leadsheet covers,
+`featured_image_path` already stores a full `/images/...` path (no accessor
+needed — 19/19 published courses have coverage). Links to `/learn` (public
+catalog + course-detail teaser; the lesson player itself requires an account
+during beta, per the route comment in `routes/web.php`).
+
+---
+
+## 4. `HomeController` — data methods
+
+| Method | Returns |
+|---|---|
+| `index()` | Top-level Inertia payload — hero data + `libraryBoxes` |
+| `buildHeroBars()` | `[bars, rhythmPattern]` — sliced Ipanema bars via `resolveHeroCard()`, mirrors `SyncedPlayerController::apiShow()` |
+| `resolveHeroCard()` | Single chord → `ChordDiagramData`, mirrors `SyncedPlayerController::resolveCard()` priority exactly |
+| `buildLibraryBoxes()` | All 6 boxes' preview data in one array (see §3 per-box breakdown) |
+| `diagramDataToFretString()` | `diagram_data` JSON → hex fret string (`"x35453"`) for `sbnRenderDiagramSVG()` |
+| `chordDisplayName()` | `(root_note, quality, extensions)` → chord symbol string (e.g. `"Cm7"`) — used only for the 4 non-hero chord-box slugs |
+
+Constructor deps: `LeadsheetViewerService`, `ChordVoicingSearch`,
+`ChordSerializer` (added this pass, for the Progressions box's real
+voicings).
+
+`chordDisplayName()`'s quality map — unchanged from the version that
+originally lived in `ChordLibraryController` (that copy still exists there
+too, for `/library/chords/rain`; the two are independent, small enough that
+de-duplicating wasn't worth the coupling):
+
+| DB quality | Symbol | DB quality | Symbol |
+|---|---|---|---|
+| `maj` | *(empty)* | `maj6` | `maj6` |
+| `min` | `m` | `m6` | `m6` |
+| `dom7` | `7` | `mMaj7` | `mMaj7` |
+| `maj7` | `maj7` | `aug7` | `aug7` |
+| `m7` | `m7` | `aug` | `aug` |
+| `m7b5` | `m7b5` | `dim` | `dim` |
+| `o7` | `°7` | `sus4`/`sus2` | `sus4`/`sus2` |
+| `5` | `5` | `add9`/`madd9` | `add9`/`madd9` |
+| `7sus4` | `7sus4` | `quartal` | `quartal` |
+
+---
+
+## 5. CSS — `public/css/home.css`
 
 Scoped to `.home-page` — nothing bleeds into admin or other public pages.
 
 | Selector | Purpose |
 |---|---|
-| `.home-page::before` | Grain overlay (SVG feTurbulence, `opacity:.035`, `mix-blend-mode:overlay`) |
-| `.home-wrap` | `max-width:1200px` centred container with `24px` side padding |
-| `.reveal .d1–.d5` | Staggered `@keyframes home-rise` entrance |
-| `.hero-bg .blob` | CSS-only blob float animation |
-| `.rhythm-card` | Card frame for the rhythm strip section |
-| `.chord-rain-section` | Full-viewport rain container — see §4 |
-| `.feature-cards` | Three-column feature grid |
-| `@media (max-width:900px)` | Hero stacks, cards stack, nav collapses |
-| `@media (max-width:600px)` | Stats wrap, CTA stacks, footer narrows |
-| `@media prefers-reduced-motion` | Disables reveal, blob, rain loop |
+| `.home-page::before` | Grain overlay (unchanged) |
+| `.home-wrap` | `max-width:1200px` centred container |
+| `.reveal .d1–.d5` | Staggered entrance (unchanged) |
+| `.hero-bg .blob` | CSS blob float (unchanged) |
+| `.lib-boxes` | 6-box grid, `repeat(3, 1fr)` |
+| `.lib-box` | Base card — background/border/radius; **no hover lift, no hover glow** (both removed, see below) |
+| `.lib-box-preview` | Shared inset-preview container (Chord/Rhythm/Theory) |
+| `.lib-chord-hero-row` / `.lib-chord-slot` | Chord box 5-up composition (§3.1) |
+| `.lib-song-filmstrip` | Song + Courses box filmstrip (§3.2, §3.6) |
+| `.lib-box-preview-widget` | Rhythm/Theory/Progressions inset container |
+| `.sbn-synced-hero-card` (in `sbn-design-system.css`, not `home.css`) | Shared white-card frame; reused by Chord + Rhythm boxes |
+
+### CSS gotchas hit this pass
+
+- **`.lib-box` no longer lifts/glows on hover** — both the `translateY(-4px)`
+  card lift and the `.lib-box::after` orange radial-gradient accent glow
+  (`var(--clr-accent)` on hover) were removed per explicit "no lift and no
+  orange gradient" request. The lift moved *inward*: the framed component
+  card (`.sbn-synced-hero-card` / `.sbn-prog-viewer`) lifts+scales instead —
+  see §3 intro.
+- **Lift transition specificity fight**: the first lift-CSS attempt (plain
+  `.sbn-synced-hero-card { transition: transform .2s ease }`) rendered as a
+  snap, not a smooth lift. Root cause never fully isolated (two candidate
+  causes: `ChordProgressionViewer`'s own scoped `.sbn-prog-viewer { transition:
+  border-color .15s }` rule competing via Vue's scoped-attribute selector
+  specificity for Progressions; unclear for Chord/Rhythm's plain-CSS
+  `.sbn-synced-hero-card`). Fixed by brute force rather than full diagnosis:
+  bumped selector specificity (two/three-class descendant chains) and added
+  `!important`. If touching this again, worth actually isolating the cause
+  rather than re-applying `!important`.
+- **`public/css/mega-menu.css` is dead** — not loaded by `app.blade.php` at
+  all (checked: only `resources/css/app.css` is `@vite`'d, which imports
+  `resources/css/frontend/{base,header,mega-menu,top10-shared}.css` — the
+  `resources/css/frontend/` copies are the real ones; `public/css/mega-menu.css`
+  is a stale/legacy leftover, likely pre-Vite). **Wasted a full round editing
+  it before catching this** — the real header/logo sizing rules live in
+  `resources/css/frontend/header.css`, which loads *after*
+  `resources/css/frontend/mega-menu.css` in `app.css`'s import order, so even
+  the correct `frontend/mega-menu.css` file would have lost the cascade to
+  `header.css`. Check `resources/css/app.css`'s `@import` order first before
+  editing header/nav-adjacent CSS.
+- **`:deep()` doesn't work in plain CSS files**: `home.css` is a plain,
+  non-Vue-SFC stylesheet — `:deep(svg)` (Vue's scoped-style child-piercing
+  combinator) was accidentally used there for the Theory box's SVG sizing at
+  one point; it's meaningless outside a component's `<style scoped>` block
+  and silently matched nothing. Fixed to a plain descendant selector.
 
 ---
 
-## 4. ChordRain component
+## 6. Footer / header logo
 
-### 4.1 Overview
+`resources/js/Layouts/PublicLayout.vue` (header) and
+`resources/js/Components/Footer.vue` (footer) both now render the real
+brand mark — `/images/soulbossanova.png` (transparent background; a `.jpg`
+version with a white background also exists at the same path minus
+extension, kept as a fallback/alternate, not currently referenced) — replacing
+what had been plain text (header: `<h1>Soul Bossa Nova</h1>` link, no image)
+and a CSS gradient "S" badge + wordmark (footer). Both wrapped in
+`<Link href="/" aria-label="Soul Bossa Nova — home">` since removing the
+visible text left the link with no accessible name otherwise.
 
-`resources/js/Components/Home/ChordRain.vue` — a Vue 3 SFC that owns a
-`requestAnimationFrame` loop. No CSS animations on cards; `transform` is
-written directly each frame so depth + magnetic can be combined in one write.
+Sizing lives in `resources/css/frontend/header.css`'s `.site-branding img`
+rule (**not** `mega-menu.css` — see the CSS gotcha above): `110px` desktop,
+`90px` at `≤1024px`, `70px` at `≤767px`. Footer: `.footer-logo img { height:
+70px }` in `Footer.vue`'s scoped styles.
 
-**Props:**
-```ts
-chords: ChordShape[]
-// ChordShape = { name, frets, position, fingers?, intervalLabels? }
-```
-
-The `name` field is a chord symbol string (`"Cm7"`, `"G7"`, `"Fmaj7"`) that
-`sbnFormatChordHtml()` parses into `.sbn-chord-symbol` spans.
-
-The `frets` field is a hex fret string (`"x32010"`) compatible with
-`sbnRenderDiagramSVG()`.
-
-### 4.2 Renderer call signature
-
-```js
-sbnRenderDiagramSVG(
-  { frets, fret_string: frets, position, start_fret: position, fingers },
-  { showFingers: false, intervalLabels }
-)
-```
-
-`sbnRenderDiagramSVG` lives in `public/js/chords.js`. It expects a voicing
-object with `frets` (hex string) and `position` (integer start fret), **not**
-raw arrays.
-
-### 4.3 Column layout
-
-Columns are constrained to the `home-wrap` inner width (`min(sectionW, 1200px) - 48px`),
-centred within the full-viewport section via `offsetX`. This keeps the rain
-visually aligned with the rest of the page content.
-
-```
-WRAP_MAX = 1200, WRAP_PAD = 24
-innerW   = min(sectionW, WRAP_MAX) - WRAP_PAD * 2
-offsetX  = max(0, (sectionW - innerW) / 2)
-COL_W    = 80 + 12  (medium card + gap)
-numCols  = floor(innerW / COL_W)
-```
-
-### 4.4 Depth tiers
-
-| Tier | Width | Opacity | Speed (px/s) |
-|------|-------|---------|-------------|
-| 0 — Distant | 58px | ~0.22 | ~22 |
-| 1 — Mid | 80px | ~0.46 | ~16 |
-| 2 — Prominent | 108px | ~0.78 | ~10 |
-
-Speed is constant within a column (prevents pile-ups). ±2px/s jitter per
-column. ±0.05 opacity jitter per card. Tier cycles `col % 3` with a 15%
-random swap to avoid mechanical regularity.
-
-### 4.5 Rain loop
-
-```
-dt = min((ts - lastTs) / 1000, 0.05)   // cap at 50ms
-state.y += speed * dt
-
-if state.y > sectionH + 20:
-    state.y = -(cardH + 20)
-    swap chord → next in library, rebuild SVG + label
-
-depthOpacity = baseOpacity × min(smoothstep(fadeIn), smoothstep(fadeOut))
-// fade zone = top and bottom 12% of section height
-```
-
-### 4.6 Magnetic cursor field
-
-```
-MAGNET_RADIUS = 160px, MAGNET_SCALE = 1.38, MAGNET_LIFT = 18px
-
-dist      = hypot(cardCenterX - mouseX, cardCenterY - mouseY)
-proximity = max(0, 1 - dist / MAGNET_RADIUS)
-ease      = proximity²   // quadratic falloff
-scale     = 1 + ease × (MAGNET_SCALE - 1)
-```
-
-Box shadow grows with proximity. `z-index:10` when `ease > 0.05`.
-On `mouseleave` → `mouseX = mouseY = -9999` so all cards return to rest.
-
-### 4.7 Resize + reduced motion
-
-- `window.resize` → debounce 200ms → `scatter()` tears down and rebuilds.
-- Cancel in-flight rAF before rebuild to prevent double loops.
-- `prefers-reduced-motion` → cards rendered at initial positions, rAF loop
-  not started (section still looks populated, just frozen).
+Also linked from the footer: the two parked sections from §1a ("Chord Rain
+(parked)" → `/library/chords/rain`, "Grades Slider (parked)" →
+`/grades/slider`), under the existing "Tools" column.
 
 ---
 
-## 5. Controller — `HomeController`
+## 7. Adding a new library-showcase box
 
-### 5.1 Data methods
-
-| Method | Returns |
-|---|---|
-| `buildHeroProgression()` | Up to 8 `ChordDiagramData` cards from Desafinado (leadsheet 113) |
-| `buildRainChords()` | Up to 25 `ChordShape[]` from `sbn_chord_diagrams`, ordered by `popularity` |
-| `chordDisplayName()` | Maps `(root_note, quality, extensions)` → chord symbol e.g. `"Cm7"` |
-| `diagramDataToFretString()` | Converts `diagram_data` JSON → hex fret string e.g. `"x35453"` |
-
-### 5.2 `chordDisplayName()` quality map
-
-| DB quality | Symbol |
-|---|---|
-| `maj` | *(empty)* |
-| `min` | `m` |
-| `dom7` | `7` |
-| `maj7` | `maj7` |
-| `m7` | `m7` |
-| `m7b5` | `m7b5` |
-| `o7` | `°7` |
-| `maj6` | `maj6` |
-| `aug` | `aug` |
-| `dim` | `dim` |
-
-Extensions (from the `extensions` column) are appended directly, e.g.
-`dom7` + `b9` → `"G7b9"`.
-
-### 5.3 `diagramDataToFretString()`
-
-Converts `diagram_data.open[]`, `diagram_data.positions[]`, and
-`diagram_data.muted[]` into a 6-char hex string. Fret values above 9 are
-encoded as hex digits (`a`=10, `b`=11 …) — `sbnParseFretString` in
-`chords.js` uses `parseInt(c, 16)` so this is safe.
-
----
-
-## 6. Vignette
-
-CSS `::after` pseudo on `.chord-rain-section`:
-
-```css
-background: radial-gradient(
-  ellipse 70% 60% at 50% 50%,
-  color-mix(in srgb, var(--clr-bg) 72%, transparent) 0%,
-  transparent 100%
-);
-```
-
-Adjust the `72%` value if copy legibility or rain visibility needs tuning.
-Stay between 60%–82%.
-
----
-
-## 7. Adding a new homepage section
-
-1. Add a `<section>` or Vue component between the existing sections in
-   `Home.vue`
-2. Add scoped CSS to `public/css/home.css` under the relevant comment block
-3. If data is needed, add a builder method in `HomeController` and pass it
-   as an Inertia prop
-4. Keep Vue components in `resources/js/Components/Home/`
+1. Add a query/lookup in `HomeController::buildLibraryBoxes()`, return its
+   data in the array
+2. Add the corresponding TS interface field to `LibraryBoxes` in `Home.vue`
+3. Add a `<Link class="lib-box lib-box-{name}">` block (or a plain `<div>`
+   if the mounted component renders its own `<button>`s — see §3.4) inside
+   `.lib-boxes` in `Home.vue`
+4. Add scoped CSS under the `Library showcase boxes` comment block in
+   `public/css/home.css` — reuse `.lib-box-preview`/`.lib-box-preview-widget`
+   where the content fits a contained-inset layout; only reach for a
+   full-bleed-behind-text treatment (Progressions' now-abandoned watermark
+   card is the template to copy, in git history) if the content is genuinely
+   diffuse/pattern-like, not a single focal component — text-over-content
+   legibility was a recurring problem this pass
+5. If mounting a real Vue component (not a static image/SVG), verify first
+   that it has no `requestAnimationFrame`/`setInterval`/continuous CSS
+   keyframe running unconditionally at rest — this was the whole reason
+   ChordRain got cut (§1a); a click-triggered, self-terminating animation
+   (like `ChordProgressionViewer`'s fretboard-pan) is fine, an always-on loop
+   is not
