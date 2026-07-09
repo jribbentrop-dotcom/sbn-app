@@ -2142,8 +2142,14 @@ class VoicingCrossref
         ?string $songKey = null,
     ): ?array {
         $pcSet = array_values(array_unique($pcSet));
-        if (empty($pcSet)) return null;
         $rootPc %= 12;
+
+        // Minimum-note guard, mirroring identifyFromFrets(): a single note or a
+        // bare dyad is not a chord, and pinning a root does not make it one. Two
+        // pitch classes are genuinely ambiguous — {C,E} pinned to A would return
+        // `Am/C`, hallucinating an A that is not sounding out of a bare 3rd. That
+        // is exactly what the dyad-refusal cases forbid.
+        if (count($pcSet) < 3) return null;
 
         // Longest-first: a 4-tone quality outranks a 3-tone one that also fits.
         $qualities = self::IDENTIFY_QUALITY_INTERVALS;
@@ -2164,11 +2170,13 @@ class VoicingCrossref
             $rootOnly   = ($missing === [$rootPc]);
             if (!$complete && !($rootAbsent && $rootOnly)) continue;
 
-            // A root-absent reading needs real evidence: at least two sounding
-            // template tones. Otherwise a single note satisfies the '5' template
-            // (root missing, 5th present) and yields a contentless `Eb5/Bb`,
-            // which the sequence layer must never be offered.
-            if ($rootAbsent && $matched < 2) continue;
+            // A root-absent reading needs real evidence: at least THREE sounding
+            // template tones, i.e. a genuine 3-5-7 shell. Two is not enough — a
+            // triad missing its root is a bare dyad, and naming it invents the
+            // root outright ({C,E} pinned to A → `Am/C`). This also excludes the
+            // degenerate '5' template, where one sounding note (the 5th) would
+            // otherwise yield a contentless `Eb5/Bb`. Ipanema's shells match 3/4.
+            if ($rootAbsent && $matched < 3) continue;
 
             // Every leftover must be a nameable extension — and one this quality
             // can actually carry. The altered tensions (b9, #9, b13) are
