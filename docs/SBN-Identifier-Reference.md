@@ -1,6 +1,6 @@
 # SBN Chord Identification — Reference
 
-**Status:** Living document. Phase 1 (slash chords) and Phase 2 (harmonic pattern awareness) shipped 2026-05-06. Phase 3 (evidence layers: DB lookup, key-fit, bigram transitions, Viterbi rescore) shipped 2026-05-14/15.
+**Status:** Living document. Phase 1 (slash chords) and Phase 2 (harmonic pattern awareness) shipped 2026-05-06. Phase 3 (evidence layers: DB lookup, key-fit, bigram transitions, Viterbi rescore) shipped 2026-05-14/15. Trigram viewport + second-order Viterbi shipped 2026-07-09; **sub-pass 2g (root-pinned injection) shipped 2026-07-09 and resolved the Ipanema case (§5.4)** — with it, the long-standing invariant *"the contextual layer never promotes a candidate that wasn't in Phase 1's top-K"* no longer holds (§4.1).
 **Scope:** The SBN chord identification algorithm (`VoicingCrossref` and `HarmonicContext` services). For chord construction (building voicings from progressions), see `SBN-Builder-Reference.md`.
 
 This document is the reference for what the identification algorithm does, why it does it, what's working, what's broken, and how to evolve it without breaking what works.
@@ -40,8 +40,9 @@ The full identification pipeline, in order:
 
 > **Shared dim7 primitive**: both resolvers' symmetric-root math (`[pc,+3,+6,+9]`), the dim7↔dom7(b9) mapping (`domRoot = dimTone − 4`; the dim tone is the dominant's ♭9), and note↔pitch-class conversion now live in `App\Services\HarmonicContext\DiminishedSymmetry` (pure, unit-tested). The identifier keeps its historical **sharp-biased** spelling (`spellSharp`); the chord library uses the same primitive's reading-aware spelling (tight 3/5/7, pragmatic °7+tensions) to generate dim7 pages. See `SBN-Chord-Library-Reference.md`.
 | Context 2d | Cadence/fragment matcher: DB-seeded harmonic fragments (`IIm7→V7→Imaj7`, turnarounds). | `HarmonicPatternMatcher` |
-| Context 2e | Key-aware enharmonic re-rank + **bigram transition prior** (Phase 3.3a): bumps candidates whose preceding winner predicts them via P(name\|prev) lookup. | `ContextualReranker` |
-| Context 2f | **Viterbi sequence rescore** (Phase 3.4a): DP min-cost path over all slots simultaneously using bigram edge weights (`edgeWeight=0.3`, `minScoreRatio=0.85` safety rail). | `ContextualReranker::applyViterbiRescore` |
+| Context 2e | Key-aware enharmonic re-rank + **bigram transition prior** (Phase 3.3a): bumps candidates whose preceding winner predicts them via P(name\|prev) lookup. Greedy + first-order; a *sequential* commitment (§4.1). | `ContextualReranker` |
+| Context 2f | **Viterbi sequence rescore** (Phase 3.4a/c): DP min-cost path over all slots simultaneously; second-order (trigram) edges (`edgeWeight=0.3`, `minScoreRatio=0.85` safety rail, plus the strong-trigram and forward warrants). | `ContextualReranker::applyViterbiRescore` |
+| Context 2g | **Root-pinned injection** (2026-07-09): constructs a name Phase 1 never emitted, when the *functional* trigram decisively demands it. The only pass that adds to the candidate pool. `rerank()` runs `2f → 2g → 2f`. See §4.2. | `ContextualReranker::injectRootPinnedCandidates` + `VoicingCrossref::identifyWithPinnedRoot` |
 | Context key-fit | **Key-fit weighting** (Phase 3.2): soft diatonic preference (×1.0–1.20), never penalises chromatic chords. | `KeyFitWeigher` via `maybeApplyDbEvidence` |
 
 At import time, **key inference** (§5.5) runs *before* the pipeline: a keyless Pass 1 produces local names, `sbnInferKey` derives `song_key` from them, then the pipeline re-runs with the correct key. The MusicXML `<key>` is only a hint.
@@ -49,10 +50,12 @@ At import time, **key inference** (§5.5) runs *before* the pipeline: a keyless 
 ### 2.2 Load-bearing constants (Do not change lightly)
 - The `IDENTIFY_QUALITY_INTERVALS` table, sorted longest-first (`maj7` beats `maj`).
 - The `IDENTIFY_EXTENSION_INTERVALS` table mapping leftover pitch classes to named extensions.
-- The `IDENTIFY_ROOTLESS_TEMPLATES` table for jazz voicings without a bass root.
+- The `IDENTIFY_ROOTLESS_TEMPLATES` table for jazz voicings without a bass root. (In practice only reachable for 3-PC shapes — see Appendix B.1.)
+- `ALTERED_TENSION_INTERVALS = [1, 3, 8]` (`b9`/`#9`/`b13`). Only a **dominant** may carry these. Stops a pinned root from laundering its misfit notes as fake alterations (`{Bb,G,Db,F}` pinned to Gb would otherwise yield a formally-legal `Gbmaj7(b9)`).
 - The slash-chord chord-tone restriction (intervals `{3, 4, 7, 10, 11}`).
-- The two-tier slash-bonus values (`slashBonus7th = 3.5`, `slashBonusTriad = 2.5`).
-- Phase 3 tuning knobs: `dbBonus = 1.5` (bass+root confirmed), `dbBonusBassOnly = 1.15`, `noDbPenalty = 0.85`. Key-fit range `[1.00, 1.20]`. Viterbi `edgeWeight = 0.3`, `minScoreRatio = 0.85`.
+- The two-tier slash-bonus values (`slashBonus7th = 3.5`, `slashBonusTriad = 2.5`). **Note:** the `3.5` tier requires a *complete* match, which a rootless reading can never be — see Appendix B.1.
+- Phase 3 tuning knobs: `dbBonus = 1.5` (bass+root confirmed), `dbBonusBassOnly = 1.15`, `noDbPenalty = 0.85`. Key-fit range `[1.00, 1.20]`. Viterbi `edgeWeight = 0.3`, `minScoreRatio = 0.85`, `FORWARD_WARRANT_MIN_EDGE = 2.0`.
+- The minimum-note guard (`< 3` unique PCs → `noResult()`), on **both** `identifyFromFrets` and `identifyWithPinnedRoot`. A dyad is not a chord, and pinning a root does not make it one.
 
 ### 2.3 Enharmonic spelling — one authority (consolidated 2026-07-09)
 
@@ -126,6 +129,41 @@ The fix splits on whether Pass 1's triad winner is **complete**:
 
 **Known limitation**: the rootless candidate can only be injected when its quality exists in `IDENTIFY_QUALITY_INTERVALS` (`m7/7/maj7/m7b5/dim7/m6/mMaj7` — covers the common `Bbmaj7` case). The altered-dominant rootless qualities (`7(#9)`, `7(b9)`, `7(#11)`, `6`) are not representable in the `[rootPc, quality, …]` candidate tuple and are skipped for the complete-triad path. Extending `buildCandidateList` to carry explicit intervals for rootless candidates would lift this — deferred (see Appendix B).
 
+### 3.4 `identifyWithPinnedRoot()` — the progression supplies the root (2026-07-09)
+
+A narrow, well-posed re-entry into Phase 1: *"given these pitch classes and **this**
+root, what is the chord?"* With the root fixed the scoring contest collapses and the
+answer is forced. Called only by sub-pass 2g (§4.2); additive, no scoring changes.
+
+Sibling of `identifyPhase1Only()`, whose docblock already blessed the idiom —
+"used by contextual analyzers to re-identify chords with modified constraints."
+`PedalDetector` does the same round-trip with a different constraint (kill the
+bass-boost). Wired as a **callable**, not a service: `VoicingCrossref` resolves
+`ContextualReranker`, so a direct dependency would be circular.
+
+Accepts a quality when it is complete, **or** when the only missing template tone
+is the pinned root, and every leftover is a nameable extension the quality can
+actually carry (altered tensions are dominant-only, §2.2). Ranks by most base
+tones matched → fewest leftovers → longest-first specificity. Returns `null` when
+nothing fits; the caller then leaves the slot alone.
+
+Two guards, both learned the hard way:
+- **`< 3` unique PCs → `null`.** Without it, `{C,E}` pinned to A returns `Am/C`,
+  hallucinating an A that is not sounding out of a bare 3rd.
+- **A root-absent reading needs ≥ 3 sounding template tones** — a genuine `3-5-7`
+  shell. Two would name a chord whose root *and* another tone are invented
+  (`{E,B,D}` pinned to C ⇒ `Cmaj7(9)/E`, conjuring both the C and the G). The
+  Ipanema shells match 3 of 4. Contrast `{E,G,Bb}` + C → `C7/E`, which is a real
+  shell and must survive.
+
+Spelling and the `(ext)` rendering delegate to the same helpers the main path uses,
+so this cannot drift from the single spelling authority (§2.3). Option tones are
+always parenthesised and interval-sorted: `Ebm7(9)/Bb`, never `Ebm9/Bb`;
+`(b9,13)`, never `(13,b9)`.
+
+Verified by `tests/Unit/PinnedRootIdentifyTest.php` (dyads refused across all 12
+pinned roots × 4 pitch sets).
+
 ---
 
 ## 4. Phase 2: Contextual Re-ranking
@@ -138,8 +176,69 @@ The contextual layer sits entirely above Phase 1. It takes the top-K candidates 
 3. **Diminished-root resolver (`DiminishedResolver`)**: Resolves the spelling of inversionally symmetric dim7 chords based on step-wise motion to neighbors (e.g., `Ebdim7` ascending to `Em7`).
 4. **Cadence/fragment matcher (`HarmonicPatternMatcher`)**: Uses DB-seeded harmonic fragments (like `IIm7 -> V7 -> Imaj7` or turnaround variants) to correct contextually weak readings.
 5. **Key-aware enharmonic re-rank**: Bumps diatonic candidates within a 15% score delta to the top.
+6. **Bigram transition rescore (2e)** — greedy, first-order: reweights by `P(curr | previous WINNER)`.
+7. **Viterbi sequence search (2f)** — second-order, whole-path.
+8. **Root-pinned injection (2g)**, then 2f again — see §4.1.
 
-*Crucial safety mechanism*: The contextual layer never promotes a candidate that wasn't already in Phase 1's top-K.
+### 4.1 Commitment classes, and the one pass that constructs (2026-07-09)
+
+**The old invariant — "the contextual layer never promotes a candidate that wasn't
+already in Phase 1's top-K" — no longer holds.** It was the right rule for 2a–2f,
+all of which *choose* among names Phase 1 emitted. Sub-pass **2g deliberately
+breaks it**: it *constructs* a name Phase 1 never produced. See §4.2.
+
+Two related fixes landed together:
+
+**Sequential vs. structural commitments.** `applyViterbiRescore` collapsed the
+candidate pool of any slot flagged `reinterpreted = true` to a single entry. But
+2d (`cadence`) and 2e (`bigram`) are greedy and first-order — 2e reweights by
+`P(curr | previous WINNER)` alone — so a pass seeing one predecessor was vetoing
+the pass that sees the whole progression. Commitments are now classified by
+`reinterpret_reason`:
+
+| class | reasons | pool behaviour |
+|---|---|---|
+| **structural** | `pedal`, `dim_*` | collapses to the single winner — asserts a voicing-level fact Viterbi cannot re-derive from transition statistics |
+| **sequential** | `cadence`, `bigram` | winner keeps index 0 (pole position for the `$pools[$i][0]` fallbacks) but the alternatives stay reachable |
+
+Classified by reason rather than a per-sub-pass flag, so a future structural pass
+is **locked by default** — the safe direction to fail. The promotion loop re-syncs
+`name` to the chosen path, so the display/path consistency the collapse protected
+is preserved anyway.
+
+**Forward warrant.** The existing strong-trigram override needs two predecessors
+(`$i >= 2`), so slots 0 and 1 can never earn it — and slot 0 is exactly where a
+bass-alternation voicing hides. A forward-looking warrant now consults the pool
+against the slot's two *successors*, on the strict functional tier, with the same
+relative margin as 2g (`FORWARD_WARRANT_MIN_EDGE`).
+
+### 4.2 Sub-pass 2g — root-pinned injection
+
+`seed = -log(local_score)` treats a Phase-1 score as evidence *about the notes*.
+Between rival readings of **identical pitch classes** it is not: `Bbm6` outscores
+`Eb7(9)/Bb` 7200:1062 purely because its root sits in the bass (`bassBoost ×4 ·
+exactBonus ×3`). That 1.91 of seed advantage swamps the 0.79 the trigram returns
+through `edgeWeight = 0.3`, so the search never puts the II7 on the path — though
+the functional trigram prefers it **sevenfold** (0.754 vs 0.054).
+
+2g runs *after* 2f (it needs settled downstream context; before 2f the downstream
+slots carry the greedy passes' mistakes, which mostly do not place as numerals at
+all). For each of the 12 roots it asks `VoicingCrossref::identifyWithPinnedRoot()`
+for the forced spelling, scores survivors against the slot's two **successors**
+(the slot sits in the `prev2` position, so no settled predecessor is needed), and
+injects the winner. `rerank()` then alternates `2f → inject → 2f`. Append-only,
+hence monotone and terminating; capped regardless.
+
+**The gate is relative, never absolute.** A "beats `k × uniform`" bar is *vacuous*
+here: the functional vocabulary is ~115 tokens, so `5 × uniform ≈ 0.043` and even
+a plainly wrong reading clears it (`P(Imaj7 | IVmaj7, V7) = 0.19`, i.e. 21×
+uniform). What separates truth from plausibility is beating **the incumbent on the
+same context**: `IIm7` 0.556 vs `IVmaj7` 0.188, a 2.95× edge.
+
+**Functional tier only.** `TransitionScorer::functionalTrigramProbability()` exists
+because `trigramProbability()` silently backs off to a plain bigram and hides that
+it did so, which would make the guard meaningless. It returns `null` for an unseen
+context — **`null` means "no evidence", never "weak evidence".**
 
 ---
 
@@ -240,30 +339,45 @@ When the promoted reading's in-context trigram is decisive (≥5× uniform), the
 functional trigram *can* override a locally-dominant but functionally-wrong
 reading. This is the mechanism intended to resolve Ipanema chord 2 (§5.4).
 
-### 5.4 Enharmonic PC ambiguity — now a candidate-generation problem, not a hard limit
+### 5.4 Enharmonic PC ambiguity — RESOLVED (2026-07-09)
 
 The Ipanema chord 2 case (`6x566x`): the PC set `{Bb, G, Db, F}` is genuinely
-ambiguous between `Bbm6` and `Eb7(9)/Bb` — same pitches, both valid names. This
-was previously documented as an architectural hard limit. **It is not.** As the
-**II7** of `II7→V7→I` (Eb7→Ab7→Db in Db), the trigram resolves it decisively —
-the functional trigram `I→II7→V7` outscores `I→VIm6→V7` by ~10× at the scorer
-level, and the strong-trigram override (above) is designed to act on it.
+ambiguous between `Bbm6` and `Eb7(9)/Bb` — same pitches, both valid names. Long
+documented as an architectural hard limit, then as a candidate-generation gap.
+**It is neither. The full B-part now resolves end-to-end:**
 
-**The real, remaining blocker is upstream in Pass 1 (candidate generation):**
-the rootless II-V-I readings for these pedal voicings are never generated, or are
-generated with wrong roots. Pass 1 gives **no penalty when a candidate's root is
-absent from the pitch-class set**, so a scattered wrong-root template
-(`4x334x = {Ab,Bb,Eb,F}` → `B6(9)`, which shares zero notes) can outrank the
-contiguous rootless reading (`Db6(9)`). Until Pass 1 prefers rootless readings
-whose tones are contiguous chord tones — and thus puts `Eb7`/`Ab7`/`Db` into the
-candidate pools — the trigram has nothing correct to rank. See Appendix B.1
-(Pass-1 absent-root scoring) and the regression suites
-`IdentifierRegressionTest` / `IdentifierSequenceTest` (the `pending`
-`pass1-absent-root` cases pin this exact gap).
+```
+6x566x Eb7(9)/Bb  →  6x466x Ebm7(9)/Bb  →  5x456x Ab7(b9,13)/A  →  4x334x Db6(9)/Ab
+   [II7]                 [IIm7]                  [V7]                   [Imaj7]
+```
+
+Pinned by `IdentifierSequenceCases::TIER1_TRIGRAM` (`want_name`, exact spellings).
+
+Three distinct defects had to fall, in order — and the fix was **not** where the
+docs had predicted:
+
+1. **The greedy sub-passes vetoed Viterbi** (§4.1). 2d/2e were collapsing the pool
+   before the second-order search ran. Fixing this alone corrected slots 2 and 3.
+2. **The name did not exist.** `6x466x` `{Bb,Gb,Db,F}` is an exact, *complete*
+   `Gbmaj7/Bb` in isolation (Phase 1 scores it 6300, and is right to). Its
+   `Ebm7(9)` reading scores 735 and is cut by the top-5 slice. Since every other
+   Phase-2 mechanism only *chooses* among Phase-1 names, the reading the
+   progression needs did not exist by the time the progression was understood.
+   Hence 2g: **construct** it (§4.2).
+3. **The seed artifact** blocked slot 0 even with the candidate present (§4.2).
+
+**Why this voicing is not "rootless" in the jazz sense.** `6x466x` is
+`5 – b3 – b7 – 9` over a `Bb` bass: a **shell with the 5th in the bass**. João
+Gilberto alternates his bass between R and 5; on the 5 beat the root simply is not
+sounding. Its identity is a property of the *bar*, not of the shape — unlike Jim
+Hall's `xx b3 b7 9 x`, which omits R **and** 5 as a voicing choice. No amount of
+widening `IDENTIFY_ROOTLESS_TEMPLATES` recovers it, because the information is not
+in the pitch classes at all. This is why the progression must supply the root and
+Phase 1 only supplies the spelling.
 
 ---
 
-## 5.5 Key inference at import (shipped 2026-05-21)
+### 5.5 Key inference at import (shipped 2026-05-21)
 
 Relative keys (C major / A minor) share a key signature, and most MusicXML
 exports omit the `<mode>` element — so the notation alone cannot tell which
@@ -305,18 +419,49 @@ segments the resulting key timeline — see Appendix B.2.
 
 Always run audits before and after changing these algorithms to measure behavior change and catalog failure modes.
 
-### 5.1 Commands
+### 6.1 Commands
 - `php artisan sbn:audit-identifier <file.musicxml>` (Runs local Pass 1)
 - `php artisan sbn:audit-identifier-context <file.musicxml>` (Runs full Phase 2 pipeline)
+- `php artisan sbn:audit-identifier-sequences` (Runs the curated `IdentifierSequenceCases` progressions through Phase 1+2 and prints the resolved name + `reinterpret_reason` per slot. **The verification loop for §4.1/§4.2** — confirm by ear/theory, then pin `expected`/`want_name` in the fixture.)
+- `php artisan sbn:reseed-transitions` (Rebuilds the bigram/trigram tables. Run after corpus changes; 2g and the trigram warrants read `functional_trigrams`.)
 
 Output goes to `storage/audits/`. **Do not commit these files** (except for frozen baselines in `tests/fixtures/identifier-context/baseline/`).
 
-### 5.2 Test Fixtures
+### 6.2 Test Fixtures
 The core audit corpus resides in `docs/*.musicxml` and their expectations are encoded in `tests/fixtures/identifier-context/*.expected.json`:
 - **Wine** (`WES MONTGOMERY...`): Covers pedal points, ii-V-i functional re-ranking.
 - **Misty** (`BARNEY KESSEL...`): Covers ascending diminished passing chords.
 - **Easy Living** (`GEORGE BENSON...`): Turnaround variants with dim subs, key-aware re-rank.
 - **Shadow of Your Smile** (`JOE PASS...`): Descending diminished passing chords.
+
+### 6.3 Regression suites (the guardrail)
+
+Run these together — they are the contract for any change to Phase 1 or Phase 2:
+
+```
+vendor\bin\phpunit tests/Unit/IdentifierRegressionTest.php \
+                   tests/Unit/IdentifierSequenceTest.php \
+                   tests/Feature/Identifier \
+                   tests/Unit/PinnedRootIdentifyTest.php
+```
+
+- `IdentifierRegressionCases` — single-chord identification, three tiers
+  (mechanical / verified-voicing / context-dependent), each with a `why`.
+- `IdentifierSequenceCases` — whole progressions through the real pipeline.
+  `TIER1_TRIGRAM` pins Ipanema's exact spellings via `want_name`.
+- `PinnedRootIdentifyTest` — §3.4, including dyad refusal across all 12 roots.
+
+**Honesty contract:** a slot is asserted only once its resolution is human-verified
+via `sbn:audit-identifier-sequences`. Unverified slots carry `expected = null` and
+are printed, never frozen — the suite must never enshrine an unverified reading as
+ground truth.
+
+Current: **68 tests / 6015 assertions**, no skips.
+
+> Some pre-existing failures elsewhere in the repo are unrelated to the identifier
+> (beta auth-gate `302`s in `LibraryRelatedSongStyleSlugTest`/`ChordShowEduTest`, a
+> missing `madd9` edu topic, `RhythmMaterializerTest`). Check against a clean tree
+> before attributing them to an identifier change.
 
 ---
 
@@ -328,7 +473,15 @@ The core audit corpus resides in `docs/*.musicxml` and their expectations are en
 2. **Specificity**: Prefer the *more specific* quality match for identification (`maj7` beats `maj`).
 3. **Tuning vs. Structure**: Nudging magic constants often causes whack-a-mole bugs. Prefer structural solutions (like checking if a note is a true chord tone).
 4. **DB at seed time, constants at runtime**: Do not query the database during identification. Harmonic fragments are compiled via `php artisan sbn:reseed-fragments` to `storage/app/harmonic-fragments.generated.php`. Bigram transitions are compiled via `php artisan sbn:reseed-transitions` to `storage/app/harmonic-transitions.generated.php`. Both files must be committed.
-5. **Layer 3 is tie-breaking, not overriding**: The `minScoreRatio = 0.85` Viterbi guard is load-bearing. A bigram that correctly prefers `Eb7` over `Bbm6` should not override a 6.8× local-evidence gap — it should break ties between roughly-equal candidates.
+5. **Layer 3 is tie-breaking, not overriding — *except* where the local gap is an artifact.** The `minScoreRatio = 0.85` Viterbi guard remains load-bearing for the general case: a *bigram* must not override a large local-evidence gap, only break ties between roughly-equal candidates.
+
+   But the gap itself must be interrogated. When two candidates describe the **same pitch classes**, a large Phase-1 spread is not evidence about the notes — it is a voicing-position artifact (`Bbm6` beats `Eb7(9)/Bb` 7200:1062 purely on `bassBoost ×4 · exactBonus ×3`). Overriding *that* is not a violation of this principle; it is the principle applied correctly. The escape hatches are deliberately narrow: a **decisive functional trigram** (never a bigram — `functionalTrigramProbability()` exists precisely so a backoff cannot masquerade as evidence), and a **relative** margin over the incumbent on the same context (an absolute `k × uniform` bar is vacuous — see §4.2).
+
+6. **`null` is not a small number.** In the evidence layers, an unseen context returns `null`, meaning *no evidence*. Never coerce it to a low probability and compare it against a threshold; that silently converts ignorance into a weak vote.
+
+7. **A pinned root must explain the voicing, not absorb it.** Altered tensions (`b9`/`#9`/`b13`) are dominant-function tones. Without that restriction a wrong root launders its misfit notes as fake alterations and produces formally-legal garbage (`Gbmaj7(b9)`, `Eo7(b9)`) that then competes with the true reading.
+
+8. **A dyad is not a chord, and pinning a root does not make it one.** Both `identifyFromFrets` and `identifyWithPinnedRoot` refuse `< 3` unique PCs. A root-absent reading additionally needs ≥ 3 sounding template tones — a real `3-5-7` shell — or it invents more than the one tone jazz voicings legitimately omit.
 
 ---
 
@@ -351,20 +504,35 @@ The core audit corpus resides in `docs/*.musicxml` and their expectations are en
 
 ### B.1 Known Bugs
 
-- **Pass-1 absent-root scoring (2026-07-09, HIGH — the current top blocker):**
-  `identifyFromPcSetFull` applies no penalty when a candidate's ROOT is absent
-  from the pitch-class set. A scattered wrong-root template, propped up by
-  partial-match + extension-absorption, can outrank the contiguous rootless
-  reading — e.g. `4x334x = {Ab,Bb,Eb,F}` returns `B6(9)` (which shares ZERO notes
-  with the voicing) instead of the correct rootless `Db6(9)`. Also names complete
-  triads-with-bass as their bare incomplete root (`xx333x {D,F,Bb}` → `F` not
-  `Bb/F`; `8xaaax {C,F,A}` → `C` not `F/C`). *Fix direction:* penalize an absent
-  root unless the voicing is a legitimate rootless shape (tones are contiguous
-  chord tones — 3-5-7, 3-5-6-9, etc.), so rootless readings with real chord-tone
-  structure beat coincidental wrong-root maps, AND so rootless II-V-I readings
-  ENTER the candidate pools (prerequisite for the trigram to resolve Ipanema,
-  §5.4). Wide blast radius — every identification. Pinned by the `pending`
-  `pass1-absent-root` cases in `IdentifierRegressionTest`/`IdentifierSequenceTest`.
+- ~~**Pass-1 absent-root scoring**~~ — **FIXED 2026-07-09.** Absent-root candidates
+  now score `×0.98` when the voicing is a legitimate rootless shape (only the root
+  missing, every leftover a named extension) and `×0.35` otherwise, so a
+  coincidental wrong-root map can no longer outrank the contiguous reading. The
+  `pending => 'pass1-absent-root'` cases are un-skipped and passing. Ipanema is
+  resolved (§5.4), though *not* by this fix alone — see §4.1/§4.2.
+
+- **Rootless slash readings are stuck on the triad tier (MEDIUM, open):** the
+  two-tier slash bonus (§3.2) grants `3.5` only when `total >= 4 && matched ==
+  total`. A legitimate rootless reading is **by definition never complete**
+  (`matched == total - 1`, the root being the omitted tone), so *every* rootless
+  slash reading silently falls to the `2.5` triad tier. Both Ipanema shells score
+  `300 × 0.98 × 2.5 = 735` and would be cut by the top-5 slice; `Eb7(9)/Bb` only
+  survives because Pass 3c's tritone bonus (×5) happens to lift it — a rescue that
+  applies to **dominants only**, so rootless `m9`/`maj9` readings still fall
+  through. *Fix direction:* let a `$legitRootless` reading take the `3.5` tier.
+  Deliberately not bundled with the 2g work — it shifts scores globally. 2g does
+  not depend on it (it constructs rather than promotes), but fixing it would make
+  more rootless readings reachable without injection.
+
+- **`IDENTIFY_ROOTLESS_TEMPLATES` is dead for 4-note jazz voicings (LOW, open):**
+  `identifyRootless()` hard-returns unless there are **exactly 3** pitch classes,
+  every template in the table is a 3-note shape (no `m9`/`9`/`maj9`), Pass 3a only
+  fires when Pass 1 found *nothing*, and Pass 3b only on **plain triads** with
+  `<= 3` notes. So the dedicated rootless subsystem never sees a real 4-note jazz
+  voicing; it is in practice a 3-note-shell rescue. Left as-is on purpose: the
+  Ipanema voicing is *not* rootless (§5.4), so widening this would encode the
+  wrong concept. Revisit only if a genuine Jim-Hall-style `xx b3 b7 9 x` (root
+  **and** 5th omitted) needs identifying.
 - **Regression suite rebuilt (2026-07-09):** the old `VoicingCrossrefSlashChordTest` had frozen expectations from 2026-05 that had drifted — and several were **musically wrong for their input**, discovered by computing the pitch classes rather than trusting the frozen name. Canonical example: `0xx558` = **{C,E}** (a two-note dyad) was frozen as `Eaug`, but {C,E} contains no G#, so it cannot be `Eaug` (nor `C/E` — no G). The "expected `Eaug`" was the bug, not the identifier. Fixes shipped:
   - **Dyad guard on `identifyFromFrets`**: a fret voicing with < 3 unique pitch classes now returns `noResult()` (symmetric with `identifyFromMidi`). Refuses to hallucinate a missing third tone into a triad. Retires the contradictory `x0x225`/`xxx225` (`{A,C#}`→`A`) and `x31xxx` (`{C,Eb}`→`Cm`) expectations — those also over-named dyads.
   - **New verified suite** `IdentifierRegressionTest` + `IdentifierRegressionCases` (three tiers: mechanical / verified-voicing / context-dependent). Every expectation is computed + human-verified with a `why`. This is now the source of truth; `VoicingCrossrefSlashChordTest` is narrowed to slash-name display formatting only.
