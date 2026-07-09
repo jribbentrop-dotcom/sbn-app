@@ -141,15 +141,17 @@
     touch-action: manipulation;
 }
 
-.cart-icon-link:hover {
-    background: var(--sbn-gradient);
-    color: var(--clr-white);
-    transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+    .cart-icon-link:hover {
+        background: var(--sbn-gradient);
+        color: var(--clr-white);
+        transform: translateY(-1px);
+    }
 }
 
 .cart-icon-link svg {
-    width: 24px;
-    height: 24px;
+    width: 26px;
+    height: 26px;
 }
 
 .cart-count {

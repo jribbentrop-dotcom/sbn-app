@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
+import { useAuthModal } from '@/composables/useAuthModal';
 const year = new Date().getFullYear();
+const { open: openAuthModal } = useAuthModal();
 </script>
 
 <template>
@@ -43,7 +45,7 @@ const year = new Date().getFullYear();
                 <a href="#">Pricing</a>
                 <a href="#">About</a>
                 <Link href="/contact">Contact</Link>
-                <Link href="/login">Sign in</Link>
+                <a href="/login" @click.prevent="openAuthModal('login')">Sign in</a>
             </div>
 
         </div>

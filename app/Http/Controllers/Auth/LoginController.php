@@ -27,7 +27,7 @@ class LoginController extends Controller
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
             Auth::user()->claimGuestOrders();
-            return redirect()->intended($this->landingFor(Auth::user()));
+            return redirect()->intended($this->safeRedirect($request) ?? $this->landingFor(Auth::user()));
         }
 
         return back()->withErrors([
@@ -40,6 +40,18 @@ class LoginController extends Controller
         return $user && $user->is_instructor
             ? route('admin.dashboard')
             : route('account.dashboard');
+    }
+
+    // Only ever follow a same-origin, relative path passed from the auth
+    // modal (e.g. "Start learning" on a gated course page) — never an
+    // absolute/external URL, to avoid an open redirect.
+    private function safeRedirect(Request $request): ?string
+    {
+        $redirect = $request->input('redirect');
+        if (!is_string($redirect) || $redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($redirect, '//')) {
+            return null;
+        }
+        return $redirect;
     }
 
     public function logout(Request $request)

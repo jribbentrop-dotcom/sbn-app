@@ -3,8 +3,10 @@ import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import UserMenu from './UserMenu.vue';
 import { useCart } from '@/composables/useCart';
+import { useAuthModal } from '@/composables/useAuthModal';
 
 const { count, openCart } = useCart();
+const { activeMode: authModalMode } = useAuthModal();
 const openMenu = ref<string | null>(null);
 const switching = ref(false);
 const drawerOpen = ref(false);
@@ -39,6 +41,16 @@ const toggleMenu = (menuName: string, event: Event) => {
 const closeAllMenus = () => {
     openMenu.value = null;
 };
+
+// The auth modal renders above everything (see AuthModal.vue z-index) and
+// should read as a fully modal takeover — don't leave a mega-menu panel or
+// the mobile drawer open behind/under it.
+watch(authModalMode, (mode) => {
+    if (mode) {
+        closeAllMenus();
+        drawerOpen.value = false;
+    }
+});
 
 /* ---- Hover intent (Stripe-style): open after a short delay, close on a
    grace period so the trigger→panel gap and panel-to-panel moves don't flicker.

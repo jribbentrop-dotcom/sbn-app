@@ -5,6 +5,7 @@ import MegaMenu from './../Components/MegaMenu.vue';
 import Footer from './../Components/Footer.vue';
 import AudioPlayerSlot from './../Components/AudioPlayerSlot.vue';
 import TheoryWidgetModal from './../Components/TheoryWidgetModal.vue';
+import AuthModal from './../Components/Auth/AuthModal.vue';
 
 const headerRef = ref<HTMLElement | null>(null);
 let resizeObserver: ResizeObserver | null = null;
@@ -47,6 +48,7 @@ onUnmounted(() => {
         <Footer />
         <AudioPlayerSlot />
         <TheoryWidgetModal />
+        <AuthModal />
     </div>
 </template>
 

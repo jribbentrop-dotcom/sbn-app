@@ -35,7 +35,21 @@ class RegisterController extends Controller
         $user->claimGuestOrders();
 
         // Honor the intended URL so guests redirected here from a gated
-        // library/course page land back on it after signing up.
-        return redirect()->intended(route('account.dashboard'));
+        // library/course page land back on it after signing up. The auth
+        // modal also passes an explicit `redirect` when opened in place
+        // (e.g. "Start learning" on a course page, no server redirect ever
+        // fired), which takes priority when present.
+        return redirect()->intended($this->safeRedirect($request) ?? route('account.dashboard'));
+    }
+
+    // Only ever follow a same-origin, relative path — never an
+    // absolute/external URL, to avoid an open redirect.
+    private function safeRedirect(Request $request): ?string
+    {
+        $redirect = $request->input('redirect');
+        if (!is_string($redirect) || $redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($redirect, '//')) {
+            return null;
+        }
+        return $redirect;
     }
 }
