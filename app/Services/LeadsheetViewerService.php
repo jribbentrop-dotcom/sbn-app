@@ -310,7 +310,7 @@ class LeadsheetViewerService
             'root_string'     => '',
             'root_string_label' => '',
             'inversion'       => 'root',
-            'inversion_label' => 'Root position',
+            'inversion_label' => 'Root Position',
             'bass_note'       => $parsed['bass_note'] ?? null,
             'shape_family'    => null,
             'start_fret'      => $startFret,
