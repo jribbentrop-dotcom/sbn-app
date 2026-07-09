@@ -21,11 +21,16 @@
 
 /* ── Shared layout ─────────────────────────────────────────── */
 
-/* Contains the absolute ::before grain and prevents horizontal overflow
-   from absolutely-positioned children (chord rain canvas, blobs). */
+/* Contains the absolute ::before grain. Deliberately does NOT set
+   overflow-x: hidden: every decoration that actually bleeds past its own
+   box (.home-hero blobs, .chord-rain-section rain cards) already clips
+   itself locally, so a page-level clip here was redundant — and harmful:
+   a lone overflow-x: hidden forces the browser to compute overflow-y as
+   auto too (CSS spec — the longhands can't mix visible with non-visible),
+   which turned .home-page into its own scroll container and broke every
+   position:sticky descendant (GradesTeaser included). */
 .home-page {
     position: relative;
-    overflow-x: hidden;
 }
 
 /* Safari / Firefox don't support animation-timeline so grade blocks stay at

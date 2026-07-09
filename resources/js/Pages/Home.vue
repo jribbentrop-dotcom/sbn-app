@@ -10,6 +10,7 @@ const SyncedHero    = defineAsyncComponent(() => import('@/Components/Home/Synce
 const ChordRain     = defineAsyncComponent(() => import('@/Components/Home/ChordRain.vue'));
 const GradesTeaser  = defineAsyncComponent(() => import('@/Components/Home/GradesTeaser.vue'));
 const GradesSlider  = defineAsyncComponent(() => import('@/Components/Home/GradesSlider.vue'));
+const SkillPathSection = defineAsyncComponent(() => import('@/Components/Home/SkillPathSection.vue'));
 
 defineOptions({ layout: PublicLayout });
 
@@ -107,6 +108,9 @@ const orgJsonLd = JSON.stringify({
 
         <!-- ── Grades slider ─────────────────────────────── -->
         <GradesSlider />
+
+        <!-- ── Skill path ──────────────────────────────────── -->
+        <SkillPathSection />
 
         <!-- ── Feature cards ──────────────────────────────── -->
         <section class="home-section" style="padding-top:0">
