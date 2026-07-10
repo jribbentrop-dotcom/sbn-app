@@ -183,4 +183,64 @@ function selectExample(i: number) {
             :x1="x" :y1="BLOCK_Y" :x2="x" :y2="BLOCK_Y + BLOCK_H"
             stroke="#f59e0b" stroke-width="1.6"/>
           <line v-if="showComparison" :x1="straightMidX" :y1="BLOCK_Y - OVERLAY_EXT" :x2="straightMidX" :y2="BLOCK_Y + BLOCK_H + OVERLAY_EXT"
-            str
+            stroke="#333" stroke-width="1.6" stroke-dasharray="3,2"/>
+        </svg>
+      </div>
+
+      <!-- Comparison toggle -->
+      <div class="tr-toggle-row">
+        <span :class="['tr-toggle-label', showComparison ? 'on' : '']">
+          {{ showComparison ? 'Showing normal notes' : 'Compare with normal' }}
+        </span>
+        <button :class="['tr-toggle', showComparison ? 'on' : '']" @click="showComparison = !showComparison">
+          <div class="tr-knob" />
+        </button>
+      </div>
+
+      <div v-if="showComparison" class="tr-math">{{ ex.mathNote }}</div>
+
+      <div class="tr-explanation">{{ ex.explanation }}</div>
+  </div>
+</template>
+
+<style scoped>
+.tr-card {
+  width: 100%;
+  background: var(--clr-surface, #ffffff);
+  border: 1px solid var(--clr-border, #e8edf3);
+  border-radius: 0.875rem;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 1.75rem 1.5rem 1.5rem; gap: 1.25rem; user-select: none;
+}
+.tr-header { width: 100%; display: flex; align-items: center; justify-content: space-between; }
+.tr-label { font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--clr-text-muted, #64748b); }
+.tr-pills { display: flex; gap: 3px; background: var(--clr-surface-3, #eef1f5); border-radius: 999px; padding: 3px; border: 1px solid var(--clr-border, #e8edf3); }
+.tr-pill { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.08em; padding: 0.28rem 0.7rem; border-radius: 999px; border: none; background: transparent; color: var(--clr-text-muted, #64748b); cursor: pointer; transition: all 0.2s ease; }
+.tr-pill:hover { color: var(--clr-text, #1a1a2e); }
+.tr-pill.active { background: var(--clr-accent, #f39c12); color: #ffffff; box-shadow: 0 1px 4px rgba(243,156,18,0.35); }
+.tr-title { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; font-weight: 300; color: var(--clr-text, #1a1a2e); line-height: 1.1; }
+.tr-subtitle { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--clr-accent, #f39c12); margin-top: 0.25rem; }
+.tr-diagram { width: 100%; background: var(--clr-surface-3, #f8fafc); border: 1px solid var(--clr-border, #e8edf3); border-radius: 0.75rem; padding: 0.5rem; }
+.tr-toggle-row { width: 100%; display: flex; align-items: center; gap: 0.6rem; }
+.tr-toggle-label { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--clr-text-muted, #64748b); flex: 1; transition: color 0.3s; }
+.tr-toggle-label.on { color: var(--clr-accent, #f39c12); }
+.tr-toggle { width: 40px; height: 22px; border-radius: 999px; background: var(--clr-surface-3, #eef1f5); border: 1px solid var(--clr-border, #e8edf3); cursor: pointer; position: relative; transition: background 0.3s ease; flex-shrink: 0; }
+.tr-toggle.on { background: var(--clr-accent, #f39c12); border-color: transparent; }
+.tr-knob { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); transition: transform 0.3s cubic-bezier(0.34,1.2,0.64,1); }
+.tr-toggle.on .tr-knob { transform: translateX(18px); }
+.tr-math {
+  width: 100%;
+  font-family: system-ui, sans-serif; font-size: 0.78rem; line-height: 1.55;
+  color: var(--clr-text-muted, #64748b);
+  background: var(--clr-surface-3, #f8fafc);
+  border: 1px solid var(--clr-border, #e8edf3);
+  border-left: 3px solid var(--clr-accent, #f39c12);
+  border-radius: 0.4rem;
+  padding: 0.55rem 0.75rem;
+}
+.tr-explanation { font-family: system-ui, sans-serif; font-size: 0.85rem; line-height: 1.6; color: var(--clr-text, #1a1a2e); min-height: 4rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tr-pill, .tr-toggle, .tr-knob, .tr-toggle-label { transition: none; }
+}
+</style>

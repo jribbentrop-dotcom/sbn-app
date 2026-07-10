@@ -277,4 +277,30 @@ const tieLensPath = computed(() => {
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; font-size: 0.85rem; transition: all 0.2s ease;
 }
-.dur-arrow:hover:not(:disabled) { border-color: 
+.dur-arrow:hover:not(:disabled) { border-color: var(--clr-accent-border, rgba(243,156,18,0.35)); color: var(--clr-text, #1a1a2e); }
+.dur-arrow:disabled { opacity: 0.3; cursor: default; }
+
+.dur-stepdots { display: flex; gap: 5px; align-items: center; }
+.dur-stepdot { width: 5px; height: 5px; border-radius: 50%; background: var(--clr-border, #dde3ea); transition: all 0.3s ease; }
+.dur-stepdot.active { width: 14px; border-radius: 3px; background: var(--clr-accent, #f39c12); }
+
+.dur-context-label {
+  font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--clr-text-muted, #64748b); align-self: flex-start; padding-left: 0.25rem;
+}
+
+@keyframes durCellPop { from { opacity: 0; transform: scaleY(0.3); } to { opacity: 1; transform: scaleY(1); } }
+@keyframes durFadeIn  { from { opacity: 0; } to { opacity: 1; } }
+
+.dur-enter-right { animation: durEnterRight 0.3s cubic-bezier(0.34,1.2,0.64,1) forwards; }
+.dur-enter-left  { animation: durEnterLeft  0.3s cubic-bezier(0.34,1.2,0.64,1) forwards; }
+.dur-exit-left   { opacity: 0; transform: translateX(-16px); }
+.dur-exit-right  { opacity: 0; transform: translateX(16px); }
+@keyframes durEnterRight { from { opacity:0; transform:translateX(16px);  } to { opacity:1; transform:translateX(0); } }
+@keyframes durEnterLeft  { from { opacity:0; transform:translateX(-16px); } to { opacity:1; transform:translateX(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .dur-tab, .dur-dot-btn, .dur-stepdot { transition: none; }
+  .dur-enter-right, .dur-enter-left { animation: none; }
+}
+</style>
