@@ -104,7 +104,10 @@ WEB_USER="${WEB_USER:-nginx}"
 echo "   web user = $WEB_USER"
 
 echo "==> [4/9] Backing up server DB"
-ssh "$HOST" "cp '$REMOTE_DB' '${REMOTE_DB}.bak-\$(date +%Y%m%d-%H%M%S)' && ls -la '${REMOTE_DB}'.bak-* | tail -1"
+# The timestamp must be expanded by the REMOTE shell, so $(date) stays OUTSIDE
+# the single-quoted path (single quotes would make it literal). Result: a dated
+# backup per deploy, not one file overwritten each time.
+ssh "$HOST" "cp '$REMOTE_DB' \"${REMOTE_DB}.bak-\$(date +%Y%m%d-%H%M%S)\" && ls -la '${REMOTE_DB}'.bak-* | tail -1"
 
 echo "==> [5/9] Copying helper scripts to server"
 scp /tmp/sbn_dump_users.py "$HOST:/tmp/sbn_dump_users.py"
@@ -130,7 +133,9 @@ cd '$APP_DIR'
 php artisan migrate --force
 php artisan optimize:clear >/dev/null 2>&1 || true
 php artisan up
-echo 'users on prod:' \$(php artisan tinker --execute='echo App\\\Models\\\User::count();' 2>/dev/null || echo '?')
+# Count via DB::table (no namespace separators, so no backslash-quoting hell
+# through the nested ssh/tinker shells — the App\\Models\\User form parse-errored).
+echo 'users on prod:' \$(php artisan tinker --execute=\"echo DB::table('users')->count();\" 2>/dev/null || echo '?')
 "
 
 echo
