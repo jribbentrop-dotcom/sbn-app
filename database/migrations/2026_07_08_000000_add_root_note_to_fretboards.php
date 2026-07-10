@@ -13,6 +13,14 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Guarded: this column was hand-ALTERed onto production before the
+        // migration was recorded as run, so on the live DB it already exists.
+        // The guard makes up() a safe no-op there and keeps a from-scratch
+        // replay working.
+        if (Schema::hasColumn('fretboards', 'root_note')) {
+            return;
+        }
+
         Schema::table('fretboards', function (Blueprint $table) {
             $table->string('root_note', 3)->nullable();
         });
@@ -20,6 +28,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! Schema::hasColumn('fretboards', 'root_note')) {
+            return;
+        }
+
         Schema::table('fretboards', function (Blueprint $table) {
             $table->dropColumn('root_note');
         });
