@@ -28,9 +28,9 @@ export const widgetCatalog: WidgetEntry[] = [
     tags: ['harmony', 'chords'],
   },
   {
-    slug: 'drop2-visualizer',
-    title: 'Drop Voicings',
-    summary: 'Drop the 2nd or 3rd voice down an octave — the move behind open, playable jazz chords.',
+    slug: 'voicing-structures',
+    title: 'Voicing Structures',
+    summary: 'Closed, shell, drop 2, and drop 3 — how the same four notes rearrange into open, playable jazz voicings.',
     tags: ['harmony', 'voicings', 'chords'],
   },
   {
@@ -58,8 +58,8 @@ export const widgetCatalog: WidgetEntry[] = [
     tags: ['harmony', 'chords', 'general'],
   },
   {
-    slug: 'note-duration',
-    title: 'Note Duration',
+    slug: 'dots-and-ties',
+    title: 'Dots & Ties',
     summary: 'How dots and ties extend note lengths — the arithmetic behind dotted rhythms and syncopation.',
     tags: ['rhythm', 'general'],
   },
@@ -113,8 +113,8 @@ export const widgetCatalog: WidgetEntry[] = [
     tags: ['notation', 'general'],
   },
   {
-    slug: 'note-durations',
-    title: 'Note Durations',
+    slug: 'note-values',
+    title: 'Note Values',
     summary: 'From whole notes to sixteenths — see the note shape, beat value, and how many fit in a bar of 4/4.',
     tags: ['rhythm', 'notation', 'general'],
   },

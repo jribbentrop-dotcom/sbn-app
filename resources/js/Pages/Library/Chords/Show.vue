@@ -384,10 +384,10 @@ const voicingCategoryLabel = computed(() =>
 );
 
 const QUALITY_WIDGET_MAP: Record<string, string> = {
-    maj7: 'drop2-visualizer', maj6: 'drop2-visualizer',
-    m7: 'drop2-visualizer', mMaj7: 'drop2-visualizer', m6: 'drop2-visualizer',
-    dom7: 'drop2-visualizer', aug7: 'drop2-visualizer', m7b5: 'drop2-visualizer',
-    o7: 'drop2-visualizer',
+    maj7: 'voicing-structures', maj6: 'voicing-structures',
+    m7: 'voicing-structures', mMaj7: 'voicing-structures', m6: 'voicing-structures',
+    dom7: 'voicing-structures', aug7: 'voicing-structures', m7b5: 'voicing-structures',
+    o7: 'voicing-structures',
     maj: 'triad-builder', min: 'triad-builder', aug: 'triad-builder', dim: 'triad-builder',
 };
 const activeQualityWidget = computed(() => QUALITY_WIDGET_MAP[activeQuality.value] ?? null);
@@ -625,8 +625,8 @@ const formattedChordName = computed(() => {
                         <p>{{ eduV.detail }}</p>
                         <p class="sbn-accordion-tip">{{ eduV.tip }}</p>
                         <div class="sbn-accordion-links">
-                            <button v-if="voicingWidget === 'drop2'" class="sbn-accordion-explore sbn-accordion-explore--btn" @click="openTheoryModal('drop2-visualizer')">What is a {{ voicingCategoryLabel }} voicing? →</button>
-                            <button v-else-if="voicingWidget === 'shell'" class="sbn-accordion-explore sbn-accordion-explore--btn" @click="openTheoryModal('drop2-visualizer')">What is a Shell voicing? →</button>
+                            <button v-if="voicingWidget === 'drop2'" class="sbn-accordion-explore sbn-accordion-explore--btn" @click="openTheoryModal('voicing-structures')">What is a {{ voicingCategoryLabel }} voicing? →</button>
+                            <button v-else-if="voicingWidget === 'shell'" class="sbn-accordion-explore sbn-accordion-explore--btn" @click="openTheoryModal('voicing-structures')">What is a Shell voicing? →</button>
                             <button v-else-if="voicingWidget === 'triad'" class="sbn-accordion-explore sbn-accordion-explore--btn" @click="openTheoryModal('triad-builder')">What is a triad voicing? →</button>
                             <Link
                                 :href="voicingWidget === 'triad' && chord.voicing_category.startsWith('archetype') ? '/library/chords#archetypes' : `/library/chords?voicing=${chord.voicing_category}`"
