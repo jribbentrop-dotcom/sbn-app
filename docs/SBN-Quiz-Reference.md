@@ -1,5 +1,10 @@
 # SBN Quiz System — Reference & Authoring Guide
 
+> **Authoring from an iPad / DB-only (co-work)?** Use the companion guide
+> `SBN-Quiz-Authoring-CoWork.md` instead — it's self-contained and assumes SQL
+> access only (no repo, no scripts, no PHP). This doc has the deeper design
+> reference for when the repo IS available.
+>
 > **This doc is the authoring surface.** The quiz *engine* (models, controller,
 > grading, Vue runner, `<sbn-quiz>` tag) is built and tested — shipped 2026-07-10.
 > Creating quizzes needs **no code**: you write one JSON object and run one
