@@ -32,6 +32,11 @@ Thumbs.db
 /database/sbn.db-journal
 /database/sbn.db-wal
 
+# DB + content backups (multi-MB snapshots from db_checkout / deploy / one-off edits)
+/database/*.bak-*
+/database/sbn.db.bak-*
+/database/lesson-*.bak-*.html
+
 # Audio Transcription Binaries & Env
 /yt-dlp.exe
 /ffmpeg.exe
