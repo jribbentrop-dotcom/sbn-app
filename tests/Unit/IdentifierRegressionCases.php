@@ -39,16 +39,10 @@ final class IdentifierRegressionCases
 
         // ── Complete triads (root-position or slash) ──
         ['frets' => 'x5533x', 'pcs' => '{D,G,Bb}', 'expected' => 'Gm/D',  'why' => 'complete Gm, 5th (D) in bass'],
-        // PENDING: blocked by the Pass-1 absent-root bug — the incomplete 'F'
-        // reading (root in bass) out-scores the complete rootless Bb/F. Same
-        // class as the Ipanema blocker. Un-skip when Pass-1 absent-root scoring
-        // is fixed. See docs §Appendix B / project_identifier_trigram memo.
-        ['frets' => 'xx333x', 'pcs' => '{D,F,Bb}', 'expected' => 'Bb/F',  'why' => 'complete Bb, 3rd (F) in bass', 'pending' => 'pass1-absent-root'],
-        // PENDING (pass1-absent-root): incomplete 'C' (root in bass) out-scores
-        // the complete rootless F/C. Same class as xx333x + Ipanema.
-        ['frets' => '8xaaax', 'pcs' => '{C,F,A}',  'expected' => 'F/C',   'why' => 'complete F, 5th (C) in bass', 'pending' => 'pass1-absent-root'],
-        ['frets' => 'xxaaax', 'pcs' => '{C,F,A}',  'expected' => 'F/C',   'why' => 'complete F, 5th (C) in bass', 'pending' => 'pass1-absent-root'],
-        ['frets' => 'x3333x', 'pcs' => '{C,D,F,Bb}', 'expected' => 'Bb/C','why' => 'complete Bb triad (Bb,D,F) + C (9th) in bass = true slash', 'pending' => 'pass1-absent-root'],
+        ['frets' => 'xx333x', 'pcs' => '{D,F,Bb}', 'expected' => 'Bb/F',  'why' => 'complete Bb, 3rd (F) in bass'],
+        ['frets' => '8xaaax', 'pcs' => '{C,F,A}',  'expected' => 'F/C',   'why' => 'complete F, 5th (C) in bass'],
+        ['frets' => 'xxaaax', 'pcs' => '{C,F,A}',  'expected' => 'F/C',   'why' => 'complete F, 5th (C) in bass'],
+        ['frets' => 'x3333x', 'pcs' => '{C,D,F,Bb}', 'expected' => 'Bb/C','why' => 'complete Bb triad (Bb,D,F) + C (9th) in bass = true slash'],
 
         // ── Complete 7th chords ──
         ['frets' => 'ax8aax', 'pcs' => '{D,F,A,Bb}', 'expected' => 'Bbmaj7/D', 'why' => 'complete Bbmaj7, 3rd (D) in bass'],
