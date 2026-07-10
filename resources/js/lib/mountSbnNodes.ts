@@ -11,6 +11,7 @@
  *   <sbn-song           slug="…" bars="5-8">    ← leadsheet excerpt → SheetMiniPlayer
  *   <sbn-youtube        id="…" start="…">          ← attrs only, no fetch
  *   <sbn-widget         slug="…" …attrs>           ← edu interactive, no fetch
+ *   <sbn-quiz           slug="…">                  ← interactive quiz; grants skill nodes on pass
  *   <sbn-fretboard      slug="…" position="3" key="G"> ← vanilla JS hydration via chords.js
  *                                                     position overrides stored start_window (1-indexed);
  *                                                     key transposes (positions mode + root_note required)
@@ -321,6 +322,37 @@ export async function mountSbnNodes(
       .catch((err) => {
         console.warn(`[mountSbnNodes] Failed to mount <sbn-song slug="${slug}">:`, err);
         el.innerHTML = `<span class="sbn-node-error">song: ${slug}${bars ? ` bars ${bars}` : ''}</span>`;
+      });
+
+    tasks.push(task);
+  });
+
+  // ── <sbn-quiz> — interactive quiz; fetch (answer key stripped server-side) ──
+  // The payload from /api/sbn/quizzes/{slug} never contains `correct`, so the
+  // answer key can't be read out of the network tab. Submitting POSTs back to
+  // the same controller, which re-grades and grants any linked skill nodes.
+  // Not cached: a student re-taking a quiz should get a fresh runner.
+  container.querySelectorAll<HTMLElement>('sbn-quiz').forEach((el) => {
+    const slug = el.getAttribute('slug') ?? '';
+    if (!slug) return;
+
+    const task = fetch(`/api/sbn/quizzes/${slug}`, { headers: { Accept: 'application/json' } })
+      .then((r) => {
+        if (!r.ok) throw new Error(`quiz fetch failed: ${r.status}`);
+        return r.json();
+      })
+      .then(async (data: any) => {
+        const mod = await import('../edu/quiz/QuizRunner.vue');
+        const Component = (mod as any).default ?? mod;
+
+        el.classList.add('sbn-quiz-embed');
+        const app = createApp(Component, { quiz: data });
+        app.mount(el);
+        apps.push(app);
+      })
+      .catch((err) => {
+        console.warn(`[mountSbnNodes] Failed to mount <sbn-quiz slug="${slug}">:`, err);
+        el.innerHTML = `<span class="sbn-node-error">quiz: ${slug}</span>`;
       });
 
     tasks.push(task);

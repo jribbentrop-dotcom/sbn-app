@@ -49,6 +49,18 @@ class SkillNode extends Model
 
     public const COMPLETION_SELF_REPORT = 'self_report';
 
+    /**
+     * The node is earned by passing a linked quiz, not by ticking a box. Such a
+     * node cannot be self-report-toggled — SkillController::toggle() rejects it.
+     */
+    public const COMPLETION_QUIZ = 'quiz';
+
+    /** True when this node must be earned by passing a quiz. */
+    public function isQuizGated(): bool
+    {
+        return $this->completion_type === self::COMPLETION_QUIZ;
+    }
+
     /** Max chips shown per content-type group in practiceLinks() before truncating. */
     private const PRACTICE_LINKS_CAP = 5;
 
@@ -88,8 +100,14 @@ class SkillNode extends Model
     public function userProgress(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'sbn_user_skill_progress', 'skill_node_id', 'user_id')
-            ->withPivot(['status', 'completed_at'])
+            ->withPivot(['status', 'completed_at', 'source', 'quiz_attempt_id'])
             ->withTimestamps();
+    }
+
+    /** Quizzes that grant this node on a pass. */
+    public function quizzes(): BelongsToMany
+    {
+        return $this->belongsToMany(Quiz::class, 'sbn_quiz_skill_node', 'skill_node_id', 'quiz_id');
     }
 
     // =========================================================================

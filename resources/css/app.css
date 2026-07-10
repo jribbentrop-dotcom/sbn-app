@@ -2,6 +2,7 @@
 @import './frontend/header.css';
 @import './frontend/mega-menu.css';
 @import './frontend/top10-shared.css';
+@import './quiz-theme.css';
 
 @tailwind base;
 @tailwind components;

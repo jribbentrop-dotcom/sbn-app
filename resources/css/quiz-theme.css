@@ -1,0 +1,106 @@
+/*
+ * Quiz theme — the single source of truth for how every quiz looks.
+ *
+ * WHY THIS FILE EXISTS
+ * Every quiz component (QuizRunner, QuizPrompt, MultipleChoice, ChordIdentify,
+ * RhythmTap) styles itself only through the `--quiz-*` tokens defined here. So
+ * re-theming all quizzes — colours, radius, the whole light/dark story — is
+ * editing this one file, and a new question type inherits the look for free by
+ * using the same tokens.
+ *
+ * Deliberately NOT the always-dark island pattern the edu widgets use
+ * (hardcoded #0f0f17). Quizzes live on light lesson pages and read as part of
+ * the page, so the DEFAULT here is light. A dark override follows for dark UIs
+ * and users who prefer dark.
+ *
+ * THE STANDARD FOR ALL QUIZZES
+ *   1. Style only via var(--quiz-*). Never hardcode a colour in a quiz
+ *      component, and never reach for --clr-* (those are defined inconsistently
+ *      across the public frontend).
+ *   2. Light is the default; the dark block below mirrors every token.
+ *   3. New tokens get a light value here AND a dark value in the override.
+ */
+
+:root {
+  /* Surfaces — the card, and raised elements (options, pads) on top of it. */
+  --quiz-bg:            #ffffff;
+  --quiz-surface:       #f7f7fa;   /* option buttons, tap pad */
+  --quiz-surface-hover: #f0f0f5;
+
+  /* Text */
+  --quiz-text:          #1c1c28;   /* primary copy */
+  --quiz-text-muted:    #6b6b7b;   /* counters, hints, sub-labels */
+
+  /* Lines */
+  --quiz-border:        #e2e2ea;
+
+  /* Accent — the brand goldenrod, used for progress, selection, primary CTA. */
+  --quiz-accent:        var(--clr-accent, #d98a1f);
+  --quiz-accent-ink:    #ffffff;   /* text ON an accent fill */
+  /* Tint = accent at low alpha, for a selected option's fill. color-mix keeps
+     it correct whatever the accent resolves to. */
+  --quiz-accent-tint:   color-mix(in srgb, var(--quiz-accent) 12%, transparent);
+
+  /* Verdicts. --quiz-fail also tints the rhythm-tap "recording" pulse. */
+  --quiz-pass:          #2f8f4e;   /* passed / correct */
+  --quiz-fail:          #c0392b;   /* not yet / incorrect / recording */
+
+  /* Type — reuse the frontend fonts when present, sane fallbacks otherwise. */
+  --quiz-font-body:     var(--font-body, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  --quiz-font-heading:  var(--font-heading, 'Cormorant Garamond', Georgia, serif);
+  --quiz-font-mono:     var(--font-mono, 'DM Mono', ui-monospace, 'SFMono-Regular', monospace);
+
+  --quiz-radius:        0.6rem;
+  --quiz-ease:          var(--ease, cubic-bezier(0.4, 0, 0.2, 1));
+  --quiz-shadow:        0 1px 3px rgba(20, 20, 40, 0.06), 0 8px 24px rgba(20, 20, 40, 0.05);
+}
+
+/*
+ * Dark override. Two triggers, both honoured:
+ *   - the OS preference (prefers-color-scheme), and
+ *   - an explicit [data-theme="dark"] on any ancestor (the app's own toggle),
+ *     which must win even in a light-OS context.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --quiz-bg:            #12121a;
+    --quiz-surface:       #1a1a24;
+    --quiz-surface-hover: #22222e;
+    --quiz-text:          #e8e8ef;
+    --quiz-text-muted:    #9a9aab;
+    --quiz-border:        #2c2c3a;
+    --quiz-accent-ink:    #12121a;
+    --quiz-pass:          #6cc286;
+    --quiz-fail:          #e06c75;
+    --quiz-shadow:        0 1px 3px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+}
+
+:root[data-theme='dark'],
+[data-theme='dark'] {
+  --quiz-bg:            #12121a;
+  --quiz-surface:       #1a1a24;
+  --quiz-surface-hover: #22222e;
+  --quiz-text:          #e8e8ef;
+  --quiz-text-muted:    #9a9aab;
+  --quiz-border:        #2c2c3a;
+  --quiz-accent-ink:    #12121a;
+  --quiz-pass:          #6cc286;
+  --quiz-fail:          #e06c75;
+  --quiz-shadow:        0 1px 3px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* And let a light toggle win back in a dark-OS context. */
+:root[data-theme='light'],
+[data-theme='light'] {
+  --quiz-bg:            #ffffff;
+  --quiz-surface:       #f7f7fa;
+  --quiz-surface-hover: #f0f0f5;
+  --quiz-text:          #1c1c28;
+  --quiz-text-muted:    #6b6b7b;
+  --quiz-border:        #e2e2ea;
+  --quiz-accent-ink:    #ffffff;
+  --quiz-pass:          #2f8f4e;
+  --quiz-fail:          #c0392b;
+  --quiz-shadow:        0 1px 3px rgba(20, 20, 40, 0.06), 0 8px 24px rgba(20, 20, 40, 0.05);
+}

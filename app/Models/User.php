@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Notifications\Notifiable;
 
@@ -41,12 +42,22 @@ class User extends Authenticatable
             ->using(ConversationParticipant::class);
     }
 
-    /** Skill nodes this user has progress on (self-reported in v1). */
+    /**
+     * Skill nodes this user has progress on. The `source` pivot records how a
+     * completion was earned ('self_report' | 'quiz'); quiz-earned rows also
+     * carry the granting `quiz_attempt_id`.
+     */
     public function skillNodes(): BelongsToMany
     {
         return $this->belongsToMany(SkillNode::class, 'sbn_user_skill_progress', 'user_id', 'skill_node_id')
-            ->withPivot(['status', 'completed_at'])
+            ->withPivot(['status', 'completed_at', 'source', 'quiz_attempt_id'])
             ->withTimestamps();
+    }
+
+    /** Quiz attempts this user has submitted. */
+    public function quizAttempts(): HasMany
+    {
+        return $this->hasMany(QuizAttempt::class, 'user_id');
     }
 
     public function owns(Course $course): bool

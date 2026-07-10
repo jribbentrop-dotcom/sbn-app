@@ -119,8 +119,22 @@ class SkillController extends Controller
         ]);
     }
 
+    /**
+     * Self-report a node complete (or un-complete it).
+     *
+     * Quiz-gated nodes are rejected: they're earned by passing the linked quiz,
+     * which is the whole point of completion_type='quiz'. Because this is the
+     * ONLY code path that detaches a progress row, blocking it here also makes
+     * quiz-earned completions permanent. Nodes completed by self-report before
+     * they became quiz-gated are grandfathered — the guard stops the toggle, so
+     * their existing row is never removed.
+     */
     public function toggle(Request $request, SkillNode $skillNode)
     {
+        if ($skillNode->isQuizGated()) {
+            abort(403, 'This skill is earned by passing its quiz.');
+        }
+
         $user = $request->user();
 
         $progress = $user->skillNodes()->where('skill_node_id', $skillNode->id)->first();

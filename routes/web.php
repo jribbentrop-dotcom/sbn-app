@@ -24,6 +24,7 @@ use App\Http\Controllers\Library\ProgressionLibraryController;
 use App\Http\Controllers\Library\SongLibraryController;
 use App\Http\Controllers\Library\TheoryController;
 use App\Http\Controllers\CourseController;
+use App\Http\Controllers\QuizController;
 use App\Http\Controllers\Account\AccountController;
 use App\Http\Controllers\Account\MessageController;
 use App\Http\Controllers\Account\SkillController;
@@ -406,6 +407,11 @@ Route::middleware('auth')->prefix('api/sbn')->name('api.sbn.')->group(function (
     Route::get('/fretboards/{slug}',   [AdminFretboardController::class,     'apiShow'])->name('fretboards.show');
     Route::get('/songs/{slug}/sheet',                 [SongLibraryController::class, 'apiSheet'])->name('songs.sheet');
     Route::get('/songs/{leadsheet:slug}/viewer-data', [SongLibraryController::class, 'apiViewerData'])->name('songs.viewer-data');
+
+    // Quizzes. apiShow strips the answer key; apiSubmit re-grades server-side
+    // and grants any linked skill nodes on a pass. See QuizController.
+    Route::get('/quizzes/{slug}',           [QuizController::class, 'apiShow'])->name('quizzes.show');
+    Route::post('/quizzes/{slug}/attempts', [QuizController::class, 'apiSubmit'])->name('quizzes.submit');
 
     // Search (used by admin palette — must be before /{slug} wildcards)
     Route::get('/chords',       [ChordLibraryController::class,       'search'])->name('chords.search');
