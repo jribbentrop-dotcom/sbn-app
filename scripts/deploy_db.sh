@@ -25,11 +25,17 @@ fi
 cat > /tmp/sbn_dump_users.py << 'PYEOF'
 import sqlite3, sys
 
+# User/state tables preserved from prod (NOT overwritten by the local copy).
+# Everything else is content and gets replaced. Note the quiz split: the quiz
+# DEFINITIONS (sbn_quizzes, sbn_quiz_skill_node) are content and ship from
+# local, but a student's ATTEMPTS are their data and must be preserved — as
+# must sbn_user_skill_progress, which records quiz-earned skills.
 TABLES = [
     'users', 'user_profiles', 'orders', 'order_items',
     'download_grants', 'course_user', 'sessions',
     'password_reset_tokens', 'jobs',
     'sbn_user_skill_progress',
+    'sbn_quiz_attempts',
 ]
 
 db_path = sys.argv[1]
