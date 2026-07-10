@@ -272,7 +272,7 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
 | API Routes (admin, auth-protected)
 |--------------------------------------------------------------------------
 */
-Route::middleware('auth')->prefix('api/admin')->name('api.admin.')->group(function () {
+Route::middleware(['auth', 'instructor'])->prefix('api/admin')->name('api.admin.')->group(function () {
     // Leadsheets
     Route::get('/leadsheets/search-voicings', [LeadsheetController::class, 'searchVoicings'])->name('leadsheets.searchVoicings');
     Route::get('/leadsheets/search-voicings-advanced', [LeadsheetController::class, 'searchVoicingsAdvanced'])->name('leadsheets.searchVoicingsAdvanced');
