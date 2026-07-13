@@ -19,7 +19,7 @@
 | 5 | God controller: `LeadsheetController` (4,728 lines / 80 methods) | Architecture | Medium | ⬜ Open |
 | 6 | Harmonic scorer duplicated across two services | Architecture | Medium | ⬜ Open |
 | 7 | Thin request validation (only 3 FormRequests) | Code quality | Medium | ⬜ Open |
-| 8 | `UserProfile` uses `$guarded = []` (open mass assignment) | Code quality | Low | ⬜ Open |
+| 8 | `UserProfile` uses `$guarded = []` (open mass assignment) | Code quality | Low | ✅ Fixed |
 | 9 | Tracked/stray files that should be ignored or removed | Repo hygiene | Low | ⬜ Open |
 | 10 | Test suite state unverified; leftover `console.log`/TODOs | Code quality | Low | ⬜ Open |
 
@@ -90,11 +90,11 @@ Only 3 `FormRequest` classes exist for a large admin write surface. Write endpoi
 
 **Fix:** introduce FormRequests (with authorization + validation rules) for the admin write endpoints.
 
-### 8. `UserProfile` mass assignment — Low
+### 8. `UserProfile` mass assignment — Low — ✅ Fixed 2026-07-13
 
-`app/Models/UserProfile.php` uses `protected $guarded = []`, leaving every attribute mass-assignable. 17 of 29 models correctly use `$fillable`.
+> **Resolved:** `app/Models/UserProfile.php` now uses `protected $fillable = ['display_name', 'bio', 'public']`. Verified against all call sites (`AccountController::updateProfile`/`profile`, `BackfillCustomerBackend`) — none mass-assign beyond those three fields; `avatar_path`/`last_seen_at` are set via direct property assignment and are unaffected.
 
-**Fix:** replace with an explicit `$fillable` allowlist.
+`app/Models/UserProfile.php` used `protected $guarded = []`, leaving every attribute mass-assignable. 17 of 29 models correctly use `$fillable`.
 
 ### 9. Repo hygiene — Low
 
@@ -112,11 +112,11 @@ Only 3 `FormRequest` classes exist for a large admin write surface. Write endpoi
 
 ## Recommended order
 
-Completed in this pass: **#1** (instructor guard), **#2** (deleted dead route file), **#4** (synced `.env.example`).
+Completed in this pass: **#1** (instructor guard), **#2** (deleted dead route file), **#4** (synced `.env.example`), **#8** (`UserProfile` mass-assignment fix).
 
 Remaining follow-up work:
 
 1. **#7** — add validation/authorization (FormRequests) to the admin write endpoints. Do this first; it hardens the surface just re-gated in #1.
 2. **#3** — verify the production `.env` sets `APP_DEBUG=false`.
 3. **#5, #6** — decompose `LeadsheetController`; extract the shared harmonic scorer.
-4. **#8, #9, #10** — `UserProfile` mass-assignment fix, repo cleanup (`git rm --cached` the two tracked-but-ignored files, remove stray probe/tmp files), and re-baseline the test suite with `php artisan test`.
+4. **#9, #10** — repo cleanup (`git rm --cached` the two tracked-but-ignored files, remove stray probe/tmp files), and re-baseline the test suite with `php artisan test`.
