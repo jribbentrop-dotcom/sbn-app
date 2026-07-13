@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\LeadsheetBackingTrackRequest;
+use App\Http\Requests\Admin\LeadsheetIsProRequest;
+use App\Http\Requests\Admin\LeadsheetStatusRequest;
 use App\Models\Leadsheet;
 use App\Models\LeadsheetVersion;
 use App\Models\RhythmPattern;
@@ -1819,13 +1822,8 @@ class LeadsheetController extends Controller
      * URL; the frontend writes it into json_data itself on the next save via
      * the normal update() endpoint — this route only handles the binary.
      */
-    public function uploadBackingTrack(Request $request, Leadsheet $leadsheet)
+    public function uploadBackingTrack(LeadsheetBackingTrackRequest $request, Leadsheet $leadsheet)
     {
-        $request->validate([
-            'track' => ['required', 'file', 'mimes:mp3,wav,m4a,aac,ogg', 'max:20480'],
-            'kind'  => ['required', 'string', 'in:backing,guitar'],
-        ]);
-
         $file = $request->file('track');
         $uuid = (string) Str::uuid();
         $ext  = $file->getClientOriginalExtension();
@@ -1845,10 +1843,9 @@ class LeadsheetController extends Controller
      * only ever be true on public_domain rows — not DB-enforced, so this is
      * the one place that nudges the admin rather than silently allowing it.
      */
-    public function updateIsPro(Request $request, Leadsheet $leadsheet)
+    public function updateIsPro(LeadsheetIsProRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate(['is_pro' => 'required|boolean']);
-        $leadsheet->update(['is_pro' => $validated['is_pro']]);
+        $leadsheet->update(['is_pro' => $request->validated('is_pro')]);
         return response()->json([
             'success' => true,
             'is_pro' => $leadsheet->is_pro,
@@ -1860,10 +1857,9 @@ class LeadsheetController extends Controller
      * Toggle a leadsheet between 'draft' and 'publish'. Drafts are hidden
      * from the public song library (see SongLibraryController).
      */
-    public function updateStatus(Request $request, Leadsheet $leadsheet)
+    public function updateStatus(LeadsheetStatusRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate(['status' => 'required|in:draft,publish']);
-        $leadsheet->update(['status' => $validated['status']]);
+        $leadsheet->update(['status' => $request->validated('status')]);
         return response()->json(['success' => true, 'status' => $leadsheet->status]);
     }
 

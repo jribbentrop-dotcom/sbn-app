@@ -18,7 +18,7 @@
 | 4 | `.env.example` missing config keys | Config | Low | ✅ Fixed |
 | 5 | God controller: `LeadsheetController` (4,728 lines / 80 methods) | Architecture | Medium | ⬜ Open |
 | 6 | Harmonic scorer duplicated across two services | Architecture | Medium | ⬜ Open |
-| 7 | Thin request validation (only 3 FormRequests) | Code quality | Medium | ⬜ Open |
+| 7 | Thin request validation (only 3 FormRequests) | Code quality | Medium | 🟡 Partial |
 | 8 | `UserProfile` uses `$guarded = []` (open mass assignment) | Code quality | Low | ✅ Fixed |
 | 9 | Tracked/stray files that should be ignored or removed | Repo hygiene | Low | ⬜ Open |
 | 10 | Test suite state unverified; leftover `console.log`/TODOs | Code quality | Low | ⬜ Open |
@@ -58,9 +58,11 @@ Then confirm no legitimate non-instructor caller depends on these routes (they s
 
 `routes/admin.php` defined admin rhythm CRUD behind `auth` only (no `instructor`), but the file was **never loaded**. It was misleading and repeated the mistake in #1 if anyone wired it in.
 
-### 3. Debug flag — Low
+### 3. Debug flag — Low — ⬜ Open (checked 2026-07-13, still needs live verification)
 
-`.env` has `APP_ENV=local` and `APP_DEBUG=true`. Correct for local work, but if the production `.env` inherits `APP_DEBUG=true`, stack traces and environment details leak on errors. Verify production sets `APP_DEBUG=false`. (Production config is not visible in this repo, so this is a checklist item, not a confirmed defect.)
+`.env` has `APP_ENV=local` and `APP_DEBUG=true`. Correct for local work, but if the production `.env` inherits `APP_DEBUG=true`, stack traces and environment details leak on errors.
+
+`deploy/env-production.txt` (the reference template for the production `.env`) correctly declares `APP_ENV=production` / `APP_DEBUG=false`, and nothing in `deploy/` overwrites it with a different value. That's good evidence of intent, but this repo has no automated deploy step that applies the template and no SSH access to the live server, so the *actual* file on production has not been directly confirmed. Someone with server access should run `grep APP_DEBUG /path/to/.env` on the production host to close this out.
 
 ### 4. `.env.example` drift — Low — ✅ Fixed 2026-07-09
 
@@ -84,11 +86,15 @@ Several keys the application reads were absent from `.env.example`, so a fresh d
 
 **Fix:** extract a shared harmonic-scoring module both services depend on.
 
-### 7. Thin request validation — Medium
+### 7. Thin request validation — Medium — 🟡 Partially fixed 2026-07-13
 
-Only 3 `FormRequest` classes exist for a large admin write surface. Write endpoints such as `updateIsPro`, `updateStatus`, and `uploadBackingTrack` accept a raw `Request`. This pairs naturally with fixing #1.
+> **Partial:** the three endpoints named in this finding (`updateIsPro`, `updateStatus`, `uploadBackingTrack` on `Admin/LeadsheetController`) now use dedicated FormRequests — `LeadsheetIsProRequest`, `LeadsheetStatusRequest`, `LeadsheetBackingTrackRequest` (`app/Http/Requests/Admin/`). Each `authorize()`s via `$user->isInstructor()` as defense in depth on top of the route-level `instructor` middleware. `LeadsheetIsProRequest` also closes a real gap found while fixing this: the old `updateIsPro` docblock claimed to "nudge the admin" against enabling `is_pro` on non-`public_domain` rows, but no such check existed in code — an instructor could set `is_pro=true` on a copyrighted song and expose it via the pro Viewer/Cinema path (the exact impact flagged in finding #1). The FormRequest now rejects that combination with a validation error.
+>
+> The rest of the ~80-method admin write surface (leadsheet CRUD, exercises, chords, progressions, rhythm patterns, etc.) still takes raw `Request` and has not been converted — that remains open, tracked below.
 
-**Fix:** introduce FormRequests (with authorization + validation rules) for the admin write endpoints.
+Only 3 `FormRequest` classes existed for a large admin write surface (now 6). Most write endpoints still accept a raw `Request`. This pairs naturally with fixing #1.
+
+**Fix:** introduce FormRequests (with authorization + validation rules) for the remaining admin write endpoints — `AdminExerciseController`, `ChordController`, `ProgressionController`, `ProgressionBuilderController`, and the rest of `LeadsheetController`.
 
 ### 8. `UserProfile` mass assignment — Low — ✅ Fixed 2026-07-13
 
@@ -112,11 +118,13 @@ Only 3 `FormRequest` classes exist for a large admin write surface. Write endpoi
 
 ## Recommended order
 
-Completed in this pass: **#1** (instructor guard), **#2** (deleted dead route file), **#4** (synced `.env.example`), **#8** (`UserProfile` mass-assignment fix).
+Completed in this pass: **#1** (instructor guard), **#2** (deleted dead route file), **#4** (synced `.env.example`), **#8** (`UserProfile` mass-assignment fix), **#9** (untracked the two stray tracked files).
+
+Partially completed: **#7** (FormRequests + `is_pro`/`public_domain` business-rule fix for the three endpoints the finding named; the rest of the admin write surface is still raw `Request`). **#3** checked — `deploy/env-production.txt` correctly templates `APP_DEBUG=false`, but the live production `.env` itself hasn't been directly inspected (no server access from this environment).
 
 Remaining follow-up work:
 
-1. **#7** — add validation/authorization (FormRequests) to the admin write endpoints. Do this first; it hardens the surface just re-gated in #1.
-2. **#3** — verify the production `.env` sets `APP_DEBUG=false`.
+1. **#7** — convert the remaining admin write endpoints (leadsheet CRUD, exercises, chords, progressions, rhythm patterns) to FormRequests.
+2. **#3** — someone with production server access should confirm the live `.env` actually has `APP_DEBUG=false`.
 3. **#5, #6** — decompose `LeadsheetController`; extract the shared harmonic scorer.
-4. **#9, #10** — repo cleanup (`git rm --cached` the two tracked-but-ignored files, remove stray probe/tmp files), and re-baseline the test suite with `php artisan test`.
+4. **#10** — re-baseline the test suite with `php artisan test` (not runnable from this sandbox — no `vendor/` installed).
