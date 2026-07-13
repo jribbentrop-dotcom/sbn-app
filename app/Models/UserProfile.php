@@ -13,7 +13,11 @@ class UserProfile extends Model
     public $incrementing = false;
     protected $keyType = 'int';
 
-    protected $guarded = [];
+    protected $fillable = [
+        'display_name',
+        'bio',
+        'public',
+    ];
 
     protected $casts = [
         'public'       => 'boolean',
