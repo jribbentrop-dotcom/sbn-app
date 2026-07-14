@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\LessonFieldRequest;
+use App\Http\Requests\Admin\LessonImageRequest;
+use App\Http\Requests\Admin\LessonReorderRequest;
 use App\Http\Requests\Admin\LessonRequest;
+use App\Http\Requests\Admin\LessonStatusRequest;
 use App\Models\Course;
 use App\Models\Lesson;
 use App\Services\EduContentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -64,25 +67,18 @@ class LessonController extends Controller
             ->with('success', 'Lesson deleted.');
     }
 
-    public function updateField(Request $request, Lesson $lesson): JsonResponse
+    public function updateField(LessonFieldRequest $request, Lesson $lesson): JsonResponse
     {
-        $validated = $request->validate([
-            'field' => ['required', 'string', \Illuminate\Validation\Rule::in(['section_title', 'title', 'status'])],
-            'value' => ['nullable', 'string', 'max:255'],
-        ]);
+        $validated = $request->validated();
 
         $lesson->update([$validated['field'] => $validated['value']]);
 
         return response()->json(['ok' => true]);
     }
 
-    public function reorder(Request $request, Course $course): JsonResponse
+    public function reorder(LessonReorderRequest $request, Course $course): JsonResponse
     {
-        $validated = $request->validate([
-            'items'             => ['required', 'array'],
-            'items.*.id'        => ['required', 'integer'],
-            'items.*.sort_order' => ['required', 'integer'],
-        ]);
+        $validated = $request->validated();
 
         foreach ($validated['items'] as $item) {
             $course->lessons()->where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
@@ -91,12 +87,8 @@ class LessonController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    public function uploadImage(Request $request, Lesson $lesson): JsonResponse
+    public function uploadImage(LessonImageRequest $request, Lesson $lesson): JsonResponse
     {
-        $request->validate([
-            'image' => ['required', 'file', 'mimes:jpeg,png,webp,gif', 'max:5120'],
-        ]);
-
         $file = $request->file('image');
         $uuid = (string) Str::uuid();
         $ext  = $file->getClientOriginalExtension();
@@ -127,10 +119,9 @@ class LessonController extends Controller
     }
 
     /** Returns [{slug, title}] for the widget palette, sorted by title. */
-    public function updateStatus(Request $request, Lesson $lesson): JsonResponse
+    public function updateStatus(LessonStatusRequest $request, Lesson $lesson): JsonResponse
     {
-        $validated = $request->validate(['status' => 'required|in:draft,publish']);
-        $lesson->update(['status' => $validated['status']]);
+        $lesson->update(['status' => $request->validated('status')]);
         return response()->json(['success' => true, 'status' => $lesson->status]);
     }
 
