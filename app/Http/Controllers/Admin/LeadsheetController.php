@@ -4,8 +4,17 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\LeadsheetBackingTrackRequest;
+use App\Http\Requests\Admin\LeadsheetCoverImageRequest;
+use App\Http\Requests\Admin\LeadsheetDescriptionRequest;
 use App\Http\Requests\Admin\LeadsheetIsProRequest;
+use App\Http\Requests\Admin\LeadsheetMergeSongRequest;
+use App\Http\Requests\Admin\LeadsheetMergeVersionsRequest;
+use App\Http\Requests\Admin\LeadsheetMsczConvertRequest;
+use App\Http\Requests\Admin\LeadsheetPayloadRequest;
+use App\Http\Requests\Admin\LeadsheetPersistStemRequest;
+use App\Http\Requests\Admin\LeadsheetRemoveVoicingRequest;
 use App\Http\Requests\Admin\LeadsheetStatusRequest;
+use App\Http\Requests\Admin\LeadsheetTransposeRequest;
 use App\Models\Leadsheet;
 use App\Models\LeadsheetVersion;
 use App\Models\RhythmPattern;
@@ -190,9 +199,9 @@ class LeadsheetController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(LeadsheetPayloadRequest $request)
     {
-        $validated = $this->validateLeadsheet($request);
+        $validated = $request->validated();
 
         $parsed = null;
         if (!empty($validated['shortcode_content'])) {
@@ -1014,9 +1023,9 @@ class LeadsheetController extends Controller
     }
 
 
-    public function update(Request $request, Leadsheet $leadsheet)
+    public function update(LeadsheetPayloadRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $this->validateLeadsheet($request);
+        $validated = $request->validated();
 
         // Which arrangement is being saved? ?v=slug (from the editor's version link)
         // or the default version. Edits are written to this version row; the leadsheet
@@ -2750,35 +2759,6 @@ class LeadsheetController extends Controller
     // =========================================================================
     // PRIVATE HELPERS
     // =========================================================================
-
-    private function validateLeadsheet(Request $request): array
-    {
-        return $request->validate([
-            'title'             => 'required|string|max:255',
-            'slug'              => 'nullable|string|max:255|regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
-            'composer'          => 'nullable|string|max:255',
-            'song_key'          => 'nullable|string|max:10',
-            'tempo'             => 'nullable|integer|min:20|max:300',
-            'time_signature'    => 'nullable|string|max:10',
-            'rhythm'            => 'nullable|string|max:50',
-            'course_id'         => 'nullable|integer',
-            'shortcode_content' => 'nullable|string',
-            'json_data'         => 'nullable|string',
-            'tab_xml'           => 'nullable|string',
-            'chord_tab_xml'     => 'nullable|string',
-            'description'       => 'nullable|string|max:5000',
-            'harmony_notes'     => 'nullable|string|max:5000',
-            'form_notes'        => 'nullable|string|max:5000',
-            'voicing_notes'     => 'nullable|string|max:5000',
-            'genre'             => 'nullable|string|max:50',
-            'popularity'        => 'nullable|integer|min:0|max:100',
-            'difficulty'        => 'nullable|integer|min:0|max:5',
-            'version_label'     => 'nullable|string|max:120',
-            'version_performer' => 'nullable|string|max:120',
-            'arrangement_notes' => 'nullable|string|max:5000',
-            'tags'              => 'nullable|string|max:500',
-        ]);
-    }
 
     private function syncTags(Leadsheet $leadsheet, array $slugs): void
     {
