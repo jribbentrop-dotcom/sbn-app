@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ProductRequest;
+use App\Http\Requests\Admin\ProductStatusRequest;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use Illuminate\Http\RedirectResponse;
@@ -79,10 +80,9 @@ class ProductController extends Controller
             ->with('success', 'Product deleted.');
     }
 
-    public function updateStatus(Request $request, Product $product): \Illuminate\Http\JsonResponse
+    public function updateStatus(ProductStatusRequest $request, Product $product): \Illuminate\Http\JsonResponse
     {
-        $validated = $request->validate(['status' => 'required|in:draft,published']);
-        $product->update(['status' => $validated['status']]);
+        $product->update(['status' => $request->validated('status')]);
         return response()->json(['success' => true, 'status' => $product->status]);
     }
 
