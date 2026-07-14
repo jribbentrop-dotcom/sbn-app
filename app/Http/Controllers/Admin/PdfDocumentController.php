@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\PdfDocumentStoreRequest;
+use App\Http\Requests\Admin\PdfDocumentUpdateRequest;
 use App\Models\ChordDiagram;
 use App\Models\Exercise;
 use App\Models\Leadsheet;
@@ -25,24 +27,13 @@ class PdfDocumentController extends Controller
         return view('admin.pdf.index', compact('documents', 'templateLabels'));
     }
 
-    public function store(Request $request)
+    public function store(PdfDocumentStoreRequest $request)
     {
-        $request->validate([
-            'title'   => ['required', 'string', 'max:255'],
-            'slug'    => ['required', 'string', 'max:255', 'unique:sbn_pdf_documents,slug'],
-            'pages'   => ['required', 'string'],
-        ]);
-
-        $pages = json_decode($request->input('pages'), true) ?? [];
-        if (empty($pages)) {
-            return back()->withInput()->withErrors(['pages' => 'Select at least one page type.']);
-        }
-
         $doc = PdfDocument::create([
             'template_key' => 'composed',
             'title'        => $request->input('title'),
             'slug'         => $request->input('slug'),
-            'pages'        => $pages,
+            'pages'        => $request->pagesArray(),
             'status'       => 'draft',
             'content'      => [],
         ]);
@@ -57,19 +48,12 @@ class PdfDocumentController extends Controller
         return view('admin.pdf.edit', compact('document', 'schema'));
     }
 
-    public function update(Request $request, PdfDocument $document)
+    public function update(PdfDocumentUpdateRequest $request, PdfDocument $document)
     {
-        $content = $request->input('content');
-
-        // Ensure we have an array (comes in as JSON string from the Alpine form)
-        if (is_string($content)) {
-            $content = json_decode($content, true) ?? [];
-        }
-
         $document->update([
             'title'   => $request->input('title', $document->title),
             'status'  => $request->input('status', $document->status),
-            'content' => $content,
+            'content' => $request->contentValue(),
         ]);
 
         if ($request->expectsJson()) {
