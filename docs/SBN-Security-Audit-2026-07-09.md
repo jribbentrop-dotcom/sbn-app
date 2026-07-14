@@ -4,7 +4,58 @@
 **Scope:** Code & architecture, security & config (Laravel 13 / PHP 8.3, Vue + Inertia)
 **Method:** Static review of routes, controllers, services, middleware, models, config, and repo state. The PHPUnit suite was **not** executed (no PHP runtime in the audit sandbox); test observations come from the result cache and file inventory.
 
-**Status legend:** ✅ Fixed · ⬜ Open (for follow-up)
+**Status legend:** ✅ Fixed · 🟡 Partial · ⬜ Open (for follow-up)
+
+---
+
+## Resuming locally — read this first
+
+*(This section is written as direct instructions to whichever Claude Code session picks this up next — on the user's local Windows machine, after the `claude/security-patch-d0q1nn` branch was developed remotely on GitHub. If you're that session: follow it in order. If you're a human reading this, it doubles as a changelog of what still needs doing.)*
+
+**Where things stand:** `claude/security-patch-d0q1nn` has 6 commits not yet in local `main`. Local `main` and the remote `origin/main` were identical when this branch was created (verified — see conversation history), and nothing else has touched local `main` since, so this should be a clean merge, not a three-way one. If that assumption turns out to be wrong (local `main` has moved), stop and reconcile with the user before merging rather than forcing it.
+
+### Step 1 — merge the branch
+
+```bash
+git fetch origin
+git checkout claude/security-patch-d0q1nn   # review the diff if you want: git diff main...claude/security-patch-d0q1nn
+git checkout main
+git merge claude/security-patch-d0q1nn      # should fast-forward or merge cleanly
+```
+
+### Step 2 — run the tests (this is the part that couldn't happen remotely — no `vendor/`, no DB access there)
+
+Three new test files exist specifically to catch problems in tonight's changes. Run them first, individually, before the full suite — they're small and if something's wrong you want to know which change broke it:
+
+```bash
+php artisan test --filter=ChordQualityMapperTest        # pure unit, no DB — run this one first
+php artisan test --filter=UserProfileFillableTest        # touches real dev DB, wrapped in a rolled-back transaction
+php artisan test --filter=LeadsheetAdminRequestsTest      # same — transaction-wrapped, nothing persisted
+```
+
+`ChordQualityMapperTest` needs nothing but `vendor/`. The other two connect to the real `database/sbn.db` (same pattern as the existing `tests/Feature/InstructorGateTest.php`: `DB::beginTransaction()` in `setUp()`, `DB::rollBack()` in `tearDown()`) — they read/write through Laravel's normal Eloquent connection inside a transaction that's always rolled back, which is safe and does **not** need `scripts/db_checkout.py` (that script is for direct sqlite3/file-level access outside a Laravel transaction — not what these tests do). If any of the three fail, don't just patch the test to make it pass — read the failure, decide whether it's revealing a real bug in the change or an over-strict test, and say which before fixing anything.
+
+Once those three are green, establish the full suite baseline (audit finding #10 — this has never been done, per the original 2026-07-09 audit):
+
+```bash
+php artisan test
+```
+
+Expect some pre-existing non-passing tests unrelated to this branch (the original audit noted ~105 non-passing entries out of 258 in the PHPUnit result cache, before any of tonight's work). The goal isn't a fully green suite — it's knowing which failures are pre-existing vs. new. If anything **new** fails outside the three files above, that's a regression from tonight's changes and needs investigating before you consider this branch done.
+
+### Step 3 — manual smoke test (things the automated tests can't fully cover)
+
+The `LeadsheetAdminRequestsTest` deliberately skips the *successful* backing-track upload path, because it writes real files into `public/audio/backing-tracks/` — not something to do from an automated test against the real project directory. Click through this by hand as the last check:
+
+1. Log in as an instructor, go to any leadsheet's admin edit view, toggle `is_pro` on a **public_domain** song (should succeed) and try it on a **copyrighted** one (should now be *rejected* with a validation error — before tonight's fix it would have silently succeeded, which was the actual security-relevant bug found while doing #7).
+2. Toggle a leadsheet's status between draft/publish.
+3. Upload a real backing-track audio file and confirm it saves and the URL comes back correctly.
+4. Visit `/account/profile` as a **brand-new** user (one with no existing `sbn_user_profiles` row) and confirm the page loads without a DB error — this is the specific regression the `#8` fix could have caused (see finding #8 below) if `user_id` hadn't been added back to `UserProfile::$fillable`.
+5. Update the profile form (name/bio/public toggle) and confirm it saves.
+
+### Step 4 — what's still open after this
+
+Check the Summary table below for current status, but in short: **#3** (needs someone with production server access to confirm `APP_DEBUG=false` on the live `.env` — not verifiable from any sandbox), **#5** (the `LeadsheetController` split — scoped in finding #5 below with a method inventory and two safe starting points, but not attempted; do this only once Steps 1–3 are green, since it's the riskiest remaining item), and the rest of **#7** (FormRequests for everything in the admin write surface beyond the three endpoints already done). Ask the user which of these they want next rather than assuming.
 
 ---
 
@@ -20,7 +71,7 @@
 | 6 | Harmonic scorer duplicated across two services | Architecture | Medium | ✅ Fixed |
 | 7 | Thin request validation (only 3 FormRequests) | Code quality | Medium | 🟡 Partial |
 | 8 | `UserProfile` uses `$guarded = []` (open mass assignment) | Code quality | Low | ✅ Fixed |
-| 9 | Tracked/stray files that should be ignored or removed | Repo hygiene | Low | ⬜ Open |
+| 9 | Tracked/stray files that should be ignored or removed | Repo hygiene | Low | ✅ Fixed |
 | 10 | Test suite state unverified; leftover `console.log`/TODOs | Code quality | Low | 🟡 Partial |
 
 **What's already solid:** `.env` and `sbn.db` are correctly untracked; the Stripe webhook verifies its signature and is idempotent; the CSRF exception is narrowly scoped to the webhook route; the beta auth gate (`redirectGuestsTo → register`) is coherent.
@@ -106,11 +157,13 @@ Only 3 `FormRequest` classes existed for a large admin write surface (now 6). Mo
 
 `app/Models/UserProfile.php` used `protected $guarded = []`, leaving every attribute mass-assignable. 17 of 29 models correctly use `$fillable`.
 
-### 9. Repo hygiene — Low
+### 9. Repo hygiene — Low — ✅ Fixed 2026-07-13
 
-- Tracked despite now being in `.gitignore` (committed before the rules): `resources/js/tab-editor.zip` (80 KB) and `public/images/mega-menu/featured-collection.png`. Run `git rm --cached` on both.
-- Stray uncommitted files to remove or ignore: `# SBN Homepage — Skill Path Section.txt`, `ssr-test-tmp.mjs`, `scripts/probe_665785.php`, `scripts/probe_regress.php`, `database/sbn.db.bak-20260702-precleanup`.
-- `ffmpeg.exe` (~100 MB) and `yt-dlp.exe` (~18 MB) sit in the repo root — correctly gitignored, but heavy working-tree clutter; consider relocating outside the project.
+> **Resolved:** `git rm --cached` run on both `resources/js/tab-editor.zip` and `public/images/mega-menu/featured-collection.png` — untracked from git (already covered by the `*.zip`/`*.png` gitignore rules going forward), files left in place on disk. Neither is referenced anywhere in app code. The stray uncommitted files listed below were already gone from the working tree by the time this was checked — nothing to clean up.
+
+- ~~Tracked despite now being in `.gitignore` (committed before the rules): `resources/js/tab-editor.zip` (80 KB) and `public/images/mega-menu/featured-collection.png`. Run `git rm --cached` on both.~~
+- ~~Stray uncommitted files to remove or ignore: `# SBN Homepage — Skill Path Section.txt`, `ssr-test-tmp.mjs`, `scripts/probe_665785.php`, `scripts/probe_regress.php`, `database/sbn.db.bak-20260702-precleanup`.~~
+- `ffmpeg.exe` (~100 MB) and `yt-dlp.exe` (~18 MB) sit in the repo root — correctly gitignored, but heavy working-tree clutter; consider relocating outside the project. (Still open — low priority.)
 
 ### 10. Tests & residue — Low — 🟡 Partial (test coverage added, baseline still not run)
 
