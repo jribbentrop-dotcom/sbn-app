@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\ExerciseDescriptionRequest;
+use App\Http\Requests\Admin\ExercisePayloadRequest;
+use App\Http\Requests\Admin\ExerciseSliceRequest;
 use App\Models\Exercise;
 use App\Models\Leadsheet;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ExerciseController extends Controller
@@ -43,9 +45,9 @@ class ExerciseController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(ExercisePayloadRequest $request)
     {
-        $data = $this->validatePayload($request);
+        $data = $request->payload();
         if (empty($data['slug'])) {
             $data['slug'] = Str::slug($data['title']);
         }
@@ -74,9 +76,9 @@ class ExerciseController extends Controller
         ]);
     }
 
-    public function update(Request $request, Exercise $exercise)
+    public function update(ExercisePayloadRequest $request, Exercise $exercise)
     {
-        $data = $this->validatePayload($request, $exercise->id);
+        $data = $request->payload();
         $exercise->update($data);
 
         if ($request->expectsJson()) {
@@ -137,13 +139,9 @@ class ExerciseController extends Controller
             ->with('success', 'Exercise created from "' . $leadsheet->title . '".');
     }
 
-    public function createFromLeadsheetSlice(Request $request, Leadsheet $leadsheet): \Illuminate\Http\JsonResponse
+    public function createFromLeadsheetSlice(ExerciseSliceRequest $request, Leadsheet $leadsheet): \Illuminate\Http\JsonResponse
     {
-        $validated = $request->validate([
-            'measure_indices' => ['required', 'array', 'min:1'],
-            'measure_indices.*' => ['integer', 'min:0'],
-            'title' => ['nullable', 'string', 'max:255'],
-        ]);
+        $validated = $request->validated();
 
         $indices = $validated['measure_indices'];
         sort($indices);
@@ -278,14 +276,10 @@ class ExerciseController extends Controller
         ]);
     }
 
-    public function updateDescription(Request $request, Exercise $exercise): \Illuminate\Http\JsonResponse
+    public function updateDescription(ExerciseDescriptionRequest $request, Exercise $exercise): \Illuminate\Http\JsonResponse
     {
-        $validated = $request->validate([
-            'description' => 'nullable|string',
-        ]);
-
         $exercise->update([
-            'description' => $validated['description'],
+            'description' => $request->validated('description'),
         ]);
 
         return response()->json([
@@ -294,37 +288,4 @@ class ExerciseController extends Controller
         ]);
     }
 
-    private function validatePayload(Request $request, ?int $exerciseId = null): array
-    {
-        $validated = $request->validate([
-            'slug'              => ['nullable', 'string', 'max:255', 'regex:/^[a-z0-9\-]+$/', 'unique:sbn_exercises,slug' . ($exerciseId ? ',' . $exerciseId : '')],
-            'title'             => ['required', 'string', 'max:255'],
-            'composer'          => ['nullable', 'string', 'max:255'],
-            'key_center'        => ['required', 'string', 'max:4'],
-            'time_sig'          => ['required', 'string', 'max:8'],
-            'bpm_default'       => ['required', 'integer', 'min:40', 'max:320'],
-            'rhythm'            => ['nullable', 'string', 'max:50'],
-            'measure_count'     => ['nullable', 'integer'],
-            'course_id'         => ['nullable', 'integer', 'exists:sbn_courses,id'],
-            'type'              => ['required', 'string', 'in:tab_exercise,chord_etude'],
-            'content_json'      => ['required', 'string'],
-            'shortcode_content' => ['nullable', 'string'],
-            'tab_xml'           => ['nullable', 'string'],
-            'description'       => ['nullable', 'string'],
-            'harmony_notes'     => ['nullable', 'string'],
-            'form_notes'        => ['nullable', 'string'],
-            'voicing_notes'     => ['nullable', 'string'],
-            'popularity'        => ['nullable', 'integer'],
-        ]);
-
-        $decoded = json_decode($validated['content_json'], true);
-        if (!is_array($decoded)) {
-            throw ValidationException::withMessages([
-                'content_json' => 'Invalid JSON content.',
-            ]);
-        }
-        $validated['content_json'] = $decoded;
-
-        return $validated;
-    }
 }
