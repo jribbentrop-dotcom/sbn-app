@@ -242,12 +242,8 @@ class LeadsheetController extends Controller
      * importer so a .mscz can be dropped straight into the app (local dev only —
      * requires MuseScore installed on the server running this route).
      */
-    public function convertMscz(Request $request)
+    public function convertMscz(LeadsheetMsczConvertRequest $request)
     {
-        $request->validate([
-            'file' => 'required|file|max:51200', // 50 MB
-        ]);
-
         $file = $request->file('file');
         $ext  = strtolower($file->getClientOriginalExtension());
         if (!in_array($ext, ['mscz', 'mscx'], true)) {
@@ -1145,12 +1141,9 @@ class LeadsheetController extends Controller
      * Body: { semitones: int, v?: string }
      * Response: { ok: true, song_key: string }
      */
-    public function transpose(Request $request, Leadsheet $leadsheet)
+    public function transpose(LeadsheetTransposeRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate([
-            'semitones' => ['required', 'integer', 'between:-11,11'],
-            'v'         => ['nullable', 'string'],
-        ]);
+        $validated = $request->validated();
 
         $semitones = (int) $validated['semitones'];
         $vSlug     = $validated['v'] ?? $request->query('v');
@@ -1422,12 +1415,9 @@ class LeadsheetController extends Controller
      * the frontend points videoSync at it. The ephemeral session may be swept
      * afterwards without affecting this persisted copy.
      */
-    public function persistStemAsSync(Request $request, Leadsheet $leadsheet, \App\Services\MidiTranscriptionService $transcriber)
+    public function persistStemAsSync(LeadsheetPersistStemRequest $request, Leadsheet $leadsheet, \App\Services\MidiTranscriptionService $transcriber)
     {
-        $validated = $request->validate([
-            'session' => 'required|string|max:64',
-            'stem'    => 'required|string|in:guitar,bass,vocals,drums,piano,other',
-        ]);
+        $validated = $request->validated();
 
         $src = $transcriber->stemSessionDir($validated['session']) . '/' . $validated['stem'] . '.wav';
         if (!is_file($src)) {
@@ -1501,13 +1491,9 @@ class LeadsheetController extends Controller
      * No detection runs: voicing/progression caches key off json_data (unchanged),
      * not tab XML. So a merge never touches sbn_voicing_usage / occurrences.
      */
-    public function mergeVersions(Request $request, Leadsheet $leadsheet)
+    public function mergeVersions(LeadsheetMergeVersionsRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate([
-            'mother_version_slug' => 'required|string',
-            'melody_version_id'   => 'required|integer|exists:sbn_leadsheet_versions,id',
-            'chord_version_id'    => 'required|integer|exists:sbn_leadsheet_versions,id',
-        ]);
+        $validated = $request->validated();
 
         $mother = $leadsheet->versions()
             ->where('version_slug', $validated['mother_version_slug'])
@@ -1584,11 +1570,9 @@ class LeadsheetController extends Controller
      * are re-pointed to A's id + the new version id — no re-detection pass.
      * B's versions + leadsheet row are then deleted.
      */
-    public function mergeSong(Request $request, Leadsheet $leadsheet)
+    public function mergeSong(LeadsheetMergeSongRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate([
-            'source_leadsheet_id' => 'required|integer|exists:sbn_leadsheets,id',
-        ]);
+        $validated = $request->validated();
 
         if ((int) $validated['source_leadsheet_id'] === $leadsheet->id) {
             return response()->json(['success' => false, 'message' => 'Source and target are the same song.'], 422);
@@ -1766,17 +1750,15 @@ class LeadsheetController extends Controller
     // API ENDPOINTS
     // =========================================================================
 
-    public function updateDescription(Request $request, Leadsheet $leadsheet)
+    public function updateDescription(LeadsheetDescriptionRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate(['description' => 'nullable|string|max:5000']);
-        $leadsheet->update(['description' => $validated['description'] ?? '']);
+        $leadsheet->update(['description' => $request->validated('description') ?? '']);
         return response()->json(['success' => true, 'description' => $leadsheet->description]);
     }
 
-    public function updateCoverImage(Request $request, Leadsheet $leadsheet)
+    public function updateCoverImage(LeadsheetCoverImageRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate(['cover_image_path' => 'nullable|string|max:500']);
-        $leadsheet->update(['cover_image_path' => $validated['cover_image_path'] ?? null]);
+        $leadsheet->update(['cover_image_path' => $request->validated('cover_image_path') ?? null]);
         return response()->json(['success' => true, 'cover_image_path' => $leadsheet->cover_image_path]);
     }
 
@@ -3357,12 +3339,9 @@ class LeadsheetController extends Controller
      * Remove a specific voicing from the leadsheet by chord name and fret string.
      * Called from the leadsheet editor when user deletes a chord diagram.
      */
-    public function removeVoicing(Request $request, Leadsheet $leadsheet)
+    public function removeVoicing(LeadsheetRemoveVoicingRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate([
-            'chord_name' => 'required|string|max:50',
-            'fret_string'  => 'required|string|max:20',
-        ]);
+        $validated = $request->validated();
 
         $removed = $leadsheet->removeVoicing($validated['chord_name'], $validated['fret_string']);
 
