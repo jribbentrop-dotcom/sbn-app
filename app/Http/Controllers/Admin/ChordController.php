@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\ChordAliasRequest;
+use App\Http\Requests\Admin\ChordDescriptionRequest;
+use App\Http\Requests\Admin\ChordDiagramRequest;
 use App\Models\ChordDiagram;
 use App\Models\ChordDiagramAlias;
 use App\Models\VoicingDraft;
@@ -184,9 +187,9 @@ class ChordController extends Controller
     /**
      * Store a new chord diagram.
      */
-    public function store(Request $request)
+    public function store(ChordDiagramRequest $request)
     {
-        $validated = $this->validateChord($request);
+        $validated = $request->chordData();
 
         if (empty($validated['slug'])) {
             $validated['slug'] = $this->generateSlug($validated);
@@ -210,9 +213,9 @@ class ChordController extends Controller
     /**
      * Update an existing chord diagram.
      */
-    public function update(Request $request, ChordDiagram $chord)
+    public function update(ChordDiagramRequest $request, ChordDiagram $chord)
     {
-        $validated = $this->validateChord($request);
+        $validated = $request->chordData();
 
         if (empty($validated['slug'])) {
             $validated['slug'] = $this->generateSlug($validated);
@@ -265,40 +268,6 @@ class ChordController extends Controller
     // =========================================================================
     // VALIDATION & HELPERS
     // =========================================================================
-
-    private function validateChord(Request $request): array
-    {
-        $rules = [
-            'root_note'        => 'required|string|max:3',
-            'quality'          => 'required|string|max:20',
-            'extensions'       => 'nullable|string|max:50',
-            'voicing_category' => 'required|string|max:30',
-            'root_string'      => 'required|string|max:20',
-            'inversion'        => 'nullable|string|max:10',
-            'bass_note'        => 'nullable|string|max:3',
-            'shape_family'     => 'nullable|string|max:50',
-            'is_fixed_position'=> 'boolean',
-            'start_fret'       => 'required|integer|min:1|max:24',
-            'diagram_data'     => 'required|string',
-            'description'      => 'nullable|string|max:10000',
-            'name'             => 'nullable|string|max:200',
-            'slug'             => 'nullable|string|max:200',
-        ];
-
-        $data = $request->validate($rules);
-
-        $decoded = json_decode($data['diagram_data'], true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $data['diagram_data'] = json_encode([
-                'positions' => [], 'barres' => [], 'muted' => [6, 1], 'open' => [],
-            ]);
-        }
-
-        $data['inversion'] = $data['inversion'] ?? 'root';
-        $data['is_fixed_position'] = $data['is_fixed_position'] ?? false;
-
-        return $data;
-    }
 
     private function generateSlug(array $data): string
     {
@@ -378,10 +347,9 @@ class ChordController extends Controller
     /**
      * Delete a chord diagram (AJAX).
      */
-    public function updateDescription(Request $request, ChordDiagram $chord)
+    public function updateDescription(ChordDescriptionRequest $request, ChordDiagram $chord)
     {
-        $validated = $request->validate(['description' => 'nullable|string|max:10000']);
-        $chord->update(['description' => $validated['description'] ?? '']);
+        $chord->update(['description' => $request->validated('description') ?? '']);
         return response()->json(['success' => true, 'description' => $chord->description]);
     }
 
@@ -446,14 +414,9 @@ class ChordController extends Controller
     /**
      * Add an alias to a diagram (AJAX).
      */
-    public function storeAlias(Request $request, ChordDiagram $chord)
+    public function storeAlias(ChordAliasRequest $request, ChordDiagram $chord)
     {
-        $data = $request->validate([
-            'alt_root_note'  => 'required|string|max:3',
-            'alt_quality'    => 'required|string|max:20',
-            'alt_extensions' => 'nullable|string|max:50',
-            'alt_bass_note'  => 'nullable|string|max:5',
-        ]);
+        $data = $request->validated();
 
         $altName = ChordDiagramAlias::buildAltName(
             $data['alt_root_note'],
