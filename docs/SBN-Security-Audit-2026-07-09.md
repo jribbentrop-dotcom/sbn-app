@@ -12,7 +12,9 @@
 
 *(This section is written as direct instructions to whichever Claude Code session picks this up next — on the user's local Windows machine, after the `claude/security-patch-d0q1nn` branch was developed remotely on GitHub. If you're that session: follow it in order. If you're a human reading this, it doubles as a changelog of what still needs doing.)*
 
-**Where things stand:** `claude/security-patch-d0q1nn` has 6 commits not yet in local `main`. Local `main` and the remote `origin/main` were identical when this branch was created (verified — see conversation history), and nothing else has touched local `main` since, so this should be a clean merge, not a three-way one. If that assumption turns out to be wrong (local `main` has moved), stop and reconcile with the user before merging rather than forcing it.
+**Where things stand:** `claude/security-patch-d0q1nn` has several commits not yet in local `main` (check `git log origin/main..claude/security-patch-d0q1nn --oneline` for the current count — it grew across multiple remote sessions on 2026-07-13 and -14). Local `main` and the remote `origin/main` were identical when this branch was created, and nothing else has touched local `main` since, so this should be a clean merge, not a three-way one. If that assumption turns out to be wrong (local `main` has moved), stop and reconcile with the user before merging rather than forcing it.
+
+**Note on test execution:** the 2026-07-13 pass had no `vendor/` in the remote sandbox, so nothing could actually be run there. On 2026-07-14, `composer install` was made to work remotely, which meant everything *not* touching the real `sbn.db` (all of `tests/Unit`, plus `tests/Feature/Identifier/DetectionFilterTest.php` and `AudioContextRerankTest.php`) has already been run and verified remotely — including the `LeadsheetController` → `TranscriptionAssembler` extraction below. So Step 2 below is really about the DB-touching tests now; the rest is a final confirmation, not first-time execution.
 
 ### Step 1 — merge the branch
 
@@ -55,7 +57,7 @@ The `LeadsheetAdminRequestsTest` deliberately skips the *successful* backing-tra
 
 ### Step 4 — what's still open after this
 
-Check the Summary table below for current status, but in short: **#3** (needs someone with production server access to confirm `APP_DEBUG=false` on the live `.env` — not verifiable from any sandbox), **#5** (the `LeadsheetController` split — scoped in finding #5 below with a method inventory and two safe starting points, but not attempted; do this only once Steps 1–3 are green, since it's the riskiest remaining item), and the rest of **#7** (FormRequests for everything in the admin write surface beyond the three endpoints already done). Ask the user which of these they want next rather than assuming.
+Check the Summary table below for current status, but in short: **#3** (needs someone with production server access to confirm `APP_DEBUG=false` on the live `.env` — not verifiable from any sandbox), **#5** (the `LeadsheetController` split — the two safe pieces are done and verified; the real 4-way split around `createFromLookup`'s dual CRUD/transcription personality is still open, see finding #5 below), and the rest of **#7** (FormRequests for everything in the admin write surface beyond the three endpoints already done). Ask the user which of these they want next rather than assuming.
 
 ---
 
@@ -67,7 +69,7 @@ Check the Summary table below for current status, but in short: **#3** (needs so
 | 2 | Dead `routes/admin.php` with `auth`-only admin CRUD | Security | Medium | ✅ Fixed |
 | 3 | `APP_DEBUG=true` in `.env` — confirm production is `false` | Config | Low | ⬜ Open (verify prod) |
 | 4 | `.env.example` missing config keys | Config | Low | ✅ Fixed |
-| 5 | God controller: `LeadsheetController` (4,728 lines / 80 methods) | Architecture | Medium | ⬜ Open |
+| 5 | God controller: `LeadsheetController` (4,728 lines / 80 methods) | Architecture | Medium | 🟡 Partial |
 | 6 | Harmonic scorer duplicated across two services | Architecture | Medium | ✅ Fixed |
 | 7 | Thin request validation (only 3 FormRequests) | Code quality | Medium | 🟡 Partial |
 | 8 | `UserProfile` uses `$guarded = []` (open mass assignment) | Code quality | Low | ✅ Fixed |
@@ -125,13 +127,21 @@ Several keys the application reads were absent from `.env.example`, so a fresh d
 
 ## Code & architecture
 
-### 5. God controller — `Admin/LeadsheetController.php` — Medium
+### 5. God controller — `Admin/LeadsheetController.php` — Medium — 🟡 Partial (safe pieces done 2026-07-14)
 
-4,728 lines and 80 methods spanning CRUD, audio transcription, progression detection, YouTube search, and voicing identification. It is the largest maintainability liability in the codebase and concentrates the blast radius of #1.
+Was 4,728 lines and 80 methods spanning CRUD, audio transcription, progression detection, YouTube search, and voicing identification — the largest maintainability liability in the codebase and the concentrator of #1's blast radius.
 
-> **Scoped but deliberately deferred (2026-07-13):** mapped the full method inventory (44 public methods, ~1,700-line transcription cluster, natural CRUD/Transcription/Voicing/Progression seams) before starting. The split is real work, not mechanical: `createFromLookup` (~380 lines) is simultaneously a CRUD-create action and a full audio-transcription pipeline, and three helpers (`normalizeChordNamesInJson`, the `serializeLeadsheet`/`backfillFingersFromCrossref` pair, and the injected `LeadsheetParser`) cross every proposed cluster boundary. Attempting this blind with no way to run the test suite in-session (no `vendor/` installed here) was judged too risky — deferred for a session with local test execution. Two cheap, low-risk pieces are worth doing first whenever this is picked up: (1) move the two orphan methods `youtubeSearch` and `resolveNumerals` out (neither shares a helper with anything, and `resolveNumerals`'s route is already named `progressions.resolveNumerals`, not `leadsheets.*`); (2) extract the self-contained ~900-line MIDI/tab/beat-grid algorithm cluster (`app/Http/Controllers/Admin/LeadsheetController.php:3463-4724` — `assembleTranscription`, `optimizeTabPositions`, `bassSnapBeatTimes`, etc.) into its own service, since it has zero constructor-dependency ties to the controller and no route changes are needed.
+> **Scoped 2026-07-13, safe pieces done 2026-07-14 with real test verification.** `composer install` was run in the remote sandbox this time (it wasn't available in the 2026-07-13 pass), which unlocked actually running the unit/algorithmic test suite — not just `php -l` — so the three low-risk moves flagged on 2026-07-13 were completed and verified rather than deferred further:
+>
+> 1. **`youtubeSearch`** moved to a new single-action `Admin/YoutubeSearchController` (matches the existing single-action convention in `Webhooks/PaymentWebhookController`). Route unchanged (`api.admin.youtube.search`).
+> 2. **`resolveNumerals`** moved to `Admin/ProgressionController` (its route was already named `progressions.resolveNumerals`, not `leadsheets.*`).
+> 3. **The ~900-line self-contained MIDI/tab/beat-grid algorithm cluster** — `assembleTranscription`, `optimizeTabPositions`, `bassSnapBeatTimes`, `rebucketBeats`, `resolveDetectionParams`, `melodyPositionHints`, and 10 more private helpers — extracted into `app/Services/TranscriptionAssembler.php`. `LeadsheetController` now takes it as a 4th constructor-injected dependency and delegates through 8 call sites; the extracted class's 3 externally-called methods (`resolveDetectionParams`, `assembleTranscription`, `melodyPositionHints`) are `public`, the other 13 are `private`. Pure move, no logic changes.
+>
+> **Verification:** `tests/Feature/Identifier/DetectionFilterTest.php` and `AudioContextRerankTest.php` both invoke `assembleTranscription`/`rebucketBeats` via Reflection against `LeadsheetController` — updated to target `TranscriptionAssembler` instead, then actually run (all 6 cases pass), confirming the extraction is behavior-preserving, not just lint-clean. `php artisan route:list` confirms both relocated routes still resolve. Net result: **`LeadsheetController` is 3,387 lines**, down from 4,728 (~28% reduction), with zero route or behavior changes.
+>
+> **Still open:** the real 4-way split (Crud/Transcription/Voicing/Progression controllers) — `createFromLookup` (~380 lines) is simultaneously a CRUD-create action and a full audio-transcription pipeline, and three remaining helpers (`normalizeChordNamesInJson`, the `serializeLeadsheet`/`backfillFingersFromCrossref` pair, and the injected `LeadsheetParser`) still cross every proposed cluster boundary. That's real design work, not mechanical extraction — worth doing next now that DB-independent verification is available in this sandbox, but Feature tests that touch the real `sbn.db` still can't run here, so treat any change touching DB-backed code paths with the same caution as before.
 
-**Fix:** split by responsibility — e.g. `LeadsheetCrudController`, `LeadsheetTranscriptionController`, `LeadsheetVoicingController` — pushing logic into services. Related oversized files worth decomposing: `ProgressionBuilder.php` (4,369), `VoicingCrossref.php` (3,335), `resources/js/tab-editor/TabEditor.vue` (3,547).
+**Fix:** split by responsibility — e.g. `LeadsheetCrudController`, `LeadsheetVoicingController` — pushing logic into services. Related oversized files worth decomposing: `ProgressionBuilder.php` (4,369), `VoicingCrossref.php` (3,335), `resources/js/tab-editor/TabEditor.vue` (3,547).
 
 ### 6. Duplicated harmonic scorer — Medium — ✅ Fixed 2026-07-13
 
@@ -181,11 +191,13 @@ Completed in this pass: **#1** (instructor guard), **#2** (deleted dead route fi
 
 Partially completed: **#7** (FormRequests + `is_pro`/`public_domain` business-rule fix for the three endpoints the finding named; the rest of the admin write surface is still raw `Request`). **#3** checked — `deploy/env-production.txt` correctly templates `APP_DEBUG=false`, but the live production `.env` itself hasn't been directly inspected (no server access from this environment). **#10** — added `tests/Feature/Admin/LeadsheetAdminRequestsTest.php`, `tests/Feature/Account/UserProfileFillableTest.php`, and `tests/Unit/ChordQualityMapperTest.php` to cover tonight's changes; the full-suite baseline is still not established (no `vendor/` in this sandbox).
 
-Deliberately deferred: **#5** — scoped (see finding #5 above for the method inventory and the two low-risk pieces to start with) but not attempted; the real 4-way split needs a session with local test execution to verify safely.
+Deliberately deferred (2026-07-13): **#5** — scoped (see finding #5 above for the method inventory and the two low-risk pieces to start with) but not attempted; the real 4-way split needs a session with local test execution to verify safely.
+
+**2026-07-14 update:** got `composer install` working in the remote sandbox (it failed/wasn't available on 2026-07-13), which unlocked real test execution — not just `php -l` — for anything that doesn't need `sbn.db`. Used that to complete the two low-risk #5 pieces flagged the day before (moved `youtubeSearch`/`resolveNumerals` out, extracted the ~900-line transcription cluster into `TranscriptionAssembler`), verified by actually running the two Identifier tests that exercise that code, not just reading it. `LeadsheetController`: 4,728 → 3,387 lines. Also caught and fixed a real bug in `tests/Unit/ChordQualityMapperTest.php` itself this way — it was silently running 0 test cases due to a PHPUnit-version mismatch (docblock `@dataProvider` vs. this repo's PHPUnit 12, which requires the `#[DataProvider]` attribute).
 
 Remaining follow-up work:
 
 1. **#7** — convert the remaining admin write endpoints (leadsheet CRUD, exercises, chords, progressions, rhythm patterns) to FormRequests.
 2. **#3** — someone with production server access should confirm the live `.env` actually has `APP_DEBUG=false`.
-3. **#5** — decompose `LeadsheetController`, starting with the two low-risk pieces noted above.
-4. **#10** — run `php artisan test` locally to establish the full green/red baseline, including tonight's three new test files.
+3. **#5** — the real 4-way controller split (Crud/Voicing/Progression, plus resolving `createFromLookup`'s dual CRUD/transcription personality) is still open; the safe pieces are done.
+4. **#10** — run `php artisan test` locally (with the real `sbn.db`) to establish the full green/red baseline. From this sandbox: all of `tests/Unit` plus `DetectionFilterTest`/`AudioContextRerankTest` pass except pre-existing, unrelated failures (`RhythmMaterializerTest`, 5 cases — untouched by any of this work) and DB-connection failures from tests that need the real `sbn.db` (expected, it isn't here).

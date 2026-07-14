@@ -7,10 +7,60 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Http\Controllers\Controller;
+use App\Services\ChordSequenceParser;
+use App\Services\HarmonicContext;
 use App\Services\ProgressionDetector;
 
 class ProgressionController extends Controller
 {
+    /**
+     * Resolve Roman numerals in a chord sequence to concrete chord names for
+     * the given key. Moved from Admin/LeadsheetController — it shares no
+     * helpers with the leadsheet CRUD/transcription/voicing clusters there,
+     * and its route is already named progressions.resolveNumerals, not
+     * leadsheets.* (SBN-Security-Audit-2026-07-09.md finding #5).
+     */
+    public function resolveNumerals(Request $request, ChordSequenceParser $parser, HarmonicContext $context)
+    {
+        $validated = $request->validate([
+            'key' => 'required|string|max:10',
+            'sequence' => 'required|string',
+        ]);
+
+        $key = $validated['key'];
+        $sequence = $validated['sequence'];
+
+        $parsed = $parser->parse($sequence);
+
+        $chords = [];
+        $invalidCount = $parsed['invalid_count'];
+
+        if ($parsed['mode'] === 'bars') {
+            foreach ($parsed['items'] as $barChords) {
+                foreach ($barChords as $chord) {
+                    if ((bool) preg_match('/^(b|#)?(III|iii|VII|vii|II|ii|IV|iv|VI|vi|I|i|V|v)(.*)$/', $chord)) {
+                        $chords[] = $context->numeralToChordName($chord, $key);
+                    } else {
+                        $chords[] = $chord;
+                    }
+                }
+            }
+        } else {
+            foreach ($parsed['items'] as $chord) {
+                if ((bool) preg_match('/^(b|#)?(III|iii|VII|vii|II|ii|IV|iv|VI|vi|I|i|V|v)(.*)$/', $chord)) {
+                    $chords[] = $context->numeralToChordName($chord, $key);
+                } else {
+                    $chords[] = $chord;
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'chords' => $chords,
+            'invalid_count' => $invalidCount,
+        ]);
+    }
     /**
      * Index page — Library + Occurrences tabs.
      */

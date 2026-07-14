@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Identifier;
 
-use App\Http\Controllers\Admin\LeadsheetController;
+use App\Services\TranscriptionAssembler;
 use App\Services\VoicingCrossref;
 use Tests\TestCase;
 
@@ -61,13 +61,11 @@ class AudioContextRerankTest extends TestCase
 
     private function assemble(array $rawResult, array $opts): array
     {
-        $controller = app(LeadsheetController::class);
-        $crossref   = app(VoicingCrossref::class);
+        $assembler = app(TranscriptionAssembler::class);
+        $crossref  = app(VoicingCrossref::class);
 
-        $ref = new \ReflectionMethod($controller, 'assembleTranscription');
-        $ref->setAccessible(true);
         // bass_snap off to keep the synthetic grid pristine.
-        return $ref->invoke($controller, $rawResult, $opts, 0, $crossref);
+        return $assembler->assembleTranscription($rawResult, $opts, 0, $crossref);
     }
 
     /** Flatten all chord labels across sections/bars, in order. */

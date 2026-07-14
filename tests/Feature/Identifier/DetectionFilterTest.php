@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Identifier;
 
-use App\Http\Controllers\Admin\LeadsheetController;
+use App\Services\TranscriptionAssembler;
 use App\Services\VoicingCrossref;
 use Tests\TestCase;
 
@@ -14,23 +14,21 @@ use Tests\TestCase;
  */
 class DetectionFilterTest extends TestCase
 {
-    private function controller(): LeadsheetController
+    private function assembler(): TranscriptionAssembler
     {
-        return app(LeadsheetController::class);
+        return app(TranscriptionAssembler::class);
     }
 
     private function callRebucket(array $notes, array $beatTimes, ?array $filter): array
     {
-        $ref = new \ReflectionMethod($this->controller(), 'rebucketBeats');
+        $ref = new \ReflectionMethod($this->assembler(), 'rebucketBeats');
         $ref->setAccessible(true);
-        return $ref->invoke($this->controller(), $notes, $beatTimes, $filter);
+        return $ref->invoke($this->assembler(), $notes, $beatTimes, $filter);
     }
 
     private function assemble(array $rawResult, array $opts): array
     {
-        $ref = new \ReflectionMethod($this->controller(), 'assembleTranscription');
-        $ref->setAccessible(true);
-        return $ref->invoke($this->controller(), $rawResult, $opts, 0, app(VoicingCrossref::class));
+        return $this->assembler()->assembleTranscription($rawResult, $opts, 0, app(VoicingCrossref::class));
     }
 
     public function test_rebucket_no_filter_matches_default_floor(): void

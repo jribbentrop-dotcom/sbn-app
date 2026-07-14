@@ -305,7 +305,7 @@ Route::middleware(['auth', 'instructor'])->prefix('api/admin')->name('api.admin.
     Route::post('/leadsheets/reprocess-progressions', [ProgressionDetectionController::class, 'reprocessAll'])->name('leadsheets.reprocess-progressions');
 
     // YouTube Search
-    Route::get('/youtube/search', [LeadsheetController::class, 'youtubeSearch'])->name('youtube.search');
+    Route::get('/youtube/search', \App\Http\Controllers\Admin\YoutubeSearchController::class)->name('youtube.search');
 
     // Exercises
     Route::delete('/exercises/{exercise}', [AdminExerciseController::class, 'destroy'])->name('exercises.destroy');
@@ -319,7 +319,7 @@ Route::middleware(['auth', 'instructor'])->prefix('api/admin')->name('api.admin.
     Route::post('/progressions/reprocess', [ProgressionController::class, 'reprocess'])->name('progressions.reprocess');
     Route::post('/progressions/reseed-fragments', [ProgressionController::class, 'reseedFragments'])->name('progressions.reseedFragments');
     Route::post('/progressions/{progression}/toggle-featured', [ProgressionController::class, 'toggleFeatured'])->name('progressions.toggleFeatured');
-    Route::post('/progressions/resolve-numerals', [LeadsheetController::class, 'resolveNumerals'])->name('progressions.resolveNumerals');
+    Route::post('/progressions/resolve-numerals', [ProgressionController::class, 'resolveNumerals'])->name('progressions.resolveNumerals');
 
 
     // Phase 6d — Progression Builder API
