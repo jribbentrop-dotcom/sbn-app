@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\CourseGrantRequest;
 use App\Models\Course;
 use App\Models\User;
 use App\Services\CourseAccessService;
@@ -36,14 +37,9 @@ class CourseGrantController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(CourseGrantRequest $request)
     {
-        $data = $request->validate([
-            'email'      => ['required', 'email'],
-            'course_id'  => ['required', 'exists:sbn_courses,id'],
-            'source'     => ['required', 'in:purchase,manual_grant,bundle,promo'],
-            'expires_at' => ['nullable', 'date'],
-        ]);
+        $data = $request->validated();
 
         $user = User::where('email', $data['email'])->first();
         if (!$user) {
