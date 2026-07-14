@@ -8,6 +8,7 @@ use App\Services\HarmonicContext;
 use App\Services\Builder\PhaseE\ExtensionTable;
 use App\Services\Builder\PhaseE\Interval;
 use App\Services\BuilderSettings;
+use App\Services\Harmony\ChordQualityMapper;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -30,11 +31,16 @@ class ProgressionBuilder
 {
     protected ChordShapeCalculator $calculator;
     protected BuilderSettings $settings;
+    protected ChordQualityMapper $qualityMapper;
 
-    public function __construct(ChordShapeCalculator $calculator, BuilderSettings $settings)
-    {
+    public function __construct(
+        ChordShapeCalculator $calculator,
+        BuilderSettings $settings,
+        ChordQualityMapper $qualityMapper = new ChordQualityMapper()
+    ) {
         $this->calculator = $calculator;
         $this->settings = $settings;
+        $this->qualityMapper = $qualityMapper;
         ExtensionTable::initialize();
     }
 
@@ -1625,15 +1631,14 @@ class ProgressionBuilder
 
     /**
      * Compose a chord name from root, quality, and extension.
-     * // TODO(harmonic-scorer): extract to shared module — duplicated from ProgressionDetector
      */
     private function composeChordName(string $root, string $quality, string $extension): string
     {
         $name = $root;
 
         // Normalize quality for chord-name display (e.g. "dim", not the
-        // Roman-numeral "o" — see qualityToChordNameSuffix).
-        $displayQuality = $this->qualityToChordNameSuffix($quality);
+        // Roman-numeral "o" — see ChordQualityMapper::toChordNameSuffix).
+        $displayQuality = $this->qualityMapper->toChordNameSuffix($quality);
         if ($displayQuality) {
             $name .= $displayQuality;
         }
@@ -1643,106 +1648,6 @@ class ProgressionBuilder
         }
 
         return $name;
-    }
-
-    /**
-     * Map a quality to a chord-NAME suffix (e.g. "Bdim", "Caug").
-     *
-     * Distinct from qualityToSuffix(), which produces Roman-NUMERAL suffixes
-     * ("vii°", "bIIo"). composeChordName previously borrowed qualityToSuffix
-     * and emitted numeral conventions ("Bo", "Bo7") into chord names — which
-     * disagreed with Pass 1 / HarmonicContext ("Bdim", "Bdim7"), so the same
-     * chord was named differently depending on whether extensions were on.
-     */
-    private function qualityToChordNameSuffix(string $quality): string
-    {
-        $q = $this->normalizeQuality($quality);
-
-        $suffixMap = [
-            'maj'   => '',
-            'dom7'  => '7',
-            '7'     => '7',
-            'maj7'  => 'maj7',
-            'min'   => 'm',
-            'm'     => 'm',
-            'm7'    => 'm7',
-            'm7b5'  => 'm7b5',
-            'dim'   => 'dim',
-            'o'     => 'dim',
-            '°'     => 'dim',
-            'dim7'  => 'dim7',
-            'o7'    => 'dim7',
-            '°7'    => 'dim7',
-            'aug'   => 'aug',
-            'aug7'  => 'aug7',
-            'sus4'  => 'sus4',
-            'sus2'  => 'sus2',
-            'maj6'  => '6',
-            'm6'    => 'm6',
-            'mMaj7' => 'mMaj7',
-            'add9'  => 'add9',
-            '9'     => '9',
-            '11'    => '11',
-            '13'    => '13',
-        ];
-
-        return $suffixMap[$q] ?? $q;
-    }
-
-    /**
-     * Map quality to Roman numeral suffix.
-     * // TODO(harmonic-scorer): extract to shared module — duplicated from ProgressionDetector::qualityToSuffix
-     */
-    private function qualityToSuffix(string $quality): string
-    {
-        $q = $this->normalizeQuality($quality);
-
-        $suffixMap = [
-            'maj' => '',
-            'dom7' => '7',
-            '7' => '7',
-            'maj7' => 'maj7',
-            'min' => 'm',
-            'm' => 'm',
-            'm7' => 'm7',
-            'm7b5' => 'm7b5',
-            'dim' => 'o',
-            'dim7' => 'o7',
-            'o7' => 'o7',
-            'aug' => '+',
-            'aug7' => '7+',
-            'sus4' => 'sus4',
-            'sus2' => 'sus2',
-            'maj6' => '6',
-            'm6' => 'm6',
-            'add9' => 'add9',
-            '9' => '9',
-            '11' => '11',
-            '13' => '13',
-        ];
-
-        return $suffixMap[$q] ?? $q;
-    }
-
-    /**
-     * Normalize quality for suffix mapping.
-     * // TODO(harmonic-scorer): extract to shared module — duplicated from ProgressionDetector
-     */
-    private function normalizeQuality(string $quality): string
-    {
-        $q = trim($quality);
-
-        // Handle common aliases
-        $aliases = [
-            'dom7' => '7',
-            'dominant' => '7',
-            'major' => 'maj',
-            'minor' => 'm',
-            'half-dim' => 'm7b5',
-            'half-diminished' => 'm7b5',
-        ];
-
-        return $aliases[$q] ?? $q;
     }
 
     /**
@@ -1837,7 +1742,7 @@ class ProgressionBuilder
                 // by functional role and assumes plain triads / 7ths; a sus4
                 // or add9 already carries its own tone structure, so layering
                 // a "(9)" on top yields nonsense names (Dsus4(9), Dadd9(9)).
-                $chordQuality = $this->normalizeQuality($chord['quality'] ?? '');
+                $chordQuality = $this->qualityMapper->normalizeAlias($chord['quality'] ?? '');
                 if (in_array($chordQuality, ['sus2', 'sus4', 'add9', 'madd9'], true)) {
                     $context['sections'][$secIdx]['chords'][$chordIdx]['extension'] = '';
                     continue;

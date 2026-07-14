@@ -17,7 +17,7 @@
 | 3 | `APP_DEBUG=true` in `.env` — confirm production is `false` | Config | Low | ⬜ Open (verify prod) |
 | 4 | `.env.example` missing config keys | Config | Low | ✅ Fixed |
 | 5 | God controller: `LeadsheetController` (4,728 lines / 80 methods) | Architecture | Medium | ⬜ Open |
-| 6 | Harmonic scorer duplicated across two services | Architecture | Medium | ⬜ Open |
+| 6 | Harmonic scorer duplicated across two services | Architecture | Medium | ✅ Fixed |
 | 7 | Thin request validation (only 3 FormRequests) | Code quality | Medium | 🟡 Partial |
 | 8 | `UserProfile` uses `$guarded = []` (open mass assignment) | Code quality | Low | ✅ Fixed |
 | 9 | Tracked/stray files that should be ignored or removed | Repo hygiene | Low | ⬜ Open |
@@ -78,13 +78,17 @@ Several keys the application reads were absent from `.env.example`, so a fresh d
 
 4,728 lines and 80 methods spanning CRUD, audio transcription, progression detection, YouTube search, and voicing identification. It is the largest maintainability liability in the codebase and concentrates the blast radius of #1.
 
+> **Scoped but deliberately deferred (2026-07-13):** mapped the full method inventory (44 public methods, ~1,700-line transcription cluster, natural CRUD/Transcription/Voicing/Progression seams) before starting. The split is real work, not mechanical: `createFromLookup` (~380 lines) is simultaneously a CRUD-create action and a full audio-transcription pipeline, and three helpers (`normalizeChordNamesInJson`, the `serializeLeadsheet`/`backfillFingersFromCrossref` pair, and the injected `LeadsheetParser`) cross every proposed cluster boundary. Attempting this blind with no way to run the test suite in-session (no `vendor/` installed here) was judged too risky — deferred for a session with local test execution. Two cheap, low-risk pieces are worth doing first whenever this is picked up: (1) move the two orphan methods `youtubeSearch` and `resolveNumerals` out (neither shares a helper with anything, and `resolveNumerals`'s route is already named `progressions.resolveNumerals`, not `leadsheets.*`); (2) extract the self-contained ~900-line MIDI/tab/beat-grid algorithm cluster (`app/Http/Controllers/Admin/LeadsheetController.php:3463-4724` — `assembleTranscription`, `optimizeTabPositions`, `bassSnapBeatTimes`, etc.) into its own service, since it has zero constructor-dependency ties to the controller and no route changes are needed.
+
 **Fix:** split by responsibility — e.g. `LeadsheetCrudController`, `LeadsheetTranscriptionController`, `LeadsheetVoicingController` — pushing logic into services. Related oversized files worth decomposing: `ProgressionBuilder.php` (4,369), `VoicingCrossref.php` (3,335), `resources/js/tab-editor/TabEditor.vue` (3,547).
 
-### 6. Duplicated harmonic scorer — Medium
+### 6. Duplicated harmonic scorer — Medium — ✅ Fixed 2026-07-13
 
-`ProgressionBuilder` duplicates `qualityToSuffix` and scorer logic from `ProgressionDetector`, flagged by three in-code `TODO(harmonic-scorer)` notes (`ProgressionBuilder.php:1628,1694,1729`). Divergence means the detector and the builder can silently disagree on the same harmony.
+> **Resolved, and smaller than it first looked.** Investigating the three `TODO(harmonic-scorer)` notes (`ProgressionBuilder.php:1628,1694,1729`) found: (a) no actual "scorer" — `ProgressionBuilder` has no equivalent of `ProgressionDetector::resolveFamily()`/`tokenScore()`; that part of the finding (and `docs/SBN-Builder-Reference.md`'s note on a future `HarmonicScorer`) was aspirational, not a description of present duplication; (b) `ProgressionBuilder::qualityToSuffix()`, the method whose name most directly claims to duplicate `ProgressionDetector::qualityToSuffix()`, had **zero call sites** — dead code; (c) the two `normalizeQuality*` methods, while both flagged as duplicates, actually solve different problems (Builder wants near-exact quality preserved for chord-name display; Detector deliberately collapses extensions to base harmonic function for pattern matching) and would break one caller if forced into a single shared implementation.
+>
+> Extracted `app/Services/Harmony/ChordQualityMapper.php` as the single source of truth for both real (non-dead) use cases, keeping them as two distinct named methods rather than one incorrectly-merged `normalize()`: `normalizeAlias()`/`toChordNameSuffix()` (the display path, ex-`ProgressionBuilder`) and `normalizeForFunction()`/`toRomanSuffix()` (the functional path, ex-`ProgressionDetector`). Both classes now take an optional `ChordQualityMapper` constructor param (defaults to `new ChordQualityMapper()`, so no existing call site — including the two places tests construct these classes directly with `new` — needed to change) and delegate to it instead of keeping private copies. The dead `ProgressionBuilder::qualityToSuffix()` was deleted outright rather than preserved as a delegate. Pure move + delegate, no behavior changes beyond removing the dead method. Added `tests/Unit/ChordQualityMapperTest.php` (no DB dependency) to lock in both paths' behavior, including a test that deliberately documents where they diverge (`maj6`: display keeps "6", functional collapses to "maj7").
 
-**Fix:** extract a shared harmonic-scoring module both services depend on.
+`ProgressionBuilder` duplicated `qualityToSuffix` and (per the original finding's phrasing) "scorer logic" from `ProgressionDetector`, flagged by three in-code `TODO(harmonic-scorer)` notes. Divergence meant the detector and the builder could silently disagree on the same harmony.
 
 ### 7. Thin request validation — Medium — 🟡 Partially fixed 2026-07-13
 
@@ -120,13 +124,15 @@ Added `tests/Feature/Admin/LeadsheetAdminRequestsTest.php` and `tests/Feature/Ac
 
 ## Recommended order
 
-Completed in this pass: **#1** (instructor guard), **#2** (deleted dead route file), **#4** (synced `.env.example`), **#8** (`UserProfile` mass-assignment fix), **#9** (untracked the two stray tracked files).
+Completed in this pass: **#1** (instructor guard), **#2** (deleted dead route file), **#4** (synced `.env.example`), **#6** (extracted shared `ChordQualityMapper`), **#8** (`UserProfile` mass-assignment fix), **#9** (untracked the two stray tracked files).
 
-Partially completed: **#7** (FormRequests + `is_pro`/`public_domain` business-rule fix for the three endpoints the finding named; the rest of the admin write surface is still raw `Request`). **#3** checked — `deploy/env-production.txt` correctly templates `APP_DEBUG=false`, but the live production `.env` itself hasn't been directly inspected (no server access from this environment).
+Partially completed: **#7** (FormRequests + `is_pro`/`public_domain` business-rule fix for the three endpoints the finding named; the rest of the admin write surface is still raw `Request`). **#3** checked — `deploy/env-production.txt` correctly templates `APP_DEBUG=false`, but the live production `.env` itself hasn't been directly inspected (no server access from this environment). **#10** — added `tests/Feature/Admin/LeadsheetAdminRequestsTest.php`, `tests/Feature/Account/UserProfileFillableTest.php`, and `tests/Unit/ChordQualityMapperTest.php` to cover tonight's changes; the full-suite baseline is still not established (no `vendor/` in this sandbox).
+
+Deliberately deferred: **#5** — scoped (see finding #5 above for the method inventory and the two low-risk pieces to start with) but not attempted; the real 4-way split needs a session with local test execution to verify safely.
 
 Remaining follow-up work:
 
 1. **#7** — convert the remaining admin write endpoints (leadsheet CRUD, exercises, chords, progressions, rhythm patterns) to FormRequests.
 2. **#3** — someone with production server access should confirm the live `.env` actually has `APP_DEBUG=false`.
-3. **#5, #6** — decompose `LeadsheetController`; extract the shared harmonic scorer.
-4. **#10** — re-baseline the test suite with `php artisan test` (not runnable from this sandbox — no `vendor/` installed).
+3. **#5** — decompose `LeadsheetController`, starting with the two low-risk pieces noted above.
+4. **#10** — run `php artisan test` locally to establish the full green/red baseline, including tonight's three new test files.
