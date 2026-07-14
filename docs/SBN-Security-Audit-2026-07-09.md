@@ -21,7 +21,7 @@
 | 7 | Thin request validation (only 3 FormRequests) | Code quality | Medium | 🟡 Partial |
 | 8 | `UserProfile` uses `$guarded = []` (open mass assignment) | Code quality | Low | ✅ Fixed |
 | 9 | Tracked/stray files that should be ignored or removed | Repo hygiene | Low | ⬜ Open |
-| 10 | Test suite state unverified; leftover `console.log`/TODOs | Code quality | Low | ⬜ Open |
+| 10 | Test suite state unverified; leftover `console.log`/TODOs | Code quality | Low | 🟡 Partial |
 
 **What's already solid:** `.env` and `sbn.db` are correctly untracked; the Stripe webhook verifies its signature and is idempotent; the CSRF exception is narrowly scoped to the webhook route; the beta auth gate (`redirectGuestsTo → register`) is coherent.
 
@@ -108,11 +108,13 @@ Only 3 `FormRequest` classes existed for a large admin write surface (now 6). Mo
 - Stray uncommitted files to remove or ignore: `# SBN Homepage — Skill Path Section.txt`, `ssr-test-tmp.mjs`, `scripts/probe_665785.php`, `scripts/probe_regress.php`, `database/sbn.db.bak-20260702-precleanup`.
 - `ffmpeg.exe` (~100 MB) and `yt-dlp.exe` (~18 MB) sit in the repo root — correctly gitignored, but heavy working-tree clutter; consider relocating outside the project.
 
-### 10. Tests & residue — Low
+### 10. Tests & residue — Low — 🟡 Partial (test coverage added, baseline still not run)
 
-47 test files across Unit/Feature/Integration. The PHPUnit result cache records ~105 non-passing entries against 258 timed tests, and `tests/Unit/IdentifierRegressionCases.php` has uncommitted changes. The suite was not run here.
+47 test files across Unit/Feature/Integration. The PHPUnit result cache records ~105 non-passing entries against 258 timed tests, and `tests/Unit/IdentifierRegressionCases.php` has uncommitted changes. The suite was not run here (no `vendor/` in this sandbox — `composer install` never ran).
 
-**Fix:** run `php artisan test` to establish the current green/red baseline before relying on it. Also: 21 `console.log` calls remain in shipped JS and there are 68 `TODO/FIXME/HACK` markers across `app/` and `resources/js/`.
+Added `tests/Feature/Admin/LeadsheetAdminRequestsTest.php` and `tests/Feature/Account/UserProfileFillableTest.php` to cover the #7/#8 changes above. Both follow `InstructorGateTest`'s pattern (transaction-wrapped against the real dev DB, rolled back in `tearDown`, never committed) rather than `RefreshDatabase`. Writing `UserProfileFillableTest` caught a real regression in the #8 fix: `firstOrCreate(['user_id' => ...], [...])` mass-assigns via `create()`, and Eloquent's `fillableFromArray()` strips any key not in `$fillable` — including `user_id` — *before* it reaches the model, so the initial `$fillable = ['display_name','bio','public']` (missing `user_id`) would have made every new profile row fail to persist its primary key. `user_id` was added to `$fillable`; safe because no call site ever mass-assigns it from raw request input. **These new tests have not been run** (same `vendor/` gap) — run them first when back on a machine with PHP + composer, they're the most direct regression check for tonight's changes.
+
+**Fix:** run `php artisan test` (or at minimum the two new files above) to establish the current green/red baseline before relying on it. Also: 21 `console.log` calls remain in shipped JS and there are 68 `TODO/FIXME/HACK` markers across `app/` and `resources/js/`.
 
 ---
 

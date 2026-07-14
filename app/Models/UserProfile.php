@@ -14,6 +14,7 @@ class UserProfile extends Model
     protected $keyType = 'int';
 
     protected $fillable = [
+        'user_id',
         'display_name',
         'bio',
         'public',
