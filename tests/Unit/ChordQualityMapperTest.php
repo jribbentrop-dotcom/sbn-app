@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Services\Harmony\ChordQualityMapper;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -17,7 +18,7 @@ class ChordQualityMapperTest extends TestCase
         return new ChordQualityMapper();
     }
 
-    /** @dataProvider chordNameSuffixCases */
+    #[DataProvider('chordNameSuffixCases')]
     public function test_to_chord_name_suffix(string $quality, string $expected): void
     {
         $this->assertSame($expected, $this->mapper()->toChordNameSuffix($quality));
@@ -36,7 +37,7 @@ class ChordQualityMapperTest extends TestCase
         ];
     }
 
-    /** @dataProvider romanSuffixCases */
+    #[DataProvider('romanSuffixCases')]
     public function test_to_roman_suffix(string $quality, string $expected): void
     {
         $this->assertSame($expected, $this->mapper()->toRomanSuffix($quality));
