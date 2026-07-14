@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\AIProcessRequest;
 use App\Services\LLM\LookupClient;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class AIController extends Controller
@@ -13,27 +13,10 @@ class AIController extends Controller
         protected LookupClient $llm
     ) {}
 
-    public function process(Request $request)
+    public function process(AIProcessRequest $request)
     {
         set_time_limit(120);
         ini_set('max_execution_time', 120);
-
-        $request->validate([
-            'action' => 'required|string|in:proofread,autocomplete,generate,chat,describe',
-            'content' => 'required|string',
-            'context' => 'nullable|string',
-            // chat: prior turns as [{role, text}, ...]
-            'history' => 'nullable|array',
-            'history.*.role' => 'required_with:history|string|in:user,assistant',
-            'history.*.text' => 'required_with:history|string',
-            // chat: text the editor currently has selected (may be empty)
-            'selection' => 'nullable|string',
-            // describe: structured entity metadata
-            'entityType' => 'nullable|string|in:rhythm,progression,chord,leadsheet,course',
-            'entityMeta' => 'nullable|array',
-            // chat: lesson + course metadata
-            'lessonMeta' => 'nullable|array',
-        ]);
 
         $action = $request->input('action');
         $content = $request->input('content');
