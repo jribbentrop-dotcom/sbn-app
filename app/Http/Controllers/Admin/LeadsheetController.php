@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\LeadsheetBackingTrackRequest;
 use App\Http\Requests\Admin\LeadsheetCoverImageRequest;
+use App\Http\Requests\Admin\LeadsheetCreateBlankRequest;
+use App\Http\Requests\Admin\LeadsheetCreateFromSequenceRequest;
 use App\Http\Requests\Admin\LeadsheetDescriptionRequest;
 use App\Http\Requests\Admin\LeadsheetIsProRequest;
 use App\Http\Requests\Admin\LeadsheetMergeSongRequest;
@@ -308,22 +310,9 @@ class LeadsheetController extends Controller
         }
     }
 
-    public function createBlank(Request $request, LeadsheetScaffolder $scaffolder)
+    public function createBlank(LeadsheetCreateBlankRequest $request, LeadsheetScaffolder $scaffolder)
     {
-        $validated = $request->validate([
-            'title'                => 'required|string|max:255',
-            'composer'             => 'nullable|string|max:255',
-            'song_key'             => 'required|string|max:10',
-            'tempo'                => 'required|integer|min:20|max:300',
-            'time_signature'       => 'required|string|max:10',
-            'rhythm'               => 'nullable|string|max:50',
-            'structure_mode'       => 'required|in:simple,sectioned',
-            'simple_bar_count'     => 'required_if:structure_mode,simple|integer|min:1|max:256',
-            'sections'             => 'required_if:structure_mode,sectioned|array|min:1|max:20',
-            'sections.*.name'      => 'required|string|max:50',
-            'sections.*.bars'      => 'required|integer|min:1|max:64',
-            'pickup_bar'           => 'nullable|boolean',
-        ]);
+        $validated = $request->validated();
 
         $structure = $validated['structure_mode'] === 'simple'
             ? ['mode' => 'simple', 'bar_count' => $validated['simple_bar_count']]
@@ -368,33 +357,15 @@ class LeadsheetController extends Controller
     }
 
     public function createFromSequence(
-        Request $request, 
-        LeadsheetScaffolder $scaffolder, 
-        ChordSequenceParser $parser, 
-        HarmonicContext $context, 
+        LeadsheetCreateFromSequenceRequest $request,
+        LeadsheetScaffolder $scaffolder,
+        ChordSequenceParser $parser,
+        HarmonicContext $context,
         VoicingMaterializer $materializer,
         ProgressionBuilder $builder,
         AnalysisToLeadsheet $converter
     ) {
-        $validated = $request->validate([
-            'title'          => 'required|string|max:255',
-            'composer'       => 'nullable|string|max:255',
-            'song_key'       => 'required|string|max:10',
-            'tempo'          => 'required|integer|min:20|max:300',
-            'time_signature' => 'required|string|max:10',
-            'rhythm'         => 'nullable|string|max:50',
-            'bars_per_chord' => 'nullable|integer|min:1|max:16',
-            'source_type'    => 'required|in:free,chordpro,bars,clone,progression,jazz_standard,standard',
-            'sequence_text'  => 'nullable|string',
-            'clone_source_id'=> 'nullable|integer|exists:sbn_leadsheets,id',
-            'progression_id' => 'nullable|integer|exists:sbn_chord_progressions,id',
-            'jazz_standard_id' => 'nullable|integer|exists:sbn_jazz_standards,id',
-            'build_voicings' => 'nullable|boolean',
-            'extension_mode' => 'nullable|string|in:basic,extended',
-
-            'voicing_style'  => 'nullable|string|in:popular,shell,drop2,drop3,closed,archetype,quartal,custom,closed_triads,spread_triads,slash',
-        ]);
-
+        $validated = $request->validated();
 
         $sequenceText = $validated['sequence_text'] ?? '';
         
