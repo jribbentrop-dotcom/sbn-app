@@ -15,8 +15,13 @@ use App\Http\Requests\Admin\LeadsheetMergeVersionsRequest;
 use App\Http\Requests\Admin\LeadsheetMsczConvertRequest;
 use App\Http\Requests\Admin\LeadsheetPayloadRequest;
 use App\Http\Requests\Admin\LeadsheetPersistStemRequest;
+use App\Http\Requests\Admin\LeadsheetRedetectRequest;
 use App\Http\Requests\Admin\LeadsheetRemoveVoicingRequest;
+use App\Http\Requests\Admin\LeadsheetReshiftDownbeatRequest;
+use App\Http\Requests\Admin\LeadsheetRetuneDetectionRequest;
+use App\Http\Requests\Admin\LeadsheetSeparateStemsRequest;
 use App\Http\Requests\Admin\LeadsheetStatusRequest;
+use App\Http\Requests\Admin\LeadsheetTranscribeStemRequest;
 use App\Http\Requests\Admin\LeadsheetTransposeRequest;
 use App\Models\Leadsheet;
 use App\Models\LeadsheetVersion;
@@ -1284,17 +1289,11 @@ class LeadsheetController extends Controller
      * admin can audition each and pick which to transcribe. Returns a session
      * token + the list of available stems. No leadsheet is created yet.
      */
-    public function separateStems(Request $request, \App\Services\MidiTranscriptionService $transcriber)
+    public function separateStems(LeadsheetSeparateStemsRequest $request, \App\Services\MidiTranscriptionService $transcriber)
     {
         set_time_limit(600);
 
-        $validated = $request->validate([
-            'youtube_id'  => 'nullable|string',
-            'local_audio' => 'nullable|file|mimes:mp3,wav,m4a,ogg,flac|max:102400',
-            // Separate an existing leadsheet's persisted original recording
-            // (from the editor's video-sync sidebar) — no re-upload.
-            'leadsheet_id' => 'nullable|integer|exists:sbn_leadsheets,id',
-        ]);
+        $validated = $request->validated();
 
         $hasYoutube   = !empty($validated['youtube_id']);
         $hasLocal     = $request->hasFile('local_audio');
@@ -1774,7 +1773,7 @@ class LeadsheetController extends Controller
      * voicing edits made after import — this is meant as a "do this first" step.
      */
     public function reshiftDownbeat(
-        Request $request,
+        LeadsheetReshiftDownbeatRequest $request,
         Leadsheet $leadsheet,
         AnalysisToLeadsheet $converter,
         VoicingCrossref $crossref
@@ -1785,14 +1784,7 @@ class LeadsheetController extends Controller
         // Note: reshiftDownbeat does NOT re-run Python, so it never re-runs
         // separation — separate_stem isn't accepted here; transcriptionRaw's
         // cached 'separateStem' flag is simply carried through untouched.
-        $validated = $request->validate([
-            'offset'    => 'required|integer|min:0|max:1919',
-            'bass_snap' => 'nullable|boolean',
-            'tab_position_style' => 'nullable|string|in:fretted,open',
-            // Set true (by the client, right after reopen-tuning) to re-derive a
-            // transcription the user had latched as "fixed". See §13.
-            'force'     => 'nullable|boolean',
-        ]);
+        $validated = $request->validated();
 
         $parsed = $leadsheet->parsed_data;
         $raw    = $parsed['transcriptionRaw'] ?? null;
@@ -1933,17 +1925,12 @@ class LeadsheetController extends Controller
      * Tier 2). Inherits the §13 fixed-transcription guard.
      */
     public function retuneDetection(
-        Request $request,
+        LeadsheetRetuneDetectionRequest $request,
         Leadsheet $leadsheet,
         AnalysisToLeadsheet $converter,
         VoicingCrossref $crossref
     ) {
-        $validated = $request->validate([
-            'min_note_length_ms' => 'nullable|numeric|min:0|max:2000',
-            'midi_min'           => 'nullable|integer|min:0|max:127',
-            'midi_max'           => 'nullable|integer|min:0|max:127',
-            'force'              => 'nullable|boolean',
-        ]);
+        $validated = $request->validated();
 
         $parsed = $leadsheet->parsed_data;
         $raw    = $parsed['transcriptionRaw'] ?? null;
@@ -2090,20 +2077,13 @@ class LeadsheetController extends Controller
      * 422 if the sheet has no persisted sourceAudio (pre-§12b imports).
      */
     public function redetect(
-        Request $request,
+        LeadsheetRedetectRequest $request,
         Leadsheet $leadsheet,
         AnalysisToLeadsheet $converter,
         VoicingCrossref $crossref,
         \App\Services\MidiTranscriptionService $transcriber
     ) {
-        $validated = $request->validate([
-            'detection_preset'      => 'nullable|string|in:balanced,sensitive,strict,custom',
-            'onset_threshold'       => 'nullable|numeric|min:0.05|max:0.95',
-            'frame_threshold'       => 'nullable|numeric|min:0.05|max:0.95',
-            'minimum_note_length'   => 'nullable|numeric|min:10|max:500',
-            'restrict_guitar_range' => 'nullable|boolean',
-            'force'                 => 'nullable|boolean',
-        ]);
+        $validated = $request->validated();
 
         $parsed = $leadsheet->parsed_data;
         $raw    = $parsed['transcriptionRaw'] ?? null;
@@ -2202,23 +2182,13 @@ class LeadsheetController extends Controller
      * 12d) — no re-download / re-separate. Inherits §13's guard.
      */
     public function transcribeStem(
-        Request $request,
+        LeadsheetTranscribeStemRequest $request,
         Leadsheet $leadsheet,
         AnalysisToLeadsheet $converter,
         VoicingCrossref $crossref,
         \App\Services\MidiTranscriptionService $transcriber
     ) {
-        $validated = $request->validate([
-            'session'               => 'required|string|max:64',
-            'stems'                 => 'nullable|array',
-            'stems.*'               => 'string|in:guitar,bass,vocals,drums,piano,other',
-            'detection_preset'      => 'nullable|string|in:balanced,sensitive,strict,custom',
-            'onset_threshold'       => 'nullable|numeric|min:0.05|max:0.95',
-            'frame_threshold'       => 'nullable|numeric|min:0.05|max:0.95',
-            'minimum_note_length'   => 'nullable|numeric|min:10|max:500',
-            'restrict_guitar_range' => 'nullable|boolean',
-            'force'                 => 'nullable|boolean',
-        ]);
+        $validated = $request->validated();
 
         $parsed = $leadsheet->parsed_data;
         $raw    = $parsed['transcriptionRaw'] ?? null;
