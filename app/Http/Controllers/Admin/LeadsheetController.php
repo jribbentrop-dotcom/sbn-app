@@ -5,6 +5,20 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Admin\Concerns\AssemblesTranscriptions;
 use App\Http\Controllers\Admin\Concerns\SerializesLeadsheets;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\ConvertMsczRequest;
+use App\Http\Requests\Admin\CreateBlankLeadsheetRequest;
+use App\Http\Requests\Admin\CreateFromLookupRequest;
+use App\Http\Requests\Admin\CreateFromSequenceRequest;
+use App\Http\Requests\Admin\LeadsheetRequest;
+use App\Http\Requests\Admin\MergeSongRequest;
+use App\Http\Requests\Admin\MergeVersionsRequest;
+use App\Http\Requests\Admin\ResolveNumeralsRequest;
+use App\Http\Requests\Admin\TransposeLeadsheetRequest;
+use App\Http\Requests\Admin\UpdateCoverImageRequest;
+use App\Http\Requests\Admin\UpdateDescriptionRequest;
+use App\Http\Requests\Admin\UpdateIsProRequest;
+use App\Http\Requests\Admin\UpdateStatusRequest;
+use App\Http\Requests\Admin\UploadBackingTrackRequest;
 use App\Models\Leadsheet;
 use App\Models\LeadsheetVersion;
 use App\Models\RhythmPattern;
@@ -182,9 +196,9 @@ class LeadsheetController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(LeadsheetRequest $request)
     {
-        $validated = $this->validateLeadsheet($request);
+        $validated = $request->validated();
 
         $parsed = null;
         if (!empty($validated['shortcode_content'])) {
@@ -234,12 +248,8 @@ class LeadsheetController extends Controller
      * importer so a .mscz can be dropped straight into the app (local dev only —
      * requires MuseScore installed on the server running this route).
      */
-    public function convertMscz(Request $request)
+    public function convertMscz(ConvertMsczRequest $request)
     {
-        $request->validate([
-            'file' => 'required|file|max:51200', // 50 MB
-        ]);
-
         $file = $request->file('file');
         $ext  = strtolower($file->getClientOriginalExtension());
         if (!in_array($ext, ['mscz', 'mscx'], true)) {
@@ -295,22 +305,9 @@ class LeadsheetController extends Controller
         }
     }
 
-    public function createBlank(Request $request, LeadsheetScaffolder $scaffolder)
+    public function createBlank(CreateBlankLeadsheetRequest $request, LeadsheetScaffolder $scaffolder)
     {
-        $validated = $request->validate([
-            'title'                => 'required|string|max:255',
-            'composer'             => 'nullable|string|max:255',
-            'song_key'             => 'required|string|max:10',
-            'tempo'                => 'required|integer|min:20|max:300',
-            'time_signature'       => 'required|string|max:10',
-            'rhythm'               => 'nullable|string|max:50',
-            'structure_mode'       => 'required|in:simple,sectioned',
-            'simple_bar_count'     => 'required_if:structure_mode,simple|integer|min:1|max:256',
-            'sections'             => 'required_if:structure_mode,sectioned|array|min:1|max:20',
-            'sections.*.name'      => 'required|string|max:50',
-            'sections.*.bars'      => 'required|integer|min:1|max:64',
-            'pickup_bar'           => 'nullable|boolean',
-        ]);
+        $validated = $request->validated();
 
         $structure = $validated['structure_mode'] === 'simple'
             ? ['mode' => 'simple', 'bar_count' => $validated['simple_bar_count']]
@@ -355,33 +352,15 @@ class LeadsheetController extends Controller
     }
 
     public function createFromSequence(
-        Request $request, 
-        LeadsheetScaffolder $scaffolder, 
-        ChordSequenceParser $parser, 
-        HarmonicContext $context, 
+        CreateFromSequenceRequest $request,
+        LeadsheetScaffolder $scaffolder,
+        ChordSequenceParser $parser,
+        HarmonicContext $context,
         VoicingMaterializer $materializer,
         ProgressionBuilder $builder,
         AnalysisToLeadsheet $converter
     ) {
-        $validated = $request->validate([
-            'title'          => 'required|string|max:255',
-            'composer'       => 'nullable|string|max:255',
-            'song_key'       => 'required|string|max:10',
-            'tempo'          => 'required|integer|min:20|max:300',
-            'time_signature' => 'required|string|max:10',
-            'rhythm'         => 'nullable|string|max:50',
-            'bars_per_chord' => 'nullable|integer|min:1|max:16',
-            'source_type'    => 'required|in:free,chordpro,bars,clone,progression,jazz_standard,standard',
-            'sequence_text'  => 'nullable|string',
-            'clone_source_id'=> 'nullable|integer|exists:sbn_leadsheets,id',
-            'progression_id' => 'nullable|integer|exists:sbn_chord_progressions,id',
-            'jazz_standard_id' => 'nullable|integer|exists:sbn_jazz_standards,id',
-            'build_voicings' => 'nullable|boolean',
-            'extension_mode' => 'nullable|string|in:basic,extended',
-
-            'voicing_style'  => 'nullable|string|in:popular,shell,drop2,drop3,closed,archetype,quartal,custom,closed_triads,spread_triads,slash',
-        ]);
-
+        $validated = $request->validated();
 
         $sequenceText = $validated['sequence_text'] ?? '';
         
@@ -629,7 +608,7 @@ class LeadsheetController extends Controller
 
 
     public function createFromLookup(
-        Request $request,
+        CreateFromLookupRequest $request,
         SongLookup $lookup,
         \App\Services\RhythmHintMapper $rhythmMapper,
         AnalysisToLeadsheet $converter,
@@ -641,38 +620,7 @@ class LeadsheetController extends Controller
     ) {
         set_time_limit(600);
 
-        $validated = $request->validate([
-            'title'         => 'required|string|max:255',
-            'artist_hint'   => 'nullable|string|max:255',
-            'preferred_key' => 'nullable|string|max:10',
-            'version'       => 'nullable|string|in:real_book,original,most_common',
-            'build_voicings'=> 'nullable|boolean',
-            'extension_mode'=> 'nullable|string|in:basic,extended',
-            'voicing_style' => 'nullable|string|in:popular,shell,drop2,archetype',
-            'rhythm_override' => 'nullable|string|max:50',
-            'mode'          => 'nullable|string|in:quick,assistant,audio',
-            'youtube_id'    => 'nullable|string',
-            'local_audio'   => 'nullable|file|mimes:mp3,wav,m4a,ogg,flac|max:102400',
-            'bass_snap'     => 'nullable|boolean',
-            'tab_position_style' => 'nullable|string|in:fretted,open',
-            // ── basic-pitch detection tuning (audio mode) ────────────────────
-            'detection_preset'     => 'nullable|string|in:balanced,sensitive,strict,custom',
-            'onset_threshold'      => 'nullable|numeric|min:0.05|max:0.95',
-            'frame_threshold'      => 'nullable|numeric|min:0.05|max:0.95',
-            'minimum_note_length'  => 'nullable|numeric|min:10|max:500',
-            'restrict_guitar_range'=> 'nullable|boolean',
-            'separate_stem'        => 'nullable|boolean',
-            // Two-phase stem workflow: when the admin has already separated &
-            // auditioned, the modal sends a session token + the chosen stems.
-            // (Legacy — the modal no longer auditions; it sends stem_choice below.)
-            'stem_session'         => 'nullable|string|max:64',
-            'stems'                => 'nullable|array',
-            'stems.*'              => 'string|in:guitar,bass,vocals,drums,piano,other',
-            // Modal stem quick-pick: 'mix' (no separation) or a comma-separated
-            // stem set (e.g. 'guitar', 'guitar,bass', 'bass'). Separation runs on
-            // submit — fine per-stem audition lives in the editor, not here.
-            'stem_choice'          => 'nullable|string|max:64',
-        ]);
+        $validated = $request->validated();
 
         $sourceAudioPath = null; // preserved original recording (audio mode only)
         if (($validated['mode'] ?? '') === 'audio') {
@@ -1010,9 +958,9 @@ class LeadsheetController extends Controller
     }
 
 
-    public function update(Request $request, Leadsheet $leadsheet)
+    public function update(LeadsheetRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $this->validateLeadsheet($request);
+        $validated = $request->validated();
 
         // Which arrangement is being saved? ?v=slug (from the editor's version link)
         // or the default version. Edits are written to this version row; the leadsheet
@@ -1137,12 +1085,9 @@ class LeadsheetController extends Controller
      * Body: { semitones: int, v?: string }
      * Response: { ok: true, song_key: string }
      */
-    public function transpose(Request $request, Leadsheet $leadsheet)
+    public function transpose(TransposeLeadsheetRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate([
-            'semitones' => ['required', 'integer', 'between:-11,11'],
-            'v'         => ['nullable', 'string'],
-        ]);
+        $validated = $request->validated();
 
         $semitones = (int) $validated['semitones'];
         $vSlug     = $validated['v'] ?? $request->query('v');
@@ -1384,13 +1329,9 @@ class LeadsheetController extends Controller
      * No detection runs: voicing/progression caches key off json_data (unchanged),
      * not tab XML. So a merge never touches sbn_voicing_usage / occurrences.
      */
-    public function mergeVersions(Request $request, Leadsheet $leadsheet)
+    public function mergeVersions(MergeVersionsRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate([
-            'mother_version_slug' => 'required|string',
-            'melody_version_id'   => 'required|integer|exists:sbn_leadsheet_versions,id',
-            'chord_version_id'    => 'required|integer|exists:sbn_leadsheet_versions,id',
-        ]);
+        $validated = $request->validated();
 
         $mother = $leadsheet->versions()
             ->where('version_slug', $validated['mother_version_slug'])
@@ -1467,11 +1408,9 @@ class LeadsheetController extends Controller
      * are re-pointed to A's id + the new version id — no re-detection pass.
      * B's versions + leadsheet row are then deleted.
      */
-    public function mergeSong(Request $request, Leadsheet $leadsheet)
+    public function mergeSong(MergeSongRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate([
-            'source_leadsheet_id' => 'required|integer|exists:sbn_leadsheets,id',
-        ]);
+        $validated = $request->validated();
 
         if ((int) $validated['source_leadsheet_id'] === $leadsheet->id) {
             return response()->json(['success' => false, 'message' => 'Source and target are the same song.'], 422);
@@ -1649,12 +1588,9 @@ class LeadsheetController extends Controller
     // API ENDPOINTS
     // =========================================================================
 
-    public function resolveNumerals(Request $request, ChordSequenceParser $parser, HarmonicContext $context)
+    public function resolveNumerals(ResolveNumeralsRequest $request, ChordSequenceParser $parser, HarmonicContext $context)
     {
-        $validated = $request->validate([
-            'key' => 'required|string|max:10',
-            'sequence' => 'required|string',
-        ]);
+        $validated = $request->validated();
 
         $key = $validated['key'];
         $sequence = $validated['sequence'];
@@ -1691,16 +1627,16 @@ class LeadsheetController extends Controller
         ]);
     }
 
-    public function updateDescription(Request $request, Leadsheet $leadsheet)
+    public function updateDescription(UpdateDescriptionRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate(['description' => 'nullable|string|max:5000']);
+        $validated = $request->validated();
         $leadsheet->update(['description' => $validated['description'] ?? '']);
         return response()->json(['success' => true, 'description' => $leadsheet->description]);
     }
 
-    public function updateCoverImage(Request $request, Leadsheet $leadsheet)
+    public function updateCoverImage(UpdateCoverImageRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate(['cover_image_path' => 'nullable|string|max:500']);
+        $validated = $request->validated();
         $leadsheet->update(['cover_image_path' => $validated['cover_image_path'] ?? null]);
         return response()->json(['success' => true, 'cover_image_path' => $leadsheet->cover_image_path]);
     }
@@ -1711,13 +1647,8 @@ class LeadsheetController extends Controller
      * URL; the frontend writes it into json_data itself on the next save via
      * the normal update() endpoint — this route only handles the binary.
      */
-    public function uploadBackingTrack(Request $request, Leadsheet $leadsheet)
+    public function uploadBackingTrack(UploadBackingTrackRequest $request, Leadsheet $leadsheet)
     {
-        $request->validate([
-            'track' => ['required', 'file', 'mimes:mp3,wav,m4a,aac,ogg', 'max:20480'],
-            'kind'  => ['required', 'string', 'in:backing,guitar'],
-        ]);
-
         $file = $request->file('track');
         $uuid = (string) Str::uuid();
         $ext  = $file->getClientOriginalExtension();
@@ -1737,9 +1668,9 @@ class LeadsheetController extends Controller
      * only ever be true on public_domain rows — not DB-enforced, so this is
      * the one place that nudges the admin rather than silently allowing it.
      */
-    public function updateIsPro(Request $request, Leadsheet $leadsheet)
+    public function updateIsPro(UpdateIsProRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate(['is_pro' => 'required|boolean']);
+        $validated = $request->validated();
         $leadsheet->update(['is_pro' => $validated['is_pro']]);
         return response()->json([
             'success' => true,
@@ -1752,9 +1683,9 @@ class LeadsheetController extends Controller
      * Toggle a leadsheet between 'draft' and 'publish'. Drafts are hidden
      * from the public song library (see SongLibraryController).
      */
-    public function updateStatus(Request $request, Leadsheet $leadsheet)
+    public function updateStatus(UpdateStatusRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate(['status' => 'required|in:draft,publish']);
+        $validated = $request->validated();
         $leadsheet->update(['status' => $validated['status']]);
         return response()->json(['success' => true, 'status' => $leadsheet->status]);
     }
@@ -1796,35 +1727,6 @@ class LeadsheetController extends Controller
         return response()->json([
             'success'   => true,
             'leadsheet' => $this->serializeLeadsheet($leadsheet, $parsed),
-        ]);
-    }
-
-    private function validateLeadsheet(Request $request): array
-    {
-        return $request->validate([
-            'title'             => 'required|string|max:255',
-            'slug'              => 'nullable|string|max:255|regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
-            'composer'          => 'nullable|string|max:255',
-            'song_key'          => 'nullable|string|max:10',
-            'tempo'             => 'nullable|integer|min:20|max:300',
-            'time_signature'    => 'nullable|string|max:10',
-            'rhythm'            => 'nullable|string|max:50',
-            'course_id'         => 'nullable|integer',
-            'shortcode_content' => 'nullable|string',
-            'json_data'         => 'nullable|string',
-            'tab_xml'           => 'nullable|string',
-            'chord_tab_xml'     => 'nullable|string',
-            'description'       => 'nullable|string|max:5000',
-            'harmony_notes'     => 'nullable|string|max:5000',
-            'form_notes'        => 'nullable|string|max:5000',
-            'voicing_notes'     => 'nullable|string|max:5000',
-            'genre'             => 'nullable|string|max:50',
-            'popularity'        => 'nullable|integer|min:0|max:100',
-            'difficulty'        => 'nullable|integer|min:0|max:5',
-            'version_label'     => 'nullable|string|max:120',
-            'version_performer' => 'nullable|string|max:120',
-            'arrangement_notes' => 'nullable|string|max:5000',
-            'tags'              => 'nullable|string|max:500',
         ]);
     }
 

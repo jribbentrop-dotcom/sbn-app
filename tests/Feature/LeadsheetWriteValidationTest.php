@@ -154,4 +154,96 @@ class LeadsheetWriteValidationTest extends TestCase
 
         $response->assertStatus(403);
     }
+
+    // ── Endpoints converted from inline validate() to FormRequest classes ──
+
+    public function test_update_is_pro_rejects_non_boolean(): void
+    {
+        $leadsheet = $this->leadsheet();
+
+        $response = $this->actingAs($this->instructor())
+            ->postJson("/api/admin/leadsheets/{$leadsheet->id}/is-pro", [
+                'is_pro' => 'not-a-boolean',
+            ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['is_pro']);
+    }
+
+    public function test_update_is_pro_accepts_boolean(): void
+    {
+        $leadsheet = $this->leadsheet();
+
+        $response = $this->actingAs($this->instructor())
+            ->postJson("/api/admin/leadsheets/{$leadsheet->id}/is-pro", [
+                'is_pro' => true,
+            ]);
+
+        $response->assertStatus(200)->assertJson(['success' => true, 'is_pro' => true]);
+    }
+
+    public function test_update_status_rejects_unknown_status(): void
+    {
+        $leadsheet = $this->leadsheet();
+
+        $response = $this->actingAs($this->instructor())
+            ->postJson("/api/admin/leadsheets/{$leadsheet->id}/status", [
+                'status' => 'not-a-real-status',
+            ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['status']);
+    }
+
+    public function test_update_status_accepts_publish(): void
+    {
+        $leadsheet = $this->leadsheet();
+
+        $response = $this->actingAs($this->instructor())
+            ->postJson("/api/admin/leadsheets/{$leadsheet->id}/status", [
+                'status' => 'publish',
+            ]);
+
+        $response->assertStatus(200)->assertJson(['success' => true, 'status' => 'publish']);
+    }
+
+    public function test_transpose_rejects_out_of_range_semitones(): void
+    {
+        $leadsheet = $this->leadsheet();
+
+        $response = $this->actingAs($this->instructor())
+            ->postJson("/admin/leadsheets/{$leadsheet->id}/transpose", [
+                'semitones' => 24,
+            ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['semitones']);
+    }
+
+    public function test_merge_song_rejects_nonexistent_source(): void
+    {
+        $leadsheet = $this->leadsheet();
+
+        $response = $this->actingAs($this->instructor())
+            ->postJson("/admin/leadsheets/{$leadsheet->id}/merge-song", [
+                'source_leadsheet_id' => 999999,
+            ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['source_leadsheet_id']);
+    }
+
+    public function test_remove_voicing_requires_chord_name_and_fret_string(): void
+    {
+        $leadsheet = $this->leadsheet();
+
+        $response = $this->actingAs($this->instructor())
+            ->postJson("/api/admin/leadsheets/{$leadsheet->id}/remove-voicing", []);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['chord_name', 'fret_string']);
+    }
+
+    public function test_create_blank_rejects_missing_required_fields(): void
+    {
+        $response = $this->actingAs($this->instructor())
+            ->postJson('/admin/leadsheets/create-blank', []);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['title', 'song_key', 'tempo', 'time_signature', 'structure_mode']);
+    }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\Concerns\SerializesLeadsheets;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ApplyProgressionRequest;
 use App\Http\Requests\Admin\FillVoicingsRequest;
+use App\Http\Requests\Admin\RemoveVoicingRequest;
 use App\Models\Leadsheet;
 use App\Services\ChordShapeCalculator;
 use App\Services\ChordVoicingSearch;
@@ -444,12 +445,9 @@ class LeadsheetVoicingController extends Controller
      * Remove a specific voicing from the leadsheet by chord name and fret string.
      * Called from the leadsheet editor when user deletes a chord diagram.
      */
-    public function removeVoicing(Request $request, Leadsheet $leadsheet)
+    public function removeVoicing(RemoveVoicingRequest $request, Leadsheet $leadsheet)
     {
-        $validated = $request->validate([
-            'chord_name' => 'required|string|max:50',
-            'fret_string'  => 'required|string|max:20',
-        ]);
+        $validated = $request->validated();
 
         $removed = $leadsheet->removeVoicing($validated['chord_name'], $validated['fret_string']);
 
