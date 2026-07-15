@@ -21,7 +21,9 @@
 | 7 | Thin request validation (only 3 FormRequests) | Code quality | Medium | ✅ Fixed |
 | 8 | `UserProfile` uses `$guarded = []` (open mass assignment) | Code quality | Low | ✅ Fixed |
 | 9 | Tracked/stray files that should be ignored or removed | Repo hygiene | Low | 🟡 Partial (the two tracked-but-ignored files untracked; local-machine stray files unreachable here) |
-| 10 | Test suite state unverified; leftover `console.log`/TODOs | Code quality | Low | 🟡 Partial (baseline established; console.log/TODO sweep not done) |
+| 10 | Test suite state unverified; leftover `console.log`/TODOs | Code quality | Low | 🟡 Partial (baseline established; 12 tests' hardcoded Windows DB path fixed; console.log/TODO sweep not done) |
+| 11 | Sitemap emits `/shop/{slug}` but product route is `/shop/product/{slug}` — every product URL 404s | SEO | Medium | ✅ Fixed |
+| 12 | 11 Inertia pages have no `<Head>` (default browser-tab title) | SEO/UX | Low | ✅ Fixed |
 
 **What's already solid:** `.env` and `sbn.db` are correctly untracked; the Stripe webhook verifies its signature and is idempotent; the CSRF exception is narrowly scoped to the webhook route; the beta auth gate (`redirectGuestsTo → register`) is coherent.
 
@@ -121,15 +123,30 @@ Only 3 `FormRequest` classes exist for a large admin write surface. Write endpoi
 ### 10. Tests & residue — Low — Partially fixed 2026-07-15
 
 > **Baseline established:** `./vendor/bin/phpunit tests/Unit tests/Feature tests/Integration` → **277 tests, 6261 assertions, 152 errors, 6 failures, 15 skipped, 31 risky**, identical before and after the #5 refactor (confirmed via `git stash`). The 152 errors are environment-only, from two distinct causes, not one: (a) several test classes (`AuthTest`, `LeadsheetLookupTest`, `LeadsheetProgressionTest`, `PaymentWebhookTest`, ...) deliberately connect to the real `sbn.db` instead of the `:memory:` test DB — via a hardcoded Windows path or `database_path('sbn.db')` — because, per `AuthTest`'s own comment, "the schema is not fully migration-defined"; that DB doesn't exist in this sandbox at all. (b) no `.env`/`APP_KEY` existed in this checkout, so *any* feature test making a real HTTP request (session/cookie encryption needs a key) errored before reaching its own logic — fixed by adding `APP_KEY` to `phpunit.xml` (see #7), which dropped the error count by 3 without flipping any previously-passing test to failing (full before/after diff checked). The remaining `:memory:`-incompatible tests in (a) still need a real fix — either a from-scratch migration path that fully matches production schema, or seeded fixtures — before they can run portably.
-> **Not done:** the `console.log`/`TODO` sweep — no fix was prescribed beyond noting the counts, and re-verifying 68 markers wasn't in scope for this pass.
+> **Follow-up (2026-07-15) — path portability:** 12 test files hardcoded the absolute path `'C:/Users/info/sbn-app/database/sbn.db'` (root cause (a) above), so they only ran on one Windows machine — 47 of 75 clean-checkout failures traced to exactly this. Replaced every occurrence with `database_path('sbn.db')` so the suite resolves the DB relative to the project in CI / any checkout. This fixes the *path* portability, not the underlying data-coupling: those tests still run against a populated `sbn.db` (transaction-wrapped) rather than migrations + factories, so a fully green baseline still needs seeded fixtures or a production-matching migration path (see Recommended order §3).
+> **Not done:** the `console.log`/`TODO` sweep — no fix was prescribed beyond noting the counts, and re-verifying the markers wasn't in scope for this pass.
 
 47 test files across Unit/Feature/Integration. `tests/Unit/IdentifierRegressionCases.php` had uncommitted changes as of the original audit — not present in this checkout, so unverified here.
 
 ---
 
+## SEO
+
+*Added 2026-07-15 during a follow-up code/SEO audit pass — not in the original 10 findings, but fixed in the same branch.*
+
+### 11. Sitemap emits a non-existent product path — Medium — ✅ Fixed 2026-07-15
+
+> **Resolved:** `SitemapController` built product URLs as `/shop/{slug}`, but the registered route is `/shop/product/{slug}` (`routes/web.php`, `shop.show`). Every product entry in the live sitemap therefore resolved to no route — a "submitted URL not found (404)" for the whole catalog in Search Console. Changed the `loc` to `/shop/product/{slug}`. The other sitemap entries (`/`, `/learn`, `/learn/{slug}`, `/shop`, top10, `/skills`, `/grades`, `/contact`) were verified against their routes and are correct; auth-gated library/theory/song pages are deliberately excluded (documented in the controller).
+
+### 12. Inertia pages missing `<Head>` — Low — ✅ Fixed 2026-07-15
+
+> **Resolved:** 11 of 44 pages rendered with no `<Head>`, so the browser tab fell back to the default app name. Added `<Head><title>` to `Account/{Courses,Dashboard,Profile,Skills,SkillTree}`, `Account/Orders/{Index,Show}`, `Account/Messages/Index`, `Community/Show`, `Courses/Player`, and `Dev/EduHarness`, with dynamic titles where a prop was available (order id, channel title, course/lesson title). These are all behind the `auth` gate and excluded from the sitemap + `robots.txt`, so the titles are a browser-tab/UX improvement, not a search-indexing one — full SEO meta (`description`/`og:`) was deliberately not added since Google never reaches these pages. Verified with a clean `npm run build`.
+
+---
+
 ## Recommended order
 
-Completed: **#1** (instructor guard), **#2** (deleted dead route file), **#4** (synced `.env.example`), **#5** (split `LeadsheetController`), **#7** (FormRequests across the entire admin write surface), **#8** (`UserProfile` fillable allowlist).
+Completed: **#1** (instructor guard), **#2** (deleted dead route file), **#4** (synced `.env.example`), **#5** (split `LeadsheetController`), **#7** (FormRequests across the entire admin write surface), **#8** (`UserProfile` fillable allowlist), **#11** (sitemap product path), **#12** (per-page `<Head>` titles).
 
 Partially done (as far as this sandbox reaches): **#9** (the two tracked-but-ignored files untracked; local-machine stray files need clearing directly on the Windows box), **#10** (PHPUnit baseline established and its two distinct environment-only root causes identified — see §10; also discovered a third, undocumented one — see below).
 
