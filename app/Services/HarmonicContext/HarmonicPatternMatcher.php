@@ -391,60 +391,6 @@ class HarmonicPatternMatcher
     }
 
     /**
-     * Find the best candidate by PC set similarity.
-     * Returns the candidate name with the highest score among those that match.
-     */
-    private function findBestCandidateByPcs(array $candidates, array $expectedPcs): ?string
-    {
-        // Since we don't have candidate PC sets, just return the highest-scoring candidate
-        // The Jaccard check was already done on the result's PC set
-        $bestScore = -1;
-        $bestChordName = null;
-
-        foreach ($candidates as $candidate) {
-            if (($candidate['score'] ?? 0) > $bestScore) {
-                $bestScore = $candidate['score'];
-                $bestChordName = $candidate['name'];
-            }
-        }
-
-        return $bestChordName;
-    }
-
-    /**
-     * Find a candidate by PC set similarity.
-     */
-    private function findCandidateByPcs(array $candidates, array $expectedPcs): ?string
-    {
-        $bestJaccard = 0;
-        $bestChordName = null;
-
-        foreach ($candidates as $candidate) {
-            $candidatePcs = $this->numeralToPcsFromName($candidate['name']);
-            if ($candidatePcs !== null) {
-                $jaccard = $this->jaccardSimilarity($candidatePcs, $expectedPcs);
-                if ($jaccard > $bestJaccard) {
-                    $bestJaccard = $jaccard;
-                    $bestChordName = $candidate['name'];
-                }
-            }
-        }
-
-        return $bestChordName;
-    }
-
-    /**
-     * Convert chord name to pitch class set.
-     * Simplified implementation - uses VoicingCrossref logic.
-     */
-    private function numeralToPcsFromName(string $chordName): ?array
-    {
-        // This is a simplified implementation - in production, we'd use VoicingCrossref
-        // For now, return null to fall back to exact numeral matching
-        return null;
-    }
-
-    /**
      * Calculate Jaccard similarity between two PC sets.
      */
     private function jaccardSimilarity(array $pcs1, array $pcs2): float
