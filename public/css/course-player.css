@@ -771,13 +771,25 @@
         gap: 0;
     }
 
+    /* Lesson menu is an off-canvas drawer on mobile: hidden until toggled via
+       the .vC-mobile-menu-btn in the content header. Without this default the
+       full nav sits permanently expanded at the top of the page. */
+    .vC-nav { display: none; }
+
+    /* Collapse-to-rail is meaningless on mobile (the rail is display:none), so
+       hide its button; the overlay tap closes the drawer instead. */
+    .vC-nav-collapse { display: none; }
+
     .vC-grid.mobile-sidebar-open .vC-nav {
+        display: flex;
         position: fixed;
         top: 0; left: 0; bottom: 0;
         width: 280px;
+        max-width: 85vw;
         z-index: 200;
         border-radius: 0;
         max-height: 100vh;
+        overflow-y: auto;
     }
 
     .vC-grid.mobile-sidebar-open .vC-mobile-overlay {

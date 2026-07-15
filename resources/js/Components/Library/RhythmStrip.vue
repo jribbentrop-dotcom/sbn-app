@@ -359,6 +359,17 @@ defineExpose({ play, stop, toggle });
   grid-auto-columns: 16px;
 }
 
+/* On narrow screens fixed-width cells (20px each) overflow the card — a 16- or
+   32-step pattern is wider than the viewport and pushes the whole page sideways.
+   Fall back to fluid cells so the pattern shrinks to fit, matching the course
+   player's fluid strip. */
+@media (max-width: 768px) {
+  .sbn-rhythm-strip.is-fixed-cells .sbn-rhythm-strip-row,
+  .sbn-rhythm-strip.is-fixed-cells.is-mini .sbn-rhythm-strip-row {
+    grid-auto-columns: minmax(0, 1fr);
+  }
+}
+
 /* Fingers row — full-height cells */
 .sbn-rhythm-strip-cell {
   height: 22px;

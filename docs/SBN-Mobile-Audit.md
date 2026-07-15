@@ -1,12 +1,12 @@
 # SBN — Mobile / Responsive Audit
 
-_Started: 15 July 2026 — **status: chrome/structure pass complete.** All
-page-shell surfaces (nav, mega-menu drawer, hero, auth card, filter sidebars,
-library-index chrome, footer) confirmed clean at 360/390/768/1024. The
-content-heavy widgets (chord-card grid, notation/tab, cinema viewer, course
-player body) could **not** be exercised in the sandbox — the seed-only DB has no
-courses/leadsheets/chord diagrams — so those remain open pending a run against a
-populated `sbn.db`._
+_Started: 15 July 2026 — **status: chrome/structure pass complete; 2 device
+bugs found + fixed.** All page-shell surfaces (nav, mega-menu drawer, hero, auth
+card, filter sidebars, library-index chrome, footer) confirmed clean at
+360/390/768/1024. Two content-driven bugs reported from a real phone were
+reproduced with seeded fixtures and fixed (see **Confirmed bugs** below). Other
+content-heavy widgets (chord-card grid, notation/tab, cinema viewer) still need
+a run against a populated `sbn.db`._
 
 This doc is the home base for the mobile/responsive workstream (sibling to
 `SBN-SEO-Content-Analyse.md` for SEO and `SBN-Security-Audit-2026-07-09.md` for
@@ -85,10 +85,15 @@ content body needs a populated DB to fully exercise:
       ≤1024px; wide notation scrolls in-container (`SheetMiniPlayer` has
       `overflow-x:auto; min-width:0`). Index chrome clean. **Actual notation/tab
       width + Cinema mode not exercised** (no seeded leadsheets).
-- [~] **Course player** (`Pages/Courses/Player.vue`, `course-player.css`) — the
-      280px is an intentional off-canvas mobile drawer
-      (`.vC-grid.mobile-sidebar-open .vC-nav`, fixed). **Player body not
-      exercised** (no seeded courses/lessons).
+- [x] **Course player** (`Pages/Courses/Player.vue`, `course-player.css`) —
+      **BUG-1 (fixed):** the off-canvas drawer had no default-hidden state, so
+      the full lesson menu sat permanently expanded at the top on mobile.
+      Reproduced with a seeded 8-lesson course; drawer now hidden by default and
+      opens/closes via the menu button + overlay. See Confirmed bugs.
+- [x] **Rhythm library** (`Pages/Library/Rhythms/Index.vue`,
+      `Components/Library/RhythmStrip.vue`) — **BUG-2 (fixed):** fixed 20px
+      pattern cells overflowed the page (960px vs 360px viewport on a 32-step
+      pattern). Now fluid on ≤768px. See Confirmed bugs.
 - [ ] **Tab editor** (`tab-editor/TabEditor.vue`) — admin-only; likely
       desktop-only by design, confirm and note as out-of-scope if so.
 - [ ] **Shop** (`Pages/Shop/{Index,Show}.vue`, `shop.css`) — not run
@@ -96,6 +101,41 @@ content body needs a populated DB to fully exercise:
 - [x] **Auth card** (`Login`/`Register` via `AuthCard.vue`) — modal over blurred
       backdrop; full Register form (beta notice + 4 fields + CTA) fits a 360px
       viewport with no overflow.
+
+---
+
+## Confirmed bugs (reported from a real phone, reproduced + fixed)
+
+### BUG-1 — Course player: lesson menu always open on mobile
+**Symptom (user):** on a phone the course player's main menu is always open;
+the course needs a proper mobile menu.
+**Root cause:** `course-player.css` had the *open* drawer state
+(`.vC-grid.mobile-sidebar-open .vC-nav { position:fixed; width:280px }`) and a
+working toggle button (`.vC-mobile-menu-btn`, wired to `mobileSidebarOpen`), but
+**no rule hiding `.vC-nav` by default on mobile.** At ≤900px the grid collapses
+to one column and the full lesson list simply stacked at the top of the page,
+permanently expanded — the toggle/overlay machinery was dead weight.
+**Fix:** in the `@media (max-width: 900px)` block — `.vC-nav { display:none }` by
+default; `.mobile-sidebar-open .vC-nav { display:flex }` as the drawer (added
+`max-width:85vw` + `overflow-y:auto`); hid the rail-collapse chevron (meaningless
+on mobile). **Verified** with a seeded 8-lesson course at 360px: menu hidden by
+default, button opens the 280px drawer with dimmed overlay, overlay-tap closes.
+**Open design question (from user):** whether the whole course player should
+become an app-like full-screen experience on mobile. The fix above resolves the
+bug; the larger redesign is a separate decision — not done.
+
+### BUG-2 — Rhythm library overflows to the right
+**Symptom (user):** the rhythm library scrolls horizontally.
+**Root cause:** `RhythmStrip.vue` in `is-fixed-cells` mode (used by the library
+index, `:fixed-cells="true"`) sets `grid-auto-columns: 20px`. A 16- or 32-step
+pattern renders N×20px in one non-shrinking row — a 32-step pattern is ~806px
+wide, forcing the whole page to **960px at a 360px viewport (600px of
+overflow)**. The card grid itself was fine (`1fr` at ≤768px); the overflow came
+from inside the strip.
+**Fix:** scoped `@media (max-width: 768px)` override reverting fixed cells to
+`grid-auto-columns: minmax(0, 1fr)` so the strip shrinks to fit (matching the
+course player's fluid strip). **Verified** with seeded 16- and 32-step patterns:
+overflow 0 at 360px, both strips render legibly inside their cards.
 
 ---
 
