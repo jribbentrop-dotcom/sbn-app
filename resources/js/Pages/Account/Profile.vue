@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useForm } from '@inertiajs/vue3';
+import { useForm, Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import AccountLayout from '@/Layouts/AccountLayout.vue';
 
@@ -38,6 +38,7 @@ function onAvatarChange(e: Event) {
 </script>
 
 <template>
+    <Head><title>Profile | Soul Bossa Nova</title></Head>
     <div class="sbn-page sbn-page-detail">
             <header class="sbn-account-pageheader">
                 <h1>Profile</h1>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from 'vue';
-import { router, usePage } from '@inertiajs/vue3';
+import { router, usePage, Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import AccountLayout from '@/Layouts/AccountLayout.vue';
 import MessageList from '@/Components/Chat/MessageList.vue';
@@ -52,6 +52,7 @@ const canPost = computed(() => !props.channel.read_only || props.isInstructor);
 </script>
 
 <template>
+    <Head><title>{{ channel.title }} | Community | Soul Bossa Nova</title></Head>
     <div class="sbn-page sbn-page-detail">
             <header class="sbn-account-pageheader">
                 <h1>{{ channel.title }}</h1>

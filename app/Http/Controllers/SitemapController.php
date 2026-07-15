@@ -72,7 +72,7 @@ class SitemapController extends Controller
                 ->chunk(100, function ($rows) use (&$urls, $base) {
                     foreach ($rows as $row) {
                         $urls[] = [
-                            'loc'        => $base . '/shop/' . $row->slug,
+                            'loc'        => $base . '/shop/product/' . $row->slug,
                             'lastmod'    => $row->updated_at?->toAtomString() ?? now()->toAtomString(),
                             'priority'   => '0.7',
                             'changefreq' => 'monthly',
