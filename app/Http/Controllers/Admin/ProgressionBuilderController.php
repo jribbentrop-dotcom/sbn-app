@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\BuildVoicingsRequest;
+use App\Http\Requests\Admin\LoadArchetypeRequest;
+use App\Http\Requests\Admin\SaveArchetypeRequest;
+use App\Http\Requests\Admin\UpdateBuilderSettingRequest;
 use App\Models\ChordProgression;
 use App\Models\Leadsheet;
 use App\Services\HarmonicContext;
@@ -41,45 +45,9 @@ class ProgressionBuilderController extends Controller
         ]);
     }
 
-    /**
-     * Known setting keys and the value type each must hold. A bad key or a
-     * wrong-typed value persists to sbn_builder_settings and then breaks
-     * every builder call site-wide, so reject anything unexpected here.
-     */
-    private const SETTING_TYPES = [
-        'category_pools'           => 'array',
-        'blues_advanced_pool'      => 'array',
-        'register_targets'         => 'array',
-        'cost_weights'             => 'array',
-        'pass2_eligible'           => 'array',
-        'pass1_extensions_allowed' => 'array',
-        'root_only_default'        => 'array',
-        'tonic_widen_default'      => 'array',
-        'default_voicing_style'    => 'array',
-        'repeated_chord_reuse'     => 'boolean',
-    ];
-
-    public function updateSetting(Request $request): JsonResponse
+    public function updateSetting(UpdateBuilderSettingRequest $request): JsonResponse
     {
-        $key = $request->input('key');
-        $value = $request->input('value');
-
-        if (!$key) {
-            return response()->json(['error' => 'Key is required'], 400);
-        }
-        if (!array_key_exists($key, self::SETTING_TYPES)) {
-            return response()->json(['error' => "Unknown setting key: {$key}"], 422);
-        }
-
-        $expected = self::SETTING_TYPES[$key];
-        $actual = $expected === 'array' ? is_array($value) : is_bool($value);
-        if (!$actual) {
-            return response()->json(
-                ['error' => "Setting '{$key}' must be {$expected}"], 422
-            );
-        }
-
-        $this->settings->set($key, $value);
+        $this->settings->set($request->input('key'), $request->input('value'));
 
         return response()->json(['success' => true]);
     }
@@ -93,11 +61,9 @@ class ProgressionBuilderController extends Controller
         return response()->json(['archetypes' => $archetypes]);
     }
 
-    public function saveArchetype(Request $request): JsonResponse
+    public function saveArchetype(SaveArchetypeRequest $request): JsonResponse
     {
         $name = $request->input('name');
-        if (!$name) return response()->json(['error' => 'Name is required'], 400);
-        
         $slug = \Illuminate\Support\Str::slug($name);
         $description = $request->input('description');
         
@@ -106,7 +72,7 @@ class ProgressionBuilderController extends Controller
         return response()->json(['success' => true, 'slug' => $slug]);
     }
 
-    public function loadArchetype(Request $request): JsonResponse
+    public function loadArchetype(LoadArchetypeRequest $request): JsonResponse
     {
         $slug = $request->input('slug');
         $archetypeSettings = $this->settings->loadArchetype($slug);
@@ -175,7 +141,7 @@ class ProgressionBuilderController extends Controller
      * Build voice-led voicings for a chord sequence.
      * (Retained for legacy UI/leadsheet support)
      */
-    public function buildVoicings(Request $request): JsonResponse
+    public function buildVoicings(BuildVoicingsRequest $request): JsonResponse
     {
         $style      = $request->get('style') ?? '';
         $extensions = (bool) ($request->get('extensions') ?? false);
