@@ -4,7 +4,7 @@
 **Scope:** Code & architecture, security & config (Laravel 13 / PHP 8.3, Vue + Inertia)
 **Method:** Static review of routes, controllers, services, middleware, models, config, and repo state. The PHPUnit suite was **not** executed (no PHP runtime in the audit sandbox); test observations come from the result cache and file inventory.
 
-**Status legend:** ✅ Fixed · ⬜ Open (for follow-up)
+**Status legend:** ✅ Fixed · 🟡 Partial · ⬜ Open (for follow-up)
 
 ---
 
@@ -19,9 +19,9 @@
 | 5 | God controller: `LeadsheetController` (4,728 lines / 80 methods) | Architecture | Medium | ✅ Fixed |
 | 6 | Harmonic scorer duplicated across two services | Architecture | Medium | ⬜ Open |
 | 7 | Thin request validation (only 3 FormRequests) | Code quality | Medium | ⬜ Open |
-| 8 | `UserProfile` uses `$guarded = []` (open mass assignment) | Code quality | Low | ⬜ Open |
-| 9 | Tracked/stray files that should be ignored or removed | Repo hygiene | Low | ⬜ Open |
-| 10 | Test suite state unverified; leftover `console.log`/TODOs | Code quality | Low | ⬜ Open |
+| 8 | `UserProfile` uses `$guarded = []` (open mass assignment) | Code quality | Low | ✅ Fixed |
+| 9 | Tracked/stray files that should be ignored or removed | Repo hygiene | Low | 🟡 Partial (the two tracked-but-ignored files untracked; local-machine stray files unreachable here) |
+| 10 | Test suite state unverified; leftover `console.log`/TODOs | Code quality | Low | 🟡 Partial (baseline established; console.log/TODO sweep not done) |
 
 **What's already solid:** `.env` and `sbn.db` are correctly untracked; the Stripe webhook verifies its signature and is idempotent; the CSRF exception is narrowly scoped to the webhook route; the beta auth gate (`redirectGuestsTo → register`) is coherent.
 
@@ -98,33 +98,38 @@ Only 3 `FormRequest` classes exist for a large admin write surface. Write endpoi
 
 **Fix:** introduce FormRequests (with authorization + validation rules) for the admin write endpoints.
 
-### 8. `UserProfile` mass assignment — Low
+### 8. `UserProfile` mass assignment — Low — ✅ Fixed 2026-07-15
+
+> **Resolved:** replaced `$guarded = []` with an explicit `$fillable` allowlist (`user_id, display_name, avatar_path, bio, public, last_seen_at`) matching the table's actual columns. `user_id` had to stay fillable — `AccountController`/`BackfillCustomerBackend` create profiles via `firstOrCreate(['user_id' => ...], [...])`, which merges both arrays into a single `create()` call — dropping it would have broken profile creation (verified against a real migrated DB: `firstOrCreate` + `fill()->save()` both round-trip correctly with the new allowlist).
 
 `app/Models/UserProfile.php` uses `protected $guarded = []`, leaving every attribute mass-assignable. 17 of 29 models correctly use `$fillable`.
 
-**Fix:** replace with an explicit `$fillable` allowlist.
+### 9. Repo hygiene — Low — Partially fixed 2026-07-15
 
-### 9. Repo hygiene — Low
+> **Resolved:** `git rm --cached` on both tracked-but-ignored files (`resources/js/tab-editor.zip`, `public/images/mega-menu/featured-collection.png` — confirmed unreferenced by any code first). They stay on disk, matched by the existing `*.zip`/`*.png` ignore rules going forward.
+> **Not reproducible here:** the stray uncommitted files (`# SBN Homepage — Skill Path Section.txt`, `ssr-test-tmp.mjs`, `scripts/probe_*.php`, `database/sbn.db.bak-*`) and the root-level `ffmpeg.exe`/`yt-dlp.exe` are local-machine artifacts that don't exist in this checkout — still need clearing on the Windows dev machine directly.
 
-- Tracked despite now being in `.gitignore` (committed before the rules): `resources/js/tab-editor.zip` (80 KB) and `public/images/mega-menu/featured-collection.png`. Run `git rm --cached` on both.
 - Stray uncommitted files to remove or ignore: `# SBN Homepage — Skill Path Section.txt`, `ssr-test-tmp.mjs`, `scripts/probe_665785.php`, `scripts/probe_regress.php`, `database/sbn.db.bak-20260702-precleanup`.
 - `ffmpeg.exe` (~100 MB) and `yt-dlp.exe` (~18 MB) sit in the repo root — correctly gitignored, but heavy working-tree clutter; consider relocating outside the project.
 
-### 10. Tests & residue — Low
+### 10. Tests & residue — Low — Partially fixed 2026-07-15
 
-47 test files across Unit/Feature/Integration. The PHPUnit result cache records ~105 non-passing entries against 258 timed tests, and `tests/Unit/IdentifierRegressionCases.php` has uncommitted changes. The suite was not run here.
+> **Baseline established:** `./vendor/bin/phpunit tests/Unit tests/Feature tests/Integration` → **277 tests, 6261 assertions, 152 errors, 6 failures, 15 skipped, 31 risky**, identical before and after the #5 refactor (confirmed via `git stash`). All 152 errors trace to tests hardcoding a Windows dev-machine DB path (`C:/Users/info/sbn-app/database/sbn.db`) that doesn't exist in this environment — not real regressions, but worth fixing (parametrize the path, or drop the hardcoded `config()` override) so the suite is portable.
+> **Not done:** the `console.log`/`TODO` sweep — no fix was prescribed beyond noting the counts, and re-verifying 68 markers wasn't in scope for this pass.
 
-**Fix:** run `php artisan test` to establish the current green/red baseline before relying on it. Also: 21 `console.log` calls remain in shipped JS and there are 68 `TODO/FIXME/HACK` markers across `app/` and `resources/js/`.
+47 test files across Unit/Feature/Integration. `tests/Unit/IdentifierRegressionCases.php` had uncommitted changes as of the original audit — not present in this checkout, so unverified here.
 
 ---
 
 ## Recommended order
 
-Completed: **#1** (instructor guard), **#2** (deleted dead route file), **#4** (synced `.env.example`), **#5** (split `LeadsheetController`).
+Completed: **#1** (instructor guard), **#2** (deleted dead route file), **#4** (synced `.env.example`), **#5** (split `LeadsheetController`), **#8** (`UserProfile` fillable allowlist).
+
+Partially done (as far as this sandbox reaches): **#9** (the two tracked-but-ignored files untracked; local-machine stray files need clearing directly on the Windows box), **#10** (PHPUnit baseline established: 277 tests / 152 errors, all environment-only — see §10).
 
 Remaining follow-up work:
 
 1. **#7** — add validation/authorization (FormRequests) to the admin write endpoints. Do this first; it hardens the surface just re-gated in #1.
-2. **#3** — verify the production `.env` sets `APP_DEBUG=false`.
+2. **#3** — verify the production `.env` sets `APP_DEBUG=false`. **Cannot be checked from this sandbox** — it has no access to the production server/`.env`; this needs a human (or a session with production access) to confirm.
 3. **#6** — extract the shared harmonic scorer duplicated between `ProgressionBuilder` and `ProgressionDetector`.
-4. **#8, #9, #10** — `UserProfile` mass-assignment fix, repo cleanup (`git rm --cached` the two tracked-but-ignored files, remove stray probe/tmp files), and re-baseline the test suite with `php artisan test`.
+4. **#9, #10 cleanup** — clear the stray local files on the dev machine directly, and fix the two test files that hardcode a Windows DB path so the suite is portable.
