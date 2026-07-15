@@ -566,6 +566,12 @@ defineExpose({ play, stop, toggle });
   .sbn-rhythm-pattern-eyebrow { flex-direction: column; align-items: flex-start; gap: 8px; }
   .sbn-eyebrow-right { width: 100%; justify-content: space-between; }
   .sbn-row-label { width: 0; overflow: hidden; }
+  /* Drop the 14px cell floor on mobile so a full 16/32-step pattern shrinks to
+     fit the viewport instead of pushing the page sideways (matches RhythmStrip).
+     overflow:hidden stops the beat-label text ("1 e & a") from setting a
+     min-content floor that would keep the row wider than the screen. */
+  .sbn-rhythm-cell { min-width: 0; overflow: hidden; }
+  .sbn-rhythm-cells { gap: 3px; min-width: 0; }
 }
 </style>
 

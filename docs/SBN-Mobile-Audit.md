@@ -1,12 +1,13 @@
 # SBN — Mobile / Responsive Audit
 
-_Started: 15 July 2026 — **status: chrome/structure pass complete; 2 device
+_Started: 15 July 2026 — **status: chrome/structure pass complete; 3 device
 bugs found + fixed.** All page-shell surfaces (nav, mega-menu drawer, hero, auth
 card, filter sidebars, library-index chrome, footer) confirmed clean at
-360/390/768/1024. Two content-driven bugs reported from a real phone were
-reproduced with seeded fixtures and fixed (see **Confirmed bugs** below). Other
-content-heavy widgets (chord-card grid, notation/tab, cinema viewer) still need
-a run against a populated `sbn.db`._
+360/390/768/1024. Three content-driven overflow bugs (two reported from a real
+phone, one found in a follow-up 360px sweep) were reproduced with seeded
+fixtures and fixed (see **Confirmed bugs** below). A round-2 sweep of 11 routes
+at 360px found no other overflow. Other content-heavy widgets (chord-card grid,
+notation/tab, cinema viewer) still need a run against a populated `sbn.db`._
 
 This doc is the home base for the mobile/responsive workstream (sibling to
 `SBN-SEO-Content-Analyse.md` for SEO and `SBN-Security-Audit-2026-07-09.md` for
@@ -136,6 +137,20 @@ from inside the strip.
 `grid-auto-columns: minmax(0, 1fr)` so the strip shrinks to fit (matching the
 course player's fluid strip). **Verified** with seeded 16- and 32-step patterns:
 overflow 0 at 360px, both strips render legibly inside their cards.
+
+### BUG-3 — Rhythm *Show* page overflows on wide patterns
+**Symptom:** found during a follow-up 360px sweep — the pattern **detail** page
+(`/library/rhythms/{slug}`) scrolled horizontally (27px on a 16-step pattern,
+91px on a 32-step). Different component from BUG-2: `RhythmPattern.vue` (the full
+pattern view), where `.sbn-rhythm-cell` kept a `min-width: 14px` floor and the
+`.sbn-rhythm-cells` flex item had default `min-width: auto`, so a full pattern
+couldn't shrink below its content width. The beat-label row ("1 e & a …") added a
+text min-content floor on top.
+**Fix:** in the existing `@media (max-width: 640px)` block — `.sbn-rhythm-cell {
+min-width: 0; overflow: hidden }` (the `overflow:hidden` kills the label-text
+floor) and `.sbn-rhythm-cells { min-width: 0; gap: 3px }`. **Verified:** overflow
+0 at 360px for both 16- and 32-step patterns; the full pattern renders inside the
+card. Desktop/tablet untouched (scoped ≤640px).
 
 ---
 
