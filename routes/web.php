@@ -6,6 +6,9 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\LeadsheetController;
+use App\Http\Controllers\Admin\LeadsheetTranscriptionController;
+use App\Http\Controllers\Admin\LeadsheetVoicingController;
+use App\Http\Controllers\Admin\LeadsheetRhythmController;
 use App\Http\Controllers\Admin\ChordController;
 use App\Http\Controllers\Admin\ProgressionController;
 use App\Http\Controllers\Admin\RhythmPatternController;
@@ -144,9 +147,9 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
     Route::post('/leadsheets/create-from-sequence', [LeadsheetController::class, 'createFromSequence'])->name('leadsheets.create-from-sequence');
     Route::post('/leadsheets/create-from-lookup', [LeadsheetController::class, 'createFromLookup'])->name('leadsheets.create-from-lookup');
     // Audio stem separation (audition step) — separate first, play/pick stems, then transcribe.
-    Route::post('/leadsheets/separate-stems', [LeadsheetController::class, 'separateStems'])->name('leadsheets.separate-stems');
-    Route::get('/leadsheets/stems/{session}/{stem}', [LeadsheetController::class, 'streamStem'])->name('leadsheets.stream-stem');
-    Route::post('/leadsheets/{leadsheet}/persist-stem-sync', [LeadsheetController::class, 'persistStemAsSync'])->name('leadsheets.persist-stem-sync');
+    Route::post('/leadsheets/separate-stems', [LeadsheetTranscriptionController::class, 'separateStems'])->name('leadsheets.separate-stems');
+    Route::get('/leadsheets/stems/{session}/{stem}', [LeadsheetTranscriptionController::class, 'streamStem'])->name('leadsheets.stream-stem');
+    Route::post('/leadsheets/{leadsheet}/persist-stem-sync', [LeadsheetTranscriptionController::class, 'persistStemAsSync'])->name('leadsheets.persist-stem-sync');
     Route::post('/leadsheets/convert-mscz', [LeadsheetController::class, 'convertMscz'])->name('leadsheets.convert-mscz');
 
     // Version merge (Phase 1) + Song merge (§9.1). Static paths BEFORE {leadsheet} routes.
@@ -274,29 +277,29 @@ Route::middleware(['auth', 'instructor'])->prefix('admin')->name('admin.')->grou
 */
 Route::middleware(['auth', 'instructor'])->prefix('api/admin')->name('api.admin.')->group(function () {
     // Leadsheets
-    Route::get('/leadsheets/search-voicings', [LeadsheetController::class, 'searchVoicings'])->name('leadsheets.searchVoicings');
-    Route::get('/leadsheets/search-voicings-advanced', [LeadsheetController::class, 'searchVoicingsAdvanced'])->name('leadsheets.searchVoicingsAdvanced');
+    Route::get('/leadsheets/search-voicings', [LeadsheetVoicingController::class, 'searchVoicings'])->name('leadsheets.searchVoicings');
+    Route::get('/leadsheets/search-voicings-advanced', [LeadsheetVoicingController::class, 'searchVoicingsAdvanced'])->name('leadsheets.searchVoicingsAdvanced');
     Route::delete('/leadsheets/{leadsheet}', [LeadsheetController::class, 'destroy'])->name('leadsheets.destroy');
-    Route::post('/leadsheets/{leadsheet}/remove-voicing', [LeadsheetController::class, 'removeVoicing'])->name('leadsheets.removeVoicing');
+    Route::post('/leadsheets/{leadsheet}/remove-voicing', [LeadsheetVoicingController::class, 'removeVoicing'])->name('leadsheets.removeVoicing');
     Route::post('/leadsheets/{leadsheet}/description', [LeadsheetController::class, 'updateDescription'])->name('leadsheets.updateDescription');
     Route::post('/leadsheets/{leadsheet}/cover-image', [LeadsheetController::class, 'updateCoverImage'])->name('leadsheets.updateCoverImage');
     Route::post('/leadsheets/{leadsheet}/backing-track', [LeadsheetController::class, 'uploadBackingTrack'])->name('leadsheets.uploadBackingTrack');
     Route::post('/leadsheets/{leadsheet}/status', [LeadsheetController::class, 'updateStatus'])->name('leadsheets.updateStatus');
     Route::post('/leadsheets/{leadsheet}/is-pro', [LeadsheetController::class, 'updateIsPro'])->name('leadsheets.updateIsPro');
-    Route::post('/leadsheets/{leadsheet}/reshift-downbeat', [LeadsheetController::class, 'reshiftDownbeat'])->name('leadsheets.reshiftDownbeat');
-    Route::post('/leadsheets/{leadsheet}/fix-transcription', [LeadsheetController::class, 'fixTranscription'])->name('leadsheets.fixTranscription');
-    Route::post('/leadsheets/{leadsheet}/reopen-tuning', [LeadsheetController::class, 'reopenTuning'])->name('leadsheets.reopenTuning');
-    Route::post('/leadsheets/{leadsheet}/retune-detection', [LeadsheetController::class, 'retuneDetection'])->name('leadsheets.retuneDetection');
+    Route::post('/leadsheets/{leadsheet}/reshift-downbeat', [LeadsheetTranscriptionController::class, 'reshiftDownbeat'])->name('leadsheets.reshiftDownbeat');
+    Route::post('/leadsheets/{leadsheet}/fix-transcription', [LeadsheetTranscriptionController::class, 'fixTranscription'])->name('leadsheets.fixTranscription');
+    Route::post('/leadsheets/{leadsheet}/reopen-tuning', [LeadsheetTranscriptionController::class, 'reopenTuning'])->name('leadsheets.reopenTuning');
+    Route::post('/leadsheets/{leadsheet}/retune-detection', [LeadsheetTranscriptionController::class, 'retuneDetection'])->name('leadsheets.retuneDetection');
     // T9 Tier 2: re-inference on the resident audio (persisted original / a stem).
-    Route::post('/leadsheets/{leadsheet}/redetect', [LeadsheetController::class, 'redetect'])->name('leadsheets.redetect');
-    Route::post('/leadsheets/{leadsheet}/transcribe-stem', [LeadsheetController::class, 'transcribeStem'])->name('leadsheets.transcribeStem');
+    Route::post('/leadsheets/{leadsheet}/redetect', [LeadsheetTranscriptionController::class, 'redetect'])->name('leadsheets.redetect');
+    Route::post('/leadsheets/{leadsheet}/transcribe-stem', [LeadsheetTranscriptionController::class, 'transcribeStem'])->name('leadsheets.transcribeStem');
     Route::get('/leadsheets/{leadsheet}/data', [LeadsheetController::class, 'apiShow'])->name('leadsheets.show');
-    Route::post('/leadsheets/identify-voicings', [LeadsheetController::class, 'identifyVoicings'])->name('leadsheets.identifyVoicings');
-    Route::post('/leadsheets/identify-single', [LeadsheetController::class, 'identifySingle']);
-    Route::post('/leadsheets/{leadsheet}/apply-progression', [LeadsheetController::class, 'applyProgression'])->name('leadsheets.applyProgression');
-    Route::post('/leadsheets/{leadsheet}/fill-voicings', [LeadsheetController::class, 'fillVoicings'])->name('leadsheets.fillVoicings');
-    Route::post('/leadsheets/{leadsheet}/apply-rhythm', [LeadsheetController::class, 'applyRhythm'])->name('leadsheets.applyRhythm');
-    Route::post('/exercises/{exercise}/apply-rhythm', [LeadsheetController::class, 'applyRhythmToExercise'])->name('exercises.applyRhythm');
+    Route::post('/leadsheets/identify-voicings', [LeadsheetVoicingController::class, 'identifyVoicings'])->name('leadsheets.identifyVoicings');
+    Route::post('/leadsheets/identify-single', [LeadsheetVoicingController::class, 'identifySingle']);
+    Route::post('/leadsheets/{leadsheet}/apply-progression', [LeadsheetVoicingController::class, 'applyProgression'])->name('leadsheets.applyProgression');
+    Route::post('/leadsheets/{leadsheet}/fill-voicings', [LeadsheetVoicingController::class, 'fillVoicings'])->name('leadsheets.fillVoicings');
+    Route::post('/leadsheets/{leadsheet}/apply-rhythm', [LeadsheetRhythmController::class, 'applyRhythm'])->name('leadsheets.applyRhythm');
+    Route::post('/exercises/{exercise}/apply-rhythm', [LeadsheetRhythmController::class, 'applyRhythmToExercise'])->name('exercises.applyRhythm');
 
 
     // Phase 5d — Progression Detection

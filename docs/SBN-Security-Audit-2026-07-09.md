@@ -1,6 +1,6 @@
 # Code & Security Audit — Soul Bossa Nova
 
-**Date:** 2026-07-09 (updated 2026-07-09)
+**Date:** 2026-07-09 (updated 2026-07-15)
 **Scope:** Code & architecture, security & config (Laravel 13 / PHP 8.3, Vue + Inertia)
 **Method:** Static review of routes, controllers, services, middleware, models, config, and repo state. The PHPUnit suite was **not** executed (no PHP runtime in the audit sandbox); test observations come from the result cache and file inventory.
 
@@ -16,7 +16,7 @@
 | 2 | Dead `routes/admin.php` with `auth`-only admin CRUD | Security | Medium | ✅ Fixed |
 | 3 | `APP_DEBUG=true` in `.env` — confirm production is `false` | Config | Low | ⬜ Open (verify prod) |
 | 4 | `.env.example` missing config keys | Config | Low | ✅ Fixed |
-| 5 | God controller: `LeadsheetController` (4,728 lines / 80 methods) | Architecture | Medium | ⬜ Open |
+| 5 | God controller: `LeadsheetController` (4,728 lines / 80 methods) | Architecture | Medium | ✅ Fixed |
 | 6 | Harmonic scorer duplicated across two services | Architecture | Medium | ⬜ Open |
 | 7 | Thin request validation (only 3 FormRequests) | Code quality | Medium | ⬜ Open |
 | 8 | `UserProfile` uses `$guarded = []` (open mass assignment) | Code quality | Low | ⬜ Open |
@@ -72,11 +72,19 @@ Several keys the application reads were absent from `.env.example`, so a fresh d
 
 ## Code & architecture
 
-### 5. God controller — `Admin/LeadsheetController.php` — Medium
+### 5. God controller — `Admin/LeadsheetController.php` — Medium — ✅ Fixed 2026-07-15
 
-4,728 lines and 80 methods spanning CRUD, audio transcription, progression detection, YouTube search, and voicing identification. It is the largest maintainability liability in the codebase and concentrates the blast radius of #1.
+> **Resolved:** split by responsibility into four classes, all still gated by the same `['auth', 'instructor']` route group re-secured in #1:
+> - `LeadsheetController` (CRUD, versions/merge, cover/description/status/is-pro, `apiShow`) — 4,728 → ~1,940 lines
+> - `LeadsheetTranscriptionController` — stem separation/audition, downbeat/detection re-tuning, redetect/transcribe-stem
+> - `LeadsheetVoicingController` — voicing search/identify, apply-progression, fill-voicings, remove-voicing
+> - `LeadsheetRhythmController` — apply-rhythm (leadsheet + exercise)
+>
+> Two traits carry the logic genuinely shared across controllers rather than duplicating it: `Concerns/SerializesLeadsheets` (chord-name normalization, the public leadsheet payload shape, and the finger-backfill/fret-matching cluster) and `Concerns/AssemblesTranscriptions` (the basic-pitch → Analysis assembly pipeline, needed by both the initial import in `LeadsheetController::createFromLookup` and every re-derive endpoint in `LeadsheetTranscriptionController`). Route names and URLs are unchanged — only the bound controller class moved — so no frontend changes were needed. Verified via `php artisan route:list`, container resolution of all four controllers, and the full PHPUnit suite (identical 277/152/6/15/31 pass/error/fail/skip/risky baseline before and after; the pre-existing errors are environment-only, e.g. tests hardcoding a Windows DB path).
 
-**Fix:** split by responsibility — e.g. `LeadsheetCrudController`, `LeadsheetTranscriptionController`, `LeadsheetVoicingController` — pushing logic into services. Related oversized files worth decomposing: `ProgressionBuilder.php` (4,369), `VoicingCrossref.php` (3,335), `resources/js/tab-editor/TabEditor.vue` (3,547).
+Originally 4,728 lines and 80 methods spanning CRUD, audio transcription, progression detection, YouTube search, and voicing identification — the largest maintainability liability in the codebase and a concentrator of the blast radius of #1.
+
+Related oversized files still worth decomposing: `ProgressionBuilder.php` (4,369), `VoicingCrossref.php` (3,335), `resources/js/tab-editor/TabEditor.vue` (3,547).
 
 ### 6. Duplicated harmonic scorer — Medium
 
@@ -112,11 +120,11 @@ Only 3 `FormRequest` classes exist for a large admin write surface. Write endpoi
 
 ## Recommended order
 
-Completed in this pass: **#1** (instructor guard), **#2** (deleted dead route file), **#4** (synced `.env.example`).
+Completed: **#1** (instructor guard), **#2** (deleted dead route file), **#4** (synced `.env.example`), **#5** (split `LeadsheetController`).
 
 Remaining follow-up work:
 
 1. **#7** — add validation/authorization (FormRequests) to the admin write endpoints. Do this first; it hardens the surface just re-gated in #1.
 2. **#3** — verify the production `.env` sets `APP_DEBUG=false`.
-3. **#5, #6** — decompose `LeadsheetController`; extract the shared harmonic scorer.
+3. **#6** — extract the shared harmonic scorer duplicated between `ProgressionBuilder` and `ProgressionDetector`.
 4. **#8, #9, #10** — `UserProfile` mass-assignment fix, repo cleanup (`git rm --cached` the two tracked-but-ignored files, remove stray probe/tmp files), and re-baseline the test suite with `php artisan test`.
