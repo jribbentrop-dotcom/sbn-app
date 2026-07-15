@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { Link, Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import AccountLayout from '@/Layouts/AccountLayout.vue';
 import CourseShelfCard, { type CourseShelfCardData } from '@/Components/Course/CourseShelfCard.vue';
@@ -12,6 +12,7 @@ defineProps<{
 </script>
 
 <template>
+    <Head><title>My Courses | Soul Bossa Nova</title></Head>
     <div class="sbn-page sbn-page-detail">
             <header class="sbn-account-pageheader">
                 <h1>My Courses</h1>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { Link, Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import AccountLayout from '@/Layouts/AccountLayout.vue';
 
@@ -22,6 +22,7 @@ defineProps<{
 </script>
 
 <template>
+    <Head><title>Order #{{ order.id }} | Soul Bossa Nova</title></Head>
     <div class="sbn-page sbn-page-detail">
             <header class="sbn-account-pageheader">
                 <Link href="/account/orders" class="sbn-account-section-link">← All orders</Link>

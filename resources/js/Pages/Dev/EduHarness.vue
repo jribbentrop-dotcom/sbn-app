@@ -7,6 +7,7 @@
  * via the local-only route /dev/edu/{type}/{slug} — not a product surface.
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { Head } from '@inertiajs/vue3';
 import { mountSbnNodes } from '../../lib/mountSbnNodes';
 
 interface Topic {
@@ -37,6 +38,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <Head><title>{{ topic.title }} — Edu Harness</title></Head>
   <div class="edu-harness">
     <p class="edu-harness-banner">
       Dev harness — Edu Content System pipeline. <code>{{ topic.type }}/{{ topic.slug }}</code>

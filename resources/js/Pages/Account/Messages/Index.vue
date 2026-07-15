@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from 'vue';
-import { router, usePage } from '@inertiajs/vue3';
+import { router, usePage, Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import AccountLayout from '@/Layouts/AccountLayout.vue';
 import ConversationList, { type ConversationRow } from '@/Components/Chat/ConversationList.vue';
@@ -44,6 +44,7 @@ function startDmWithInstructor() {
 </script>
 
 <template>
+    <Head><title>Messages | Soul Bossa Nova</title></Head>
     <div class="sbn-page sbn-page-detail">
             <header class="sbn-account-pageheader">
                 <div class="sbn-account-pageheader-row">
