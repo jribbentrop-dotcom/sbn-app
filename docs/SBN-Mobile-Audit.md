@@ -1,7 +1,12 @@
 # SBN — Mobile / Responsive Audit
 
-_Started: 15 July 2026 — **status: scaffold.** Findings so far are from a static
-review only; none have been confirmed at real device widths yet._
+_Started: 15 July 2026 — **status: chrome/structure pass complete.** All
+page-shell surfaces (nav, mega-menu drawer, hero, auth card, filter sidebars,
+library-index chrome, footer) confirmed clean at 360/390/768/1024. The
+content-heavy widgets (chord-card grid, notation/tab, cinema viewer, course
+player body) could **not** be exercised in the sandbox — the seed-only DB has no
+courses/leadsheets/chord diagrams — so those remain open pending a run against a
+populated `sbn.db`._
 
 This doc is the home base for the mobile/responsive workstream (sibling to
 `SBN-SEO-Content-Analyse.md` for SEO and `SBN-Security-Audit-2026-07-09.md` for
@@ -57,42 +62,110 @@ mobile QA here must be visual and page-by-page.)_
 
 ## Priority surfaces to QA (checklist)
 
-High-traffic / high-complexity first — these are the ones most likely to break:
+High-traffic / high-complexity first — these are the ones most likely to break.
+`[x]` = confirmed clean at real widths; `[~]` = chrome confirmed but the
+content body needs a populated DB to fully exercise:
 
-- [ ] **MegaMenu / primary nav** (`Components/MegaMenu.vue`,
-      `resources/css/frontend/mega-menu.css`) — has the most `@media` logic;
-      confirm the mobile collapse works at 767/768 and the panel doesn't
-      overflow.
-- [ ] **Home** (`Pages/Home.vue`, `home.css`) — hero blobs use 480–680px fixed
-      widths; check for horizontal scroll.
-- [ ] **Chord Library index + show** (`Pages/Library/Chords/{Index,Show}.vue`,
-      1297 / 1237 lines — the biggest pages) — 240px fixed card widths.
-- [ ] **Song viewer / cinema** (`Components/Leadsheet/LeadsheetViewer.vue`,
-      `song-library.css`) — notation/tab is wide; must scroll inside its own
-      container, not the page body.
-- [ ] **Course player** (`Pages/Courses/Player.vue`, `course-player.css`) —
-      sidebar + content layout at 280px fixed panel widths.
+- [x] **MegaMenu / primary nav** (`Components/MegaMenu.vue`,
+      `resources/css/frontend/mega-menu.css`) — hamburger appears at ≤767px
+      (`.hamburger { display:flex }`, `.main-navigation { display:none }`); the
+      slide-in `.mobile-drawer` (Home / Courses / Explore / Shop, collapsible,
+      backdrop overlay, close button) opens with **zero overflow** at 360px.
+- [x] **Home** (`Pages/Home.vue`, `home.css`) — hero blobs (480–680px) are
+      clipped by `.hero-bg { overflow:hidden }` and the chord-rain section's own
+      `overflow:hidden`; no horizontal scroll at any width. Developer already
+      left defensive comments about x-overflow here.
+- [~] **Chord Library index + show** (`Pages/Library/Chords/{Index,Show}.vue`) —
+      the 240px value is the **filter sidebar**, reset to `width:100%` + static
+      at ≤1024px; the card grid uses `minmax(120–150px, 1fr)` (safe). Index
+      *chrome* clean at 360/768. **Card grid + Show page not exercised** (no
+      seeded chord diagrams).
+- [~] **Song viewer / cinema** (`Components/Leadsheet/LeadsheetViewer.vue`,
+      `song-library.css`) — 340px viewer sidebar stacks (`width:100%`) at
+      ≤1024px; wide notation scrolls in-container (`SheetMiniPlayer` has
+      `overflow-x:auto; min-width:0`). Index chrome clean. **Actual notation/tab
+      width + Cinema mode not exercised** (no seeded leadsheets).
+- [~] **Course player** (`Pages/Courses/Player.vue`, `course-player.css`) — the
+      280px is an intentional off-canvas mobile drawer
+      (`.vC-grid.mobile-sidebar-open .vC-nav`, fixed). **Player body not
+      exercised** (no seeded courses/lessons).
 - [ ] **Tab editor** (`tab-editor/TabEditor.vue`) — admin-only; likely
       desktop-only by design, confirm and note as out-of-scope if so.
-- [ ] **Shop** (`Pages/Shop/{Index,Show}.vue`, `shop.css`).
-- [ ] **Auth card** (`Login`/`Register` via `AuthCard.vue`) — modal over blurred
-      backdrop; check it fits a 360px viewport.
+- [ ] **Shop** (`Pages/Shop/{Index,Show}.vue`, `shop.css`) — not run
+      (ProductSeeder not invoked by `DatabaseSeeder`; empty shop).
+- [x] **Auth card** (`Login`/`Register` via `AuthCard.vue`) — modal over blurred
+      backdrop; full Register form (beta notice + 4 fields + CTA) fits a 360px
+      viewport with no overflow.
 
 ---
 
 ## Findings
 
-_None confirmed yet — populate as the visual pass runs. Suggested row format:_
+### Live pass — round 1 (chrome / structure), 15 Jul 2026
 
-| Page | Width | Issue | Severity | Status |
-|---|---|---|---|---|
-| _(e.g. Chords/Index)_ | _360px_ | _horizontal overflow from 240px cards_ | — | ⬜ |
+Method: `composer install` + `npm install` + `npm run build`, fresh SQLite
+migrated + `db:seed`, `php artisan serve`, driven with Playmwright/Chromium at
+360 / 390 / 768 / 1024. Each page measured `documentElement.scrollWidth −
+clientWidth` and listed any element extending past the viewport.
+
+**Result: no horizontal overflow found on any tested surface at any width.**
+The hand-written `@media` overrides for the flagged fixed-px widths are all
+present and correct — the static "prime suspects" (240px filter sidebars, 340px
+viewer sidebar, 480–680px hero blobs, 280px course-player nav) each have a mobile
+counterpart or an `overflow:hidden` clip. Risk is materially lower than the
+scaffold feared.
+
+| Page | Widths | Result | Status |
+|---|---|---|---|
+| Home (`/`) | 360/390/768/1024 | overflow 0; hero + cards stack; hamburger present | ✅ |
+| Mega-menu drawer (open) | 360 | overflow 0; slide-in + backdrop + close work | ✅ |
+| Register (`/register`) | 360/390/768/1024 | overflow 0; full auth card fits 360px | ✅ |
+| Login (`/login`) | 360/390/768/1024 | overflow 0 | ✅ |
+| Catalog (`/learn`) | 360/390/768/1024 | overflow 0 (chrome; catalog empty) | ✅ |
+| Contact (`/contact`) | 360/390/768/1024 | overflow 0 | ✅ |
+| Chords index (`/library/chords`) | 360/768 | overflow 0 (chrome; grid empty) | ✅ chrome |
+| Songs index (`/library/songs`) | 360/768 | overflow 0 (chrome; grid empty) | ✅ chrome |
+| Rhythms index (`/library/rhythms`) | 360/768 | overflow 0 (chrome; grid empty) | ✅ chrome |
+| Progressions index (`/library/progressions`) | 360/768 | overflow 0 (chrome; empty) | ✅ chrome |
+| Theory (`/theory`) | 360/768 | overflow 0 | ✅ |
+
+Screenshots captured for each (scratchpad, not committed). Console noise seen
+(favicon 404, Vite HMR socket reset) is sandbox-only, not app bugs.
+
+### Not yet confirmed (needs a populated `sbn.db`)
+
+The DatabaseSeeder only seeds skill nodes + scale exercises — **no courses,
+lessons, leadsheets, chord diagrams, rhythm patterns, or products** — so the
+content widgets rendered empty and their at-width behavior is unverified:
+
+- Chord-library **card grid** at 360px (the 240px card / archetype tiles) and the
+  Chord **Show** page (1237 lines, largest surface).
+- Song **Viewer** notation/tab actually rendering wide, and **Cinema** mode
+  (`overflow-x:hidden` at line 711 could clip real content — check it).
+- **Course Player** body (sidebar + lesson HTML with `<sbn-*>` widgets).
+- **Shop** (needs `ProductSeeder`, which `DatabaseSeeder` doesn't call).
 
 ---
 
 ## Next steps
 
-1. Stand up the app with a populated DB and run the visual pass above.
-2. Fill the Findings table; fix the clear overflow cases (usually a missing
-   `max-width: 100%` or a media-query override for a fixed px width).
+1. **Content pass**: run the same Playwright harness against a populated
+   `sbn.db` (copy the real DB in, or extend `DatabaseSeeder` with a content
+   fixture) and drive the four "not yet confirmed" surfaces above at 360/768.
+   The harness is the throwaway `_audit*.mjs` pattern from this session
+   (Chromium at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`).
+2. Fix any content-overflow cases (usually a missing `max-width: 100%` or an
+   `overflow-x:auto` wrapper on a wide notation/tab block).
 3. Decide whether the tab editor / admin surfaces are in scope for mobile at all.
+
+### Sandbox setup notes (for the next session)
+
+- This is a fresh cloud clone — **no Windows mount, no `sbn.db`**; the
+  CLAUDE.md db-checkout workflow does not apply here.
+- `composer install` must be a **single** run with `--prefer-dist` (two
+  concurrent runs corrupt the laravel/framework clone: "reference is not a
+  tree"). Root disables plugins; `--no-scripts --no-plugins` is fine.
+- Playwright is pinned to a version whose auto-download browser is absent —
+  launch with `executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'`.
+- `DatabaseSeeder`'s test-user `create()` throws on a second run (unique email);
+  create users with `updateOrCreate` via tinker instead.
