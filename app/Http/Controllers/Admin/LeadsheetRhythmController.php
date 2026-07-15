@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Admin\Concerns\SerializesLeadsheets;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\ApplyRhythmRequest;
 use App\Models\Leadsheet;
 use App\Models\RhythmPattern;
 use App\Services\HarmonicContext;
@@ -51,7 +52,7 @@ class LeadsheetRhythmController extends Controller
      * second round-trip.
      */
     public function applyRhythm(
-        Request $request,
+        ApplyRhythmRequest $request,
         Leadsheet $leadsheet,
         VoicingMaterializer $materializer,
         \App\Services\ProgressionBuilder $builder,
@@ -88,7 +89,7 @@ class LeadsheetRhythmController extends Controller
     }
 
     public function applyRhythmToExercise(
-        Request $request,
+        ApplyRhythmRequest $request,
         \App\Models\Exercise $exercise,
         VoicingMaterializer $materializer,
         \App\Services\ProgressionBuilder $builder,

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Admin\Concerns\SerializesLeadsheets;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\ApplyProgressionRequest;
+use App\Http\Requests\Admin\FillVoicingsRequest;
 use App\Models\Leadsheet;
 use App\Services\ChordShapeCalculator;
 use App\Services\ChordVoicingSearch;
@@ -272,14 +274,10 @@ class LeadsheetVoicingController extends Controller
      * Builds MusicXML from the voicing sequence (one measure per chord),
      * stores in tab_xml, updates chordVoicings in json_data.
      */
-    public function applyProgression(Request $request, Leadsheet $leadsheet, VoicingMaterializer $materializer)
+    public function applyProgression(ApplyProgressionRequest $request, Leadsheet $leadsheet, VoicingMaterializer $materializer)
     {
-        $selections    = $request->input('selections', []);
+        $selections    = $request->input('selections');
         $timeSignature = $request->input('time_signature', '4/4');
-
-        if (empty($selections)) {
-            return response()->json(['success' => false, 'error' => 'No selections provided.'], 422);
-        }
 
         $result = $materializer->materialize($selections, $timeSignature);
 
@@ -324,7 +322,7 @@ class LeadsheetVoicingController extends Controller
      * into json_data.chordVoicings. Tab data (tab_xml, melody) is never touched.
      */
     public function fillVoicings(
-        Request $request,
+        FillVoicingsRequest $request,
         Leadsheet $leadsheet,
         \App\Services\ProgressionBuilder $builder,
         HarmonicContext $context

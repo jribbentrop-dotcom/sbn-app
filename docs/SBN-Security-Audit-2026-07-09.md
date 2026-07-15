@@ -18,7 +18,7 @@
 | 4 | `.env.example` missing config keys | Config | Low | ✅ Fixed |
 | 5 | God controller: `LeadsheetController` (4,728 lines / 80 methods) | Architecture | Medium | ✅ Fixed |
 | 6 | Harmonic scorer duplicated across two services | Architecture | Medium | ⬜ Open |
-| 7 | Thin request validation (only 3 FormRequests) | Code quality | Medium | ⬜ Open |
+| 7 | Thin request validation (only 3 FormRequests) | Code quality | Medium | 🟡 Partial (actual validation gap on Leadsheet endpoints closed; broader FormRequest conversion + other admin controllers still open) |
 | 8 | `UserProfile` uses `$guarded = []` (open mass assignment) | Code quality | Low | ✅ Fixed |
 | 9 | Tracked/stray files that should be ignored or removed | Repo hygiene | Low | 🟡 Partial (the two tracked-but-ignored files untracked; local-machine stray files unreachable here) |
 | 10 | Test suite state unverified; leftover `console.log`/TODOs | Code quality | Low | 🟡 Partial (baseline established; console.log/TODO sweep not done) |
@@ -92,7 +92,11 @@ Related oversized files still worth decomposing: `ProgressionBuilder.php` (4,369
 
 **Fix:** extract a shared harmonic-scoring module both services depend on.
 
-### 7. Thin request validation — Medium
+### 7. Thin request validation — Medium — 🟡 Partial 2026-07-15
+
+> **Progress:** on closer look, most Leadsheet write endpoints (`updateIsPro`, `updateStatus`, `uploadBackingTrack`, `updateDescription`, etc.) already run an inline `$request->validate([...])` — the original finding's examples were about the raw-`Request` *pattern*, not a total absence of validation. The endpoints with an actual, unguarded gap were `LeadsheetVoicingController::applyProgression`/`fillVoicings` and `LeadsheetRhythmController::applyRhythm`/`applyRhythmToExercise`, which pulled `selections`, `rhythm_pattern_slug`, `extension_mode`, etc. straight off `$request->input()` with no rules at all. Added three FormRequests for those — `ApplyProgressionRequest`, `FillVoicingsRequest`, `ApplyRhythmRequest` (each `authorize(): true`, since the route-level `instructor` middleware is the actual gate) — and a new `tests/Feature/LeadsheetWriteValidationTest.php` (8 tests) that hits the real routes and confirms both the 422-on-bad-input and the 200-on-good-input paths, plus the 403 for a non-instructor.
+> Getting that test running also surfaced that this sandbox had no `.env`/`APP_KEY` at all, so any feature test making a real HTTP request (session/cookie encryption) errored before reaching its own logic; added `APP_KEY` to `phpunit.xml`'s test env. This is a real, low-risk portability fix — confirmed via full-suite diff that it didn't flip any previously-passing test to failing, only let latent errors resolve to either pass or a real (pre-existing, unrelated) failure now visible for the first time.
+> **Still open:** the inline-`validate()` endpoints haven't been converted to FormRequest classes — that's still worth doing for consistency/defense-in-depth, but is lower urgency now that the actual validation gap is closed. `ChordController`, `ProgressionController`, `RhythmPatternController`, `VoicingController`, `ProgressionDetectionController`, and `ProgressionBuilderController` weren't audited in this pass — the finding covers "the admin write surface" broadly, and this pass only reached the Leadsheet* family.
 
 Only 3 `FormRequest` classes exist for a large admin write surface. Write endpoints such as `updateIsPro`, `updateStatus`, and `uploadBackingTrack` accept a raw `Request`. This pairs naturally with fixing #1.
 
@@ -114,7 +118,7 @@ Only 3 `FormRequest` classes exist for a large admin write surface. Write endpoi
 
 ### 10. Tests & residue — Low — Partially fixed 2026-07-15
 
-> **Baseline established:** `./vendor/bin/phpunit tests/Unit tests/Feature tests/Integration` → **277 tests, 6261 assertions, 152 errors, 6 failures, 15 skipped, 31 risky**, identical before and after the #5 refactor (confirmed via `git stash`). All 152 errors trace to tests hardcoding a Windows dev-machine DB path (`C:/Users/info/sbn-app/database/sbn.db`) that doesn't exist in this environment — not real regressions, but worth fixing (parametrize the path, or drop the hardcoded `config()` override) so the suite is portable.
+> **Baseline established:** `./vendor/bin/phpunit tests/Unit tests/Feature tests/Integration` → **277 tests, 6261 assertions, 152 errors, 6 failures, 15 skipped, 31 risky**, identical before and after the #5 refactor (confirmed via `git stash`). The 152 errors are environment-only, from two distinct causes, not one: (a) several test classes (`AuthTest`, `LeadsheetLookupTest`, `LeadsheetProgressionTest`, `PaymentWebhookTest`, ...) deliberately connect to the real `sbn.db` instead of the `:memory:` test DB — via a hardcoded Windows path or `database_path('sbn.db')` — because, per `AuthTest`'s own comment, "the schema is not fully migration-defined"; that DB doesn't exist in this sandbox at all. (b) no `.env`/`APP_KEY` existed in this checkout, so *any* feature test making a real HTTP request (session/cookie encryption needs a key) errored before reaching its own logic — fixed by adding `APP_KEY` to `phpunit.xml` (see #7), which dropped the error count by 3 without flipping any previously-passing test to failing (full before/after diff checked). The remaining `:memory:`-incompatible tests in (a) still need a real fix — either a from-scratch migration path that fully matches production schema, or seeded fixtures — before they can run portably.
 > **Not done:** the `console.log`/`TODO` sweep — no fix was prescribed beyond noting the counts, and re-verifying 68 markers wasn't in scope for this pass.
 
 47 test files across Unit/Feature/Integration. `tests/Unit/IdentifierRegressionCases.php` had uncommitted changes as of the original audit — not present in this checkout, so unverified here.
@@ -125,11 +129,11 @@ Only 3 `FormRequest` classes exist for a large admin write surface. Write endpoi
 
 Completed: **#1** (instructor guard), **#2** (deleted dead route file), **#4** (synced `.env.example`), **#5** (split `LeadsheetController`), **#8** (`UserProfile` fillable allowlist).
 
-Partially done (as far as this sandbox reaches): **#9** (the two tracked-but-ignored files untracked; local-machine stray files need clearing directly on the Windows box), **#10** (PHPUnit baseline established: 277 tests / 152 errors, all environment-only — see §10).
+Partially done (as far as this sandbox reaches): **#7** (closed the actual unvalidated-input gap on the Leadsheet voicing/rhythm endpoints + `phpunit.xml` `APP_KEY` fix; broader FormRequest conversion of other admin controllers still open), **#9** (the two tracked-but-ignored files untracked; local-machine stray files need clearing directly on the Windows box), **#10** (PHPUnit baseline established and its two distinct environment-only root causes identified — see §10).
 
 Remaining follow-up work:
 
-1. **#7** — add validation/authorization (FormRequests) to the admin write endpoints. Do this first; it hardens the surface just re-gated in #1.
-2. **#3** — verify the production `.env` sets `APP_DEBUG=false`. **Cannot be checked from this sandbox** — it has no access to the production server/`.env`; this needs a human (or a session with production access) to confirm.
-3. **#6** — extract the shared harmonic scorer duplicated between `ProgressionBuilder` and `ProgressionDetector`.
-4. **#9, #10 cleanup** — clear the stray local files on the dev machine directly, and fix the two test files that hardcode a Windows DB path so the suite is portable.
+1. **#3** — verify the production `.env` sets `APP_DEBUG=false`. **Cannot be checked from this sandbox** — it has no access to the production server/`.env`; this needs a human (or a session with production access) to confirm.
+2. **#6** — the "duplicated harmonic scorer" needs a human call, not a mechanical merge: `ProgressionBuilder::qualityToSuffix`/`normalizeQuality` and `ProgressionDetector::qualityToSuffix`/`normalizeQualityForDetection` look like copies of each other but have already diverged *by design* — Detector collapses extended qualities (m9, maj11, ...) to base harmonic function for progression-pattern matching, while Builder preserves them for chord-building. Merging them naively would break one or the other. One concrete, likely-accidental divergence found along the way: augmented chords serialize as `'+'`/`'7+'` in Builder's roman-numeral suffix but `'aug'`/`'aug7'` in Detector's (and in Builder's own separate chord-*name* suffix map) — currently harmless since no canonical progression pattern references augmented chords, so it's never been exercised, but worth a decision on which spelling is canonical before touching it.
+3. **#7 remainder** — convert the already-validated-but-inline-`validate()` endpoints to FormRequest classes for consistency, and extend the FormRequest sweep to `ChordController`, `ProgressionController`, `RhythmPatternController`, `VoicingController`, `ProgressionDetectionController`, `ProgressionBuilderController` (not reached in this pass).
+4. **#9, #10 cleanup** — clear the stray local files on the dev machine directly, and either give the DB-dependent tests (`AuthTest`, `LeadsheetLookupTest`, `LeadsheetProgressionTest`, `PaymentWebhookTest`, ...) a migration path that matches production schema, or seed fixtures, so they can run against `:memory:` instead of requiring the real `sbn.db`.
