@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Requests\Admin\ChordProgressionRequest;
+use App\Http\Requests\Admin\UpdateProgressionDescriptionRequest;
 use App\Models\ChordProgression;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -93,9 +95,9 @@ class ProgressionController extends Controller
     /**
      * Store a new progression.
      */
-    public function store(Request $request)
+    public function store(ChordProgressionRequest $request)
     {
-        $validated = $this->validateProgression($request);
+        $validated = $this->normalizeProgressionData($request->validated());
         $validated['slug'] = $this->resolveSlugForSave($validated);
 
         $progression = ChordProgression::create($validated + [
@@ -110,9 +112,9 @@ class ProgressionController extends Controller
     /**
      * Update an existing progression.
      */
-    public function update(Request $request, ChordProgression $progression)
+    public function update(ChordProgressionRequest $request, ChordProgression $progression)
     {
-        $validated = $this->validateProgression($request);
+        $validated = $this->normalizeProgressionData($request->validated());
         $validated['slug'] = $this->resolveSlugForSave($validated, $progression);
 
         $progression->update($validated);
@@ -125,12 +127,9 @@ class ProgressionController extends Controller
     /**
      * Delete a progression + its occurrences (AJAX).
      */
-    public function updateDescription(Request $request, ChordProgression $progression)
+    public function updateDescription(UpdateProgressionDescriptionRequest $request, ChordProgression $progression)
     {
-        $validated = $request->validate([
-            'intro'   => 'nullable|string|max:10000',
-            'details' => 'nullable|string|max:10000',
-        ]);
+        $validated = $request->validated();
         $progression->update([
             'intro'   => $validated['intro']   ?? null,
             'details' => $validated['details'] ?? null,
@@ -214,50 +213,8 @@ class ProgressionController extends Controller
 
     /* ── Private ─────────────────────────────────────────────── */
 
-    private function validateProgression(Request $request): array
+    private function normalizeProgressionData(array $data): array
     {
-        // The video-snippet widget submits its library as a JSON string in a
-        // hidden field (classic form POST). Decode it to an array before
-        // validation so the per-snippet rules can apply.
-        if ($request->filled('video_snippets') && is_string($request->input('video_snippets'))) {
-            $decoded = json_decode($request->input('video_snippets'), true);
-            $request->merge(['video_snippets' => is_array($decoded) ? $decoded : []]);
-        }
-
-        $data = $request->validate([
-            'name'           => 'required|string|max:120',
-            'slug'           => 'nullable|string|max:180|regex:/^[a-z0-9\\-]+$/',
-            'category'       => 'required|string|in:' . implode(',', ChordProgression::CATEGORIES),
-            'numerals'       => 'required|string|max:255',
-            'description'    => 'nullable|string',
-            'intro'          => 'nullable|string',
-            'details'        => 'nullable|string',
-            'tags'           => 'nullable|string|max:255',
-            'tonality'       => 'required|string|in:both,major,minor',
-            'match_mode'     => 'required|string|in:strict,degree',
-            'sort_order'     => 'nullable|integer',
-            'difficulty'     => 'nullable|integer|min:1|max:5',
-            'featured'       => 'nullable|boolean',
-            'alt_numerals'   => 'nullable|array',
-            'alt_numerals.*.label'    => 'required|string|max:100',
-            'alt_numerals.*.numerals' => 'required|string|max:255',
-
-            // Video snippet library — see docs/SBN-Course-Reference.md §10.
-            'video_snippets'               => 'nullable|array',
-            'video_snippets.*.id'          => 'required|string|max:64',
-            'video_snippets.*.label'       => 'required|string|max:120',
-            'video_snippets.*.videoId'     => 'required|string|max:32',
-            'video_snippets.*.videoType'   => 'required|string|in:youtube,hosted',
-            'video_snippets.*.startSec'    => 'required|numeric|min:0',
-            'video_snippets.*.endSec'      => 'required|numeric|min:0',
-            'video_snippets.*.tempoBpm'    => 'required|numeric|min:20|max:300',
-            // Pinned voicings: the key the musician plays in + one chord slug per numeral slot.
-            'video_snippets.*.key'         => 'nullable|string|max:4',
-            'video_snippets.*.chords'      => 'nullable|array',
-            'video_snippets.*.chords.*'    => 'nullable|string|max:120',
-        ]);
-
-        // Normalize
         $data['sort_order']     = $data['sort_order'] ?? 0;
         $data['featured']       = $data['featured'] ?? false;
         $data['tags']           = $data['tags'] ?? '';

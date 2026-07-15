@@ -23,7 +23,7 @@ class DbVoicingMatcherTest extends TestCase
     {
         parent::setUp();
         // Use the real sbn.db so we can query sbn_chord_diagrams.
-        config(['database.connections.sqlite.database' => 'C:/Users/info/sbn-app/database/sbn.db']);
+        config(['database.connections.sqlite.database' => database_path('sbn.db')]);
         \Illuminate\Support\Facades\DB::reconnect('sqlite');
         $this->matcher = new DbVoicingMatcher();
     }

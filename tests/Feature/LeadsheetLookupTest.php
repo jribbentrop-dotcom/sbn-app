@@ -18,7 +18,7 @@ class LeadsheetLookupTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        config(['database.connections.sqlite.database' => 'C:/Users/info/sbn-app/database/sbn.db']);
+        config(['database.connections.sqlite.database' => database_path('sbn.db')]);
         \Illuminate\Support\Facades\DB::reconnect('sqlite');
     }
 

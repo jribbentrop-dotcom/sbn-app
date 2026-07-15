@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { Link, Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import AccountLayout from '@/Layouts/AccountLayout.vue';
 
@@ -23,6 +23,7 @@ function formatDate(iso: string | null): string {
 </script>
 
 <template>
+    <Head><title>My Orders | Soul Bossa Nova</title></Head>
     <div class="sbn-page sbn-page-detail">
             <header class="sbn-account-pageheader">
                 <h1>Orders</h1>

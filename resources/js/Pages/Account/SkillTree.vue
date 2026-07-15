@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import AccountLayout from '@/Layouts/AccountLayout.vue';
 import SkillTile from '@/Components/Skill/SkillTile.vue';
@@ -205,6 +205,7 @@ function onMobileToggle(node: SkillTreeNode) {
 </script>
 
 <template>
+    <Head><title>Skill Tree | Soul Bossa Nova</title></Head>
     <div class="sbn-page sbn-page-detail">
         <header class="sbn-account-pageheader">
             <h1>Skill Tree</h1>

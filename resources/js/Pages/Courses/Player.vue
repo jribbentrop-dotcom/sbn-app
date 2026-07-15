@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onBeforeUnmount } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import LessonSidebar from '@/Components/Course/LessonSidebar.vue';
 import LessonContent from '@/Components/Course/LessonContent.vue';
@@ -122,6 +122,7 @@ watch(() => props.lesson?.slug, () => {
 </script>
 
 <template>
+  <Head><title>{{ (lesson?.title ? lesson.title + ' — ' : '') + course.title }} | Soul Bossa Nova</title></Head>
   <div class="sbn-player-container">
     <div
       class="vC-grid"

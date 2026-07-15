@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, computed } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, Head } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import AccountLayout from '@/Layouts/AccountLayout.vue';
 import SkillIcon from '@/Components/Skill/SkillIcon.vue';
@@ -178,6 +178,7 @@ const visibleClasses = computed(() => liveClasses.value.filter(c => c.total > 0)
 </script>
 
 <template>
+    <Head><title>Skills | Soul Bossa Nova</title></Head>
     <div class="sbn-page sbn-page-detail">
         <header class="sbn-account-pageheader">
             <h1>My Skills</h1>
