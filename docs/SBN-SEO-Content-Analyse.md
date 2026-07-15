@@ -1,6 +1,42 @@
 # SBN – SEO & Content-Analyse
 
-_Erstellt: 13. Juni 2026 — Update: 7. Juli 2026_
+_Erstellt: 13. Juni 2026 — Updates: 7. Juli 2026, 15. Juli 2026_
+
+---
+
+## 🔄 Update 15. Juli 2026 — Sitemap-Fix & Tab-Titel
+
+Kleiner SEO-Durchgang im Rahmen des Security-/Code-Audits (die
+Architektur-/Security-Punkte selbst stehen in `SBN-Security-Audit-2026-07-09.md`).
+
+**Erledigt:**
+- **Sitemap-Shop-Bug behoben:** `SitemapController` gab Produkt-URLs als
+  `/shop/{slug}` aus, die registrierte Route ist aber `/shop/product/{slug}`
+  (`routes/web.php`, `shop.show`). Jeder Produkt-Eintrag der Live-Sitemap
+  landete damit auf 404 in der Search Console — dieselbe Fehlerklasse wie der
+  `/courses`→`/learn`-Bug vom 7. Juli, nur für den Shop. Jetzt korrigiert. Die
+  übrigen Einträge (`/`, `/learn`, `/learn/{slug}`, `/shop`, Top10, `/skills`,
+  `/grades`, `/contact`) wurden gegen ihre Routen geprüft und sind korrekt.
+- **`<Head><title>` auf 11 Seiten ergänzt**, die bisher gar kein `<Head>`
+  hatten (Tab-Titel fiel auf den App-Namen zurück): `Account/{Courses,
+  Dashboard,Profile,Skills,SkillTree}`, `Account/Orders/{Index,Show}`,
+  `Account/Messages/Index`, `Community/Show`, `Courses/Player`,
+  `Dev/EduHarness` — mit dynamischen Titeln, wo ein Prop vorlag (Bestell-Nr.,
+  Kanalname, Kurs-/Lektionstitel). **Bewusst nur Tab-Titel, kein volles
+  SEO-Meta** (`description`/`og:`): alle 11 sitzen hinter dem `auth`-Gate und
+  sind aus Sitemap + `robots.txt` ausgeschlossen (siehe „Auth-Gate blockiert
+  Indexierung" weiter unten) — Google erreicht sie nie, also wäre Meta-Aufwand
+  verpufft. Es ist eine UX-/Browser-Tab-Verbesserung, keine Indexierungs-Sache.
+
+**Offene Punkte für die nächste SEO-Session** (Details in den Abschnitten unten):
+1. **Auth-Gate-Entscheidung** — die publikumsstärksten Song-Referenzseiten als
+   Gäste-Teaser öffnen (Option 2 unten) würde SEO-Traffic UND Registrierungen
+   kombinieren. Größte Hebelwirkung, aber eine Produkt-Entscheidung.
+2. **SSR / Social-Preview** — OG-Vorschauen greifen für Nicht-JS-Crawler
+   (Facebook/Slack/X) mangels SSR aktuell wahrscheinlich nicht zuverlässig.
+3. **Meta-Abdeckung der restlichen öffentlichen Seiten** verifizieren und
+   JSON-LD dort ausbauen, wo es fehlt.
+4. **Content-Lücken** aus dem Abschnitt „Content-Analyse & Empfehlungen".
 
 ---
 

@@ -22,8 +22,8 @@
 | 8 | `UserProfile` uses `$guarded = []` (open mass assignment) | Code quality | Low | ✅ Fixed |
 | 9 | Tracked/stray files that should be ignored or removed | Repo hygiene | Low | 🟡 Partial (the two tracked-but-ignored files untracked; local-machine stray files unreachable here) |
 | 10 | Test suite state unverified; leftover `console.log`/TODOs | Code quality | Low | 🟡 Partial (baseline established; 12 tests' hardcoded Windows DB path fixed; console.log/TODO sweep not done) |
-| 11 | Sitemap emits `/shop/{slug}` but product route is `/shop/product/{slug}` — every product URL 404s | SEO | Medium | ✅ Fixed |
-| 12 | 11 Inertia pages have no `<Head>` (default browser-tab title) | SEO/UX | Low | ✅ Fixed |
+
+> **SEO findings live elsewhere.** Two SEO fixes shipped on the same branch as this audit (a sitemap product-path 404 and per-page `<Head>` titles) but belong to the SEO track, not this security/architecture doc. They're recorded in **`docs/SBN-SEO-Content-Analyse.md`** (update 15 July 2026).
 
 **What's already solid:** `.env` and `sbn.db` are correctly untracked; the Stripe webhook verifies its signature and is idempotent; the CSRF exception is narrowly scoped to the webhook route; the beta auth gate (`redirectGuestsTo → register`) is coherent.
 
@@ -130,23 +130,9 @@ Only 3 `FormRequest` classes exist for a large admin write surface. Write endpoi
 
 ---
 
-## SEO
-
-*Added 2026-07-15 during a follow-up code/SEO audit pass — not in the original 10 findings, but fixed in the same branch.*
-
-### 11. Sitemap emits a non-existent product path — Medium — ✅ Fixed 2026-07-15
-
-> **Resolved:** `SitemapController` built product URLs as `/shop/{slug}`, but the registered route is `/shop/product/{slug}` (`routes/web.php`, `shop.show`). Every product entry in the live sitemap therefore resolved to no route — a "submitted URL not found (404)" for the whole catalog in Search Console. Changed the `loc` to `/shop/product/{slug}`. The other sitemap entries (`/`, `/learn`, `/learn/{slug}`, `/shop`, top10, `/skills`, `/grades`, `/contact`) were verified against their routes and are correct; auth-gated library/theory/song pages are deliberately excluded (documented in the controller).
-
-### 12. Inertia pages missing `<Head>` — Low — ✅ Fixed 2026-07-15
-
-> **Resolved:** 11 of 44 pages rendered with no `<Head>`, so the browser tab fell back to the default app name. Added `<Head><title>` to `Account/{Courses,Dashboard,Profile,Skills,SkillTree}`, `Account/Orders/{Index,Show}`, `Account/Messages/Index`, `Community/Show`, `Courses/Player`, and `Dev/EduHarness`, with dynamic titles where a prop was available (order id, channel title, course/lesson title). These are all behind the `auth` gate and excluded from the sitemap + `robots.txt`, so the titles are a browser-tab/UX improvement, not a search-indexing one — full SEO meta (`description`/`og:`) was deliberately not added since Google never reaches these pages. Verified with a clean `npm run build`.
-
----
-
 ## Recommended order
 
-Completed: **#1** (instructor guard), **#2** (deleted dead route file), **#4** (synced `.env.example`), **#5** (split `LeadsheetController`), **#7** (FormRequests across the entire admin write surface), **#8** (`UserProfile` fillable allowlist), **#11** (sitemap product path), **#12** (per-page `<Head>` titles).
+Completed: **#1** (instructor guard), **#2** (deleted dead route file), **#4** (synced `.env.example`), **#5** (split `LeadsheetController`), **#7** (FormRequests across the entire admin write surface), **#8** (`UserProfile` fillable allowlist).
 
 Partially done (as far as this sandbox reaches): **#9** (the two tracked-but-ignored files untracked; local-machine stray files need clearing directly on the Windows box), **#10** (PHPUnit baseline established and its two distinct environment-only root causes identified — see §10; also discovered a third, undocumented one — see below).
 
