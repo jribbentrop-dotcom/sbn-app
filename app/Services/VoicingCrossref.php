@@ -2949,40 +2949,6 @@ class VoicingCrossref
         ];
     }
 
-    /**
-     * Extract grid-based neighbor chords from HarmonicContext for a given position.
-     * Falls back gracefully if the position doesn't map cleanly.
-     */
-    private function extractGridContext(array $harmonicContext, int $voicingIndex): array
-    {
-        $allChords = [];
-        foreach ($harmonicContext['sections'] ?? [] as $section) {
-            foreach ($section['chords'] ?? [] as $chord) {
-                $allChords[] = $chord['chord_name'] ?? null;
-            }
-        }
-
-        $prev = [];
-        $next = [];
-
-        // Look back up to 2
-        for ($b = 1; $b <= 2; $b++) {
-            $ni = $voicingIndex - $b;
-            if ($ni >= 0 && isset($allChords[$ni]) && $allChords[$ni]) {
-                array_unshift($prev, $allChords[$ni]);
-            }
-        }
-        // Look forward up to 2
-        for ($f = 1; $f <= 2; $f++) {
-            $ni = $voicingIndex + $f;
-            if ($ni < count($allChords) && isset($allChords[$ni]) && $allChords[$ni]) {
-                $next[] = $allChords[$ni];
-            }
-        }
-
-        return ['prev' => $prev, 'next' => $next];
-    }
-
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private function noResult(): array
@@ -3227,25 +3193,6 @@ class VoicingCrossref
         if ($sharp === $flat) return $sharp;
 
         return HarmonicContext::spellingUsesFlats($songKey ?? '') ? $flat : $sharp;
-    }
-
-    private function getQualityDisplayName(string $quality): string
-    {
-        return match ($quality) {
-            'maj'    => '',
-            'min'    => 'm',
-            'dom7'   => '7',
-            'maj7'   => 'maj7',
-            'm7'     => 'm7',
-            'm7b5'   => 'm7b5',
-            'o7'     => 'o7',
-            'dim'    => 'dim',
-            'sus4'   => 'sus4',
-            'sus2'   => 'sus2',
-            'aug'    => '+',
-            'mMaj7'  => 'mMaj7',
-            default  => $quality,
-        };
     }
 
     /**

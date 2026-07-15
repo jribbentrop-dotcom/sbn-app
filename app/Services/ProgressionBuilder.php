@@ -1648,11 +1648,10 @@ class ProgressionBuilder
     /**
      * Map a quality to a chord-NAME suffix (e.g. "Bdim", "Caug").
      *
-     * Distinct from qualityToSuffix(), which produces Roman-NUMERAL suffixes
-     * ("vii°", "bIIo"). composeChordName previously borrowed qualityToSuffix
-     * and emitted numeral conventions ("Bo", "Bo7") into chord names — which
-     * disagreed with Pass 1 / HarmonicContext ("Bdim", "Bdim7"), so the same
-     * chord was named differently depending on whether extensions were on.
+     * Distinct from Roman-NUMERAL suffixes ("vii°", "bIIo", "Bo7") — chord
+     * names must use "Bdim"/"Bdim7" to agree with Pass 1 / HarmonicContext.
+     * Don't emit numeral conventions here, or the same chord ends up named
+     * differently depending on whether extensions were on.
      */
     private function qualityToChordNameSuffix(string $quality): string
     {
@@ -1684,41 +1683,6 @@ class ProgressionBuilder
             '9'     => '9',
             '11'    => '11',
             '13'    => '13',
-        ];
-
-        return $suffixMap[$q] ?? $q;
-    }
-
-    /**
-     * Map quality to Roman numeral suffix.
-     * // TODO(harmonic-scorer): extract to shared module — duplicated from ProgressionDetector::qualityToSuffix
-     */
-    private function qualityToSuffix(string $quality): string
-    {
-        $q = $this->normalizeQuality($quality);
-
-        $suffixMap = [
-            'maj' => '',
-            'dom7' => '7',
-            '7' => '7',
-            'maj7' => 'maj7',
-            'min' => 'm',
-            'm' => 'm',
-            'm7' => 'm7',
-            'm7b5' => 'm7b5',
-            'dim' => 'o',
-            'dim7' => 'o7',
-            'o7' => 'o7',
-            'aug' => '+',
-            'aug7' => '7+',
-            'sus4' => 'sus4',
-            'sus2' => 'sus2',
-            'maj6' => '6',
-            'm6' => 'm6',
-            'add9' => 'add9',
-            '9' => '9',
-            '11' => '11',
-            '13' => '13',
         ];
 
         return $suffixMap[$q] ?? $q;

@@ -43,7 +43,7 @@ const { open: openAuthModal } = useAuthModal();
             <div>
                 <h5>Hub</h5>
                 <a href="#">Pricing</a>
-                <a href="#">About</a>
+                <Link href="/about">About</Link>
                 <Link href="/contact">Contact</Link>
                 <a href="/login" @click.prevent="openAuthModal('login')">Sign in</a>
             </div>
@@ -53,8 +53,9 @@ const { open: openAuthModal } = useAuthModal();
         <div class="footer-bottom-bar">
             <span>&copy; {{ year }} Soul Bossa Nova Teaching Hub</span>
             <span class="footer-legal">
-                <Link href="/imprint">Imprint</Link>
-                <Link href="/privacy">Privacy Policy</Link>
+                <Link href="/impressum">Impressum</Link>
+                <Link href="/privacy-policy">Privacy Policy</Link>
+                <Link href="/cookie-policy">Cookie Policy</Link>
                 <Link href="/terms">Terms of Service</Link>
             </span>
         </div>

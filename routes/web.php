@@ -397,6 +397,20 @@ Route::post('/contact', [\App\Http\Controllers\ContactController::class, 'submit
     ->middleware('throttle:5,1')
     ->name('contact.submit');
 
+/*
+|--------------------------------------------------------------------------
+| Legal / footer content pages (static — no controller logic)
+|--------------------------------------------------------------------------
+| Public so they stay reachable to guests. Linked from the site footer.
+| Content ships with [BRACKETED PLACEHOLDERS] and is noindex'd (see
+| ProsePage.vue) until real business details are filled in.
+*/
+Route::get('/impressum', fn () => \Inertia\Inertia::render('Legal/Impressum'))->name('impressum');
+Route::get('/privacy-policy', fn () => \Inertia\Inertia::render('Legal/PrivacyPolicy'))->name('privacy-policy');
+Route::get('/cookie-policy', fn () => \Inertia\Inertia::render('Legal/CookiePolicy'))->name('cookie-policy');
+Route::get('/terms', fn () => \Inertia\Inertia::render('Legal/Terms'))->name('terms');
+Route::get('/about', fn () => \Inertia\Inertia::render('Legal/About'))->name('about');
+
 // Phase 11b — JSON endpoints for mountSbnNodes.ts + palette search.
 // Beta gate: these feed the gated library/course pages, so they require an
 // account too (authed instructors pass for the admin lesson palette).

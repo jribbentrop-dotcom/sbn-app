@@ -14,11 +14,13 @@ and does **not** match the shipped Vue component).
 | Header nav (desktop mega panels + mobile drawer) | `resources/js/Components/MegaMenu.vue` |
 | Nav / mega-menu styling | `resources/css/frontend/mega-menu.css` |
 | User dropdown (right side) | `resources/js/Components/UserMenu.vue` |
-| Footer (incl. Contact link) | `resources/js/Components/Footer.vue` |
+| Footer (Contact + legal links) | `resources/js/Components/Footer.vue` |
 | Contact page | `resources/js/Pages/Contact/Index.vue` |
 | Contact controller | `app/Http/Controllers/ContactController.php` |
 | Contact mailable | `app/Mail/ContactFormMail.php` |
 | Contact email body | `resources/views/mail/contact.blade.php` |
+| Legal / About pages | `resources/js/Pages/Legal/{Impressum,PrivacyPolicy,CookiePolicy,Terms,About}.vue` |
+| Legal prose wrapper | `resources/js/Components/Legal/ProsePage.vue` |
 
 The header is **Vue/Inertia-driven**, not pure CSS. Open state is a reactive
 `openMenu` ref; panels toggle the `.manual-hover` class. Hover intent uses
@@ -134,7 +136,36 @@ panels (e.g. Find Your Level, Theory Library were added to both).
 
 ---
 
-## 6. Conventions
+## 6. Legal / footer content pages
+
+Four static, long-form content pages linked from the footer. No controller
+logic — the routes render Inertia pages directly.
+
+- **Routes** (`routes/web.php`, public / guest-reachable):
+  | URL | Route name | Page |
+  |-----|-----------|------|
+  | `/impressum` | `impressum` | `Legal/Impressum` (Legal Notice / Impressum, § 5 TMG) |
+  | `/privacy-policy` | `privacy-policy` | `Legal/PrivacyPolicy` (GDPR) |
+  | `/cookie-policy` | `cookie-policy` | `Legal/CookiePolicy` (TTDSG + GDPR) |
+  | `/terms` | `terms` | `Legal/Terms` (Terms & Conditions) |
+  | `/about` | `about` | `Legal/About` |
+- **Shared wrapper** `Components/Legal/ProsePage.vue`: applies
+  `defineOptions({ layout: PublicLayout })`, the `<Head>` title, and the
+  `.legal-prose` typography (Fraunces `--font-display` titles, DM Sans body,
+  JetBrains Mono `--font-mono` "Last updated" line). Content is passed in as
+  plain semantic HTML through the default slot; pages stay content-only.
+- **`noindex` by default**: `ProsePage` renders `<meta name="robots"
+  content="noindex">` unless `:noindex="false"`. The pages currently ship with
+  `[BRACKETED PLACEHOLDERS]` (real business/legal details TBD before launch);
+  keep them noindex until the placeholders are filled, then flip per page.
+- **Entry points**: footer bottom bar (Impressum, Privacy Policy, Cookie
+  Policy, Terms) and the footer Hub column ("About"). These replaced the
+  earlier dead `/imprint` and `/privacy` links and the `About` `href="#"`
+  placeholder.
+
+---
+
+## 7. Conventions
 
 - Public pages use `defineOptions({ layout: PublicLayout })`, `sbn-*` classes,
   `useForm` for posts, and inline `form.errors.<field>` for validation messages.
