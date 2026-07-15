@@ -407,6 +407,7 @@ Route::post('/contact', [\App\Http\Controllers\ContactController::class, 'submit
 */
 Route::get('/impressum', fn () => \Inertia\Inertia::render('Legal/Impressum'))->name('impressum');
 Route::get('/privacy-policy', fn () => \Inertia\Inertia::render('Legal/PrivacyPolicy'))->name('privacy-policy');
+Route::get('/cookie-policy', fn () => \Inertia\Inertia::render('Legal/CookiePolicy'))->name('cookie-policy');
 Route::get('/terms', fn () => \Inertia\Inertia::render('Legal/Terms'))->name('terms');
 Route::get('/about', fn () => \Inertia\Inertia::render('Legal/About'))->name('about');
 

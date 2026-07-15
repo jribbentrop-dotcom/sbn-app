@@ -116,6 +116,37 @@ withDefaults(defineProps<{
     border-top: 1px solid var(--sbn-border);
     margin: 40px 0;
 }
+
+/* Tables (e.g. the Cookie Policy cookie inventory) — scroll on narrow screens
+   via the .legal-table-wrap container so the page body never overflows. */
+.legal-prose :deep(.legal-table-wrap) {
+    overflow-x: auto;
+    margin: 0 0 22px;
+}
+.legal-prose :deep(table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+}
+.legal-prose :deep(th),
+.legal-prose :deep(td) {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--sbn-border);
+    color: var(--sbn-text);
+    line-height: 1.5;
+    vertical-align: top;
+}
+.legal-prose :deep(th) {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+    color: var(--sbn-dark);
+    white-space: nowrap;
+}
+.legal-prose :deep(tbody tr:last-child td) { border-bottom: none; }
 /* Address / contact blocks keep their line breaks without paragraph spacing. */
 .legal-prose :deep(.legal-block) {
     margin: 0 0 18px;

@@ -19,7 +19,7 @@ and does **not** match the shipped Vue component).
 | Contact controller | `app/Http/Controllers/ContactController.php` |
 | Contact mailable | `app/Mail/ContactFormMail.php` |
 | Contact email body | `resources/views/mail/contact.blade.php` |
-| Legal / About pages | `resources/js/Pages/Legal/{Impressum,PrivacyPolicy,Terms,About}.vue` |
+| Legal / About pages | `resources/js/Pages/Legal/{Impressum,PrivacyPolicy,CookiePolicy,Terms,About}.vue` |
 | Legal prose wrapper | `resources/js/Components/Legal/ProsePage.vue` |
 
 The header is **Vue/Inertia-driven**, not pure CSS. Open state is a reactive
@@ -146,6 +146,7 @@ logic — the routes render Inertia pages directly.
   |-----|-----------|------|
   | `/impressum` | `impressum` | `Legal/Impressum` (Legal Notice / Impressum, § 5 TMG) |
   | `/privacy-policy` | `privacy-policy` | `Legal/PrivacyPolicy` (GDPR) |
+  | `/cookie-policy` | `cookie-policy` | `Legal/CookiePolicy` (TTDSG + GDPR) |
   | `/terms` | `terms` | `Legal/Terms` (Terms & Conditions) |
   | `/about` | `about` | `Legal/About` |
 - **Shared wrapper** `Components/Legal/ProsePage.vue`: applies
@@ -157,9 +158,10 @@ logic — the routes render Inertia pages directly.
   content="noindex">` unless `:noindex="false"`. The pages currently ship with
   `[BRACKETED PLACEHOLDERS]` (real business/legal details TBD before launch);
   keep them noindex until the placeholders are filled, then flip per page.
-- **Entry points**: footer bottom bar (Impressum, Privacy Policy, Terms) and
-  the footer Hub column ("About"). These replaced the earlier dead `/imprint`
-  and `/privacy` links and the `About` `href="#"` placeholder.
+- **Entry points**: footer bottom bar (Impressum, Privacy Policy, Cookie
+  Policy, Terms) and the footer Hub column ("About"). These replaced the
+  earlier dead `/imprint` and `/privacy` links and the `About` `href="#"`
+  placeholder.
 
 ---
 
