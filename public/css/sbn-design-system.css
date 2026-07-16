@@ -4905,22 +4905,96 @@ h1, h2 {
     border-radius: 999px;
 }
 
+/* ── Mobile: foldable filter drawer (shared across library pages) ──
+   Toggle/overlay/close are generic — .sbn-lib-filter-sidebar below and
+   .sbn-filter-sidebar (rhythm-library.css, used by the Theory page) both
+   pair with these same three classes so the drawer behaves identically
+   everywhere a library page has a search + filter-sidebar layout. */
+.sbn-lib-filter-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 14px auto 0;
+    padding: 10px 20px;
+    border: 2px solid var(--clr-border);
+    border-radius: 12px;
+    background: var(--clr-white);
+    color: var(--clr-text);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+.sbn-lib-filter-toggle:hover {
+    border-color: var(--clr-accent);
+    color: var(--clr-accent);
+}
+.sbn-lib-filter-toggle-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--clr-accent);
+}
+.sbn-lib-filter-overlay {
+    display: none;
+}
+.sbn-lib-filter-close {
+    display: none;
+}
+
 /* ── Responsive ── */
 @media (max-width: 900px) {
-    .sbn-lib-content-wrapper {
-        flex-direction: column-reverse;
+    .sbn-lib-filter-toggle { display: inline-flex; }
+
+    .sbn-lib-filter-close {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        width: 28px;
+        height: 28px;
+        border: 1px solid var(--clr-border);
+        border-radius: 8px;
+        background: var(--clr-white);
+        color: var(--clr-text-muted);
+        cursor: pointer;
     }
+
+    .sbn-lib-filter-overlay {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.35);
+        border: 0;
+        padding: 0;
+        z-index: 205;
+        cursor: pointer;
+    }
+
     .sbn-lib-filter-sidebar {
-        position: static;
-        width: 100%;
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(320px, 85vw);
         min-width: 0;
         max-height: none;
+        border-radius: 0;
+        transform: translateX(100%);
+        transition: transform 0.25s ease;
+        z-index: 210;
+    }
+    .sbn-lib-filter-sidebar.sbn-lib-filter-open {
+        transform: translateX(0);
+        box-shadow: -12px 0 32px rgba(0,0,0,0.18);
     }
 }
 @media (max-width: 600px) {
     .sbn-lib-page-title { font-size: 28px; }
     .sbn-lib-row-title  { font-size: 17px; }
-    .sbn-lib-filter-sidebar { display: none; }
 }
 
 

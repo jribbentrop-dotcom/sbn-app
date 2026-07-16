@@ -897,7 +897,10 @@
    RESPONSIVE
    ============================================================ */
 
-@media (max-width: 1024px) {
+@media (max-width: 900px) {
+    /* Matches the sidebar drawer breakpoint (this file's .sbn-filter-sidebar
+       rule below is superseded by rhythm-library.css's drawer version, which
+       loads later and now uses the same 900px breakpoint — see that file). */
     .sbn-content-wrapper {
         flex-direction: column;
     }

@@ -277,17 +277,58 @@
    RESPONSIVE
    ============================================================ */
 
-@media (max-width: 1024px) {
-  .sbn-content-wrapper {
-    flex-direction: column;
+@media (max-width: 900px) {
+  /* .sbn-lib-filter-toggle / .sbn-lib-filter-overlay / .sbn-lib-filter-close
+     are defined once in sbn-design-system.css and shared by every library
+     page's filter drawer — only the sidebar positioning below is specific
+     to .sbn-filter-sidebar (the Theory page's sidebar class). 900px matches
+     chord-library.css's .sbn-content-wrapper stacking breakpoint so the
+     sidebar goes off-canvas at the same width the wrapper stacks. */
+  .sbn-lib-filter-toggle { display: inline-flex; }
+
+  .sbn-lib-filter-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--clr-border);
+    border-radius: var(--radius-sm);
+    background: var(--clr-white);
+    color: var(--clr-text-muted);
+    cursor: pointer;
+  }
+
+  .sbn-lib-filter-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    border: 0;
+    padding: 0;
+    z-index: 205;
+    cursor: pointer;
   }
 
   .sbn-filter-sidebar {
-    position: static;
-    width: 100%;
-    min-width: 100%;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(320px, 85vw);
+    min-width: 0;
     max-height: none;
-    order: -1;
+    border-radius: 0;
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    z-index: 210;
+  }
+  .sbn-filter-sidebar.sbn-lib-filter-open {
+    transform: translateX(0);
+    box-shadow: -12px 0 32px rgba(0,0,0,0.18);
   }
 
   .sbn-patterns-grid {

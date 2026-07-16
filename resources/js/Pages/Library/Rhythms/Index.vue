@@ -36,6 +36,7 @@ const fDifficulty = ref(readDifficultyQueryParam());
 const fTimeSig  = ref('');
 const fGridType = ref('');
 const fSort     = ref(props.activeFilters.sort || 'popularity');
+const filtersOpen = ref(false);
 
 // ── Client-side filtering ────────────────────────────────
 function matchesFilters(p: RhythmPatternWithCount): boolean {
@@ -159,6 +160,14 @@ const CATEGORY_LABELS: Record<string, string> = {
           </button>
         </div>
       </div>
+
+      <button type="button" class="sbn-lib-filter-toggle" @click="filtersOpen = true">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        Filters
+        <span v-if="hasFilters" class="sbn-lib-filter-toggle-dot" aria-hidden="true"></span>
+      </button>
     </div>
 
     <!-- ── Content wrapper ── -->
@@ -287,8 +296,21 @@ const CATEGORY_LABELS: Record<string, string> = {
         </div>
       </div>
 
+      <button
+        type="button"
+        class="sbn-lib-filter-overlay"
+        v-if="filtersOpen"
+        @click="filtersOpen = false"
+        aria-label="Close filters"
+      />
+
       <!-- ── Filter Sidebar ── -->
-      <aside class="sbn-lib-filter-sidebar">
+      <aside class="sbn-lib-filter-sidebar" :class="{ 'sbn-lib-filter-open': filtersOpen }">
+        <button type="button" class="sbn-lib-filter-close" @click="filtersOpen = false" aria-label="Close filters">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
         <div class="sbn-lib-sidebar-header">
           <h3>Filter</h3>
           <span class="sbn-lib-sidebar-count">
