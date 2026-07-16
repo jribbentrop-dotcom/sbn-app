@@ -143,6 +143,8 @@ All note names (chord tones displayed in the detail page circles, inversion bass
 Fixed viewBox `88×98`, `width="100%"` so diagrams scale fluidly.  
 The renderer is invoked by `ChordDiagram.vue` with `showGuideTones: true` (default — on everywhere in the app) and `showFingers: true`.
 
+**Grid line stroke**: fret/string lines use `stroke-width="1"` with `vector-effect="non-scaling-stroke"` so they render at a constant on-screen pixel width no matter how small the diagram is scaled down (mobile fix, 2026-07-16 — `stroke-width="0.4"` without `non-scaling-stroke` rendered under a physical pixel and disappeared on narrow mobile layouts). `AnimatedChordDiagram.vue` mirrors this same coordinate system and must stay in sync — same fix applied there.
+
 **Guide-tone colour map** (`GT_COLORS`):
 
 | Interval | Fill | Role |
