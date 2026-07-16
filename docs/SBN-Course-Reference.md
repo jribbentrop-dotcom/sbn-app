@@ -112,6 +112,17 @@ Each show page receives `courses: CourseShelfCardData[]` as an Inertia prop. Ren
 
 See [SBN-Design-Reference.md § Library Link Components](SBN-Design-Reference.md) for `CourseShelfCard` and `MediaShelf` docs.
 
+### "View all" deep link (2026-07-16)
+
+Each shelf's `coursesViewAllHref` points at `/learn?slugs=...&from=...` — the
+full related-courses set (not just the shelf's visible slice) plus a
+human-readable label for whatever was being viewed. `Courses/Index.vue`
+reads both into `filterSlugs`/`fromLabel`, filters client-side, and swaps its
+subtitle for "Showing courses related to {from} — browse the full library"
+while that scoping is active. Full mechanism (why it's client-side, the other
+6 hrefs across Songs/Progressions, the shared `.sbn-lib-scope-clear` class):
+[SBN-Design-Reference.md § Deep-linked "View all" scoping](SBN-Design-Reference.md).
+
 ---
 
 ## 4. JSON API

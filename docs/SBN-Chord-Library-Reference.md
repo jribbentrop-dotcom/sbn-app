@@ -30,6 +30,21 @@ Props: `chord`, `aliases`, `aliasInversions`, `inversions`, `siblings`, `songs`,
 ### Note spelling on the page
 `formatNote()` is the canonical formatter: double accidentals first (`bb`→𝄫, `##`→𝄪), then single (`#`→♯, `b`→♭). All root/bass rendering routes through it.
 
+### "View all" shelf hrefs (2026-07-16)
+
+`songsViewAllHref`, `progressionsViewAllHref`, and `coursesViewAllHref` are
+built in `ChordLibraryController::show` as `?slugs=...&from={chordLabel}`,
+where `$chordLabel` is `chordDisplayName($effectiveDisplayRoot, $chord->quality,
+$chord->extensions)` (the same helper that names the chord elsewhere on the
+page, e.g. "Cmaj7") — reused rather than re-derived so the label always
+matches what the page itself calls this chord. Note the progressions shelf is
+scoped by **quality** (`$chord->quality`), not the exact voicing, so the
+label is directionally correct ("progressions using a G7-type chord") rather
+than guaranteeing every listed progression contains this precise extension
+set. Full mechanism (why `?slugs=` is applied client-side on the target page,
+not server-filtered here): [SBN-Design-Reference.md § Deep-linked "View all"
+scoping](SBN-Design-Reference.md).
+
 ---
 
 ## 3. Alias search → detail deep-link

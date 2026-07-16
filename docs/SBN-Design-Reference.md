@@ -726,6 +726,58 @@ exists now — Theory used to be the one holdout on an older
 `rhythm-library.css`), fully retired once Theory moved onto the shared
 component and class family.
 
+### Deep-linked "View all" scoping (2026-07-16)
+
+Show pages surface related content in shelves (`MediaShelf.vue` + `SongShelfCard`/
+`CourseShelfCard`) with a "View all →" link. Rather than pointing at the bare
+library index, the Show controller builds a query string that scopes the
+target index down to what's actually related — computed server-side because
+"progressions containing a G7" or "courses tagged for this chord's category"
+aren't expressible as a simple column filter the index page could redo itself.
+
+| Source (Show controller) | Target href | Consumed by |
+|---|---|---|
+| Chord → Songs | `/library/songs?slugs=...` | `Songs/Index.vue`'s `fSlugs` |
+| Chord → Progressions | `/library/progressions?slugs=...` | `Progressions/Index.vue`'s `fSlugs` |
+| Chord / Rhythm / Progression / Song → Courses | `/learn?slugs=...` | `Courses/Index.vue`'s `filterSlugs` |
+| Rhythm → Songs | `/library/songs?rhythm={slug}` | `Songs/Index.vue`'s `fRhythm` |
+| Progression → Songs | `/library/songs?slugs=...` | `Songs/Index.vue`'s `fSlugs` |
+
+**Convention:** the target page always receives the **full** unfiltered
+catalogue plus the scoping param in `activeFilters`/read from
+`window.location.search` — filtering happens **client-side** (a plain ref +
+an `.includes()` check), never by the controller trimming the payload before
+it reaches Vue. This is what makes the count bar say "8 of 47" instead of a
+bare "8", and what makes "Clear all filters" actually work — clearing a
+client-side ref restores data that was there all along, where clearing a
+server-pre-filtered payload has nothing to restore.
+
+`Progressions/Index.vue` was the one page built the other way (server
+pre-filtered via `whereIn('slug', $slugs)`, no client-side `fSlugs` at all)
+until 2026-07-16 — it technically landed you on the right subset, but with a
+static heading, a count bar presenting the subset as the whole catalogue, and
+no way back. Fixed to match the convention above.
+
+**Tailored subtitle (`?from=`):** every href above also carries a `from=`
+query param — a human-readable label for whatever was being viewed (a chord's
+display name, a rhythm pattern's name, a progression's name, a song's title —
+each Show controller already has the entity in scope, so it's a one-line
+`urlencode()` addition, not a lookup). `Songs/Index.vue`, `Progressions/Index.vue`,
+and `Courses/Index.vue` swap their default subtitle for one line when the
+scoping is active and a label is present:
+
+```
+Showing songs related to Cmaj7 — browse the full library
+```
+
+using the shared `.sbn-lib-scope-clear` link class (`sbn-design-system.css`).
+The banner disappears the moment the scoping stops describing what's on
+screen — either the user hits "Clear all filters" (which also resets the
+`from` ref), or, on Songs specifically, picks a *different* rhythm pill
+manually than the one the link arrived with (checked via a small
+`isScopedView` computed rather than a plain "is anything filtered" flag, so a
+manual filter change doesn't leave a stale "related to X" claim on screen).
+
 ---
 
 ## SHOW PAGE HERO HEADER
