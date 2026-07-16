@@ -37,6 +37,20 @@ defineProps({
   opacity: 1;
 }
 
+/* Touch/coarse-pointer devices have no real hover signal — mouseenter only
+   fires briefly (or not at all) on tap, so the reveal-on-hover state above
+   would leave the transport controls invisible almost all the time. Keep
+   the deck permanently shown there regardless of the tracked hover state,
+   same as how most mobile video/audio players default to visible controls
+   without a pointer. */
+@media (hover: none) {
+  .sbn-hover-deck.is-hidden {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 /* score variant — sticky within a normal-flow column (classic Viewer).
    bottom sits ~10-15% up from the viewport edge (not flush against it) so the
    deck floats over the score rather than hugging the browser chrome. */

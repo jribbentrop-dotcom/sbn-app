@@ -7,7 +7,15 @@
         class="tdeck-btn tdeck-btn--primary"
         :title="playing ? 'Pause' : 'Play'"
         @click="$emit('toggle')"
-      >{{ playing ? '❚❚' : '▶' }}</button>
+      >
+        <svg v-if="playing" class="tdeck-icon" viewBox="0 0 16 16" aria-hidden="true">
+          <rect x="3" y="2" width="4" height="12" rx="1" fill="currentColor"/>
+          <rect x="9" y="2" width="4" height="12" rx="1" fill="currentColor"/>
+        </svg>
+        <svg v-else class="tdeck-icon" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 2.5v11l10-5.5z" fill="currentColor"/>
+        </svg>
+      </button>
       <button class="tdeck-btn" title="Next bar" @click="$emit('next')">››</button>
     </div>
 
@@ -140,6 +148,11 @@ function onTrackClick(e) {
 .tdeck-btn--primary:hover {
   background: var(--stage-gradient-hover, var(--clr-gradient-hover));
   box-shadow: 0 0 0 6px color-mix(in srgb, var(--stage-accent, var(--clr-accent)) 15%, transparent);
+}
+
+.tdeck-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .tdeck-timeline {
