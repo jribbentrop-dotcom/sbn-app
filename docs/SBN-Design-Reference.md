@@ -628,7 +628,7 @@ Currently applied to: `Progressions/Show.vue`, `Rhythms/Show.vue`.
 
 ## LIBRARY INDEX PAGE SYSTEM
 
-**Established 2026-05-29.** Section 15 of `sbn-design-system.css` — shared layout for all hitlist-style library index pages (Rhythms, Progressions, Chords, Songs, Courses). Page-specific row content stays in each page's own file.
+**Established 2026-05-29, drawer + component pass 2026-07-16.** Section 15 of `sbn-design-system.css` — shared layout for all library index pages with a search + filter sidebar (Rhythms, Progressions, Chords, Songs, Courses, Shop, Theory). Page-specific row/card/grid content stays in each page's own file.
 
 ### Class map
 
@@ -656,7 +656,11 @@ Currently applied to: `Progressions/Show.vue`, `Rhythms/Show.vue`.
 | `.sbn-lib-row-popularity-phrase` | "This is a Common pattern…" sentence |
 | `.sbn-lib-row-read-more` | Arrow CTA link |
 | `.sbn-lib-no-results` | Centered empty state |
-| `.sbn-lib-filter-sidebar` | Sticky filter sidebar (220px, scrollable) |
+| `.sbn-lib-filter-sidebar` | Filter sidebar. Desktop (>900px): sticky, 220px, scrollable. Mobile (≤900px): fixed off-canvas drawer, slides in from the right on `.sbn-lib-filter-open` — see "Mobile filter drawer" below |
+| `.sbn-lib-filter-toggle` | "Filters" button that opens the drawer — hidden above 900px |
+| `.sbn-lib-filter-toggle-dot` | Small accent dot on the toggle button when `hasFilters` is true |
+| `.sbn-lib-filter-overlay` | Fixed backdrop behind the open drawer; click to close |
+| `.sbn-lib-filter-close` | ✕ button inside the drawer (top-right), mobile only |
 | `.sbn-lib-sidebar-header` | Sidebar header with bottom border |
 | `.sbn-lib-sidebar-count` | Count + Clear button row below sidebar h3 |
 | `.sbn-lib-sidebar-section` | Filter group (margin-bottom: 20px) |
@@ -665,6 +669,7 @@ Currently applied to: `Progressions/Show.vue`, `Rhythms/Show.vue`.
 | `.sbn-lib-sidebar-option` | Filter pill button |
 | `.sbn-lib-sidebar-option.sbn-filter-active` | Active filter state (uses `--cat-clr`) |
 | `.sbn-lib-sidebar-option.sbn-sort-active` | Active sort state (black bg) |
+| `.sbn-lib-sidebar-option.sbn-lib-sidebar-more` | Dashed-border variant for "+N more" / "Show less" toggles on long option lists (e.g. Songs' Composer) — reads as a list-length control, not a filter pill |
 | `.sbn-lib-clear-btn` | Inline clear button in count row |
 | `.sbn-lib-sidebar-clear` | Full-width clear all button at bottom of sidebar |
 | `.sbn-lib-category-section` | Grouped view section wrapper |
@@ -680,6 +685,46 @@ All interactive elements (sidebar options, clear buttons) use `#e85d3b` / `#fff8
 ### Rule
 
 Page-specific styles (strip sizing, numeral chips, grouped card layout) stay in the page's scoped `<style>` or dedicated CSS file. Only layout, chrome, and interaction states belong in the shared system.
+
+### Mobile filter drawer (2026-07-16)
+
+Below 900px the filter sidebar becomes a slide-in drawer instead of stacking
+inline — mirrors the course player's mobile lesson-menu pattern (hamburger
+button → fixed panel + backdrop). All 7 library-style pages render it through
+two shared components rather than hand-rolling the toggle/overlay/close
+markup:
+
+- **`Components/Library/FilterToggleButton.vue`** — the "Filters" button
+  (default slot label, e.g. `Categories` on Shop). `v-model` binds a page-local
+  `filtersOpen` ref; `:has-filters` controls the accent dot.
+- **`Components/Library/FilterSidebar.vue`** — the `<aside>` + overlay + close
+  button + header row + bottom clear button. Same `v-model="filtersOpen"`.
+  Page-specific filter sections (Key, Composer, Quality, …) go in the
+  **default slot**, untouched from before componentization. `#title` / `#count`
+  / `#clear-label` slots cover the wording that differs per page; `:has-filters`
+  and `:show-clear-all` (optional, falls back to `has-filters`) control when
+  the inline "Clear" and bottom "Clear all" buttons show — e.g. Rhythms passes
+  `:show-clear-all="hasFilters || fSort !== 'popularity'"` since its own clear
+  condition is broader than plain `hasFilters`.
+
+**Why two components, not one:** the toggle button lives in the page header
+next to the search box; the sidebar is a flex sibling of the results grid
+(still an inline sticky column on desktop, not a drawer) — two different,
+non-adjacent places in the DOM. A single component can't span both without
+`<Teleport>`; two components sharing state via `v-model:open` is simpler.
+
+**Breakpoint:** 900px everywhere, matching the course player's `.vC-grid`
+mobile breakpoint. Chords and Songs used to have their own page-CSS
+`@media(1024px)` stacking rule fighting the sidebar's `900px` drawer
+breakpoint — a real bug (the sidebar rendered as a squeezed fixed-width
+column between 900–1024px, most visible at unfolded-foldable-phone widths).
+Both were aligned to 900px when the drawer was introduced.
+
+**Class family:** only `.sbn-lib-filter-sidebar` (`sbn-design-system.css`)
+exists now — Theory used to be the one holdout on an older
+`.sbn-filter-sidebar` / `.sbn-sidebar-*` naming (`chord-library.css` /
+`rhythm-library.css`), fully retired once Theory moved onto the shared
+component and class family.
 
 ---
 

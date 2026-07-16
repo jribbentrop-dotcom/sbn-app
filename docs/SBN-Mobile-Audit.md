@@ -1,7 +1,14 @@
 # SBN — Mobile / Responsive Audit
 
-_Started: 15 July 2026 — **status: scaffold.** Findings so far are from a static
-review only; none have been confirmed at real device widths yet._
+_Started: 15 July 2026 — **status: scaffold, one workstream complete.** Most
+findings below are still from a static review only. The library filter-sidebar
+workstream (search bar + filter sidebar across all library pages) has been
+investigated, fixed, and verified — see Findings — but that verification used
+headless-Chromium screenshots of isolated static HTML repros built from the
+real compiled CSS classes, not the live app with a populated DB (this cloud
+session has no DB access — see `CLAUDE.md`'s DB workflow, which assumes a
+mounted-Windows-host sandbox this session doesn't have). Re-verify in a
+session with real data before treating it as fully device-tested._
 
 This doc is the home base for the mobile/responsive workstream (sibling to
 `SBN-SEO-Content-Analyse.md` for SEO and `SBN-Security-Audit-2026-07-09.md` for
@@ -65,7 +72,10 @@ High-traffic / high-complexity first — these are the ones most likely to break
       overflow.
 - [ ] **Home** (`Pages/Home.vue`, `home.css`) — hero blobs use 480–680px fixed
       widths; check for horizontal scroll.
-- [ ] **Chord Library index + show** (`Pages/Library/Chords/{Index,Show}.vue`,
+- [x] **Chord Library index — filter sidebar** — see Findings; fixed via the
+      shared mobile filter drawer. Card widths (240px fixed) below are
+      **still unaudited** — this only covers the sidebar.
+- [ ] **Chord Library index + show — card grid** (`Pages/Library/Chords/{Index,Show}.vue`,
       1297 / 1237 lines — the biggest pages) — 240px fixed card widths.
 - [ ] **Song viewer / cinema** (`Components/Leadsheet/LeadsheetViewer.vue`,
       `song-library.css`) — notation/tab is wide; must scroll inside its own
@@ -74,7 +84,10 @@ High-traffic / high-complexity first — these are the ones most likely to break
       sidebar + content layout at 280px fixed panel widths.
 - [ ] **Tab editor** (`tab-editor/TabEditor.vue`) — admin-only; likely
       desktop-only by design, confirm and note as out-of-scope if so.
-- [ ] **Shop** (`Pages/Shop/{Index,Show}.vue`, `shop.css`).
+- [x] **Shop — filter sidebar** (`Pages/Shop/Index.vue`) — same fix as the
+      library pages (was actually missed in the first drawer pass and briefly
+      regressed — see Findings). Rest of Shop is **still unaudited**.
+- [ ] **Shop — everything else** (`Pages/Shop/{Index,Show}.vue`, `shop.css`).
 - [ ] **Auth card** (`Login`/`Register` via `AuthCard.vue`) — modal over blurred
       backdrop; check it fits a 360px viewport.
 
@@ -82,17 +95,24 @@ High-traffic / high-complexity first — these are the ones most likely to break
 
 ## Findings
 
-_None confirmed yet — populate as the visual pass runs. Suggested row format:_
-
 | Page | Width | Issue | Severity | Status |
 |---|---|---|---|---|
-| _(e.g. Chords/Index)_ | _360px_ | _horizontal overflow from 240px cards_ | — | ⬜ |
+| Songs/Index, Chords/Index | 900–1024px (unfolded-foldable-phone range) | Filter sidebar's page-CSS `@media(1024px)` stacking rule and the sidebar's own `@media(900px)` full-width rule fought each other — the sidebar's CSS class (`sbn-lib-filter-sidebar`) never matched the selector each page's own stylesheet was targeting (`sbn-filter-sidebar`), so it rendered as a squeezed fixed-width column instead of stacking full width. | High — core UX broken at a real, common width | ✅ Fixed — replaced with a mobile drawer (`FilterToggleButton`/`FilterSidebar` components), breakpoints aligned to 900px everywhere |
+| All library pages (Songs, Chords, Rhythms, Courses, Progressions, Theory) | ≤600px | Filter sidebar was `display: none` below 600px — filters were simply unreachable on a real phone, not just squeezed. | High | ✅ Fixed — same drawer fix; sidebar is reachable via the "Filters" toggle at every width now |
+| Shop/Index | ≤900px | Missed in the first pass (7 pages share this sidebar pattern; Shop wasn't in the initial audit of who uses it). CSS change made the sidebar an off-canvas drawer with no toggle button to open it — briefly a regression, not just a pre-existing bug. | High (temporary) | ✅ Fixed same session |
+| Songs/Index | any | Composer filter rendered all 40 server-capped names as flat pills in the 220px sidebar column — not a responsive bug per se, but unusable content density. | Medium | ✅ Fixed — capped to 10 visible + "+N more" toggle |
+
+_Verified via headless-Chromium screenshots of static HTML repros (real compiled CSS, hand-built markup) at 390/700/890/950/1024/1200px — not the live app with real data. Still to populate: everything else on the checklist above._
 
 ---
 
 ## Next steps
 
-1. Stand up the app with a populated DB and run the visual pass above.
-2. Fill the Findings table; fix the clear overflow cases (usually a missing
+1. Stand up the app with a populated DB and run the visual pass above —
+   including re-verifying the filter-drawer fix against the real app, since
+   it was only checked via static repros (see note above Findings).
+2. Fill the Findings table for the remaining checklist items (Chord/card grid
+   widths, MegaMenu, Home hero blobs, Song viewer, Course player, Auth card,
+   rest of Shop); fix the clear overflow cases (usually a missing
    `max-width: 100%` or a media-query override for a fixed px width).
 3. Decide whether the tab editor / admin surfaces are in scope for mobile at all.

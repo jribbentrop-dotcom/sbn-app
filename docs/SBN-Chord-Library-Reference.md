@@ -215,6 +215,27 @@ The 10 Top10 featured chords have `popularity = 15`. The highest naturally-occur
 
 `difficulty = 0` means unset. The Difficulty filter in the sidebar maps 1–5 to star labels.
 
+### Extensions filter — composable facets, not combo strings (2026-07-16)
+
+`sbn_chord_diagrams.extensions` stores each voicing's full extension set as one
+comma-joined string (e.g. `'b9,13'`, `'#9'`, `'b13'`) — there is no separate
+per-extension column. The sidebar filter does **not** offer one pill per
+unique combo string (that explodes into near-duplicate options as the library
+grows); instead `Index.vue` splits every chord's `extensions` on comma,
+collects the distinct individual tokens, and renders **one pill per token**:
+
+- Sort order is by scale degree then flat/natural/sharp (`extensionSortKey` —
+  `b9, 9, #9, 11, #11, b13, 13, …`), not alphabetical — alphabetical would
+  scatter `#11` and `b9` away from their numeric neighbors.
+- `fExt` is an array (multi-select). A chord matches if it carries **ANY** of
+  the selected tokens (OR) — e.g. selecting `9` and `13` shows every chord
+  that has a 9 *or* a 13, not only chords with both. This was a judgment call
+  (no existing convention to match); revisit if a future need calls for exact
+  combination matching (AND) instead.
+- `toggleExt(token)` / `extensionTokens(raw)` in `Index.vue` are the two
+  helpers doing the split/toggle — reuse them rather than re-deriving the
+  comma-parsing if extensions show up as a filter elsewhere.
+
 ---
 
 ## 8. Key files

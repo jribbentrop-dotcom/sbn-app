@@ -107,7 +107,7 @@ Download link URL: `/shop/download/{token}/{productId}`
 
 | File | Role |
 |---|---|
-| `Pages/Shop/Index.vue` | Library-pattern catalog: `sbn-lib-page-header` + search bar + 4-column grid + filter sidebar right |
+| `Pages/Shop/Index.vue` | Library-pattern catalog: `sbn-lib-page-header` + search bar + 4-column grid + filter sidebar right (folds into a mobile drawer below 900px — no clear-all affordance since "clearing" here means navigating to the "All Products" link, not resetting reactive filter state) |
 | `Pages/Shop/Show.vue` | Product detail: image/video gallery toggle, meta, feature chips, related grid |
 | `Pages/Shop/Cart.vue` | Cart summary page |
 | `Pages/Shop/Checkout.vue` | Checkout form |
@@ -115,7 +115,7 @@ Download link URL: `/shop/download/{token}/{productId}`
 | `Components/Shop/ProductCard.vue` | Course-card style: border frame, genre badge top-left, gradient hover overlay, type chips bottom, card body with level + title + excerpt + price + Add to Cart |
 | `Components/Shop/CartDrawer.vue` | Slide-in cart drawer |
 | `Components/Shop/CartLineItem.vue` | Single cart item row |
-| `Components/Shop/CategoryFilter.vue` | Legacy component — kept for reference; Index.vue inlines the sidebar directly |
+| `Components/Shop/CategoryFilter.vue` | Legacy component — kept for reference; Index.vue renders its sidebar through the shared `Components/Library/FilterSidebar.vue` / `FilterToggleButton.vue` (see `SBN-Design-Reference.md` § Library Index Page System), not this one |
 | `Components/Shop/ProductPrice.vue` | EUR/USD price display (`eurCents` prop) |
 
 **CSS:** `public/css/shop.css` — shop-specific overrides only. Layout shell uses `sbn-design-system.css` library classes (`sbn-lib-*`). Component-internal styles stay scoped.

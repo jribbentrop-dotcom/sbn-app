@@ -81,7 +81,24 @@ rhythms[]    — distinct rhythm slugs used
 totalCount   — int
 ```
 
-All filtering is **client-side** — no server-side search endpoint. Filters: text search (title + composer + description), key, composer, rhythm/style, tempo range.
+All filtering is **client-side** — no server-side search endpoint. Filters: text search (title + composer + description), style, key, composer, rhythm/style, tempo range.
+
+### Filter sidebar (2026-07-16)
+
+Renders through the shared `FilterToggleButton.vue` / `FilterSidebar.vue`
+components (see `SBN-Design-Reference.md` § Library Index Page System) —
+`Index.vue` only supplies its own filter-section markup as slotted content.
+
+- **Style** — `fStyle` was already wired to `CANONICAL_STYLES` but had no
+  sidebar control until now; it's the first section in the sidebar,
+  labelled "Style" to match Progressions (Rhythms/Courses' equivalent
+  "Category" filter carries the same label now, though their underlying
+  `fCategory`/`filterGenre` state and query params are unchanged).
+- **Composer** — the server already caps this to the top 40 by song count
+  (`SongLibraryController::index`), but rendering all 40 as flat pills in
+  the 220px sidebar column is unusable. The sidebar now shows the top 10
+  (`COMPOSER_VISIBLE_COUNT`) with a "+N more" / "Show less" toggle
+  (`composersExpanded`) rather than raising or removing the server cap.
 
 ### `SongCard.vue`
 
