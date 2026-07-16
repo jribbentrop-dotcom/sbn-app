@@ -3,6 +3,8 @@ import { computed, ref } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import CourseCard from '@/Components/Course/CourseCard.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
+import FilterToggleButton from '@/Components/Library/FilterToggleButton.vue';
+import FilterSidebar from '@/Components/Library/FilterSidebar.vue';
 
 interface CourseData {
   id: number;
@@ -127,13 +129,7 @@ const courseListJsonLd = JSON.stringify({
           </button>
         </div>
 
-        <button type="button" class="sbn-lib-filter-toggle" @click="filtersOpen = true">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-          </svg>
-          Filters
-          <span v-if="hasFilters" class="sbn-lib-filter-toggle-dot" aria-hidden="true"></span>
-        </button>
+        <FilterToggleButton v-model="filtersOpen" :has-filters="hasFilters">Filters</FilterToggleButton>
       </div>
     </div>
 
@@ -156,27 +152,9 @@ const courseListJsonLd = JSON.stringify({
         </template>
       </section>
 
-      <button
-        type="button"
-        class="sbn-lib-filter-overlay"
-        v-if="filtersOpen"
-        @click="filtersOpen = false"
-        aria-label="Close filters"
-      />
-
-      <aside class="sbn-lib-filter-sidebar" :class="{ 'sbn-lib-filter-open': filtersOpen }">
-        <button type="button" class="sbn-lib-filter-close" @click="filtersOpen = false" aria-label="Close filters">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </button>
-        <div class="sbn-lib-sidebar-header">
-          <h3>Filter</h3>
-          <span class="sbn-lib-sidebar-count">
-            <strong>{{ filtered.length }}</strong> course{{ filtered.length !== 1 ? 's' : '' }}
-            <button v-if="hasFilters" type="button" class="sbn-lib-clear-btn" @click="clearFilters">Clear</button>
-          </span>
-        </div>
+      <FilterSidebar v-model="filtersOpen" :has-filters="hasFilters" @clear="clearFilters">
+        <template #title>Filter</template>
+        <template #count><strong>{{ filtered.length }}</strong> course{{ filtered.length !== 1 ? 's' : '' }}</template>
 
         <div class="sbn-lib-sidebar-section">
           <span class="sbn-lib-sidebar-label">Category</span>
@@ -204,10 +182,8 @@ const courseListJsonLd = JSON.stringify({
           </div>
         </div>
 
-        <button v-if="hasFilters" class="sbn-lib-sidebar-clear" @click="clearFilters">
-          Clear all filters
-        </button>
-      </aside>
+        <template #clear-label>Clear all filters</template>
+      </FilterSidebar>
     </div>
   </main>
 </template>

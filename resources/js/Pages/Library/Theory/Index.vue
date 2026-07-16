@@ -5,6 +5,8 @@ import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { widgetCatalog, allWidgetTags } from '@/edu/widgets/catalog';
 import { eduWidgets, isEduWidget } from '@/edu/widgets/registry';
 import { createApp } from 'vue';
+import FilterToggleButton from '@/Components/Library/FilterToggleButton.vue';
+import FilterSidebar from '@/Components/Library/FilterSidebar.vue';
 
 defineOptions({ layout: PublicLayout });
 
@@ -124,13 +126,7 @@ watch(visible, mountVisible);
                     </button>
                 </div>
 
-                <button type="button" class="sbn-lib-filter-toggle" @click="filtersOpen = true">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                    </svg>
-                    Filters
-                    <span v-if="hasFilters" class="sbn-lib-filter-toggle-dot" aria-hidden="true"></span>
-                </button>
+                <FilterToggleButton v-model="filtersOpen" :has-filters="hasFilters">Filters</FilterToggleButton>
             </div>
         </header>
 
@@ -197,42 +193,24 @@ watch(visible, mountVisible);
                 </div>
             </div>
 
-            <button
-                type="button"
-                class="sbn-lib-filter-overlay"
-                v-if="filtersOpen"
-                @click="filtersOpen = false"
-                aria-label="Close filters"
-            />
-
             <!-- Filter sidebar -->
-            <aside class="sbn-filter-sidebar" :class="{ 'sbn-lib-filter-open': filtersOpen }">
-                <button type="button" class="sbn-lib-filter-close" @click="filtersOpen = false" aria-label="Close filters">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                </button>
-                <div class="sbn-sidebar-header">
-                    <h3>Topics</h3>
-                </div>
+            <FilterSidebar v-model="filtersOpen" :has-filters="hasFilters" @clear="clearFilters">
+                <template #title>Topics</template>
+                <template #clear-label>Clear All</template>
 
-                <div class="sbn-sidebar-section">
-                    <span class="sbn-sidebar-label">Filter by tag</span>
-                    <div class="sbn-sidebar-options">
+                <div class="sbn-lib-sidebar-section">
+                    <span class="sbn-lib-sidebar-label">Filter by tag</span>
+                    <div class="sbn-lib-sidebar-options">
                         <button
                             v-for="tag in allWidgetTags"
                             :key="tag"
-                            class="sbn-sidebar-option"
-                            :class="{ active: activeTags.has(tag) }"
+                            class="sbn-lib-sidebar-option"
+                            :class="{ 'sbn-filter-active': activeTags.has(tag) }"
                             @click="toggleTag(tag)"
                         >{{ tag }}</button>
                     </div>
                 </div>
-
-                <button v-if="hasFilters" class="sbn-clear-filters-btn" @click="clearFilters">
-                    Clear All
-                </button>
-            </aside>
+            </FilterSidebar>
 
         </div>
         </div><!-- /.theory-main -->

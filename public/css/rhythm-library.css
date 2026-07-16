@@ -153,115 +153,11 @@
   order: 0;
 }
 
-/* ── Filter Sidebar ── */
-.sbn-filter-sidebar {
-  position: sticky;
-  top: 80px;
-  align-self: flex-start;
-  width: 240px;
-  min-width: 240px;
-  background: var(--clr-white);
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  max-height: calc(100vh - 100px);
-  overflow-y: auto;
-  order: 1;
-  scrollbar-width: thin;
-  scrollbar-color: var(--clr-border) transparent;
-}
-
-.sbn-filter-sidebar::-webkit-scrollbar { width: 4px; }
-.sbn-filter-sidebar::-webkit-scrollbar-track { background: transparent; }
-.sbn-filter-sidebar::-webkit-scrollbar-thumb {
-  background: var(--clr-border);
-  border-radius: 2px;
-}
-
-.sbn-sidebar-header {
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--clr-border);
-}
-
-.sbn-sidebar-header h3 {
-  margin: 0;
-  font-size: 0.95em;
-  font-weight: 700;
-  color: var(--clr-text);
-}
-
-.sbn-sidebar-section {
-  margin-bottom: 18px;
-}
-
-.sbn-sidebar-label {
-  font-size: 0.68em;
-  font-weight: 700;
-  color: var(--clr-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin: 0 0 8px;
-  display: block;
-}
-
-.sbn-sidebar-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.sbn-sidebar-option {
-  padding: 4px 10px;
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius-sm);
-  background: var(--clr-white);
-  color: var(--clr-text-dim);
-  font-size: 0.78em;
-  font-weight: 500;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-  line-height: 1.3;
-  font-family: var(--font-body);
-}
-
-.sbn-sidebar-option:hover {
-  border-color: var(--clr-red);
-  color: var(--clr-red);
-  background: var(--clr-accent-bg);
-}
-
-.sbn-sidebar-option.active {
-  background: var(--clr-red);
-  border-color: var(--clr-red);
-  color: var(--clr-white);
-}
-
-.sbn-sidebar-option.active:hover {
-  background: var(--clr-accent-dim);
-  border-color: var(--clr-accent-dim);
-}
-
-.sbn-clear-filters-btn {
-  width: 100%;
-  padding: 9px;
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius-sm);
-  background: var(--clr-white);
-  color: var(--clr-text-muted);
-  font-size: 0.82em;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-  margin-top: 6px;
-  font-family: var(--font-body);
-}
-
-.sbn-clear-filters-btn:hover {
-  border-color: var(--clr-red);
-  color: var(--clr-red);
-  background: var(--clr-accent-bg);
-}
+/* Filter sidebar is now standardized on .sbn-lib-filter-sidebar and its
+   .sbn-lib-sidebar-* parts (sbn-design-system.css), rendered through the
+   shared FilterSidebar.vue component — including on the Theory page, which
+   used to be the one holdout on this file's .sbn-filter-sidebar/.sbn-sidebar-*
+   naming. */
 
 /* ============================================================
    RHYTHM PATTERN GRID DISPLAY
@@ -278,59 +174,6 @@
    ============================================================ */
 
 @media (max-width: 900px) {
-  /* .sbn-lib-filter-toggle / .sbn-lib-filter-overlay / .sbn-lib-filter-close
-     are defined once in sbn-design-system.css and shared by every library
-     page's filter drawer — only the sidebar positioning below is specific
-     to .sbn-filter-sidebar (the Theory page's sidebar class). 900px matches
-     chord-library.css's .sbn-content-wrapper stacking breakpoint so the
-     sidebar goes off-canvas at the same width the wrapper stacks. */
-  .sbn-lib-filter-toggle { display: inline-flex; }
-
-  .sbn-lib-filter-close {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    width: 28px;
-    height: 28px;
-    border: 1px solid var(--clr-border);
-    border-radius: var(--radius-sm);
-    background: var(--clr-white);
-    color: var(--clr-text-muted);
-    cursor: pointer;
-  }
-
-  .sbn-lib-filter-overlay {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.35);
-    border: 0;
-    padding: 0;
-    z-index: 205;
-    cursor: pointer;
-  }
-
-  .sbn-filter-sidebar {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: min(320px, 85vw);
-    min-width: 0;
-    max-height: none;
-    border-radius: 0;
-    transform: translateX(100%);
-    transition: transform 0.25s ease;
-    z-index: 210;
-  }
-  .sbn-filter-sidebar.sbn-lib-filter-open {
-    transform: translateX(0);
-    box-shadow: -12px 0 32px rgba(0,0,0,0.18);
-  }
-
   .sbn-patterns-grid {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   }

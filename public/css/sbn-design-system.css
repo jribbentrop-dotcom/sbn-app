@@ -4906,10 +4906,11 @@ h1, h2 {
 }
 
 /* ── Mobile: foldable filter drawer (shared across library pages) ──
-   Toggle/overlay/close are generic — .sbn-lib-filter-sidebar below and
-   .sbn-filter-sidebar (rhythm-library.css, used by the Theory page) both
-   pair with these same three classes so the drawer behaves identically
-   everywhere a library page has a search + filter-sidebar layout. */
+   Rendered via Components/Library/FilterToggleButton.vue and
+   FilterSidebar.vue — every library page (Songs, Chords, Rhythms,
+   Courses, Progressions, Shop, Theory) goes through these two
+   components, so .sbn-lib-filter-sidebar is the only sidebar class
+   family left. */
 .sbn-lib-filter-toggle {
     display: none;
     align-items: center;
