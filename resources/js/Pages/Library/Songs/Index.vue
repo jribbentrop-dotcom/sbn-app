@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import { readDifficultyQueryParam } from '@/composables/useBreadcrumb';
+import { getCategoryColor } from '@/composables/useCategoryColors';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import SongCard from '@/Components/Library/SongCard.vue';
 import type { SongCardData } from '@/Components/Library/SongCard.vue';
@@ -21,6 +22,12 @@ interface Props {
 const props = defineProps<Props>();
 
 const CANONICAL_STYLES = ['bossa-nova', 'jazz', 'classical', 'pop'] as const;
+const STYLE_LABELS: Record<string, string> = {
+  'bossa-nova': 'Bossa Nova',
+  'jazz':       'Jazz',
+  'classical':  'Classical',
+  'pop':        'Pop',
+};
 
 const initialQuery = typeof window !== 'undefined'
   ? new URLSearchParams(window.location.search)
@@ -97,6 +104,16 @@ function applyExample(ex: string) {
 function rhythmLabel(slug: string): string {
   return slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
+
+// ── Composer list is capped in the sidebar — the server already limits it
+// to the top 40 by song count, but rendering all 40 as pills in a narrow
+// column is unusable. Show the top slice and let "Show more" reveal the rest.
+const COMPOSER_VISIBLE_COUNT = 10;
+const composersExpanded = ref(false);
+const visibleComposers = computed(() =>
+  composersExpanded.value ? props.composers : props.composers.slice(0, COMPOSER_VISIBLE_COUNT)
+);
+const hiddenComposerCount = computed(() => Math.max(0, props.composers.length - COMPOSER_VISIBLE_COUNT));
 </script>
 
 <template>
@@ -170,6 +187,21 @@ function rhythmLabel(slug: string): string {
         <template #title>Filters</template>
         <template #count><strong>{{ filtered.length }}</strong> of {{ totalCount }} songs</template>
 
+        <!-- Style -->
+        <div class="sbn-lib-sidebar-section">
+          <span class="sbn-lib-sidebar-label">Style</span>
+          <div class="sbn-lib-sidebar-options">
+            <button
+              v-for="style in CANONICAL_STYLES"
+              :key="style"
+              type="button"
+              :class="['sbn-lib-sidebar-option', { 'sbn-filter-active': fStyle === style }]"
+              :style="{ '--cat-clr': getCategoryColor(style) }"
+              @click="fStyle = fStyle === style ? '' : style"
+            >{{ STYLE_LABELS[style] || style }}</button>
+          </div>
+        </div>
+
         <!-- Key -->
         <div class="sbn-lib-sidebar-section">
           <span class="sbn-lib-sidebar-label">Key</span>
@@ -189,12 +221,24 @@ function rhythmLabel(slug: string): string {
           <span class="sbn-lib-sidebar-label">Composer</span>
           <div class="sbn-lib-sidebar-options">
             <button
-              v-for="c in composers"
+              v-for="c in visibleComposers"
               :key="c"
               type="button"
               :class="['sbn-lib-sidebar-option', { 'sbn-filter-active': fComposer === c }]"
               @click="fComposer = fComposer === c ? '' : c"
             >{{ c }}</button>
+            <button
+              v-if="!composersExpanded && hiddenComposerCount > 0"
+              type="button"
+              class="sbn-lib-sidebar-option sbn-lib-sidebar-more"
+              @click="composersExpanded = true"
+            >+{{ hiddenComposerCount }} more</button>
+            <button
+              v-else-if="composersExpanded && hiddenComposerCount > 0"
+              type="button"
+              class="sbn-lib-sidebar-option sbn-lib-sidebar-more"
+              @click="composersExpanded = false"
+            >Show less</button>
           </div>
         </div>
 

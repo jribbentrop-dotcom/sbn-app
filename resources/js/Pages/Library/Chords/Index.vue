@@ -71,7 +71,25 @@ const fVoicing = ref(typeof window !== 'undefined' ? (new URLSearchParams(window
 const fPop     = ref('');
 const fDiff    = ref(readDifficultyQueryParam());
 const fInv     = ref(typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('inversion') ?? '') : '');
-const fExt     = ref(typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('ext') ?? '') : '');
+
+// Extensions are composable facets, not one option per combination: the DB
+// stores each chord's extensions as a comma-joined combo string (e.g.
+// 'b9,13'), so a naive "one pill per unique string" list explodes into
+// near-duplicate options. We split into individual tokens (9, b9, #11, ...)
+// and let a chord match if it carries ANY of the selected tokens.
+function extensionTokens(raw: string | null | undefined): string[] {
+    return (raw ?? '').split(',').map(s => s.trim()).filter(Boolean);
+}
+function toggleExt(token: string) {
+    fExt.value = fExt.value.includes(token)
+        ? fExt.value.filter(t => t !== token)
+        : [...fExt.value, token];
+}
+const fExt = ref<string[]>(
+    typeof window !== 'undefined'
+        ? extensionTokens(new URLSearchParams(window.location.search).get('ext'))
+        : []
+);
 
 // ── Archetype / barré panel mode ──────────────────────────
 // Forward animation (archetype → barré):
@@ -248,16 +266,28 @@ const allInversions = computed(() => {
     return out;
 });
 
+// Sort by scale degree, then flat/natural/sharp — '9' before '#9', 'b13'
+// before '13' — rather than plain alphabetical (which would scatter '#11'
+// and 'b9' away from their neighbors).
+function extensionSortKey(tok: string): [number, number] {
+    const m = tok.match(/^(b|#)?(\d+)$/);
+    if (!m) return [999, 1];
+    const accidental = m[1] === 'b' ? 0 : m[1] === '#' ? 2 : 1;
+    return [parseInt(m[2], 10), accidental];
+}
+
 const allExtensions = computed(() => {
     const seen = new Set<string>();
-    const out: string[] = [];
     for (const c of props.otherChords) {
-        if (c.extensions && !seen.has(c.extensions)) {
-            seen.add(c.extensions);
-            out.push(c.extensions);
+        for (const tok of extensionTokens(c.extensions)) {
+            seen.add(tok);
         }
     }
-    return out.sort();
+    return [...seen].sort((a, b) => {
+        const [numA, accA] = extensionSortKey(a);
+        const [numB, accB] = extensionSortKey(b);
+        return numA !== numB ? numA - numB : accA - accB;
+    });
 });
 
 const popularityOptions = [
@@ -352,7 +382,10 @@ function matchesFilters(c: ChordDiagramData): boolean {
     if (fQuality.value && c.quality !== fQuality.value) return false;
     if (fVoicing.value && !(c.voicing_category === fVoicing.value || (fVoicing.value === 'archetype' && c.voicing_category.startsWith('archetype')))) return false;
     if (fInv.value && (c.inversion ?? 'root') !== fInv.value) return false;
-    if (fExt.value && c.extensions !== fExt.value) return false;
+    if (fExt.value.length) {
+        const tokens = extensionTokens(c.extensions);
+        if (!fExt.value.some(sel => tokens.includes(sel))) return false;
+    }
     if (fPop.value) {
         const tier = popularityOptions.find(o => o.key === fPop.value);
         const p = c.popularity ?? 0;
@@ -368,7 +401,7 @@ const filteredOther = computed(() => {
 });
 
 const hasFilters = computed(() =>
-    !!(search.value || fQuality.value || fVoicing.value || fPop.value || fDiff.value || fInv.value || fExt.value)
+    !!(search.value || fQuality.value || fVoicing.value || fPop.value || fDiff.value || fInv.value || fExt.value.length)
 );
 
 const filtersOpen = ref(false);
@@ -444,7 +477,7 @@ function clearFilters() {
     fPop.value = '';
     fDiff.value = '';
     fInv.value = '';
-    fExt.value = '';
+    fExt.value = [];
     fSort.value = 'top10';
 }
 
@@ -1187,7 +1220,7 @@ function jumpToLevel(n: number) {
                     </div>
                 </div>
 
-                <!-- Extensions -->
+                <!-- Extensions (composable — pick any combination) -->
                 <div v-if="allExtensions.length" class="sbn-lib-sidebar-section">
                     <span class="sbn-lib-sidebar-label">Extensions</span>
                     <div class="sbn-lib-sidebar-options">
@@ -1195,8 +1228,8 @@ function jumpToLevel(n: number) {
                             v-for="ext in allExtensions"
                             :key="ext"
                             class="sbn-lib-sidebar-option"
-                            :class="{ 'sbn-filter-active': fExt === ext }"
-                            @click="fExt = fExt === ext ? '' : ext"
+                            :class="{ 'sbn-filter-active': fExt.includes(ext) }"
+                            @click="toggleExt(ext)"
                         >{{ ext }}</button>
                     </div>
                 </div>

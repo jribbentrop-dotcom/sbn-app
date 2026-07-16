@@ -157,7 +157,9 @@ const courseListJsonLd = JSON.stringify({
         <template #count><strong>{{ filtered.length }}</strong> course{{ filtered.length !== 1 ? 's' : '' }}</template>
 
         <div class="sbn-lib-sidebar-section">
-          <span class="sbn-lib-sidebar-label">Category</span>
+          <!-- filterGenre / ?genre= kept as-is — backend query contract,
+               only the visible label is unified with Songs/Rhythms/Progressions -->
+          <span class="sbn-lib-sidebar-label">Style</span>
           <div class="sbn-lib-sidebar-options">
             <button
               v-for="cat in categories"

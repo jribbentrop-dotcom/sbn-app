@@ -4853,6 +4853,16 @@ h1, h2 {
     background: var(--clr-gradient);
     border-color: transparent;
 }
+/* "+N more" / "Show less" toggle for long option lists (e.g. Composer) —
+   dashed border reads as a list-length control, not a filter pill. */
+.sbn-lib-sidebar-option.sbn-lib-sidebar-more {
+    border-style: dashed;
+    color: var(--clr-text-muted);
+    font-style: italic;
+}
+.sbn-lib-sidebar-option.sbn-lib-sidebar-more:hover {
+    border-style: dashed;
+}
 .sbn-lib-sidebar-clear {
     width: 100%;
     padding: 9px;

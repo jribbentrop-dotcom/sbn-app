@@ -324,9 +324,10 @@ const CATEGORY_LABELS: Record<string, string> = {
           </div>
         </div>
 
-        <!-- Category -->
+        <!-- Style (fCategory / ?category= kept as-is — backend query contract,
+             only the visible label is unified with Songs/Progressions) -->
         <div class="sbn-lib-sidebar-section">
-          <span class="sbn-lib-sidebar-label">Category</span>
+          <span class="sbn-lib-sidebar-label">Style</span>
           <div class="sbn-lib-sidebar-options">
             <button
               v-for="cat in categories"
