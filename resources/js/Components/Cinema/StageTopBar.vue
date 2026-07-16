@@ -124,4 +124,16 @@ const segments = computed(() => songBreadcrumbSegments(props));
   color: var(--tbm-active-clr, var(--clr-accent));
   border-color: var(--tbm-active-clr, var(--clr-accent));
 }
+
+/* Mobile: the classic Viewer's Breadcrumb wraps this same row (title +
+   Options + view toggle) at 768px (see LeadsheetViewer.vue) — .stage-top
+   IS that row here (StageTopBar renders .sbn-breadcrumb directly, not
+   through the shared Breadcrumb component), so it needs the identical
+   treatment or it overflows horizontally instead of wrapping. */
+@media (max-width: 768px) {
+  .stage-top {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+}
 </style>

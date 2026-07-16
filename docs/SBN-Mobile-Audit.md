@@ -67,9 +67,13 @@ High-traffic / high-complexity first — these are the ones most likely to break
       widths; check for horizontal scroll.
 - [ ] **Chord Library index + show** (`Pages/Library/Chords/{Index,Show}.vue`,
       1297 / 1237 lines — the biggest pages) — 240px fixed card widths.
-- [ ] **Song viewer / cinema** (`Components/Leadsheet/LeadsheetViewer.vue`,
-      `song-library.css`) — notation/tab is wide; must scroll inside its own
-      container, not the page body.
+- [x] **Song viewer / cinema** (`Components/Leadsheet/LeadsheetViewer.vue`,
+      `Components/Cinema/*.vue`) — code-reviewed 2026-07-16, six bugs found and
+      fixed (see Findings below: sidebar order, content not stretching, chord
+      diagram/ear-training stroke widths, hero chord card not reflowing,
+      Cinema top bar not wrapping, Options dropdown overflow, transport deck
+      hidden on touch, glyph play icon). Still needs a real-device/emulator
+      pass to visually confirm — sandbox has no working `npm`/`vite` build.
 - [ ] **Course player** (`Pages/Courses/Player.vue`, `course-player.css`) —
       sidebar + content layout at 280px fixed panel widths.
 - [ ] **Tab editor** (`tab-editor/TabEditor.vue`) — admin-only; likely
@@ -93,6 +97,9 @@ _None confirmed yet — populate as the visual pass runs. Suggested row format:_
 | Transport bar (`HoverRevealDeck.vue`, shared by Classic + Cinema) | touch devices | Reveal was driven purely by `mouseenter`/`mouseleave` (`useHoverRevealTransport.js`) — touch has no real hover signal, so the deck only flashed briefly on tap and stayed hidden otherwise | High | ✅ Fixed 2026-07-16 — `@media (hover: none)` forces `.sbn-hover-deck.is-hidden` to render visible, so touch/coarse-pointer devices always show the deck (matches standard mobile media-player UX: hover-reveal is a mouse-only affordance, always-visible controls is the touch default) |
 | Transport play/pause button (`TransportDeck.vue`, shared by Classic + Cinema) | all | Raw Unicode glyphs (`▶` / `❚❚`) for the primary button — renders inconsistently (weight/alignment) across platform fonts, reported as an "ugly" icon in Classic | Low | ✅ Fixed 2026-07-16 — replaced with inline SVG icons (`.tdeck-icon`), consistent rendering everywhere |
 | Cinema hero "Now Playing" chord card (`StageHeroNow.vue`) | ≤768px | `.stage-hero-content` kept its desktop 2-col grid (`1fr auto`) with the chord-card diagram locked at `width: 180px` all the way down — combined with the card's 32px side padding, that left almost no room for the chord-name glyph on a phone, so it overflowed/squashed instead of reflowing | High | ✅ Fixed 2026-07-16 — added a `@media (max-width: 768px)` block that stacks glyph + diagram instead of squeezing them side by side, shrinks the diagram to 140px, reduces glyph font-size, and switches the absolutely-positioned beat row to normal flow (it was pinned to the card's bottom edge, which only worked with the old fixed 2-col height) |
+| Cinema top bar (`StageTopBar.vue`) | ≤768px | Renders the same breadcrumb row as Classic (title/segments + Options menu + Classic/Cinema `ViewToggle`) but never got Classic's `flex-wrap: wrap` treatment for it (`LeadsheetViewer.vue`'s `.sbn-breadcrumb` media rule only reaches Classic's own `<Breadcrumb>` instance) — StageTopBar builds `.sbn-breadcrumb--lg` itself inline rather than through that component, so it needed its own copy of the fix and didn't have one. Row would overflow horizontally on phones instead of wrapping to two lines | High | ✅ Fixed 2026-07-16 — added matching `@media (max-width: 768px) { .stage-top { flex-wrap: wrap; row-gap: 10px } }` |
+| Options dropdown (`TopBarMenu.vue`, shared by Classic + Cinema) | ≤640px | `.tbm-panel` is a fixed 220px popover anchored via `right: 0` *relative to its trigger button*. Once the header row wraps (the fix above), the Options trigger is often the first item on its own line — i.e. near the viewport's **left** edge — so a right-anchored panel would render mostly off-screen to the left and be unreachable/invisible under the page's `overflow-x: hidden` | Medium | ✅ Fixed 2026-07-16 — `max-width: calc(100vw - 32px)` safety clamp, plus `@media (max-width: 640px) { right: auto; left: 0 }` to anchor from the trigger's left edge instead, which stays on-screen given the trigger's own likely position after wrap |
+| Everything else checked this pass: `EduPanel.vue`, `RateSlider.vue`, `ViewToggle.vue`, `Breadcrumb.vue`, `StageSectionsGrid.vue` (horizontal-scroll chord/tab strips — scrolling by design, not a bug), `VideoEmbed.vue`, `ChordCard.vue` | — | No fixed-width/overflow issues found — all fluid or intentionally scrollable | — | ✅ Reviewed 2026-07-16, no changes needed |
 
 ---
 
