@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import CourseCard from '@/Components/Course/CourseCard.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import FilterToggleButton from '@/Components/Library/FilterToggleButton.vue';
@@ -37,12 +37,17 @@ const queryLevel = initialQuery.get('level') ?? '';
 // chord/rhythm/progression/song show page, scoping the catalogue down to the
 // exact related-courses set that page computed (tag match + category fallback).
 const querySlugs = (initialQuery.get('slugs') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+// ?from= is a human-readable label for the thing that was viewed to reach
+// this scoped link (e.g. a chord/rhythm/progression/song name) — purely
+// cosmetic, shown in the tailored subtitle below.
+const queryFrom = initialQuery.get('from') ?? '';
 
 const search      = ref('');
 const filtersOpen = ref(false);
 const filterGenre = ref(props.categories.includes(queryGenre) ? queryGenre : '');
 const filterLevel = ref(props.levels.includes(queryLevel) ? queryLevel : '');
 const filterSlugs = ref<string[]>(querySlugs);
+const fromLabel   = ref(queryFrom);
 
 const filtered = computed(() => props.courses.filter((course) => {
   if (filterGenre.value && course.primaryGenre !== filterGenre.value) return false;
@@ -73,6 +78,7 @@ function clearFilters() {
   filterGenre.value = '';
   filterLevel.value = '';
   filterSlugs.value = [];
+  fromLabel.value   = '';
 }
 
 // JSON-LD: ItemList of the full (unfiltered) catalogue so Google can see all
@@ -102,7 +108,11 @@ const courseListJsonLd = JSON.stringify({
   <main class="sbn-page sbn-course-library-main">
     <div class="sbn-lib-page-header">
       <h1 class="sbn-lib-page-title">Course Library</h1>
-      <p class="sbn-lib-page-subtitle">Structured pathways from basics to advanced performance skills.</p>
+      <p v-if="filterSlugs.length && fromLabel" class="sbn-lib-page-subtitle">
+        Showing courses related to <strong>{{ fromLabel }}</strong> —
+        <Link href="/learn" class="sbn-lib-scope-clear">browse the full library</Link>
+      </p>
+      <p v-else class="sbn-lib-page-subtitle">Structured pathways from basics to advanced performance skills.</p>
 
       <div class="sbn-lib-search-wrap">
         <div class="sbn-lib-search-box">

@@ -4563,6 +4563,22 @@ h1, h2 {
     line-height: 1.6;
     max-width: 600px;
 }
+/* Shown instead of the default subtitle when a page is reached via a
+   "View all" deep link (?slugs=/?rhythm=) and carries a ?from= label —
+   e.g. "Showing songs related to Cmaj7 — browse the full library". */
+.sbn-lib-page-subtitle strong {
+    color: var(--clr-text);
+    font-weight: 700;
+}
+.sbn-lib-scope-clear {
+    color: var(--clr-accent);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.sbn-lib-scope-clear:hover {
+    color: var(--clr-accent-dim, var(--clr-accent));
+}
 
 /* ── Search box ── */
 .sbn-lib-search-wrap {

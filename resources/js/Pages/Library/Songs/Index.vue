@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import { readDifficultyQueryParam } from '@/composables/useBreadcrumb';
 import { getCategoryColor } from '@/composables/useCategoryColors';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
@@ -38,6 +38,10 @@ const queryRhythm = initialQuery.get('rhythm') ?? '';
 // chord/progression show page, whose related songs aren't a single-column
 // match and so can't be expressed as one of the filters below.
 const querySlugs = (initialQuery.get('slugs') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+// ?from= is a human-readable label for the thing that was viewed to reach a
+// ?slugs=/?rhythm= deep link (e.g. a chord or rhythm pattern name) — purely
+// cosmetic, shown in the tailored subtitle below.
+const queryFrom = initialQuery.get('from') ?? '';
 
 // ── Filter state ─────────────────────────────────────────────
 const search     = ref('');
@@ -48,6 +52,7 @@ const fKey       = ref('');
 const fComposer  = ref('');
 const fRhythm    = ref(props.rhythms.includes(queryRhythm) ? queryRhythm : '');
 const fTempo     = ref('');  // 'slow' | 'medium' | 'fast'
+const fromLabel  = ref(queryFrom);
 const fSlugs     = ref<string[]>(querySlugs);
 
 // ── Client-side filtering ─────────────────────────────────────
@@ -81,6 +86,16 @@ const hasFilters = computed(() =>
   !!(search.value || fStyle.value || fDifficulty.value || fKey.value || fComposer.value || fRhythm.value || fTempo.value || fSlugs.value.length)
 );
 
+// True while the page is still showing the subset a "View all" deep link
+// scoped it to — i.e. the slug allow-list is still active, or the rhythm
+// filter still matches the value the link arrived with (the user may have
+// since picked a *different* rhythm pill manually, which should drop the
+// "Showing songs related to…" framing since it's no longer describing what's
+// on screen).
+const isScopedView = computed(() =>
+  fromLabel.value !== '' && (fSlugs.value.length > 0 || (queryRhythm !== '' && fRhythm.value === queryRhythm))
+);
+
 function clearFilters() {
   search.value    = '';
   fStyle.value    = '';
@@ -90,6 +105,7 @@ function clearFilters() {
   fRhythm.value   = '';
   fTempo.value    = '';
   fSlugs.value    = [];
+  fromLabel.value = '';
 }
 
 // ── Example search chips ──────────────────────────────────────
@@ -130,7 +146,11 @@ const hiddenComposerCount = computed(() => Math.max(0, props.composers.length - 
     <!-- ── Header ── -->
     <div class="sbn-lib-page-header">
       <h1 class="sbn-lib-page-title">Song Library</h1>
-      <p class="sbn-lib-page-subtitle">Explore bossa nova, samba, and jazz standards</p>
+      <p v-if="isScopedView" class="sbn-lib-page-subtitle">
+        Showing songs related to <strong>{{ fromLabel }}</strong> —
+        <Link href="/library/songs" class="sbn-lib-scope-clear">browse the full library</Link>
+      </p>
+      <p v-else class="sbn-lib-page-subtitle">Explore bossa nova, samba, and jazz standards</p>
 
       <div class="sbn-lib-search-wrap">
         <div class="sbn-lib-search-box">
