@@ -1252,10 +1252,8 @@ provide('globalIndexOf', (si, mi) => {
 }
 
 @media (max-width: 768px) {
-  .sbn-breadcrumb {
-    flex-wrap: wrap;
-    row-gap: 10px;
-  }
+  /* .sbn-breadcrumb's flex-wrap now lives in Breadcrumb.vue itself, shared
+     by every consumer instead of duplicated per-page. */
 
   .sbn-leadsheet-controls {
     flex-wrap: wrap;
