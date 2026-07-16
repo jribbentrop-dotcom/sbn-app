@@ -30,6 +30,7 @@ const props = defineProps<Props>();
 
 const search = ref(props.filters.search ?? '');
 const sort   = ref(props.filters.sort ?? 'title');
+const filtersOpen = ref(false);
 
 function submitSearch() {
     const base = props.currentCategory ? `/shop/category/${props.currentCategory.slug}` : '/shop';
@@ -43,6 +44,7 @@ function setSort(val: string) {
 
 const totalShown = computed(() => props.products.data.length);
 const totalAll   = computed(() => props.products.total ?? totalShown.value);
+const hasFilters = computed(() => !!(search.value || props.currentCategory));
 </script>
 
 <template>
@@ -91,6 +93,14 @@ const totalAll   = computed(() => props.products.total ?? totalShown.value);
                         </div>
                     </form>
                 </div>
+
+                <button type="button" class="sbn-lib-filter-toggle" @click="filtersOpen = true">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                    </svg>
+                    Categories
+                    <span v-if="hasFilters" class="sbn-lib-filter-toggle-dot" aria-hidden="true"></span>
+                </button>
             </div>
 
             <!-- ── Content: grid + sidebar ── -->
@@ -146,8 +156,21 @@ const totalAll   = computed(() => props.products.total ?? totalShown.value);
                     </div>
                 </div>
 
+                <button
+                    type="button"
+                    class="sbn-lib-filter-overlay"
+                    v-if="filtersOpen"
+                    @click="filtersOpen = false"
+                    aria-label="Close filters"
+                />
+
                 <!-- Filter sidebar -->
-                <aside class="sbn-lib-filter-sidebar">
+                <aside class="sbn-lib-filter-sidebar" :class="{ 'sbn-lib-filter-open': filtersOpen }">
+                    <button type="button" class="sbn-lib-filter-close" @click="filtersOpen = false" aria-label="Close filters">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
                     <div class="sbn-lib-sidebar-header">
                         <h3>Categories</h3>
                     </div>
