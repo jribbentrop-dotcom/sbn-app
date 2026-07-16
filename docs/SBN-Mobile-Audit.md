@@ -88,6 +88,7 @@ _None confirmed yet — populate as the visual pass runs. Suggested row format:_
 |---|---|---|---|---|
 | _(e.g. Chords/Index)_ | _360px_ | _horizontal overflow from 240px cards_ | — | ⬜ |
 | Any `<sbn-chord>` / chord diagram (Chords, lessons, ChordCard) | small mobile | Fret + string lines invisible — `sbnRenderDiagramSVG` (`public/js/chords.js`) and `AnimatedChordDiagram.vue` drew grid lines at `stroke-width="0.4"` inside an 88×95/98 viewBox scaled via `width:100%`; below the viewBox's native size the stroke rendered under 1 physical px | High | ✅ Fixed 2026-07-16 — bumped to `stroke-width="1"` + `vector-effect="non-scaling-stroke"` (locks stroke to a constant on-screen px regardless of scale) in both renderers |
+| Ear-training widgets: `RepeatSignsWidget.vue` (staff lines, 5 diagrams), `Fretboard.vue`, `BasicChordsWidget.vue`, `VoiceLeading.vue` (string lines) | small mobile | Same pattern as the chord-diagram bug — sub-1 `stroke-width` (0.75–0.8) on fluid `width:100%` SVGs with no `vector-effect`, so thin strings/staff lines could vanish on narrow screens | Medium | ✅ Fixed 2026-07-16 — added `vector-effect="non-scaling-stroke"` (+ staff lines bumped 0.75→1) to all four |
 
 ---
 

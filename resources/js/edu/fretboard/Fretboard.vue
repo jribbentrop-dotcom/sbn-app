@@ -175,6 +175,7 @@ const mutedPositions = computed(() =>
           :x2="fretToNeckX(totalFrets)" :y2="stringY(s-1)"
           stroke="rgba(255,255,255,0.2)"
           :stroke-width="[2, 1.6, 1.3, 1, 0.8, 0.8][s-1]"
+          vector-effect="non-scaling-stroke"
         />
 
         <!-- Position markers -->
