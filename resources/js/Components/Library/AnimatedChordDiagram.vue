@@ -246,8 +246,9 @@ const nutOrPosition = computed(() => {
             :x2="LEFT + STR_SP * 5"
             :y2="TOP + (f - 1) * FRET_SP"
             stroke="var(--clr-text)"
-            stroke-width="0.4"
-            opacity="0.4"
+            stroke-width="1"
+            opacity="0.55"
+            vector-effect="non-scaling-stroke"
         />
 
         <!-- String lines -->
@@ -259,8 +260,9 @@ const nutOrPosition = computed(() => {
             :x2="LEFT + (s - 1) * STR_SP"
             :y2="TOP + FRET_SP * NUM_FRETS + 5"
             stroke="var(--clr-text)"
-            stroke-width="0.4"
-            opacity="0.5"
+            stroke-width="1"
+            opacity="0.65"
+            vector-effect="non-scaling-stroke"
         />
 
         <!-- Open (○) markers -->
