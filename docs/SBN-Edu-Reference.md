@@ -230,6 +230,10 @@ Every widget follows these rules (see `TriadBuilder.vue` as the reference):
 - "Resolve →" / "← Back" toggle button; tab switch resets to chord 1.
 - String convention: `str 0` = low E, `str 5` = high e (matches CAGED/Fretboard primitive).
 
+### Mobile stroke-width fix (2026-07-16)
+
+`RepeatSignsWidget.vue` (staff lines), `edu/fretboard/Fretboard.vue` and `BasicChordsWidget.vue` (string lines), and `VoiceLeading.vue` (fretboard strings) all draw thin SVG lines at sub-1 `stroke-width` (0.75–0.8) inside a fluid `width:100%` viewBox with no `vector-effect` — on narrow mobile screens the scaled-down stroke could render under a physical pixel and vanish. Same root cause as the chord-diagram bug in `SBN-Chord-Library-Reference.md` § SVG renderer. **Fix:** added `vector-effect="non-scaling-stroke"` to all four (locks the stroke to a constant on-screen pixel width regardless of scale), plus bumped `RepeatSignsWidget`'s staff lines from 0.75→1.
+
 ---
 
 ## 7. Design Tokens

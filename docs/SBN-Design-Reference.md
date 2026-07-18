@@ -371,6 +371,7 @@ The `vintageCard` prop has been **removed** from `RhythmPattern.vue`, `ChordProg
 - `color` — hex or CSS value for the category gradient. Omit to use the orange→red brand gradient.
 - Renders `<nav class="sbn-breadcrumb sbn-breadcrumb--cat | --brand">`.
 - Top radius only (`border-radius: var(--radius) var(--radius) 0 0`), `margin-bottom: 0` — designed to sit flush above `.sbn-detail-hero`.
+- **Mobile truncation (2026-07-16):** below `matchMedia('(max-width: 640px)')`, `Breadcrumb.vue` shows at most the last 2 segments (immediate parent + current page) instead of the full trail, so long chains (e.g. "Songs › Bossa Nova › Beginner › Wave") plus a page's own action buttons still fit a phone width. Also gets `flex-wrap: wrap` at the same breakpoint. This lives in the shared component (not per-page CSS), so every consumer — Classic Viewer, Cinema's `StageTopBar` (see `SBN-Leadsheet-Reference.md` §8.8), and all library Show pages — gets it automatically and can't drift out of sync.
 
 ### Detail hero (`.sbn-detail-hero`)
 
