@@ -171,7 +171,9 @@ class LeadsheetWriteValidationTest extends TestCase
 
     public function test_update_is_pro_accepts_boolean(): void
     {
+        // is_pro=true is only allowed on public_domain rows (see UpdateIsProRequest).
         $leadsheet = $this->leadsheet();
+        $leadsheet->update(['license_status' => Leadsheet::LICENSE_PUBLIC_DOMAIN]);
 
         $response = $this->actingAs($this->instructor())
             ->postJson("/api/admin/leadsheets/{$leadsheet->id}/is-pro", [
@@ -179,6 +181,36 @@ class LeadsheetWriteValidationTest extends TestCase
             ]);
 
         $response->assertStatus(200)->assertJson(['success' => true, 'is_pro' => true]);
+    }
+
+    public function test_update_is_pro_true_rejected_on_non_public_domain(): void
+    {
+        // The is_pro editorial switch must never be enabled on a copyrighted row —
+        // the full Viewer/Cinema arrangement is only licensable for public domain.
+        $leadsheet = $this->leadsheet();
+        $leadsheet->update(['license_status' => Leadsheet::LICENSE_COPYRIGHTED]);
+
+        $response = $this->actingAs($this->instructor())
+            ->postJson("/api/admin/leadsheets/{$leadsheet->id}/is-pro", [
+                'is_pro' => true,
+            ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['is_pro']);
+        $this->assertFalse((bool) $leadsheet->fresh()->is_pro);
+    }
+
+    public function test_update_is_pro_false_allowed_regardless_of_license(): void
+    {
+        // Turning is_pro OFF is always safe, even on a copyrighted leadsheet.
+        $leadsheet = $this->leadsheet();
+        $leadsheet->update(['license_status' => Leadsheet::LICENSE_COPYRIGHTED]);
+
+        $response = $this->actingAs($this->instructor())
+            ->postJson("/api/admin/leadsheets/{$leadsheet->id}/is-pro", [
+                'is_pro' => false,
+            ]);
+
+        $response->assertStatus(200)->assertJson(['success' => true, 'is_pro' => false]);
     }
 
     public function test_update_status_rejects_unknown_status(): void
