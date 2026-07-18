@@ -344,6 +344,16 @@ GET  /api/sbn/rhythms/{slug}       → apiShow()   (lesson embed API)
 
 Admin routes are prefixed `/admin/rhythms/`.
 
+### "View all" shelf hrefs (2026-07-16)
+
+`RhythmLibraryController::show` builds `songsViewAllHref` as
+`/library/songs?rhythm={slug}&from={pattern->name}` and `coursesViewAllHref`
+as `/learn?slugs=...&from={pattern->name}`. Songs/Index.vue is the one target
+page scoped by a single slug (`?rhythm=`) rather than a `?slugs=` allow-list —
+it already had a `rhythm` filter facet the value maps onto directly. Full
+mechanism: [SBN-Design-Reference.md § Deep-linked "View all"
+scoping](SBN-Design-Reference.md).
+
 ### RhythmMaterializer service
 
 **File:** `app/Services/RhythmMaterializer.php`

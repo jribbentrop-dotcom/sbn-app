@@ -3,6 +3,8 @@ import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import ProductCard from '@/Components/Shop/ProductCard.vue';
 import CartDrawer from '@/Components/Shop/CartDrawer.vue';
+import FilterToggleButton from '@/Components/Library/FilterToggleButton.vue';
+import FilterSidebar from '@/Components/Library/FilterSidebar.vue';
 import { getCategoryStyle } from '@/composables/useCategoryColors';
 import type { Product, Category } from '@/types/shop';
 
@@ -30,6 +32,7 @@ const props = defineProps<Props>();
 
 const search = ref(props.filters.search ?? '');
 const sort   = ref(props.filters.sort ?? 'title');
+const filtersOpen = ref(false);
 
 function submitSearch() {
     const base = props.currentCategory ? `/shop/category/${props.currentCategory.slug}` : '/shop';
@@ -43,6 +46,7 @@ function setSort(val: string) {
 
 const totalShown = computed(() => props.products.data.length);
 const totalAll   = computed(() => props.products.total ?? totalShown.value);
+const hasFilters = computed(() => !!(search.value || props.currentCategory));
 </script>
 
 <template>
@@ -91,6 +95,8 @@ const totalAll   = computed(() => props.products.total ?? totalShown.value);
                         </div>
                     </form>
                 </div>
+
+                <FilterToggleButton v-model="filtersOpen" :has-filters="hasFilters">Categories</FilterToggleButton>
             </div>
 
             <!-- ── Content: grid + sidebar ── -->
@@ -147,10 +153,8 @@ const totalAll   = computed(() => props.products.total ?? totalShown.value);
                 </div>
 
                 <!-- Filter sidebar -->
-                <aside class="sbn-lib-filter-sidebar">
-                    <div class="sbn-lib-sidebar-header">
-                        <h3>Categories</h3>
-                    </div>
+                <FilterSidebar v-model="filtersOpen">
+                    <template #title>Categories</template>
 
                     <div class="sbn-lib-sidebar-section">
                         <div class="sbn-lib-sidebar-options">
@@ -200,7 +204,7 @@ const totalAll   = computed(() => props.products.total ?? totalShown.value);
                             </div>
                         </div>
                     </template>
-                </aside>
+                </FilterSidebar>
 
             </div>
         </div>

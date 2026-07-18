@@ -83,6 +83,24 @@ Audience: developers working on `/library/progressions` or `<sbn-progression>` l
 - Filter params passed in `activeFilters` prop so URL state is restored on back-navigation
 - Uses `.sbn-pattern-row` card pattern (same as rhythm library) with category color accent
 
+### Deep-linked "View all" scoping (`?slugs=`, `?from=`) — fixed 2026-07-16
+
+`?slugs=` (allow-list) and `?from=` (label) arrive from a chord show page's
+"View all progressions" link. **Always client-side** now: the controller
+sends the full `$progressions` list regardless of `?slugs=`, and `Index.vue`
+filters via `fSlugs` (folded into `hasFilters`/`clearFilters` like every other
+filter) — matching Songs'/Courses' own `?slugs=` handling. When `fSlugs` is
+active and `?from=` is present, the subtitle becomes "Showing progressions
+related to {from} — browse the full library" instead of the generic heading.
+
+Until this fix, `ProgressionLibraryController::index` filtered `$progressions`
+server-side (`whereIn('slug', $slugs)`) before it ever reached Vue — the link
+landed you on the right subset, but with no indication it was scoped (static
+heading, count bar presenting the subset as the whole catalogue) and no way
+back, since "Clear all filters" had no client-side state to restore. See
+[SBN-Design-Reference.md § Deep-linked "View all"
+scoping](SBN-Design-Reference.md) for the full picture across all 7 hrefs.
+
 ---
 
 ## 4. Show Page
@@ -104,8 +122,8 @@ Props:
 1. `progression.intro` — general description (history, name, harmonic character); hidden when null
 2. `ChordProgressionViewer` — interactive chord visualization
 3. `progression.details` — technical description (voice leading, substitutions, variations); hidden when null
-4. Songs shelf
-5. Courses shelf
+4. Songs shelf — `songsViewAllHref` is `/library/songs?slugs=...&from={progression.name}`
+5. Courses shelf — `coursesViewAllHref` is `/learn?slugs=...&from={progression.name}`
 
 ### Prose symbol badging (`intro` / `details`)
 

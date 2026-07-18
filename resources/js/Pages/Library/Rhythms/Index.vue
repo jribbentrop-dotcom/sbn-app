@@ -6,6 +6,8 @@ import RhythmStrip from '@/Components/Library/RhythmStrip.vue';
 import type { RhythmPatternWithMeta } from '@/Components/Library/RhythmPattern.vue';
 import { getCategoryColor } from '@/composables/useCategoryColors';
 import { readDifficultyQueryParam } from '@/composables/useBreadcrumb';
+import FilterToggleButton from '@/Components/Library/FilterToggleButton.vue';
+import FilterSidebar from '@/Components/Library/FilterSidebar.vue';
 
 defineOptions({ layout: PublicLayout });
 
@@ -36,6 +38,7 @@ const fDifficulty = ref(readDifficultyQueryParam());
 const fTimeSig  = ref('');
 const fGridType = ref('');
 const fSort     = ref(props.activeFilters.sort || 'popularity');
+const filtersOpen = ref(false);
 
 // ── Client-side filtering ────────────────────────────────
 function matchesFilters(p: RhythmPatternWithCount): boolean {
@@ -159,6 +162,8 @@ const CATEGORY_LABELS: Record<string, string> = {
           </button>
         </div>
       </div>
+
+      <FilterToggleButton v-model="filtersOpen" :has-filters="hasFilters">Filters</FilterToggleButton>
     </div>
 
     <!-- ── Content wrapper ── -->
@@ -288,15 +293,17 @@ const CATEGORY_LABELS: Record<string, string> = {
       </div>
 
       <!-- ── Filter Sidebar ── -->
-      <aside class="sbn-lib-filter-sidebar">
-        <div class="sbn-lib-sidebar-header">
-          <h3>Filter</h3>
-          <span class="sbn-lib-sidebar-count">
-            {{ filteredPatterns.length }}{{ hasFilters ? ` of ${totalCount}` : '' }}
-            pattern{{ filteredPatterns.length !== 1 ? 's' : '' }}
-            <button v-if="hasFilters" class="sbn-lib-clear-btn" @click="clearFilters">Clear</button>
-          </span>
-        </div>
+      <FilterSidebar
+        v-model="filtersOpen"
+        :has-filters="hasFilters"
+        :show-clear-all="hasFilters || fSort !== 'popularity'"
+        @clear="clearFilters"
+      >
+        <template #title>Filter</template>
+        <template #count>
+          {{ filteredPatterns.length }}{{ hasFilters ? ` of ${totalCount}` : '' }}
+          pattern{{ filteredPatterns.length !== 1 ? 's' : '' }}
+        </template>
 
         <!-- Sort -->
         <div class="sbn-lib-sidebar-section">
@@ -317,9 +324,10 @@ const CATEGORY_LABELS: Record<string, string> = {
           </div>
         </div>
 
-        <!-- Category -->
+        <!-- Style (fCategory / ?category= kept as-is — backend query contract,
+             only the visible label is unified with Songs/Progressions) -->
         <div class="sbn-lib-sidebar-section">
-          <span class="sbn-lib-sidebar-label">Category</span>
+          <span class="sbn-lib-sidebar-label">Style</span>
           <div class="sbn-lib-sidebar-options">
             <button
               v-for="cat in categories"
@@ -357,10 +365,8 @@ const CATEGORY_LABELS: Record<string, string> = {
           </div>
         </div>
 
-        <button v-if="hasFilters || fSort !== 'popularity'" class="sbn-lib-sidebar-clear" @click="clearFilters">
-          Clear all filters
-        </button>
-      </aside>
+        <template #clear-label>Clear all filters</template>
+      </FilterSidebar>
     </div>
   </div>
 </template>

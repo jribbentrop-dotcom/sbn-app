@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import { readDifficultyQueryParam } from '@/composables/useBreadcrumb';
+import { getCategoryColor } from '@/composables/useCategoryColors';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import SongCard from '@/Components/Library/SongCard.vue';
 import type { SongCardData } from '@/Components/Library/SongCard.vue';
+import FilterToggleButton from '@/Components/Library/FilterToggleButton.vue';
+import FilterSidebar from '@/Components/Library/FilterSidebar.vue';
 
 defineOptions({ layout: PublicLayout });
 
@@ -19,6 +22,12 @@ interface Props {
 const props = defineProps<Props>();
 
 const CANONICAL_STYLES = ['bossa-nova', 'jazz', 'classical', 'pop'] as const;
+const STYLE_LABELS: Record<string, string> = {
+  'bossa-nova': 'Bossa Nova',
+  'jazz':       'Jazz',
+  'classical':  'Classical',
+  'pop':        'Pop',
+};
 
 const initialQuery = typeof window !== 'undefined'
   ? new URLSearchParams(window.location.search)
@@ -29,15 +38,21 @@ const queryRhythm = initialQuery.get('rhythm') ?? '';
 // chord/progression show page, whose related songs aren't a single-column
 // match and so can't be expressed as one of the filters below.
 const querySlugs = (initialQuery.get('slugs') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+// ?from= is a human-readable label for the thing that was viewed to reach a
+// ?slugs=/?rhythm= deep link (e.g. a chord or rhythm pattern name) — purely
+// cosmetic, shown in the tailored subtitle below.
+const queryFrom = initialQuery.get('from') ?? '';
 
 // ── Filter state ─────────────────────────────────────────────
 const search     = ref('');
+const filtersOpen = ref(false);
 const fStyle     = ref(CANONICAL_STYLES.includes(queryStyle as typeof CANONICAL_STYLES[number]) ? queryStyle : '');
 const fDifficulty = ref(readDifficultyQueryParam());
 const fKey       = ref('');
 const fComposer  = ref('');
 const fRhythm    = ref(props.rhythms.includes(queryRhythm) ? queryRhythm : '');
 const fTempo     = ref('');  // 'slow' | 'medium' | 'fast'
+const fromLabel  = ref(queryFrom);
 const fSlugs     = ref<string[]>(querySlugs);
 
 // ── Client-side filtering ─────────────────────────────────────
@@ -71,6 +86,16 @@ const hasFilters = computed(() =>
   !!(search.value || fStyle.value || fDifficulty.value || fKey.value || fComposer.value || fRhythm.value || fTempo.value || fSlugs.value.length)
 );
 
+// True while the page is still showing the subset a "View all" deep link
+// scoped it to — i.e. the slug allow-list is still active, or the rhythm
+// filter still matches the value the link arrived with (the user may have
+// since picked a *different* rhythm pill manually, which should drop the
+// "Showing songs related to…" framing since it's no longer describing what's
+// on screen).
+const isScopedView = computed(() =>
+  fromLabel.value !== '' && (fSlugs.value.length > 0 || (queryRhythm !== '' && fRhythm.value === queryRhythm))
+);
+
 function clearFilters() {
   search.value    = '';
   fStyle.value    = '';
@@ -80,6 +105,7 @@ function clearFilters() {
   fRhythm.value   = '';
   fTempo.value    = '';
   fSlugs.value    = [];
+  fromLabel.value = '';
 }
 
 // ── Example search chips ──────────────────────────────────────
@@ -94,6 +120,16 @@ function applyExample(ex: string) {
 function rhythmLabel(slug: string): string {
   return slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
+
+// ── Composer list is capped in the sidebar — the server already limits it
+// to the top 40 by song count, but rendering all 40 as pills in a narrow
+// column is unusable. Show the top slice and let "Show more" reveal the rest.
+const COMPOSER_VISIBLE_COUNT = 10;
+const composersExpanded = ref(false);
+const visibleComposers = computed(() =>
+  composersExpanded.value ? props.composers : props.composers.slice(0, COMPOSER_VISIBLE_COUNT)
+);
+const hiddenComposerCount = computed(() => Math.max(0, props.composers.length - COMPOSER_VISIBLE_COUNT));
 </script>
 
 <template>
@@ -110,7 +146,11 @@ function rhythmLabel(slug: string): string {
     <!-- ── Header ── -->
     <div class="sbn-lib-page-header">
       <h1 class="sbn-lib-page-title">Song Library</h1>
-      <p class="sbn-lib-page-subtitle">Explore bossa nova, samba, and jazz standards</p>
+      <p v-if="isScopedView" class="sbn-lib-page-subtitle">
+        Showing songs related to <strong>{{ fromLabel }}</strong> —
+        <Link href="/library/songs" class="sbn-lib-scope-clear">browse the full library</Link>
+      </p>
+      <p v-else class="sbn-lib-page-subtitle">Explore bossa nova, samba, and jazz standards</p>
 
       <div class="sbn-lib-search-wrap">
         <div class="sbn-lib-search-box">
@@ -138,6 +178,7 @@ function rhythmLabel(slug: string): string {
           </button>
         </div>
 
+        <FilterToggleButton v-model="filtersOpen" :has-filters="hasFilters">Filters</FilterToggleButton>
       </div>
     </div>
 
@@ -162,13 +203,23 @@ function rhythmLabel(slug: string): string {
       </div>
 
       <!-- Filter sidebar -->
-      <aside class="sbn-lib-filter-sidebar">
-        <div class="sbn-lib-sidebar-header">
-          <h3>Filters</h3>
-          <span class="sbn-lib-sidebar-count">
-            <strong>{{ filtered.length }}</strong> of {{ totalCount }} songs
-            <button v-if="hasFilters" type="button" class="sbn-lib-clear-btn" @click="clearFilters">Clear</button>
-          </span>
+      <FilterSidebar v-model="filtersOpen" :has-filters="hasFilters" :show-clear-all="true" @clear="clearFilters">
+        <template #title>Filters</template>
+        <template #count><strong>{{ filtered.length }}</strong> of {{ totalCount }} songs</template>
+
+        <!-- Style -->
+        <div class="sbn-lib-sidebar-section">
+          <span class="sbn-lib-sidebar-label">Style</span>
+          <div class="sbn-lib-sidebar-options">
+            <button
+              v-for="style in CANONICAL_STYLES"
+              :key="style"
+              type="button"
+              :class="['sbn-lib-sidebar-option', { 'sbn-filter-active': fStyle === style }]"
+              :style="{ '--cat-clr': getCategoryColor(style) }"
+              @click="fStyle = fStyle === style ? '' : style"
+            >{{ STYLE_LABELS[style] || style }}</button>
+          </div>
         </div>
 
         <!-- Key -->
@@ -190,12 +241,24 @@ function rhythmLabel(slug: string): string {
           <span class="sbn-lib-sidebar-label">Composer</span>
           <div class="sbn-lib-sidebar-options">
             <button
-              v-for="c in composers"
+              v-for="c in visibleComposers"
               :key="c"
               type="button"
               :class="['sbn-lib-sidebar-option', { 'sbn-filter-active': fComposer === c }]"
               @click="fComposer = fComposer === c ? '' : c"
             >{{ c }}</button>
+            <button
+              v-if="!composersExpanded && hiddenComposerCount > 0"
+              type="button"
+              class="sbn-lib-sidebar-option sbn-lib-sidebar-more"
+              @click="composersExpanded = true"
+            >+{{ hiddenComposerCount }} more</button>
+            <button
+              v-else-if="composersExpanded && hiddenComposerCount > 0"
+              type="button"
+              class="sbn-lib-sidebar-option sbn-lib-sidebar-more"
+              @click="composersExpanded = false"
+            >Show less</button>
           </div>
         </div>
 
@@ -227,10 +290,7 @@ function rhythmLabel(slug: string): string {
           </div>
         </div>
 
-        <button type="button" class="sbn-lib-sidebar-clear" @click="clearFilters">
-          Clear All Filters
-        </button>
-      </aside>
+      </FilterSidebar>
 
     </div>
   </div>

@@ -81,7 +81,37 @@ rhythms[]    — distinct rhythm slugs used
 totalCount   — int
 ```
 
-All filtering is **client-side** — no server-side search endpoint. Filters: text search (title + composer + description), key, composer, rhythm/style, tempo range.
+All filtering is **client-side** — no server-side search endpoint. Filters: text search (title + composer + description), style, key, composer, rhythm/style, tempo range.
+
+### Filter sidebar (2026-07-16)
+
+Renders through the shared `FilterToggleButton.vue` / `FilterSidebar.vue`
+components (see `SBN-Design-Reference.md` § Library Index Page System) —
+`Index.vue` only supplies its own filter-section markup as slotted content.
+
+- **Style** — `fStyle` was already wired to `CANONICAL_STYLES` but had no
+  sidebar control until now; it's the first section in the sidebar,
+  labelled "Style" to match Progressions (Rhythms/Courses' equivalent
+  "Category" filter carries the same label now, though their underlying
+  `fCategory`/`filterGenre` state and query params are unchanged).
+- **Composer** — the server already caps this to the top 40 by song count
+  (`SongLibraryController::index`), but rendering all 40 as flat pills in
+  the 220px sidebar column is unusable. The sidebar now shows the top 10
+  (`COMPOSER_VISIBLE_COUNT`) with a "+N more" / "Show less" toggle
+  (`composersExpanded`) rather than raising or removing the server cap.
+
+### Deep-linked "View all" scoping (2026-07-16)
+
+Also accepts `?slugs=` (comma-separated allow-list, from a chord/progression
+show page's "View all" link) and `?rhythm=` (a single rhythm slug, from a
+rhythm show page) — read into `fSlugs`/`fRhythm` alongside the other filters,
+so the page opens pre-scoped. When either is active and a `?from=` label is
+present, the subtitle swaps to "Showing songs related to {from} — browse the
+full library" (`isScopedView` computed — drops the banner if the user clears
+filters, or manually picks a *different* rhythm pill than the one the link
+arrived with). Full mechanism, the other hrefs/target pages, why this is
+client-side rather than a server pre-filter:
+[SBN-Design-Reference.md § Deep-linked "View all" scoping](SBN-Design-Reference.md).
 
 ### `SongCard.vue`
 
@@ -160,6 +190,11 @@ Props:
 ### Progression tiles
 
 Each detected progression is resolved via `HarmonicContext::buildFromNumerals(song_key, numerals)` → `ProgressionBuilder::buildVoicings`. Tiles rendered by `ChordProgressionViewer` with `name`, `category`, `numeralsDisplay`.
+
+### Related Courses shelf
+
+`coursesViewAllHref` is `/learn?slugs=...&from={song.title}` (see
+[SBN-Design-Reference.md § Deep-linked "View all" scoping](SBN-Design-Reference.md)).
 
 ---
 

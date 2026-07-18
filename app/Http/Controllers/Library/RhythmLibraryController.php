@@ -74,10 +74,12 @@ class RhythmLibraryController extends Controller
         $courses = $this->courseRepo->relatedTo($pattern, $pattern->category);
 
         // "View all" hrefs scope the library index pages down to what's actually
-        // related to this pattern, rather than the whole catalogue.
-        $songsViewAllHref = '/library/songs?rhythm=' . urlencode($pattern->slug);
+        // related to this pattern, rather than the whole catalogue. ?from= is a
+        // human-readable label the target page uses for a "Showing songs related
+        // to {from}" subtitle — purely cosmetic.
+        $songsViewAllHref = '/library/songs?rhythm=' . urlencode($pattern->slug) . '&from=' . urlencode($pattern->name);
         $courseSlugs = $this->courseRepo->relatedTo($pattern, $pattern->category, limit: null)->pluck('slug');
-        $coursesViewAllHref = '/learn?slugs=' . urlencode($courseSlugs->implode(','));
+        $coursesViewAllHref = '/learn?slugs=' . urlencode($courseSlugs->implode(',')) . '&from=' . urlencode($pattern->name);
 
         $completedSlugs = $request->user()
             ? $request->user()->skillNodes()->wherePivot('status', 'completed')

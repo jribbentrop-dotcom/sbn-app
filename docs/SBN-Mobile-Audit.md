@@ -1,13 +1,19 @@
 # SBN — Mobile / Responsive Audit
 
-_Started: 15 July 2026 — **status: chrome/structure pass complete; 3 device
-bugs found + fixed.** All page-shell surfaces (nav, mega-menu drawer, hero, auth
-card, filter sidebars, library-index chrome, footer) confirmed clean at
-360/390/768/1024. Three content-driven overflow bugs (two reported from a real
-phone, one found in a follow-up 360px sweep) were reproduced with seeded
-fixtures and fixed (see **Confirmed bugs** below). A round-2 sweep of 11 routes
-at 360px found no other overflow. Other content-heavy widgets (chord-card grid,
-notation/tab, cinema viewer) still need a run against a populated `sbn.db`._
+_Started: 15 July 2026 — **status: chrome/structure pass complete; mobile
+filter-sidebar drawer shipped app-wide; 3 device bugs found + fixed.** All
+page-shell surfaces (nav, mega-menu drawer, hero, auth card, filter sidebars,
+library-index chrome, footer) confirmed clean at 360/390/768/1024. The
+library/Shop search-and-filter sidebars were rebuilt as a shared foldable
+mobile drawer (`FilterSidebar.vue`/`FilterToggleButton.vue`) across all
+library index pages, Shop, and the Courses catalog — see Findings. Three
+content-driven overflow bugs (two reported from a real phone, one found in a
+follow-up 360px sweep) were reproduced with seeded fixtures and fixed (see
+**Confirmed bugs** below). A round-2 sweep of 11 routes at 360px found no
+other overflow. Chord-diagram/Cinema/breadcrumb fixes landed 2026-07-16 (see
+Findings). Live-verified in the browser 2026-07-18 against a populated
+`sbn.db` via Herd (`sbn-app.test`) — this is now beyond static/headless
+review for the surfaces listed as `[x]` below._
 
 This doc is the home base for the mobile/responsive workstream (sibling to
 `SBN-SEO-Content-Analyse.md` for SEO and `SBN-Security-Audit-2026-07-09.md` for
@@ -78,10 +84,11 @@ content body needs a populated DB to fully exercise:
       left defensive comments about x-overflow here.
 - [x] **Chord Library index + show** (`Pages/Library/Chords/{Index,Show}.vue`,
       1297 / 1237 lines — the biggest pages) — the 240px value is the **filter
-      sidebar**, reset to `width:100%` + static at ≤1024px; the card grid uses
-      `minmax(120–150px, 1fr)` (safe). Index *chrome* clean at 360/768. Chord
-      diagram fret/string stroke-width bug (invisible lines on mobile) found +
-      fixed — see Findings below.
+      sidebar**, now the shared foldable `FilterSidebar`/`FilterToggleButton`
+      mobile drawer (see Findings below) rather than a fixed-width block. The
+      card grid uses `minmax(120–150px, 1fr)` (safe). Index *chrome* clean at
+      360/768. Chord diagram fret/string stroke-width bug (invisible lines on
+      mobile) found + fixed — see Findings below.
 - [x] **Song viewer / cinema** (`Components/Leadsheet/LeadsheetViewer.vue`,
       `Components/Cinema/*.vue`, `song-library.css`) — 340px viewer sidebar
       stacks (`width:100%`) at ≤1024px; wide notation scrolls in-container
@@ -101,8 +108,16 @@ content body needs a populated DB to fully exercise:
       pattern). Now fluid on ≤768px. See Confirmed bugs.
 - [ ] **Tab editor** (`tab-editor/TabEditor.vue`) — admin-only; likely
       desktop-only by design, confirm and note as out-of-scope if so.
-- [ ] **Shop** (`Pages/Shop/{Index,Show}.vue`, `shop.css`) — not run
+- [x] **Shop — filter sidebar** (`Pages/Shop/Index.vue`) — same shared
+      drawer fix as the library pages (was actually missed in the first
+      drawer pass and briefly regressed — see Findings). Rest of Shop
+      (`Pages/Shop/{Index,Show}.vue`, `shop.css`) still **not run**
       (ProductSeeder not invoked by `DatabaseSeeder`; empty shop).
+- [x] **Progressions / Chords / Rhythms / Songs / Theory / Courses index —
+      search + filter sidebar** (`FilterSidebar.vue`, `FilterToggleButton.vue`)
+      — new shared foldable-drawer components wired into all library index
+      pages + Shop + Courses catalog; see Findings below. Also fixed a
+      Progressions "View all" deep-link scoping bug found in the same pass.
 - [x] **Auth card** (`Login`/`Register` via `AuthCard.vue`) — modal over blurred
       backdrop; full Register form (beta notice + 4 fields + CTA) fits a 360px
       viewport with no overflow.
@@ -276,17 +291,35 @@ content widgets rendered empty and their at-width behavior is unverified:
 | Options dropdown (`TopBarMenu.vue`, shared by Classic + Cinema) | ≤640px | `.tbm-panel` is a fixed 220px popover anchored via `right: 0` *relative to its trigger button*. Once the header row wraps (the fix above), the Options trigger is often the first item on its own line — i.e. near the viewport's **left** edge — so a right-anchored panel would render mostly off-screen to the left and be unreachable/invisible under the page's `overflow-x: hidden` | Medium | ✅ Fixed 2026-07-16 — `max-width: calc(100vw - 32px)` safety clamp, plus `@media (max-width: 640px) { right: auto; left: 0 }` to anchor from the trigger's left edge instead, which stays on-screen given the trigger's own likely position after wrap |
 | Everything else checked this pass: `EduPanel.vue`, `RateSlider.vue`, `ViewToggle.vue`, `Breadcrumb.vue`, `StageSectionsGrid.vue` (horizontal-scroll chord/tab strips — scrolling by design, not a bug), `VideoEmbed.vue`, `ChordCard.vue` | — | No fixed-width/overflow issues found — all fluid or intentionally scrollable | — | ✅ Reviewed 2026-07-16, no changes needed |
 
+### Live pass — round 3 (filter-sidebar mobile drawer), 17 Jul 2026
+
+| Page | Width | Issue | Severity | Status |
+|---|---|---|---|---|
+| Songs/Index, Chords/Index | 900–1024px (unfolded-foldable-phone range) | Filter sidebar's page-CSS `@media(1024px)` stacking rule and the sidebar's own `@media(900px)` full-width rule fought each other — the sidebar's CSS class (`sbn-lib-filter-sidebar`) never matched the selector each page's own stylesheet was targeting (`sbn-filter-sidebar`), so it rendered as a squeezed fixed-width column instead of stacking full width. | High — core UX broken at a real, common width | ✅ Fixed — replaced with a mobile drawer (`FilterToggleButton`/`FilterSidebar` components), breakpoints aligned to 900px everywhere |
+| All library pages (Songs, Chords, Rhythms, Courses, Progressions, Theory) | ≤600px | Filter sidebar was `display: none` below 600px — filters were simply unreachable on a real phone, not just squeezed. | High | ✅ Fixed — same drawer fix; sidebar is reachable via the "Filters" toggle at every width now |
+| Shop/Index | ≤900px | Missed in the first pass (7 pages share this sidebar pattern; Shop wasn't in the initial audit of who uses it). CSS change made the sidebar an off-canvas drawer with no toggle button to open it — briefly a regression, not just a pre-existing bug. | High (temporary) | ✅ Fixed same session |
+| Songs/Index | any | Composer filter rendered all 40 server-capped names as flat pills in the 220px sidebar column — not a responsive bug per se, but unusable content density. | Medium | ✅ Fixed — capped to 10 visible + "+N more" toggle |
+| Progressions/Index | "View all" deep-link | Found alongside the filter-sidebar work: the "View all" link scoping bug (see `SBN-Progression-Library-Reference.md`) — cross-linking here since it was fixed in the same pass. | Medium | ✅ Fixed |
+
+_Originally verified via headless-Chromium screenshots of static HTML repros
+(real compiled CSS, hand-built markup) at 390/700/890/950/1024/1200px in a
+cloud session with no DB access — **since re-verified live** against the real
+app + populated `sbn.db` via Herd, 2026-07-18 (see status note at the top of
+this doc)._
+
 ---
 
 ## Next steps
 
-1. **Content pass**: run the same Playwright harness against a populated
-   `sbn.db` (copy the real DB in, or extend `DatabaseSeeder` with a content
-   fixture) and drive the four "not yet confirmed" surfaces above at 360/768.
-   The harness is the throwaway `_audit*.mjs` pattern from this session
-   (Chromium at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`).
-2. Fix any content-overflow cases (usually a missing `max-width: 100%` or an
-   `overflow-x:auto` wrapper on a wide notation/tab block).
+1. **Content pass**: run the same Playwright harness (or the live Herd setup
+   now confirmed working, see top-of-doc status) against a populated
+   `sbn.db` and drive the remaining "not yet confirmed" surfaces at 360/768:
+   Chord Library **card grid** (240px card/archetype tiles) and Chord **Show**
+   page, **Course Player** body content (sidebar + lesson HTML with `<sbn-*>`
+   widgets), and **Shop** (needs `ProductSeeder`, which `DatabaseSeeder`
+   doesn't call).
+2. Fix any content-overflow cases found (usually a missing `max-width: 100%`
+   or an `overflow-x:auto` wrapper on a wide notation/tab block).
 3. Decide whether the tab editor / admin surfaces are in scope for mobile at all.
 
 ### Sandbox setup notes (for the next session)
