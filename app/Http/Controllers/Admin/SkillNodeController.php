@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\SkillNodeDeleteEdgeRequest;
+use App\Http\Requests\Admin\SkillNodeEdgeRequest;
+use App\Http\Requests\Admin\SkillNodeLayoutRequest;
+use App\Http\Requests\Admin\SkillNodeRequest;
 use App\Models\ChordDiagram;
 use App\Models\ChordProgression;
 use App\Models\Course;
@@ -11,8 +15,6 @@ use App\Models\RhythmPattern;
 use App\Models\SkillNode;
 use App\Services\ContentHealthService;
 use App\Services\SkillGraphService;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -73,14 +75,9 @@ class SkillNodeController extends Controller
      * Bulk-save node positions from the layout editor. Accepts
      * positions: [ { id, x, y }, ... ] and clamps to 0..1000.
      */
-    public function saveLayout(Request $request)
+    public function saveLayout(SkillNodeLayoutRequest $request)
     {
-        $data = $request->validate([
-            'positions'     => 'required|array',
-            'positions.*.id' => 'required|integer|exists:sbn_skill_nodes,id',
-            'positions.*.x' => 'required|integer',
-            'positions.*.y' => 'required|integer',
-        ]);
+        $data = $request->validated();
 
         foreach ($data['positions'] as $p) {
             SkillNode::where('id', $p['id'])->update([
@@ -99,12 +96,9 @@ class SkillNodeController extends Controller
      * never close a loop the form would have rejected. Idempotent — re-adding an
      * existing edge is a no-op, not an error.
      */
-    public function addEdge(Request $request, SkillGraphService $graph)
+    public function addEdge(SkillNodeEdgeRequest $request, SkillGraphService $graph)
     {
-        $data = $request->validate([
-            'from'     => 'required|integer|exists:sbn_skill_nodes,id',      // dependent
-            'requires' => 'required|integer|exists:sbn_skill_nodes,id|different:from', // prerequisite
-        ]);
+        $data = $request->validated();
 
         if ($graph->wouldCreateCycle($data['from'], $data['requires'])) {
             $names = SkillNode::whereIn('id', [$data['from'], $data['requires']])
@@ -128,12 +122,9 @@ class SkillNodeController extends Controller
      * Remove one prerequisite edge from the layout editor (click an edge).
      * Payload mirrors addEdge. No-op if the edge is already gone.
      */
-    public function deleteEdge(Request $request)
+    public function deleteEdge(SkillNodeDeleteEdgeRequest $request)
     {
-        $data = $request->validate([
-            'from'     => 'required|integer',
-            'requires' => 'required|integer',
-        ]);
+        $data = $request->validated();
 
         $deleted = \DB::table('sbn_skill_node_prerequisites')
             ->where('skill_node_id', $data['from'])
@@ -154,9 +145,9 @@ class SkillNodeController extends Controller
         return view('admin.skill-nodes.edit', $this->editData($node, $isNew));
     }
 
-    public function store(Request $request)
+    public function store(SkillNodeRequest $request)
     {
-        $data = $this->validated($request, null);
+        $data = $request->payload();
         $node = SkillNode::create($data['attributes']);
         $this->syncRelations($node, $data);
 
@@ -171,9 +162,9 @@ class SkillNodeController extends Controller
         return view('admin.skill-nodes.edit', $this->editData($skillNode, $isNew));
     }
 
-    public function update(Request $request, SkillNode $skillNode, SkillGraphService $graph)
+    public function update(SkillNodeRequest $request, SkillNode $skillNode, SkillGraphService $graph)
     {
-        $data = $this->validated($request, $skillNode->id);
+        $data = $request->payload();
 
         // A prereq edge can't close a loop back to this node — see
         // docs/SBN-Skill-System-Reference.md "v1 gaps" (no cycle detection existed
@@ -234,78 +225,6 @@ class SkillNodeController extends Controller
         ];
     }
 
-    /**
-     * @return array{attributes:array,prereqs:array<int>,courses:array<int>}
-     */
-    private function validated(Request $request, ?int $exceptId): array
-    {
-        $raw = $request->validate([
-            'title'            => 'required|string|max:255',
-            'slug'             => 'nullable|string|max:120',
-            'branch'           => 'required|in:' . implode(',', SkillNode::BRANCHES),
-            'sub_branch'       => 'nullable|string|max:120',
-            'description'      => 'nullable|string|max:2000',
-            'content_tag_slug' => 'nullable|string|max:120',
-            'grade'            => 'nullable|integer|min:1|max:5',
-            'icon_key'         => 'nullable|string|max:120',
-            'sort_order'       => 'nullable|integer|min:0',
-            'prereqs'          => 'nullable|array',
-            'prereqs.*'        => 'integer|exists:sbn_skill_nodes,id',
-            'courses'          => 'nullable|array',
-            'courses.*'        => 'integer|exists:sbn_courses,id',
-            'styles'           => 'nullable|array',
-            'styles.*'         => 'integer|min:0|max:3', // keyed by style slug; 0 = not tagged
-            'rhythm_patterns'    => 'nullable|array',
-            'rhythm_patterns.*'  => 'integer|exists:sbn_rhythm_patterns,id',
-            'chord_progressions'   => 'nullable|array',
-            'chord_progressions.*' => 'integer|exists:sbn_chord_progressions,id',
-            'voicing_categories'   => 'nullable|array',
-            'voicing_categories.*' => 'string|in:' . implode(',', array_keys(ChordDiagram::VOICING_CATEGORIES)),
-            'leadsheets'         => 'nullable|array',
-            'leadsheets.*'       => 'integer|exists:sbn_leadsheets,id',
-        ]);
-
-        $attributes = [
-            'title'            => $raw['title'],
-            'slug'             => $this->uniqueSlug($raw['slug'] ?: $raw['title'], $exceptId),
-            'branch'           => $raw['branch'],
-            'sub_branch'       => $raw['sub_branch'] ?? null,
-            'description'      => $raw['description'] ?? null,
-            'content_tag_slug' => $raw['content_tag_slug'] ?: null,
-            'grade'            => $raw['grade'] ?? null,
-            'icon_key'         => $raw['icon_key'] ?: null,
-            'completion_type'  => SkillNode::COMPLETION_SELF_REPORT, // v1: fixed
-            'sort_order'       => $raw['sort_order'] ?? 0,
-            // Chord voicings link by category (stored on the node, not a pivot).
-            'voicing_categories' => array_values($raw['voicing_categories'] ?? []) ?: null,
-        ];
-
-        // Style weights come in as { style-slug => weight }; drop 0s (untagged)
-        // and anything outside the controlled vocabulary (syncStyles re-checks too).
-        $styleWeights = [];
-        foreach (($raw['styles'] ?? []) as $style => $weight) {
-            if ((int) $weight > 0 && in_array($style, SkillNode::STYLES, true)) {
-                $styleWeights[$style] = (int) $weight;
-            }
-        }
-
-        // A node can never be its own prerequisite.
-        $prereqs = array_values(array_filter(
-            $raw['prereqs'] ?? [],
-            fn ($id) => (int) $id !== (int) $exceptId,
-        ));
-
-        return [
-            'attributes' => $attributes,
-            'prereqs'    => $prereqs,
-            'courses'    => $raw['courses'] ?? [],
-            'styles'     => $styleWeights,
-            'rhythmPatterns'    => $raw['rhythm_patterns'] ?? [],
-            'chordProgressions' => $raw['chord_progressions'] ?? [],
-            'leadsheets'        => $raw['leadsheets'] ?? [],
-        ];
-    }
-
     private function syncRelations(SkillNode $node, array $data): void
     {
         $node->prerequisites()->sync($data['prereqs']);
@@ -318,22 +237,6 @@ class SkillNodeController extends Controller
         $node->rhythmPatterns()->sync($data['rhythmPatterns']);
         $node->chordProgressions()->sync($data['chordProgressions']);
         $node->leadsheets()->sync($data['leadsheets']);
-    }
-
-    private function uniqueSlug(string $slug, ?int $exceptId): string
-    {
-        $base = Str::slug($slug) ?: 'skill-node';
-        $candidate = $base;
-        $i = 2;
-        while (
-            SkillNode::where('slug', $candidate)
-                ->when($exceptId, fn ($q) => $q->where('id', '!=', $exceptId))
-                ->exists()
-        ) {
-            $candidate = $base . '-' . $i++;
-        }
-
-        return $candidate;
     }
 
     public function coverage(ContentHealthService $health)

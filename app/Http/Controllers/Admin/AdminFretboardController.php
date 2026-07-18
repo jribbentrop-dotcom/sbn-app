@@ -3,9 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\FretboardRequest;
 use App\Models\Fretboard;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class AdminFretboardController extends Controller
 {
@@ -33,10 +32,9 @@ class AdminFretboardController extends Controller
         return view('admin.fretboards.edit', compact('fretboard', 'isNew'));
     }
 
-    public function store(Request $request)
+    public function store(FretboardRequest $request)
     {
-        $data = $this->validated($request);
-        $data['slug'] = $this->uniqueSlug($data['slug'] ?? '', null);
+        $data = $request->payload();
 
         Fretboard::create($data);
 
@@ -50,10 +48,9 @@ class AdminFretboardController extends Controller
         return view('admin.fretboards.edit', compact('fretboard', 'isNew'));
     }
 
-    public function update(Request $request, Fretboard $fretboard)
+    public function update(FretboardRequest $request, Fretboard $fretboard)
     {
-        $data = $this->validated($request);
-        $data['slug'] = $this->uniqueSlug($data['slug'] ?? '', $fretboard->id);
+        $data = $request->payload();
 
         $fretboard->update($data);
 
@@ -122,66 +119,4 @@ class AdminFretboardController extends Controller
         ]);
     }
 
-    // ─────────────────────────────────────────────────────────────
-
-    private function validated(Request $request): array
-    {
-        $raw = $request->validate([
-            'title'            => 'required|string|max:255',
-            'root_note'        => 'nullable|string|in:C,C#,Db,D,D#,Eb,E,F,F#,Gb,G,G#,Ab,A,A#,Bb,B',
-            'slug'             => 'nullable|string|max:120',
-            'description'      => 'nullable|string|max:1000',
-            'display_mode'     => 'required|in:chord,scale,sequence,positions',
-            'fret_count'       => 'required|integer|min:4|max:24',
-            'start_fret'       => 'required|integer|min:1|max:20',
-            'show_guide_tones' => 'nullable|boolean',
-            'show_rh_fingers'  => 'nullable|boolean',
-            'voicings'         => 'nullable|string', // JSON string from hidden field
-            'windows'          => 'nullable|string', // JSON string from hidden field (positions mode)
-            'start_window'     => 'nullable|integer|min:0|max:255',
-        ]);
-
-        // Checkboxes arrive as '1' or absent; cast to bool
-        $raw['show_guide_tones'] = (bool) ($raw['show_guide_tones'] ?? false);
-        $raw['show_rh_fingers']  = (bool) ($raw['show_rh_fingers']  ?? false);
-
-        // Decode voicings JSON → array
-        $raw['voicings'] = $raw['voicings']
-            ? json_decode($raw['voicings'], true) ?? []
-            : [];
-
-        // Decode windows JSON → array (positions mode; null when unused)
-        $raw['windows'] = ($raw['windows'] ?? null)
-            ? json_decode($raw['windows'], true) ?? []
-            : [];
-
-        // Clamp start_window to a valid index into windows[] (0 when out of range)
-        $windowCount = count($raw['windows']);
-        $startWindow = (int) ($raw['start_window'] ?? 0);
-        $raw['start_window'] = ($windowCount > 0 && $startWindow >= 0 && $startWindow < $windowCount)
-            ? $startWindow
-            : 0;
-
-        // Default slug from title if blank
-        if (empty($raw['slug'])) {
-            $raw['slug'] = Str::slug($raw['title']);
-        }
-
-        return $raw;
-    }
-
-    private function uniqueSlug(string $slug, ?int $exceptId): string
-    {
-        $base = Str::slug($slug) ?: 'fretboard';
-        $candidate = $base;
-        $i = 2;
-        while (
-            Fretboard::where('slug', $candidate)
-                ->when($exceptId, fn($q) => $q->where('id', '!=', $exceptId))
-                ->exists()
-        ) {
-            $candidate = $base . '-' . $i++;
-        }
-        return $candidate;
-    }
 }

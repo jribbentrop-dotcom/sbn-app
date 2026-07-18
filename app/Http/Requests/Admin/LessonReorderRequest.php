@@ -4,7 +4,7 @@ namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class SaveArchetypeRequest extends FormRequest
+class LessonReorderRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -14,8 +14,9 @@ class SaveArchetypeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'        => 'required|string|max:120',
-            'description' => 'nullable|string|max:2000',
+            'items'               => ['required', 'array'],
+            'items.*.id'          => ['required', 'integer'],
+            'items.*.sort_order'  => ['required', 'integer'],
         ];
     }
 }

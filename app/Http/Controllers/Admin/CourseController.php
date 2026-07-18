@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\CourseDescriptionRequest;
 use App\Http\Requests\Admin\CourseRequest;
+use App\Http\Requests\Admin\CourseStatusRequest;
 use App\Models\Course;
 use App\Models\Product;
 use App\Models\SbnTag;
@@ -92,17 +94,15 @@ class CourseController extends Controller
         $course->tags()->sync($ids);
     }
 
-    public function updateStatus(Request $request, Course $course): \Illuminate\Http\JsonResponse
+    public function updateStatus(CourseStatusRequest $request, Course $course): \Illuminate\Http\JsonResponse
     {
-        $validated = $request->validate(['status' => 'required|in:draft,publish']);
-        $course->update(['status' => $validated['status']]);
+        $course->update(['status' => $request->validated('status')]);
         return response()->json(['success' => true, 'status' => $course->status]);
     }
 
-    public function updateDescription(Request $request, Course $course): \Illuminate\Http\JsonResponse
+    public function updateDescription(CourseDescriptionRequest $request, Course $course): \Illuminate\Http\JsonResponse
     {
-        $validated = $request->validate(['description' => 'nullable|string|max:10000']);
-        $course->update(['description' => $validated['description'] ?? '']);
+        $course->update(['description' => $request->validated('description') ?? '']);
         return response()->json(['success' => true, 'description' => $course->description]);
     }
 }

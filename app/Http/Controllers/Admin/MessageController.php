@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\AdminMessageRequest;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Notifications\NewMessageNotification;
@@ -49,7 +50,7 @@ class MessageController extends Controller
         ]);
     }
 
-    public function store(Request $request, Conversation $conversation)
+    public function store(AdminMessageRequest $request, Conversation $conversation)
     {
         $user = $request->user();
         abort_unless(
@@ -57,9 +58,7 @@ class MessageController extends Controller
             403
         );
 
-        $data = $request->validate([
-            'body' => ['required', 'string', 'max:5000'],
-        ]);
+        $data = $request->validated();
 
         $message = Message::create([
             'conversation_id' => $conversation->id,

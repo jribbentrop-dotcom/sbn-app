@@ -4,7 +4,7 @@ namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class SaveArchetypeRequest extends FormRequest
+class ExerciseSliceRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -14,8 +14,9 @@ class SaveArchetypeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'        => 'required|string|max:120',
-            'description' => 'nullable|string|max:2000',
+            'measure_indices'   => ['required', 'array', 'min:1'],
+            'measure_indices.*' => ['integer', 'min:0'],
+            'title'             => ['nullable', 'string', 'max:255'],
         ];
     }
 }

@@ -3,8 +3,9 @@
 namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
-class SaveArchetypeRequest extends FormRequest
+class LessonFieldRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -14,8 +15,8 @@ class SaveArchetypeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'        => 'required|string|max:120',
-            'description' => 'nullable|string|max:2000',
+            'field' => ['required', 'string', Rule::in(['section_title', 'title', 'status'])],
+            'value' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

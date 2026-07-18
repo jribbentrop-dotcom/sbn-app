@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\CommunityMessageRequest;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Services\AccountService;
@@ -35,14 +36,12 @@ class CommunityController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(CommunityMessageRequest $request)
     {
         $user = $request->user();
         $channel = $this->channel();
 
-        $data = $request->validate([
-            'body' => ['required', 'string', 'max:5000'],
-        ]);
+        $data = $request->validated();
 
         $message = Message::create([
             'conversation_id' => $channel->id,

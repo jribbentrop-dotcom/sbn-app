@@ -8,7 +8,7 @@ class UpdateRhythmDescriptionRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return (bool) $this->user()?->isInstructor();
     }
 
     public function rules(): array
