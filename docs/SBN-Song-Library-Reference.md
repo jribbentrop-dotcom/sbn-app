@@ -128,8 +128,8 @@ Two columns on `sbn_leadsheets` control what each song exposes:
 
 | Column | Values | Meaning |
 |---|---|---|
-| `is_pro` | bool | `true` = full Viewer/Cinema arrangement available (tab, melody, synced playback). Must only be set on `public_domain` rows. |
-| `license_status` | `public_domain` \| `copyrighted` \| `cleared` \| `unknown` | Legal record. Not DB-enforced — admin checklist. |
+| `is_pro` | bool | `true` = full Viewer/Cinema arrangement available (tab, melody, synced playback). Must only be `true` on `public_domain` rows — **enforced at the write path** by `UpdateIsProRequest` (setting `is_pro=true` on a non-public-domain row 422s; `is_pro=false` always allowed). |
+| `license_status` | `public_domain` \| `copyrighted` \| `cleared` \| `unknown` | Legal record. The column itself is not DB-constrained (admin checklist), but it now gates the `is_pro` toggle above. |
 
 ### What each song gets
 
