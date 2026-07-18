@@ -422,9 +422,11 @@ class SongLibraryController extends Controller
         $courses = $this->courseRepo->relatedTo($leadsheet, $songCourseCategory);
 
         // "View all" href scopes the courses index down to what's actually
-        // related to this song, rather than the whole catalogue.
+        // related to this song, rather than the whole catalogue. ?from= is a
+        // human-readable label the target page uses for a "Showing courses
+        // related to {from}" subtitle — purely cosmetic.
         $courseSlugs = $this->courseRepo->relatedTo($leadsheet, $songCourseCategory, limit: null)->pluck('slug');
-        $coursesViewAllHref = '/learn?slugs=' . urlencode($courseSlugs->implode(','));
+        $coursesViewAllHref = '/learn?slugs=' . urlencode($courseSlugs->implode(',')) . '&from=' . urlencode($leadsheet->title);
 
         $completedSlugs = $request->user()
             ? $request->user()->skillNodes()->wherePivot('status', 'completed')

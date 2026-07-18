@@ -193,7 +193,7 @@ function sbnRenderDiagramSVG(voicing, opts) {
     for (var f = 0; f <= numFrets; f++) {
         svg += '<line x1="' + left + '" y1="' + (top + f * fretSp)
              + '" x2="' + (left + strSp * 5) + '" y2="' + (top + f * fretSp)
-             + '" stroke="var(--clr-text)" stroke-width="0.4" opacity="0.4"/>';
+             + '" stroke="var(--clr-text)" stroke-width="1" opacity="0.55" vector-effect="non-scaling-stroke"/>';
     }
 
     // String lines — flush at top (nut), extend 5px below bottom fret
@@ -201,7 +201,7 @@ function sbnRenderDiagramSVG(voicing, opts) {
     for (var s = 0; s < 6; s++) {
         svg += '<line x1="' + (left + s * strSp) + '" y1="' + strTop
              + '" x2="' + (left + s * strSp) + '" y2="' + (top + fretSp * numFrets + 5)
-             + '" stroke="var(--clr-text)" stroke-width="0.4" opacity="0.5"/>';
+             + '" stroke="var(--clr-text)" stroke-width="1" opacity="0.65" vector-effect="non-scaling-stroke"/>';
     }
 
     // Markers: ×, ○, dot

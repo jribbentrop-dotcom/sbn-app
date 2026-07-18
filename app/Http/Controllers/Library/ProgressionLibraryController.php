@@ -33,15 +33,18 @@ class ProgressionLibraryController extends Controller
         // ?slugs= is a comma-separated allow-list used by "View all" links from a
         // chord show page, scoping the catalogue to the progressions actually
         // related to that chord (a computation that can't be expressed as a
-        // simple column filter).
+        // simple column filter). Applied client-side (like Songs'/Courses' own
+        // ?slugs= handling) rather than filtered out of the payload here, so the
+        // index page can show "X of Y" and offer a way back to the full catalogue
+        // instead of silently rendering a subset with no indication it's scoped.
         $slugs = array_filter(array_map('trim', explode(',', (string) $request->get('slugs', ''))));
+        // ?from= is a human-readable label for the thing that was viewed to reach
+        // this scoped link (e.g. a chord name) — purely cosmetic, used by the
+        // index page to show "Showing progressions related to {from}".
+        $from = $request->get('from');
 
         $progressions = ChordProgression::withSongCounts($category, $search)
             ->map(fn ($p) => $this->serializeProgression($p));
-
-        if (!empty($slugs)) {
-            $progressions = $progressions->whereIn('slug', $slugs)->values();
-        }
 
         // Apply sorting
         if ($sort === 'name') {
@@ -63,6 +66,7 @@ class ProgressionLibraryController extends Controller
                 'search' => $search,
                 'sort' => $sort,
                 'slugs' => $slugs,
+                'from' => $from,
             ],
         ]);
     }
@@ -180,10 +184,12 @@ class ProgressionLibraryController extends Controller
         $courses = $this->courseRepo->relatedTo($progression, $progression->category);
 
         // "View all" hrefs scope the library index pages down to what's actually
-        // related to this progression, rather than the whole catalogue.
-        $songsViewAllHref = '/library/songs?slugs=' . urlencode($songs->pluck('slug')->implode(','));
+        // related to this progression, rather than the whole catalogue. ?from=
+        // is a human-readable label the target page uses for a "Showing songs
+        // related to {from}" subtitle — purely cosmetic.
+        $songsViewAllHref = '/library/songs?slugs=' . urlencode($songs->pluck('slug')->implode(',')) . '&from=' . urlencode($progression->name);
         $courseSlugs = $this->courseRepo->relatedTo($progression, $progression->category, limit: null)->pluck('slug');
-        $coursesViewAllHref = '/learn?slugs=' . urlencode($courseSlugs->implode(','));
+        $coursesViewAllHref = '/learn?slugs=' . urlencode($courseSlugs->implode(',')) . '&from=' . urlencode($progression->name);
 
         $completedSlugs = $request->user()
             ? $request->user()->skillNodes()->wherePivot('status', 'completed')

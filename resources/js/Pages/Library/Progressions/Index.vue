@@ -4,6 +4,8 @@ import { Link, Head, router } from '@inertiajs/vue3';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { getCategoryColor } from '@/composables/useCategoryColors';
 import { readDifficultyQueryParam } from '@/composables/useBreadcrumb';
+import FilterToggleButton from '@/Components/Library/FilterToggleButton.vue';
+import FilterSidebar from '@/Components/Library/FilterSidebar.vue';
 
 defineOptions({ layout: PublicLayout });
 
@@ -33,6 +35,7 @@ interface Props {
         search?: string;
         sort?: string;
         slugs?: string[];
+        from?: string;
     };
 }
 
@@ -43,6 +46,17 @@ const search = ref(props.activeFilters.search || '');
 const fCategory = ref(props.activeFilters.category || '');
 const fDifficulty = ref(readDifficultyQueryParam());
 const fSort = ref(props.activeFilters.sort || 'popularity');
+const filtersOpen = ref(false);
+// ?slugs= is a comma-separated allow-list used by "View all" links from a
+// chord show page — scopes the catalogue down client-side (like Songs'/
+// Courses' own ?slugs= handling) rather than the server pre-filtering the
+// payload, so the page can show "X of Y" and offer a way back to the full
+// catalogue instead of silently rendering a subset with no indication it's
+// scoped and no escape hatch.
+const fSlugs = ref<string[]>(props.activeFilters.slugs ?? []);
+// ?from= is a human-readable label for the thing that was viewed to reach
+// this scoped link (e.g. a chord name) — purely cosmetic.
+const fromLabel = ref(props.activeFilters.from ?? '');
 
 // ── Category labels ─────────────────────────────────────────
 const categoryLabels: Record<string, string> = {
@@ -55,6 +69,11 @@ const categoryLabels: Record<string, string> = {
 // ── Filtered and sorted progressions ─────────────────────────────
 const filteredProgressions = computed(() => {
     let result = [...props.progressions];
+
+    // Slug allow-list from a "View all" deep link
+    if (fSlugs.value.length) {
+        result = result.filter(p => fSlugs.value.includes(p.slug));
+    }
 
     // Filter by category
     if (fCategory.value) {
@@ -90,6 +109,7 @@ const filteredProgressions = computed(() => {
 });
 
 const totalFiltered = computed(() => filteredProgressions.value.length);
+const hasFilters = computed(() => !!(search.value || fCategory.value || fSlugs.value.length));
 
 // ── Popularity tier calculation ───────────────────────────────
 function getPopularityTier(songCount: number): { tier: string; label: string } {
@@ -128,6 +148,8 @@ function clearFilters() {
     fCategory.value = '';
     fDifficulty.value = '';
     fSort.value = 'popularity';
+    fSlugs.value = [];
+    fromLabel.value = '';
 }
 
 function setExampleQuery(query: string) {
@@ -149,7 +171,11 @@ function setExampleQuery(query: string) {
         <!-- Page Header -->
         <div class="sbn-lib-page-header">
             <h1 class="sbn-lib-page-title">Chord Progression Library</h1>
-            <p class="sbn-lib-page-subtitle">
+            <p v-if="fSlugs.length && fromLabel" class="sbn-lib-page-subtitle">
+                Showing progressions related to <strong>{{ fromLabel }}</strong> —
+                <Link href="/library/progressions" class="sbn-lib-scope-clear">browse the full library</Link>
+            </p>
+            <p v-else class="sbn-lib-page-subtitle">
                 Explore the harmonic building blocks of jazz, bossa nova, blues and beyond —
                 ranked by how often they appear in the song library.
             </p>
@@ -178,6 +204,8 @@ function setExampleQuery(query: string) {
                         </svg>
                     </button>
                 </div>
+
+                <FilterToggleButton v-model="filtersOpen" :has-filters="hasFilters">Filters</FilterToggleButton>
             </div>
         </div>
 
@@ -276,14 +304,9 @@ function setExampleQuery(query: string) {
             </div>
 
             <!-- Filter Sidebar -->
-            <aside class="sbn-lib-filter-sidebar" id="sbn-prog-filter-sidebar">
-                <div class="sbn-lib-sidebar-header">
-                    <h3>Filter</h3>
-                    <span class="sbn-lib-sidebar-count">
-                        {{ totalFiltered }} progression{{ totalFiltered !== 1 ? 's' : '' }}
-                        <button v-if="search || fCategory" @click="clearFilters" class="sbn-lib-clear-btn">Clear</button>
-                    </span>
-                </div>
+            <FilterSidebar v-model="filtersOpen" :has-filters="hasFilters" @clear="clearFilters">
+                <template #title>Filter</template>
+                <template #count>{{ totalFiltered }}{{ hasFilters ? ` of ${totalCount}` : '' }} progression{{ totalFiltered !== 1 ? 's' : '' }}</template>
 
                 <!-- Style/Category Filter -->
                 <div class="sbn-lib-sidebar-section">
@@ -357,14 +380,8 @@ function setExampleQuery(query: string) {
                     </div>
                 </div>
 
-                <button
-                    v-if="search || fCategory"
-                    @click="clearFilters"
-                    class="sbn-lib-sidebar-clear"
-                >
-                    Clear all filters
-                </button>
-            </aside>
+                <template #clear-label>Clear all filters</template>
+            </FilterSidebar>
         </div>
     </div>
 </template>

@@ -181,17 +181,13 @@
    RESPONSIVE
    ============================================================ */
 
-@media (max-width: 1024px) {
+@media (max-width: 900px) {
+    /* Matches the .sbn-lib-filter-sidebar drawer breakpoint in
+       sbn-design-system.css — the sidebar goes off-canvas at the same
+       width this wrapper stacks to a single column, so there's no gap
+       where the (now fixed-position) sidebar is still laid out inline. */
     .sbn-content-wrapper {
         flex-direction: column;
-    }
-
-    .sbn-filter-sidebar {
-        position: static;
-        width: 100%;
-        min-width: 100%;
-        max-height: none;
-        order: -1;
     }
 
     .sbn-songs-grid {

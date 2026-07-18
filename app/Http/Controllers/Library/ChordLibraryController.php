@@ -421,6 +421,11 @@ class ChordLibraryController extends Controller
 		$storedRoot          = $chord->root_note ?? 'C';
 		$effectiveDisplayRoot = $displayRoot ?? $storedRoot;
 
+		// Human-readable label for "View all" links' ?from= param — purely
+		// cosmetic, lets the target library page show "Showing songs related
+		// to Cmaj7" instead of a generic heading with no indication it's scoped.
+		$chordLabel = $this->chordDisplayName($effectiveDisplayRoot, $chord->quality, $chord->extensions ?? null);
+
 		$siblings = ChordDiagram::where('quality', $chord->quality)
 			->where('id', '!=', $chord->id)
 			->orderByDesc('popularity')
@@ -449,7 +454,7 @@ class ChordLibraryController extends Controller
 			->get()
 			->map(fn ($s) => $s->toLinkArray());
 		$songs = $allSongs->take(4)->values();
-		$songsViewAllHref = '/library/songs?slugs=' . urlencode($allSongs->pluck('slug')->implode(','));
+		$songsViewAllHref = '/library/songs?slugs=' . urlencode($allSongs->pluck('slug')->implode(',')) . '&from=' . urlencode($chordLabel);
 
 		// Find progressions that contain a chord with this quality.
 		// We can't do this in SQL via LIKE because numerals like "I7" / "Im7" / "Imaj7"
@@ -486,7 +491,7 @@ class ChordLibraryController extends Controller
 			->filter()
 			->values();
 		$progressions = $allProgressions->take(8)->values();
-		$progressionsViewAllHref = '/library/progressions?slugs=' . urlencode($allProgressions->pluck('slug')->implode(','));
+		$progressionsViewAllHref = '/library/progressions?slugs=' . urlencode($allProgressions->pluck('slug')->implode(',')) . '&from=' . urlencode($chordLabel);
 
 		// Aliases: same fret shape, different musical reinterpretation.
 		// Aliases are stored relative to the chord's stored root (C). If the page
@@ -610,7 +615,7 @@ class ChordLibraryController extends Controller
 		// "View all" hrefs scope the library index pages down to what's actually
 		// related to this chord, rather than the whole catalogue.
 		$courseSlugs = $this->courseRepo->relatedByCategory($chordCourseCategory, limit: null)->pluck('slug');
-		$coursesViewAllHref = '/learn?slugs=' . urlencode($courseSlugs->implode(','));
+		$coursesViewAllHref = '/learn?slugs=' . urlencode($courseSlugs->implode(',')) . '&from=' . urlencode($chordLabel);
 
 		// Search-result deep-link: when ?aliasQuality= is present, find an alias
 		// in the panel matching that identity so the page opens with it active.

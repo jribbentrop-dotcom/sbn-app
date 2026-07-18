@@ -1,7 +1,19 @@
 # SBN — Mobile / Responsive Audit
 
-_Started: 15 July 2026 — **status: scaffold.** Findings so far are from a static
-review only; none have been confirmed at real device widths yet._
+_Started: 15 July 2026 — **status: chrome/structure pass complete; mobile
+filter-sidebar drawer shipped app-wide; 3 device bugs found + fixed.** All
+page-shell surfaces (nav, mega-menu drawer, hero, auth card, filter sidebars,
+library-index chrome, footer) confirmed clean at 360/390/768/1024. The
+library/Shop search-and-filter sidebars were rebuilt as a shared foldable
+mobile drawer (`FilterSidebar.vue`/`FilterToggleButton.vue`) across all
+library index pages, Shop, and the Courses catalog — see Findings. Three
+content-driven overflow bugs (two reported from a real phone, one found in a
+follow-up 360px sweep) were reproduced with seeded fixtures and fixed (see
+**Confirmed bugs** below). A round-2 sweep of 11 routes at 360px found no
+other overflow. Chord-diagram/Cinema/breadcrumb fixes landed 2026-07-16 (see
+Findings). Live-verified in the browser 2026-07-18 against a populated
+`sbn.db` via Herd (`sbn-app.test`) — this is now beyond static/headless
+review for the surfaces listed as `[x]` below._
 
 This doc is the home base for the mobile/responsive workstream (sibling to
 `SBN-SEO-Content-Analyse.md` for SEO and `SBN-Security-Audit-2026-07-09.md` for
@@ -57,42 +69,290 @@ mobile QA here must be visual and page-by-page.)_
 
 ## Priority surfaces to QA (checklist)
 
-High-traffic / high-complexity first — these are the ones most likely to break:
+High-traffic / high-complexity first — these are the ones most likely to break.
+`[x]` = confirmed clean at real widths; `[~]` = chrome confirmed but the
+content body needs a populated DB to fully exercise:
 
-- [ ] **MegaMenu / primary nav** (`Components/MegaMenu.vue`,
-      `resources/css/frontend/mega-menu.css`) — has the most `@media` logic;
-      confirm the mobile collapse works at 767/768 and the panel doesn't
-      overflow.
-- [ ] **Home** (`Pages/Home.vue`, `home.css`) — hero blobs use 480–680px fixed
-      widths; check for horizontal scroll.
-- [ ] **Chord Library index + show** (`Pages/Library/Chords/{Index,Show}.vue`,
-      1297 / 1237 lines — the biggest pages) — 240px fixed card widths.
-- [ ] **Song viewer / cinema** (`Components/Leadsheet/LeadsheetViewer.vue`,
-      `song-library.css`) — notation/tab is wide; must scroll inside its own
-      container, not the page body.
-- [ ] **Course player** (`Pages/Courses/Player.vue`, `course-player.css`) —
-      sidebar + content layout at 280px fixed panel widths.
+- [x] **MegaMenu / primary nav** (`Components/MegaMenu.vue`,
+      `resources/css/frontend/mega-menu.css`) — hamburger appears at ≤767px
+      (`.hamburger { display:flex }`, `.main-navigation { display:none }`); the
+      slide-in `.mobile-drawer` (Home / Courses / Explore / Shop, collapsible,
+      backdrop overlay, close button) opens with **zero overflow** at 360px.
+- [x] **Home** (`Pages/Home.vue`, `home.css`) — hero blobs (480–680px) are
+      clipped by `.hero-bg { overflow:hidden }` and the chord-rain section's own
+      `overflow:hidden`; no horizontal scroll at any width. Developer already
+      left defensive comments about x-overflow here.
+- [x] **Chord Library index + show** (`Pages/Library/Chords/{Index,Show}.vue`,
+      1297 / 1237 lines — the biggest pages) — the 240px value is the **filter
+      sidebar**, now the shared foldable `FilterSidebar`/`FilterToggleButton`
+      mobile drawer (see Findings below) rather than a fixed-width block. The
+      card grid uses `minmax(120–150px, 1fr)` (safe). Index *chrome* clean at
+      360/768. Chord diagram fret/string stroke-width bug (invisible lines on
+      mobile) found + fixed — see Findings below.
+- [x] **Song viewer / cinema** (`Components/Leadsheet/LeadsheetViewer.vue`,
+      `Components/Cinema/*.vue`, `song-library.css`) — 340px viewer sidebar
+      stacks (`width:100%`) at ≤1024px; wide notation scrolls in-container
+      (`SheetMiniPlayer` has `overflow-x:auto; min-width:0`). Index chrome
+      clean. Code-reviewed 2026-07-16, six further bugs found and fixed (see
+      Findings below: sidebar order, content not stretching, hero chord card
+      not reflowing, Cinema top bar not wrapping, Options dropdown overflow,
+      transport deck hidden on touch, glyph play icon).
+- [x] **Course player** (`Pages/Courses/Player.vue`, `course-player.css`) —
+      **BUG-1 (fixed):** the off-canvas drawer had no default-hidden state, so
+      the full lesson menu sat permanently expanded at the top on mobile.
+      Reproduced with a seeded 8-lesson course; drawer now hidden by default and
+      opens/closes via the menu button + overlay. See Confirmed bugs.
+- [x] **Rhythm library** (`Pages/Library/Rhythms/Index.vue`,
+      `Components/Library/RhythmStrip.vue`) — **BUG-2 (fixed):** fixed 20px
+      pattern cells overflowed the page (960px vs 360px viewport on a 32-step
+      pattern). Now fluid on ≤768px. See Confirmed bugs.
 - [ ] **Tab editor** (`tab-editor/TabEditor.vue`) — admin-only; likely
       desktop-only by design, confirm and note as out-of-scope if so.
-- [ ] **Shop** (`Pages/Shop/{Index,Show}.vue`, `shop.css`).
-- [ ] **Auth card** (`Login`/`Register` via `AuthCard.vue`) — modal over blurred
-      backdrop; check it fits a 360px viewport.
+- [x] **Shop — filter sidebar** (`Pages/Shop/Index.vue`) — same shared
+      drawer fix as the library pages (was actually missed in the first
+      drawer pass and briefly regressed — see Findings). Rest of Shop
+      (`Pages/Shop/{Index,Show}.vue`, `shop.css`) still **not run**
+      (ProductSeeder not invoked by `DatabaseSeeder`; empty shop).
+- [x] **Progressions / Chords / Rhythms / Songs / Theory / Courses index —
+      search + filter sidebar** (`FilterSidebar.vue`, `FilterToggleButton.vue`)
+      — new shared foldable-drawer components wired into all library index
+      pages + Shop + Courses catalog; see Findings below. Also fixed a
+      Progressions "View all" deep-link scoping bug found in the same pass.
+- [x] **Auth card** (`Login`/`Register` via `AuthCard.vue`) — modal over blurred
+      backdrop; full Register form (beta notice + 4 fields + CTA) fits a 360px
+      viewport with no overflow.
+
+---
+
+## Confirmed bugs (reported from a real phone, reproduced + fixed)
+
+### BUG-1 — Course player: lesson menu always open on mobile
+**Symptom (user):** on a phone the course player's main menu is always open;
+the course needs a proper mobile menu.
+**Root cause:** `course-player.css` had the *open* drawer state
+(`.vC-grid.mobile-sidebar-open .vC-nav { position:fixed; width:280px }`) and a
+working toggle button (`.vC-mobile-menu-btn`, wired to `mobileSidebarOpen`), but
+**no rule hiding `.vC-nav` by default on mobile.** At ≤900px the grid collapses
+to one column and the full lesson list simply stacked at the top of the page,
+permanently expanded — the toggle/overlay machinery was dead weight.
+**Fix:** in the `@media (max-width: 900px)` block — `.vC-nav { display:none }` by
+default; `.mobile-sidebar-open .vC-nav { display:flex }` as the drawer (added
+`max-width:85vw` + `overflow-y:auto`); hid the rail-collapse chevron (meaningless
+on mobile). **Verified** with a seeded 8-lesson course at 360px: menu hidden by
+default, button opens the 280px drawer with dimmed overlay, overlay-tap closes.
+**Open design question (from user):** whether the whole course player should
+become an app-like full-screen experience on mobile. The fix above resolves the
+bug; the larger redesign is a separate decision — not done.
+
+### BUG-2 — Rhythm library overflows to the right
+**Symptom (user):** the rhythm library scrolls horizontally.
+**Root cause:** `RhythmStrip.vue` in `is-fixed-cells` mode (used by the library
+index, `:fixed-cells="true"`) sets `grid-auto-columns: 20px`. A 16- or 32-step
+pattern renders N×20px in one non-shrinking row — a 32-step pattern is ~806px
+wide, forcing the whole page to **960px at a 360px viewport (600px of
+overflow)**. The card grid itself was fine (`1fr` at ≤768px); the overflow came
+from inside the strip.
+**Fix:** scoped `@media (max-width: 768px)` override reverting fixed cells to
+`grid-auto-columns: minmax(0, 1fr)` so the strip shrinks to fit (matching the
+course player's fluid strip). **Verified** with seeded 16- and 32-step patterns:
+overflow 0 at 360px, both strips render legibly inside their cards.
+
+### BUG-3 — Rhythm *Show* page overflows on wide patterns
+**Symptom:** found during a follow-up 360px sweep — the pattern **detail** page
+(`/library/rhythms/{slug}`) scrolled horizontally (27px on a 16-step pattern,
+91px on a 32-step). Different component from BUG-2: `RhythmPattern.vue` (the full
+pattern view), where `.sbn-rhythm-cell` kept a `min-width: 14px` floor and the
+`.sbn-rhythm-cells` flex item had default `min-width: auto`, so a full pattern
+couldn't shrink below its content width. The beat-label row ("1 e & a …") added a
+text min-content floor on top.
+**Fix:** in the existing `@media (max-width: 640px)` block — `.sbn-rhythm-cell {
+min-width: 0; overflow: hidden }` (the `overflow:hidden` kills the label-text
+floor) and `.sbn-rhythm-cells { min-width: 0; gap: 3px }`. **Verified:** overflow
+0 at 360px for both 16- and 32-step patterns; the full pattern renders inside the
+card. Desktop/tablet untouched (scoped ≤640px).
+
+---
+
+## Unrelated console noise seen while testing (not mobile, not a regression)
+
+Flagged 2026-07-18 in the browser console while live-testing the merged mobile
+branches on `/library/songs/allegretto-in-b-minor/viewer`. Neither item was
+introduced by the mobile work — confirmed via `git log` that the responsible
+files weren't touched by `mobile-app-audit` or `chord-diagram-mobile-visibility`
+(last touched weeks earlier, in unrelated commits `d8dd4d7a` / `9bdca854`).
+Logging here only so they aren't lost; not in scope for the mobile branches.
+
+- **`[Vue warn] Invalid watch source: null` spammed once per chord card** in
+  `LeadsheetViewer` → `ChordGridView` → `ChordCard`. Root cause:
+  `resources/js/tab-editor/components/ChordCard.vue:148` does
+  `watch(inlineRenameTarget, ...)` where `inlineRenameTarget =
+  inject('inlineRenameTarget', null)`. This `ChordCard.vue` is shared between
+  the admin tab editor (which provides that inject key) and the public
+  read-only `LeadsheetViewer` (which doesn't), so in the viewer the inject
+  always resolves to the literal default `null` and `watch(null, …)` is
+  invalid — Vue warns and no-ops. Harmless (rename is a no-op in read-only
+  mode anyway) but noisy on every leadsheet page. **Fix:** guard with
+  `if (!inlineRenameTarget) return` before the `watch()` call, or only
+  register the watch when the inject key is actually provided (e.g.
+  `inlineRenameTarget && watch(...)`). Small, self-contained — safe to just
+  fix directly next time someone's in this file rather than needing its own
+  session.
+- **`WebSocket connection to 'ws://localhost:8080/app/...' failed`** — Laravel
+  Reverb (broadcasting) isn't running as a local process in this dev setup.
+  Expected/harmless unless testing live community/messages features; not a
+  code bug.
+
+---
+
+## Open design follow-ups (not bugs — need a dedicated mobile session)
+
+Flagged 2026-07-18 while reviewing the merged chrome/structure + stroke-width
+passes live in the browser. These are redesigns, not overflow fixes — scope
+each properly (mockup/decision first) rather than patching CSS in place.
+
+1. **Course player menu feels detached from the course player on mobile.**
+   The BUG-1 fix (hidden-by-default off-canvas drawer, see above) makes the
+   menu *functional*, but the reviewer's reaction live was that the drawer
+   still reads as a bolted-on desktop sidebar rather than a mobile-native
+   pattern. Worth revisiting the "Open design question" already logged under
+   BUG-1: **should the course player become a full-screen, app-like mobile
+   experience** (e.g. a bottom-sheet or tab-bar lesson switcher instead of a
+   left-drawer clone)? Needs a design pass, not just CSS.
+2. **Cinema needs a mobile-specific redesign, not a reflow patch.** The
+   round-2 fix made `StageHeroNow.vue`'s hero chord card *not overflow* on
+   phones (stacks glyph + diagram, shrinks the diagram to 140px), but the
+   live reaction was that the hero chord panel probably shouldn't be there at
+   all on mobile — screen space is too tight for it to earn its place next to
+   the transport/notation. Consider **dropping the hero chord panel on
+   mobile** (or replacing it with something lighter) rather than continuing
+   to shrink it to fit.
+3. **Filter drawer toggle button needs a visual upgrade + persistent
+   visibility.** Flagged 2026-07-18 live-testing the round-3 filter-sidebar
+   drawer work. Two issues in `FilterToggleButton.vue` /
+   `.sbn-lib-filter-toggle` (`public/css/sbn-design-system.css:4940`):
+   - The button is a plain bordered pill (`border: 2px solid var(--clr-border)`,
+     white background, text + tiny SVG icon) — reads as a generic secondary
+     button, not an obvious "open filters" affordance. Needs a proper visual
+     pass (icon treatment, maybe a badge/pill style consistent with the rest
+     of the mobile chrome).
+   - It's only reachable by scrolling to wherever it sits in the page flow
+     (`margin: 14px auto 0`, static position) — on a long results list the
+     user has to scroll back up to open filters again. Consider making it
+     persistently visible (sticky/fixed position, e.g. bottom-right FAB or
+     sticky top bar) rather than a static in-flow button.
+4. **Songs library needs a cap on the Rhythm/Style filter, same as the
+   Composer fix.** `resources/js/Pages/Library/Songs/Index.vue:265-275`
+   renders every entry in `props.rhythms` as a flat pill
+   (`v-for="r in rhythms"`) with no cap — the same "unusable content
+   density in a narrow sidebar column" problem the Composer filter had
+   before round 3 capped it to 10 + "+N more" (see `COMPOSER_VISIBLE_COUNT`
+   / `visibleComposers` / `hiddenComposerCount` in the same file for the
+   pattern to copy). Apply the identical expand/collapse treatment to the
+   Rhythm list.
 
 ---
 
 ## Findings
 
-_None confirmed yet — populate as the visual pass runs. Suggested row format:_
+### Live pass — round 1 (chrome / structure), 15 Jul 2026
+
+Method: `composer install` + `npm install` + `npm run build`, fresh SQLite
+migrated + `db:seed`, `php artisan serve`, driven with Playmwright/Chromium at
+360 / 390 / 768 / 1024. Each page measured `documentElement.scrollWidth −
+clientWidth` and listed any element extending past the viewport.
+
+**Result: no horizontal overflow found on any tested surface at any width.**
+The hand-written `@media` overrides for the flagged fixed-px widths are all
+present and correct — the static "prime suspects" (240px filter sidebars, 340px
+viewer sidebar, 480–680px hero blobs, 280px course-player nav) each have a mobile
+counterpart or an `overflow:hidden` clip. Risk is materially lower than the
+scaffold feared.
+
+| Page | Widths | Result | Status |
+|---|---|---|---|
+| Home (`/`) | 360/390/768/1024 | overflow 0; hero + cards stack; hamburger present | ✅ |
+| Mega-menu drawer (open) | 360 | overflow 0; slide-in + backdrop + close work | ✅ |
+| Register (`/register`) | 360/390/768/1024 | overflow 0; full auth card fits 360px | ✅ |
+| Login (`/login`) | 360/390/768/1024 | overflow 0 | ✅ |
+| Catalog (`/learn`) | 360/390/768/1024 | overflow 0 (chrome; catalog empty) | ✅ |
+| Contact (`/contact`) | 360/390/768/1024 | overflow 0 | ✅ |
+| Chords index (`/library/chords`) | 360/768 | overflow 0 (chrome; grid empty) | ✅ chrome |
+| Songs index (`/library/songs`) | 360/768 | overflow 0 (chrome; grid empty) | ✅ chrome |
+| Rhythms index (`/library/rhythms`) | 360/768 | overflow 0 (chrome; grid empty) | ✅ chrome |
+| Progressions index (`/library/progressions`) | 360/768 | overflow 0 (chrome; empty) | ✅ chrome |
+| Theory (`/theory`) | 360/768 | overflow 0 | ✅ |
+
+Screenshots captured for each (scratchpad, not committed). Console noise seen
+(favicon 404, Vite HMR socket reset) is sandbox-only, not app bugs.
+
+### Not yet confirmed (needs a populated `sbn.db`)
+
+The DatabaseSeeder only seeds skill nodes + scale exercises — **no courses,
+lessons, leadsheets, chord diagrams, rhythm patterns, or products** — so the
+content widgets rendered empty and their at-width behavior is unverified:
+
+- Chord-library **card grid** at 360px (the 240px card / archetype tiles) and the
+  Chord **Show** page (1237 lines, largest surface).
+- Song **Viewer** notation/tab actually rendering wide, and **Cinema** mode
+  (`overflow-x:hidden` at line 711 could clip real content — check it).
+- **Course Player** body (sidebar + lesson HTML with `<sbn-*>` widgets).
+- **Shop** (needs `ProductSeeder`, which `DatabaseSeeder` doesn't call).
+
+### Live pass — round 2 (code review of content-heavy widgets), 16 Jul 2026
 
 | Page | Width | Issue | Severity | Status |
 |---|---|---|---|---|
 | _(e.g. Chords/Index)_ | _360px_ | _horizontal overflow from 240px cards_ | — | ⬜ |
+| Any `<sbn-chord>` / chord diagram (Chords, lessons, ChordCard) | small mobile | Fret + string lines invisible — `sbnRenderDiagramSVG` (`public/js/chords.js`) and `AnimatedChordDiagram.vue` drew grid lines at `stroke-width="0.4"` inside an 88×95/98 viewBox scaled via `width:100%`; below the viewBox's native size the stroke rendered under 1 physical px | High | ✅ Fixed 2026-07-16 — bumped to `stroke-width="1"` + `vector-effect="non-scaling-stroke"` (locks stroke to a constant on-screen px regardless of scale) in both renderers |
+| Ear-training widgets: `RepeatSignsWidget.vue` (staff lines, 5 diagrams), `Fretboard.vue`, `BasicChordsWidget.vue`, `VoiceLeading.vue` (string lines) | small mobile | Same pattern as the chord-diagram bug — sub-1 `stroke-width` (0.75–0.8) on fluid `width:100%` SVGs with no `vector-effect`, so thin strings/staff lines could vanish on narrow screens | Medium | ✅ Fixed 2026-07-16 — added `vector-effect="non-scaling-stroke"` (+ staff lines bumped 0.75→1) to all four |
+| Leadsheet Viewer ("Classic", `LeadsheetViewer.vue`) | ≤1024px | Two bugs in the `@media (max-width: 1024px)` block: (1) `.sbn-leadsheet-sidebar { order: -1 }` rendered the EduPanel *above* the score instead of below; (2) `.sbn-leadsheet-content`'s desktop `align-items: flex-start` carried into the mobile column layout, so children sized to their own content width instead of stretching — Chords/Analysis view (intrinsic-width flex rows) rendered narrower than full width | High | ✅ Fixed 2026-07-16 — `order: 1` on the sidebar (after main), `align-items: stretch` + explicit `.sbn-leadsheet-main { width: 100% }` added to the media query. Cinema not yet audited — same review pending. |
+| Transport bar (`HoverRevealDeck.vue`, shared by Classic + Cinema) | touch devices | Reveal was driven purely by `mouseenter`/`mouseleave` (`useHoverRevealTransport.js`) — touch has no real hover signal, so the deck only flashed briefly on tap and stayed hidden otherwise | High | ✅ Fixed 2026-07-16 — `@media (hover: none)` forces `.sbn-hover-deck.is-hidden` to render visible, so touch/coarse-pointer devices always show the deck (matches standard mobile media-player UX: hover-reveal is a mouse-only affordance, always-visible controls is the touch default) |
+| Transport play/pause button (`TransportDeck.vue`, shared by Classic + Cinema) | all | Raw Unicode glyphs (`▶` / `❚❚`) for the primary button — renders inconsistently (weight/alignment) across platform fonts, reported as an "ugly" icon in Classic | Low | ✅ Fixed 2026-07-16 — replaced with inline SVG icons (`.tdeck-icon`), consistent rendering everywhere |
+| Cinema hero "Now Playing" chord card (`StageHeroNow.vue`) | ≤768px | `.stage-hero-content` kept its desktop 2-col grid (`1fr auto`) with the chord-card diagram locked at `width: 180px` all the way down — combined with the card's 32px side padding, that left almost no room for the chord-name glyph on a phone, so it overflowed/squashed instead of reflowing | High | ✅ Fixed 2026-07-16 — added a `@media (max-width: 768px)` block that stacks glyph + diagram instead of squeezing them side by side, shrinks the diagram to 140px, reduces glyph font-size, and switches the absolutely-positioned beat row to normal flow (it was pinned to the card's bottom edge, which only worked with the old fixed 2-col height) |
+| Cinema top bar (`StageTopBar.vue`) | ≤768px | Renders the same breadcrumb row as Classic (title/segments + Options menu + Classic/Cinema `ViewToggle`) but hand-duplicated `Breadcrumb.vue`'s markup instead of using the component, so it never got Classic's `flex-wrap: wrap` treatment (which lived in `LeadsheetViewer.vue`, reaching only Classic's own `<Breadcrumb>` instance) — row overflowed horizontally on phones instead of wrapping | High | ✅ Fixed 2026-07-16 — refactored `StageTopBar.vue` to actually render `<Breadcrumb>` (Options menu + `ViewToggle` moved into its `#actions` slot) instead of duplicating its markup, eliminating the drift risk entirely rather than re-patching a second copy |
+| Breadcrumb trail too long on phone (app-wide — every page using `Breadcrumb.vue`, plus Cinema via the fix above) | ≤640px | Full multi-level trails (e.g. `Songs › Bossa Nova › Beginner › Wave`) plus the page's own action buttons (Options menu, view toggle) didn't fit on a phone width | Medium | ✅ Fixed 2026-07-16 — moved the `flex-wrap` mobile treatment *and* added segment truncation directly into `Breadcrumb.vue` (via `matchMedia('(max-width: 640px)')`): shows at most the last 2 levels (immediate parent + current page) on phone, full trail everywhere else. Centralizing in the shared component (rather than per-page CSS) means it's automatically app-wide and can't drift out of sync the way Cinema's top bar just did |
+| Options dropdown (`TopBarMenu.vue`, shared by Classic + Cinema) | ≤640px | `.tbm-panel` is a fixed 220px popover anchored via `right: 0` *relative to its trigger button*. Once the header row wraps (the fix above), the Options trigger is often the first item on its own line — i.e. near the viewport's **left** edge — so a right-anchored panel would render mostly off-screen to the left and be unreachable/invisible under the page's `overflow-x: hidden` | Medium | ✅ Fixed 2026-07-16 — `max-width: calc(100vw - 32px)` safety clamp, plus `@media (max-width: 640px) { right: auto; left: 0 }` to anchor from the trigger's left edge instead, which stays on-screen given the trigger's own likely position after wrap |
+| Everything else checked this pass: `EduPanel.vue`, `RateSlider.vue`, `ViewToggle.vue`, `Breadcrumb.vue`, `StageSectionsGrid.vue` (horizontal-scroll chord/tab strips — scrolling by design, not a bug), `VideoEmbed.vue`, `ChordCard.vue` | — | No fixed-width/overflow issues found — all fluid or intentionally scrollable | — | ✅ Reviewed 2026-07-16, no changes needed |
+
+### Live pass — round 3 (filter-sidebar mobile drawer), 17 Jul 2026
+
+| Page | Width | Issue | Severity | Status |
+|---|---|---|---|---|
+| Songs/Index, Chords/Index | 900–1024px (unfolded-foldable-phone range) | Filter sidebar's page-CSS `@media(1024px)` stacking rule and the sidebar's own `@media(900px)` full-width rule fought each other — the sidebar's CSS class (`sbn-lib-filter-sidebar`) never matched the selector each page's own stylesheet was targeting (`sbn-filter-sidebar`), so it rendered as a squeezed fixed-width column instead of stacking full width. | High — core UX broken at a real, common width | ✅ Fixed — replaced with a mobile drawer (`FilterToggleButton`/`FilterSidebar` components), breakpoints aligned to 900px everywhere |
+| All library pages (Songs, Chords, Rhythms, Courses, Progressions, Theory) | ≤600px | Filter sidebar was `display: none` below 600px — filters were simply unreachable on a real phone, not just squeezed. | High | ✅ Fixed — same drawer fix; sidebar is reachable via the "Filters" toggle at every width now |
+| Shop/Index | ≤900px | Missed in the first pass (7 pages share this sidebar pattern; Shop wasn't in the initial audit of who uses it). CSS change made the sidebar an off-canvas drawer with no toggle button to open it — briefly a regression, not just a pre-existing bug. | High (temporary) | ✅ Fixed same session |
+| Songs/Index | any | Composer filter rendered all 40 server-capped names as flat pills in the 220px sidebar column — not a responsive bug per se, but unusable content density. | Medium | ✅ Fixed — capped to 10 visible + "+N more" toggle |
+| Progressions/Index | "View all" deep-link | Found alongside the filter-sidebar work: the "View all" link scoping bug (see `SBN-Progression-Library-Reference.md`) — cross-linking here since it was fixed in the same pass. | Medium | ✅ Fixed |
+
+_Originally verified via headless-Chromium screenshots of static HTML repros
+(real compiled CSS, hand-built markup) at 390/700/890/950/1024/1200px in a
+cloud session with no DB access — **since re-verified live** against the real
+app + populated `sbn.db` via Herd, 2026-07-18 (see status note at the top of
+this doc)._
 
 ---
 
 ## Next steps
 
-1. Stand up the app with a populated DB and run the visual pass above.
-2. Fill the Findings table; fix the clear overflow cases (usually a missing
-   `max-width: 100%` or a media-query override for a fixed px width).
+1. **Content pass**: run the same Playwright harness (or the live Herd setup
+   now confirmed working, see top-of-doc status) against a populated
+   `sbn.db` and drive the remaining "not yet confirmed" surfaces at 360/768:
+   Chord Library **card grid** (240px card/archetype tiles) and Chord **Show**
+   page, **Course Player** body content (sidebar + lesson HTML with `<sbn-*>`
+   widgets), and **Shop** (needs `ProductSeeder`, which `DatabaseSeeder`
+   doesn't call).
+2. Fix any content-overflow cases found (usually a missing `max-width: 100%`
+   or an `overflow-x:auto` wrapper on a wide notation/tab block).
 3. Decide whether the tab editor / admin surfaces are in scope for mobile at all.
+
+### Sandbox setup notes (for the next session)
+
+- This is a fresh cloud clone — **no Windows mount, no `sbn.db`**; the
+  CLAUDE.md db-checkout workflow does not apply here.
+- `composer install` must be a **single** run with `--prefer-dist` (two
+  concurrent runs corrupt the laravel/framework clone: "reference is not a
+  tree"). Root disables plugins; `--no-scripts --no-plugins` is fine.
+- Playwright is pinned to a version whose auto-download browser is absent —
+  launch with `executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'`.
+- `DatabaseSeeder`'s test-user `create()` throws on a second run (unique email);
+  create users with `updateOrCreate` via tinker instead.

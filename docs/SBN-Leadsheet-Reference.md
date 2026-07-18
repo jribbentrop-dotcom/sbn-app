@@ -356,7 +356,7 @@ Rendered as an absolutely-positioned `<div class="sbn-ve-prog-box">` per box ins
 
 `<TransportDeck>` (prev/play/next, click-seek section-tinted track, `<RateSlider>` ±20% speed, no loop — `show-loop="false"`, since the Tone.js engine has no loop concept yet) sits inside `<HoverRevealDeck variant="score">`, itself inside `.sbn-leadsheet-main`. `position: sticky; bottom: 12vh` (`8vh` on mobile) — floats above the very bottom of the viewport rather than flush against it.
 
-**Hover-reveal, not scroll-based.** The deck is invisible until hovered; the mouseenter/mouseleave listeners live on `.sbn-leadsheet-main` itself (the whole score column), not on the deck (which can't host a meaningful hover target while translated off-screen). `useHoverRevealTransport()` composable just holds the boolean; `HoverRevealDeck` is presentational only, taking `visible` as a prop.
+**Hover-reveal, not scroll-based — desktop only.** The deck is invisible until hovered; the mouseenter/mouseleave listeners live on `.sbn-leadsheet-main` itself (the whole score column), not on the deck (which can't host a meaningful hover target while translated off-screen). `useHoverRevealTransport()` composable just holds the boolean; `HoverRevealDeck` is presentational only, taking `visible` as a prop. **Touch devices always show the deck** (mobile fix, 2026-07-16): `@media (hover: none)` in `HoverRevealDeck.vue` forces `.sbn-hover-deck.is-hidden` to render visible, since touch has no real hover signal and the deck would otherwise only flash briefly on tap. Hover-reveal remains the mouse-only affordance; always-visible is the touch default.
 
 Bar-vs-beat adapter: the audio engine is beat-indexed, `TransportDeck` works in bars — `currentBar`/`totalBars` are derived (`Math.floor`/`Math.round` against `beatsPerMeasure`), and `onPrevBar`/`onNextBar`/`onDeckSeekBar` translate back to `seekToMeasure`/`onTransportSeek` beat calls.
 
@@ -449,6 +449,8 @@ Exposes via `defineExpose`: `play()`, `pause()`, `seekTo(seconds)` — proxied t
 
 `currentChordCard` is the `ChordDiagramData` for the current chord. `ChordCard` uses `onChordClick` if provided; otherwise clicking navigates to `/library/chords/{slug}?root={root_note}` in a new tab.
 
+**Mobile reflow (2026-07-16):** `.stage-hero-content`'s desktop 2-col grid (`1fr auto`) kept the chord-card diagram locked at `width: 180px` all the way down, which with the card's 32px side padding left almost no room for the chord-name glyph on a phone. `@media (max-width: 768px)` now stacks glyph + diagram instead of squeezing them side by side, shrinks the diagram to 140px, reduces glyph font-size, and switches the absolutely-positioned beat row to normal flow (it was pinned to the card's bottom edge, which only worked with the old fixed 2-col height). **Flagged 2026-07-18 as a candidate for a deeper mobile redesign** — the hero chord panel may not be worth the mobile screen space at all; see `docs/SBN-Mobile-Audit.md` § Open design follow-ups.
+
 ### 8.4 `StageSectionsGrid`
 
 Props: `sections`, `currentBarIndex`, `fractionalPlayPosition`, `playing`, `chordVoicings`, `activeVoltaPass`, `tabModel`, `tabHasData`, `timeSignature`.
@@ -506,7 +508,7 @@ Unified 2026-07-04 so the two views feel like one app with a mode switch, not tw
 | Component | Role | Notes |
 |---|---|---|
 | `Breadcrumb.vue` | Songs → style → difficulty → title trail, gradient band | `size="lg"` variant (taller, fully-rounded) used by both the classic Viewer and `StageTopBar` (which renders the shared `.sbn-breadcrumb .sbn-breadcrumb--cat .sbn-breadcrumb--lg` classes directly, not a copy) |
-| `TopBarMenu.vue` | Generic "Options ▾" dropdown, click-outside + Escape to close | Holds whatever secondary switches a page has (arrangement, display mode, backing track) so the top bar doesn't keep growing new pinned buttons |
+| `TopBarMenu.vue` | Generic "Options ▾" dropdown, click-outside + Escape to close | Holds whatever secondary switches a page has (arrangement, display mode, backing track) so the top bar doesn't keep growing new pinned buttons. `.tbm-panel` right-anchors to its trigger by default; on `@media (max-width: 640px)` it switches to `right: auto; left: 0` (mobile fix, 2026-07-16 — once the header row wraps below 640px the Options trigger can end up near the viewport's left edge, and a right-anchored 220px panel would render mostly off-screen) plus a `max-width: calc(100vw - 32px)` safety clamp at all widths |
 | `ViewToggle.vue` | Pinned Classic/Cinema two-segment pill | Only pinned control; the "primary switch experience" action, per its own design doc discussion |
 | `TransportDeck.vue` | prev/play/next, click-seek section-tinted track, `<RateSlider>`, optional Loop | Was Cinema-only (`StageTransportDeck.vue`); made host-agnostic — CSS reads `var(--stage-accent, var(--clr-accent))` etc. so it looks right on both the plain Viewer surface and Cinema's per-style `--stage-*` palette. `showLoop` prop (default true) lets Viewer omit Loop until its audio composables actually support it. |
 | `RateSlider.vue` | ±20% speed slider (0.8×–1.2×), same look both places | Drives *different* backends — see §6.7's "not a shared mechanism" note |
@@ -516,6 +518,8 @@ Unified 2026-07-04 so the two views feel like one app with a mode switch, not tw
 **Cinema's video overlay only renders for self-hosted video** (`videoType !== 'youtube'`) — YouTube's own iframe chrome already covers play/seek, and layering a second transport on top of it would fight the native controls. YouTube/no-video songs on Cinema rely on Space/←/→ keyboard shortcuts only; there's no fallback static deck.
 
 `StageHeroNow` exposes the overlay via a scoped slot (`#overlay="{ visible }"`) so Cinema.vue's `<HoverRevealDeck>` gets the hover state without `StageHeroNow` needing to know anything about the deck's internals.
+
+**Mobile pass, 2026-07-16.** `StageTopBar.vue` used to hand-duplicate `Breadcrumb.vue`'s markup instead of rendering the component, so it never got the classic Viewer's `flex-wrap: wrap` treatment (that CSS lived in `LeadsheetViewer.vue`, reaching only its own `<Breadcrumb>` instance) and overflowed horizontally on phones. Fixed by refactoring `StageTopBar.vue` to actually render `<Breadcrumb>` (Options menu + `ViewToggle` moved into its `#actions` slot) — this also means the two views can no longer drift out of sync on breadcrumb behavior the way they just did. Same pass added **app-wide segment truncation** directly into `Breadcrumb.vue` (`matchMedia('(max-width: 640px)')`, not per-page CSS): shows at most the last 2 levels (immediate parent + current page) on phone, full trail everywhere else — centralizing it there means every consumer (Classic, Cinema, library pages) gets it automatically.
 
 ---
 

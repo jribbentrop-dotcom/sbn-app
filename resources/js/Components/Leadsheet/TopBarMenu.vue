@@ -80,7 +80,9 @@ onUnmounted(() => {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 220px;
+  width: 220px;
+  /* Clamped so the panel can never be wider than the viewport allows. */
+  max-width: calc(100vw - 32px);
   background: var(--clr-surface);
   border: 1px solid var(--clr-border);
   border-radius: var(--radius);
@@ -91,5 +93,18 @@ onUnmounted(() => {
   gap: 12px;
   z-index: 50;
   color: var(--clr-text);
+}
+
+/* right:0 anchors the panel to the trigger's right edge — fine on desktop,
+   where the trigger sits near the header's own right edge. On a wrapped
+   mobile header row (see LeadsheetViewer/StageTopBar's flex-wrap at 768px)
+   the trigger is often the first item on its line, near the LEFT edge
+   instead, which would push a right-anchored panel mostly off-screen.
+   Anchor from the left there instead. */
+@media (max-width: 640px) {
+  .tbm-panel {
+    right: auto;
+    left: 0;
+  }
 }
 </style>
