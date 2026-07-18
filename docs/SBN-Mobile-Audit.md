@@ -226,6 +226,29 @@ each properly (mockup/decision first) rather than patching CSS in place.
    the transport/notation. Consider **dropping the hero chord panel on
    mobile** (or replacing it with something lighter) rather than continuing
    to shrink it to fit.
+3. **Filter drawer toggle button needs a visual upgrade + persistent
+   visibility.** Flagged 2026-07-18 live-testing the round-3 filter-sidebar
+   drawer work. Two issues in `FilterToggleButton.vue` /
+   `.sbn-lib-filter-toggle` (`public/css/sbn-design-system.css:4940`):
+   - The button is a plain bordered pill (`border: 2px solid var(--clr-border)`,
+     white background, text + tiny SVG icon) — reads as a generic secondary
+     button, not an obvious "open filters" affordance. Needs a proper visual
+     pass (icon treatment, maybe a badge/pill style consistent with the rest
+     of the mobile chrome).
+   - It's only reachable by scrolling to wherever it sits in the page flow
+     (`margin: 14px auto 0`, static position) — on a long results list the
+     user has to scroll back up to open filters again. Consider making it
+     persistently visible (sticky/fixed position, e.g. bottom-right FAB or
+     sticky top bar) rather than a static in-flow button.
+4. **Songs library needs a cap on the Rhythm/Style filter, same as the
+   Composer fix.** `resources/js/Pages/Library/Songs/Index.vue:265-275`
+   renders every entry in `props.rhythms` as a flat pill
+   (`v-for="r in rhythms"`) with no cap — the same "unusable content
+   density in a narrow sidebar column" problem the Composer filter had
+   before round 3 capped it to 10 + "+N more" (see `COMPOSER_VISIBLE_COUNT`
+   / `visibleComposers` / `hiddenComposerCount` in the same file for the
+   pattern to copy). Apply the identical expand/collapse treatment to the
+   Rhythm list.
 
 ---
 
