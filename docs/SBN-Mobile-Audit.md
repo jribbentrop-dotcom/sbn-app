@@ -158,6 +158,37 @@ card. Desktop/tablet untouched (scoped ≤640px).
 
 ---
 
+## Unrelated console noise seen while testing (not mobile, not a regression)
+
+Flagged 2026-07-18 in the browser console while live-testing the merged mobile
+branches on `/library/songs/allegretto-in-b-minor/viewer`. Neither item was
+introduced by the mobile work — confirmed via `git log` that the responsible
+files weren't touched by `mobile-app-audit` or `chord-diagram-mobile-visibility`
+(last touched weeks earlier, in unrelated commits `d8dd4d7a` / `9bdca854`).
+Logging here only so they aren't lost; not in scope for the mobile branches.
+
+- **`[Vue warn] Invalid watch source: null` spammed once per chord card** in
+  `LeadsheetViewer` → `ChordGridView` → `ChordCard`. Root cause:
+  `resources/js/tab-editor/components/ChordCard.vue:148` does
+  `watch(inlineRenameTarget, ...)` where `inlineRenameTarget =
+  inject('inlineRenameTarget', null)`. This `ChordCard.vue` is shared between
+  the admin tab editor (which provides that inject key) and the public
+  read-only `LeadsheetViewer` (which doesn't), so in the viewer the inject
+  always resolves to the literal default `null` and `watch(null, …)` is
+  invalid — Vue warns and no-ops. Harmless (rename is a no-op in read-only
+  mode anyway) but noisy on every leadsheet page. **Fix:** guard with
+  `if (!inlineRenameTarget) return` before the `watch()` call, or only
+  register the watch when the inject key is actually provided (e.g.
+  `inlineRenameTarget && watch(...)`). Small, self-contained — safe to just
+  fix directly next time someone's in this file rather than needing its own
+  session.
+- **`WebSocket connection to 'ws://localhost:8080/app/...' failed`** — Laravel
+  Reverb (broadcasting) isn't running as a local process in this dev setup.
+  Expected/harmless unless testing live community/messages features; not a
+  code bug.
+
+---
+
 ## Open design follow-ups (not bugs — need a dedicated mobile session)
 
 Flagged 2026-07-18 while reviewing the merged chrome/structure + stroke-width
