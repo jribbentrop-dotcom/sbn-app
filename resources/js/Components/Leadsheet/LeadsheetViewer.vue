@@ -1228,21 +1228,32 @@ provide('globalIndexOf', (si, mi) => {
 @media (max-width: 1024px) {
   .sbn-leadsheet-content {
     flex-direction: column;
+    /* Base rule sets align-items:flex-start for the desktop row layout (so
+       the sticky sidebar doesn't stretch to the main column's height). In
+       column mode that same value applies to the cross axis (width) instead
+       — children shrink to their own content width rather than filling the
+       viewport, which is why Chords/Analysis (intrinsic-width flex rows)
+       rendered narrower than full width on mobile. Stretch overrides that. */
+    align-items: stretch;
+  }
+
+  .sbn-leadsheet-main {
+    width: 100%;
   }
 
   .sbn-leadsheet-sidebar {
     position: static;
     width: 100%;
     min-width: 100%;
-    order: -1;
+    /* Sits below the score on mobile — order:1 (after .sbn-leadsheet-main's
+       order:0), not above it. */
+    order: 1;
   }
 }
 
 @media (max-width: 768px) {
-  .sbn-breadcrumb {
-    flex-wrap: wrap;
-    row-gap: 10px;
-  }
+  /* .sbn-breadcrumb's flex-wrap now lives in Breadcrumb.vue itself, shared
+     by every consumer instead of duplicated per-page. */
 
   .sbn-leadsheet-controls {
     flex-wrap: wrap;

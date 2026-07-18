@@ -466,4 +466,48 @@ defineExpose({
     min-height: 220px;
   }
 }
+
+/* Below ~768px the Now Playing card's own two-column layout (chord glyph +
+   fixed 180px chord card, side by side) no longer fits — .stage-hero-card's
+   32px side padding plus the diagram's fixed width leaves too little room
+   for the chord glyph, so it was overflowing/squashing rather than
+   reflowing. Stack glyph and diagram instead of trying to shrink them into
+   an ever-narrower row. */
+@media (max-width: 768px) {
+  .stage-hero-card {
+    padding: 20px;
+    min-height: 0;
+  }
+
+  .stage-hero-content {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+    gap: 18px;
+  }
+
+  .stage-hero-left {
+    width: 100%;
+  }
+
+  .stage-hero-chord {
+    font-size: 64px;
+  }
+
+  .stage-next-row {
+    justify-content: center;
+  }
+
+  .stage-hero-diagram {
+    width: 140px;
+  }
+
+  /* Card height is now driven by the stacked content instead of the
+     min-height above, so the beat row needs to sit in normal flow (not
+     absolutely pinned to the bottom) or it'll overlap the diagram. */
+  .stage-beat-row {
+    position: static;
+    margin-top: 20px;
+  }
+}
 </style>

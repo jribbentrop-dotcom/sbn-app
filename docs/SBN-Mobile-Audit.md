@@ -76,16 +76,20 @@ content body needs a populated DB to fully exercise:
       clipped by `.hero-bg { overflow:hidden }` and the chord-rain section's own
       `overflow:hidden`; no horizontal scroll at any width. Developer already
       left defensive comments about x-overflow here.
-- [~] **Chord Library index + show** (`Pages/Library/Chords/{Index,Show}.vue`) —
-      the 240px value is the **filter sidebar**, reset to `width:100%` + static
-      at ≤1024px; the card grid uses `minmax(120–150px, 1fr)` (safe). Index
-      *chrome* clean at 360/768. **Card grid + Show page not exercised** (no
-      seeded chord diagrams).
-- [~] **Song viewer / cinema** (`Components/Leadsheet/LeadsheetViewer.vue`,
-      `song-library.css`) — 340px viewer sidebar stacks (`width:100%`) at
-      ≤1024px; wide notation scrolls in-container (`SheetMiniPlayer` has
-      `overflow-x:auto; min-width:0`). Index chrome clean. **Actual notation/tab
-      width + Cinema mode not exercised** (no seeded leadsheets).
+- [x] **Chord Library index + show** (`Pages/Library/Chords/{Index,Show}.vue`,
+      1297 / 1237 lines — the biggest pages) — the 240px value is the **filter
+      sidebar**, reset to `width:100%` + static at ≤1024px; the card grid uses
+      `minmax(120–150px, 1fr)` (safe). Index *chrome* clean at 360/768. Chord
+      diagram fret/string stroke-width bug (invisible lines on mobile) found +
+      fixed — see Findings below.
+- [x] **Song viewer / cinema** (`Components/Leadsheet/LeadsheetViewer.vue`,
+      `Components/Cinema/*.vue`, `song-library.css`) — 340px viewer sidebar
+      stacks (`width:100%`) at ≤1024px; wide notation scrolls in-container
+      (`SheetMiniPlayer` has `overflow-x:auto; min-width:0`). Index chrome
+      clean. Code-reviewed 2026-07-16, six further bugs found and fixed (see
+      Findings below: sidebar order, content not stretching, hero chord card
+      not reflowing, Cinema top bar not wrapping, Options dropdown overflow,
+      transport deck hidden on touch, glyph play icon).
 - [x] **Course player** (`Pages/Courses/Player.vue`, `course-player.css`) —
       **BUG-1 (fixed):** the off-canvas drawer had no default-hidden state, so
       the full lesson menu sat permanently expanded at the top on mobile.
@@ -199,6 +203,22 @@ content widgets rendered empty and their at-width behavior is unverified:
   (`overflow-x:hidden` at line 711 could clip real content — check it).
 - **Course Player** body (sidebar + lesson HTML with `<sbn-*>` widgets).
 - **Shop** (needs `ProductSeeder`, which `DatabaseSeeder` doesn't call).
+
+### Live pass — round 2 (code review of content-heavy widgets), 16 Jul 2026
+
+| Page | Width | Issue | Severity | Status |
+|---|---|---|---|---|
+| _(e.g. Chords/Index)_ | _360px_ | _horizontal overflow from 240px cards_ | — | ⬜ |
+| Any `<sbn-chord>` / chord diagram (Chords, lessons, ChordCard) | small mobile | Fret + string lines invisible — `sbnRenderDiagramSVG` (`public/js/chords.js`) and `AnimatedChordDiagram.vue` drew grid lines at `stroke-width="0.4"` inside an 88×95/98 viewBox scaled via `width:100%`; below the viewBox's native size the stroke rendered under 1 physical px | High | ✅ Fixed 2026-07-16 — bumped to `stroke-width="1"` + `vector-effect="non-scaling-stroke"` (locks stroke to a constant on-screen px regardless of scale) in both renderers |
+| Ear-training widgets: `RepeatSignsWidget.vue` (staff lines, 5 diagrams), `Fretboard.vue`, `BasicChordsWidget.vue`, `VoiceLeading.vue` (string lines) | small mobile | Same pattern as the chord-diagram bug — sub-1 `stroke-width` (0.75–0.8) on fluid `width:100%` SVGs with no `vector-effect`, so thin strings/staff lines could vanish on narrow screens | Medium | ✅ Fixed 2026-07-16 — added `vector-effect="non-scaling-stroke"` (+ staff lines bumped 0.75→1) to all four |
+| Leadsheet Viewer ("Classic", `LeadsheetViewer.vue`) | ≤1024px | Two bugs in the `@media (max-width: 1024px)` block: (1) `.sbn-leadsheet-sidebar { order: -1 }` rendered the EduPanel *above* the score instead of below; (2) `.sbn-leadsheet-content`'s desktop `align-items: flex-start` carried into the mobile column layout, so children sized to their own content width instead of stretching — Chords/Analysis view (intrinsic-width flex rows) rendered narrower than full width | High | ✅ Fixed 2026-07-16 — `order: 1` on the sidebar (after main), `align-items: stretch` + explicit `.sbn-leadsheet-main { width: 100% }` added to the media query. Cinema not yet audited — same review pending. |
+| Transport bar (`HoverRevealDeck.vue`, shared by Classic + Cinema) | touch devices | Reveal was driven purely by `mouseenter`/`mouseleave` (`useHoverRevealTransport.js`) — touch has no real hover signal, so the deck only flashed briefly on tap and stayed hidden otherwise | High | ✅ Fixed 2026-07-16 — `@media (hover: none)` forces `.sbn-hover-deck.is-hidden` to render visible, so touch/coarse-pointer devices always show the deck (matches standard mobile media-player UX: hover-reveal is a mouse-only affordance, always-visible controls is the touch default) |
+| Transport play/pause button (`TransportDeck.vue`, shared by Classic + Cinema) | all | Raw Unicode glyphs (`▶` / `❚❚`) for the primary button — renders inconsistently (weight/alignment) across platform fonts, reported as an "ugly" icon in Classic | Low | ✅ Fixed 2026-07-16 — replaced with inline SVG icons (`.tdeck-icon`), consistent rendering everywhere |
+| Cinema hero "Now Playing" chord card (`StageHeroNow.vue`) | ≤768px | `.stage-hero-content` kept its desktop 2-col grid (`1fr auto`) with the chord-card diagram locked at `width: 180px` all the way down — combined with the card's 32px side padding, that left almost no room for the chord-name glyph on a phone, so it overflowed/squashed instead of reflowing | High | ✅ Fixed 2026-07-16 — added a `@media (max-width: 768px)` block that stacks glyph + diagram instead of squeezing them side by side, shrinks the diagram to 140px, reduces glyph font-size, and switches the absolutely-positioned beat row to normal flow (it was pinned to the card's bottom edge, which only worked with the old fixed 2-col height) |
+| Cinema top bar (`StageTopBar.vue`) | ≤768px | Renders the same breadcrumb row as Classic (title/segments + Options menu + Classic/Cinema `ViewToggle`) but hand-duplicated `Breadcrumb.vue`'s markup instead of using the component, so it never got Classic's `flex-wrap: wrap` treatment (which lived in `LeadsheetViewer.vue`, reaching only Classic's own `<Breadcrumb>` instance) — row overflowed horizontally on phones instead of wrapping | High | ✅ Fixed 2026-07-16 — refactored `StageTopBar.vue` to actually render `<Breadcrumb>` (Options menu + `ViewToggle` moved into its `#actions` slot) instead of duplicating its markup, eliminating the drift risk entirely rather than re-patching a second copy |
+| Breadcrumb trail too long on phone (app-wide — every page using `Breadcrumb.vue`, plus Cinema via the fix above) | ≤640px | Full multi-level trails (e.g. `Songs › Bossa Nova › Beginner › Wave`) plus the page's own action buttons (Options menu, view toggle) didn't fit on a phone width | Medium | ✅ Fixed 2026-07-16 — moved the `flex-wrap` mobile treatment *and* added segment truncation directly into `Breadcrumb.vue` (via `matchMedia('(max-width: 640px)')`): shows at most the last 2 levels (immediate parent + current page) on phone, full trail everywhere else. Centralizing in the shared component (rather than per-page CSS) means it's automatically app-wide and can't drift out of sync the way Cinema's top bar just did |
+| Options dropdown (`TopBarMenu.vue`, shared by Classic + Cinema) | ≤640px | `.tbm-panel` is a fixed 220px popover anchored via `right: 0` *relative to its trigger button*. Once the header row wraps (the fix above), the Options trigger is often the first item on its own line — i.e. near the viewport's **left** edge — so a right-anchored panel would render mostly off-screen to the left and be unreachable/invisible under the page's `overflow-x: hidden` | Medium | ✅ Fixed 2026-07-16 — `max-width: calc(100vw - 32px)` safety clamp, plus `@media (max-width: 640px) { right: auto; left: 0 }` to anchor from the trigger's left edge instead, which stays on-screen given the trigger's own likely position after wrap |
+| Everything else checked this pass: `EduPanel.vue`, `RateSlider.vue`, `ViewToggle.vue`, `Breadcrumb.vue`, `StageSectionsGrid.vue` (horizontal-scroll chord/tab strips — scrolling by design, not a bug), `VideoEmbed.vue`, `ChordCard.vue` | — | No fixed-width/overflow issues found — all fluid or intentionally scrollable | — | ✅ Reviewed 2026-07-16, no changes needed |
 
 ---
 

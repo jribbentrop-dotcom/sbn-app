@@ -79,7 +79,7 @@ function staffLines(yBase: number) {
         <div class="rs-diagram">
           <!-- Repeat barlines -->
           <svg v-if="CONCEPTS[idx].id === 'repeat'" width="100%" :viewBox="`0 0 ${STAFF_W} 60`" style="display:block">
-            <line v-for="y in staffLines(10)" :key="y" :x1="STAFF_LEFT" :y1="y" :x2="STAFF_RIGHT" :y2="y" stroke="rgba(255,255,255,0.2)" stroke-width="0.75"/>
+            <line v-for="y in staffLines(10)" :key="y" :x1="STAFF_LEFT" :y1="y" :x2="STAFF_RIGHT" :y2="y" stroke="rgba(255,255,255,0.2)" stroke-width="1" vector-effect="non-scaling-stroke"/>
             <line x1="40" y1="10" x2="40" y2="42" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
             <line x1="43" y1="10" x2="43" y2="42" stroke="rgba(255,255,255,0.7)" stroke-width="2.5"/>
             <circle cx="47" cy="22" r="2.5" fill="#f59e0b"/>
@@ -94,7 +94,7 @@ function staffLines(yBase: number) {
 
           <!-- Volta 1 -->
           <svg v-else-if="CONCEPTS[idx].id === 'volta1'" width="100%" :viewBox="`0 0 ${STAFF_W} 75`" style="display:block">
-            <line v-for="y in staffLines(28)" :key="y" :x1="STAFF_LEFT" :y1="y" :x2="STAFF_RIGHT" :y2="y" stroke="rgba(255,255,255,0.2)" stroke-width="0.75"/>
+            <line v-for="y in staffLines(28)" :key="y" :x1="STAFF_LEFT" :y1="y" :x2="STAFF_RIGHT" :y2="y" stroke="rgba(255,255,255,0.2)" stroke-width="1" vector-effect="non-scaling-stroke"/>
             <line :x1="STAFF_LEFT" y1="28" :x2="STAFF_LEFT" y2="60" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
             <line x1="100" y1="28" x2="100" y2="60" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
             <line :x1="STAFF_RIGHT-10" y1="28" :x2="STAFF_RIGHT-10" y2="60" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
@@ -110,7 +110,7 @@ function staffLines(yBase: number) {
 
           <!-- Volta 2 -->
           <svg v-else-if="CONCEPTS[idx].id === 'volta2'" width="100%" :viewBox="`0 0 ${STAFF_W} 90`" style="display:block">
-            <line v-for="y in staffLines(35)" :key="y" :x1="STAFF_LEFT" :y1="y" :x2="STAFF_RIGHT" :y2="y" stroke="rgba(255,255,255,0.2)" stroke-width="0.75"/>
+            <line v-for="y in staffLines(35)" :key="y" :x1="STAFF_LEFT" :y1="y" :x2="STAFF_RIGHT" :y2="y" stroke="rgba(255,255,255,0.2)" stroke-width="1" vector-effect="non-scaling-stroke"/>
             <line :x1="STAFF_LEFT" y1="35" :x2="STAFF_LEFT" y2="67" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
             <line x1="100" y1="35" x2="100" y2="67" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
             <line :x1="STAFF_RIGHT-10" y1="35" :x2="STAFF_RIGHT-10" y2="67" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
@@ -127,7 +127,7 @@ function staffLines(yBase: number) {
 
           <!-- D.S. al Coda -->
           <svg v-else-if="CONCEPTS[idx].id === 'dalSegno'" width="100%" :viewBox="`0 0 ${STAFF_W} 65`" style="display:block">
-            <line v-for="y in staffLines(15)" :key="y" :x1="STAFF_LEFT" :y1="y" :x2="STAFF_RIGHT" :y2="y" stroke="rgba(255,255,255,0.2)" stroke-width="0.75"/>
+            <line v-for="y in staffLines(15)" :key="y" :x1="STAFF_LEFT" :y1="y" :x2="STAFF_RIGHT" :y2="y" stroke="rgba(255,255,255,0.2)" stroke-width="1" vector-effect="non-scaling-stroke"/>
             <text x="20" y="13" font-family="serif" font-size="16" fill="#f59e0b" opacity="0.9">𝄋</text>
             <text x="15" y="55" font-family="'DM Mono', monospace" font-size="7" fill="rgba(245,158,11,0.5)">§ sign</text>
             <text x="120" y="55" font-family="'DM Mono', monospace" font-size="8" fill="#f59e0b">D.S.</text>
@@ -138,7 +138,7 @@ function staffLines(yBase: number) {
 
           <!-- D.C. al Fine -->
           <svg v-else-if="CONCEPTS[idx].id === 'daCapo'" width="100%" :viewBox="`0 0 ${STAFF_W} 65`" style="display:block">
-            <line v-for="y in staffLines(15)" :key="y" :x1="STAFF_LEFT" :y1="y" :x2="STAFF_RIGHT" :y2="y" stroke="rgba(255,255,255,0.2)" stroke-width="0.75"/>
+            <line v-for="y in staffLines(15)" :key="y" :x1="STAFF_LEFT" :y1="y" :x2="STAFF_RIGHT" :y2="y" stroke="rgba(255,255,255,0.2)" stroke-width="1" vector-effect="non-scaling-stroke"/>
             <text x="90" y="55" font-family="'Cormorant Garamond', serif" font-size="11" fill="rgba(255,255,255,0.35)" font-style="italic">Fine</text>
             <line x1="90" y1="15" x2="90" y2="47" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
             <text x="175" y="55" font-family="'DM Mono', monospace" font-size="8" fill="#f59e0b">D.C.</text>

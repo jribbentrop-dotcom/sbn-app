@@ -423,7 +423,9 @@ The app is in beta: **all content is free, but viewing it requires a (free) acco
 ### Route gate
 - Gated behind `auth` middleware: all `/library/*`, `/theory`, the lesson **player**
   (`/learn/{course}/play[...]`), and the `api/sbn/*` JSON endpoints (data layer for those pages).
-- Public (marketing/teaser + auth): `/`, `/shop/*`, `/top10/*`, `/contact`, `/learn` + `/learn/{course}`
+- Public (marketing/teaser + auth): `/`, `/shop/*`, `/top10/*`, `/contact`, the legal/footer
+  pages (`/impressum`, `/privacy-policy`, `/cookie-policy`, `/terms`, `/about` — static
+  `Legal/*` Inertia pages, see `docs/SBN-Nav-Reference.md`), `/learn` + `/learn/{course}`
   (catalog + course detail), and `api/sbn/synced-player/{slug}` (feeds the Top10 SyncedPlayer demo).
 - Guests hitting a gated route are redirected to **`/register`** (not login) via
   `redirectGuestsTo()` in `bootstrap/app.php`. Both `RegisterController` and `LoginController` use

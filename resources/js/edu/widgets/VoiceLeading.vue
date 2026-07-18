@@ -193,7 +193,7 @@ function isVisible(dot: DotDef): boolean {
         <line v-for="(sw, si) in [2, 1.6, 1.3, 1, 0.8, 0.8]" :key="'str'+si"
           :x1="PAD_LEFT - 18" :y1="stringY(si)"
           :x2="PAD_LEFT + WINDOW_FRETS * FRET_GAP" :y2="stringY(si)"
-          stroke="rgba(255,255,255,0.2)" :stroke-width="sw"/>
+          stroke="rgba(255,255,255,0.2)" :stroke-width="sw" vector-effect="non-scaling-stroke"/>
 
         <!-- Mute markers -->
         <text v-for="dot in currentChord.dots.filter(d => d.fret === null)" :key="'mx'+dot.str"
