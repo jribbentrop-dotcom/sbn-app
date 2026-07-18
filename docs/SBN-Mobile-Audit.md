@@ -158,6 +158,31 @@ card. Desktop/tablet untouched (scoped ≤640px).
 
 ---
 
+## Open design follow-ups (not bugs — need a dedicated mobile session)
+
+Flagged 2026-07-18 while reviewing the merged chrome/structure + stroke-width
+passes live in the browser. These are redesigns, not overflow fixes — scope
+each properly (mockup/decision first) rather than patching CSS in place.
+
+1. **Course player menu feels detached from the course player on mobile.**
+   The BUG-1 fix (hidden-by-default off-canvas drawer, see above) makes the
+   menu *functional*, but the reviewer's reaction live was that the drawer
+   still reads as a bolted-on desktop sidebar rather than a mobile-native
+   pattern. Worth revisiting the "Open design question" already logged under
+   BUG-1: **should the course player become a full-screen, app-like mobile
+   experience** (e.g. a bottom-sheet or tab-bar lesson switcher instead of a
+   left-drawer clone)? Needs a design pass, not just CSS.
+2. **Cinema needs a mobile-specific redesign, not a reflow patch.** The
+   round-2 fix made `StageHeroNow.vue`'s hero chord card *not overflow* on
+   phones (stacks glyph + diagram, shrinks the diagram to 140px), but the
+   live reaction was that the hero chord panel probably shouldn't be there at
+   all on mobile — screen space is too tight for it to earn its place next to
+   the transport/notation. Consider **dropping the hero chord panel on
+   mobile** (or replacing it with something lighter) rather than continuing
+   to shrink it to fit.
+
+---
+
 ## Findings
 
 ### Live pass — round 1 (chrome / structure), 15 Jul 2026
