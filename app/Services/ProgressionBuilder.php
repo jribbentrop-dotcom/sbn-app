@@ -8,6 +8,7 @@ use App\Services\HarmonicContext;
 use App\Services\Builder\PhaseE\ExtensionTable;
 use App\Services\Builder\PhaseE\Interval;
 use App\Services\BuilderSettings;
+use App\Services\Harmony\ChordQualityMapper;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -30,11 +31,13 @@ class ProgressionBuilder
 {
     protected ChordShapeCalculator $calculator;
     protected BuilderSettings $settings;
+    protected ChordQualityMapper $qualityMapper;
 
     public function __construct(ChordShapeCalculator $calculator, BuilderSettings $settings)
     {
         $this->calculator = $calculator;
         $this->settings = $settings;
+        $this->qualityMapper = new ChordQualityMapper();
         ExtensionTable::initialize();
     }
 
@@ -1655,37 +1658,7 @@ class ProgressionBuilder
      */
     private function qualityToChordNameSuffix(string $quality): string
     {
-        $q = $this->normalizeQuality($quality);
-
-        $suffixMap = [
-            'maj'   => '',
-            'dom7'  => '7',
-            '7'     => '7',
-            'maj7'  => 'maj7',
-            'min'   => 'm',
-            'm'     => 'm',
-            'm7'    => 'm7',
-            'm7b5'  => 'm7b5',
-            'dim'   => 'dim',
-            'o'     => 'dim',
-            '°'     => 'dim',
-            'dim7'  => 'dim7',
-            'o7'    => 'dim7',
-            '°7'    => 'dim7',
-            'aug'   => 'aug',
-            'aug7'  => 'aug7',
-            'sus4'  => 'sus4',
-            'sus2'  => 'sus2',
-            'maj6'  => '6',
-            'm6'    => 'm6',
-            'mMaj7' => 'mMaj7',
-            'add9'  => 'add9',
-            '9'     => '9',
-            '11'    => '11',
-            '13'    => '13',
-        ];
-
-        return $suffixMap[$q] ?? $q;
+        return $this->qualityMapper->toChordNameSuffix($quality);
     }
 
     /**
@@ -1694,19 +1667,7 @@ class ProgressionBuilder
      */
     private function normalizeQuality(string $quality): string
     {
-        $q = trim($quality);
-
-        // Handle common aliases
-        $aliases = [
-            'dom7' => '7',
-            'dominant' => '7',
-            'major' => 'maj',
-            'minor' => 'm',
-            'half-dim' => 'm7b5',
-            'half-diminished' => 'm7b5',
-        ];
-
-        return $aliases[$q] ?? $q;
+        return $this->qualityMapper->normalizeAlias($quality);
     }
 
     /**

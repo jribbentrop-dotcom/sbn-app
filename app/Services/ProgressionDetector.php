@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ChordProgression;
 use App\Models\Leadsheet;
 use App\Models\LeadsheetVersion;
+use App\Services\Harmony\ChordQualityMapper;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -26,6 +27,9 @@ use Illuminate\Support\Facades\Log;
  */
 class ProgressionDetector
 {
+    /** Shared chord-quality string mapping (see ChordQualityMapper). */
+    private ChordQualityMapper $qualityMapper;
+
     // =========================================================================
     // CONSTANTS — CHROMATIC UTILITIES
     // =========================================================================
@@ -108,6 +112,7 @@ class ProgressionDetector
     public function __construct(LeadsheetParser $parser)
     {
         $this->parser = $parser;
+        $this->qualityMapper = new ChordQualityMapper();
     }
 
     // =========================================================================
@@ -281,27 +286,7 @@ class ProgressionDetector
      */
     private function normalizeQualityForDetection(string $quality): string
     {
-        $q = strtolower($quality);
-
-        // Already a known base quality — return as-is
-        $known = [
-            'maj7', 'maj', 'dom7', '7', 'm7', 'min7', '-7',
-            'min', 'm', 'minor', '-', 'm7b5', 'o7', 'dim7', 'dim', 'mmaj7',
-            'maj6', '6', 'm6', 'sus4', 'sus2', 'aug', 'aug7',
-        ];
-        if (in_array($q, $known)) {
-            return $q;
-        }
-
-        // Extended/concatenated forms — check longer prefixes first
-        if (preg_match('/^m7b5/', $q))    return 'm7b5';
-        if (preg_match('/^mmaj7/', $q))   return 'mmaj7';
-        if (preg_match('/^maj[79]/', $q)) return 'maj7';  // maj9, maj11, maj13 etc.
-        if (preg_match('/^m[79]/', $q))   return 'm7';    // m9, m11, m13 etc.
-        if (preg_match('/^-[79]/', $q))   return 'm7';    // jazz minus notation
-        if (preg_match('/^\d/', $q))      return 'dom7';  // 9, 9b9, 13b9 etc.
-
-        return $q;
+        return $this->qualityMapper->normalizeForFunction($quality);
     }
 
     /**
@@ -309,23 +294,7 @@ class ProgressionDetector
      */
     private function qualityToSuffix(string $quality): string
     {
-        $q = $this->normalizeQualityForDetection($quality);
-
-        if (in_array($q, ['maj7', 'maj6', '6'])) return 'maj7';
-        if ($q === 'maj')                         return '';
-        if (in_array($q, ['dom7', '7']))          return '7';
-        if (in_array($q, ['m7', 'min7', '-7']))   return 'm7';
-        if (in_array($q, ['min', 'm', 'minor', '-'])) return 'm';
-        if ($q === 'm7b5')                        return 'm7b5';
-        if (in_array($q, ['o7', 'dim7']))         return 'o7';
-        if ($q === 'dim')                         return 'o';
-        if ($q === 'mmaj7')                       return 'mMaj7';
-        if ($q === 'm6')                          return 'm6';
-        if ($q === 'sus4' || $q === 'sus2')       return $q;
-        if ($q === 'aug')                         return 'aug';
-        if ($q === 'aug7')                        return 'aug7';
-
-        return $quality; // fallback: pass through raw
+        return $this->qualityMapper->toRomanSuffix($quality);
     }
 
     /**
